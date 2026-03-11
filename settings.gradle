@@ -1,0 +1,36 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode = RepositoriesMode.PREFER_SETTINGS
+
+    repositories {
+        def repoUrl = System.getenv("MAVEN_REPO_URL") ?: providers.gradleProperty("mavenRepoUrl").orNull
+        def repoUser = System.getenv("MAVEN_REPO_USER") ?: providers.gradleProperty("mavenRepoUser").orNull
+        def repoPass = System.getenv("MAVEN_REPO_PASS") ?: providers.gradleProperty("mavenRepoPass").orNull
+        def hasValidRepoUrl = repoUrl && !repoUrl.contains('<') && !repoUrl.contains('>')
+
+        if (hasValidRepoUrl) {
+            maven {
+                url = uri(repoUrl)
+                if (repoUser && repoPass) {
+                    credentials {
+                        username = repoUser
+                        password = repoPass
+                    }
+                }
+            }
+        }
+
+        mavenLocal()
+        mavenCentral()
+        maven { url = uri("https://oss.sonatype.org/content/repositories/snapshots/") }
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
+rootProject.name = "pixscape-runtime"
