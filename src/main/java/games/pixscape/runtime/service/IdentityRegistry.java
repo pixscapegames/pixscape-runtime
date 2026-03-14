@@ -18,12 +18,14 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
  * This registry is only a cache / lookup index.
  *
  * V1 rules:
- * - stableId is unique when non-zero
+ * - stableId is unique when assigned
+ * - {@link #UNASSIGNED_STABLE_ID} means "not assigned"
  * - name is normalized and indexed as a multi-hit lookup
  * - name defaults to "unnamed" when null or blank
  */
 public final class IdentityRegistry {
 
+    public static final long UNASSIGNED_STABLE_ID = -1L;
     public static final String DEFAULT_NAME = "unnamed";
 
     private final World world;
@@ -34,6 +36,9 @@ public final class IdentityRegistry {
 
     /** Internal non-unique index: name -> entityIds. */
     private final ObjectMap<String, IntArray> byName = new ObjectMap<>();
+
+    /** Next candidate for stable id allocation. */
+    private long nextStableId = 1L;
 
     public IdentityRegistry(World world) {
         if (world == null) throw new IllegalArgumentException("world is null");
@@ -48,6 +53,7 @@ public final class IdentityRegistry {
     public void rebuild() {
         byStableId.clear();
         byName.clear();
+        nextStableId = 1L;
 
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PixscapeIdentityComponent.class))
@@ -59,6 +65,8 @@ public final class IdentityRegistry {
             if (!world.getEntityManager().isActive(eid)) continue;
             indexEntityFromComponent(eid);
         }
+
+        advanceNextStableId();
     }
 
     /**
@@ -74,6 +82,7 @@ public final class IdentityRegistry {
         if (!mIdentity.has(eid)) return;
 
         indexEntityFromComponent(eid);
+        advanceNextStableId();
     }
 
     /**
@@ -85,22 +94,93 @@ public final class IdentityRegistry {
     }
 
     /**
-     * Returns true if a non-zero stableId is already indexed.
+     * Allocates a new unique stable id without assigning it to any entity.
      */
-    public boolean hasStableId(long stableId) {
-        return stableId != 0L && byStableId.containsKey(stableId);
+    public long allocateStableId() {
+        advanceNextStableId();
+
+        long allocated = nextStableId;
+        nextStableId++;
+
+        return allocated;
     }
 
     /**
-     * Returns the active entity matching the given stableId, or -1.
+     * Returns the existing stable id of the entity, or allocates and assigns one
+     * if the entity does not have one yet.
+     *
+     * This method is convenient for ad-hoc creation or repair paths.
+     * Do not rely on it inside redo paths that must remain deterministic unless
+     * the allocated value is persisted in the command/initializer state.
+     */
+    public long ensureStableId(int eid) {
+        if (eid < 0) return UNASSIGNED_STABLE_ID;
+        if (!world.getEntityManager().isActive(eid)) return UNASSIGNED_STABLE_ID;
+
+        PixscapeIdentityComponent c = mIdentity.has(eid) ? mIdentity.get(eid) : mIdentity.create(eid);
+        long current = c.stableId;
+
+        if (current != UNASSIGNED_STABLE_ID) {
+            if (!byStableId.containsKey(current)) {
+                byStableId.put(current, eid);
+            }
+            if (current >= nextStableId) {
+                nextStableId = current + 1L;
+            }
+            return current;
+        }
+
+        long allocated = allocateStableId();
+        c.stableId = allocated;
+        c.name = normalizeName(c.name);
+        byStableId.put(allocated, eid);
+        indexName(c.name, eid);
+
+        return allocated;
+    }
+
+    /**
+     * Returns true if an assigned stable id is already indexed.
+     */
+    public boolean hasStableId(long stableId) {
+        return stableId != UNASSIGNED_STABLE_ID && byStableId.containsKey(stableId);
+    }
+
+    /**
+     * Returns the active entity matching the given stable id, or -1.
      */
     public int findByStableId(long stableId) {
-        if (stableId == 0L) return -1;
+        if (stableId == UNASSIGNED_STABLE_ID) return -1;
 
         Integer eid = byStableId.get(stableId);
         if (eid == null) return -1;
 
         return world.getEntityManager().isActive(eid) ? eid : -1;
+    }
+
+    /**
+     * Returns the stable id of the entity, or {@link #UNASSIGNED_STABLE_ID}.
+     */
+    public long getStableId(int eid) {
+        if (eid < 0) return UNASSIGNED_STABLE_ID;
+
+        PixscapeIdentityComponent c = mIdentity.getSafe(eid, null);
+        if (c == null) return UNASSIGNED_STABLE_ID;
+
+        return c.stableId;
+    }
+
+    /**
+     * Returns the normalized name of the entity, or {@link #DEFAULT_NAME}
+     * when missing.
+     */
+    public String getName(int eid) {
+        if (eid < 0) return DEFAULT_NAME;
+
+        PixscapeIdentityComponent c = mIdentity.getSafe(eid, null);
+        if (c == null) return DEFAULT_NAME;
+
+        return normalizeName(c.name);
     }
 
     /**
@@ -116,7 +196,7 @@ public final class IdentityRegistry {
     }
 
     /**
-     * Returns a COPY of the entity ids matching the given name.
+     * Returns a copy of the entity ids matching the given name.
      * No ordering is guaranteed.
      */
     public IntArray getByName(String name) {
@@ -172,9 +252,10 @@ public final class IdentityRegistry {
     }
 
     /**
-     * Sets the stableId of an entity.
+     * Sets the stable id of an entity.
      *
-     * A non-zero stableId must be unique across the registry.
+     * An assigned stable id must be unique across the registry.
+     * {@link #UNASSIGNED_STABLE_ID} clears the assigned id.
      */
     public void setStableId(int eid, long stableId) {
         if (eid < 0) return;
@@ -187,7 +268,7 @@ public final class IdentityRegistry {
             return;
         }
 
-        if (stableId != 0L) {
+        if (stableId != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(
@@ -200,8 +281,11 @@ public final class IdentityRegistry {
 
         c.stableId = stableId;
 
-        if (stableId != 0L) {
+        if (stableId != UNASSIGNED_STABLE_ID) {
             byStableId.put(stableId, eid);
+            if (stableId >= nextStableId) {
+                nextStableId = stableId + 1L;
+            }
         }
     }
 
@@ -234,7 +318,7 @@ public final class IdentityRegistry {
     }
 
     /**
-     * Sets both stableId and name.
+     * Sets both stable id and name.
      */
     public void setIdentity(int eid, long stableId, String name) {
         setStableId(eid, stableId);
@@ -248,13 +332,9 @@ public final class IdentityRegistry {
         long stableId = c.stableId;
         String normalizedName = normalizeName(c.name);
 
-        /*
-         * Keep the component normalized as well,
-         * so runtime data stays consistent.
-         */
         c.name = normalizedName;
 
-        if (stableId != 0L) {
+        if (stableId != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(
@@ -262,6 +342,10 @@ public final class IdentityRegistry {
                 );
             }
             byStableId.put(stableId, eid);
+
+            if (stableId >= nextStableId) {
+                nextStableId = stableId + 1L;
+            }
         }
 
         indexName(normalizedName, eid);
@@ -291,7 +375,7 @@ public final class IdentityRegistry {
     }
 
     private void unindexStableIdIfOwned(long stableId, int eid) {
-        if (stableId == 0L) return;
+        if (stableId == UNASSIGNED_STABLE_ID) return;
 
         Integer mapped = byStableId.get(stableId);
         if (mapped != null && mapped.intValue() == eid) {
@@ -336,6 +420,16 @@ public final class IdentityRegistry {
             for (int i = 0; i < emptyKeys.size; i++) {
                 byName.remove(emptyKeys.get(i));
             }
+        }
+    }
+
+    private void advanceNextStableId() {
+        if (nextStableId < 1L) {
+            nextStableId = 1L;
+        }
+
+        while (byStableId.containsKey(nextStableId)) {
+            nextStableId++;
         }
     }
 
