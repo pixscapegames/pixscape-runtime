@@ -1,6 +1,3 @@
-// ------------------------------------------------------------
-// PixscapeEngine.java (refactor: instance-based + loadScene() clears world)
-// ------------------------------------------------------------
 package games.pixscape.runtime.engine;
 
 import com.artemis.Aspect;
@@ -90,7 +87,7 @@ public final class PixscapeEngine {
     // Public API
     // ---------------------------------------------------------------------
 
-    /** Charge project.json et initialise le runtime (idempotent). */
+    /** Loads {@code project.json} and initializes runtime state once. */
     public PixscapeEngine loadProject(FileHandle userRootDir) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         this.userRootDir = userRootDir;
@@ -107,12 +104,10 @@ public final class PixscapeEngine {
 
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
 
-        // pratique : si le json ne contient pas runtimeRootDir
         if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
-        // init runtime from scratch (no scene)
         initRuntime(cfg, runtimeProjectDir);
 
         loaded = true;
@@ -120,14 +115,7 @@ public final class PixscapeEngine {
         return this;
     }
 
-    /**
-     * Charge une scène (public, nouveau point d'entrée).
-     * CONTRAT : clear COMPLET du world avant de charger la scène.
-     *
-     * Usage:
-     *   PixscapeEngine engine = new PixscapeEngine(userRootDir);
-     *   engine.loadScene(sceneName);
-     */
+    /** Loads a scene and rebuilds world state for that scene. */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
 
@@ -168,10 +156,6 @@ public final class PixscapeEngine {
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
-        // -------------------------------------------------
-        // 1️⃣ Stop old world safely
-        // -------------------------------------------------
-
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setStepEnabled(false);
             box2dSyncSystem.setEnabled(false);
@@ -189,20 +173,11 @@ public final class PixscapeEngine {
             box2dWorldService = null;
         }
 
-        // -------------------------------------------------
-        // 2️⃣ Recreate SOA memory stack
-        // -------------------------------------------------
-
         renderState = new RenderStateSOA();
         drawList    = new DrawList();
 
-        // IMPORTANT: RenderContext must be recreated
         GLCaps caps = GLCaps.detect();
         new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
-
-        // -------------------------------------------------
-        // 3️⃣ Rebuild world with correct budget
-        // -------------------------------------------------
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -238,10 +213,6 @@ public final class PixscapeEngine {
         world = result.getWorld();
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
-
-        // -------------------------------------------------
-        // 4️⃣ Rebind Box2D system safely
-        // -------------------------------------------------
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -279,6 +250,7 @@ public final class PixscapeEngine {
         }
     }
 
+    /** Updates ECS delta time; call once per frame before {@link #render()}. */
     public void update(float dt) {
         if (world == null) return;
         world.setDelta(dt);
@@ -288,6 +260,7 @@ public final class PixscapeEngine {
         }
     }
 
+    /** Processes the ECS world and flushes deferred atlas disposals. */
     public void render() {
         if (world == null) return;
         if (!loggedFirstRender) {
@@ -300,6 +273,7 @@ public final class PixscapeEngine {
         }
     }
 
+    /** Resizes the runtime camera viewport. */
     public void resize(int w, int h) {
         if (worldCamera != null) {
             worldCamera.viewportWidth = w;
@@ -308,10 +282,7 @@ public final class PixscapeEngine {
         }
     }
 
-    /**
-     * Dispose complet de l'engine.
-     * Après ça, il faut recréer une instance.
-     */
+    /** Disposes world and runtime resources; the instance must be reinitialized afterwards. */
     public void dispose() {
         disposeWorldAndRuntime();
 
@@ -355,64 +326,7 @@ public final class PixscapeEngine {
     // Internal init / reset
     // ---------------------------------------------------------------------
 
-    /**
-     * Clear complet du World "runtime" pour changer de scène proprement.
-     *
-     * IMPORTANT:
-     * - On NE réinstancie pas toute la stack GL (batch/shaders) ici.
-     * - On recrée le World + services runtime dépendants du World (Box2D sync system refs, subscriptions, etc.)
-     * - On reset Box2D (service) pour éviter de garder des bodies du monde précédent.
-     * - On garde metricsBatch + shader registry + atlasRuntimeService (mais on unloadAll l'atlas).
-     *
-     * Si tu veux un "hard reset" encore plus strict, remplace ce clear par:
-     *   initRuntime(cfg, runtimeProjectDir);
-     * (ça recrée aussi renderState/drawList/targets etc.)
-     */
-    private void clearWorldCompletely() {
-        if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
-
-        // 1) Stop/detach Box2D sync FIRST (avoid native calls during world.dispose)
-        if (box2dSyncSystem != null) {
-            box2dSyncSystem.setStepEnabled(false);
-            box2dSyncSystem.setEnabled(false);
-
-            // CRUCIAL: prevent any further native calls during world.dispose()
-            box2dSyncSystem.setBox2d(null);
-        }
-        box2dSyncSystem = null;
-
-        // 2) Dispose ECS world (drops entities, subscriptions, systems state, etc.)
-        if (world != null) {
-            world.dispose();
-            world = null;
-        }
-
-        // 3) Now it's safe to dispose native Box2D world/service
-        if (box2dWorldService != null) {
-            box2dWorldService.dispose();
-            box2dWorldService = null;
-        }
-
-        // 4) Unload atlas assets so next scene rebind is clean
-        if (atlasRuntimeService != null) {
-            atlasRuntimeService.unloadAll();
-        }
-
-        // 5) Rebuild a fresh World with the same runtime config (no scene loaded yet)
-        rebuildWorldOnly(cfg, runtimeProjectDir);
-
-        // Optional but recommended: reset one-shot logs for the new world id
-        loggedFirstUpdate = false;
-        loggedFirstRender = false;
-
-        sceneLoaded = false;
-    }
-
-
-    /**
-     * Dispose complet world + runtime resources GPU-side, used by dispose().
-     * (hard shutdown)
-     */
+    /** Disposes world and GPU-side runtime resources. */
     private void disposeWorldAndRuntime() {
         // World first (systems may touch services)
         if (world != null) {
@@ -445,16 +359,10 @@ public final class PixscapeEngine {
         stats = null;
         statsSink = null;
         defaultShaderName = null;
-        // worldCamera kept (cheap), but you can null it too if you want:
-        // worldCamera = null;
     }
 
-    /**
-     * Initialisation runtime "hard": reconstruit tout (GL batch, SOA, targets, World).
-     * Appelé une fois au chargement projet.
-     */
+    /** Fully initializes runtime resources and creates an empty world. */
     private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
-        // HARD reset of everything
         disposeWorldAndRuntime();
 
         if (config == null) throw new IllegalArgumentException("config is null");
@@ -510,14 +418,13 @@ public final class PixscapeEngine {
                                 stats,
                                 statsSink
                         ),
-                        null,      // meta
-                        0,         // tiledBudget runtime (pas utilisé pour l’instant)
+                        null,
+                        0,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
 
-        // Grab Box2D system from the world, disable by default
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
@@ -532,6 +439,7 @@ public final class PixscapeEngine {
     }
 
 
+    /** Initializes a runtime with default configuration and no scene file. */
     public PixscapeEngine initEmptyRuntime() {
         this.cfg = new RuntimeConfig();
 
@@ -583,8 +491,8 @@ public final class PixscapeEngine {
                                 stats,
                                 statsSink
                         ),
-                        null,      // meta
-                        0,         // tiledBudget runtime (pas utilisé pour l’instant)
+                        null,
+                        0,
                         configurationCustomizer
                 );
 
@@ -594,16 +502,12 @@ public final class PixscapeEngine {
     }
 
 
-    /**
-     * Rebuild seulement le World ECS (pour changement de scène),
-     * en conservant renderState/drawList/batch/targets existants.
-     */
+    /** Rebuilds the ECS world while keeping existing render resources. */
     public void rebuildWorldOnly(RuntimeConfig config, FileHandle projectDir) {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
         if (renderState == null || layerState == null || drawList == null || metricsBatch == null || stats == null || statsSink == null) {
-            // Safety: if something is missing, fallback to full init.
             initRuntime(config, projectDir);
             return;
         }
@@ -635,8 +539,8 @@ public final class PixscapeEngine {
                                 stats,
                                 statsSink
                         ),
-                        null,      // meta
-                        0,         // tiledBudget runtime (pas utilisé pour l’instant)
+                        null,
+                        0,
                         configurationCustomizer
                 );
 
@@ -672,19 +576,16 @@ public final class PixscapeEngine {
         }
         clearWorldBeforeSceneLoad();
 
-        // Physics: lazy init + enable/disable
         applyPhysicsFromScene(meta);
         loggedFirstUpdate = false;
         loggedFirstRender = false;
 
-        // Scene load
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
         SceneLoader.loadScene(world, sceneFile, true);
 
         rebuildTiledLayersRuntime(meta);
 
-        // Atlas load + rebind
         RuntimeSceneAtlasLoader.loadSceneAtlas(
                 cfg,
                 resolvedName,
@@ -694,7 +595,6 @@ public final class PixscapeEngine {
         rebindAtlas(sceneTag);
         forceFullDirtyAfterLoad();
 
-        // Debug info (optional)
         ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(AssetRefComponent.class, TextureRegionComponent.class))
@@ -711,7 +611,6 @@ public final class PixscapeEngine {
             );
         }
 
-        // First ECS tick after atlas bind (important for particles init)
         world.process();
     }
 
@@ -732,7 +631,6 @@ public final class PixscapeEngine {
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
 
-            // Create dense map
             tiled.data = new TiledMapLayerData(
                     tiled.mapWidthCells,
                     tiled.mapHeightCells,
@@ -743,14 +641,12 @@ public final class PixscapeEngine {
             tiled.data.originX = tiled.originX;
             tiled.data.originY = tiled.originY;
 
-            // Allocate SOA
             int required = tiled.mapWidthCells * tiled.mapHeightCells;
             TiledSoaAllocator.Range r = allocator.allocate(required);
             tiled.tiledStart = r.start;
             tiled.tiledEnd = r.end;
             tiled.data.initSlotRange(r.start, r.end);
 
-            // Reinject sparse
             for (int t = 0; t < tiled.tileXs.size; t++) {
 
                 int gx = tiled.tileXs.get(t);
@@ -779,9 +675,7 @@ public final class PixscapeEngine {
         int[] data = sprites.getData();
         for (int i = 0, n = sprites.size(); i < n; i++) {
             int e = data[i];
-            // full rebuild render-side
             dirty.mark(e, DirtyBits.EVERYTHING);
-            // et côté géométrie logique, si tu veux recalculer OBB/AABB proprement
             dirty.geometry(e, GeometryDirty.ALL);
         }
     }
@@ -800,7 +694,6 @@ public final class PixscapeEngine {
             throw new IllegalStateException("No atlas loaded for scene: " + sceneTag);
         }
         atlasRuntimeService.clearRegionCache();
-        // 1) Rebind bundle texture-array pour le batch
         AtlasRuntimeService.TextureArrayBundle previous = atlasRuntimeService.bundle(sceneTag);
         AtlasRuntimeService.TextureArrayBundle bundle = atlasRuntimeService.rebuildBundle(sceneTag);
 
@@ -817,10 +710,8 @@ public final class PixscapeEngine {
             animationSystem.clearBindingCache();
         }
 
-        // 2) Rebuild runtime scene assets (STRICT assetId-only)
         rebuildSceneAssets(sceneTag);
 
-        // 3) Dirty global
         SceneLoader.forceFullRenderDirty(world);
     }
 
@@ -864,7 +755,6 @@ public final class PixscapeEngine {
                 continue;
             }
 
-            // --- UV ---
             tr.u1 = region.u1;
             tr.v1 = region.v1;
             tr.u2 = region.u2;
@@ -873,7 +763,6 @@ public final class PixscapeEngine {
             tr.pixH = region.pixH;
             tr.valid = true;
 
-            // --- Material ---
             mat.textureHandle = region.textureHandle;
 
             if (dirty != null) {
@@ -885,8 +774,6 @@ public final class PixscapeEngine {
     private void clearWorldBeforeSceneLoad() {
         if (world == null) return;
 
-        // 1) IMPORTANT Box2D : si tu deletes des entités avec fixtures/bodies,
-        // il faut d’abord stopper le sync et/ou vider Box2D proprement
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setStepEnabled(false);
             box2dSyncSystem.setEnabled(false);
@@ -899,23 +786,19 @@ public final class PixscapeEngine {
             }
         }
 
-        // 2) Supprime toutes les entités Artemis
         IntBag all = world.getAspectSubscriptionManager()
                 .get(Aspect.all())
                 .getEntities();
 
         int[] data = all.getData();
-        // delete() pendant qu’on itère est ok si on lit le snapshot IntBag
         for (int i = 0, n = all.size(); i < n; i++) {
             int e = data[i];
             world.delete(e);
         }
 
-        // 3) Flush deletions (souvent 2 ticks pour purger subscriptions/systèmes)
         world.process();
         world.process();
 
-        // 4) Optionnel mais sain: reset des “tickets” dirty, drawlists, etc.
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.clearAll();
 

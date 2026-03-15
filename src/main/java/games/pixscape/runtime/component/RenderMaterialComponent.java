@@ -3,25 +3,16 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 import games.pixscape.runtime.render.BlendMode;
 
-/**
- * Définit les propriétés de rendu d’une entité (shader, blend, etc.)
- */
+/** Stores shader and blend properties used to render an entity. */
 public final class RenderMaterialComponent extends PooledComponent {
 
-    // IMPORTANT: ids stables (compat scènes existantes)
-    // 0..3 doivent rester compatibles avec l’ancien système.
-    // 0 = OPAQUE
-    // 1 = ALPHA
-    // 2 = ADDITIVE_ALPHA (ancien "ADDITIVE" libGDX: SRC_ALPHA, ONE)
-    // 3 = MULTIPLY_ALPHA (ancien "MULTIPLY": DST_COLOR, ONE_MINUS_SRC_ALPHA)
-
-    // Indices shader (0..(1<<SHADER_BITS)-1)
+    // Blend mode ids are serialized and must stay stable across runtime versions.
     public int shaderIdx = 0;
 
-    /** BlendMode.id (stable, sérialisable) */
+    /** Serialized {@link BlendMode} id. */
     public int blendModeId = BlendMode.ALPHA.id;
 
-    // runtime only
+    /** Runtime texture handle resolved from atlas data. */
     public transient int textureHandle = 0;
     public transient String debugAtlasTag;
 
