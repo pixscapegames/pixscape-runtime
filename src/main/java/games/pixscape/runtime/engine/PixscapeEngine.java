@@ -30,9 +30,7 @@ import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.IdentityRegistrySyncSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
-import games.pixscape.runtime.system.TagRegistrySyncSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
 
@@ -70,8 +68,8 @@ public final class PixscapeEngine {
     private AtlasRuntimeService atlasRuntimeService;
     private String defaultShaderName;
 
-    private IdentityRegistry identityRegistry;
-    private TagRegistry tagRegistry;
+    private final IdentityRegistry identityRegistry = new IdentityRegistry();
+    private final TagRegistry tagRegistry = new TagRegistry();
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
 
@@ -221,6 +219,7 @@ public final class PixscapeEngine {
 
         world = result.getWorld();
         bindRuntimeRegistries();
+        rebuildRuntimeRegistries();
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
 
@@ -428,8 +427,8 @@ public final class PixscapeEngine {
         stats = null;
         statsSink = null;
         defaultShaderName = null;
-        identityRegistry = null;
-        tagRegistry = null;
+        identityRegistry.bind(null);
+        tagRegistry.bind(null);
     }
 
     /** Fully initializes runtime resources and creates an empty world. */
@@ -496,6 +495,7 @@ public final class PixscapeEngine {
 
         world = result.getWorld();
         bindRuntimeRegistries();
+        rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -570,6 +570,7 @@ public final class PixscapeEngine {
 
         world = result.getWorld();
         bindRuntimeRegistries();
+        rebuildRuntimeRegistries();
 
         return this;
     }
@@ -619,6 +620,7 @@ public final class PixscapeEngine {
 
         world = result.getWorld();
         bindRuntimeRegistries();
+        rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -658,6 +660,7 @@ public final class PixscapeEngine {
 
         SceneLoader.loadScene(world, sceneFile, true);
 
+        rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
 
         RuntimeSceneAtlasLoader.loadSceneAtlas(
@@ -945,15 +948,13 @@ public final class PixscapeEngine {
     }
 
     private void bindRuntimeRegistries() {
-        if (world == null) {
-            identityRegistry = null;
-            tagRegistry = null;
-            return;
-        }
-        IdentityRegistrySyncSystem identitySync = world.getSystem(IdentityRegistrySyncSystem.class);
-        TagRegistrySyncSystem tagSync = world.getSystem(TagRegistrySyncSystem.class);
-        identityRegistry = identitySync != null ? identitySync.getRegistry() : null;
-        tagRegistry = tagSync != null ? tagSync.getRegistry() : null;
+        identityRegistry.bind(world);
+        tagRegistry.bind(world);
+    }
+
+    private void rebuildRuntimeRegistries() {
+        identityRegistry.rebuild();
+        tagRegistry.rebuild();
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {
