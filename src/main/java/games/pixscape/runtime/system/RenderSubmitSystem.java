@@ -4,6 +4,7 @@ import com.artemis.*;
 import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.ObjectFloatMap;
@@ -85,6 +86,10 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     private void render() {
         cam.update();
+
+        // Render always targets the default back buffer and full back-buffer viewport.
+        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, 0);
+        Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
         if (metricsBatch instanceof TextureArrayMeshBatch taBatch) {
