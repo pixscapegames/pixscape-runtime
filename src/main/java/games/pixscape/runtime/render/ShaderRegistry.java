@@ -302,18 +302,11 @@ public final class ShaderRegistry {
                     registerOrReplace("ta_default", ta, ShaderMode.TEXTURE_ARRAY, false);
                 }
             }
-
-            log("ShaderRegistry", "AFTER TA: ta_default registered? " + (get("ta_default") != null));
-            if (get("ta_default") != null) {
-                log("ShaderRegistry", "AFTER TA: ta_default idx=" + indexOf("ta_default")
-                        + " sp=" + get("ta_default"));
-            }
             ShaderProgram ta = compileShader(
                     taV.path(), taF.path(),
                     "ta_sprite/ta_default",
                     false
             );
-            log("ShaderRegistry", "TA compile returned " + (ta == null ? "null" : "ok"));
             if (ta != null) {
                 registerOrReplace("ta_default", ta, ShaderMode.TEXTURE_ARRAY, false);
             }
