@@ -11,7 +11,6 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxRuntimeException;
@@ -25,7 +24,6 @@ import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
-import games.pixscape.runtime.render.fx.PostFxRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.AnimationSystem;
@@ -57,15 +55,16 @@ public final class PixscapeEngine {
 
     private RenderStateSOA renderState;
     private LayerStateSOA layerState;
-    private CameraStateSOA cameraState;
     private DrawList drawList;
     private MetricsBatch metricsBatch;
+    private float ambientMulR = 1f;
+    private float ambientMulG = 1f;
+    private float ambientMulB = 1f;
 
     private RenderStats stats;
     private RenderStatsSink statsSink;
 
     private AtlasRuntimeService atlasRuntimeService;
-    private CameraRenderTargets cameraRenderTargets;
     private String defaultShaderName;
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
@@ -199,15 +198,13 @@ public final class PixscapeEngine {
 
         // IMPORTANT: RenderContext must be recreated
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, cameraState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
 
         // -------------------------------------------------
         // 3️⃣ Rebuild world with correct budget
         // -------------------------------------------------
 
-        boolean advancedRendering = meta != null && meta.mainCameraOffscreen;
-
-        PostFxRegistry fxRegistry = new PostFxRegistry();
+        applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
         FileHandle effectsRoot = resolveEffectsRoot(projectDir, config);
 
@@ -216,21 +213,19 @@ public final class PixscapeEngine {
                         worldCamera,
                         renderState,
                         layerState,
-                        cameraState,
                         drawList,
                         stats,
-                        cameraRenderTargets,
-                        fxRegistry,
-                        advancedRendering,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                cameraState,
                                 drawList,
                                 worldCamera,
+                                ambientMulR,
+                                ambientMulG,
+                                ambientMulB,
                                 metricsBatch,
                                 stats,
                                 statsSink
@@ -291,9 +286,6 @@ public final class PixscapeEngine {
             Gdx.app.log(PHYSICS_LOG_TAG, "update dt=" + dt + " worldId=" + System.identityHashCode(world));
             loggedFirstUpdate = true;
         }
-        if (cameraRenderTargets != null) {
-            cameraRenderTargets.ensureTargetsForActiveCameras();
-        }
     }
 
     public void render() {
@@ -313,9 +305,6 @@ public final class PixscapeEngine {
             worldCamera.viewportWidth = w;
             worldCamera.viewportHeight = h;
             worldCamera.update();
-        }
-        if (cameraRenderTargets != null) {
-            cameraRenderTargets.resizeAll(w, h);
         }
     }
 
@@ -353,8 +342,6 @@ public final class PixscapeEngine {
 
     public World getWorld() { return world; }
     public OrthographicCamera getCamera() { return worldCamera; }
-    public CameraStateSOA getCameraState() { return cameraState; }
-
     public RenderStateSOA getRenderState() { return renderState; }
     public LayerStateSOA getLayerState() { return layerState; }
     public DrawList getDrawList() { return drawList; }
@@ -440,11 +427,6 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
-        if (cameraRenderTargets != null) {
-            cameraRenderTargets.dispose();
-            cameraRenderTargets = null;
-        }
-
         if (metricsBatch != null) {
             metricsBatch.close();
             metricsBatch = null;
@@ -457,7 +439,6 @@ public final class PixscapeEngine {
 
         renderState = null;
         layerState = null;
-        cameraState = null;
         drawList = null;
         runtimeTiledStart = 0;
         runtimeTiledEnd = 0;
@@ -485,7 +466,6 @@ public final class PixscapeEngine {
 
         renderState = new RenderStateSOA();
         layerState  = new LayerStateSOA();
-        cameraState = new CameraStateSOA();
         drawList    = new DrawList();
 
         GLCaps caps             = GLCaps.detect();
@@ -499,23 +479,11 @@ public final class PixscapeEngine {
         stats     = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, cameraState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
 
         layerState.setCapacity(32);
-        cameraState.setCapacity(4);
-        cameraState.enableCamera(0);
-        cameraState.layerMask[0] = -1;
-        cameraState.ambientMulR[0] = config.getCurrentSceneMeta().ambientMulR;
-        cameraState.ambientMulG[0] = config.getCurrentSceneMeta().ambientMulG;
-        cameraState.ambientMulB[0] = config.getCurrentSceneMeta().ambientMulB;
-
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
-        boolean mainCameraOffscreen = meta != null && meta.mainCameraOffscreen;
-
-        cameraState.useOffscreen[0] = mainCameraOffscreen;
-
-        cameraRenderTargets = new CameraRenderTargets(cameraState, Pixmap.Format.RGBA8888, false);
-        PostFxRegistry fxRegistry = new PostFxRegistry();
+        applyAmbientFromMeta(meta);
 
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
         FileHandle effectsRoot = resolveEffectsRoot(projectDir, config);
@@ -525,21 +493,19 @@ public final class PixscapeEngine {
                         worldCamera,
                         renderState,
                         layerState,
-                        cameraState,
                         drawList,
                         stats,
-                        cameraRenderTargets,
-                        fxRegistry,
-                        mainCameraOffscreen,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                cameraState,
                                 drawList,
                                 worldCamera,
+                                ambientMulR,
+                                ambientMulG,
+                                ambientMulB,
                                 metricsBatch,
                                 stats,
                                 statsSink
@@ -575,7 +541,6 @@ public final class PixscapeEngine {
 
         renderState = new RenderStateSOA();
         layerState  = new LayerStateSOA();
-        cameraState = new CameraStateSOA();
         drawList    = new DrawList();
 
         GLCaps caps = GLCaps.detect();
@@ -590,17 +555,10 @@ public final class PixscapeEngine {
         stats     = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, cameraState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
 
         layerState.setCapacity(32);
-        cameraState.setCapacity(4);
-        cameraState.enableCamera(0);
-        cameraState.layerMask[0] = -1;
-        cameraState.useOffscreen[0] = false;
-
-        cameraRenderTargets = new CameraRenderTargets(cameraState, Pixmap.Format.RGBA8888, false);
-
-        PostFxRegistry fxRegistry = new PostFxRegistry();
+        applyAmbientFromMeta(null);
 
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
         WorldBootstrapResult result =
@@ -608,21 +566,19 @@ public final class PixscapeEngine {
                         worldCamera,
                         renderState,
                         layerState,
-                        cameraState,
                         drawList,
                         stats,
-                        cameraRenderTargets,
-                        fxRegistry,
-                        false,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                cameraState,
                                 drawList,
                                 worldCamera,
+                                ambientMulR,
+                                ambientMulG,
+                                ambientMulB,
                                 metricsBatch,
                                 stats,
                                 statsSink
@@ -646,20 +602,14 @@ public final class PixscapeEngine {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
-        if (renderState == null || layerState == null || cameraState == null || drawList == null || metricsBatch == null || stats == null || statsSink == null) {
+        if (renderState == null || layerState == null || drawList == null || metricsBatch == null || stats == null || statsSink == null) {
             // Safety: if something is missing, fallback to full init.
             initRuntime(config, projectDir);
             return;
         }
 
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
-        boolean advancedRendering = meta != null && meta.mainCameraOffscreen;
-
-        // targets can be reused, but ensure they exist
-        if (cameraRenderTargets == null) {
-            cameraRenderTargets = new CameraRenderTargets(cameraState, Pixmap.Format.RGBA8888, false);
-        }
-        PostFxRegistry fxRegistry = new PostFxRegistry();
+        applyAmbientFromMeta(meta);
         int defaultShaderIdx = (defaultShaderName != null) ? ShaderRegistry.indexOf(defaultShaderName) : 0;
         FileHandle effectsRoot = resolveEffectsRoot(projectDir, config);
 
@@ -668,21 +618,19 @@ public final class PixscapeEngine {
                         worldCamera,
                         renderState,
                         layerState,
-                        cameraState,
                         drawList,
                         stats,
-                        cameraRenderTargets,
-                        fxRegistry,
-                        advancedRendering,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                cameraState,
                                 drawList,
                                 worldCamera,
+                                ambientMulR,
+                                ambientMulG,
+                                ambientMulB,
                                 metricsBatch,
                                 stats,
                                 statsSink
@@ -985,6 +933,18 @@ public final class PixscapeEngine {
         if (names != null && names.size > 0) return names.first();
 
         throw new IllegalStateException("RuntimeConfig has no scenes.");
+    }
+
+    private void applyAmbientFromMeta(SceneMetaRuntime meta) {
+        if (meta == null) {
+            ambientMulR = 1f;
+            ambientMulG = 1f;
+            ambientMulB = 1f;
+            return;
+        }
+        ambientMulR = meta.ambientMulR;
+        ambientMulG = meta.ambientMulG;
+        ambientMulB = meta.ambientMulB;
     }
 
     private void applyPhysicsFromScene(SceneMetaRuntime meta) {

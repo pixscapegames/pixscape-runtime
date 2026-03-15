@@ -4,7 +4,6 @@ import com.artemis.*;
 import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.ObjectFloatMap;
@@ -20,9 +19,11 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     private final RenderStateSOA     state;
     private final LayerStateSOA      layerState;
-    private final CameraStateSOA     cameraState;
     private final DrawList           drawList;
     private final OrthographicCamera cam;
+    private final float ambientMulR;
+    private final float ambientMulG;
+    private final float ambientMulB;
 
     private final MetricsBatch       metricsBatch;
     private final RenderStats        stats;
@@ -41,17 +42,21 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
-                              CameraStateSOA cameraState,
                               DrawList drawList,
                               OrthographicCamera cam,
+                              float ambientMulR,
+                              float ambientMulG,
+                              float ambientMulB,
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
         this.state        = state;
         this.layerState   = layerState;
-        this.cameraState  = cameraState;
         this.drawList     = drawList;
         this.cam          = cam;
+        this.ambientMulR  = ambientMulR;
+        this.ambientMulG  = ambientMulG;
+        this.ambientMulB  = ambientMulB;
         this.metricsBatch = batch;
         this.stats        = stats;
         this.statsSink    = statsSink;
@@ -65,17 +70,12 @@ public final class RenderSubmitSystem extends BaseSystem {
     protected void begin() {
         time += world.getDelta();
         cam.update();
-        // ⚠️ metricsBatch.begin est appelé par caméra dans renderForCamera(...)
+        // metricsBatch.begin est appelé dans render().
     }
 
     @Override
     protected void processSystem() {
-        if (cameraState.maxIndex < 0) return;
-
-        for (int camIndex = 0; camIndex <= cameraState.maxIndex; camIndex++) {
-            if (!cameraState.enabled[camIndex]) continue;
-            renderForCamera(camIndex);
-        }
+        render();
     }
 
     @Override
@@ -83,22 +83,8 @@ public final class RenderSubmitSystem extends BaseSystem {
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    private void renderForCamera(int camIndex) {
+    private void render() {
         cam.update();
-
-        boolean wantsOffscreen = cameraState.useOffscreen[camIndex]
-                || cameraState.postFxChainId[camIndex] != 0;
-
-        int fbo = cameraState.fboHandle[camIndex];
-
-        if (wantsOffscreen && fbo != 0) {
-            Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, fbo);
-            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        } else {
-            Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, 0);
-        }
-
-        Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
         if (metricsBatch instanceof TextureArrayMeshBatch taBatch) {
@@ -121,7 +107,6 @@ public final class RenderSubmitSystem extends BaseSystem {
         int[] slots = drawList.data();
         int size = drawList.size;
 
-        final int cameraLayerMask = cameraState.layerMask[camIndex];
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
 
         for (int i = 0; i < size; i++) {
@@ -139,8 +124,6 @@ public final class RenderSubmitSystem extends BaseSystem {
                 if (layerIdx < 0 || layerIdx >= 31) continue;
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
 
-                int bit = 1 << layerIdx;
-                if ((cameraLayerMask & bit) == 0) continue;
             }
 
             // Shader switch (will flush inside setShader)
@@ -163,7 +146,7 @@ public final class RenderSubmitSystem extends BaseSystem {
                     if (curShader != null) {
                         setUniform1f(curShader, "u_time", time);
                         setUniformLayerOffset(curShader);
-                        setUniformAmbientMul(curShader, camIndex);
+                        setUniformAmbientMul(curShader);
 
                     }
                 }
@@ -236,14 +219,9 @@ public final class RenderSubmitSystem extends BaseSystem {
         metricsBatch.end(stats);
     }
 
-    private void setUniformAmbientMul(ShaderProgram shader, int camIndex) {
+    private void setUniformAmbientMul(ShaderProgram shader) {
         if (shader == null || !shader.hasUniform("u_ambientMul")) return;
-
-        float r = cameraState.ambientMulR[camIndex];
-        float g = cameraState.ambientMulG[camIndex];
-        float b = cameraState.ambientMulB[camIndex];
-
-        shader.setUniformf("u_ambientMul", r, g, b);
+        shader.setUniformf("u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
     }
 
 

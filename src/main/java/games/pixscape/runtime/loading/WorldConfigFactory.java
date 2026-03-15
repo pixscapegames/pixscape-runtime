@@ -8,7 +8,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.render.fx.PostFxRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.*;
 
@@ -29,12 +28,8 @@ public final class WorldConfigFactory {
             OrthographicCamera camera,
             RenderStateSOA renderState,
             LayerStateSOA layerState,
-            CameraStateSOA cameraState,
             DrawList drawList,
             RenderStats stats,
-            CameraRenderTargets targets,
-            PostFxRegistry fxRegistry,
-            boolean advancedRendering,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
             FileHandle effectsRoot,
@@ -77,9 +72,7 @@ public final class WorldConfigFactory {
                 camera,
                 renderState,
                 layerState,
-                cameraState,
                 drawList,
-                advancedRendering,
                 ecsEnd,
                 meta,
                 stats,
@@ -101,7 +94,7 @@ public final class WorldConfigFactory {
         );
 
         addSubmitSystem(builder, submitSupplier);
-        addPostPipeline(builder, cameraState, targets, fxRegistry, advancedRendering);
+        builder.with(new DirtyFlushSystem());
 
         if (customizer != null) {
             customizer.accept(builder);
@@ -126,9 +119,7 @@ public final class WorldConfigFactory {
             OrthographicCamera worldCamera,
             RenderStateSOA renderState,
             LayerStateSOA layerState,
-            CameraStateSOA cameraState,
             DrawList drawList,
-            boolean advancedRendering,
             int entityCapacityHint,
             SceneMetaRuntime meta,
             RenderStats stats,
@@ -146,7 +137,6 @@ public final class WorldConfigFactory {
                 new AnimationSystem(atlasRuntimeService),
                 new LayerStateBuildSystem(layerState, meta),
                 new RenderSpriteSyncSystem(renderState),
-                new RenderCameraSyncSystem(cameraState, advancedRendering),
                 new ParallaxDisplaySystem(renderState, layerState, worldCamera),
                 new CullingSystem(worldCamera, renderState),
                 new TiledRenderSyncSystem(
@@ -190,23 +180,5 @@ public final class WorldConfigFactory {
             Supplier<BaseSystem> submitSupplier
     ) {
         builder.with(submitSupplier.get());
-    }
-
-    private static void addPostPipeline(
-            WorldConfigurationBuilder builder,
-            CameraStateSOA cameraState,
-            CameraRenderTargets targets,
-            PostFxRegistry fxRegistry,
-            boolean advancedRendering
-    ) {
-        builder.with(
-                new PostProcessDispatchSystem(
-                        cameraState,
-                        targets,
-                        fxRegistry,
-                        advancedRendering
-                ),
-                new DirtyFlushSystem()
-        );
     }
 }

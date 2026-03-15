@@ -11,7 +11,6 @@ public final class RenderContext {
 
     public final RenderStateSOA renderState;
     public final LayerStateSOA  layerState;
-    public final CameraStateSOA cameraState;
     public final DrawList       drawList;
 
     public final MetricsBatch   batch; // ou interface plus abstraite
@@ -19,13 +18,11 @@ public final class RenderContext {
 
     public RenderContext(RenderStateSOA renderState,
                          LayerStateSOA layerState,
-                         CameraStateSOA cameraState,
                          DrawList drawList,
                          MetricsBatch batch,
                          GLCaps glCaps) {
         this.renderState = renderState;
         this.layerState  = layerState;
-        this.cameraState = cameraState;
         this.drawList    = drawList;
         this.batch       = batch;
         this.glCaps      = glCaps;
