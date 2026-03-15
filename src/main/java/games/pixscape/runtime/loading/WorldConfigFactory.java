@@ -2,15 +2,12 @@ package games.pixscape.runtime.loading;
 
 import com.artemis.BaseSystem;
 import com.artemis.World;
-import com.artemis.WorldConfiguration;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.render.fx.PostFxRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.*;
@@ -34,13 +31,10 @@ public final class WorldConfigFactory {
             LayerStateSOA layerState,
             CameraStateSOA cameraState,
             DrawList drawList,
-            MetricsBatch batch,
             RenderStats stats,
-            RenderStatsSink sink,
             CameraRenderTargets targets,
             PostFxRegistry fxRegistry,
             boolean advancedRendering,
-            int baseProbeCapacity, // laissé pour compat signature
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
             FileHandle effectsRoot,

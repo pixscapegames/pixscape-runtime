@@ -30,6 +30,9 @@ public class SceneMetaRuntime {
     public float tileHeight = 32f;
     public int chunkSize = 16;
 
+    // PostFX
+    public boolean mainCameraOffscreen = false;
+
 
     public String getName() { return name; }
     public String getFile() { return file; }
@@ -63,5 +66,6 @@ public class SceneMetaRuntime {
         this.tileWidth          = other.tileWidth;
         this.tileHeight         = other.tileHeight;
         this.chunkSize          = other.chunkSize;
+        this.mainCameraOffscreen= other.mainCameraOffscreen;
     }
 }

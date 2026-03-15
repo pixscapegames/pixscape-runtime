@@ -205,7 +205,7 @@ public final class PixscapeEngine {
         // 3️⃣ Rebuild world with correct budget
         // -------------------------------------------------
 
-        boolean advancedRendering = config.advancedRendering;
+        boolean advancedRendering = meta != null && meta.mainCameraOffscreen;
 
         PostFxRegistry fxRegistry = new PostFxRegistry();
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -218,13 +218,10 @@ public final class PixscapeEngine {
                         layerState,
                         cameraState,
                         drawList,
-                        metricsBatch,
                         stats,
-                        statsSink,
                         cameraRenderTargets,
                         fxRegistry,
                         advancedRendering,
-                        1024,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
@@ -512,9 +509,10 @@ public final class PixscapeEngine {
         cameraState.ambientMulG[0] = config.getCurrentSceneMeta().ambientMulG;
         cameraState.ambientMulB[0] = config.getCurrentSceneMeta().ambientMulB;
 
-        boolean advancedRendering = config.advancedRendering;
-        boolean mainOffscreen     = advancedRendering && config.mainCameraOffscreen;
-        cameraState.useOffscreen[0] = mainOffscreen;
+        SceneMetaRuntime meta = config.getCurrentSceneMeta();
+        boolean mainCameraOffscreen = meta != null && meta.mainCameraOffscreen;
+
+        cameraState.useOffscreen[0] = mainCameraOffscreen;
 
         cameraRenderTargets = new CameraRenderTargets(cameraState, Pixmap.Format.RGBA8888, false);
         PostFxRegistry fxRegistry = new PostFxRegistry();
@@ -529,13 +527,10 @@ public final class PixscapeEngine {
                         layerState,
                         cameraState,
                         drawList,
-                        metricsBatch,
                         stats,
-                        statsSink,
                         cameraRenderTargets,
                         fxRegistry,
-                        advancedRendering,
-                        1024,
+                        mainCameraOffscreen,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
@@ -615,13 +610,10 @@ public final class PixscapeEngine {
                         layerState,
                         cameraState,
                         drawList,
-                        metricsBatch,
                         stats,
-                        statsSink,
                         cameraRenderTargets,
                         fxRegistry,
                         false,
-                        1024,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
@@ -660,7 +652,8 @@ public final class PixscapeEngine {
             return;
         }
 
-        boolean advancedRendering = config.advancedRendering;
+        SceneMetaRuntime meta = config.getCurrentSceneMeta();
+        boolean advancedRendering = meta != null && meta.mainCameraOffscreen;
 
         // targets can be reused, but ensure they exist
         if (cameraRenderTargets == null) {
@@ -677,13 +670,10 @@ public final class PixscapeEngine {
                         layerState,
                         cameraState,
                         drawList,
-                        metricsBatch,
                         stats,
-                        statsSink,
                         cameraRenderTargets,
                         fxRegistry,
                         advancedRendering,
-                        1024,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,

@@ -52,8 +52,6 @@ public final class RuntimeConfig {
     // --- Options projet (runtime) ---
     public String glProfile = "GL30";
     public int    glSamples = 0;
-    public boolean advancedRendering  = false;
-    public boolean mainCameraOffscreen = false;
 
     // ---------------------------------------------------------------------
     // Shader mode
@@ -134,8 +132,6 @@ public final class RuntimeConfig {
 
         if (!"GL20".equals(glProfile) && !"GL30".equals(glProfile)) glProfile = "GL30";
         if (glSamples != 0 && glSamples != 2 && glSamples != 4 && glSamples != 8) glSamples = 0;
-
-        if (!advancedRendering) mainCameraOffscreen = false;
 
         if (scenes == null || scenes.size == 0) {
             throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
