@@ -6,7 +6,6 @@ import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.LayerPostFXComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -29,7 +28,6 @@ public final class LayerStateBuildSystem extends IteratingSystem {
 
     private ComponentMapper<LayerComponent>        mLayer;
     private ComponentMapper<LayerParallaxComponent> mParallax;
-    private ComponentMapper<LayerPostFXComponent>   mPostFx;
     private ComponentMapper<VisibilityComponent>    mVis;
 
     public LayerStateBuildSystem(LayerStateSOA layerState, SceneMetaRuntime sceneMeta) {
@@ -74,18 +72,6 @@ public final class LayerStateBuildSystem extends IteratingSystem {
         // parallax (selon type)
         applyParallax(idx, type, e);
 
-        // postFX optionnel
-        if (type == LayerComponent.TYPE_CLASSIC) {
-            LayerPostFXComponent post = mPostFx.getSafe(e, null);
-            if (post != null && post.passes != null && post.passes.length > 0) {
-                // à toi de définir un vrai id de chain si tu en as un
-                layerState.postFxChainId[idx] = post.passes[0].hashCode();
-            } else {
-                layerState.postFxChainId[idx] = 0;
-            }
-        } else {
-            layerState.postFxChainId[idx] = 0;
-        }
     }
 
     private int normalizeType(int type, int entityId, int layerIdx) {

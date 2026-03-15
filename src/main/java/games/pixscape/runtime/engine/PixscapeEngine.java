@@ -1,6 +1,8 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.Aspect;
+import com.artemis.BaseSystem;
+import com.artemis.Component;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
@@ -23,10 +25,14 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.IdentityRegistrySyncSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+import games.pixscape.runtime.system.TagRegistrySyncSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
 
@@ -63,6 +69,9 @@ public final class PixscapeEngine {
 
     private AtlasRuntimeService atlasRuntimeService;
     private String defaultShaderName;
+
+    private IdentityRegistry identityRegistry;
+    private TagRegistry tagRegistry;
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
 
@@ -211,6 +220,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
+        bindRuntimeRegistries();
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
 
@@ -303,6 +313,65 @@ public final class PixscapeEngine {
         return box2dSyncSystem;
     }
 
+    public <T extends Component> ComponentMapper<T> mapper(Class<T> type) {
+        if (world == null) throw new IllegalStateException("World is not initialized.");
+        return world.getMapper(type);
+    }
+
+    public <T extends BaseSystem> T system(Class<T> type) {
+        if (world == null) throw new IllegalStateException("World is not initialized.");
+        return world.getSystem(type);
+    }
+
+    public IdentityRegistry getIdentityRegistry() {
+        return identityRegistry;
+    }
+
+    public TagRegistry getTagRegistry() {
+        return tagRegistry;
+    }
+
+    public ShaderRegistry getShaderRegistry() {
+        return ShaderRegistry.getInstance();
+    }
+
+    public int findEntityByStableId(long stableId) {
+        IdentityRegistry registry = getIdentityRegistry();
+        return registry != null ? registry.findByStableId(stableId) : -1;
+    }
+
+    public int firstEntityByName(String name) {
+        IdentityRegistry registry = getIdentityRegistry();
+        return registry != null ? registry.firstByName(name) : -1;
+    }
+
+    public IntBag findEntitiesByName(String name) {
+        IdentityRegistry registry = getIdentityRegistry();
+        IntBag out = new IntBag();
+        if (registry == null) return out;
+        var hits = registry.getByName(name);
+        for (int i = 0; i < hits.size; i++) {
+            out.add(hits.get(i));
+        }
+        return out;
+    }
+
+    public int firstEntityByTag(String tag) {
+        TagRegistry registry = getTagRegistry();
+        return registry != null ? registry.first(tag) : -1;
+    }
+
+    public IntBag findEntitiesByTag(String tag) {
+        TagRegistry registry = getTagRegistry();
+        IntBag out = new IntBag();
+        if (registry == null) return out;
+        var hits = registry.get(tag);
+        for (int i = 0; i < hits.size; i++) {
+            out.add(hits.get(i));
+        }
+        return out;
+    }
+
     // ---------------------------------------------------------------------
     // Getters
     // ---------------------------------------------------------------------
@@ -359,6 +428,8 @@ public final class PixscapeEngine {
         stats = null;
         statsSink = null;
         defaultShaderName = null;
+        identityRegistry = null;
+        tagRegistry = null;
     }
 
     /** Fully initializes runtime resources and creates an empty world. */
@@ -424,6 +495,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
+        bindRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -497,6 +569,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
+        bindRuntimeRegistries();
 
         return this;
     }
@@ -545,6 +618,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
+        bindRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -868,6 +942,18 @@ public final class PixscapeEngine {
                         + " doSleep=" + meta.doSleep
                         + " stepEnabled=" + box2dSyncSystem.isStepEnabled()
         );
+    }
+
+    private void bindRuntimeRegistries() {
+        if (world == null) {
+            identityRegistry = null;
+            tagRegistry = null;
+            return;
+        }
+        IdentityRegistrySyncSystem identitySync = world.getSystem(IdentityRegistrySyncSystem.class);
+        TagRegistrySyncSystem tagSync = world.getSystem(TagRegistrySyncSystem.class);
+        identityRegistry = identitySync != null ? identitySync.getRegistry() : null;
+        tagRegistry = tagSync != null ? tagSync.getRegistry() : null;
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {
