@@ -132,6 +132,8 @@ public final class WorldConfigFactory {
         builder.with(
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
+                new IdentityRegistrySyncSystem(),
+                new TagRegistrySyncSystem(),
                 new Box2dSyncSystem(null),
                 new UpdateWorldGeometrySystem(),
                 new AnimationSystem(atlasRuntimeService),

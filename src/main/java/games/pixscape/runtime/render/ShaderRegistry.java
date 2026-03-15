@@ -20,6 +20,8 @@ import games.pixscape.runtime.render.batch.GLCaps;
  */
 public final class ShaderRegistry {
 
+    private static final ShaderRegistry INSTANCE = new ShaderRegistry();
+
     private static final ObjectIntMap<String> nameToIdx = new ObjectIntMap<>();
     private static final Array<ShaderProgram> byIdx = new Array<>();
     private static final Array<ShaderMode> modesByIdx = new Array<>();
@@ -41,6 +43,10 @@ public final class ShaderRegistry {
     private static FileHandle projectShadersRoot = null;
 
     private ShaderRegistry() {}
+
+    public static ShaderRegistry getInstance() {
+        return INSTANCE;
+    }
 
     // ------------------------------------------------------------------------
     // Public API (registry)
