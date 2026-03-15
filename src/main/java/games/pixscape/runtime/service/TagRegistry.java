@@ -2,10 +2,12 @@ package games.pixscape.runtime.service;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
+import com.artemis.EntitySubscription;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.PixscapeTagComponent;
 
@@ -14,25 +16,53 @@ import games.pixscape.runtime.component.PixscapeTagComponent;
  *
  * Source of truth = {@link PixscapeTagComponent}.
  * This registry is only a cache / lookup index.
- *
- * V1 rules:
- * - tags are trimmed
- * - empty tags are ignored
- * - exact duplicates are not allowed inside a component
- * - case is preserved (exact match)
  */
 public final class TagRegistry {
 
-    private final World world;
-    private final ComponentMapper<PixscapeTagComponent> mTags;
+    private World world;
+    private ComponentMapper<PixscapeTagComponent> mTags;
+    private EntitySubscription subscription;
 
     /** Internal index: tag -> entities. */
     private final ObjectMap<String, IntArray> byTag = new ObjectMap<>();
 
-    public TagRegistry(World world) {
-        if (world == null) throw new IllegalArgumentException("world is null");
+    /** Reverse index for efficient entity-local updates. */
+    private final IntMap<Array<String>> tagsByEntity = new IntMap<>();
+
+    public TagRegistry() {
+    }
+
+    public void bind(World world) {
+        if (this.world == world) return;
+
+        byTag.clear();
+        tagsByEntity.clear();
+
         this.world = world;
+        this.mTags = null;
+        this.subscription = null;
+
+        if (world == null) return;
+
         this.mTags = world.getMapper(PixscapeTagComponent.class);
+        this.subscription = world.getAspectSubscriptionManager().get(Aspect.all(PixscapeTagComponent.class));
+        this.subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+            @Override
+            public void inserted(IntBag entities) {
+                int[] data = entities.getData();
+                for (int i = 0, n = entities.size(); i < n; i++) {
+                    indexEntityFromComponent(data[i]);
+                }
+            }
+
+            @Override
+            public void removed(IntBag entities) {
+                int[] data = entities.getData();
+                for (int i = 0, n = entities.size(); i < n; i++) {
+                    unindexEntity(data[i]);
+                }
+            }
+        });
     }
 
     /**
@@ -41,10 +71,11 @@ public final class TagRegistry {
      */
     public void rebuild() {
         byTag.clear();
+        tagsByEntity.clear();
 
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PixscapeTagComponent.class))
-                .getEntities();
+        if (world == null || subscription == null) return;
+
+        IntBag bag = subscription.getEntities();
 
         int[] data = bag.getData();
         for (int i = 0, n = bag.size(); i < n; i++) {
@@ -54,32 +85,9 @@ public final class TagRegistry {
         }
     }
 
-    /**
-     * Re-synchronizes one entity from its component data.
-     * Useful as a safety net during migration if legacy code still modifies
-     * {@link PixscapeTagComponent} directly.
-     */
-    public void syncEntity(int eid) {
-        unindexEverywhere(eid);
-
-        if (eid < 0) return;
-        if (!world.getEntityManager().isActive(eid)) return;
-        if (!mTags.has(eid)) return;
-
-        indexEntityFromComponent(eid);
-    }
-
-    /**
-     * Removes the entity from the index without modifying the component.
-     * Useful before delete / purge / deactivation.
-     */
-    public void removeEntity(int eid) {
-        unindexEverywhere(eid);
-    }
-
     public boolean hasTag(int eid, String tag) {
         String normalized = normalize(tag);
-        if (normalized == null || eid < 0) return false;
+        if (normalized == null || eid < 0 || mTags == null) return false;
 
         PixscapeTagComponent c = mTags.getSafe(eid, null);
         if (c == null || c.tags == null || c.tags.size == 0) return false;
@@ -87,10 +95,6 @@ public final class TagRegistry {
         return containsString(c.tags, normalized);
     }
 
-    /**
-     * Returns a COPY of the entity ids matching the given tag.
-     * No ordering is guaranteed.
-     */
     public IntArray get(String tag) {
         String normalized = normalize(tag);
         if (normalized == null) return new IntArray();
@@ -103,9 +107,6 @@ public final class TagRegistry {
         return out;
     }
 
-    /**
-     * Non-allocating variant that fills the provided output array.
-     */
     public void get(String tag, IntArray out) {
         if (out == null) return;
         out.clear();
@@ -119,10 +120,9 @@ public final class TagRegistry {
         out.addAll(bucket);
     }
 
-    /**
-     * Returns the first active entity matching the given tag, or -1.
-     */
     public int first(String tag) {
+        if (world == null) return -1;
+
         String normalized = normalize(tag);
         if (normalized == null) return -1;
 
@@ -136,9 +136,6 @@ public final class TagRegistry {
         return -1;
     }
 
-    /**
-     * Returns a defensive copy of all currently indexed tags.
-     */
     public Array<String> allTags() {
         Array<String> out = new Array<>(byTag.size);
         for (ObjectMap.Entry<String, IntArray> entry : byTag.entries()) {
@@ -147,13 +144,9 @@ public final class TagRegistry {
         return out;
     }
 
-    /**
-     * Adds a tag to an entity, creating the component if needed.
-     */
     public void addTag(int eid, String tag) {
         String normalized = normalize(tag);
-        if (normalized == null || eid < 0) return;
-        if (!world.getEntityManager().isActive(eid)) return;
+        if (normalized == null || !isEntityActive(eid)) return;
 
         PixscapeTagComponent c = mTags.has(eid) ? mTags.get(eid) : mTags.create(eid);
         if (c.tags == null) c.tags = new Array<>();
@@ -162,78 +155,99 @@ public final class TagRegistry {
             c.tags.add(normalized);
         }
 
-        index(normalized, eid);
+        Array<String> current = tagsByEntity.get(eid);
+        if (current == null) {
+            current = new Array<>();
+            tagsByEntity.put(eid, current);
+        }
+
+        if (!containsString(current, normalized)) {
+            current.add(normalized);
+            index(normalized, eid);
+        }
     }
 
-    /**
-     * Removes a tag from an entity.
-     */
     public void removeTag(int eid, String tag) {
         String normalized = normalize(tag);
-        if (normalized == null || eid < 0) return;
+        if (normalized == null || eid < 0 || mTags == null) return;
 
         PixscapeTagComponent c = mTags.getSafe(eid, null);
         if (c != null && c.tags != null && c.tags.size > 0) {
             removeString(c.tags, normalized);
         }
 
+        Array<String> current = tagsByEntity.get(eid);
+        if (current != null) {
+            removeString(current, normalized);
+            if (current.size == 0) {
+                tagsByEntity.remove(eid);
+            }
+        }
+
         unindex(normalized, eid);
     }
 
-    /**
-     * Removes all tags from an entity.
-     */
     public void clearTags(int eid) {
-        if (eid < 0) return;
-
-        unindexEverywhere(eid);
+        if (eid < 0 || mTags == null) return;
 
         PixscapeTagComponent c = mTags.getSafe(eid, null);
         if (c != null && c.tags != null) {
             c.tags.clear();
         }
+
+        unindexEntity(eid);
     }
 
-    /**
-     * Replaces the full tag set of an entity.
-     * The component content is normalized and deduplicated.
-     */
-    public void setTags(int eid, Array<String> tags) {
-        if (eid < 0) return;
-        if (!world.getEntityManager().isActive(eid)) return;
+    public void setTags(int eid, String... tags) {
+        if (!isEntityActive(eid)) return;
 
-        unindexEverywhere(eid);
+        unindexEntity(eid);
 
         PixscapeTagComponent c = mTags.has(eid) ? mTags.get(eid) : mTags.create(eid);
         if (c.tags == null) c.tags = new Array<>();
         c.tags.clear();
 
-        if (tags == null || tags.size == 0) return;
+        if (tags == null || tags.length == 0) return;
 
-        for (int i = 0; i < tags.size; i++) {
-            String normalized = normalize(tags.get(i));
-            if (normalized == null) continue;
-            if (containsString(c.tags, normalized)) continue;
+        Array<String> normalizedUnique = new Array<>(tags.length);
+        for (int i = 0; i < tags.length; i++) {
+            String normalized = normalize(tags[i]);
+            if (normalized == null || containsString(normalizedUnique, normalized)) continue;
 
+            normalizedUnique.add(normalized);
             c.tags.add(normalized);
             index(normalized, eid);
         }
+
+        if (normalizedUnique.size > 0) {
+            tagsByEntity.put(eid, normalizedUnique);
+        }
+    }
+
+    public void setTags(int eid, Array<String> tags) {
+        if (tags == null) {
+            setTags(eid, (String[]) null);
+            return;
+        }
+        setTags(eid, tags.toArray(String.class));
     }
 
     private void indexEntityFromComponent(int eid) {
-        PixscapeTagComponent c = mTags.getSafe(eid, null);
-        if (c == null || c.tags == null || c.tags.size == 0) return;
+        if (!isEntityActive(eid) || !mTags.has(eid)) return;
 
-        /*
-         * Normalize and deduplicate component data while indexing,
-         * so the component stays clean as well.
-         */
+        PixscapeTagComponent c = mTags.get(eid);
+        if (c.tags == null || c.tags.size == 0) {
+            unindexEntity(eid);
+            return;
+        }
+
+        unindexEntity(eid);
+
         Array<String> normalizedUnique = new Array<>(c.tags.size);
 
         for (int i = 0; i < c.tags.size; i++) {
             String normalized = normalize(c.tags.get(i));
-            if (normalized == null) continue;
-            if (containsString(normalizedUnique, normalized)) continue;
+            if (normalized == null || containsString(normalizedUnique, normalized)) continue;
 
             normalizedUnique.add(normalized);
             index(normalized, eid);
@@ -241,6 +255,19 @@ public final class TagRegistry {
 
         c.tags.clear();
         c.tags.addAll(normalizedUnique);
+
+        if (normalizedUnique.size > 0) {
+            tagsByEntity.put(eid, new Array<>(normalizedUnique));
+        }
+    }
+
+    private void unindexEntity(int eid) {
+        Array<String> known = tagsByEntity.remove(eid);
+        if (known == null || known.size == 0) return;
+
+        for (int i = 0; i < known.size; i++) {
+            unindex(known.get(i), eid);
+        }
     }
 
     private void index(String tag, int eid) {
@@ -266,30 +293,8 @@ public final class TagRegistry {
         }
     }
 
-    /**
-     * Removes an entity from all buckets.
-     * This is intentionally simple and robust for V1.
-     */
-    private void unindexEverywhere(int eid) {
-        if (byTag.size == 0) return;
-
-        Array<String> emptyKeys = null;
-
-        for (ObjectMap.Entry<String, IntArray> entry : byTag.entries()) {
-            IntArray bucket = entry.value;
-            removeInt(bucket, eid);
-
-            if (bucket.size == 0) {
-                if (emptyKeys == null) emptyKeys = new Array<>();
-                emptyKeys.add(entry.key);
-            }
-        }
-
-        if (emptyKeys != null) {
-            for (int i = 0; i < emptyKeys.size; i++) {
-                byTag.remove(emptyKeys.get(i));
-            }
-        }
+    private boolean isEntityActive(int eid) {
+        return world != null && mTags != null && eid >= 0 && world.getEntityManager().isActive(eid);
     }
 
     private static String normalize(String tag) {
