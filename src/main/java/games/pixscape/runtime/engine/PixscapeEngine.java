@@ -640,18 +640,6 @@ public final class PixscapeEngine {
         );
         rebindAtlas(sceneTag);
         forceFullDirtyAfterLoad();
-
-        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(AssetRefComponent.class, TextureRegionComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        for (int i = 0; i < bag.size(); i++) {
-            int e = data[i];
-            AssetRefComponent src = mSrc.get(e);
-        }
-
         world.process();
     }
 
