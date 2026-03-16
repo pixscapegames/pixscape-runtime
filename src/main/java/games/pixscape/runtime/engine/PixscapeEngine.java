@@ -139,8 +139,6 @@ public final class PixscapeEngine {
 
         int tiledBudget = DEFAULT_TILED_BUDGET * tiledLayerCount;
 
-        clearWorldForSceneSwitch();
-
         if (!meta.tiledEnabled) {
             tiledBudget = 0;
         }
@@ -218,7 +216,6 @@ public final class PixscapeEngine {
 
         world = result.getWorld();
         bindRuntimeRegistries();
-        rebuildRuntimeRegistries();
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
 
@@ -230,32 +227,6 @@ public final class PixscapeEngine {
 
         loggedFirstUpdate = false;
         loggedFirstRender = false;
-    }
-
-    private void clearWorldForSceneSwitch() {
-
-        if (world == null) return;
-
-        if (box2dSyncSystem != null) {
-            box2dSyncSystem.setStepEnabled(false);
-            box2dSyncSystem.setEnabled(false);
-            box2dSyncSystem.setBox2d(null);
-        }
-        box2dSyncSystem = null;
-
-        if (world != null) {
-            world.dispose();
-            world = null;
-        }
-
-        if (box2dWorldService != null) {
-            box2dWorldService.dispose();
-            box2dWorldService = null;
-        }
-
-        if (atlasRuntimeService != null) {
-            atlasRuntimeService.unloadAll();
-        }
     }
 
     /** Updates ECS delta time; call once per frame before {@link #render()}. */
@@ -649,8 +620,6 @@ public final class PixscapeEngine {
         if (sceneTag == null || sceneTag.isBlank()) {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
-        clearWorldBeforeSceneLoad();
-
         applyPhysicsFromScene(meta);
         loggedFirstUpdate = false;
         loggedFirstRender = false;
@@ -658,6 +627,7 @@ public final class PixscapeEngine {
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
         SceneLoader.loadScene(world, sceneFile, false);
+        world.process();
 
         rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
@@ -841,42 +811,6 @@ public final class PixscapeEngine {
             }
         }
     }
-
-    private void clearWorldBeforeSceneLoad() {
-        if (world == null) return;
-
-        if (box2dSyncSystem != null) {
-            box2dSyncSystem.setStepEnabled(false);
-            box2dSyncSystem.setEnabled(false);
-        }
-        if (box2dWorldService != null) {
-            box2dWorldService.dispose();
-            box2dWorldService = null;
-            if (box2dSyncSystem != null) {
-                box2dSyncSystem.setBox2d(null);
-            }
-        }
-
-        IntBag all = world.getAspectSubscriptionManager()
-                .get(Aspect.all())
-                .getEntities();
-
-        int[] data = all.getData();
-        for (int i = 0, n = all.size(); i < n; i++) {
-            int e = data[i];
-            world.delete(e);
-        }
-
-        world.process();
-        world.process();
-
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        if (dirty != null) dirty.clearAll();
-
-        if (drawList != null) drawList.clear();
-        if (renderState != null) renderState.clearAll();
-    }
-
     private String resolveSceneName(String sceneName) {
         if (sceneName != null && !sceneName.isBlank()) return sceneName;
 
