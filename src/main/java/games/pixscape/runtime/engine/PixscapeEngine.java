@@ -640,7 +640,6 @@ public final class PixscapeEngine {
         );
         rebindAtlas(sceneTag);
         forceFullDirtyAfterLoad();
-        world.process();
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
