@@ -1,11 +1,3 @@
-// ============================================================================
-// RuntimeConfig (corrige)
-// - Validation + defaults plus stricts
-// - Normalise les fichiers de scènes (filename only) pour éviter scenes/scene1.json
-// - currentSceneName sécurisé
-// - runtimeRootDir: on NE le réécrit pas (source de vérité: export / engine)
-// ============================================================================
-
 package games.pixscape.runtime.configuration;
 
 import com.badlogic.gdx.files.FileHandle;
@@ -30,20 +22,20 @@ public final class RuntimeConfig {
     public static final String DEFAULT_AUDIO_DIR = RuntimeFs.DIR_AUDIO;
     public static final String DEFAULT_SCENE_FILE = RuntimeFs.FILE_DEFAULT_SCENE;
 
-    public String projectName = "";
+    /** Identité technique du projet exporté. */
+    public String projectFileName = "";
+
     public String version = DEFAULT_VERSION;
 
-    /** Racine runtime (ex: .../pixscape-project). Optionnel: peut être déduit du FileHandle. */
+    /** Optionnel : peut être déduit du FileHandle côté engine. */
     public String runtimeRootDir;
 
-    public String scenesDir  = DEFAULT_SCENES_DIR;
+    public String scenesDir = DEFAULT_SCENES_DIR;
     public String atlasesDir = DEFAULT_ATLASES_DIR;
-
-    // dirs runtime optionnels
     public String effectsDir = DEFAULT_EFFECTS_DIR;
     public String animationsDir = DEFAULT_ANIMATIONS_DIR;
     public String shadersDir = DEFAULT_SHADERS_DIR;
-    public String audioDir   = DEFAULT_AUDIO_DIR;
+    public String audioDir = DEFAULT_AUDIO_DIR;
 
     // --- Scènes runtime ---
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
@@ -51,7 +43,7 @@ public final class RuntimeConfig {
 
     // --- Options projet (runtime) ---
     public String glProfile = "GL30";
-    public int    glSamples = 0;
+    public int glSamples = 0;
 
     // ---------------------------------------------------------------------
     // Shader mode
@@ -61,7 +53,7 @@ public final class RuntimeConfig {
         return switch (glProfile) {
             case "GL30" -> ShaderMode.TEXTURE_ARRAY;
             case "GL20" -> ShaderMode.SPRITE;
-            default     -> ShaderMode.MULTI_TEXTURE;
+            default -> ShaderMode.MULTI_TEXTURE;
         };
     }
 
@@ -80,7 +72,9 @@ public final class RuntimeConfig {
 
     public Array<String> getSceneNamesSorted() {
         Array<String> names = new Array<>();
-        for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) names.add(e.key);
+        for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
+            names.add(e.key);
+        }
         names.sort(String::compareTo);
         return names;
     }
@@ -96,10 +90,14 @@ public final class RuntimeConfig {
 
     public String findSceneNameByFile(String file) {
         if (file == null || file.isBlank()) return null;
-        String fn = RuntimeFs.filenameOnly(file);
+
+        String expected = RuntimeFs.filenameOnly(file);
         for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
-            SceneMetaRuntime m = e.value;
-            if (m != null && fn.equals(RuntimeFs.filenameOnly(m.file))) return e.key;
+            SceneMetaRuntime meta = e.value;
+            if (meta == null) continue;
+            if (expected.equals(RuntimeFs.filenameOnly(meta.file))) {
+                return e.key;
+            }
         }
         return null;
     }
@@ -114,10 +112,17 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public void applyDefaultsAndValidate(String pathForErrors) {
-        if (pathForErrors == null) pathForErrors = "<runtime-config>";
+        if (pathForErrors == null || pathForErrors.isBlank()) {
+            pathForErrors = "<runtime-config>";
+        }
 
-        if (version == null || version.isBlank()) version = DEFAULT_VERSION;
-        if (projectName == null) projectName = "";
+        if (version == null || version.isBlank()) {
+            version = DEFAULT_VERSION;
+        }
+
+        if (projectFileName == null || projectFileName.isBlank()) {
+            throw new RuntimeException("Missing projectFileName in: " + pathForErrors);
+        }
 
         if (scenesDir == null || scenesDir.isBlank()) scenesDir = DEFAULT_SCENES_DIR;
         if (atlasesDir == null || atlasesDir.isBlank()) atlasesDir = DEFAULT_ATLASES_DIR;
@@ -130,31 +135,47 @@ public final class RuntimeConfig {
             throw new RuntimeException("Unsupported project version '" + version + "' in: " + pathForErrors);
         }
 
-        if (!"GL20".equals(glProfile) && !"GL30".equals(glProfile)) glProfile = "GL30";
-        if (glSamples != 0 && glSamples != 2 && glSamples != 4 && glSamples != 8) glSamples = 0;
+        if (!"GL20".equals(glProfile) && !"GL30".equals(glProfile)) {
+            glProfile = "GL30";
+        }
 
-        if (scenes == null || scenes.size == 0) {
+        if (glSamples != 0 && glSamples != 2 && glSamples != 4 && glSamples != 8) {
+            glSamples = 0;
+        }
+
+        if (scenes.size == 0) {
             throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
         }
 
-        // Nettoyage scènes + defaults physics + NORMALISATION file
+        // Nettoyage scènes + normalisation file + defaults
         for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
             String key = e.key;
-            SceneMetaRuntime m = e.value;
-            if (m == null) continue;
+            SceneMetaRuntime meta = e.value;
 
-            if (m.name == null || m.name.isBlank()) m.name = key;
+            if (meta == null) {
+                throw new RuntimeException("Scene '" + key + "' is null in: " + pathForErrors);
+            }
 
-            if (m.file == null || m.file.isBlank()) {
+            if (meta.name == null || meta.name.isBlank()) {
+                meta.name = key;
+            }
+
+            if (meta.file == null || meta.file.isBlank()) {
                 throw new RuntimeException("Scene '" + key + "' has no file in: " + pathForErrors);
             }
-            m.file = filenameOnly(m.file);
 
-            if (m.pixelsPerMeter <= 0f) m.pixelsPerMeter = 100f;
-            // gravity defaults OK via init in SceneMetaRuntime
+            meta.file = RuntimeFs.filenameOnly(meta.file);
+
+            if (meta.file == null || meta.file.isBlank()) {
+                throw new RuntimeException("Scene '" + key + "' has invalid file in: " + pathForErrors);
+            }
+
+            if (meta.pixelsPerMeter <= 0f) {
+                meta.pixelsPerMeter = 100f;
+            }
         }
 
-        // Choix scène courante par défaut:
+        // Choix scène courante par défaut :
         // 1) currentSceneName valide
         // 2) scène dont file == scene1.json
         // 3) première triée
@@ -169,17 +190,8 @@ public final class RuntimeConfig {
     }
 
     // ---------------------------------------------------------------------
-    // Path helpers (no FileHandle dependency needed, but safe if present)
+    // Path helpers
     // ---------------------------------------------------------------------
-
-    public static String filenameOnly(String path) {
-        if (path == null) return null;
-        // Handle both / and \
-        int s1 = path.lastIndexOf('/');
-        int s2 = path.lastIndexOf('\\');
-        int i = Math.max(s1, s2);
-        return (i >= 0) ? path.substring(i + 1) : path;
-    }
 
     public FileHandle scenesRoot(FileHandle runtimeProjectDir) {
         return runtimeProjectDir != null ? runtimeProjectDir.child(scenesDir) : null;
@@ -199,5 +211,9 @@ public final class RuntimeConfig {
 
     public FileHandle animationsRoot(FileHandle runtimeProjectDir) {
         return runtimeProjectDir != null ? runtimeProjectDir.child(animationsDir) : null;
+    }
+
+    public FileHandle audioRoot(FileHandle runtimeProjectDir) {
+        return runtimeProjectDir != null ? runtimeProjectDir.child(audioDir) : null;
     }
 }
