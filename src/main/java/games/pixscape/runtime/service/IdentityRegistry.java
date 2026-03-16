@@ -26,6 +26,7 @@ public final class IdentityRegistry {
     private World world;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private EntitySubscription subscription;
+    private EntitySubscription.SubscriptionListener subscriptionListener;
 
     /** Internal unique index: stableId -> entityId. */
     private final LongMap<Integer> byStableId = new LongMap<>();
@@ -46,6 +47,8 @@ public final class IdentityRegistry {
     public void bind(World world) {
         if (this.world == world) return;
 
+        detachSubscriptionListener();
+
         byStableId.clear();
         byName.clear();
         stableIdByEntity.clear();
@@ -55,14 +58,18 @@ public final class IdentityRegistry {
         this.world = world;
         this.mIdentity = null;
         this.subscription = null;
+        this.subscriptionListener = null;
 
         if (world == null) return;
 
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.subscription = world.getAspectSubscriptionManager().get(Aspect.all(PixscapeIdentityComponent.class));
-        this.subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+        final World boundWorld = world;
+        this.subscriptionListener = new EntitySubscription.SubscriptionListener() {
             @Override
             public void inserted(IntBag entities) {
+                if (IdentityRegistry.this.world != boundWorld) return;
+
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     indexEntityFromComponent(data[i]);
@@ -71,12 +78,21 @@ public final class IdentityRegistry {
 
             @Override
             public void removed(IntBag entities) {
+                if (IdentityRegistry.this.world != boundWorld) return;
+
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     unindexEntity(data[i]);
                 }
             }
-        });
+        };
+        this.subscription.addSubscriptionListener(this.subscriptionListener);
+    }
+
+    private void detachSubscriptionListener() {
+        if (subscription != null && subscriptionListener != null) {
+            subscription.removeSubscriptionListener(subscriptionListener);
+        }
     }
 
     /**

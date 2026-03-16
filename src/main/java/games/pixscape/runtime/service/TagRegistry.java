@@ -22,6 +22,7 @@ public final class TagRegistry {
     private World world;
     private ComponentMapper<PixscapeTagComponent> mTags;
     private EntitySubscription subscription;
+    private EntitySubscription.SubscriptionListener subscriptionListener;
 
     /** Internal index: tag -> entities. */
     private final ObjectMap<String, IntArray> byTag = new ObjectMap<>();
@@ -35,20 +36,26 @@ public final class TagRegistry {
     public void bind(World world) {
         if (this.world == world) return;
 
+        detachSubscriptionListener();
+
         byTag.clear();
         tagsByEntity.clear();
 
         this.world = world;
         this.mTags = null;
         this.subscription = null;
+        this.subscriptionListener = null;
 
         if (world == null) return;
 
         this.mTags = world.getMapper(PixscapeTagComponent.class);
         this.subscription = world.getAspectSubscriptionManager().get(Aspect.all(PixscapeTagComponent.class));
-        this.subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+        final World boundWorld = world;
+        this.subscriptionListener = new EntitySubscription.SubscriptionListener() {
             @Override
             public void inserted(IntBag entities) {
+                if (TagRegistry.this.world != boundWorld) return;
+
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     indexEntityFromComponent(data[i]);
@@ -57,12 +64,21 @@ public final class TagRegistry {
 
             @Override
             public void removed(IntBag entities) {
+                if (TagRegistry.this.world != boundWorld) return;
+
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     unindexEntity(data[i]);
                 }
             }
-        });
+        };
+        this.subscription.addSubscriptionListener(this.subscriptionListener);
+    }
+
+    private void detachSubscriptionListener() {
+        if (subscription != null && subscriptionListener != null) {
+            subscription.removeSubscriptionListener(subscriptionListener);
+        }
     }
 
     /**
