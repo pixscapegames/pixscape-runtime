@@ -128,6 +128,8 @@ public final class PixscapeEngine {
 
         String resolved = resolveSceneName(sceneName);
         SceneMetaRuntime meta = cfg.getSceneMeta(resolved);
+        if (meta == null)
+            throw new IllegalArgumentException("Unknown scene: " + resolved);
 
         FileHandle sceneFile = runtimeProjectDir
                 .child(cfg.scenesDir)
@@ -136,9 +138,6 @@ public final class PixscapeEngine {
         int tiledLayerCount = SceneLoader.countTiledLayers(sceneFile);
 
         int tiledBudget = DEFAULT_TILED_BUDGET * tiledLayerCount;
-
-        if (meta == null)
-            throw new IllegalArgumentException("Unknown scene: " + resolved);
 
         clearWorldForSceneSwitch();
 
@@ -336,12 +335,12 @@ public final class PixscapeEngine {
 
     public int findEntityByStableId(long stableId) {
         IdentityRegistry registry = getIdentityRegistry();
-        return registry != null ? registry.findByStableId(stableId) : -1;
+        return registry.findByStableId(stableId);
     }
 
     public int firstEntityByName(String name) {
         IdentityRegistry registry = getIdentityRegistry();
-        return registry != null ? registry.firstByName(name) : -1;
+        return registry.firstByName(name);
     }
 
     public IntBag findEntitiesByName(String name) {
@@ -658,7 +657,7 @@ public final class PixscapeEngine {
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
-        SceneLoader.loadScene(world, sceneFile, true);
+        SceneLoader.loadScene(world, sceneFile, false);
 
         rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
@@ -681,11 +680,6 @@ public final class PixscapeEngine {
         for (int i = 0; i < bag.size(); i++) {
             int e = data[i];
             AssetRefComponent src = mSrc.get(e);
-            Gdx.app.log("DBG",
-                    "e=" + e
-                            + " assetId=" + src.assetId
-                            + " atlasTag=" + src.atlasTag
-            );
         }
 
         world.process();
