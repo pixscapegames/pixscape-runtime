@@ -1,6 +1,7 @@
 plugins {
   id 'java-library'
   id 'maven-publish'
+  id 'signing'
 }
 
 group = 'games.pixscape'
@@ -41,9 +42,17 @@ tasks.named('test', Test).configure {
   useJUnit()
 }
 
+tasks.named('javadoc', Javadoc).configure {
+  failOnError = false
+  options.addStringOption('Xdoclint:none', '-quiet')
+  options.encoding = 'UTF-8'
+  options.charSet = 'UTF-8'
+}
+
 publishing {
   publications {
     create("mavenJava", MavenPublication) {
+      artifactId = "pixscape-runtime"
       from components.java
 
       pom {
@@ -73,4 +82,9 @@ publishing {
       }
     }
   }
+}
+
+signing {
+  useGpgCmd()
+  sign publishing.publications.mavenJava
 }

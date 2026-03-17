@@ -13,7 +13,7 @@ import games.pixscape.runtime.component.PixscapeTagComponent;
 
 /**
  * Simple runtime index: tag -> entityIds.
- *
+ * <p>
  * Source of truth = {@link PixscapeTagComponent}.
  * This registry is only a cache / lookup index.
  */
@@ -245,7 +245,7 @@ public final class TagRegistry {
             setTags(eid, (String[]) null);
             return;
         }
-        setTags(eid, tags.toArray(String.class));
+        setTags(eid, tags.toArray());
     }
 
     private void indexEntityFromComponent(int eid) {

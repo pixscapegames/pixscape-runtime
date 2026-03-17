@@ -20,11 +20,11 @@ public class ParticleEffect implements Disposable {
     public float motionScale = 1f;
 
 	public ParticleEffect() {
-		emitters = new Array(8);
+		emitters = new Array<>(8);
 	}
 
 	public ParticleEffect(ParticleEffect effect) {
-		emitters = new Array(true, effect.emitters.size);
+		emitters = new Array<>(true, effect.emitters.size);
 		for (int i = 0, n = effect.emitters.size; i < n; i++)
 			emitters.add(newEmitter(effect.emitters.get(i)));
 	}
@@ -161,11 +161,10 @@ public class ParticleEffect implements Disposable {
 		BufferedReader reader = null;
 		try {
 			reader = new BufferedReader(new InputStreamReader(input), 512);
-			while (true) {
-				ParticleEmitter emitter = newEmitter(reader);
-				emitters.add(emitter);
-				if (reader.readLine() == null) break;
-			}
+            do {
+                ParticleEmitter emitter = newEmitter(reader);
+                emitters.add(emitter);
+            } while (reader.readLine() != null);
 		} catch (IOException ex) {
 			throw new GdxRuntimeException("Error loading effect: " + effectFile, ex);
 		} finally {
@@ -277,8 +276,7 @@ public class ParticleEffect implements Disposable {
 	 * parameter on all {@link ParticleEmitter ParticleEmitters} currently in this ParticleEffect.
 	 * <p>
 	 * IMPORTANT: If set to false and if the next object to use this Batch expects alpha blending, you are responsible for setting
-	 * the Batch's blend function to (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) before that next object is drawn.
-	 * @param cleanUpBlendFunction */
+	 * the Batch's blend function to (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) before that next object is drawn.   */
 	public void setEmittersCleanUpBlendFunction (boolean cleanUpBlendFunction) {
 		for (int i = 0, n = emitters.size; i < n; i++) {
 			emitters.get(i).setCleansUpBlendFunction(cleanUpBlendFunction);
