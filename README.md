@@ -1,5 +1,10 @@
-# Pixscape Runtime
+<p align="center">
+  <img src="pixscape-logo.png" alt="Pixscape logo" width="220"/>
+</p>
 
+<h1 align="center">Pixscape Runtime</h1>
+<p align="center"><strong>Performance-oriented 2D runtime for Pixscape</strong></p>
+<br>
 Pixscape Runtime is the core runtime library used by Pixscape.
 
 It provides the runtime-side foundation for 2D scenes, ECS-based gameplay, rendering, asset loading, tiled content, shader management, and physics integration.
