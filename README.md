@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pixscape-logo.png" alt="Pixscape logo" width="220"/>
+  <img src="pixscape_logo.png" alt="Pixscape logo" width="80">
 </p>
 
 <h1 align="center">Pixscape Runtime</h1>
