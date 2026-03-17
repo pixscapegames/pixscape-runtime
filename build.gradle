@@ -82,6 +82,13 @@ publishing {
       }
     }
   }
+
+  repositories {
+    maven {
+      name = "centralBundle"
+      url = uri(layout.buildDirectory.dir("central-bundle").get().asFile)
+    }
+  }
 }
 
 signing {
