@@ -2,11 +2,11 @@ package games.pixscape.runtime.helper;
 
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 
-/** Tests AABB et utilitaires culling/picking. Zéro objet. */
+/** AABB tests and culling/picking utilities. Zero allocations. */
 public final class OrientedBoundsHelper {
     private OrientedBoundsHelper(){}
 
-    /** Calcule x1..y4 (8 floats) à partir d’un OBB (coin 1..4 en sens horaire). */
+    /** Computes x1..y4 (8 floats) from an OBB (corner 1..4 clockwise). */
     public static void toCorners(OrientedBoundsComponent b, float[] out8) {
         float cx=b.cx, cy=b.cy, ux=b.ux, uy=b.uy, vx=b.vx, vy=b.vy, hx=b.hx, hy=b.hy;
 
@@ -27,7 +27,7 @@ public final class OrientedBoundsHelper {
         out8[7] = cy - uy_hx + vy_hy;
     }
 
-    /** Axis-aligned si U≈(1,0) et V≈(0,1). */
+    /** Axis-aligned if U≈(1,0) and V≈(0,1). */
     public static boolean isAxisAligned(OrientedBoundsComponent b, float eps) {
         return Math.abs(b.ux - 1f) <= eps && Math.abs(b.uy) <= eps
                 && Math.abs(b.vx) <= eps && Math.abs(b.vy - 1f) <= eps;
@@ -38,9 +38,9 @@ public final class OrientedBoundsHelper {
         float dx = x - b.cx;
         float dy = y - b.cy;
 
-        // projections sur les axes locaux U/V
-        float pu = dx * b.ux + dy * b.uy; // coordonnée locale X
-        float pv = dx * b.vx + dy * b.vy; // coordonnée locale Y
+        // projections onto local U/V axes
+        float pu = dx * b.ux + dy * b.uy; // local X coordinate
+        float pv = dx * b.vx + dy * b.vy; // local Y coordinate
 
         float hx = b.hx + tolerance;
         float hy = b.hy + tolerance;
@@ -48,15 +48,15 @@ public final class OrientedBoundsHelper {
         return Math.abs(pu) <= hx && Math.abs(pv) <= hy;
     }
 
-    /** Version sans tolérance. */
+    /** Version without tolerance. */
     public static boolean contains(OrientedBoundsComponent b, float x, float y) {
         return contains(b, x, y, 0f);
     }
 
     /**
-     * Test de point dans un OBB défini par ses 4 coins (x0,y0,...,x3,y3) en sens horaire.
+     * Point test in an OBB defined by its 4 corners (x0,y0,...,x3,y3) clockwise.
      * Les coins doivent venir de {@link #toCorners(OrientedBoundsComponent, float[])} puis
-     * éventuellement être translatés (parallax, etc.).
+     * may possibly be translated (parallax, etc.).
      */
     public static boolean contains(float[] corners8, float x, float y, float tolerance) {
         float x0 = corners8[0], y0 = corners8[1];

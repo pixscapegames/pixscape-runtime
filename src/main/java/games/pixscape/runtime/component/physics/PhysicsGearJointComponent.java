@@ -3,8 +3,8 @@ package games.pixscape.runtime.component.physics;
 import com.artemis.PooledComponent;
 
 /**
- * Gear joint : référence 2 joints existants.
- * Tu peux stocker des EIDs de joints ECS.
+ * Gear joint : references 2 existing joints.
+ * You can store ECS joint EIDs.
  */
 public final class PhysicsGearJointComponent extends PooledComponent {
 

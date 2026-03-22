@@ -3,10 +3,10 @@ package games.pixscape.runtime.render;
 import games.pixscape.runtime.component.LayerComponent;
 
 /**
- * SOA pour l'état des layers, indexé par layerIndex (0..capacity-1).
+ * SOA for layer state, indexed by layerIndex (0..capacity-1).
  *
  * Convention parallax :
- *  - parallaxX/Y == NaN  -> aucun parallax pour ce layer
+ *  - parallaxX/Y == NaN  -> no parallax for this layer
  *  - parallaxX/Y != NaN  -> parallax actif
  */
 public final class LayerStateSOA {
@@ -30,8 +30,8 @@ public final class LayerStateSOA {
     }
 
     /**
-     * Fixe la capacité max. à utiliser pour les layers.
-     * À appeler une seule fois au démarrage (ou très rarement).
+     * Sets max capacity for layers.
+     * Call once at startup (or very rarely).
      */
     public void setCapacity(int maxLayers) {
         if (maxLayers <= 0) {
@@ -50,7 +50,7 @@ public final class LayerStateSOA {
         clear();
     }
 
-    /** Remet tout l'état à zéro, sans changer la capacité. */
+    /** Resets all state to zero, without changing capacity. */
     public void clear() {
         if (capacity == 0) return;
 
@@ -65,8 +65,8 @@ public final class LayerStateSOA {
     }
 
     /**
-     * Signale qu'on utilise le layer d'index idx.
-     * Ne fait qu'une vérif de bornes + maj de maxLayerIndex.
+     * Marks that layer index idx is used.
+     * Only does bounds check + maxLayerIndex update.
      */
     public void touchLayerIndex(int idx) {
         if (capacity == 0) {
@@ -94,7 +94,7 @@ public final class LayerStateSOA {
         return capacity;
     }
 
-    /** Vrai si ce layer a un parallax actif (parallaxX/Y non-NaN). */
+    /** True if this layer has active parallax (parallaxX/Y non-NaN). */
     public boolean hasParallax(int layerIdx) {
         if (layerIdx < 0 || layerIdx >= capacity) return false;
         if (!enabled[layerIdx]) return false;

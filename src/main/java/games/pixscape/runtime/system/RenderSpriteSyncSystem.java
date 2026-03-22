@@ -15,10 +15,10 @@ import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.*;
 
 /**
- * Sync RenderStateSOA uniquement sur entités "dirty" via DirtyTrackerSystem.
+ * Sync RenderStateSOA only on "dirty" entities via DirtyTrackerSystem.
  *
- * - Union des listes (geometry/material/color/order/layer) sans doublons.
- * - Mise à jour partielle selon le coarse mask.
+ * - Union of lists (geometry/material/color/order/layer) without duplicates.
+ * - Partial update according to coarse mask.
  * - Aucun consume/remove: DirtyFlushSystem flush en fin de frame.
  */
 public final class RenderSpriteSyncSystem extends BaseSystem {
@@ -55,7 +55,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     protected void initialize() {
         InternalTextures.initIfNeeded();
 
-        // subscription = toutes les entités "sprite renderables"
+        // subscription = all "sprite renderable" entities
         spriteSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(
                         OrientedBoundsComponent.class,
@@ -102,7 +102,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     protected void begin() {
         if (dirty == null) return;
 
-        // Union des listes dirty
+        // Union of dirty lists
         work.clear();
 
         addList(dirty.geometryEntities());
@@ -138,7 +138,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
             RenderMaterialComponent  mat        = mMat.getSafe(e, null);
             EntityIndexComponent     entityIndex= mEntityIndex.getSafe(e, null);
 
-            // TextureRegion uniquement pour sprites non-lights
+            // TextureRegion only for non-light sprites
             TextureRegionComponent tr = isLight ? null : mTR.getSafe(e, null);
 
             if (b == null || mat == null || entityIndex == null || (!isLight && tr == null)) {
@@ -148,15 +148,15 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
             int mask = dirty.coarseBits(e);
 
-            // Toujours "touch" quand on a un ticket
+            // Always "touch" when there is a ticket
             state.touch(e);
             state.entityId[e] = e;
 
 
 
-            // Validité texture
+            // Validity texture
             // - sprites : tr.valid + mat.textureHandle != 0
-            // - lights  : on s’appuie sur le handle interne (pas sur mat.textureHandle)
+            // - lights: rely on internal handle (not mat.textureHandle)
             boolean valid = isLight
                     ? (InternalTextures.whiteHandle() != 0)
                     : (tr.valid && mat.getTextureHandle() != 0);
@@ -204,14 +204,14 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
                 }
             }
 
-            // --- LIGHT FORCING: texture + UVs (structurel, pas conditionné par MATERIAL dirty) ---
+            // --- LIGHT FORCING: texture + UVs (structural, not conditioned by MATERIAL dirty) ---
             if (isLight) {
                 state.textureHandle[e] = InternalTextures.whiteHandle();
                 state.u1[e] = 0f; state.v1[e] = 0f;
                 state.u2[e] = 1f; state.v2[e] = 1f;
             } else {
                 // --- UVs (TextureRegion) ---
-                // En pratique: si l’anim change UV, tu dois marquer MATERIAL (ou un bit dédié UV).
+                // In practice: if anim changes UV, yor must mark MATERIAL (or a dedicated UV bit).
                 if ((mask & DirtyBits.MATERIAL) != 0) {
                     state.u1[e] = tr.u1; state.v1[e] = tr.v1;
                     state.u2[e] = tr.u2; state.v2[e] = tr.v2;

@@ -3,9 +3,9 @@ package games.pixscape.runtime.component.physics;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Générateur simple d'identifiants stables pour les fixtures d'éditeur.
+ * Simple generator of stable IDs for editor fixtures.
  *
- * Les ids vivent dans FixtureDefData. Ce générateur ne fait qu'allouer et reseed.
+ * IDs live in FixtureDefData. This generator only allocates and reseeds.
  */
 public final class FixtureIdSequence {
 

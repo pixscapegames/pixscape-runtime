@@ -10,12 +10,12 @@ public final class TextureRegistry {
     private TextureRegistry() {}
 
     public static final int INVALID_HANDLE = 0;
-    public static final int WHITE_HANDLE   = 1; // réservé à InternalTextures
+    public static final int WHITE_HANDLE   = 1; // reserved for InternalTextures
 
     private static final IdentityHashMap<Texture, Integer> tex2id = new IdentityHashMap<>();
     private static final Array<Texture> id2tex = new Array<>();
 
-    // 0 invalide, 1 WHITE => on démarre à 2
+    // 0 invalid, 1 WHITE => start at 2
     private static int nextId = 2;
 
     private static void ensureCapacityForHandle(int handle) {
@@ -23,7 +23,7 @@ public final class TextureRegistry {
         while (id2tex.size <= idx) id2tex.add(null);
     }
 
-    /** Assigne (ou réassigne) un handle réservé à une texture donnée. */
+    /** Assigns (or reassigns) a reserved handle to a given texture. */
     public static void reserveHandle(int handle, Texture t) {
         if (handle <= 0) throw new IllegalArgumentException("handle must be > 0");
         if (handle > SortKey64.MAX_TEXTURE_HANDLE) {
@@ -31,13 +31,13 @@ public final class TextureRegistry {
         }
         if (t == null) throw new IllegalArgumentException("texture is null");
 
-        // Si ce handle était déjà associé à une autre texture, on enlève l'ancienne entrée.
+        // If this handle was already associated with another texture, remove old entry.
         Texture oldAtHandle = getByHandle(handle);
         if (oldAtHandle != null && oldAtHandle != t) {
             tex2id.remove(oldAtHandle);
         }
 
-        // Si cette texture avait déjà un autre handle, c’est une incohérence d’appelant.
+        // If this texture already had another handle, this is a caller inconsistency.
         Integer prev = tex2id.get(t);
         if (prev != null && prev != handle) {
             throw new IllegalStateException("Texture already registered with handle=" + prev + ", cannot reserve " + handle);
@@ -48,7 +48,7 @@ public final class TextureRegistry {
         ensureCapacityForHandle(handle);
         id2tex.set(handle - 1, t);
 
-        // nextId doit rester strictement au-dessus des handles déjà utilisés
+        // nextId must remain strictly above already used handles
         if (nextId <= handle) nextId = handle + 1;
         if (nextId <= WHITE_HANDLE) nextId = WHITE_HANDLE + 1;
     }
@@ -59,10 +59,10 @@ public final class TextureRegistry {
         Integer id = tex2id.get(t);
         if (id != null) return id;
 
-        // Allocation d’un nouveau handle (uniquement ici on check l’overflow)
+        // Allocate a new handle (only here we check overflow)
         int idNew = nextId;
 
-        if (idNew == WHITE_HANDLE) idNew++; // sécurité
+        if (idNew == WHITE_HANDLE) idNew++; // safety
         if (idNew > SortKey64.MAX_TEXTURE_HANDLE) {
             throw new IllegalStateException(
                     "TextureRegistry overflow: nextId=" + idNew +

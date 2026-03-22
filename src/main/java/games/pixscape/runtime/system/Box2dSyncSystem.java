@@ -657,7 +657,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 body.createFixture(fdef);
                 createdFixtures++;
             } catch (Throwable ignore) {
-                // Une fixture invalide n'annule pas les autres.
+                // One invalid fixture does not cancel the others.
             } finally {
                 if (shape != null) shape.dispose();
             }

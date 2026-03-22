@@ -1,11 +1,11 @@
 package games.pixscape.runtime.render;
 
 /**
- * Liste plate des entités à dessiner pour la frame courante.
+ * Flat list of entities to draw for the current frame.
  * <p>
- * La capacité est fixée via le constructeur ou {@link #setCapacity(int)}
- * au moment de l'initialisation. Aucun agrandissement dynamique n'est effectué
- * au-delà de cette capacité : un dépassement est considéré comme un bug.
+ * Capacity is set via the constructor or {@link #setCapacity(int)}
+ * at initialization time. No dynamic growth is performed
+ * beyond this capacity: overflow is considered a bug.
  */
 public final class DrawList {
 
@@ -13,7 +13,7 @@ public final class DrawList {
     public int size = 0;
 
     public DrawList() {
-        // On attend un setCapacity(...) explicite plus tard.
+        // An explicit setCapacity(...) is expected later.
     }
 
     public DrawList(int initialCapacity) {
@@ -49,9 +49,9 @@ public final class DrawList {
     }
 
     /**
-     * Fixe (ou refixe) complètement la capacité de la DrawList.
+     * Sets (or resets) DrawList capacity completely.
      * <p>
-     * À appeler typiquement juste après la création du World, avec
+     * Typically call right after World creation, with
      * world.getEntityManager().getCapacity().
      */
     public void setCapacity(int capacity) {

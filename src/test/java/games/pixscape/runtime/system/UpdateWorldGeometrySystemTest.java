@@ -16,7 +16,7 @@ public class UpdateWorldGeometrySystemTest {
 
     @Test
     public void spritePositionUsesBottomLeftAtCreation() {
-        // Test: la position d'un sprite correspond au coin bas-gauche à la création.
+        // Test: a sprite's position matches the bottom-left corner on creation.
         // Arrange
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         UpdateWorldGeometrySystem geometry = new UpdateWorldGeometrySystem();
@@ -49,7 +49,7 @@ public class UpdateWorldGeometrySystemTest {
 
     @Test
     public void animationPositionUsesBottomLeftAtCreation() {
-        // Test: la position d'une animation correspond au coin bas-gauche à la création.
+        // Test: an animation's position matches the bottom-left corner on creation.
         // Arrange
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         UpdateWorldGeometrySystem geometry = new UpdateWorldGeometrySystem();

@@ -27,7 +27,7 @@ public final class Box2dWorldService {
 
     private float accumulator = 0f;
 
-    // métriques (optionnel mais très utile)
+    // metrics (optional but very useful)
     public long lastStepTimeNs = 0L;
     public int lastSubsteps = 0;
 
@@ -77,7 +77,7 @@ public final class Box2dWorldService {
     }
 
     public void step(float dt) {
-        // clamp dt pour éviter un dt énorme (alt-tab etc.)
+        // clamp dt to avoid huge dt (alt-tab etc.)
         float frameTime = Math.min(dt, MAX_FRAME_TIME);
         accumulator += frameTime;
 
@@ -95,7 +95,7 @@ public final class Box2dWorldService {
         jointCount = world.getJointCount();
         contactCount = world.getContactCount();
 
-        // Si on a atteint max substeps, on “jette” le reste pour éviter de s’enfoncer
+        // If max substeps is reached, we "drop" the rest to avoid falling behind
         if (substeps == MAX_SUBSTEPS) {
             accumulator = 0f;
         }

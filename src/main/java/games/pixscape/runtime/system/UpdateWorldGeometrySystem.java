@@ -11,11 +11,11 @@ import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.GeometryDirty;
 
 /**
- * Recalcul géométrie monde (axes/oriented bounds/AABB) UNIQUEMENT pour les entités
- * marquées dirty GEOMETRY via DirtyTrackerSystem (hors components).
+ * Recompute world geometry (axes/oriented bounds/AABB) ONLY for entities
+ * marked GEOMETRY dirty via DirtyTrackerSystem (outside components).
  *
- * - Lit le submask GeometryDirty (pos/origin/rot/scale/size) pour éviter de recalculer trig inutilement.
- * - Ne fait pas de consume/remove : DirtyFlushSystem flush en fin de frame.
+ * - Reads GeometryDirty submask (pos/origin/rot/scale/size) to avoid unnecessary trig recomputation.
+ * - Does not consume/remove: DirtyFlushSystem flushes at end of frame.
  */
 public final class UpdateWorldGeometrySystem extends BaseSystem {
 
@@ -42,8 +42,8 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
 
             final int sub = dirty.geomSub(e);
             if (sub == GeometryDirty.NONE) {
-                // GEOMETRY coarse sans sub => logique rien à faire.
-                // (le rendu pourra quand même consommer le coarse via sa propre passe)
+                // Coarse GEOMETRY without sub => logically nothing to do.
+                // (rendering can still consume coarse via its own pass)
                 continue;
             }
 
@@ -53,7 +53,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
             AABBComponent a = mA.getSafe(e, null);
 
             if (t == null || d == null || b == null || a == null) {
-                // évite de garder un submask “bloquant” indéfiniment
+                // prevents keeping a "blocking" submask indefinitely
                 dirty.clearAllGeomSub(e);
                 continue;
             }
@@ -107,7 +107,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
                 a.minX = minX; a.minY = minY; a.maxX = maxX; a.maxY = maxY;
             }
 
-            // 3) Consommer la logique géométrie (submask)
+            // 3) Consume geometry logic (submask)
             dirty.clearAllGeomSub(e);
         }
     }

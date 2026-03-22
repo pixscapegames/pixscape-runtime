@@ -5,7 +5,7 @@ public final class FixtureDefData {
     public static final int SHAPE_CIRCLE = 1;
     public static final int SHAPE_POLYGON = 2;
 
-    /** Identifiant stable d'éditeur / historique. > 0 quand initialisé. */
+    /** Stable editor/history ID. > 0 when initialized. */
     public long fixtureId = 0L;
 
     public int shapeType = SHAPE_BOX;

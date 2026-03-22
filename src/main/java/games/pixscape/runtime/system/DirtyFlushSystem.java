@@ -2,7 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 
-/** Flush explicite des dirty en fin de frame, pour enlever la dépendance à l'ordre implicite. */
+/** Explicit dirty flush at end of frame, to remove dependency on implicit ordering. */
 public final class DirtyFlushSystem extends BaseSystem {
 
     private DirtyTrackerSystem dirty;

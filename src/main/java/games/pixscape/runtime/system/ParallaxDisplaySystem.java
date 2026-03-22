@@ -79,7 +79,7 @@ public final class ParallaxDisplaySystem extends BaseSystem {
         final float camX = worldCam.position.x;
         final float camY = worldCam.position.y;
 
-        final int layerCapacity = layerState.parallaxX.length; // ou layerState.capacity()
+        final int layerCapacity = layerState.parallaxX.length; // or layerState.capacity()
 
         IntBag bag = spriteSubscription.getEntities();
         int[] data = bag.getData();
@@ -87,8 +87,8 @@ public final class ParallaxDisplaySystem extends BaseSystem {
         for (int i = 0, n = bag.size(); i < n; i++) {
             int e = data[i];
             if (!renderState.enabled[e]) {
-                // par sécurité on remet l'offset à zéro,
-                // utile si l'entité est recyclée
+                // par safety on reset offset to zero,
+                // useful if the entity is recycled
                 renderState.offsetX[e] = 0f;
                 renderState.offsetY[e] = 0f;
                 continue;
@@ -96,14 +96,14 @@ public final class ParallaxDisplaySystem extends BaseSystem {
 
             int layerIdx = renderState.layerIndex[e];
 
-            // layer invalide → pas de parallax
+            // invalid layer -> no parallax
             if (layerIdx < 0 || layerIdx >= layerCapacity || !layerState.enabled[layerIdx]) {
                 renderState.offsetX[e] = 0f;
                 renderState.offsetY[e] = 0f;
                 continue;
             }
 
-            // parallax désactivé sur ce layer ?
+            // parallax disabled on this layer?
             if (!layerState.hasParallax(layerIdx)) {
                 renderState.offsetX[e] = 0f;
                 renderState.offsetY[e] = 0f;

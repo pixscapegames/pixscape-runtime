@@ -4,8 +4,8 @@ import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 
 /**
- * Contexte de rendu passé aux extensions et aux passes FX.
- * Tu pourras l’enrichir progressivement.
+ * Render context passed to extensions and FX passes.
+ * Yor can enrich it progressively.
  */
 public final class RenderContext {
 
@@ -13,7 +13,7 @@ public final class RenderContext {
     public final LayerStateSOA  layerState;
     public final DrawList       drawList;
 
-    public final MetricsBatch   batch; // ou interface plus abstraite
+    public final MetricsBatch   batch; // or interface plus abstraite
     public final GLCaps         glCaps;
 
     public RenderContext(RenderStateSOA renderState,
@@ -28,5 +28,5 @@ public final class RenderContext {
         this.glCaps      = glCaps;
     }
 
-    // Helpers à rajouter (bindFbo, bindShader, drawFullscreenQuad, etc.)
+    // Helpers to add (bindFbo, bindShader, drawFullscreenQuad, etc.)
 }

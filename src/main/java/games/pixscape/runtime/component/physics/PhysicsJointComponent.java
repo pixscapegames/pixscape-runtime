@@ -3,16 +3,16 @@ package games.pixscape.runtime.component.physics;
 import com.artemis.PooledComponent;
 
 /**
- * Composant commun à tous les joints (équivalent ECS des champs communs des b2JointDef).
+ * Common component for all joints (ECS equivalent of common b2JointDef fields).
  *
- * Invariant recommandé :
- * - Une entité "joint" doit avoir EXACTEMENT :
+ * Recommended invariant:
+ * - Une entity "joint" doit avoir EXACTEMENT :
  *   - PhysicsJointComponent (base)
  *   - + 1 composant de type (Distance/Revolute/Prismatic/etc.)
  */
 public final class PhysicsJointComponent extends PooledComponent {
 
-    // Box2D joint types (alignés sur tes composants spécifiques)
+    // Box2D joint types (aligned with your specific components)
     public static final int TYPE_DISTANCE  = 0;
     public static final int TYPE_REVOLUTE  = 1;
     public static final int TYPE_PRISMATIC = 2;
@@ -24,10 +24,10 @@ public final class PhysicsJointComponent extends PooledComponent {
     public static final int TYPE_FRICTION  = 8;
     public static final int TYPE_MOTOR     = 9;
 
-    /** Type logique (pour debug/UI/serial). */
+    /** Logical type (for debug/UI/serialization). */
     public int type = TYPE_DISTANCE;
 
-    /** Bodies référencés (ECS entity ids). */
+    /** Referenced bodies (ECS entity ids). */
     public int aEid = -1;
     public int bEid = -1;
 
@@ -35,9 +35,9 @@ public final class PhysicsJointComponent extends PooledComponent {
     public boolean collideConnected = false;
 
     /**
-     * Ancres locales en mètres.
-     * - localAnchorA : dans le repère local du body A
-     * - localAnchorB : dans le repère local du body B
+     * Local anchors in meters.
+     * - localAnchorA : in body A local frame
+     * - localAnchorB : in body B local frame
      *
      * Convention : (0,0) = centre du body.
      */

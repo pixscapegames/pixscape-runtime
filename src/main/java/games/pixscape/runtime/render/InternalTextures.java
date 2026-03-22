@@ -10,7 +10,7 @@ public final class InternalTextures {
     private static Texture white1x1;
 
     public static void initIfNeeded() {
-        // 1) Créer la texture si besoin (1 seule fois)
+        // 1) Create the texture if needed (only once)
         if (white1x1 == null) {
             Pixmap pm = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
             pm.setColor(1f, 1f, 1f, 1f);
@@ -22,8 +22,8 @@ public final class InternalTextures {
             white1x1.setFilter(TextureFilter.Linear, TextureFilter.Linear);
         }
 
-        // 2) IMPORTANT: après TextureRegistry.clear(), le mapping est perdu.
-        // On re-réserve donc WHITE_HANDLE à CHAQUE appel, mais seulement si nécessaire.
+        // 2) IMPORTANT: after TextureRegistry.clear(), mapping is lost.
+        // So we re-reserve WHITE_HANDLE at EACH call, but only when necessary.
         Texture mapped = TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE);
         if (mapped != white1x1) {
             TextureRegistry.reserveHandle(TextureRegistry.WHITE_HANDLE, white1x1);
@@ -45,6 +45,6 @@ public final class InternalTextures {
             white1x1.dispose();
             white1x1 = null;
         }
-        // Pas de clear ici: c'est le job de TextureRegistry.clear() côté cycle de vie.
+        // No clear here: TextureRegistry.clear() handles lifecycle side.
     }
 }

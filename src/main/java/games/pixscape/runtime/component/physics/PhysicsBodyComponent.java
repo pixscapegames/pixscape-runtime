@@ -2,7 +2,7 @@ package games.pixscape.runtime.component.physics;
 
 import com.artemis.PooledComponent;
 
-/** Définition sérialisable du body Box2D. */
+/** Serializable definition of the Box2D body. */
 public final class PhysicsBodyComponent extends PooledComponent {
     public static final int STATIC = 0;
     public static final int KINEMATIC = 1;

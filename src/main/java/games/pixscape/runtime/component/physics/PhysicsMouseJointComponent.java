@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsMouseJointComponent extends PooledComponent {
 
-    /** Target monde (mètres). */
+    /** Target world (meters). */
     public float targetX = 0f;
     public float targetY = 0f;
 

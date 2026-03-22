@@ -25,7 +25,7 @@ public final class LayerStateBuildSystem extends IteratingSystem {
     private static final String TAG = "LayerStateBuild";
 
     private final LayerStateSOA layerState;
-    private final SceneMetaRuntime sceneMeta; // peut être null
+    private final SceneMetaRuntime sceneMeta; // can be null
 
     private ComponentMapper<LayerComponent>        mLayer;
     private ComponentMapper<LayerParallaxComponent> mParallax;
@@ -38,7 +38,7 @@ public final class LayerStateBuildSystem extends IteratingSystem {
 
     @Override
     protected void begin() {
-        layerState.clear(); // remet parallax à NaN, enabled=false, etc.
+        layerState.clear(); // resets parallax to NaN, enabled=false, etc.
         if (sceneMeta != null) {
             layerState.physicsParallaxX = sceneMeta.physicsParallaxX;
             layerState.physicsParallaxY = sceneMeta.physicsParallaxY;

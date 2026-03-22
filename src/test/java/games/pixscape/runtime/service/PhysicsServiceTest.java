@@ -14,7 +14,7 @@ public class PhysicsServiceTest {
 
     @Test
     public void removingPhysicsDeletesRuntimeBodyFixturesAndJoints() {
-        // Test: la suppression d'une entité physique supprime son body, ses shapes et ses joints.
+        // Test: deleting a physics entity removes its body, shapes, and joints.
         // Arrange
         GdxNativesLoader.load();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.8f));

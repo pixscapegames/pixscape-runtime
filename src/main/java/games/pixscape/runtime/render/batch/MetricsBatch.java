@@ -26,6 +26,6 @@ public interface MetricsBatch extends AutoCloseable {
     void close();
 
     default void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
-        // no-op par défaut
+        // no-op by default
     }
 }

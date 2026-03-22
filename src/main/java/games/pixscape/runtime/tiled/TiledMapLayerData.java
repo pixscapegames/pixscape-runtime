@@ -20,7 +20,7 @@ public final class TiledMapLayerData {
     public int chunkSize;
 
     // =========================
-    // SOA RANGE (injecté par allocator)
+    // SOA RANGE (injected by allocator)
     // =========================
 
     public int layerTiledStart;
@@ -110,7 +110,7 @@ public final class TiledMapLayerData {
             }
         }
 
-        // Sécurité stricte
+        // Strict safety
         if (cursor > layerTiledEnd) {
             throw new IllegalStateException("Tiled allocation overflow");
         }
@@ -172,7 +172,7 @@ public final class TiledMapLayerData {
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {
 
-        // 1) Sauvegarde sparse des tiles existantes
+        // 1) Sparse backup of existing tiles
         IntMap<IntMap<Integer>> saved = new IntMap<>();
 
         IntMap.Values<TileChunk> values = chunks.values();
@@ -198,14 +198,14 @@ public final class TiledMapLayerData {
             }
         }
 
-        // 2) Mettre à jour dimensions
+        // 2) Update dimensions
         this.mapWidth  = newWidth;
         this.mapHeight = newHeight;
 
-        // 3) Recréer les chunks (réutilise le même range SOA)
+        // 3) Recreate chunks (reuses same SOA range)
         allocateChunksStrict();
 
-        // 4) Réinjecter tiles valides
+        // 4) Reinject valid tiles
         IntMap.Keys xs = saved.keys();
         while (xs.hasNext) {
             int gx = xs.next();

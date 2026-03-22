@@ -10,12 +10,12 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
- * Batch basé sur un unique TextureArray (sampler2DArray dans le shader).
+ * Batch based on a single TextureArray (sampler2DArray in shader).
  *
- * Attributs (doivent matcher le shader ta_sprite / ta_default) :
+ * Attributes (must match ta_sprite / ta_default shader):
  *   0: a_position  (vec2)  -> float2
  *   1: a_texCoord0 (vec2)  -> float2
- *   2: a_color     (vec4)  -> PACKED RGBA8888 (Usage.ColorPacked) - côté shader ça reste vec4 0..1
+ *   2: a_color     (vec4)  -> PACKED RGBA8888 (Usage.ColorPacked) - shader side it remains vec4 0..1
  *   3: a_layer     (float) -> float
  *
  * Format CPU (float[]) :
@@ -33,13 +33,13 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     private int vertCount = 0;
     private int quadCount = 0;
 
-    // couleur courante (packed RGBA8888 dans un float-bits, comme SpriteBatch)
+    // current color (packed RGBA8888 in float bits, like SpriteBatch)
     private float colorPacked = Color.WHITE.toFloatBits();
 
-    /** Shader actuel utilisé pour les quads TextureArray (ta_default). */
+    /** Current shader used for TextureArray quads (ta_default). */
     private ShaderProgram shader;
 
-    // Cache des locations de uniforms (évite lookup string et permet d’éviter setUniformMatrix en flush)
+    // Cache uniform locations (avoids string lookup and avoids setUniformMatrix on flush)
     private int uProjTransLoc = -1;
     private int uArrayLoc = -1;
 
@@ -47,9 +47,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     private RenderStats stats;
     private boolean drawing = false;
 
-    // Flags pour éviter les resets inutiles
-    private boolean projDirty = true;      // u_projTrans doit être renvoyé ?
-    private boolean arrayBound = false;    // texture array déjà bind sur TU0 pour ce begin/end ?
+    // Flags to avoid unnecessary resets
+    private boolean projDirty = true;      // u_projTrans must be resent?
+    private boolean arrayBound = false;    // texture array already bound on TU0 for this begin/end?
 
     // --- TextureArray + mapping handle(TextureRegistry) -> layer ---
     private TextureArray textureArray;
@@ -101,10 +101,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.drawing = true;
 
         this.combined.set(combined);
-        this.projDirty = true;  // projection potentiellement différente à chaque begin()
-        this.arrayBound = false; // on repart “propre” à chaque begin/end
+        this.projDirty = true;  // projection potentially different at each begin()
+        this.arrayBound = false; // restart "clean" at each begin/end
 
-        // Prépare shader + uniforms + bind TA une seule fois, pas à chaque flush
+        // Prepare shader + uniforms + TA bind once, not every flush
         prepareDrawState(stats);
     }
 
@@ -114,7 +114,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.stats = null;
         this.drawing = false;
 
-        // On ne “compte” plus sur l’état GL après end()
+        // We no longer rely on GL state after end()
         this.arrayBound = false;
         this.projDirty = true;
     }
@@ -132,7 +132,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         flush(stats);
         shader = sh;
 
-        // Cache uniform locations (pas obligatoire, mais utile et propre)
+        // Cache uniform locations (not required, but useful and clean)
         cacheUniformLocations(shader);
 
         // Nouveau shader => il faut renvoyer u_projTrans et u_array
@@ -140,7 +140,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         // Si on est en plein begin/end, on rebinde/configure tout de suite
         if (drawing) {
-            // Le bind texture reste global, mais u_array est par-program => on le remet
+            // Texture bind remains global, but u_array is per-program => set again
             arrayBound = false;
             prepareDrawState(stats);
         }
@@ -194,7 +194,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         mesh.setVertices(verts, 0, vertCount * VERT_STRIDE);
 
         // IMPORTANT: on ne reset PAS u_projTrans ici
-        // => prepareDrawState ne renverra u_projTrans que si projDirty = true
+        // => prepareDrawState will only resend u_projTrans if projDirty = true
         prepareDrawState(s);
 
         mesh.render(shader, GL20.GL_TRIANGLES, 0, quadCount * 6);
@@ -210,8 +210,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
     @Override
     public void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
-        // Sécurité : si on change de bundle en plein batch, on flush
-        // (on utilise stats “courante” si begin() a été appelé)
+        // Safety: if bundle changes mid-batch, flush
+        // (uses “current” stats if begin() has been called)
         if (drawing && quadCount > 0) flush(this.stats);
 
         if (bundle == null) {
@@ -226,7 +226,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.textureArray = bundle.textureArray;
         this.handle2layer = bundle.handle2layer;
 
-        // Nouveau texture array => on forçera le bind au prochain draw/flush
+        // New texture array => force bind at next draw/flush
         this.arrayBound = false;
     }
 
@@ -239,32 +239,32 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     // --------------------------------------------------------------------
 
     private void cacheUniformLocations(ShaderProgram sh) {
-        // Ces uniforms existent dans tes shaders, mais on reste safe
-        // (en cas de variante de shader, -1 => on ne set pas)
+        // These uniforms exist in your shaders, but stay safe
+        // (if shader variant, -1 => do not set)
         this.uProjTransLoc = sh.getUniformLocation("u_projTrans");
         this.uArrayLoc = sh.getUniformLocation("u_array");
     }
 
-    /** Assure que shader + uniforms + texture array sont prêts. */
+    /** Ensures shader + uniforms + texture array are ready. */
     private void prepareDrawState(RenderStats stats) {
         if (shader == null || !hasBundle()) return;
 
         shader.bind();
 
         if (uProjTransLoc < 0 || uArrayLoc < 0) {
-            // si setShader a été fait avant que shader.getUniformLocation soit dispo (rare),
+            // if setShader was called before shader.getUniformLocation was available (rare),
             // on recache ici
             cacheUniformLocations(shader);
         }
 
-        // u_projTrans : seulement quand dirty (pas à chaque flush)
+        // u_projTrans : only when dirty (not every flush)
         if (projDirty && uProjTransLoc >= 0) {
             shader.setUniformMatrix(uProjTransLoc, combined);
             projDirty = false;
         }
 
         // TextureArray bind + uniform u_array :
-        // on le fait une fois par begin/end (et après setShader / changement bundle)
+        // do it once per begin/end (and after setShader / bundle change)
         if (!arrayBound) {
             textureArray.bind(0);
             if (uArrayLoc >= 0) shader.setUniformi(uArrayLoc, 0);
@@ -272,7 +272,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
             if (stats != null) stats.textureBinds++;
 
-            // garder TU0 actif pour rester propre
+            // keep TU0 active to stay clean
             Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
         }
     }
@@ -288,7 +288,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         float fl = (float) layer;
 
-        // Corriger les UV si les pages n’ont pas toutes la même taille
+        // Fix UVs if pages do not all have same size
         float uu  = u;
         float uu2 = u2;
         float vv  = v;

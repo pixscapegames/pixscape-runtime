@@ -3,10 +3,10 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 
 public final class OrientedBoundsComponent extends PooledComponent {
-    public float cx, cy;       // centre monde du quad
-    public float ux, uy;       // axe X local (unitaire) dans le monde
-    public float vx, vy;       // axe Y local (unitaire) dans le monde
-    public float hx, hy;       // demi-extent en local (w/2, h/2 après scale)
+    public float cx, cy;       // centre world du quad
+    public float ux, uy;       // local X axis (unit) in world
+    public float vx, vy;       // local Y axis (unit) in world
+    public float hx, hy;       // local half-extent (w/2, h/2 after scale)
 
     @Override
     protected void reset(){

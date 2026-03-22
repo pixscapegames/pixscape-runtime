@@ -30,8 +30,8 @@ import games.pixscape.runtime.render.TextureRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
- * Version SOA des particules : met à jour les ParticleEffect et
- * injecte chaque Sprite de particule active dans RenderStateSOA.
+ * SOA version of particles: updates ParticleEffect and
+ * injects each active particle Sprite into RenderStateSOA.
  */
 @All({ParticleEmitterComponent.class, TransformComponent.class})
 public final class RenderParticleSyncSystem extends BaseSystem {
@@ -39,11 +39,11 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private final OrthographicCamera camera;
     private final RenderStateSOA state;
 
-    // cache perf: évite TextureRegistry.handleOf(tex) pour chaque particule
+    // perf cache: avoids TextureRegistry.handleOf(tex) for each particle
     private Texture lastTex = null;
     private int lastTexHandle = 0;
 
-    // plage d’indices réservée aux VFX dans le SOA
+    // index range reserved for VFX in the SOA
     private final int vfxStartIndex;
     private final int vfxEndIndex;
 
@@ -63,10 +63,10 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private EntitySubscription layerSubscription;
     private final IntIntMap layerVisibility = new IntIntMap();
 
-    // stats simples pour nettoyer les slots de la frame précédente
+    // simple stats to clean slots from previous frame
     private int lastUsedVfxSlots = 0;
 
-    // params “matériau” par défaut
+    // default “material” params
     private final int defaultShaderIdx;
     private final AtlasRuntimeService atlasRuntimeService;
     private FileHandle effectsRoot;
@@ -101,7 +101,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
         subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
             @Override public void inserted(IntBag entities) {
-                // lazy-load des effets dans processSystem
+                // lazy-load effects in processSystem
             }
 
             @Override public void removed(IntBag entities) {
@@ -123,7 +123,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     protected void processSystem() {
         float dt = world.getDelta();
 
-        // 1) nettoyer les slots VFX de la frame précédente
+        // 1) clean VFX slots from previous frame
         clearPreviousVfxSlots();
         refreshLayerVisibility();
 
@@ -164,7 +164,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 if (comp.autoStart) fx.start();
             }
 
-            // suivre le Transform (localSpace)
+            // follow Transform (localSpace)
             if (comp.localSpace) {
                 float px = t.x + t.originX;
                 float py = t.y + t.originY;
@@ -186,18 +186,18 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             // simulation
             fx.update(dt);
 
-            // culling effect-level : bounding box vs caméra
+            // culling effect-level : bounding box vs camera
             if (!isEffectVisible(fx)) {
                 continue;
             }
 
-            // enabled=false => l'effet vit mais on ne rend rien
+            // enabled=false => the effect lives but nothing is rendered
             if (ov != null && !ov.enabled) {
                 continue;
             }
 
-            // injecter toutes les particules actives dans le SOA,
-            // tant qu’on a de la place dans [vfxStartIndex, vfxEndIndex)
+            // inject all active particles into the SOA,
+            // as long as there is room in [vfxStartIndex, vfxEndIndex)
             int layerIndex = resolveLayerIndex(e);
             int zIndex     = resolveZIndex(e);
             cursor = collectEffect(fx, cursor, layerIndex, zIndex, ov);
@@ -263,7 +263,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         }
 
         if (!loaded) {
-            // IMPORTANT : ne retourne pas un fx non chargé => effet fantôme
+            // IMPORTANT: do not return an unloaded fx => ghost effect
             return null;
         }
 
@@ -387,7 +387,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         state.u1[index] = uMin; state.v1[index] = vMin;
         state.u2[index] = uMax; state.v2[index] = vMax;
 
-        // couleur (spriteColor * tintRgba) puis alphaMul
+        // color (spriteColor * tintRgba) puis alphaMul
         Color col = sprite.getColor();
         float r = col.r, g = col.g, b = col.b, a = col.a;
 
@@ -412,7 +412,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         state.colorPacked[index] = Color.toFloatBits(r, g, b, a);
         state.a[index] = a;
 
-        // --- matériau / texture array ---
+        // --- material / texture array ---
         Texture tex = sprite.getTexture();
         int texHandle;
         if (tex == lastTex) {

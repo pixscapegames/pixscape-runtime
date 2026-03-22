@@ -22,13 +22,13 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /**
- * Centralise la logique "métier" Physique (Editor/Runtime):
- * - Crée/supprime body+fixture
- * - Crée/supprime joints
- * - Marque les dirty bits
+ * Centralizes Physics business logic (Editor/Runtime):
+ * - Creates/removes body+fixture
+ * - Creates/removes joints
+ * - Marks dirty bits
  * - Helpers anchors (local meters) -> world WU(px)
  * <p>
- * Le runtime Box2D (Body/Joint) est créé/détruit par Box2dSyncSystem.
+ * Le runtime Box2D (Body/Joint) est created/destroyed par Box2dSyncSystem.
  */
 public final class PhysicsService {
 
@@ -69,7 +69,7 @@ public final class PhysicsService {
         this.box2d = box2d;
     }
 
-    /** Box2D disponible (world créé). */
+    /** Box2D disponible (world created). */
     public boolean isAvailable() {
         return box2d != null;
     }
@@ -99,7 +99,7 @@ public final class PhysicsService {
     public void removePhysics(int eid) {
         if (eid < 0) return;
 
-        // garder runtime cohérent: pas de joint orphelin
+        // keep runtime consistent: no orphan joint
         deleteAllJointsReferencingBody(eid);
 
         if (mFixtures.has(eid))  mFixtures.remove(eid);
@@ -367,7 +367,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Crée un joint Distance entre deux bodies.
+     * Creates a Distance joint between two bodies.
      * Anchors au centre local (0,0).
      */
     public int createDistanceJoint(int aEid, int bEid) {
@@ -411,7 +411,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Crée un joint Revolute entre deux bodies, pivot world (WU/pixels).
+     * Creates a Revolute joint between two bodies, world pivot (WU/pixels).
      */
     public int createRevoluteJoint(int aEid, int bEid, float pivotWuX, float pivotWuY) {
         if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
@@ -441,7 +441,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Crée un joint Prismatic entre deux bodies, pivot world (WU/pixels).
+     * Creates a Prismatic joint between two bodies, world pivot (WU/pixels).
      */
     public int createPrismaticJoint(int aEid, int bEid, float pivotWuX, float pivotWuY) {
         if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
@@ -473,7 +473,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Crée un joint Wheel entre deux bodies, pivot world (WU/pixels).
+     * Creates a Wheel joint between two bodies, world pivot (WU/pixels).
      */
     public int createWheelJoint(int aEid, int bEid, float worldX, float worldY) {
         if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
@@ -517,8 +517,8 @@ public final class PhysicsService {
     }
 
     /**
-     * Liste (scan) des joints reliés à un body.
-     * OK pour UI. (Pour l’instant, on renvoie tous les joints, peu importe le type.)
+     * Lists (scan) joints connected to a body.
+     * OK for UI. (For now, returns all joints regardless of type.)
      */
     public IntArray listJointsForBody(int bodyEid, IntArray out) {
         if (out == null) out = new IntArray(false, 8);
@@ -563,7 +563,7 @@ public final class PhysicsService {
 
     /**
      * Anchor local (m) -> world (WU/pixels), rotation incluse.
-     * Retourne false si Box2D n’est pas dispo (évite NPE).
+     * Returns false if Box2D is unavailable (avoids NPE).
      */
     public boolean computeAnchorWorldWU(int bodyEid, float localAx_m, float localAy_m, Vector2 outWU) {
         if (outWU == null) return false;
@@ -589,8 +589,8 @@ public final class PhysicsService {
     }
 
     /**
-     * Endpoints world (WU) d’un joint Distance.
-     * Retourne false si pas dispo (box2d null, joint invalide, bodies invalides…).
+     * World endpoints (WU) of a Distance joint.
+     * Returns false if unavailable (box2d null, invalid joint, invalid bodies...).
      */
     public boolean computeDistanceJointEndpointsWU(int jointEid, Vector2 outA, Vector2 outB) {
         if (outA == null || outB == null) return false;
@@ -615,7 +615,7 @@ public final class PhysicsService {
 
 
     /**
-     * Pivot world (WU/pixels) d’un joint Revolute.
+     * World pivot (WU/pixels) of a Revolute joint.
      */
     public boolean computeRevoluteJointPivotWU(int jointEid, Vector2 outPivotWU) {
         if (outPivotWU == null) return false;
@@ -636,7 +636,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Pivot world (WU/pixels) d’un joint Prismatic.
+     * World pivot (WU/pixels) of a Prismatic joint.
      */
     public boolean computePrismaticJointPivotWU(int jointEid, Vector2 outPivotWU) {
         if (outPivotWU == null) return false;
@@ -657,7 +657,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Pivot world (WU/pixels) d’un joint Wheel.
+     * World pivot (WU/pixels) of a Wheel joint.
      */
     public boolean computeWheelJointPivotWU(int jointEid, Vector2 outPivotWU) {
         if (outPivotWU == null) return false;
@@ -678,7 +678,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Pivot + axe world (WU/pixels) d’un joint Prismatic.
+     * World pivot + axis (WU/pixels) of a Prismatic joint.
      */
     public boolean computePrismaticJointGizmoWU(int jointEid, Vector2 outPivotWU, Vector2 outAxisEndWU) {
         if (outPivotWU == null || outAxisEndWU == null) return false;
@@ -758,7 +758,7 @@ public final class PhysicsService {
     }
 
     // ---------------------------------------------------------------------
-    // Defaults (alignés avec PhysicsPanel)
+    // Defaults (aligned with PhysicsPanel)
     // ---------------------------------------------------------------------
 
     public static void initDefaultBody(PhysicsBodyComponent b) {

@@ -32,7 +32,7 @@ public final class CullingSystem extends IteratingSystem {
 
     @Override
     protected void process(int e) {
-        // Si l’entrée SOA n’est pas active, on garde visible=false par sécurité.
+        // If the SOA entry is not active, keep visible=false for safety.
         if (e < 0 || e >= renderState.enabled.length || !renderState.enabled[e]) {
             if (e >= 0 && e < renderState.visible.length) renderState.visible[e] = false;
             return;

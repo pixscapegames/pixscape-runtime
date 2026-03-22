@@ -84,7 +84,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
                 continue;
             }
 
-            // Si le chunk vient juste de redevenir visible
+            // If the chunk has just become visible again
             if (!chunk.visibleLastFrame) {
                 chunk.dirtyState = TileChunk.DirtyState.FULL;
                 chunk.dirtyLocalIndices.clear();

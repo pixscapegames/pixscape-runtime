@@ -9,7 +9,7 @@ import games.pixscape.runtime.helper.RuntimeFs;
 
 /**
  * I/O du projet runtime (pixscape-project/project.json).
- * Style identique à ProjectIO :
+ * Style identical to ProjectIO:
  * - load: parse -> hydrate runtimeRootDir -> applyDefaultsAndValidate
  * - save: ensure dir -> hydrate runtimeRootDir -> applyDefaultsAndValidate -> prettyPrint
  */
@@ -19,13 +19,13 @@ public final class RuntimeProjectIO {
 
     private static final Json json = new Json();
     static {
-        // écrire aussi les valeurs == defaults (utile pour stabilité / debug)
+        // also write values == defaults (useful for stability / debug)
         json.setUsePrototypes(false);
 
         // json standard
         json.setOutputType(JsonWriter.OutputType.json);
 
-        // tolérant pendant migrations
+        // tolerant during migrations
         json.setIgnoreUnknownFields(true);
     }
 
@@ -50,13 +50,13 @@ public final class RuntimeProjectIO {
             throw new GdxRuntimeException("Invalid " + PROJECT_JSON + " (null): " + file.path());
         }
 
-        // Source de vérité: le dossier runtime (pixscape-project)
-        // => on le fixe si absent / vide
+        // Source of truth: the runtime folder (pixscape-project)
+        // => set it if absent / empty
         if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
             cfg.runtimeRootDir = projectDir.path();
         }
 
-        // IMPORTANT: normalise + valide ici (pas plus tard)
+        // IMPORTANT: normalize + validate here (not later)
         cfg.applyDefaultsAndValidate(file.path());
 
         return cfg;

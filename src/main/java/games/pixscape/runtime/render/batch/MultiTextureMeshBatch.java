@@ -19,9 +19,9 @@ import java.util.Arrays;
 
 /**
  * Batch multi-textures (ES2/desktop-friendly) :
- * - pas de sampler2DArray, on lie N textures sur N units (u_textures[i])
+ * - no sampler2DArray, bind N textures on N units (u_textures[i])
  * - chaque sommet porte a_texIndex (=unit index)
- * - si on dépasse le nombre d'unités dispo, on flush puis on rebinde
+ * - if we exceed available unit count, flush then rebind
  *
  * Shaders attendus (ex: shaders/330/mt_sprite.*):
  *   attributes:
@@ -45,7 +45,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
     private int vertCount = 0;
     private int quadCount = 0;
 
-    // couleur courante (unpacked RGBA)
+    // color courante (unpacked RGBA)
     private float cr = 1f, cg = 1f, cb = 1f, ca = 1f;
 
     // shader + matrix
@@ -53,10 +53,10 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
     private final Matrix4 combined = new Matrix4();
     private RenderStats stats;
 
-    // gestion des unités de texture
-    private final int maxUnitsUsed;                // min(maxUnitsHW, 16) — doit matcher la taille de u_textures[]
+    // texture unit management
+    private final int maxUnitsUsed;                // min(maxUnitsHW, 16) — must match size of u_textures[]
     private final IntIntMap texToUnit = new IntIntMap(); // key: GL handle, val: unit index
-    private final int[] unitHandle;                // GL handle actuellement lié par unité, -1 sinon
+    private final int[] unitHandle;                // GL handle currently bound per unit, otherwise -1
     private int unitsInUse = 0;
 
     public MultiTextureMeshBatch(int maxQuads) {
@@ -71,7 +71,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
         ib.position(0);
 
         int maxUnitsHW = Math.max(1, ib.get(0));
-        this.maxUnitsUsed = Math.min(maxUnitsHW, 16); // les shaders exposent 16 samplers max
+        this.maxUnitsUsed = Math.min(maxUnitsHW, 16); // shaders expose max 16 samplers
         this.unitHandle = new int[this.maxUnitsUsed];
         Arrays.fill(this.unitHandle, -1);
 
@@ -110,7 +110,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
         this.stats = stats;
         this.combined.set(combined);
 
-        // reset state unités / cache
+        // reset units/cache state
         texToUnit.clear();
         unitsInUse = 0;
         Arrays.fill(unitHandle, -1);
@@ -187,7 +187,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
     // --------------------------------------------------------------------
 
     /**
-     * Version interne qui prend directement une Texture.
+     * Internal version that takes a Texture directly.
      */
     public void drawTex(Texture tex,
                         float x1, float y1,
@@ -198,7 +198,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
                         RenderStats stats) {
 
         if (tex == null) {
-            // textureHandle invalide ou pas encore résolu : on ne dessine pas
+            // textureHandle invalid or not yet resolved: do not draw
             return;
         }
 
@@ -208,7 +208,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
 
         int unit = ensureTextureBound(tex);
         if (unit < 0) {
-            // Tentative de récupération après flush
+            // attempt recovery after flush
             flush(stats);
             texToUnit.clear();
             unitsInUse = 0;
@@ -260,13 +260,13 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
                      RenderStats stats) {
 
         if (textureHandle == 0) {
-            // pas de texture associée → on ne dessine pas
+            // no associated texture -> do not draw
             return;
         }
 
         Texture tex = TextureRegistry.getByHandle(textureHandle);
         if (tex == null) {
-            // handle inconnu : on ne dessine pas (évite un crash discret)
+            // unknown handle: do not draw (avoids silent crash)
             return;
         }
 
@@ -303,8 +303,8 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
     // --------------------------------------------------------------------
 
     /**
-     * Assigne une unité à la texture si nécessaire et force le glBindTexture.
-     * Retourne l'unité utilisée.
+     * Assigns a unit to texture if needed and forces glBindTexture.
+     * Returns the used unit.
      */
     private int ensureTextureBound(Texture t) {
         if (t == null) return -1;
@@ -313,7 +313,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
         int unit = texToUnit.get(handle, -1);
 
         if (unit == -1) {
-            // plus d’unités ? le caller gère un flush si besoin
+            // no more units? caller handles flush if needed
             if (unitsInUse >= maxUnitsUsed) {
                 return -1;
             }
@@ -321,7 +321,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
             texToUnit.put(handle, unit);
         }
 
-        // s'assurer que l’unité pointe bien sur ce handle
+        // ensure unit points to this handle
         if (unitHandle[unit] != handle) {
             Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0 + unit);
             Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, handle);
@@ -334,6 +334,6 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
 
     @Override
     public void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
-        // ce batch ne dépend pas d'un TextureArray, on ignore
+        // this batch does not depend on a TextureArray, ignore
     }
 }

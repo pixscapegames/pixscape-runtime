@@ -3,15 +3,15 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 
 /**
- * Overrides optionnels appliqués à l'émetteur au moment du rendu.
- * Pas de dirty: le rendu des particules est recalculé chaque frame.
+ * Optional overrides applied to the emitter at render time.
+ * No dirty flag: particle rendering is recomputed each frame.
  */
 public final class ParticleOverridesComponent extends PooledComponent {
 
-    /** Active/désactive l'application des overrides. */
+    /** Enables/disables applying overrides. */
     public boolean enabled = true;
 
-    /** Multiplie la taille des particules (>=0). */
+    /** Multiplies particle size (>=0). */
     public float sizeMul = 1f;
 
     /** Multiplie l'alpha (>=0). */
