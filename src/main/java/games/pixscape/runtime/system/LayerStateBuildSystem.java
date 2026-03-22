@@ -11,12 +11,13 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.LayerStateSOA;
 
 /**
- * Construit LayerStateSOA à partir des entités "layer".
- *
- * Règles business (Pixscape):
- * - TYPE_CLASSIC : parallax via LayerParallaxComponent si présent, sinon NaN
- * - TYPE_PHYSICS : parallax = SceneMetaRuntime.physicsParallaxX/Y (commun à tous)
- * - TYPE_LIGHT   : pas de parallax (NaN forcé)
+ * Builds LayerStateSOA from layer entities.
+ * <p>
+ * Pixscape business rules:
+ * - TYPE_CLASSIC: parallax is read from LayerParallaxComponent when present; otherwise NaN
+ * - TYPE_TILED:   parallax is read from LayerParallaxComponent when present; otherwise NaN
+ * - TYPE_LIGHT:   parallax is read from LayerParallaxComponent when present; otherwise NaN
+ * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
  */
 @All(LayerComponent.class)
 public final class LayerStateBuildSystem extends IteratingSystem {
@@ -90,13 +91,7 @@ public final class LayerStateBuildSystem extends IteratingSystem {
 
     private void applyParallax(int layerIdx, int type, int entityId) {
         switch (type) {
-            case LayerComponent.TYPE_LIGHT -> {
-                // règle: jamais de parallax sur layer light
-                layerState.parallaxX[layerIdx] = Float.NaN;
-                layerState.parallaxY[layerIdx] = Float.NaN;
-            }
             case LayerComponent.TYPE_PHYSICS -> {
-                // règle: parallax commun à tous les layers physics = scène
                 float px = Float.NaN;
                 float py = Float.NaN;
 
@@ -108,7 +103,6 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                 layerState.parallaxX[layerIdx] = px;
                 layerState.parallaxY[layerIdx] = py;
 
-                // Optionnel: log si un LayerParallaxComponent existe quand même (info dev)
                 LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
                 if (lp != null) {
                     Gdx.app.log(TAG,
@@ -116,7 +110,10 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                                     "Ignored (sceneMeta physics parallax wins).");
                 }
             }
-            default -> { // TYPE_CLASSIC
+
+            case LayerComponent.TYPE_CLASSIC,
+                 LayerComponent.TYPE_LIGHT,
+                 LayerComponent.TYPE_TILED -> {
                 LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
                 if (lp != null) {
                     layerState.parallaxX[layerIdx] = lp.factorX;
@@ -125,6 +122,11 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                     layerState.parallaxX[layerIdx] = Float.NaN;
                     layerState.parallaxY[layerIdx] = Float.NaN;
                 }
+            }
+
+            default -> {
+                layerState.parallaxX[layerIdx] = Float.NaN;
+                layerState.parallaxY[layerIdx] = Float.NaN;
             }
         }
     }

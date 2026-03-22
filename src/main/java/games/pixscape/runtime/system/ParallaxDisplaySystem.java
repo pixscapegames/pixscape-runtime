@@ -11,6 +11,8 @@ import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.helper.ParallaxHelper;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
@@ -46,10 +48,13 @@ public final class ParallaxDisplaySystem extends BaseSystem {
         spriteSubscription = world.getAspectSubscriptionManager().get(
                 Aspect.all(
                         OrientedBoundsComponent.class,
-                        TextureRegionComponent.class,
                         RenderMaterialComponent.class,
                         EntityIndexComponent.class,
                         VisibilityComponent.class
+                ).one(
+                        TextureRegionComponent.class,
+                        PointLightComponent.class,
+                        ConeLightComponent.class
                 )
         );
 
