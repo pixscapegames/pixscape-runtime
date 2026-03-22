@@ -30,10 +30,10 @@ public final class RenderSubmitSystem extends BaseSystem {
     private final RenderStatsSink    statsSink;
     private float time = 0f;
 
-    // --- ECS : params de shader par entité ---
+    // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
-    // --- DEBUG (reflection, pas de dépendance runtime->studio) ---
+    // --- DEBUG (reflection, no runtime->studio dependency) ---
     @SkipWire private EntitySubscription pointLightSub;
 
     @SkipWire private final float[] debugBatchColor = new float[4];
@@ -70,7 +70,7 @@ public final class RenderSubmitSystem extends BaseSystem {
     protected void begin() {
         time += world.getDelta();
         cam.update();
-        // metricsBatch.begin est appelé dans render().
+        // metricsBatch.begin is called in render().
     }
 
     @Override
@@ -226,7 +226,7 @@ public final class RenderSubmitSystem extends BaseSystem {
 
 
     private static int hashShaderParams(com.badlogic.gdx.utils.ObjectFloatMap<String> floats) {
-        // Hash commutatif (ordre d'itération non garanti) : XOR/mix
+        // Commutative hash (iteration order not guaranteed): XOR/mix
         int h = 0x9E3779B9;
         var it = floats.entries();
         while (it.hasNext()) {

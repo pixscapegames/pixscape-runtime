@@ -15,7 +15,7 @@ import games.pixscape.runtime.render.batch.GLCaps;
 /**
  * Simple registry: {@code name -> index}, {@code index -> ShaderProgram}.
  * Handles:
- *  - core shaders based on profile ({@code 100 / 300es / 330})
+ *  - core shaders based on profilee ({@code 100 / 300es / 330})
  *  - project custom shaders under {@code orig/shaders/<modeDir>}
  */
 public final class ShaderRegistry {
@@ -35,7 +35,7 @@ public final class ShaderRegistry {
     // ---- Lazy GL caps (MUST NOT be resolved in static init) ----
     private static GLCaps caps;
 
-    // ---- Project context + cached profile selection ----
+    // ---- Project context + cached profilee selection ----
     private static String cachedProfileDir = null;
     private static String cachedGlProfile = null;
 
@@ -52,7 +52,7 @@ public final class ShaderRegistry {
     // Public API (registry)
     // ------------------------------------------------------------------------
 
-    /** Enregistre un shader et renvoie son index (sans remplacer si le nom existe déjà). */
+    /** Registers a shader and returns its index (without replacing if the name already exists). */
     public static int register(String name, ShaderProgram sp, ShaderMode mode, boolean fx) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Shader name is empty");
         if (sp == null) throw new IllegalArgumentException("ShaderProgram is null for '" + name + "'");
@@ -72,12 +72,12 @@ public final class ShaderRegistry {
         return idx;
     }
 
-    // compat : ceux qui ne précisent pas fx => false
+    // compat: those that do not specify fx => false
     public static int register(String name, ShaderProgram sp, ShaderMode mode) {
         return register(name, sp, mode, false);
     }
 
-    /** Enregistre ou remplace un shader existant portant le même nom. */
+    /** Registers or replaces an existing shader with the same name. */
     private static int registerOrReplace(String name, ShaderProgram sp, ShaderMode mode, boolean fx) {
         int existing = nameToIdx.get(name, -1);
         if (existing >= 0) {
@@ -101,12 +101,12 @@ public final class ShaderRegistry {
         while (isFxByIdx.size < size) isFxByIdx.add(false);
     }
 
-    /** Tous les noms (non triés). */
+    /** All names (unsorted). */
     public static Array<String> getRegisteredNames() {
         return nameToIdx.keys().toArray();
     }
 
-    /** Noms filtrés par mode (triés alpha). */
+    /** Names filtered by mode (alpha-sorted). */
     public static Array<String> getNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
         for (ObjectIntMap.Entry<String> e : nameToIdx) {
@@ -119,7 +119,7 @@ public final class ShaderRegistry {
         return result;
     }
 
-    /** Noms des shaders NON-FX pour ce mode (pour EntityProperties). */
+    /** Names of NON-FX shaders for this mode (for EntityProperties). */
     public static Array<String> getMainNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
         for (ObjectIntMap.Entry<String> e : nameToIdx) {
@@ -134,7 +134,7 @@ public final class ShaderRegistry {
         return result;
     }
 
-    /** Noms des shaders FX pour ce mode (pour CameraProperties post FX). */
+    /** Names of FX shaders for this mode (for CameraProperties post FX). */
     public static Array<String> getFxNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
         for (ObjectIntMap.Entry<String> e : nameToIdx) {
@@ -149,29 +149,29 @@ public final class ShaderRegistry {
         return result;
     }
 
-    /** Récupère par index (null si invalide). */
+    /** Gets by index (null if invalid). */
     public static ShaderProgram getByIdx(int idx) {
         if (idx < 0 || idx >= byIdx.size) return null;
         return byIdx.get(idx);
     }
 
-    /** Récupère par nom (null si absent). */
+    /** Gets by name (null if missing). */
     public static ShaderProgram get(String name) {
         int idx = nameToIdx.get(name, -1);
         return idx >= 0 ? byIdx.get(idx) : null;
     }
 
-    /** Index par nom (-1 si absent). */
+    /** Index by name (-1 if missing). */
     public static int indexOf(String name) {
         return nameToIdx.get(name, -1);
     }
 
-    /** Nom par index (ou null). */
+    /** Nom par index (or null). */
     public static String getName(Integer idx) {
         return nameToIdx.findKey(idx);
     }
 
-    /** Nom par instance de ShaderProgram (ou null si non trouvé). */
+    /** Name by ShaderProgram instance (or null if not found). */
     public static String getName(ShaderProgram sp) {
         if (sp == null) return null;
         for (int i = 0, n = byIdx.size; i < n; i++) {
@@ -180,7 +180,7 @@ public final class ShaderRegistry {
         return null;
     }
 
-    /** Mode d’un shader par index (ou null). */
+    /** Mode of a shader by index (or null). */
     public static ShaderMode getMode(int idx) {
         if (idx < 0 || idx >= modesByIdx.size) return null;
         return modesByIdx.get(idx);
@@ -197,7 +197,7 @@ public final class ShaderRegistry {
         return copy;
     }
 
-    /** Utilisé par l'UI : renvoie le répertoire GLSL courant (assets/shaders/100, 300es, 330...). */
+    /** Used by UI: returns current GLSL directory (assets/shaders/100, 300es, 330...). */
     public static String getCurrentProfileDir() {
         return getProfileDir();
     }
@@ -206,7 +206,7 @@ public final class ShaderRegistry {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    /** Libère tous les shaders et reset l’état. */
+    /** Releases all shaders and resets state. */
     public static void disposeAll() {
         for (ShaderProgram sp : byIdx) {
             if (sp != null) sp.dispose();
@@ -219,7 +219,7 @@ public final class ShaderRegistry {
 
         initialized = false;
 
-        // reset profile selection
+        // reset profilee selection
         cachedProfileDir = null;
         cachedGlProfile = null;
 
@@ -232,10 +232,10 @@ public final class ShaderRegistry {
     }
 
     /**
-     * Réinitialise complètement le registre en fonction du projet :
-     *  - libère tous les shaders
-     *  - recharge les shaders par défaut en fonction de cfg.glProfile
-     *  - scanne orig/shaders/... pour recharger les shaders custom.
+     * Fully resets registry based on project:
+     *  - releases all shaders
+     *  - reloads default shaders based on cfg.glProfile
+     *  - scans orig/shaders/... to reload custom shaders.
      */
     public static void reloadForProject(String glProfile, FileHandle projectDir, String shadersDir) {
         disposeAll();
@@ -249,7 +249,7 @@ public final class ShaderRegistry {
     }
 
     /**
-     * Charge les shaders par défaut + custom projet + demos.
+     * Loads default shaders + project custom shaders + demos.
      */
     public static void initDefaults() {
         if (initialized) return;
@@ -274,7 +274,7 @@ public final class ShaderRegistry {
         );
         registerOrReplace("default", sprite, ShaderMode.SPRITE, false);
 
-        // 2) Multi-texture -> "mt_default" (optionnel)
+        // 2) Multi-texture -> "mt_default" (optional)
         {
             FileHandle mtV = Gdx.files.internal(profileDir + "/" + ShaderMode.dirNameForMode(ShaderMode.MULTI_TEXTURE) + ".vert");
             FileHandle mtF = Gdx.files.internal(profileDir + "/" + ShaderMode.dirNameForMode(ShaderMode.MULTI_TEXTURE) + ".frag");
@@ -292,7 +292,7 @@ public final class ShaderRegistry {
             }
         }
 
-        // 3) TextureArray -> "ta_default" (optionnel)
+        // 3) TextureArray -> "ta_default" (optional)
         if (isModeSupportedForCurrentProfile(ShaderMode.TEXTURE_ARRAY)) {
             FileHandle taV = Gdx.files.internal(profileDir + "/" + ShaderMode.dirNameForMode(ShaderMode.TEXTURE_ARRAY) + ".vert");
             FileHandle taF = Gdx.files.internal(profileDir + "/" + ShaderMode.dirNameForMode(ShaderMode.TEXTURE_ARRAY) + ".frag");
@@ -331,8 +331,8 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     /**
-     * Teste la compilation d’un shader custom complet (vertex + fragment) pour un mode donné.
-     * Ne l'enregistre pas dans le registre.
+     * Tests compilation of a full custom shader (vertex + fragment) for a given mode.
+     * Does not register it in the registry.
      */
     public static void testCompile(String name,
                                    String vertexSource,
@@ -359,8 +359,8 @@ public final class ShaderRegistry {
     }
 
     /**
-     * Teste la compilation d’un fragment shader custom pour un mode donné,
-     * en utilisant le vertex shader correspondant au mode et au profil du projet.
+     * Tests compilation of a custom fragment shader for a given mode,
+     * using the vertex shader matching mode and project profile.
      */
     public static void testCompile(String name, String fragmentSource, ShaderMode mode) {
         requireModeSupported(mode);
@@ -464,7 +464,7 @@ public final class ShaderRegistry {
     }
 
     // ------------------------------------------------------------------------
-    // Internal: project context, caps, profile selection
+    // Internal: project context, caps, profilee selection
     // ------------------------------------------------------------------------
 
     private static void setProjectContext(String glProfile, FileHandle projectDir, String shadersDir) {
@@ -476,7 +476,7 @@ public final class ShaderRegistry {
             projectShadersRoot = null;
         }
 
-        // reset cached profile selection (depends on project context + caps)
+        // reset cached profilee selection (depends on project context + caps)
         cachedProfileDir = null;
         cachedGlProfile = null;
     }
@@ -488,14 +488,14 @@ public final class ShaderRegistry {
         return caps;
     }
 
-    /** Remplit ou retourne le couple (profileDir, glProfile) pour le projet courant. */
+    /** Fills or returns the pair (profileDir, glProfile) for the current project. */
     private static String getProfileDir() {
         if (cachedProfileDir != null) return cachedProfileDir;
 
         // Ensure caps are ready
         GLCaps c = caps();
 
-        // 1) Profil imposé par le projet
+        // 1) Profile forced by project
         if (requestedGlProfile != null) {
             cachedGlProfile = requestedGlProfile;
             switch (requestedGlProfile) {
@@ -503,7 +503,7 @@ public final class ShaderRegistry {
                     cachedProfileDir = "assets/shaders/100";
                     return cachedProfileDir;
                 case "GL30":
-                    // desktop 330, ES => 300es (si jamais tu passes "GL30" sur mobile)
+                    // desktop 330, ES => 300es (if you ever pass "GL30" on mobile)
                     cachedProfileDir = "assets/shaders/330";
                     return cachedProfileDir;
                 default:
@@ -512,7 +512,7 @@ public final class ShaderRegistry {
             }
         }
 
-        // 2) Fallback: auto selon la plateforme/caps
+        // 2) Fallback: auto based on platform/caps
         GLVersion glv = Gdx.graphics.getGLVersion();
         boolean isGLES = glv.getType() == GLVersion.Type.GLES;
 
@@ -543,7 +543,7 @@ public final class ShaderRegistry {
         }
     }
 
-    /** Est-ce que ce mode a un sens avec le profil GL courant ? */
+    /** Does this mode make sense with current GL profile? */
     private static boolean isModeSupportedForCurrentProfile(ShaderMode mode) {
         String glProfile = getGlProfile();
         GLCaps c = caps();
@@ -577,7 +577,7 @@ public final class ShaderRegistry {
         loadModeDir(root.child(ShaderMode.dirNameForMode(ShaderMode.TEXTURE_ARRAY)).child("fx"), ShaderMode.TEXTURE_ARRAY, true);
     }
 
-    /** Charge tous les .frag d'un sous-dossier donné pour un ShaderMode donné. */
+    /** Loads all .frag files from a given subfolder for a given ShaderMode. */
     private static void loadModeDir(FileHandle dir, ShaderMode mode, boolean fx) {
         if (dir == null || !dir.exists() || !dir.isDirectory()) return;
         if (!isModeSupportedForCurrentProfile(mode)) return;

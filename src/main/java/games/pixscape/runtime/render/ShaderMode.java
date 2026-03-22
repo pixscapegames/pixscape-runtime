@@ -1,6 +1,6 @@
 package games.pixscape.runtime.render;
 
-/** Mode de rendu ciblé par le shader custom. */
+/** Render mode targeted by custom shader. */
 public enum ShaderMode {
     /** Sprite simple (MeshBatch / 1 texture). */
     SPRITE,

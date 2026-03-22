@@ -11,7 +11,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import java.util.Arrays;
 
 /**
- * Culling par occlusion 2D sur les sprites en utilisant le RenderStateSOA.
+ * 2D occlusion culling on sprites using RenderStateSOA.
  */
 public final class RenderOcclusionCullingSystem extends BaseSystem {
 

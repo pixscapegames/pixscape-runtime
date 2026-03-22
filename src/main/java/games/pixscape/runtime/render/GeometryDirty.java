@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 package games.pixscape.runtime.render;
 
-/** Submask GEOMETRY (granularité logique). */
+/** Submask GEOMETRY (logical granularity). */
 public final class GeometryDirty {
 
     private GeometryDirty() {}

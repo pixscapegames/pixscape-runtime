@@ -8,7 +8,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.ShaderMode;
 
 /**
- * Configuration runtime exportée (project.json côté user project).
+ * Exported runtime configuration (project.json on user project side).
  * Ne contient aucun champ studio.
  */
 public final class RuntimeConfig {
@@ -22,12 +22,12 @@ public final class RuntimeConfig {
     public static final String DEFAULT_AUDIO_DIR = RuntimeFs.DIR_AUDIO;
     public static final String DEFAULT_SCENE_FILE = RuntimeFs.FILE_DEFAULT_SCENE;
 
-    /** Identité technique du projet exporté. */
+    /** Technical identity of exported project. */
     public String projectFileName = "";
 
     public String version = DEFAULT_VERSION;
 
-    /** Optionnel : peut être déduit du FileHandle côté engine. */
+    /** Optional: can be inferred from FileHandle on engine side. */
     public String runtimeRootDir;
 
     public String scenesDir = DEFAULT_SCENES_DIR;
@@ -37,7 +37,7 @@ public final class RuntimeConfig {
     public String shadersDir = DEFAULT_SHADERS_DIR;
     public String audioDir = DEFAULT_AUDIO_DIR;
 
-    // --- Scènes runtime ---
+    // --- Runtime scenes ---
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
     public String currentSceneName;
 
@@ -58,7 +58,7 @@ public final class RuntimeConfig {
     }
 
     // ---------------------------------------------------------------------
-    // Scènes
+    // Scenes
     // ---------------------------------------------------------------------
 
     public SceneMetaRuntime getCurrentSceneMeta() {
@@ -147,7 +147,7 @@ public final class RuntimeConfig {
             throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
         }
 
-        // Nettoyage scènes + normalisation file + defaults
+        // Nettoyage scenes + normalisation file + defaults
         for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
             String key = e.key;
             SceneMetaRuntime meta = e.value;
@@ -175,10 +175,10 @@ public final class RuntimeConfig {
             }
         }
 
-        // Choix scène courante par défaut :
+        // Choix scene courante by default :
         // 1) currentSceneName valide
-        // 2) scène dont file == scene1.json
-        // 3) première triée
+        // 2) scene dont file == scene1.json
+        // 3) first sorted
         if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
             String byFile = findSceneNameByFile(DEFAULT_SCENE_FILE);
             currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();

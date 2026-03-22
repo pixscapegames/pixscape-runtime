@@ -1,13 +1,13 @@
 package games.pixscape.runtime.render.batch.performance;
 
 public final class RenderStats {
-    // Géométrie
+    // Geometry
     public int extractedQuads;
     public int culledQuads;
     public int occludedQuads;
     public int drawnQuads;
 
-    // GPU / état
+    // GPU / state
     public int drawCalls;
     public int flushes;
     public int flushStateChanges;  // shader/blend

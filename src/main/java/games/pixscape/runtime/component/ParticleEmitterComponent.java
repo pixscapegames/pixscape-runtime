@@ -3,25 +3,25 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 
 /**
- * Décrit un émetteur de particules basé sur un fichier .p LibGDX.
- * Ce composant est sérialisable (uniquement des types simples).
- * Le runtime se charge de créer les ParticleEffect réels à partir de ça.
+ * Describes a particle emitter based on a LibGDX .p file.
+ * This component is serializable (only simple types).
+ * Runtime is responsible for creating actual ParticleEffect objects from this.
  */
 public final class ParticleEmitterComponent extends PooledComponent {
 
-    /** Chemin relatif vers le fichier .p (ex: "particles/fire.p"). */
+    /** Relative path to the .p file (e.g.: "particles/fire.p"). */
     public String effectPath;
 
-    /** Tag d'atlas à utiliser pour les sprites de particules (ex: "MainScene" ou "Particles"). */
+    /** Atlas tag to use for particle sprites (e.g.: "MainScene" or "Particles"). */
     public String atlasTag;
 
-    /** L’émetteur suit l’entité (Transform) ou non. */
+    /** Whether the emitter follows the entity (Transform). */
     public boolean localSpace = true;
 
-    /** Démarrer automatiquement à l'apparition de l'entité. */
+    /** Automatically start when the entity appears. */
     public boolean autoStart = true;
 
-    /** Boucler indéfiniment. Si false : joue une fois puis reste complet. */
+    /** Loop indefinitely. If false: plays once then remains complete. */
     public boolean looping = true;
 
     public boolean paused = false;

@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsMotorJointComponent extends PooledComponent {
 
-    /** Offsets locaux (repère bodyA) — en mètres. */
+    /** Local offsets (bodyA frame) — in meters. */
     public float linearOffsetX = 0f;
     public float linearOffsetY = 0f;
 

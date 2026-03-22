@@ -202,6 +202,6 @@ public final class MeshBatch implements MetricsBatch {
 
     @Override
     public void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
-        // ce batch ne dépend pas d'un TextureArray, on ignore
+        // this batch does not depend on a TextureArray, ignore
     }
 }

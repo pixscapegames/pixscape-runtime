@@ -14,22 +14,22 @@ import games.pixscape.runtime.render.GeometryDirty;
 import java.util.Arrays;
 
 /**
- * Dirty tracker hors-components (par bit) + submask GEOMETRY packé dans bitsByEntity[e].
+ * Dirty tracker outside components (per bit) + GEOMETRY submask packed in bitsByEntity[e].
  *
  * - bitsByEntity[e] : int packed (coarse bits + submask GEOMETRY)
- * - 1 liste par coarse bit (IntArray) + idx[] pour swap-pop O(1)
+ * - 1 list per coarse bit (IntArray) + idx[] for O(1) swap-pop
  * - purge auto via SubscriptionListener.removed()
  *
  * Convention:
- * - Le submask GEOMETRY = granularité logique (pos/origin/rot/scale/size).
- * - Le bit coarse GEOMETRY = "pipeline rendu doit être recalculé côté sprite sync".
+ * - Le submask GEOMETRY = logical granularity (pos/origin/rot/scale/size).
+ * - Le bit coarse GEOMETRY = "render pipeline must be recomputed side sprite sync".
  *
  * API dev-friendly:
  *   dirty.markDirty().transform(e).position().rotation();
  *   dirty.markDirty().material(e);
  *   dirty.markDirty().transform(e).all();
  *
- * IMPORTANT: les builders retournés sont réutilisés (zéro alloc). Ne pas les stocker.
+ * IMPORTANT: returned builders are reused (zero alloc). Do not store them.
  */
 public final class DirtyTrackerSystem extends BaseSystem {
 
@@ -90,7 +90,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
-        // no-op (consommé explicitement)
+        // no-op (consumed explicitly)
     }
 
     // ------------------------------------------------------------
@@ -176,7 +176,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
         int prevCoarse = packed & DirtyBits.COARSE_MASK;
         int add = (coarseMask & DirtyBits.COARSE_MASK) & ~prevCoarse;
         if (add == 0) {
-            // déjà présent => rien à faire (list déjà ticketée)
+            // already present => nothing to do (list already ticketed)
             bitsByEntity[e] = packed | (coarseMask & DirtyBits.COARSE_MASK);
             return;
         }
@@ -203,7 +203,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
     // GEOMETRY API (coarse + submask)
     // ------------------------------------------------------------
 
-    /** Marque GEOMETRY coarse et OR le submask GeometryDirty.* dans le packed. */
+    /** Marks coarse GEOMETRY and ORs GeometryDirty.* submask into the packed field. */
     public void geometry(int e, int geomSubMask) {
         if (!isActive(e)) return;
 
@@ -218,7 +218,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
             }
         }
 
-        // assure coarse GEOMETRY (et ticket dans la liste)
+        // ensures coarse GEOMETRY (and ticket in the list)
         mark(e, DirtyBits.GEOMETRY);
     }
 
@@ -317,7 +317,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
     }
 
     // ------------------------------------------------------------
-    // Consume (coarse lists) - optionnel si tu préfères des tight loops directs
+    // Consume (coarse lists) - optional if yor prefer direct tight loops
     // ------------------------------------------------------------
 
     public void consume(int bit, IntConsumer fn) {
@@ -344,7 +344,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
             // ACK : clear coarse bit + remove ticket list
             if (bitsByEntity != null && e < bitsByEntity.length) {
                 bitsByEntity[e] &= ~bit;
-                // note: on NE clear PAS geom sub ici (c'est logique, consommé par UpdateWorldGeometrySystem via clearAllGeomSub)
+                // note: we DO NOT clear geom sub here (this is logical, consumed by UpdateWorldGeometrySystem via clearAllGeomSub)
             }
             removeFromList(e, bit);
         }
@@ -472,14 +472,14 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     /**
      * Flush de fin de frame (coarse + sub).
-     * Objectif: supprimer la dépendance à "quel système consomme quoi".
+     * Goal: remove dependency on "which system consumes what".
      *
-     * - Vide toutes les listes coarse.
-     * - Clear les coarse bits correspondants.
-     * - Clear AUSSI geomSub pour les entités encore ticketées en GEOMETRY (fail-safe).
+     * - Empties all coarse lists.
+     * - Clears corresponding coarse bits.
+     * - Also clears geomSub for entities still ticketed in GEOMETRY (fail-safe).
      *
-     * NB: le flux normal = UpdateWorldGeometrySystem clearAllGeomSub(e) lui-même.
-     * Ici on force à 0 si un oubli est arrivé (sinon submask peut “fuiter”).
+     * NB: normal flow = UpdateWorldGeometrySystem clearAllGeomSub(e) itself.
+     * Here we force to 0 if something was missed (otherwise submask can "leak").
      */
     public void clearFrame() {
         clearListAndCoarseBit(geometry, idxGeometry, DirtyBits.GEOMETRY, true);
@@ -591,22 +591,22 @@ public final class DirtyTrackerSystem extends BaseSystem {
     // Access to lists (tight loops)
     // ------------------------------------------------------------
 
-    /** Liste vivante des entités ticketées GEOMETRY (ne pas modifier). */
+    /** Live list of GEOMETRY-ticketed entities (do not modify). */
     public IntArray geometryEntities() { return geometry; }
 
-    /** Liste vivante des entités ticketées MATERIAL (ne pas modifier). */
+    /** Live list of MATERIAL-ticketed entities (do not modify). */
     public IntArray materialEntities() { return material; }
 
-    /** Liste vivante des entités ticketées COLOR (ne pas modifier). */
+    /** Live list of COLOR-ticketed entities (do not modify). */
     public IntArray colorEntities() { return color; }
 
-    /** Liste vivante des entités ticketées ORDER (ne pas modifier). */
+    /** Live list of ORDER-ticketed entities (do not modify). */
     public IntArray orderEntities() { return order; }
 
-    /** Liste vivante des entités ticketées LAYER (ne pas modifier). */
+    /** Live list of LAYER-ticketed entities (do not modify). */
     public IntArray layerEntities() { return layer; }
 
-    /** Liste vivante des entités ticketées CAMERA (ne pas modifier). */
+    /** Live list of CAMERA-ticketed entities (do not modify). */
     public IntArray cameraEntities() { return camera; }
 
     public IntArray physicsEntities() { return physics; }
@@ -691,7 +691,7 @@ public final class DirtyTrackerSystem extends BaseSystem {
         private DirtyTrackerSystem dirty;
         private int e;
 
-        // submask accumulé localement pour limiter les writes dans bitsByEntity
+        // submask accumulated locally to limit writes to bitsByEntity
         private int sub;
 
         private TransformMark() {}
@@ -700,13 +700,13 @@ public final class DirtyTrackerSystem extends BaseSystem {
             sub |= m;
         }
 
-        /** Commit implicite (appelé automatiquement à la fin des chains) */
+        /** Implicit commit (automatically called at the end of chains) */
         private void commitIfNeeded() {
             if (sub != GeometryDirty.NONE) {
                 dirty.geometry(e, sub);
                 sub = GeometryDirty.NONE;
             } else {
-                // autorise transform(e).commit() => coarse geometry only si tu veux
+                // allows transform(e).commit() => coarse geometry only if yor want
             }
         }
 
@@ -726,16 +726,16 @@ public final class DirtyTrackerSystem extends BaseSystem {
             return this;
         }
 
-        /** Commit explicite pour finir une chain: transform(e).position().rotation().commit() */
+        /** Explicit commit to finish a chain: transform(e).position().rotation().commit() */
         public void commit() {
             commitIfNeeded();
         }
 
-        // Petit trick ergonomique : permet transform(e).position().rotation() sans commit explicit
-        // si le dev enchaîne ensuite un autre mark (material, etc.). Dans ce cas il faut commit
-        // côté appelant. Donc: on ne fait PAS d'auto-commit ici.
+        // Small ergonomic trick: allows transform(e).position().rotation() without explicit commit
+        // if the dev then chains another mark (material, etc.). In that case yor must commit
+        // on caller side. So: we do NOT auto-commit here.
         //
-        // => règle simple à communiquer: "termine par .commit()" (ou utilises les helpers plus haut).
+        // => simple rule to communicate: "end with .commit()" (or use the helpers above).
     }
 
     // ------------------------------------------------------------

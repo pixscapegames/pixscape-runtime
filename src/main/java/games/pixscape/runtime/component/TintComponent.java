@@ -7,12 +7,12 @@ import com.badlogic.gdx.graphics.Color;
 public final class TintComponent extends PooledComponent {
 
     /**
-     * Couleur stockée au format LibGDX rgba8888 :
+     * Color stored in LibGDX rgba8888 format:
      *
      *   Color.rgba8888(r, g, b, a)
-     *   ou Color.rgba8888(Color)
+     *   or Color.rgba8888(Color)
      *
-     * Par défaut : blanc opaque.
+     * Default: opaque white.
      */
     public int rgba = Color.rgba8888(Color.WHITE);
 
@@ -21,18 +21,18 @@ public final class TintComponent extends PooledComponent {
         rgba = Color.rgba8888(Color.WHITE);
     }
 
-    /** Retourne la couleur brute au format rgba8888. */
+    /** Returns the raw color in rgba8888 format. */
     public int getRgba() {
         return rgba;
     }
 
-    /** Remplit un Color fourni avec la valeur courante. */
+    /** Fills a provided Color with the current value. */
     public Color toColor(Color out) {
         Color.rgba8888ToColor(out, rgba);
         return out;
     }
 
-    /** Retourne un nouveau Color (à éviter dans la hot path si possible). */
+    /** Returns a new Color (avoid in the hot path when possible). */
     public Color toColor() {
         Color c = new Color();
         Color.rgba8888ToColor(c, rgba);

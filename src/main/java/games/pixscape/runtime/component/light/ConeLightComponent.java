@@ -4,12 +4,12 @@ import com.artemis.PooledComponent;
 
 public class ConeLightComponent extends PooledComponent {
 
-    // Couleur linéaire
+    // Linear color
     public float r = 1f;
     public float g = 1f;
     public float b = 1f;
 
-    // Intensité globale
+    // Global intensity
     public float intensity = 1f;
 
     // Rayon en world units
@@ -21,13 +21,13 @@ public class ConeLightComponent extends PooledComponent {
     // Direction (deg, 0 = +X)
     public float rotationDeg = 0f;
 
-    // Adoucissement du bord du cône (0..1)
+    // Cone edge softening (0..1)
     public float softness = 0.1f;
 
-    // Exposant d’atténuation (1 = linéaire, 2 = plus dur)
+    // Attenuation exponent (1 = linear, 2 = harder)
     public float falloff = 1.5f;
 
-    // Enabled flag (important pour l’éditeur)
+    // Enabled flag (important for the editor)
     public boolean enabled = true;
 
     @Override

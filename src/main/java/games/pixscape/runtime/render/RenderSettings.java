@@ -44,7 +44,7 @@ public final class RenderSettings {
         return new RenderSettings(RenderMode.SIMPLE, false);
     }
 
-    /** Mode multi-textures : MultiTextureMeshBatch si possible. */
+    /** Multi-texture mode: MultiTextureMeshBatch if possible. */
     public static RenderSettings multi() {
         return new RenderSettings(RenderMode.MULTI, false);
     }
@@ -54,15 +54,15 @@ public final class RenderSettings {
         return new RenderSettings(RenderMode.ARRAY, requireES3);
     }
 
-    /** Mode automatique : le BatchFactory choisira en fonction de GLCaps. */
+    /** Automatic mode: BatchFactory will choose based on GLCaps. */
     public static RenderSettings auto(boolean requireES3) {
         return new RenderSettings(RenderMode.AUTO, requireES3);
     }
 
     /**
-     * Helper "intelligent" selon les capacités :
-     *  - TextureArray si dispo
-     *  - sinon MultiTexture si >= 8 units
+     * "Smart" helper based on capabilities:
+     *  - TextureArray if available
+     *  - otherwise MultiTexture if >= 8 units
      *  - sinon SIMPLE
      */
     public static RenderSettings defaultEditor(GLCaps caps) {
@@ -81,7 +81,7 @@ public final class RenderSettings {
         return new RenderSettings(RenderMode.SIMPLE, false);
     }
 
-    /** Profil desktop "comfort" : ARRAY si possible, sinon MULTI. */
+    /** Desktop "comfort" profile: ARRAY if possible, otherwise MULTI. */
     public static RenderSettings forDesktop(GLCaps caps) {
         if (caps.supportsTextureArray() && caps.supportsES3()) {
             return new RenderSettings(RenderMode.ARRAY, false);

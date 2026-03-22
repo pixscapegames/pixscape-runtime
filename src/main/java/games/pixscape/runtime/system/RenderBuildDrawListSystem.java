@@ -7,13 +7,13 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /**
- * Construit la draw list plate à partir du RenderStateSOA.
+ * Builds the flat draw list from RenderStateSOA.
  *
  * IMPORTANT:
- * - Ce système est SOA-only: aucune lecture ECS (ComponentMapper) ici.
- * - La visibilité "par entité" (visible + culling) doit être calculée en amont
- *   et stockée dans RenderStateSOA.visible[e].
- * - Ici on applique en plus le filtre de layer via LayerStateSOA (si présent).
+ * - This system is SOA-only: no ECS reads (ComponentMapper) here.
+ * - "Per-entity" visibility (visible + culling) must be computed upstream
+ *   and stored in RenderStateSOA.visible[e].
+ * - Here we additionally apply layer filtering via LayerStateSOA (if present).
  */
 public final class RenderBuildDrawListSystem extends BaseSystem {
 
@@ -45,10 +45,10 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
         for (int e = 0; e <= maxId; e++) {
             if (!state.enabled[e]) continue;
 
-            // Visibilité entité déjà calculée en amont (SOA cache).
+            // Entity visibility already computed upstream (SOA cache).
             if (!state.visible[e]) continue;
 
-            // Filtre layer (autorité finale côté rendu)
+            // Layer filter (final authority on render side)
             if (layerState != null) {
                 int layerIdx = state.layerIndex[e];
                 if (layerIdx >= 0 && layerIdx < layerCapacity && !layerState.enabled[layerIdx]) {

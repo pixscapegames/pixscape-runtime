@@ -8,7 +8,7 @@ import java.nio.IntBuffer;
 
 public final class GLCaps {
     public final boolean hasES3;
-    public final boolean hasTextureArray;   // simplifié: = ES3
+    public final boolean hasTextureArray;   // simplified: = ES3
     public final int maxTextureUnits;
     public final int maxTextureSize;
 
@@ -36,7 +36,7 @@ public final class GLCaps {
             units = buf.get(0);
         }
 
-        // Clamp sécurité
+        // Clamp safety
         if (units <= 0) units = 1;
 
         // --- Max texture size ---

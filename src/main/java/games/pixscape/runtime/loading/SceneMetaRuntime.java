@@ -47,7 +47,7 @@ public class SceneMetaRuntime {
     }
 
 
-    /** Copie uniquement les champs “runtime settings” (pas l’identité). */
+    /** Copies only the "runtime settings" fields (not identity). */
     public void copyFrom(SceneMetaRuntime other) {
         this.name               = other.name;
         this.file               = other.file;

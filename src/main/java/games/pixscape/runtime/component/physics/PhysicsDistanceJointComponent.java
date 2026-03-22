@@ -5,7 +5,7 @@ import com.artemis.PooledComponent;
 /**
  * Distance joint (b2DistanceJointDef).
  *
- * Ancres locales en mètres (repère local des bodies).
+ * Local anchors in meters (bodies local frame).
  */
 public final class PhysicsDistanceJointComponent extends PooledComponent {
     public float lengthM = 1f;

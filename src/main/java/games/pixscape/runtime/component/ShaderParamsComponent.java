@@ -4,8 +4,8 @@ import com.artemis.Component;
 import com.badlogic.gdx.utils.ObjectFloatMap;
 
 /**
- * Paramètres de shader par entité.
- * Pour cette première version: uniquement des uniforms float (nom -> valeur).
+ * Parameters de shader par entity.
+ * For this first version: only float uniforms (name -> value).
  */
 public class ShaderParamsComponent extends Component {
     /** Map nom d'uniform -> valeur float. */

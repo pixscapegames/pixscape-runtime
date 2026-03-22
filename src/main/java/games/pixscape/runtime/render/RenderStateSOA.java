@@ -1,13 +1,13 @@
 package games.pixscape.runtime.render;
 
 /**
- * Structure-of-arrays contenant l'état de rendu préparé pour chaque entité.
+ * Structure-of-arrays containing prepared render state for each entity.
  * <p>
  * Les indices correspondent directement aux entityId Artemis.
  * <p>
- * La capacité est fixée une fois via le constructeur ou {@link #setCapacity(int)}.
- * Aucun agrandissement dynamique n'est effectué au-delà de cette capacité :
- * un dépassement est considéré comme un bug (overflow).
+ * Capacity is set once via the constructor or {@link #setCapacity(int)}.
+ * No dynamic growth is performed beyond this capacity:
+ * overflow is considered a bug.
  */
 public final class RenderStateSOA {
 
@@ -22,7 +22,7 @@ public final class RenderStateSOA {
     public boolean[] enabled;
     public boolean[] visible;
 
-    // Géométrie ...
+    // Geometry ...
     public float[] x1, y1, x2, y2, x3, y3, x4, y4;
 
     // Offsets
@@ -34,7 +34,7 @@ public final class RenderStateSOA {
 
     // Couleur (canonical draw path = packed float bits)
     public float[] colorPacked;
-    // Alpha reste disponible pour les systèmes qui testent l’opacité CPU (ex: occlusion).
+    // Alpha remains available for systems that test CPU opacity (e.g., occlusion).
     public float[] a;
 
     public int[] shader;
@@ -45,7 +45,7 @@ public final class RenderStateSOA {
     public int[] paramsId;
     public int[] customParamsId;
 
-    /** Ordre interne spécifique au runtime (Talos, Spine, Pixscape...). */
+    /** Runtime-specific internal order (Talos, Spine, Pixscape...). */
     public int[] runtimeOrder;
 
     public long[] sortKey;

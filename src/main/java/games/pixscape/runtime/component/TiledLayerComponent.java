@@ -7,7 +7,7 @@ import games.pixscape.runtime.tiled.TiledSoaAllocator;
 
 public final class TiledLayerComponent extends PooledComponent {
 
-    // Runtime dense structure (NON sérialisée)
+    // Runtime dense structure (NON serialized)
     public transient TiledMapLayerData data;
     public transient TiledSoaAllocator.Range range;
 

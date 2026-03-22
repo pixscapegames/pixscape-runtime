@@ -7,7 +7,7 @@ public final class TiledSoaAllocator {
     private final int start;
     private final int end;
 
-    // Range est immutable et léger
+    // Range is immutable and lightweight
     public static final class Range {
         public int start;
         public int end;
@@ -38,7 +38,7 @@ public final class TiledSoaAllocator {
             throw new IllegalArgumentException("size must be > 0");
         }
 
-        // --- 1) chercher trou entre ranges ---
+        // --- 1) chercher tror entre ranges ---
         int cursor = start;
 
         for (int i = 0; i < used.size; i++) {
@@ -52,7 +52,7 @@ public final class TiledSoaAllocator {
             cursor = r.end;
         }
 
-        // --- 2) append à la fin ---
+        // --- 2) append at the end ---
         if (cursor + size > end) {
             throw new IllegalStateException(
                     "Tiled SOA exhausted: required=" + size +

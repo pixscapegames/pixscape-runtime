@@ -33,11 +33,11 @@ public final class SceneLoader {
     private SceneLoader() {}
 
     /**
-     * Charge une scène depuis le fichier donné.
+     * Loads a scene from the given file.
      *
-     * @param world             monde ECS
-     * @param inFile            fichier de scène (ex: scenes/scene1.json)
-     * @param clearContentFirst si true, vide le monde avant de charger
+     * @param world             ECS world
+     * @param inFile            scene file (ex: scenes/scene1.json)
+     * @param clearContentFirst if true, clears the world before loading
      */
     public static SaveFileFormat loadScene(World world,
                                            FileHandle inFile,
@@ -49,10 +49,10 @@ public final class SceneLoader {
         }
 
         if (clearContentFirst) {
-            // 🔥 Remise à zéro du cache de rendu
+            // 🔥 Reset render cache
             RenderStateSOA state = world.getSystem(RenderSubmitSystem.class).getState();
             state.clearAll();
-            // supprimer les entités existantes, ou juste le contenu "scene"
+            // remove existing entities, or only the "scene" content
             clearWorldContent(world);
         }
 

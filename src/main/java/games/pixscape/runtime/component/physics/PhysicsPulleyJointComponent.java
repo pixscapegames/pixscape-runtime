@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsPulleyJointComponent extends PooledComponent {
 
-    /** Ground anchors (monde) en mètres (ou WU si tu choisis, mais sois cohérent). */
+    /** Ground anchors (world) in meters (or WU if you choose, but stay consistent). */
     public float groundAx = 0f;
     public float groundAy = 0f;
     public float groundBx = 0f;

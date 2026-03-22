@@ -8,16 +8,16 @@ import games.pixscape.runtime.render.RenderStateSOA;
  * Trie drawList (indices SOA) par state.sortKey[slot].
  *
  * Important:
- * - drawList contient des "slots" RenderStateSOA, pas des entityId ECS.
- * - Tri STABLE (radix LSD) => conserve l'ordre relatif pour clés égales
- *   (utile pour tie/runtimeOrder).
+ * - drawList contains "slots" RenderStateSOA, not entityId ECS.
+ * - STABLE sort (LSD radix) => preserves relative order for equal keys
+ *   (useful for tie/runtimeOrder).
  */
 public final class RenderSortSystem extends BaseSystem {
 
     private final RenderStateSOA state;
     private final DrawList drawList;
 
-    // scratch buffers (réutilisés)
+    // scratch buffers (reused)
     private int[] tmp = new int[0];
     private final int[] count = new int[256]; // 8 bits
 
@@ -35,7 +35,7 @@ public final class RenderSortSystem extends BaseSystem {
         ensureTmpCapacity(n);
 
         // LSD radix: 8 passes * 8 bits = 64 bits
-        // stable si on fait: prefix sums + écriture dans tmp dans l'ordre
+        // stable if using: prefix sums + write to tmp in order
         for (int pass = 0; pass < 8; pass++) {
             final int shift = pass * 8;
 

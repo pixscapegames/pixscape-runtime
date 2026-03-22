@@ -10,7 +10,7 @@ public final class SortKey64 {
     public static final int LAYER_BITS    = 9;   // 0..511
 
     public static final int TEX_BITS      = 12;  // 0..4095
-    public static final int Z_BITS        = 16;  // biaisé => -32768..+32767
+    public static final int Z_BITS        = 16;  // biased => -32768..+32767
     public static final int TIE_BITS      = 14;  // 0..16383
 
     public static final int MAX_TEXTURE_HANDLE = (1 << TEX_BITS) - 1;

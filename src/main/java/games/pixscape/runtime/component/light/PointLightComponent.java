@@ -4,21 +4,21 @@ import com.artemis.PooledComponent;
 
 public class PointLightComponent extends PooledComponent {
 
-    // Couleur linéaire
+    // Linear color
     public float r = 1f;
     public float g = 1f;
     public float b = 1f;
 
-    // Intensité globale
+    // Global intensity
     public float intensity = 1f;
 
     // Rayon en world units
     public float radius = 200f;
 
-    // Exposant d’atténuation (1 = linéaire, 2 = plus dur)
+    // Attenuation exponent (1 = linear, 2 = harder)
     public float falloff = 1.5f;
 
-    // Enabled flag (important pour l’éditeur)
+    // Enabled flag (important for the editor)
     public boolean enabled = true;
 
     @Override
