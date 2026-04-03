@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2]
+
+### Added
+- Box2D joints: Friction, Motor, Weld, Pulley, Gear
+
+### Fixed
+
+
 ## [0.1.1] - 2026-03-22
 
 ### Added

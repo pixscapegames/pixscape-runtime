@@ -7,10 +7,7 @@ import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
-import com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef;
-import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
-import com.badlogic.gdx.physics.box2d.joints.WheelJointDef;
+import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
@@ -28,18 +25,24 @@ public final class Box2dSyncSystem extends BaseSystem {
     private Box2dWorldService box2d;
     private SceneMetaRuntime sceneMeta;
 
-    // Mappers
-    private ComponentMapper<TransformComponent> mT;
-    private ComponentMapper<PhysicsBodyComponent> mBodyDef;
-    private ComponentMapper<PhysicsFixturesComponent> mFixDefs;
-    private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
+    private ComponentMapper<TransformComponent>             mT;
+    private ComponentMapper<PhysicsBodyComponent>           mBodyDef;
+    private ComponentMapper<PhysicsFixturesComponent>       mFixDefs;
+    private ComponentMapper<PhysicsRuntimeBodyComponent>    mRuntime;
 
-    private ComponentMapper<PhysicsJointComponent> mJointBase;
-    private ComponentMapper<PhysicsDistanceJointComponent> mJointDist;
-    private ComponentMapper<PhysicsRevoluteJointComponent> mJointRev;
+    private ComponentMapper<PhysicsJointComponent>          mJointBase;
+    private ComponentMapper<PhysicsRuntimeJointComponent>   mJointRt;
+
+    private ComponentMapper<PhysicsDistanceJointComponent>  mJointDist;
+    private ComponentMapper<PhysicsRevoluteJointComponent>  mJointRev;
     private ComponentMapper<PhysicsPrismaticJointComponent> mJointPrism;
-    private ComponentMapper<PhysicsWheelJointComponent> mJointWheel;
-    private ComponentMapper<PhysicsRuntimeJointComponent> mJointRt;
+    private ComponentMapper<PhysicsWheelJointComponent>     mJointWheel;
+    private ComponentMapper<PhysicsFrictionJointComponent>  mFriction;
+    private ComponentMapper<PhysicsMotorJointComponent>     mMotor;
+    private ComponentMapper<PhysicsWeldJointComponent>      mWeld;
+    private ComponentMapper<PhysicsPulleyJointComponent>    mPulley;
+    private ComponentMapper<PhysicsGearJointComponent>      mGear;
+
 
     private DirtyTrackerSystem dirty;
 
@@ -106,12 +109,19 @@ public final class Box2dSyncSystem extends BaseSystem {
         mFixDefs = world.getMapper(PhysicsFixturesComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
 
-        mJointBase = world.getMapper(PhysicsJointComponent.class);
-        mJointDist = world.getMapper(PhysicsDistanceJointComponent.class);
-        mJointRev  = world.getMapper(PhysicsRevoluteJointComponent.class);
+        mJointBase  = world.getMapper(PhysicsJointComponent.class);
+        mJointRt    = world.getMapper(PhysicsRuntimeJointComponent.class);
+
+        mJointDist  = world.getMapper(PhysicsDistanceJointComponent.class);
+        mJointRev   = world.getMapper(PhysicsRevoluteJointComponent.class);
         mJointPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
         mJointWheel = world.getMapper(PhysicsWheelJointComponent.class);
-        mJointRt   = world.getMapper(PhysicsRuntimeJointComponent.class);
+        mFriction   = world.getMapper(PhysicsFrictionJointComponent.class);
+        mMotor      = world.getMapper(PhysicsMotorJointComponent.class);
+        mWeld       = world.getMapper(PhysicsWeldJointComponent.class);
+        mPulley     = world.getMapper(PhysicsPulleyJointComponent.class);
+        mGear       = world.getMapper(PhysicsGearJointComponent.class);
+
 
         dirty = world.getSystem(DirtyTrackerSystem.class);
 
@@ -263,7 +273,7 @@ public final class Box2dSyncSystem extends BaseSystem {
             bootstrapStepPending = false;
         }
 
-        // 5) ✅ Joints: only dirty
+        // 5) Joints: only dirty
         if (dirty != null) {
             dirty.consumeJoints(this::syncOneJoint);
         }
@@ -793,6 +803,8 @@ public final class Box2dSyncSystem extends BaseSystem {
                     newRt.joint = newJoint;
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
                 }
             }
 
@@ -835,6 +847,8 @@ public final class Box2dSyncSystem extends BaseSystem {
                     newRt.joint = newJoint;
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
                 }
             }
 
@@ -877,6 +891,8 @@ public final class Box2dSyncSystem extends BaseSystem {
                     newRt.joint = newJoint;
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
                 }
             }
 
@@ -919,17 +935,252 @@ public final class Box2dSyncSystem extends BaseSystem {
                     newRt.joint = newJoint;
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
+                }
+            }
+            case PhysicsJointComponent.TYPE_FRICTION -> {
+                PhysicsFrictionJointComponent friction = mFriction.getSafe(jEid, null);
+                if (friction == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                int aEid = base.aEid;
+                int bEid = base.bEid;
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
+                PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
+                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                boolean needsRebuild = (rt == null || rt.joint == null);
+
+                if (!needsRebuild) {
+                    if (rt.aGen != aRt.gen || rt.bGen != bRt.gen) needsRebuild = true;
+                }
+
+                if (!needsRebuild && sub != 0) needsRebuild = true;
+                if (!needsRebuild) return;
+
+                destroyRuntimeJointIfAny(jEid);
+
+                Joint newJoint = createFrictionJoint(base, friction, aRt.body, bRt.body);
+                if (newJoint != null) {
+                    PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
+                    newRt.joint = newJoint;
+                    newRt.aGen = aRt.gen;
+                    newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
                 }
             }
 
-            case PhysicsJointComponent.TYPE_PULLEY,
-                 PhysicsJointComponent.TYPE_MOUSE,
-                 PhysicsJointComponent.TYPE_GEAR,
-                 PhysicsJointComponent.TYPE_WELD,
-                 PhysicsJointComponent.TYPE_FRICTION,
-                 PhysicsJointComponent.TYPE_MOTOR -> {
-                // TODO later
+            case PhysicsJointComponent.TYPE_MOTOR -> {
+                PhysicsMotorJointComponent motor = mMotor.getSafe(jEid, null);
+                if (motor == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                int aEid = base.aEid;
+                int bEid = base.bEid;
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
+                PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
+                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                boolean needsRebuild = (rt == null || rt.joint == null);
+
+                if (!needsRebuild) {
+                    if (rt.aGen != aRt.gen || rt.bGen != bRt.gen) needsRebuild = true;
+                }
+
+                if (!needsRebuild && sub != 0) needsRebuild = true;
+                if (!needsRebuild) return;
+
                 destroyRuntimeJointIfAny(jEid);
+
+                Joint newJoint = createMotorJoint(base, motor, aRt.body, bRt.body);
+                if (newJoint != null) {
+                    PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
+                    newRt.joint = newJoint;
+                    newRt.aGen = aRt.gen;
+                    newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
+                }
+            }
+
+            case PhysicsJointComponent.TYPE_WELD -> {
+                PhysicsWeldJointComponent weld = mWeld.getSafe(jEid, null);
+                if (weld == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                int aEid = base.aEid;
+                int bEid = base.bEid;
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
+                PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
+                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                boolean needsRebuild = (rt == null || rt.joint == null);
+
+                if (!needsRebuild) {
+                    if (rt.aGen != aRt.gen || rt.bGen != bRt.gen) needsRebuild = true;
+                }
+
+                if (!needsRebuild && sub != 0) needsRebuild = true;
+                if (!needsRebuild) return;
+
+                destroyRuntimeJointIfAny(jEid);
+
+                Joint newJoint = createWeldJoint(base, weld, aRt.body, bRt.body);
+                if (newJoint != null) {
+                    PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
+                    newRt.joint = newJoint;
+                    newRt.aGen = aRt.gen;
+                    newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
+                }
+            }
+
+            case PhysicsJointComponent.TYPE_PULLEY -> {
+                PhysicsPulleyJointComponent pulley = mPulley.getSafe(jEid, null);
+                if (pulley == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                int aEid = base.aEid;
+                int bEid = base.bEid;
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
+                PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
+                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                boolean needsRebuild = (rt == null || rt.joint == null);
+
+                if (!needsRebuild) {
+                    if (rt.aGen != aRt.gen || rt.bGen != bRt.gen) needsRebuild = true;
+                }
+
+                if (!needsRebuild && sub != 0) needsRebuild = true;
+                if (!needsRebuild) return;
+
+                destroyRuntimeJointIfAny(jEid);
+
+                Joint newJoint = createPulleyJoint(base, pulley, aRt.body, bRt.body);
+                if (newJoint != null) {
+                    PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
+                    newRt.joint = newJoint;
+                    newRt.aGen = aRt.gen;
+                    newRt.bGen = bRt.gen;
+
+                    markDependentGearJointsDirty(jEid);
+                }
+            }
+
+            case PhysicsJointComponent.TYPE_GEAR -> {
+                PhysicsGearJointComponent gear = mGear.getSafe(jEid, null);
+                if (gear == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                if (gear.joint1Eid < 0 || gear.joint2Eid < 0 || gear.joint1Eid == gear.joint2Eid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                if (gear.joint1Eid == jEid || gear.joint2Eid == jEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                int aEid = base.aEid;
+                int bEid = base.bEid;
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
+                PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
+                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent src1Rt = mJointRt.getSafe(gear.joint1Eid, null);
+                PhysicsRuntimeJointComponent src2Rt = mJointRt.getSafe(gear.joint2Eid, null);
+                if (src1Rt == null || src2Rt == null || src1Rt.joint == null || src2Rt.joint == null) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                Joint src1 = src1Rt.joint;
+                Joint src2 = src2Rt.joint;
+                boolean src1Ok = src1 instanceof RevoluteJoint || src1 instanceof PrismaticJoint;
+                boolean src2Ok = src2 instanceof RevoluteJoint || src2 instanceof PrismaticJoint;
+                if (!src1Ok || !src2Ok) {
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                boolean needsRebuild = (rt == null || rt.joint == null);
+
+                if (!needsRebuild) {
+                    if (rt.aGen != aRt.gen || rt.bGen != bRt.gen) needsRebuild = true;
+                }
+
+                if (!needsRebuild && sub != 0) needsRebuild = true;
+                if (!needsRebuild) return;
+
+                destroyRuntimeJointIfAny(jEid);
+
+                Joint newJoint = createGearJoint(base, gear, aRt.body, bRt.body, src1, src2);
+                if (newJoint != null) {
+                    PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
+                    newRt.joint = newJoint;
+                    newRt.aGen = aRt.gen;
+                    newRt.bGen = bRt.gen;
+                }
             }
 
             default -> {
@@ -938,7 +1189,6 @@ public final class Box2dSyncSystem extends BaseSystem {
             }
         }
     }
-
 
     private Joint createDistanceJoint(PhysicsJointComponent base, PhysicsDistanceJointComponent dist, Body bodyA, Body bodyB) {
         DistanceJointDef def = new DistanceJointDef();
@@ -1045,6 +1295,100 @@ public final class Box2dSyncSystem extends BaseSystem {
         return box2d.world.createJoint(def);
     }
 
+    private Joint createFrictionJoint(PhysicsJointComponent base,
+                                      PhysicsFrictionJointComponent friction,
+                                      Body bodyA,
+                                      Body bodyB) {
+        FrictionJointDef def = new FrictionJointDef();
+        def.bodyA = bodyA;
+        def.bodyB = bodyB;
+        def.collideConnected = base.collideConnected;
+
+        def.localAnchorA.set(base.anchorAx, base.anchorAy);
+        def.localAnchorB.set(base.anchorBx, base.anchorBy);
+
+        def.maxForce = Math.max(0f, friction.maxForce);
+        def.maxTorque = Math.max(0f, friction.maxTorque);
+
+        return box2d.world.createJoint(def);
+    }
+
+    private Joint createMotorJoint(PhysicsJointComponent base,
+                                   PhysicsMotorJointComponent motor,
+                                   Body bodyA,
+                                   Body bodyB) {
+        MotorJointDef def = new MotorJointDef();
+        def.bodyA = bodyA;
+        def.bodyB = bodyB;
+        def.collideConnected = base.collideConnected;
+
+        def.linearOffset.set(motor.linearOffsetX, motor.linearOffsetY);
+        def.angularOffset = motor.angularOffsetRad;
+        def.maxForce = Math.max(0f, motor.maxForce);
+        def.maxTorque = Math.max(0f, motor.maxTorque);
+        def.correctionFactor = Math.max(0f, Math.min(1f, motor.correctionFactor));
+
+        return box2d.world.createJoint(def);
+    }
+
+    private Joint createWeldJoint(PhysicsJointComponent base,
+                                  PhysicsWeldJointComponent weld,
+                                  Body bodyA,
+                                  Body bodyB) {
+        WeldJointDef def = new WeldJointDef();
+        def.bodyA = bodyA;
+        def.bodyB = bodyB;
+        def.collideConnected = base.collideConnected;
+
+        def.localAnchorA.set(base.anchorAx, base.anchorAy);
+        def.localAnchorB.set(base.anchorBx, base.anchorBy);
+        def.referenceAngle = weld.referenceAngleRad;
+        def.frequencyHz = Math.max(0f, weld.frequencyHz);
+        def.dampingRatio = Math.max(0f, Math.min(1f, weld.dampingRatio));
+
+        return box2d.world.createJoint(def);
+    }
+
+    private Joint createPulleyJoint(PhysicsJointComponent base,
+                                    PhysicsPulleyJointComponent pulley,
+                                    Body bodyA,
+                                    Body bodyB) {
+        PulleyJointDef def = new PulleyJointDef();
+        def.bodyA = bodyA;
+        def.bodyB = bodyB;
+        def.collideConnected = base.collideConnected;
+
+        def.groundAnchorA.set(pulley.groundAx, pulley.groundAy);
+        def.groundAnchorB.set(pulley.groundBx, pulley.groundBy);
+
+        def.localAnchorA.set(base.anchorAx, base.anchorAy);
+        def.localAnchorB.set(base.anchorBx, base.anchorBy);
+
+        def.lengthA = Math.max(0.001f, pulley.lengthAM);
+        def.lengthB = Math.max(0.001f, pulley.lengthBM);
+        def.ratio = pulley.ratio > 0f ? pulley.ratio : 1f;
+
+        return box2d.world.createJoint(def);
+    }
+
+    private Joint createGearJoint(PhysicsJointComponent base,
+                                  PhysicsGearJointComponent gear,
+                                  Body bodyA,
+                                  Body bodyB,
+                                  Joint joint1,
+                                  Joint joint2) {
+        GearJointDef def = new GearJointDef();
+        def.bodyA = bodyA;
+        def.bodyB = bodyB;
+        def.collideConnected = base.collideConnected;
+
+        def.joint1 = joint1;
+        def.joint2 = joint2;
+        def.ratio = gear.ratio;
+
+        return box2d.world.createJoint(def);
+    }
+
     private void destroyRuntimeJointIfAny(int jEid) {
         PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
         if (rt != null && rt.joint != null && box2d != null && box2d.world != null) {
@@ -1052,6 +1396,27 @@ public final class Box2dSyncSystem extends BaseSystem {
             rt.joint = null;
         }
         if (mJointRt.has(jEid)) mJointRt.remove(jEid);
+
+        markDependentGearJointsDirty(jEid);
+    }
+
+    private void markDependentGearJointsDirty(int sourceJointEid) {
+        if (dirty == null || sourceJointEid < 0) return;
+
+        IntBag bag = jointsSub.getEntities();
+        int[] data = bag.getData();
+        for (int i = 0, n = bag.size(); i < n; i++) {
+            int jEid = data[i];
+            PhysicsJointComponent base = mJointBase.getSafe(jEid, null);
+            if (base == null || base.type != PhysicsJointComponent.TYPE_GEAR) continue;
+
+            PhysicsGearJointComponent gear = mGear.getSafe(jEid, null);
+            if (gear == null) continue;
+
+            if (gear.joint1Eid == sourceJointEid || gear.joint2Eid == sourceJointEid) {
+                dirty.joint(jEid, JointDirtyBits.ALL);
+            }
+        }
     }
 
     // -------------------------------------------------------------

@@ -8,15 +8,7 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -36,33 +28,43 @@ public final class PhysicsService {
     private Box2dWorldService box2d;
     private final DirtyTrackerSystem dirty;
 
-    private final ComponentMapper<TransformComponent> mT;
-    private final ComponentMapper<PhysicsBodyComponent> mBody;
+    private final ComponentMapper<TransformComponent>       mT;
+    private final ComponentMapper<PhysicsBodyComponent>     mBody;
     private final ComponentMapper<PhysicsFixturesComponent> mFixtures;
 
-    private final ComponentMapper<PhysicsJointComponent> mJoint;
-    private final ComponentMapper<PhysicsDistanceJointComponent> mDist;
-    private final ComponentMapper<PhysicsRevoluteJointComponent> mRev;
-    private final ComponentMapper<PhysicsPrismaticJointComponent> mPrism;
-    private final ComponentMapper<PhysicsWheelJointComponent> mWheel;
+    private final ComponentMapper<PhysicsJointComponent>            mJoint;
+    private final ComponentMapper<PhysicsDistanceJointComponent>    mDist;
+    private final ComponentMapper<PhysicsRevoluteJointComponent>    mRev;
+    private final ComponentMapper<PhysicsPrismaticJointComponent>   mPrism;
+    private final ComponentMapper<PhysicsWheelJointComponent>       mWheel;
+    private final ComponentMapper<PhysicsFrictionJointComponent>    mFriction;
+    private final ComponentMapper<PhysicsMotorJointComponent>       mMotor;
+    private final ComponentMapper<PhysicsWeldJointComponent>        mWeld;
+    private final ComponentMapper<PhysicsPulleyJointComponent>      mPulley;
+    private final ComponentMapper<PhysicsGearJointComponent>        mGear;
 
-    private Vector2 tmpA = new Vector2();
-    private Vector2 tmpB = new Vector2();
+    private final Vector2 tmpA = new Vector2();
+    private final Vector2 tmpB = new Vector2();
 
     public PhysicsService(World world, Box2dWorldService box2d) {
         this.world = world;
         this.box2d = box2d;
         this.dirty = world.getSystem(DirtyTrackerSystem.class);
 
-        this.mT    = world.getMapper(TransformComponent.class);
-        this.mBody = world.getMapper(PhysicsBodyComponent.class);
+        this.mT         = world.getMapper(TransformComponent.class);
+        this.mBody      = world.getMapper(PhysicsBodyComponent.class);
         this.mFixtures  = world.getMapper(PhysicsFixturesComponent.class);
+        this.mJoint     = world.getMapper(PhysicsJointComponent.class);
 
-        this.mJoint = world.getMapper(PhysicsJointComponent.class);
-        this.mDist  = world.getMapper(PhysicsDistanceJointComponent.class);
-        this.mRev   = world.getMapper(PhysicsRevoluteJointComponent.class);
-        this.mPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
-        this.mWheel = world.getMapper(PhysicsWheelJointComponent.class);
+        this.mDist      = world.getMapper(PhysicsDistanceJointComponent.class);
+        this.mRev       = world.getMapper(PhysicsRevoluteJointComponent.class);
+        this.mPrism     = world.getMapper(PhysicsPrismaticJointComponent.class);
+        this.mWheel     = world.getMapper(PhysicsWheelJointComponent.class);
+        this.mFriction  = world.getMapper(PhysicsFrictionJointComponent.class);
+        this.mMotor     = world.getMapper(PhysicsMotorJointComponent.class);
+        this.mWeld      = world.getMapper(PhysicsWeldJointComponent.class);
+        this.mPulley    = world.getMapper(PhysicsPulleyJointComponent.class);
+        this.mGear      = world.getMapper(PhysicsGearJointComponent.class);
     }
 
     public void setBox2d(Box2dWorldService box2d) {
@@ -184,7 +186,7 @@ public final class PhysicsService {
     }
 
     public boolean computeFixtureCenterWU(int bodyEid, FixtureDefData fixture, Vector2 outCenterWU) {
-        return transformFixturePointWU(bodyEid, fixture, 0f, 0f, outCenterWU);
+        return computeFixtureOriginWU(bodyEid, fixture, outCenterWU);
     }
 
     public float computeFixtureRadiusWU(FixtureDefData fixture) {
@@ -293,7 +295,7 @@ public final class PhysicsService {
         return Math.max(0, Math.min(fixture.polyCount, fixture.polyVerts.length / 2));
     }
 
-    private boolean transformFixturePointWU(int bodyEid, FixtureDefData fixture, float localX_m, float localY_m, Vector2 outWU) {
+    private boolean computeFixtureOriginWU(int bodyEid, FixtureDefData fixture, Vector2 outWU) {
         if (outWU == null) return false;
         outWU.set(0f, 0f);
         if (!isAvailable() || bodyEid < 0 || fixture == null) return false;
@@ -304,8 +306,9 @@ public final class PhysicsService {
         float fixtureAngle = (float) Math.toRadians(fixture.angleDeg);
         float fcos = (float) Math.cos(fixtureAngle);
         float fsin = (float) Math.sin(fixtureAngle);
-        float fx = localX_m * fcos - localY_m * fsin + fixture.offsetX;
-        float fy = localX_m * fsin + localY_m * fcos + fixture.offsetY;
+
+        float fx = fixture.offsetX;
+        float fy = fixture.offsetY;
 
         float bcos = (float) Math.cos(t.rotationRad);
         float bsin = (float) Math.sin(t.rotationRad);
@@ -342,6 +345,10 @@ public final class PhysicsService {
         return true;
     }
 
+    public float pxToM(float value) {
+        return box2d.pxToM(value);
+    }
+
     // ---------------------------------------------------------------------
     // Joints
     // ---------------------------------------------------------------------
@@ -364,6 +371,19 @@ public final class PhysicsService {
         return base != null
                 && base.type == PhysicsJointComponent.TYPE_PRISMATIC
                 && mPrism.has(eid);
+    }
+
+    private boolean isGearSourceJointType(int jointEid) {
+        PhysicsJointComponent base = mJoint.getSafe(jointEid, null);
+        if (base == null) return false;
+        return base.type == PhysicsJointComponent.TYPE_REVOLUTE
+                || base.type == PhysicsJointComponent.TYPE_PRISMATIC;
+    }
+
+    private int getGearDynamicBodyEid(int jointEid) {
+        PhysicsJointComponent base = mJoint.getSafe(jointEid, null);
+        if (base == null) return -1;
+        return base.bEid;
     }
 
     /**
@@ -404,10 +424,6 @@ public final class PhysicsService {
 
         markJointDirty(jEid);
         return jEid;
-    }
-
-    public float pxToM(float value) {
-        return box2d.pxToM(value);
     }
 
     /**
@@ -502,16 +518,229 @@ public final class PhysicsService {
         return jEid;
     }
 
+    /**
+     * Creates a Friction joint between two bodies, world pivot (WU/pixels).
+     */
+    public int createFrictionJoint(int aEid, int bEid, float pivotWuX, float pivotWuY) {
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
+        if (!hasPhysics(aEid) || !hasPhysics(bEid)) return -1;
+
+        Vector2 localA = new Vector2();
+        Vector2 localB = new Vector2();
+        if (!computeLocalAnchorMetersFromWorldPivot(aEid, pivotWuX, pivotWuY, localA)) return -1;
+        if (!computeLocalAnchorMetersFromWorldPivot(bEid, pivotWuX, pivotWuY, localB)) return -1;
+
+        int jEid = world.create();
+
+        PhysicsJointComponent base = mJoint.create(jEid);
+        base.type = PhysicsJointComponent.TYPE_FRICTION;
+        base.aEid = aEid;
+        base.bEid = bEid;
+        base.collideConnected = false;
+        base.anchorAx = localA.x;
+        base.anchorAy = localA.y;
+        base.anchorBx = localB.x;
+        base.anchorBy = localB.y;
+
+        PhysicsFrictionJointComponent friction = mFriction.create(jEid);
+        friction.maxForce = Math.max(0f, friction.maxForce);
+        friction.maxTorque = Math.max(0f, friction.maxTorque);
+
+        markJointDirty(jEid);
+        return jEid;
+    }
+
+    /**
+     * Creates a Motor joint between two bodies.
+     * Offsets are initialized from the current relative transform of bodyB in bodyA frame.
+     */
+    public int createMotorJoint(int aEid, int bEid) {
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
+        if (!hasPhysics(aEid) || !hasPhysics(bEid)) return -1;
+
+        int jEid = world.create();
+
+        PhysicsJointComponent base = mJoint.create(jEid);
+        base.type = PhysicsJointComponent.TYPE_MOTOR;
+        base.aEid = aEid;
+        base.bEid = bEid;
+        base.collideConnected = false;
+
+        // Unused for motor joint, keep neutral.
+        base.anchorAx = 0f;
+        base.anchorAy = 0f;
+        base.anchorBx = 0f;
+        base.anchorBy = 0f;
+
+        PhysicsMotorJointComponent motor = mMotor.create(jEid);
+
+        // Default offsets = current relative transform of B in A frame.
+        if (isAvailable()) {
+            TransformComponent bT = mT.getSafe(bEid, null);
+            if (bT != null) {
+                Vector2 localBInA = new Vector2();
+                if (computeLocalAnchorMetersFromWorldPivot(aEid, bT.x, bT.y, localBInA)) {
+                    motor.linearOffsetX = localBInA.x;
+                    motor.linearOffsetY = localBInA.y;
+                }
+            }
+
+            TransformComponent aT = mT.getSafe(aEid, null);
+            TransformComponent bT2 = mT.getSafe(bEid, null);
+            if (aT != null && bT2 != null) {
+                motor.angularOffsetRad = bT2.rotationRad - aT.rotationRad;
+            }
+        }
+
+        motor.maxForce = Math.max(0f, motor.maxForce);
+        motor.maxTorque = Math.max(0f, motor.maxTorque);
+        motor.correctionFactor = Math.max(0f, Math.min(1f, motor.correctionFactor));
+
+        markJointDirty(jEid);
+        return jEid;
+    }
+
+    /**
+     * Creates a Weld joint between two bodies, world pivot (WU/pixels).
+     */
+    public int createWeldJoint(int aEid, int bEid, float pivotWuX, float pivotWuY) {
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
+        if (!hasPhysics(aEid) || !hasPhysics(bEid)) return -1;
+
+        Vector2 localA = new Vector2();
+        Vector2 localB = new Vector2();
+        if (!computeLocalAnchorMetersFromWorldPivot(aEid, pivotWuX, pivotWuY, localA)) return -1;
+        if (!computeLocalAnchorMetersFromWorldPivot(bEid, pivotWuX, pivotWuY, localB)) return -1;
+
+        int jEid = world.create();
+
+        PhysicsJointComponent base = mJoint.create(jEid);
+        base.type = PhysicsJointComponent.TYPE_WELD;
+        base.aEid = aEid;
+        base.bEid = bEid;
+        base.collideConnected = false;
+        base.anchorAx = localA.x;
+        base.anchorAy = localA.y;
+        base.anchorBx = localB.x;
+        base.anchorBy = localB.y;
+
+        PhysicsWeldJointComponent weld = mWeld.create(jEid);
+
+        TransformComponent aT = mT.getSafe(aEid, null);
+        TransformComponent bT = mT.getSafe(bEid, null);
+        if (aT != null && bT != null) {
+            weld.referenceAngleRad = bT.rotationRad - aT.rotationRad;
+        }
+
+        weld.frequencyHz = Math.max(0f, weld.frequencyHz);
+        weld.dampingRatio = Math.max(0f, Math.min(1f, weld.dampingRatio));
+
+        markJointDirty(jEid);
+        return jEid;
+    }
+
+    /**
+     * Creates a Pulley joint between two bodies.
+     * <p>
+     * bodyAnchorA/B and groundAnchorA/B are given in world WU/pixels.
+     * Stored values are converted to meters for Box2D compatibility.
+     */
+    public int createPulleyJoint(int aEid, int bEid,
+                                 float bodyAnchorAWuX, float bodyAnchorAWuY,
+                                 float bodyAnchorBWuX, float bodyAnchorBWuY,
+                                 float groundAnchorAWuX, float groundAnchorAWuY,
+                                 float groundAnchorBWuX, float groundAnchorBWuY,
+                                 float ratio) {
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
+        if (!hasPhysics(aEid) || !hasPhysics(bEid)) return -1;
+
+        Vector2 localA = new Vector2();
+        Vector2 localB = new Vector2();
+        if (!computeLocalAnchorMetersFromWorldPivot(aEid, bodyAnchorAWuX, bodyAnchorAWuY, localA)) return -1;
+        if (!computeLocalAnchorMetersFromWorldPivot(bEid, bodyAnchorBWuX, bodyAnchorBWuY, localB)) return -1;
+
+        int jEid = world.create();
+
+        PhysicsJointComponent base = mJoint.create(jEid);
+        base.type = PhysicsJointComponent.TYPE_PULLEY;
+        base.aEid = aEid;
+        base.bEid = bEid;
+        base.collideConnected = false;
+        base.anchorAx = localA.x;
+        base.anchorAy = localA.y;
+        base.anchorBx = localB.x;
+        base.anchorBy = localB.y;
+
+        PhysicsPulleyJointComponent pulley = mPulley.create(jEid);
+
+        // Ground anchors are world-space in meters.
+        pulley.groundAx = box2d.pxToM(groundAnchorAWuX);
+        pulley.groundAy = box2d.pxToM(groundAnchorAWuY);
+        pulley.groundBx = box2d.pxToM(groundAnchorBWuX);
+        pulley.groundBy = box2d.pxToM(groundAnchorBWuY);
+
+        // Reference lengths are segment lengths from ground anchors to body anchors.
+        float lenAWu = Vector2.dst(groundAnchorAWuX, groundAnchorAWuY, bodyAnchorAWuX, bodyAnchorAWuY);
+        float lenBWu = Vector2.dst(groundAnchorBWuX, groundAnchorBWuY, bodyAnchorBWuX, bodyAnchorBWuY);
+
+        pulley.lengthAM = Math.max(0.001f, box2d.pxToM(lenAWu));
+        pulley.lengthBM = Math.max(0.001f, box2d.pxToM(lenBWu));
+        pulley.ratio = ratio > 0f ? ratio : 1f;
+
+        markJointDirty(jEid);
+        return jEid;
+    }
+
+    /**
+     * Creates a Gear joint from two existing revolute/prismatic joints.
+     */
+    public int createGearJoint(int joint1Eid, int joint2Eid, float ratio) {
+        if (joint1Eid < 0 || joint2Eid < 0 || joint1Eid == joint2Eid) return -1;
+
+        if (!isGearSourceJointType(joint1Eid) || !isGearSourceJointType(joint2Eid)) return -1;
+
+        int aEid = getGearDynamicBodyEid(joint1Eid);
+        int bEid = getGearDynamicBodyEid(joint2Eid);
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
+
+        int jEid = world.create();
+
+        PhysicsJointComponent base = mJoint.create(jEid);
+        base.type = PhysicsJointComponent.TYPE_GEAR;
+        base.aEid = aEid;
+        base.bEid = bEid;
+        base.collideConnected = false;
+
+        // Unused for gear joint, keep neutral.
+        base.anchorAx = 0f;
+        base.anchorAy = 0f;
+        base.anchorBx = 0f;
+        base.anchorBy = 0f;
+
+        PhysicsGearJointComponent gear = mGear.create(jEid);
+        gear.joint1Eid = joint1Eid;
+        gear.joint2Eid = joint2Eid;
+        gear.ratio = ratio;
+
+        markJointDirty(jEid);
+        return jEid;
+    }
 
     public void deleteJoint(int jointEid) {
         if (jointEid < 0) return;
 
-        // world.delete => Box2dSyncSystem removed() => destroy runtime joint + unindex
         try {
             world.delete(jointEid);
         } catch (Throwable ignore) {
-            // fallback: remove components
-            if (mDist.has(jointEid))  mDist.remove(jointEid);
+            if (mDist.has(jointEid)) mDist.remove(jointEid);
+            if (mRev.has(jointEid)) mRev.remove(jointEid);
+            if (mPrism.has(jointEid)) mPrism.remove(jointEid);
+            if (mWheel.has(jointEid)) mWheel.remove(jointEid);
+            if (mFriction.has(jointEid)) mFriction.remove(jointEid);
+            if (mMotor.has(jointEid)) mMotor.remove(jointEid);
+            if (mWeld.has(jointEid)) mWeld.remove(jointEid);
+            if (mPulley.has(jointEid)) mPulley.remove(jointEid);
+            if (mGear.has(jointEid)) mGear.remove(jointEid);
             if (mJoint.has(jointEid)) mJoint.remove(jointEid);
         }
     }
@@ -609,8 +838,7 @@ public final class PhysicsService {
         if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
         if (!computeAnchorWorldWU(aEid, base.anchorAx, base.anchorAy, outA)) return false;
-        if (!computeAnchorWorldWU(bEid, base.anchorBx, base.anchorBy, outB)) return false;
-        return true;
+        return computeAnchorWorldWU(bEid, base.anchorBx, base.anchorBy, outB);
     }
 
 
