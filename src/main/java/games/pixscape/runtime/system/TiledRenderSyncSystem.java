@@ -141,9 +141,11 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 
-        // On peut garder le stockage row-major.
-        // En ISO, l'ordre final sera porté par sortKey (z/tie),
-        // donc pas besoin de réallouer les slots en diagonale.
+
+        // Slot storage remains row-major.
+        // The final visual order is ensured by the sortKey:
+        // - ORTHO: stable order of slots
+        // - ISO: z = gx + gy, tie = gx
         for (int ly = 0; ly < chunk.chunkHeight; ly++) {
             for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
@@ -181,7 +183,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
             return;
         }
 
-        map.tileToRenderQuad(gx, gy, tmpQuad);
+        map.tileToSpriteQuad(gx, gy, cr.pixW, cr.pixH, tmpQuad);
 
         state.kind[slot] = RenderStateSOA.KIND_SPRITE;
         state.enabled[slot] = true;
@@ -214,8 +216,10 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
         int z = 0;
         int tie = 0;
 
+        // Tiled-compatible isometric depth: farther cells must render first,
+        // so depth is the negative diagonal index.
         if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
-            z = clampSortZ(gx + gy);
+            z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
         }
 

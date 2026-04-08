@@ -341,6 +341,22 @@ public final class TiledMapLayerData {
         return packTile(approxGX, approxGY);
     }
 
+    public void tileToSpriteQuad(int gx, int gy, int spriteW, int spriteH, float[] out8) {
+        float logicalX = tileToWorldX(gx, gy);
+        float logicalY = tileToWorldY(gx, gy);
+
+        float x = logicalX + (tileWidth - spriteW) * 0.5f;
+        float y = logicalY + tileHeight - spriteH;
+
+        float x2 = x + spriteW;
+        float y2 = y + spriteH;
+
+        out8[0] = x;  out8[1] = y;
+        out8[2] = x;  out8[3] = y2;
+        out8[4] = x2; out8[5] = y2;
+        out8[6] = x2; out8[7] = y;
+    }
+
     /**
      * Top-left of render rect.
      */

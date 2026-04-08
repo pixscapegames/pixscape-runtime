@@ -664,7 +664,8 @@ public final class PixscapeEngine {
                     tiled.mapHeightCells,
                     (int) meta.tileWidth,
                     (int) meta.tileHeight,
-                    meta.chunkSize
+                    meta.chunkSize,
+                    meta.tiledProjection
             );
             tiled.data.originX = tiled.originX;
             tiled.data.originY = tiled.originY;
