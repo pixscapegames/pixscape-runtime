@@ -4,13 +4,16 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntArray;
 
 public final class TileChunk {
+
     public enum DirtyState {
         CLEAN,
         PARTIAL,
         FULL
     }
+
     public DirtyState dirtyState = DirtyState.FULL; // initial build
     public IntArray dirtyLocalIndices = new IntArray(false, 8);
+
     public int chunkX;
     public int chunkY;
 
@@ -29,20 +32,14 @@ public final class TileChunk {
     public Rectangle bounds;
 
     public TileChunk() {
+        this.bounds = new Rectangle();
     }
 
-    public TileChunk(
-            int chunkX,
-            int chunkY,
-            int chunkWidth,
-            int chunkHeight,
-            int worldTileX,
-            int worldTileY,
-            float originX,
-            float originY,
-            int tileWidth,
-            int tileHeight,
-            int soaStartIndex) {
+    public TileChunk(int chunkX,
+                     int chunkY,
+                     int chunkWidth,
+                     int chunkHeight,
+                     int soaStartIndex) {
 
         this.chunkX = chunkX;
         this.chunkY = chunkY;
@@ -55,12 +52,7 @@ public final class TileChunk {
         this.soaStartIndex = soaStartIndex;
         this.soaCount = chunkWidth * chunkHeight;
 
-        float worldX = originX + worldTileX * tileWidth;
-        float worldY = originY + worldTileY * tileHeight;
-        float worldW = chunkWidth  * tileWidth;
-        float worldH = chunkHeight * tileHeight;
-
-        this.bounds = new Rectangle(worldX, worldY, worldW, worldH);
+        this.bounds = new Rectangle();
     }
 
     public int get(int localX, int localY) {
@@ -69,13 +61,15 @@ public final class TileChunk {
 
     public void set(int localX, int localY, int assetId) {
         if (localX < 0 || localY < 0 ||
-                localX >= chunkWidth || localY >= chunkHeight)
+                localX >= chunkWidth || localY >= chunkHeight) {
             return;
+        }
 
         int index = localY * chunkWidth + localX;
 
-        if (assetIds[index] == assetId)
+        if (assetIds[index] == assetId) {
             return;
+        }
 
         assetIds[index] = assetId;
         contentDirty = true;

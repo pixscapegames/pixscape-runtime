@@ -4,6 +4,7 @@
 
 ### Added
 - Box2D joints: Friction, Motor, Weld, Pulley, Gear
+- Isometric tiled map
 
 ### Fixed
 
