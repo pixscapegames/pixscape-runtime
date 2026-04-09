@@ -31,6 +31,7 @@ import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
 
@@ -757,7 +758,23 @@ public final class PixscapeEngine {
         for (int i = 0, n = tiledBag.size(); i < n; i++) {
             TiledLayerComponent tiled = mTiled.get(data[i]);
             if (tiled == null || tiled.data == null) continue;
+            maskTiledSlotsInvisible(tiled.data);
             tiled.data.markAllChunksContentDirty();
+        }
+    }
+
+    private void maskTiledSlotsInvisible(TiledMapLayerData tiledData) {
+        if (renderState == null || tiledData == null) return;
+
+        for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext();) {
+            TileChunk chunk = chunks.next();
+            if (chunk == null || chunk.soaCount <= 0) continue;
+
+            int slotStart = Math.max(0, chunk.soaStartIndex);
+            int slotEnd = Math.min(renderState.visible.length, slotStart + chunk.soaCount);
+            for (int slot = slotStart; slot < slotEnd; slot++) {
+                renderState.visible[slot] = false;
+            }
         }
     }
 
