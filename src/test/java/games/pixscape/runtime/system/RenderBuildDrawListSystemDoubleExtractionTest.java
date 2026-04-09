@@ -87,6 +87,36 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         Assert.assertEquals(0, fixture.drawList.size);
     }
 
+    @Test
+    public void reservedVfxRangeIsExtractedOutsideEcsBound() {
+        Fixture fixture = new Fixture(2_000, 64, 1_500, 2_000);
+
+        fixture.enableSprite(1_700, 0, 12L);
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(1_700, fixture.drawList.get(0));
+        Assert.assertEquals(64, fixture.stats.buildDrawListScannedEcsSlots);
+        Assert.assertEquals(0, fixture.stats.buildDrawListScannedTiledSlots);
+    }
+
+    @Test
+    public void mixedEcsTiledAndReservedVfxKeepCorrectSortedOutputWithoutDuplicate() {
+        Fixture fixture = new Fixture(3_000, 64, 1_500, 2_000);
+
+        fixture.enableSprite(10, 0, 40L);     // ECS
+        fixture.enableSprite(900, 0, 30L);    // tiled
+        fixture.enableSprite(901, 0, 20L);    // tiled
+        fixture.enableSprite(1_700, 0, 10L);  // VFX/reserved
+        fixture.state.appendTiledVisibleRange(900, 2);
+
+        fixture.world.process();
+
+        Assert.assertEquals(4, fixture.drawList.size);
+        Assert.assertArrayEquals(new int[]{1700, 901, 900, 10}, snapshot(fixture.drawList));
+    }
+
     private static int[] snapshot(DrawList drawList) {
         int[] out = new int[drawList.size];
         System.arraycopy(drawList.data(), 0, out, 0, drawList.size);
@@ -101,6 +131,10 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         final World world;
 
         Fixture(int capacity, int ecsEndExclusive) {
+            this(capacity, ecsEndExclusive, -1, -1);
+        }
+
+        Fixture(int capacity, int ecsEndExclusive, int reservedStartInclusive, int reservedEndExclusive) {
             this.state = new RenderStateSOA(capacity);
             this.layerState = new LayerStateSOA(4);
             this.layerState.enabled[0] = true;
@@ -109,7 +143,15 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             this.stats = new RenderStats();
             this.world = new World(new WorldConfigurationBuilder()
                     .with(
-                            new RenderBuildDrawListSystem(state, layerState, drawList, stats, ecsEndExclusive),
+                            new RenderBuildDrawListSystem(
+                                    state,
+                                    layerState,
+                                    drawList,
+                                    stats,
+                                    ecsEndExclusive,
+                                    reservedStartInclusive,
+                                    reservedEndExclusive
+                            ),
                             new RenderSortSystem(state, drawList)
                     )
                     .build());

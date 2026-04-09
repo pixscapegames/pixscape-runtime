@@ -4,9 +4,16 @@
 
 ### Added
 - Box2D joints: Friction, Motor, Weld, Pulley, Gear
-- Isometric tiled map
+- Isometric tiled map support
+
+### Improved
+- Tiled rendering: removed the forced full rebuild when chunks become visible again
+- Render pipeline: bounded the ECS draw-list scan and appended visible tiled slots directly
+- Tiled rendering: atlas rebind now safely invalidates tiled chunks before rebuild
+- Tiled rendering: camera panning over tiled maps is smoother
 
 ### Fixed
+- VFX / particle rendering was restored after draw-list extraction optimizations
 
 
 ## [0.1.1] - 2026-03-22

@@ -74,23 +74,15 @@ public final class WorldConfigFactory {
                 layerState,
                 drawList,
                 ecsEnd,
+                vfxStart,
+                totalCapacity,
                 meta,
                 stats,
                 atlasRuntimeService,
                 defaultShaderIdx,
+                effectsRoot,
                 tiledStart,
                 tiledEnd
-        );
-
-        attachRenderParticleSyncSystem(
-                builder,
-                renderState,
-                camera,
-                vfxStart,
-                totalCapacity,
-                defaultShaderIdx,
-                atlasRuntimeService,
-                effectsRoot
         );
 
         addSubmitSystem(builder, submitSupplier);
@@ -121,10 +113,13 @@ public final class WorldConfigFactory {
             LayerStateSOA layerState,
             DrawList drawList,
             int entityCapacityHint,
+            int vfxStartIndex,
+            int vfxEndIndex,
             SceneMetaRuntime meta,
             RenderStats stats,
             AtlasRuntimeService atlasRuntimeService,
             int defaultShaderIdx,
+            FileHandle effectsRoot,
             int tiledStart,
             int tiledEnd
     ) {
@@ -147,22 +142,6 @@ public final class WorldConfigFactory {
                         tiledStart,
                         tiledEnd
                 ),
-                new RenderBuildDrawListSystem(renderState, layerState, drawList, stats, entityCapacityHint),
-                new RenderSortSystem(renderState, drawList)
-        );
-    }
-
-    private static void attachRenderParticleSyncSystem(
-            WorldConfigurationBuilder builder,
-            RenderStateSOA renderState,
-            OrthographicCamera worldCamera,
-            int vfxStartIndex,
-            int vfxEndIndex,
-            int defaultShaderIdx,
-            AtlasRuntimeService atlasRuntimeService,
-            FileHandle effectsRoot
-    ) {
-        builder.with(
                 new RenderParticleSyncSystem(
                         renderState,
                         worldCamera,
@@ -171,7 +150,17 @@ public final class WorldConfigFactory {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot
-                )
+                ),
+                new RenderBuildDrawListSystem(
+                        renderState,
+                        layerState,
+                        drawList,
+                        stats,
+                        entityCapacityHint,
+                        vfxStartIndex,
+                        vfxEndIndex
+                ),
+                new RenderSortSystem(renderState, drawList)
         );
     }
 

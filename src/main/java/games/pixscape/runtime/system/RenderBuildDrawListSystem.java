@@ -22,17 +22,31 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     private final DrawList       drawList;
     private final RenderStats    stats;
     private final int            ecsEndExclusive;
+    private final int reservedStartInclusive;
+    private final int reservedEndExclusive;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
                                      RenderStats stats,
                                      int ecsEndExclusive) {
-        this.state      = state;
+        this(state, layerState, drawList, stats, ecsEndExclusive, -1, -1);
+    }
+
+    public RenderBuildDrawListSystem(RenderStateSOA state,
+                                     LayerStateSOA layerState,
+                                     DrawList drawList,
+                                     RenderStats stats,
+                                     int ecsEndExclusive,
+                                     int reservedStartInclusive,
+                                     int reservedEndExclusive) {
+        this.state = state;
         this.layerState = layerState;
-        this.drawList   = drawList;
-        this.stats      = stats;
+        this.drawList = drawList;
+        this.stats = stats;
         this.ecsEndExclusive = ecsEndExclusive;
+        this.reservedStartInclusive = reservedStartInclusive;
+        this.reservedEndExclusive = reservedEndExclusive;
     }
 
     @Override
@@ -59,6 +73,16 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
             if (slot < ecsEndExclusive) continue;
             if (isRenderableSlot(slot)) {
                 drawList.add(slot);
+            }
+        }
+
+        if (reservedStartInclusive >= 0 && reservedEndExclusive > reservedStartInclusive) {
+            final int reservedStart = Math.max(ecsEndExclusive, reservedStartInclusive);
+            final int reservedEnd = Math.min(maxId + 1, reservedEndExclusive);
+            for (int slot = reservedStart; slot < reservedEnd; slot++) {
+                if (isRenderableSlot(slot)) {
+                    drawList.add(slot);
+                }
             }
         }
 
