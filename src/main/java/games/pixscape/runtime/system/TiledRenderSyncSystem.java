@@ -45,6 +45,11 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
     }
 
     @Override
+    protected void begin() {
+        computeViewBounds();
+    }
+
+    @Override
     protected void process(int e) {
         LayerComponent layer = mLayer.get(e);
         if (layer.type != LayerComponent.TYPE_TILED) return;
@@ -55,8 +60,6 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
         TiledMapLayerData map = tiled.data;
         if (!map.visible) return;
 
-        computeViewBounds();
-
         IntMap.Values<TileChunk> values = map.getChunks();
 
         while (values.hasNext()) {
@@ -66,16 +69,16 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
 
             if (!inView) {
                 if (chunk.visibleLastFrame) {
-                    disableChunkSlots(chunk);
+                    hideChunkSlots(chunk);
                     chunk.visibleLastFrame = false;
                 }
                 continue;
             }
 
             if (!chunk.visibleLastFrame) {
-                chunk.dirtyState = TileChunk.DirtyState.FULL;
-                chunk.dirtyLocalIndices.clear();
-                chunk.contentDirty = true;
+                if (chunk.dirtyState != TileChunk.DirtyState.FULL) {
+                    reactivateChunkSlots(chunk);
+                }
             }
             chunk.visibleLastFrame = true;
 
@@ -128,9 +131,16 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
         );
     }
 
-    private void disableChunkSlots(TileChunk chunk) {
+    private void hideChunkSlots(TileChunk chunk) {
         for (int i = 0; i < chunk.soaCount; i++) {
-            state.disable(chunk.soaStartIndex + i);
+            state.visible[chunk.soaStartIndex + i] = false;
+        }
+    }
+
+    private void reactivateChunkSlots(TileChunk chunk) {
+        for (int i = 0; i < chunk.soaCount; i++) {
+            int slot = chunk.soaStartIndex + i;
+            state.visible[slot] = state.enabled[slot];
         }
     }
 

@@ -740,8 +740,25 @@ public final class PixscapeEngine {
         }
 
         rebuildSceneAssets(sceneTag);
+        markAllTiledChunksContentDirty();
 
         SceneLoader.forceFullRenderDirty(world);
+    }
+
+    private void markAllTiledChunksContentDirty() {
+        if (world == null) return;
+
+        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
+        IntBag tiledBag = world.getAspectSubscriptionManager()
+                .get(Aspect.all(TiledLayerComponent.class))
+                .getEntities();
+
+        int[] data = tiledBag.getData();
+        for (int i = 0, n = tiledBag.size(); i < n; i++) {
+            TiledLayerComponent tiled = mTiled.get(data[i]);
+            if (tiled == null || tiled.data == null) continue;
+            tiled.data.markAllChunksContentDirty();
+        }
     }
 
     private void rebuildSceneAssets(String sceneTag) {
