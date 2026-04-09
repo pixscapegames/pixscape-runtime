@@ -34,6 +34,13 @@ public final class TiledMapLayerData {
     public int layerTiledEnd;
 
     // =========================
+    // CHUNK GRID
+    // =========================
+
+    private int chunksX;
+    private int chunksY;
+
+    // =========================
     // CHUNKS
     // =========================
 
@@ -41,6 +48,11 @@ public final class TiledMapLayerData {
 
     public boolean visible = true;
     public boolean collisionEnabled = true;
+    public boolean hasPreviousChunkWindow = false;
+    public int previousChunkMinX = 0;
+    public int previousChunkMaxX = -1;
+    public int previousChunkMinY = 0;
+    public int previousChunkMaxY = -1;
 
     public TiledMapLayerData(int mapWidth,
                              int mapHeight,
@@ -87,8 +99,8 @@ public final class TiledMapLayerData {
 
         int cursor = layerTiledStart;
 
-        int chunksX = Math.max(1, (mapWidth + chunkSize - 1) / chunkSize);
-        int chunksY = Math.max(1, (mapHeight + chunkSize - 1) / chunkSize);
+        chunksX = Math.max(1, (mapWidth + chunkSize - 1) / chunkSize);
+        chunksY = Math.max(1, (mapHeight + chunkSize - 1) / chunkSize);
 
         for (int cy = 0; cy < chunksY; cy++) {
             for (int cx = 0; cx < chunksX; cx++) {
@@ -130,6 +142,12 @@ public final class TiledMapLayerData {
         if (cursor > layerTiledEnd) {
             throw new IllegalStateException("Tiled allocation overflow");
         }
+
+        hasPreviousChunkWindow = false;
+        previousChunkMinX = 0;
+        previousChunkMaxX = -1;
+        previousChunkMinY = 0;
+        previousChunkMaxY = -1;
     }
 
     public void updateChunkBounds(TileChunk chunk) {
@@ -477,6 +495,18 @@ public final class TiledMapLayerData {
 
     public IntMap.Values<TileChunk> getChunks() {
         return chunks.values();
+    }
+
+    public TileChunk getChunk(int cx, int cy) {
+        return chunks.get(packChunk(cx, cy));
+    }
+
+    public int getChunksX() {
+        return chunksX;
+    }
+
+    public int getChunksY() {
+        return chunksY;
     }
 
     private int packChunk(int cx, int cy) {
