@@ -204,7 +204,10 @@ public final class TiledMapLayerData {
     }
 
     public void setTile(int gx, int gy, int assetId) {
+        setTile(gx, gy, assetId, TileTransformFlags.NONE);
+    }
 
+    public void setTile(int gx, int gy, int assetId, byte flags) {
         if (!isInside(gx, gy)) return;
 
         int cx = gx / chunkSize;
@@ -216,7 +219,7 @@ public final class TiledMapLayerData {
         int lx = gx - (cx * chunkSize);
         int ly = gy - (cy * chunkSize);
 
-        chunk.set(lx, ly, assetId);
+        chunk.set(lx, ly, assetId, flags);
     }
 
     // ============================================================
@@ -239,7 +242,9 @@ public final class TiledMapLayerData {
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {
 
-        IntMap<IntMap<Integer>> saved = new IntMap<>();
+        record SavedTile(int assetId, byte flags) {}
+
+        IntMap<IntMap<SavedTile>> saved = new IntMap<>();
 
         IntMap.Values<TileChunk> values = chunks.values();
         while (values.hasNext()) {
@@ -251,15 +256,17 @@ public final class TiledMapLayerData {
                     int asset = chunk.get(lx, ly);
                     if (asset == 0) continue;
 
+                    byte flags = chunk.getTransformFlags(lx, ly);
+
                     int gx = chunk.chunkX * chunkSize + lx;
                     int gy = chunk.chunkY * chunkSize + ly;
 
-                    IntMap<Integer> col = saved.get(gx);
+                    IntMap<SavedTile> col = saved.get(gx);
                     if (col == null) {
                         col = new IntMap<>();
                         saved.put(gx, col);
                     }
-                    col.put(gy, asset);
+                    col.put(gy, new SavedTile(asset, flags));
                 }
             }
         }
@@ -272,15 +279,15 @@ public final class TiledMapLayerData {
         IntMap.Keys xs = saved.keys();
         while (xs.hasNext) {
             int gx = xs.next();
-            IntMap<Integer> ys = saved.get(gx);
+            IntMap<SavedTile> ys = saved.get(gx);
 
             IntMap.Keys yKeys = ys.keys();
             while (yKeys.hasNext) {
                 int gy = yKeys.next();
-                int asset = ys.get(gy);
+                SavedTile savedTile = ys.get(gy);
 
                 if (isInside(gx, gy)) {
-                    setTile(gx, gy, asset);
+                    setTile(gx, gy, savedTile.assetId(), savedTile.flags());
                 }
             }
         }
@@ -492,6 +499,21 @@ public final class TiledMapLayerData {
     // ============================================================
     // ACCESSORS
     // ============================================================
+
+    public byte getTileTransformFlags(int gx, int gy) {
+        if (!isInside(gx, gy)) return TileTransformFlags.NONE;
+
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+
+        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        if (chunk == null) return TileTransformFlags.NONE;
+
+        int lx = gx - (cx * chunkSize);
+        int ly = gy - (cy * chunkSize);
+
+        return chunk.getTransformFlags(lx, ly);
+    }
 
     public IntMap.Values<TileChunk> getChunks() {
         return chunks.values();

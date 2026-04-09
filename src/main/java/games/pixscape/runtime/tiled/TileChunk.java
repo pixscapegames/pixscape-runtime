@@ -22,6 +22,8 @@ public final class TileChunk {
 
     public int[] assetIds;
 
+    public byte[] transformFlags;
+
     public int soaStartIndex;
     public int soaCount;
 
@@ -48,6 +50,7 @@ public final class TileChunk {
         this.chunkHeight = chunkHeight;
 
         this.assetIds = new int[chunkWidth * chunkHeight];
+        this.transformFlags = new byte[chunkWidth * chunkHeight];
 
         this.soaStartIndex = soaStartIndex;
         this.soaCount = chunkWidth * chunkHeight;
@@ -60,18 +63,24 @@ public final class TileChunk {
     }
 
     public void set(int localX, int localY, int assetId) {
+        set(localX, localY, assetId, TileTransformFlags.NONE);
+    }
+
+    public void set(int localX, int localY, int assetId, byte flags) {
         if (localX < 0 || localY < 0 ||
                 localX >= chunkWidth || localY >= chunkHeight) {
             return;
         }
 
         int index = localY * chunkWidth + localX;
+        byte sanitizedFlags = TileTransformFlags.sanitize(flags);
 
-        if (assetIds[index] == assetId) {
+        if (assetIds[index] == assetId && transformFlags[index] == sanitizedFlags) {
             return;
         }
 
         assetIds[index] = assetId;
+        transformFlags[index] = sanitizedFlags;
         contentDirty = true;
 
         if (dirtyState != DirtyState.FULL) {
@@ -85,4 +94,6 @@ public final class TileChunk {
     public int slotFor(int localX, int localY) {
         return soaStartIndex + (localY * chunkWidth + localX);
     }
+
+    public byte getTransformFlags(int localX, int localY) { return transformFlags[localY * chunkWidth + localX]; }
 }

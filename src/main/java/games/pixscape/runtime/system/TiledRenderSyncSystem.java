@@ -14,6 +14,7 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
@@ -171,7 +172,16 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
             int gx = chunk.chunkX * map.chunkSize + lx;
             int gy = chunk.chunkY * map.chunkSize + ly;
 
-            writeTileSlot(slot, gx, gy, chunk.assetIds[localIndex], map, atlasTag, layerIndex);
+            writeTileSlot(
+                    slot,
+                    gx,
+                    gy,
+                    chunk.assetIds[localIndex],
+                    chunk.transformFlags[localIndex],
+                    map,
+                    atlasTag,
+                    layerIndex
+            );
         }
 
         chunk.dirtyLocalIndices.clear();
@@ -327,7 +337,16 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
                 int gx = chunk.chunkX * map.chunkSize + lx;
                 int gy = chunk.chunkY * map.chunkSize + ly;
 
-                writeTileSlot(slot, gx, gy, chunk.assetIds[localIndex], map, atlasTag, layerIndex);
+                writeTileSlot(
+                        slot,
+                        gx,
+                        gy,
+                        chunk.assetIds[localIndex],
+                        chunk.transformFlags[localIndex],
+                        map,
+                        atlasTag,
+                        layerIndex
+                );
             }
         }
 
@@ -338,6 +357,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
                                int gx,
                                int gy,
                                int assetId,
+                               byte transformFlags,
                                TiledMapLayerData map,
                                String atlasTag,
                                int layerIndex) {
@@ -355,7 +375,15 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
             return;
         }
 
-        map.tileToSpriteQuad(gx, gy, cr.pixW, cr.pixH, tmpQuad);
+        TileQuadTransforms.buildSpriteQuad(
+                map,
+                gx,
+                gy,
+                cr.pixW,
+                cr.pixH,
+                transformFlags,
+                tmpQuad
+        );
 
         state.kind[slot] = RenderStateSOA.KIND_SPRITE;
         state.enabled[slot] = true;
