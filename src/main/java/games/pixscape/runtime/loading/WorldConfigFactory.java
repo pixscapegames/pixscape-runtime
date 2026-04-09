@@ -74,6 +74,8 @@ public final class WorldConfigFactory {
                 layerState,
                 drawList,
                 ecsEnd,
+                vfxStart,
+                totalCapacity,
                 meta,
                 stats,
                 atlasRuntimeService,
@@ -121,6 +123,8 @@ public final class WorldConfigFactory {
             LayerStateSOA layerState,
             DrawList drawList,
             int entityCapacityHint,
+            int vfxStartIndex,
+            int vfxEndIndex,
             SceneMetaRuntime meta,
             RenderStats stats,
             AtlasRuntimeService atlasRuntimeService,
@@ -147,7 +151,15 @@ public final class WorldConfigFactory {
                         tiledStart,
                         tiledEnd
                 ),
-                new RenderBuildDrawListSystem(renderState, layerState, drawList, stats, entityCapacityHint),
+                new RenderBuildDrawListSystem(
+                        renderState,
+                        layerState,
+                        drawList,
+                        stats,
+                        entityCapacityHint,
+                        vfxStartIndex,
+                        vfxEndIndex
+                ),
                 new RenderSortSystem(renderState, drawList)
         );
     }
