@@ -133,14 +133,20 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
 
     private void hideChunkSlots(TileChunk chunk) {
         for (int i = 0; i < chunk.soaCount; i++) {
-            state.visible[chunk.soaStartIndex + i] = false;
+            int slot = chunk.soaStartIndex + i;
+            state.enabled[slot] = false;
+            state.visible[slot] = false;
         }
     }
 
     private void reactivateChunkSlots(TileChunk chunk) {
         for (int i = 0; i < chunk.soaCount; i++) {
             int slot = chunk.soaStartIndex + i;
-            state.visible[slot] = state.enabled[slot];
+            boolean renderable =
+                    state.kind[slot] == RenderStateSOA.KIND_SPRITE &&
+                            state.textureHandle[slot] != 0;
+            state.enabled[slot] = renderable;
+            state.visible[slot] = renderable;
         }
     }
 

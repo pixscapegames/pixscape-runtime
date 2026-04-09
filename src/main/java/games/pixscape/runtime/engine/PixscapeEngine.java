@@ -1,11 +1,6 @@
 package games.pixscape.runtime.engine;
 
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.Component;
-import com.artemis.ComponentMapper;
-import com.artemis.World;
-import com.artemis.WorldConfigurationBuilder;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -13,6 +8,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -766,7 +762,7 @@ public final class PixscapeEngine {
     private void maskTiledSlotsInvisible(TiledMapLayerData tiledData) {
         if (renderState == null || tiledData == null) return;
 
-        for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext();) {
+        for (IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext();) {
             TileChunk chunk = chunks.next();
             if (chunk == null || chunk.soaCount <= 0) continue;
 
