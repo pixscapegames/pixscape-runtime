@@ -24,12 +24,16 @@ public final class RenderStats {
     // Organisation
     public int batchesOpaque;
     public int batchesAlpha;
+    public int buildDrawListScannedEcsSlots;
+    public int buildDrawListScannedTiledSlots;
 
     public void reset() {
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
         drawCalls = flushes = flushStateChanges = flushCapacity = flushEnd = shaderSwitches = shaderBinds = textureBinds = 0;
         framebufferBinds = blendModeSwitches = framebufferSwitchs = blendSwitches = 0;
         batchesOpaque = batchesAlpha = 0;
+        buildDrawListScannedEcsSlots = 0;
+        buildDrawListScannedTiledSlots = 0;
 
     }
 
@@ -52,5 +56,7 @@ public final class RenderStats {
         flushStateChanges += other.flushStateChanges;
         flushCapacity += other.flushCapacity;
         flushEnd += other.flushEnd;
+        buildDrawListScannedEcsSlots += other.buildDrawListScannedEcsSlots;
+        buildDrawListScannedTiledSlots += other.buildDrawListScannedTiledSlots;
     }
 }

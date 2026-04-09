@@ -47,7 +47,7 @@ public class PixscapeEngineTiledRebindVisibilityTest {
         Assert.assertFalse("Rebind must immediately hide old tiled slot visibility cache.", state.visible[tiledSlot]);
 
         World drawWorld = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats))
+                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
                 .build());
 
         // Camera can move before next tiled sync; stale slot must still not leak in draw list.

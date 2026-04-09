@@ -34,6 +34,7 @@ public class TiledRenderSyncSystemTest {
         fixture.world.process();
         Assert.assertEquals("Initial build should resolve only non-empty tiles", 3, fixture.atlas.resolveCalls);
         Assert.assertEquals(2, fixture.drawList.size);
+        Assert.assertEquals("Visible chunk slots should be published for draw-list extraction", 4, fixture.state.tiledVisibleSlotCount);
 
         TileChunk chunk = findChunk(fixture.map, 0, 0);
         int slotValidA = chunk.slotFor(0, 0);
@@ -55,6 +56,7 @@ public class TiledRenderSyncSystemTest {
 
         Assert.assertFalse(fixture.state.visible[slotValidA]);
         Assert.assertFalse(fixture.state.visible[slotValidB]);
+        Assert.assertEquals("Out-of-view chunk should publish zero tiled candidates", 0, fixture.state.tiledVisibleSlotCount);
         Assert.assertEquals("Hidden tiled slots must not be extracted", 0, fixture.drawList.size);
 
         // Move camera back => re-activate without FULL rebuild.
@@ -196,21 +198,21 @@ public class TiledRenderSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(64);
+        RenderStateSOA state = new RenderStateSOA(256);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
-        DrawList drawList = new DrawList(64);
+        DrawList drawList = new DrawList(256);
         RenderStats stats = new RenderStats();
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 0, 64);
+        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 256);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, layerState, drawList, stats)
+                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64)
                 )
                 .build());
 
@@ -223,7 +225,7 @@ public class TiledRenderSyncSystemTest {
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
-        map.initSlotRange(0, 16);
+        map.initSlotRange(96, 112);
         map.setTile(0, 0, 1);
         map.setTile(1, 0, 0);
         map.setTile(0, 1, 99);
@@ -237,21 +239,21 @@ public class TiledRenderSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(128);
+        RenderStateSOA state = new RenderStateSOA(256);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
-        DrawList drawList = new DrawList(128);
+        DrawList drawList = new DrawList(256);
         RenderStats stats = new RenderStats();
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 0, 128);
+        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 256);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, layerState, drawList, stats)
+                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64)
                 )
                 .build());
 
@@ -264,7 +266,7 @@ public class TiledRenderSyncSystemTest {
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 2, 16, 16, 2);
-        map.initSlotRange(0, 32);
+        map.initSlotRange(96, 128);
 
         // Left chunk has a single valid tile.
         map.setTile(0, 0, 1);

@@ -20,7 +20,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         RenderStats stats = new RenderStats();
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats))
+                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
                 .build());
 
         int tiledSlot = 128;
@@ -31,6 +31,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         state.visible[tiledSlot] = true;
         state.layerIndex[tiledSlot] = 0;
         state.touch(tiledSlot);
+        state.appendTiledVisibleRange(tiledSlot, 1);
 
         // Act
         world.process();
@@ -38,5 +39,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         // Assert
         Assert.assertEquals("One high reserved slot should be extracted", 1, drawList.size);
         Assert.assertEquals("Draw list must keep the reserved slot index", tiledSlot, drawList.get(0));
+        Assert.assertEquals("ECS scan should remain bounded", 64, stats.buildDrawListScannedEcsSlots);
+        Assert.assertEquals("Only tiled candidates should be scanned in tiled phase", 1, stats.buildDrawListScannedTiledSlots);
     }
 }
