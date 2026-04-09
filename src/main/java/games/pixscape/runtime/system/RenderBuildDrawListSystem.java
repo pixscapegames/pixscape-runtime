@@ -21,12 +21,18 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     private final LayerStateSOA  layerState;
     private final DrawList       drawList;
     private final RenderStats    stats;
+    private final int            ecsEndExclusive;
 
-    public RenderBuildDrawListSystem(RenderStateSOA state, LayerStateSOA layerState, DrawList drawList, RenderStats stats) {
+    public RenderBuildDrawListSystem(RenderStateSOA state,
+                                     LayerStateSOA layerState,
+                                     DrawList drawList,
+                                     RenderStats stats,
+                                     int ecsEndExclusive) {
         this.state      = state;
         this.layerState = layerState;
         this.drawList   = drawList;
         this.stats      = stats;
+        this.ecsEndExclusive = ecsEndExclusive;
     }
 
     @Override
@@ -40,28 +46,42 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
         int maxId = state.maxEntityId();
         if (maxId < 0) return;
 
-        final int layerCapacity = (layerState != null) ? layerState.enabled.length : 0;
+        final int ecsUpper = Math.min(maxId, ecsEndExclusive - 1);
 
-        for (int e = 0; e <= maxId; e++) {
-            if (!state.enabled[e]) continue;
-
-            // Entity visibility already computed upstream (SOA cache).
-            if (!state.visible[e]) continue;
-
-            // Layer filter (final authority on render side)
-            if (layerState != null) {
-                int layerIdx = state.layerIndex[e];
-                if (layerIdx >= 0 && layerIdx < layerCapacity && !layerState.enabled[layerIdx]) {
-                    continue;
-                }
+        for (int e = 0; e <= ecsUpper; e++) {
+            if (isRenderableSlot(e)) {
+                drawList.add(e);
             }
-
-            if (state.kind[e] != RenderStateSOA.KIND_SPRITE) continue;
-
-            drawList.add(e);
         }
 
+        for (int i = 0; i < state.tiledVisibleSlotCount; i++) {
+            int slot = state.tiledVisibleSlots[i];
+            if (slot < ecsEndExclusive) continue;
+            if (isRenderableSlot(slot)) {
+                drawList.add(slot);
+            }
+        }
+
+        stats.buildDrawListScannedEcsSlots = Math.max(0, ecsUpper + 1);
+        stats.buildDrawListScannedTiledSlots = state.tiledVisibleSlotCount;
         stats.extractedQuads = drawList.size;
+    }
+
+    private boolean isRenderableSlot(int slot) {
+        if (!state.enabled[slot]) return false;
+
+        // Entity visibility already computed upstream (SOA cache).
+        if (!state.visible[slot]) return false;
+
+        // Layer filter (final authority on render side)
+        if (layerState != null) {
+            int layerIdx = state.layerIndex[slot];
+            if (layerIdx >= 0 && layerIdx < layerState.enabled.length && !layerState.enabled[layerIdx]) {
+                return false;
+            }
+        }
+
+        return state.kind[slot] == RenderStateSOA.KIND_SPRITE;
     }
 
     public RenderStateSOA getRenderState() {

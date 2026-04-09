@@ -147,7 +147,7 @@ public final class WorldConfigFactory {
                         tiledStart,
                         tiledEnd
                 ),
-                new RenderBuildDrawListSystem(renderState, layerState, drawList, stats),
+                new RenderBuildDrawListSystem(renderState, layerState, drawList, stats, entityCapacityHint),
                 new RenderSortSystem(renderState, drawList)
         );
     }

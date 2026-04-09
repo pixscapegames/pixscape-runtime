@@ -47,6 +47,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
     @Override
     protected void begin() {
         computeViewBounds();
+        state.clearTiledVisibleSlots();
     }
 
     @Override
@@ -81,6 +82,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
                 }
             }
             chunk.visibleLastFrame = true;
+            state.appendTiledVisibleRange(chunk.soaStartIndex, chunk.soaCount);
 
             if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
                 rebuildChunk(chunk, map, e, tiled.atlasTag);
