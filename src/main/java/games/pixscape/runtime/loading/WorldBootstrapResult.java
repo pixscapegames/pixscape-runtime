@@ -1,6 +1,7 @@
 package games.pixscape.runtime.loading;
 
 import com.artemis.World;
+import games.pixscape.runtime.service.AnimatedTileRegistry;
 
 public final class WorldBootstrapResult {
 
@@ -17,6 +18,8 @@ public final class WorldBootstrapResult {
 
     private final int totalCapacity;
 
+    private final AnimatedTileRegistry animatedTileRegistry;
+
     public WorldBootstrapResult(World world,
                                 int ecsStart,
                                 int ecsEnd,
@@ -24,7 +27,8 @@ public final class WorldBootstrapResult {
                                 int tiledEnd,
                                 int vfxStart,
                                 int vfxEnd,
-                                int totalCapacity) {
+                                int totalCapacity,
+                                AnimatedTileRegistry animatedTileRegistry) {
 
         this.world = world;
 
@@ -38,22 +42,43 @@ public final class WorldBootstrapResult {
         this.vfxEnd = vfxEnd;
 
         this.totalCapacity = totalCapacity;
+
+        this.animatedTileRegistry = animatedTileRegistry;
     }
 
     public World getWorld() {
         return world;
     }
 
-    public int getEcsStart() { return ecsStart; }
-    public int getEcsEnd() { return ecsEnd; }
+    public int getEcsStart() {
+        return ecsStart;
+    }
 
-    public int getTiledStart() { return tiledStart; }
-    public int getTiledEnd() { return tiledEnd; }
+    public int getEcsEnd() {
+        return ecsEnd;
+    }
 
-    public int getVfxStart() { return vfxStart; }
-    public int getVfxEnd() { return vfxEnd; }
+    public int getTiledStart() {
+        return tiledStart;
+    }
+
+    public int getTiledEnd() {
+        return tiledEnd;
+    }
+
+    public int getVfxStart() {
+        return vfxStart;
+    }
+
+    public int getVfxEnd() {
+        return vfxEnd;
+    }
 
     public int getTotalCapacity() {
         return totalCapacity;
+    }
+
+    public AnimatedTileRegistry getAnimatedTileRegistry() {
+        return animatedTileRegistry;
     }
 }

@@ -19,10 +19,7 @@ import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.Box2dWorldService;
-import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.TagRegistry;
+import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -30,6 +27,7 @@ import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
+import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 
 import java.util.function.Consumer;
 
@@ -67,6 +65,8 @@ public final class PixscapeEngine {
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
+    private final AnimatedTileRegistry animatedTileRegistry = new AnimatedTileRegistry();
+
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
 
@@ -208,13 +208,14 @@ public final class PixscapeEngine {
                         ),
                         meta,
                         tiledBudget,
+                        animatedTileRegistry,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
+        bindRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -299,6 +300,10 @@ public final class PixscapeEngine {
 
     public ShaderRegistry getShaderRegistry() {
         return ShaderRegistry.getInstance();
+    }
+
+    public AnimatedTileRegistry getAnimatedTileRegistry() {
+        return animatedTileRegistry;
     }
 
     public int findEntityByStableId(long stableId) {
@@ -442,7 +447,7 @@ public final class PixscapeEngine {
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
-                        effectsRoot,
+                        null,
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
@@ -457,10 +462,13 @@ public final class PixscapeEngine {
                         ),
                         null,
                         0,
+                        animatedTileRegistry,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
+        runtimeTiledStart = result.getTiledStart();
+        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -532,10 +540,13 @@ public final class PixscapeEngine {
                         ),
                         null,
                         0,
+                        animatedTileRegistry,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
+        runtimeTiledStart = result.getTiledStart();
+        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -582,10 +593,13 @@ public final class PixscapeEngine {
                         ),
                         null,
                         0,
+                        animatedTileRegistry,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
+        runtimeTiledStart = result.getTiledStart();
+        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -656,6 +670,8 @@ public final class PixscapeEngine {
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
 
+            tiled.ensureSparseTileStorageConsistency();
+
             tiled.data = new TiledMapLayerData(
                     tiled.mapWidthCells,
                     tiled.mapHeightCells,
@@ -674,15 +690,49 @@ public final class PixscapeEngine {
             tiled.data.initSlotRange(r.start, r.end);
 
             for (int t = 0; t < tiled.tileXs.size; t++) {
-
                 int gx = tiled.tileXs.get(t);
                 int gy = tiled.tileYs.get(t);
                 int assetId = tiled.tileAssetIds.get(t);
+                byte flags = tiled.tileTransformFlags.get(t);
 
-                tiled.data.setTile(gx, gy, assetId);
+                tiled.data.setTile(gx, gy, assetId, flags);
+                initializeAnimatedTileInstance(tiled.data, gx, gy, assetId);
             }
+
             tiled.data.markAllChunksContentDirty();
         }
+    }
+
+    private void initializeAnimatedTileInstance(TiledMapLayerData map,
+                                                int gx,
+                                                int gy,
+                                                int assetId) {
+        if (map == null || assetId <= 0) {
+            return;
+        }
+
+        if (!animatedTileRegistry.contains(assetId)) {
+            return;
+        }
+
+        int cx = gx / map.chunkSize;
+        int cy = gy / map.chunkSize;
+
+        TileChunk chunk = map.getChunk(cx, cy);
+        if (chunk == null) {
+            return;
+        }
+
+        int lx = gx - (cx * map.chunkSize);
+        int ly = gy - (cy * map.chunkSize);
+        int localIndex = chunk.localIndexFor(lx, ly);
+
+        chunk.setAnimationState(
+                localIndex,
+                TileAnimationPlayback.PLAYING,
+                0,
+                0
+        );
     }
 
     private void forceFullDirtyAfterLoad() {

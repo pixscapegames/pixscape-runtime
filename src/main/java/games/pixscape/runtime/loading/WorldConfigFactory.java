@@ -8,6 +8,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.service.AnimatedTileRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.*;
 
@@ -19,7 +20,6 @@ public final class WorldConfigFactory {
     public static final int DEFAULT_VFX_BUDGET = 16384;
     public static final int DEFAULT_TILED_BUDGET = 200_000;
 
-    // ✅ ECS watermark fixe
     private static final int ECS_WATERMARK = 150_000;
 
     private WorldConfigFactory() {}
@@ -36,24 +36,17 @@ public final class WorldConfigFactory {
             Supplier<BaseSystem> submitSupplier,
             SceneMetaRuntime meta,
             int tiledBudget,
+            AnimatedTileRegistry animatedTileRegistry,
             Consumer<WorldConfigurationBuilder> customizer
     ) {
 
-        // =========================
-        // 1) FIXED ECS WATERMARK
-        // =========================
-
         int ecsStart = 0;
-        int ecsEnd   = ECS_WATERMARK;
-
-        // =========================
-        // 2) RESERVE BLOCKS
-        // =========================
+        int ecsEnd = ECS_WATERMARK;
 
         int effectiveTiledBudget = tiledBudget;
 
         int tiledStart = ecsEnd;
-        int tiledEnd   = tiledStart + effectiveTiledBudget;
+        int tiledEnd = tiledStart + effectiveTiledBudget;
 
         int vfxStart = tiledEnd;
         int totalCapacity = vfxStart + DEFAULT_VFX_BUDGET;
@@ -61,11 +54,10 @@ public final class WorldConfigFactory {
         renderState.setCapacity(totalCapacity);
         drawList.setCapacity(totalCapacity);
 
-        // =========================
-        // 3) FINAL BUILD
-        // =========================
-
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
+
+        AnimatedTileRegistry effectiveAnimatedTileRegistry =
+                animatedTileRegistry != null ? animatedTileRegistry : new AnimatedTileRegistry();
 
         addCoreSystems(
                 builder,
@@ -82,7 +74,8 @@ public final class WorldConfigFactory {
                 defaultShaderIdx,
                 effectsRoot,
                 tiledStart,
-                tiledEnd
+                tiledEnd,
+                effectiveAnimatedTileRegistry
         );
 
         addSubmitSystem(builder, submitSupplier);
@@ -102,7 +95,8 @@ public final class WorldConfigFactory {
                 tiledEnd,
                 vfxStart,
                 totalCapacity,
-                totalCapacity
+                totalCapacity,
+                effectiveAnimatedTileRegistry
         );
     }
 
@@ -121,7 +115,8 @@ public final class WorldConfigFactory {
             int defaultShaderIdx,
             FileHandle effectsRoot,
             int tiledStart,
-            int tiledEnd
+            int tiledEnd,
+            AnimatedTileRegistry animatedTileRegistry
     ) {
 
         builder.with(
@@ -134,13 +129,15 @@ public final class WorldConfigFactory {
                 new RenderSpriteSyncSystem(renderState),
                 new ParallaxDisplaySystem(renderState, layerState, worldCamera),
                 new CullingSystem(worldCamera, renderState),
-                new TiledRenderSyncSystem(
+                new TiledAnimationSystem(animatedTileRegistry),
+                new RenderTiledSyncSystem(
                         worldCamera,
                         renderState,
                         atlasRuntimeService,
                         defaultShaderIdx,
                         tiledStart,
-                        tiledEnd
+                        tiledEnd,
+                        animatedTileRegistry
                 ),
                 new RenderParticleSyncSystem(
                         renderState,

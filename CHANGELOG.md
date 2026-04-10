@@ -6,6 +6,7 @@
 - Box2D joints: Friction, Motor, Weld, Pulley, Gear
 - Isometric tiled map support
 - Tiled tile transformations support: flip horizontal, flip vertical, diagonal flip and 90° rotations
+- Tiled animations support
 
 ### Improved
 - Tiled rendering: removed the forced full rebuild when chunks become visible again

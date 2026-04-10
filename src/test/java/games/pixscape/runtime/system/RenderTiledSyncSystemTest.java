@@ -19,7 +19,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TiledRenderSyncSystemTest {
+public class RenderTiledSyncSystemTest {
 
     @BeforeClass
     public static void loadNatives() {
@@ -284,7 +284,7 @@ public class TiledRenderSyncSystemTest {
         DrawList drawList = new DrawList(512);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 512);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
@@ -342,7 +342,7 @@ public class TiledRenderSyncSystemTest {
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 256);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 256);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
@@ -383,7 +383,7 @@ public class TiledRenderSyncSystemTest {
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 256);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 256);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
@@ -426,7 +426,7 @@ public class TiledRenderSyncSystemTest {
         DrawList drawList = new DrawList(4096);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 4096);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 4096);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
@@ -460,7 +460,7 @@ public class TiledRenderSyncSystemTest {
         DrawList drawList = new DrawList(512);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        TiledRenderSyncSystem tiledSync = new TiledRenderSyncSystem(camera, state, atlas, 7, 64, 512);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
@@ -499,7 +499,7 @@ public class TiledRenderSyncSystemTest {
         final DrawList drawList;
         final CountingAtlasRuntimeService atlas;
         final TiledMapLayerData map;
-        final TiledRenderSyncSystem tiledSync;
+        final RenderTiledSyncSystem tiledSync;
 
         Fixture(World world,
                 OrthographicCamera camera,
@@ -507,7 +507,7 @@ public class TiledRenderSyncSystemTest {
                 DrawList drawList,
                 CountingAtlasRuntimeService atlas,
                 TiledMapLayerData map,
-                TiledRenderSyncSystem tiledSync) {
+                RenderTiledSyncSystem tiledSync) {
             this.world = world;
             this.camera = camera;
             this.state = state;

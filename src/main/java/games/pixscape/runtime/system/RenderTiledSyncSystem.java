@@ -16,9 +16,12 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.animation.AnimatedTileLookup;
+import games.pixscape.runtime.tiled.animation.AnimatedTileResolver;
+
 
 @All({LayerComponent.class, TiledLayerComponent.class})
-public final class TiledRenderSyncSystem extends IteratingSystem {
+public final class RenderTiledSyncSystem extends IteratingSystem {
 
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
@@ -27,6 +30,7 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
     private final RenderStateSOA state;
     private final AtlasRuntimeService atlasRuntimeService;
     private final int defaultShaderIdx;
+    private AnimatedTileLookup animatedTileLookup;
 
     private final Rectangle viewBounds = new Rectangle();
     private final float[] tmpQuad = new float[8];
@@ -38,17 +42,36 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
     private int dirtyFullChunkCount;
     private int dirtyPartialChunkCount;
 
-    public TiledRenderSyncSystem(OrthographicCamera camera,
+    public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  int tiledStart,
                                  int tiledEnd) {
+        this(
+                camera,
+                state,
+                atlasRuntimeService,
+                defaultShaderIdx,
+                tiledStart,
+                tiledEnd,
+                null
+        );
+    }
+
+    public RenderTiledSyncSystem(OrthographicCamera camera,
+                                 RenderStateSOA state,
+                                 AtlasRuntimeService atlasRuntimeService,
+                                 int defaultShaderIdx,
+                                 int tiledStart,
+                                 int tiledEnd,
+                                 AnimatedTileLookup animatedTileLookup) {
 
         this.camera = camera;
         this.state = state;
         this.atlasRuntimeService = atlasRuntimeService;
         this.defaultShaderIdx = defaultShaderIdx;
+        this.animatedTileLookup = animatedTileLookup != null ? animatedTileLookup : assetId -> null;
     }
 
     @Override
@@ -173,6 +196,8 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
             int gy = chunk.chunkY * map.chunkSize + ly;
 
             writeTileSlot(
+                    chunk,
+                    localIndex,
                     slot,
                     gx,
                     gy,
@@ -338,6 +363,8 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
                 int gy = chunk.chunkY * map.chunkSize + ly;
 
                 writeTileSlot(
+                        chunk,
+                        localIndex,
                         slot,
                         gx,
                         gy,
@@ -353,7 +380,9 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
         chunk.contentDirty = false;
     }
 
-    private void writeTileSlot(int slot,
+    private void writeTileSlot(TileChunk chunk,
+                               int localIndex,
+                               int slot,
                                int gx,
                                int gy,
                                int assetId,
@@ -367,8 +396,16 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
             return;
         }
 
+        int frameIndex = chunk.getAnimFrameIndex(localIndex);
+
+        int visualAssetId = AnimatedTileResolver.resolveVisualAssetId(
+                assetId,
+                frameIndex,
+                animatedTileLookup
+        );
+
         AtlasRuntimeService.CachedRegion cr =
-                atlasRuntimeService.resolveCached(assetId, atlasTag);
+                atlasRuntimeService.resolveCached(visualAssetId, atlasTag);
 
         if (cr == null) {
             state.disable(slot);
@@ -444,5 +481,9 @@ public final class TiledRenderSyncSystem extends IteratingSystem {
     private static int clampSortTie(int value) {
         if (value < 0) return 0;
         return Math.min(value, SortKey64.MAX_TIE);
+    }
+
+    public void setAnimatedTileLookup(AnimatedTileLookup animatedTileLookup) {
+        this.animatedTileLookup = animatedTileLookup != null ? animatedTileLookup : assetId -> null;
     }
 }
