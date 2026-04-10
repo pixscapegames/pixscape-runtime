@@ -17,6 +17,11 @@ public final class CullingSystem extends IteratingSystem {
     private ComponentMapper<AABBComponent>       mAABB;
     private ComponentMapper<VisibilityComponent> mVis;
 
+    private float frMinX;
+    private float frMaxX;
+    private float frMinY;
+    private float frMaxY;
+
     private boolean cullingEnabled = true;
 
     public CullingSystem(OrthographicCamera worldCamera, RenderStateSOA renderState) {
@@ -28,6 +33,14 @@ public final class CullingSystem extends IteratingSystem {
     @Override
     protected void begin() {
         cam.update(false);
+
+        float halfW = cam.viewportWidth * 0.5f * cam.zoom;
+        float halfH = cam.viewportHeight * 0.5f * cam.zoom;
+
+        frMinX = cam.position.x - halfW;
+        frMaxX = cam.position.x + halfW;
+        frMinY = cam.position.y - halfH;
+        frMaxY = cam.position.y + halfH;
     }
 
     @Override
@@ -40,7 +53,7 @@ public final class CullingSystem extends IteratingSystem {
 
         VisibilityComponent v = mVis.get(e);
 
-        // Masquage logique
+        // Logic mask
         if (!v.visible) {
             v.inView = false;
             v.culledByFrustum = true;
@@ -48,7 +61,7 @@ public final class CullingSystem extends IteratingSystem {
             return;
         }
 
-        // Culling off => visible logique seulement
+        // Culling off => logical visibility
         if (!cullingEnabled) {
             v.inView = true;
             v.culledByFrustum = false;
@@ -64,24 +77,19 @@ public final class CullingSystem extends IteratingSystem {
         float maxX = a.maxX + pad;
         float maxY = a.maxY + pad;
 
-        // offset display (parallax & co) depuis RenderStateSOA
+        // offset display
         float ox = RenderSpaceMapper.offsetX(renderState, e);
         float oy = RenderSpaceMapper.offsetY(renderState, e);
 
         minX += ox; maxX += ox;
         minY += oy; maxY += oy;
 
-        float frMinX = cam.position.x - cam.viewportWidth  * 0.5f * cam.zoom;
-        float frMaxX = cam.position.x + cam.viewportWidth  * 0.5f * cam.zoom;
-        float frMinY = cam.position.y - cam.viewportHeight * 0.5f * cam.zoom;
-        float frMaxY = cam.position.y + cam.viewportHeight * 0.5f * cam.zoom;
-
         boolean overlap = !(maxX < frMinX || minX > frMaxX || maxY < frMinY || minY > frMaxY);
 
         v.inView = overlap;
         v.culledByFrustum = !overlap;
 
-        // IMPORTANT: SOA visible = logique + frustum
+        // SOA visible = logical + frustum
         renderState.visible[e] = overlap;
     }
 }

@@ -14,6 +14,7 @@
 - Tiled rendering: camera panning over tiled maps is smoother
 - Tiled rendering and tiled fallback now use the same transformed tile quad generation
 - Packed and unpacked tiled rendering now produce consistent sorting and visual results in isometric mode
+- Culling: reduction of calculations
 
 ### Fixed
 - VFX / particle rendering was restored after draw-list extraction optimizations
