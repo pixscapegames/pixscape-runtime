@@ -8,9 +8,9 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.animation.AnimatedTileDef;
-import games.pixscape.runtime.tiled.animation.AnimatedTileLookup;
-import games.pixscape.runtime.tiled.animation.AnimatedTileResolver;
+import games.pixscape.runtime.tiled.animation.TileAnimationDef;
+import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
+import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
@@ -19,7 +19,7 @@ public final class TiledAnimationSystem extends IteratingSystem {
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
-    private AnimatedTileLookup animatedTileLookup;
+    private TileAnimationLookup tileAnimationLookup;
 
     /**
      * If true, only tiles in chunks visible during the previous frame are advanced.
@@ -41,12 +41,12 @@ public final class TiledAnimationSystem extends IteratingSystem {
         this(null);
     }
 
-    public TiledAnimationSystem(AnimatedTileLookup animatedTileLookup) {
-        this.animatedTileLookup = animatedTileLookup != null ? animatedTileLookup : assetId -> null;
+    public TiledAnimationSystem(TileAnimationLookup tileAnimationLookup) {
+        this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
     }
 
-    public void setAnimatedTileLookup(AnimatedTileLookup animatedTileLookup) {
-        this.animatedTileLookup = animatedTileLookup != null ? animatedTileLookup : assetId -> null;
+    public void setAnimatedTileLookup(TileAnimationLookup tileAnimationLookup) {
+        this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
     }
 
     public void setAdvanceOnlyVisibleChunks(boolean advanceOnlyVisibleChunks) {
@@ -113,7 +113,7 @@ public final class TiledAnimationSystem extends IteratingSystem {
             return;
         }
 
-        AnimatedTileDef def = animatedTileLookup.get(assetId);
+        TileAnimationDef def = tileAnimationLookup.get(assetId);
         if (def == null || def.frameCount() <= 1) {
             chunk.clearAnimationState(localIndex);
             return;
@@ -127,15 +127,15 @@ public final class TiledAnimationSystem extends IteratingSystem {
 
         int frameCount = def.frameCount();
 
-        int currentFrameIndex = AnimatedTileResolver.clampFrameIndex(
+        int currentFrameIndex = TileAnimationResolver.clampFrameIndex(
                 chunk.getAnimFrameIndex(localIndex),
                 frameCount
         );
 
-        int currentVisualAssetId = AnimatedTileResolver.resolveVisualAssetId(
+        int currentVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                 assetId,
                 currentFrameIndex,
-                animatedTileLookup
+                tileAnimationLookup
         );
 
         /*
@@ -146,10 +146,10 @@ public final class TiledAnimationSystem extends IteratingSystem {
         if (playbackState == TileAnimationPlayback.PAUSED) {
             if (chunk.getAnimFrameIndex(localIndex) != currentFrameIndex) {
                 chunk.animFrameIndex[localIndex] = (short) currentFrameIndex;
-                int normalizedVisualAssetId = AnimatedTileResolver.resolveVisualAssetId(
+                int normalizedVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                         assetId,
                         currentFrameIndex,
-                        animatedTileLookup
+                        tileAnimationLookup
                 );
                 if (normalizedVisualAssetId != currentVisualAssetId) {
                     chunk.markLocalDirty(localIndex);
@@ -172,14 +172,14 @@ public final class TiledAnimationSystem extends IteratingSystem {
             }
 
             elapsedMs -= frameDurationMs;
-            newFrameIndex = AnimatedTileResolver.nextFrameIndex(newFrameIndex, frameCount);
+            newFrameIndex = TileAnimationResolver.nextFrameIndex(newFrameIndex, frameCount);
         }
 
         if (newFrameIndex != currentFrameIndex) {
-            int newVisualAssetId = AnimatedTileResolver.resolveVisualAssetId(
+            int newVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                     assetId,
                     newFrameIndex,
-                    animatedTileLookup
+                    tileAnimationLookup
             );
 
             if (newVisualAssetId != currentVisualAssetId) {

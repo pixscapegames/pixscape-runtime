@@ -1,8 +1,8 @@
 package games.pixscape.runtime.tiled.animation;
 
-public final class AnimatedTileResolver {
+public final class TileAnimationResolver {
 
-    private AnimatedTileResolver() {
+    private TileAnimationResolver() {
     }
 
     /**
@@ -17,12 +17,12 @@ public final class AnimatedTileResolver {
      */
     public static int resolveVisualAssetId(int assetId,
                                            int frameIndex,
-                                           AnimatedTileLookup lookup) {
+                                           TileAnimationLookup lookup) {
         if (assetId <= 0 || lookup == null) {
             return assetId;
         }
 
-        AnimatedTileDef def = lookup.get(assetId);
+        TileAnimationDef def = lookup.get(assetId);
         if (def == null) {
             return assetId;
         }
@@ -39,19 +39,19 @@ public final class AnimatedTileResolver {
     /**
      * Returns true if the asset matches a known animated tile.
      */
-    public static boolean isAnimated(int assetId, AnimatedTileLookup lookup) {
+    public static boolean isAnimated(int assetId, TileAnimationLookup lookup) {
         return assetId > 0 && lookup != null && lookup.get(assetId) != null;
     }
 
     /**
      * Number of frames for this animated asset, 0 if not animated.
      */
-    public static int frameCount(int assetId, AnimatedTileLookup lookup) {
+    public static int frameCount(int assetId, TileAnimationLookup lookup) {
         if (assetId <= 0 || lookup == null) {
             return 0;
         }
 
-        AnimatedTileDef def = lookup.get(assetId);
+        TileAnimationDef def = lookup.get(assetId);
         return def != null ? def.frameCount() : 0;
     }
 
@@ -60,12 +60,12 @@ public final class AnimatedTileResolver {
      */
     public static int frameDurationMs(int assetId,
                                       int frameIndex,
-                                      AnimatedTileLookup lookup) {
+                                      TileAnimationLookup lookup) {
         if (assetId <= 0 || lookup == null) {
             return 0;
         }
 
-        AnimatedTileDef def = lookup.get(assetId);
+        TileAnimationDef def = lookup.get(assetId);
         if (def == null || def.frameCount() <= 0) {
             return 0;
         }

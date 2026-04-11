@@ -1,8 +1,9 @@
 package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.tiled.animation.AnimatedTileDef;
-import games.pixscape.runtime.tiled.animation.AnimatedTileLookup;
+import games.pixscape.runtime.tiled.animation.TileAnimationDef;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
+import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 
 /**
  * Default runtime registry for animated tile definitions.
@@ -10,19 +11,19 @@ import games.pixscape.runtime.tiled.animation.AnimatedTileLookup;
  * This registry is the standard storage used by the runtime to resolve
  * animated tile definitions from logical asset ids.
  */
-public final class AnimatedTileRegistry implements AnimatedTileLookup {
+public final class TileAnimationRegistry implements TileAnimationLookup {
 
-    private final IntMap<AnimatedTileDef> defs = new IntMap<>();
+    private final IntMap<TileAnimationDef> defs = new IntMap<>();
 
     @Override
-    public AnimatedTileDef get(int assetId) {
+    public TileAnimationDef get(int assetId) {
         return defs.get(assetId);
     }
 
     /**
      * Registers or replaces an animated tile definition.
      */
-    public void put(AnimatedTileDef def) {
+    public void put(TileAnimationDef def) {
         if (def == null) {
             throw new IllegalArgumentException("def must not be null");
         }
@@ -30,10 +31,24 @@ public final class AnimatedTileRegistry implements AnimatedTileLookup {
     }
 
     /**
+     * Registers or replaces an animated tile definition from raw DTO data.
+     */
+    public void put(TileAnimationDefData data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        put(new TileAnimationDef(data));
+    }
+
+    /**
      * Convenience overload to register an animated tile definition directly.
      */
     public void put(int ownerAssetId, int[] frameAssetIds, int[] frameDurationsMs) {
-        put(new AnimatedTileDef(ownerAssetId, frameAssetIds, frameDurationsMs));
+        TileAnimationDefData data = new TileAnimationDefData();
+        data.ownerAssetId = ownerAssetId;
+        data.frameAssetIds = frameAssetIds;
+        data.frameDurationsMs = frameDurationsMs;
+        put(data);
     }
 
     /**
@@ -66,17 +81,17 @@ public final class AnimatedTileRegistry implements AnimatedTileLookup {
 
     /**
      * Returns all registry values.
-     * Useful for iteration, debugging or serialization.
+     * Useful for iteration or debugging.
      */
-    public IntMap.Values<AnimatedTileDef> values() {
+    public IntMap.Values<TileAnimationDef> values() {
         return defs.values();
     }
 
     /**
      * Returns all registry entries.
-     * Useful for serialization or inspection.
+     * Useful for inspection.
      */
-    public IntMap.Entries<AnimatedTileDef> entries() {
+    public IntMap.Entries<TileAnimationDef> entries() {
         return defs.entries();
     }
 }

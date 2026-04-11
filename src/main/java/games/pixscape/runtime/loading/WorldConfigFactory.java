@@ -8,7 +8,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.service.AnimatedTileRegistry;
+import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.*;
 
@@ -36,7 +36,7 @@ public final class WorldConfigFactory {
             Supplier<BaseSystem> submitSupplier,
             SceneMetaRuntime meta,
             int tiledBudget,
-            AnimatedTileRegistry animatedTileRegistry,
+            TileAnimationRegistry animatedTileRegistry,
             Consumer<WorldConfigurationBuilder> customizer
     ) {
 
@@ -56,8 +56,8 @@ public final class WorldConfigFactory {
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
-        AnimatedTileRegistry effectiveAnimatedTileRegistry =
-                animatedTileRegistry != null ? animatedTileRegistry : new AnimatedTileRegistry();
+        TileAnimationRegistry effectiveAnimatedTileRegistry =
+                animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
 
         addCoreSystems(
                 builder,
@@ -116,7 +116,7 @@ public final class WorldConfigFactory {
             FileHandle effectsRoot,
             int tiledStart,
             int tiledEnd,
-            AnimatedTileRegistry animatedTileRegistry
+            TileAnimationRegistry animatedTileRegistry
     ) {
 
         builder.with(

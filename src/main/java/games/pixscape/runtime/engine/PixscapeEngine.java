@@ -65,7 +65,7 @@ public final class PixscapeEngine {
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
-    private final AnimatedTileRegistry animatedTileRegistry = new AnimatedTileRegistry();
+    private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
 
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
@@ -302,7 +302,7 @@ public final class PixscapeEngine {
         return ShaderRegistry.getInstance();
     }
 
-    public AnimatedTileRegistry getAnimatedTileRegistry() {
+    public TileAnimationRegistry getAnimatedTileRegistry() {
         return animatedTileRegistry;
     }
 

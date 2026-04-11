@@ -1,7 +1,7 @@
 package games.pixscape.runtime.loading;
 
 import com.artemis.World;
-import games.pixscape.runtime.service.AnimatedTileRegistry;
+import games.pixscape.runtime.service.TileAnimationRegistry;
 
 public final class WorldBootstrapResult {
 
@@ -18,7 +18,7 @@ public final class WorldBootstrapResult {
 
     private final int totalCapacity;
 
-    private final AnimatedTileRegistry animatedTileRegistry;
+    private final TileAnimationRegistry animatedTileRegistry;
 
     public WorldBootstrapResult(World world,
                                 int ecsStart,
@@ -28,7 +28,7 @@ public final class WorldBootstrapResult {
                                 int vfxStart,
                                 int vfxEnd,
                                 int totalCapacity,
-                                AnimatedTileRegistry animatedTileRegistry) {
+                                TileAnimationRegistry animatedTileRegistry) {
 
         this.world = world;
 
@@ -78,7 +78,7 @@ public final class WorldBootstrapResult {
         return totalCapacity;
     }
 
-    public AnimatedTileRegistry getAnimatedTileRegistry() {
+    public TileAnimationRegistry getAnimatedTileRegistry() {
         return animatedTileRegistry;
     }
 }
