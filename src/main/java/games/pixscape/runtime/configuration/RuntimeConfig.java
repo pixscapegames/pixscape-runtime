@@ -6,7 +6,6 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.ShaderMode;
-import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 
 /**
  * Exported runtime configuration (project.json on user project side).
@@ -15,13 +14,6 @@ import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 public final class RuntimeConfig {
 
     public static final String DEFAULT_VERSION = "1";
-    public static final String DEFAULT_SCENES_DIR = RuntimeFs.DIR_SCENES;
-    public static final String DEFAULT_ATLASES_DIR = RuntimeFs.DIR_ATLASES;
-    public static final String DEFAULT_EFFECTS_DIR = RuntimeFs.DIR_EFFECTS;
-    public static final String DEFAULT_ANIMATIONS_DIR = RuntimeFs.DIR_ANIMATIONS;
-    public static final String DEFAULT_SHADERS_DIR = RuntimeFs.DIR_SHADERS;
-    public static final String DEFAULT_AUDIO_DIR = RuntimeFs.DIR_AUDIO;
-    public static final String DEFAULT_SCENE_FILE = RuntimeFs.FILE_DEFAULT_SCENE;
 
     /** Technical identity of exported project. */
     public String projectFileName = "";
@@ -31,12 +23,12 @@ public final class RuntimeConfig {
     /** Optional: can be inferred from FileHandle on engine side. */
     public String runtimeRootDir;
 
-    public String scenesDir = DEFAULT_SCENES_DIR;
-    public String atlasesDir = DEFAULT_ATLASES_DIR;
-    public String effectsDir = DEFAULT_EFFECTS_DIR;
-    public String animationsDir = DEFAULT_ANIMATIONS_DIR;
-    public String shadersDir = DEFAULT_SHADERS_DIR;
-    public String audioDir = DEFAULT_AUDIO_DIR;
+    public String scenesDir = RuntimeFs.DIR_SCENES;
+    public String atlasesDir = RuntimeFs.DIR_ATLASES;
+    public String effectsDir = RuntimeFs.DIR_EFFECTS;
+    public String animationsDir = RuntimeFs.DIR_ANIMATIONS;
+    public String shadersDir = RuntimeFs.DIR_SHADERS;
+    public String audioDir = RuntimeFs.DIR_AUDIO;
 
     // --- Runtime scenes ---
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
@@ -125,12 +117,12 @@ public final class RuntimeConfig {
             throw new RuntimeException("Missing projectFileName in: " + pathForErrors);
         }
 
-        if (scenesDir == null || scenesDir.isBlank()) scenesDir = DEFAULT_SCENES_DIR;
-        if (atlasesDir == null || atlasesDir.isBlank()) atlasesDir = DEFAULT_ATLASES_DIR;
-        if (effectsDir == null || effectsDir.isBlank()) effectsDir = DEFAULT_EFFECTS_DIR;
-        if (animationsDir == null || animationsDir.isBlank()) animationsDir = DEFAULT_ANIMATIONS_DIR;
-        if (shadersDir == null || shadersDir.isBlank()) shadersDir = DEFAULT_SHADERS_DIR;
-        if (audioDir == null || audioDir.isBlank()) audioDir = DEFAULT_AUDIO_DIR;
+        scenesDir = nonBlankOrDefault(scenesDir, RuntimeFs.DIR_SCENES);
+        atlasesDir = nonBlankOrDefault(atlasesDir, RuntimeFs.DIR_ATLASES);
+        effectsDir = nonBlankOrDefault(effectsDir, RuntimeFs.DIR_EFFECTS);
+        animationsDir = nonBlankOrDefault(animationsDir, RuntimeFs.DIR_ANIMATIONS);
+        shadersDir = nonBlankOrDefault(shadersDir, RuntimeFs.DIR_SHADERS);
+        audioDir = nonBlankOrDefault(audioDir, RuntimeFs.DIR_AUDIO);
 
         if (!DEFAULT_VERSION.equals(version)) {
             throw new RuntimeException("Unsupported project version '" + version + "' in: " + pathForErrors);
@@ -181,7 +173,7 @@ public final class RuntimeConfig {
         // 2) scene dont file == scene1.json
         // 3) first sorted
         if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
-            String byFile = findSceneNameByFile(DEFAULT_SCENE_FILE);
+            String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
             currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();
         }
 
@@ -190,31 +182,39 @@ public final class RuntimeConfig {
         }
     }
 
+    private static String nonBlankOrDefault(String value, String defaultValue) {
+        return (value == null || value.isBlank()) ? defaultValue : value;
+    }
+
     // ---------------------------------------------------------------------
     // Path helpers
     // ---------------------------------------------------------------------
 
     public FileHandle scenesRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(scenesDir) : null;
+        return childOrNull(runtimeProjectDir, scenesDir);
     }
 
     public FileHandle atlasesRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(atlasesDir) : null;
+        return childOrNull(runtimeProjectDir, atlasesDir);
     }
 
     public FileHandle effectsRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(effectsDir) : null;
+        return childOrNull(runtimeProjectDir, effectsDir);
     }
 
     public FileHandle shadersRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(shadersDir) : null;
+        return childOrNull(runtimeProjectDir, shadersDir);
     }
 
     public FileHandle animationsRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(animationsDir) : null;
+        return childOrNull(runtimeProjectDir, animationsDir);
     }
 
     public FileHandle audioRoot(FileHandle runtimeProjectDir) {
-        return runtimeProjectDir != null ? runtimeProjectDir.child(audioDir) : null;
+        return childOrNull(runtimeProjectDir, audioDir);
+    }
+
+    private static FileHandle childOrNull(FileHandle root, String child) {
+        return root != null ? root.child(child) : null;
     }
 }

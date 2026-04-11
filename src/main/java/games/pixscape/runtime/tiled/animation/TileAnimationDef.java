@@ -11,8 +11,8 @@ public final class TileAnimationDef {
         if (source == null) {
             throw new IllegalArgumentException("source must not be null");
         }
-        if (source.ownerAssetId <= 0) {
-            throw new IllegalArgumentException("ownerAssetId must be > 0");
+        if (source.id <= 0) {
+            throw new IllegalArgumentException("id must be > 0");
         }
         if (source.frameAssetIds == null || source.frameDurationsMs == null) {
             throw new IllegalArgumentException("frameAssetIds and frameDurationsMs must not be null");
@@ -43,7 +43,7 @@ public final class TileAnimationDef {
         }
 
         TileAnimationDefData copy = new TileAnimationDefData();
-        copy.ownerAssetId = source.ownerAssetId;
+        copy.id = source.id;
         copy.frameAssetIds = Arrays.copyOf(source.frameAssetIds, source.frameAssetIds.length);
         copy.frameDurationsMs = Arrays.copyOf(source.frameDurationsMs, source.frameDurationsMs.length);
 
@@ -51,8 +51,8 @@ public final class TileAnimationDef {
         this.totalDurationMs = total;
     }
 
-    public int ownerAssetId() {
-        return data.ownerAssetId;
+    public int id() {
+        return data.id;
     }
 
     public int frameCount() {
@@ -85,7 +85,7 @@ public final class TileAnimationDef {
 
     public TileAnimationDefData toDataCopy() {
         TileAnimationDefData out = new TileAnimationDefData();
-        out.ownerAssetId = data.ownerAssetId;
+        out.id = data.id;
         out.frameAssetIds = Arrays.copyOf(data.frameAssetIds, data.frameAssetIds.length);
         out.frameDurationsMs = Arrays.copyOf(data.frameDurationsMs, data.frameDurationsMs.length);
         return out;

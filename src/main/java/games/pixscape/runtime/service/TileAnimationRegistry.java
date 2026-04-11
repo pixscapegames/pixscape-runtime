@@ -27,7 +27,7 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
         if (def == null) {
             throw new IllegalArgumentException("def must not be null");
         }
-        defs.put(def.ownerAssetId(), def);
+        defs.put(def.id(), def);
     }
 
     /**
@@ -43,9 +43,9 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
     /**
      * Convenience overload to register an animated tile definition directly.
      */
-    public void put(int ownerAssetId, int[] frameAssetIds, int[] frameDurationsMs) {
+    public void put(int id, int[] frameAssetIds, int[] frameDurationsMs) {
         TileAnimationDefData data = new TileAnimationDefData();
-        data.ownerAssetId = ownerAssetId;
+        data.id = id;
         data.frameAssetIds = frameAssetIds;
         data.frameDurationsMs = frameDurationsMs;
         put(data);
