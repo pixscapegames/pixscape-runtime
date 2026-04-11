@@ -20,6 +20,8 @@ public final class RuntimeFs {
     public static final String DIR_SHADERS = "shaders";
     public static final String DIR_AUDIO = "audio";
 
+    public static final String FILE_TILE_ANIMATIONS_JSON = "tiled-animations.json";
+
     public static String withExt(String name, String ext) {
         if (name == null) return "";
         if (ext == null || ext.isEmpty()) return name;

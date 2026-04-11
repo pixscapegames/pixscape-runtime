@@ -28,6 +28,7 @@ import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
+import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 import java.util.function.Consumer;
 
@@ -107,6 +108,7 @@ public final class PixscapeEngine {
         }
 
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
+        RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
 
         if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
@@ -696,43 +698,21 @@ public final class PixscapeEngine {
                 byte flags = tiled.tileTransformFlags.get(t);
 
                 tiled.data.setTile(gx, gy, assetId, flags);
-                initializeAnimatedTileInstance(tiled.data, gx, gy, assetId);
+
+                int cx = gx / tiled.data.chunkSize;
+                int cy = gy / tiled.data.chunkSize;
+
+                TileChunk chunk = tiled.data.getChunk(cx, cy);
+
+                if (chunk != null) {
+                    int lx = gx - (cx * tiled.data.chunkSize);
+                    int ly = gy - (cy * tiled.data.chunkSize);
+                    TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, animatedTileRegistry);
+                }
             }
 
             tiled.data.markAllChunksContentDirty();
         }
-    }
-
-    private void initializeAnimatedTileInstance(TiledMapLayerData map,
-                                                int gx,
-                                                int gy,
-                                                int assetId) {
-        if (map == null || assetId <= 0) {
-            return;
-        }
-
-        if (!animatedTileRegistry.contains(assetId)) {
-            return;
-        }
-
-        int cx = gx / map.chunkSize;
-        int cy = gy / map.chunkSize;
-
-        TileChunk chunk = map.getChunk(cx, cy);
-        if (chunk == null) {
-            return;
-        }
-
-        int lx = gx - (cx * map.chunkSize);
-        int ly = gy - (cy * map.chunkSize);
-        int localIndex = chunk.localIndexFor(lx, ly);
-
-        chunk.setAnimationState(
-                localIndex,
-                TileAnimationPlayback.PLAYING,
-                0,
-                0
-        );
     }
 
     private void forceFullDirtyAfterLoad() {
@@ -879,6 +859,7 @@ public final class PixscapeEngine {
             }
         }
     }
+
     private String resolveSceneName(String sceneName) {
         if (sceneName != null && !sceneName.isBlank()) return sceneName;
 

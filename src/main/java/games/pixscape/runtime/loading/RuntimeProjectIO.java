@@ -6,6 +6,9 @@ import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
+import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
 
 /**
  * I/O du projet runtime (pixscape-project/project.json).
@@ -60,5 +63,47 @@ public final class RuntimeProjectIO {
         cfg.applyDefaultsAndValidate(file.path());
 
         return cfg;
+    }
+
+    public static void loadTileAnimations(FileHandle projectDir,
+                                          TileAnimationRegistry registry) {
+        if (projectDir == null) throw new GdxRuntimeException("projectDir is null");
+        if (registry == null) throw new GdxRuntimeException("registry is null");
+
+        registry.clear();
+
+        FileHandle file = projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        if (!file.exists()) {
+            return;
+        }
+
+        final TileAnimationsRuntimeData data;
+        try {
+            data = json.fromJson(TileAnimationsRuntimeData.class, file);
+        } catch (Exception e) {
+            throw new GdxRuntimeException(
+                    "Failed to parse " + RuntimeFs.FILE_TILE_ANIMATIONS_JSON + ": " + file.path(),
+                    e
+            );
+        }
+
+        if (data == null) {
+            throw new GdxRuntimeException(
+                    "Invalid " + RuntimeFs.FILE_TILE_ANIMATIONS_JSON + " (null): " + file.path()
+            );
+        }
+
+        if (data.animations == null) {
+            return;
+        }
+
+        for (TileAnimationDefData defData : data.animations) {
+            if (defData == null) {
+                throw new GdxRuntimeException(
+                        "Invalid tile animation entry (null): " + file.path()
+                );
+            }
+            registry.put(defData);
+        }
     }
 }

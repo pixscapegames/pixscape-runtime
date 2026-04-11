@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.ShaderMode;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 
 /**
  * Exported runtime configuration (project.json on user project side).
