@@ -63,8 +63,9 @@ public enum BlendMode {
      * Returns all blend mode enum names in declaration order.
      */
     public static Array<String> blendNames() {
-        var names = new Array<String>(values().length);
-        for (var v : values()) names.add(v.name());
+        BlendMode[] modes = values();
+        var names = new Array<String>(modes.length);
+        for (int i = 0, n = modes.length; i < n; i++) names.add(modes[i].name());
         return names;
     }
 }

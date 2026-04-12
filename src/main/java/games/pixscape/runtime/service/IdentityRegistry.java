@@ -242,7 +242,8 @@ public final class IdentityRegistry {
 
     public Array<String> allNames() {
         Array<String> out = new Array<>(byName.size);
-        for (ObjectMap.Entry<String, IntArray> entry : byName.entries()) {
+        for (ObjectMap.Entries<String, IntArray> it = byName.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, IntArray> entry = it.next();
             out.add(entry.key);
         }
         return out;

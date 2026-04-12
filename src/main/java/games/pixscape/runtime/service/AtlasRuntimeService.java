@@ -36,7 +36,9 @@ public class AtlasRuntimeService {
     public void load(String tag, FileHandle atlasFile) {
         if (atlases.containsKey(tag)) unload(tag);
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        for (Texture t : getPageTextures(atlas)) {
+        Array<Texture> pageTextures = getPageTextures(atlas);
+        for (int i = 0, n = pageTextures.size; i < n; i++) {
+            Texture t = pageTextures.get(i);
             t.setFilter(TextureFilter.Linear, TextureFilter.Linear);
         }
         atlases.put(tag, atlas);
@@ -57,9 +59,12 @@ public class AtlasRuntimeService {
     }
 
     public void unloadAll() {
-        for (TextureAtlas a : atlases.values()) a.dispose();
+        for (ObjectMap.Values<TextureAtlas> it = atlases.values(); it.hasNext(); ) {
+            it.next().dispose();
+        }
         atlases.clear();
-        for (TextureArrayBundle b : bundles.values()) {
+        for (ObjectMap.Values<TextureArrayBundle> it = bundles.values(); it.hasNext(); ) {
+            TextureArrayBundle b = it.next();
             logBundleEvent("dispose", "__all__", b.textureArray);
             b.textureArray.dispose();
         }
@@ -116,7 +121,9 @@ public class AtlasRuntimeService {
         if (atlas == null) return null;
 
         String suffix = "__a" + assetId;
-        for (TextureAtlas.AtlasRegion region : atlas.getRegions()) {
+        Array<TextureAtlas.AtlasRegion> regions = atlas.getRegions();
+        for (int i = 0, n = regions.size; i < n; i++) {
+            TextureAtlas.AtlasRegion region = regions.get(i);
             if (region != null && region.name != null && region.name.endsWith(suffix)) {
                 return atlas.findRegions(region.name);
             }
@@ -134,7 +141,9 @@ public class AtlasRuntimeService {
     public static Array<Texture> getPageTextures(TextureAtlas atlas) {
         Array<Texture> out = new Array<>();
         if (atlas == null) return out;
-        for (AtlasRegion r : atlas.getRegions()) {
+        Array<AtlasRegion> regions = atlas.getRegions();
+        for (int i = 0, n = regions.size; i < n; i++) {
+            AtlasRegion r = regions.get(i);
             Texture t = r.getTexture();
             if (!out.contains(t, true)) {
                 out.add(t);
@@ -300,7 +309,8 @@ public class AtlasRuntimeService {
 
     public void flushDeferredDisposals() {
         if (deferredDisposals.isEmpty()) return;
-        for (TextureArrayBundle bundle : deferredDisposals) {
+        for (int i = 0, n = deferredDisposals.size; i < n; i++) {
+            TextureArrayBundle bundle = deferredDisposals.get(i);
             if (bundle != null && bundle.textureArray != null) {
                 logBundleEvent("dispose", "__deferred__", bundle.textureArray);
                 bundle.textureArray.dispose();
@@ -345,7 +355,9 @@ public class AtlasRuntimeService {
 
     public Array<String> listTags() {
         Array<String> out = new Array<>(atlases.size);
-        for (String k : atlases.keys()) out.add(k);
+        for (ObjectMap.Keys<String> it = atlases.keys(); it.hasNext; ) {
+            out.add(it.next());
+        }
         out.sort();
         return out;
     }

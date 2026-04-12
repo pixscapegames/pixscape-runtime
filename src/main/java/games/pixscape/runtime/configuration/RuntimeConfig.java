@@ -65,7 +65,8 @@ public final class RuntimeConfig {
 
     public Array<String> getSceneNamesSorted() {
         Array<String> names = new Array<>();
-        for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
+        for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
             names.add(e.key);
         }
         names.sort(String::compareTo);
@@ -85,7 +86,8 @@ public final class RuntimeConfig {
         if (file == null || file.isBlank()) return null;
 
         String expected = RuntimeFs.filenameOnly(file);
-        for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
+        for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
             SceneMetaRuntime meta = e.value;
             if (meta == null) continue;
             if (expected.equals(RuntimeFs.filenameOnly(meta.file))) {
@@ -141,7 +143,8 @@ public final class RuntimeConfig {
         }
 
         // Nettoyage scenes + normalisation file + defaults
-        for (ObjectMap.Entry<String, SceneMetaRuntime> e : scenes) {
+        for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
             String key = e.key;
             SceneMetaRuntime meta = e.value;
 

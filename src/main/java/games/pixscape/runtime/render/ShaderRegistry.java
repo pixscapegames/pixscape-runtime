@@ -109,7 +109,8 @@ public final class ShaderRegistry {
     /** Names filtered by mode (alpha-sorted). */
     public static Array<String> getNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
-        for (ObjectIntMap.Entry<String> e : nameToIdx) {
+        for (ObjectIntMap.Entries<String> it = nameToIdx.entries(); it.hasNext(); ) {
+            ObjectIntMap.Entry<String> e = it.next();
             int idx = e.value;
             if (idx >= 0 && idx < modesByIdx.size && modesByIdx.get(idx) == mode) {
                 result.add(e.key);
@@ -122,7 +123,8 @@ public final class ShaderRegistry {
     /** Names of NON-FX shaders for this mode (for EntityProperties). */
     public static Array<String> getMainNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
-        for (ObjectIntMap.Entry<String> e : nameToIdx) {
+        for (ObjectIntMap.Entries<String> it = nameToIdx.entries(); it.hasNext(); ) {
+            ObjectIntMap.Entry<String> e = it.next();
             int idx = e.value;
             if (idx < 0 || idx >= modesByIdx.size) continue;
             if (modesByIdx.get(idx) != mode) continue;
@@ -137,7 +139,8 @@ public final class ShaderRegistry {
     /** Names of FX shaders for this mode (for CameraProperties post FX). */
     public static Array<String> getFxNamesForMode(ShaderMode mode) {
         Array<String> result = new Array<>();
-        for (ObjectIntMap.Entry<String> e : nameToIdx) {
+        for (ObjectIntMap.Entries<String> it = nameToIdx.entries(); it.hasNext(); ) {
+            ObjectIntMap.Entry<String> e = it.next();
             int idx = e.value;
             if (idx < 0 || idx >= modesByIdx.size) continue;
             if (modesByIdx.get(idx) != mode) continue;
@@ -191,7 +194,8 @@ public final class ShaderRegistry {
         if (src == null) return null;
 
         ObjectFloatMap<String> copy = new ObjectFloatMap<>();
-        for (ObjectFloatMap.Entry<String> e : src) {
+        for (ObjectFloatMap.Entries<String> it = src.entries(); it.hasNext(); ) {
+            ObjectFloatMap.Entry<String> e = it.next();
             copy.put(e.key, e.value);
         }
         return copy;
@@ -208,7 +212,8 @@ public final class ShaderRegistry {
 
     /** Releases all shaders and resets state. */
     public static void disposeAll() {
-        for (ShaderProgram sp : byIdx) {
+        for (int i = 0, n = byIdx.size; i < n; i++) {
+            ShaderProgram sp = byIdx.get(i);
             if (sp != null) sp.dispose();
         }
         byIdx.clear();
@@ -582,7 +587,9 @@ public final class ShaderRegistry {
         if (dir == null || !dir.exists() || !dir.isDirectory()) return;
         if (!isModeSupportedForCurrentProfile(mode)) return;
 
-        for (FileHandle f : dir.list()) {
+        FileHandle[] files = dir.list();
+        for (int i = 0, n = files.length; i < n; i++) {
+            FileHandle f = files[i];
             if (f.isDirectory()) continue;
 
             String name = f.name();
@@ -713,7 +720,9 @@ public final class ShaderRegistry {
     private static void loadDemoDir(FileHandle dir, ShaderMode mode, boolean fx) {
         if (dir == null || !dir.exists() || !dir.isDirectory()) return;
 
-        for (FileHandle fragFile : dir.list()) {
+        FileHandle[] files = dir.list();
+        for (int i = 0, n = files.length; i < n; i++) {
+            FileHandle fragFile = files[i];
             if (fragFile.isDirectory()) continue;
             String name = fragFile.name();
             if (!name.endsWith(".frag")) continue;
