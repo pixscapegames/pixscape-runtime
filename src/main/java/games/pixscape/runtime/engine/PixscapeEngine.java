@@ -318,31 +318,48 @@ public final class PixscapeEngine {
         return registry.firstByName(name);
     }
 
-    public IntBag findEntitiesByName(String name) {
+    public void findEntitiesByName(String name, IntBag out) {
+        if (out == null) {
+            throw new IllegalArgumentException("out is null");
+        }
+        out.setSize(0);
+        if (name == null || name.isBlank()) {
+            return;
+        }
         IdentityRegistry registry = getIdentityRegistry();
-        IntBag out = new IntBag();
-        if (registry == null) return out;
+        if (registry == null) {
+            return;
+        }
         var hits = registry.getByName(name);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
-        return out;
     }
 
     public int firstEntityByTag(String tag) {
+        if (tag == null || tag.isBlank()) {
+            return -1;
+        }
         TagRegistry registry = getTagRegistry();
         return registry != null ? registry.first(tag) : -1;
     }
 
-    public IntBag findEntitiesByTag(String tag) {
+    public void findEntitiesByTag(String tag, IntBag out) {
+        if (out == null) {
+            throw new IllegalArgumentException("out is null");
+        }
+        out.setSize(0);
+        if (tag == null || tag.isBlank()) {
+            return;
+        }
         TagRegistry registry = getTagRegistry();
-        IntBag out = new IntBag();
-        if (registry == null) return out;
+        if (registry == null) {
+            return;
+        }
         var hits = registry.get(tag);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
-        return out;
     }
 
     // ---------------------------------------------------------------------

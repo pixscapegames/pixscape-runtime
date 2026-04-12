@@ -51,6 +51,9 @@ public final class Box2dSyncSystem extends BaseSystem {
     private EntitySubscription jointsSub;   // JointBase insert/remove only
 
     private final Vector2 tmp = new Vector2();
+    private static final int MAX_POLYGON_VERTICES = 8;
+    private final float[] polygonVertsScratch = new float[MAX_POLYGON_VERTICES * 2];
+
     private float lastGx = Float.NaN;
     private float lastGy = Float.NaN;
     private boolean stepEnabled = false;
@@ -707,18 +710,17 @@ public final class Box2dSyncSystem extends BaseSystem {
 
     private Shape createPolygonShape(FixtureDefData fd) {
         int n = fd.polyCount;
-        float[] verts = fd.polyVerts;
-        boolean valid = verts != null && n >= 3 && n <= 8 && verts.length >= n * 2;
+        float[] vertices = fd.polyVerts;
+        boolean valid = vertices != null && n >= 3 && n <= MAX_POLYGON_VERTICES && vertices.length >= n * 2;
         if (!valid) return createBoxShape(fd);
 
         float angleRad = (float) Math.toRadians(fd.angleDeg);
         float cos = (float) Math.cos(angleRad);
         float sin = (float) Math.sin(angleRad);
 
-        Vector2[] out = new Vector2[n];
         for (int i = 0; i < n; i++) {
-            float lx = verts[i * 2];
-            float ly = verts[i * 2 + 1];
+            float lx = vertices[i * 2];
+            float ly = vertices[i * 2 + 1];
             if (!Float.isFinite(lx) || !Float.isFinite(ly)) {
                 return createBoxShape(fd);
             }
@@ -728,12 +730,15 @@ public final class Box2dSyncSystem extends BaseSystem {
             if (!Float.isFinite(x) || !Float.isFinite(y)) {
                 return createBoxShape(fd);
             }
-            out[i] = new Vector2(x, y);
+
+            int base = i * 2;
+            polygonVertsScratch[base] = x;
+            polygonVertsScratch[base + 1] = y;
         }
 
         PolygonShape shape = new PolygonShape();
         try {
-            shape.set(out);
+            shape.set(polygonVertsScratch, 0, n * 2);
             return shape;
         } catch (Throwable ex) {
             shape.dispose();

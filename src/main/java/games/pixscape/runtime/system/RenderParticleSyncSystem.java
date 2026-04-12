@@ -8,6 +8,7 @@ import com.artemis.annotations.All;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ParticleEffect;
+import com.badlogic.gdx.ParticleEffectPool;
 import com.badlogic.gdx.ParticleEmitter;
 import com.badlogic.gdx.ParticleEmitter.Particle;
 import com.badlogic.gdx.files.FileHandle;
@@ -18,10 +19,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
@@ -48,7 +46,8 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private final int vfxEndIndex;
 
     // cache : entityId -> ParticleEffect
-    private final IntMap<ParticleEffect> effects = new IntMap<>();
+    private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
+    private final ObjectMap<String, ParticleEffectPool> effectPools = new ObjectMap<>();
     private final IntSet loggedEntities = new IntSet();
     private final IntSet waitingAtlasLoggedEntities = new IntSet();
 
@@ -87,6 +86,12 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         this.effectsRoot         = effectsRoot;
     }
 
+    private static String effectPoolKey(ParticleEmitterComponent emitter) {
+        String atlasTag = (emitter.atlasTag != null) ? emitter.atlasTag : "";
+        String effectPath = (emitter.effectPath != null) ? emitter.effectPath : "";
+        return atlasTag + "|" + effectPath;
+    }
+
     public void setEffectsRoot(FileHandle effectsRoot) {
         this.effectsRoot = effectsRoot;
     }
@@ -108,9 +113,9 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];
-                    ParticleEffect fx = effects.remove(e);
-                    if (fx != null && fx.ownsTexture) {
-                        fx.dispose();
+                    ParticleEffectPool.PooledEffect fx = effects.remove(e);
+                    if (fx != null) {
+                        fx.free();
                     }
                     loggedEntities.remove(e);
                     waitingAtlasLoggedEntities.remove(e);
@@ -148,7 +153,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
             ParticleOverridesComponent ov = (mOverrides != null) ? mOverrides.getSafe(e, null) : null;
 
-            ParticleEffect fx = effects.get(e);
+            ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx == null) {
                 fx = createEffect(e, comp);
                 if (fx == null) continue;
@@ -220,15 +225,15 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         lastUsedVfxSlots = 0;
     }
 
-    private ParticleEffect createEffect(int entityId, ParticleEmitterComponent emitter) {
+    private ParticleEffectPool.PooledEffect createEffect(int entityId, ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;
 
         if (effectsRoot == null) {
             Gdx.app.error("RenderParticleSyncSystem", "effectsRoot is null");
             return null;
         }
-        FileHandle effectFile  = effectsRoot.child(emitter.effectPath);
 
+        FileHandle effectFile = effectsRoot.child(emitter.effectPath);
         if (!effectFile.exists()) {
             Gdx.app.error("RenderParticleSyncSystem",
                     "Effect file not found: " + effectFile.path()
@@ -236,37 +241,42 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             return null;
         }
 
-        ParticleEffect fx = new ParticleEffect();
-        boolean loaded = false;
+        if (atlasRuntimeService == null ||
+                emitter.atlasTag == null ||
+                emitter.atlasTag.isEmpty()) {
+            return null;
+        }
 
-        if (atlasRuntimeService != null &&
-                emitter.atlasTag != null &&
-                !emitter.atlasTag.isEmpty()) {
+        String key = effectPoolKey(emitter);
+        ParticleEffectPool pool = effectPools.get(key);
 
+        if (pool == null) {
             TextureAtlas atlas = atlasRuntimeService.getAtlas(emitter.atlasTag);
-            if (atlas != null) {
-                try {
-                    fx.load(effectFile, atlas);
-                    loaded = true;
-                } catch (Exception ex) {
-                    Gdx.app.error("RenderParticleSyncSystem",
-                            "Failed to load particle effect from atlas '" + emitter.atlasTag
-                                    + "': " + effectFile.path(), ex);
-                }
-            } else {
+            if (atlas == null) {
                 if (!waitingAtlasLoggedEntities.contains(entityId)) {
                     Gdx.app.log("RenderParticleSyncSystem",
                             "Waiting atlas '" + emitter.atlasTag + "' before loading effect " + effectFile.path());
                     waitingAtlasLoggedEntities.add(entityId);
                 }
+                return null;
             }
+
+            ParticleEffect template = new ParticleEffect();
+            try {
+                template.load(effectFile, atlas);
+                template.setEmittersCleanUpBlendFunction(false);
+            } catch (Exception ex) {
+                Gdx.app.error("RenderParticleSyncSystem",
+                        "Failed to load particle effect from atlas '" + emitter.atlasTag
+                                + "': " + effectFile.path(), ex);
+                return null;
+            }
+
+            pool = new ParticleEffectPool(template, 1, 16);
+            effectPools.put(key, pool);
         }
 
-        if (!loaded) {
-            // IMPORTANT: do not return an unloaded fx => ghost effect
-            return null;
-        }
-
+        ParticleEffectPool.PooledEffect fx = pool.obtain();
         fx.setEmittersCleanUpBlendFunction(false);
         return fx;
     }
@@ -297,16 +307,16 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     }
 
     public void invalidateAllEffects() {
-        if (effects.size == 0) return;
-
-        effects.forEach(entry -> {
-            ParticleEffect fx = entry.value;
-            if (fx != null && fx.ownsTexture) {
-                fx.dispose();
+        for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
+            IntMap.Entry<ParticleEffectPool.PooledEffect> entry = it.next();
+            ParticleEffectPool.PooledEffect fx = entry.value;
+            if (fx != null) {
+                fx.free();
             }
-        });
+        }
 
         effects.clear();
+        effectPools.clear();
         loggedEntities.clear();
         waitingAtlasLoggedEntities.clear();
         lastTex = null;

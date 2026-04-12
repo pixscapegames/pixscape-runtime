@@ -24,11 +24,21 @@ public enum BlendMode {
     public final boolean blending;
     public final int srcFactor, dstFactor;
 
+    private static final Array<String> BLEND_NAMES = buildBlendNames();
+
     BlendMode(int id, boolean blending, int srcFactor, int dstFactor) {
         this.id = id;
         this.blending = blending;
         this.srcFactor = srcFactor;
         this.dstFactor = dstFactor;
+    }
+
+    private static Array<String> buildBlendNames() {
+        Array<String> names = new Array<>(values().length);
+        for (BlendMode mode : values()) {
+            names.add(mode.name());
+        }
+        return names;
     }
 
     /**
@@ -60,12 +70,10 @@ public enum BlendMode {
     }
 
     /**
-     * Returns all blend mode enum names in declaration order.
+     * Returns the shared list of blend mode names.
+     * Callers must treat the returned array as read-only.
      */
     public static Array<String> blendNames() {
-        BlendMode[] modes = values();
-        var names = new Array<String>(modes.length);
-        for (int i = 0, n = modes.length; i < n; i++) names.add(modes[i].name());
-        return names;
+        return BLEND_NAMES;
     }
 }

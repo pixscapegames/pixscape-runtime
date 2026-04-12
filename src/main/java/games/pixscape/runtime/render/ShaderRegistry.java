@@ -189,16 +189,12 @@ public final class ShaderRegistry {
         return modesByIdx.get(idx);
     }
 
+    /**
+     * Returns the shared defaults map for this shader.
+     * Callers must treat the returned map as read-only.
+     */
     public static ObjectFloatMap<String> getDefaultUniforms(String shaderName) {
-        ObjectFloatMap<String> src = defaultUniforms.get(shaderName);
-        if (src == null) return null;
-
-        ObjectFloatMap<String> copy = new ObjectFloatMap<>();
-        for (ObjectFloatMap.Entries<String> it = src.entries(); it.hasNext(); ) {
-            ObjectFloatMap.Entry<String> e = it.next();
-            copy.put(e.key, e.value);
-        }
-        return copy;
+        return defaultUniforms.get(shaderName);
     }
 
     /** Used by UI: returns current GLSL directory (assets/shaders/100, 300es, 330...). */
@@ -313,22 +309,12 @@ public final class ShaderRegistry {
                     registerOrReplace("ta_default", ta, ShaderMode.TEXTURE_ARRAY, false);
                 }
             }
-            ShaderProgram ta = compileShader(
-                    taV.path(), taF.path(),
-                    "ta_sprite/ta_default",
-                    false
-            );
-            if (ta != null) {
-                registerOrReplace("ta_default", ta, ShaderMode.TEXTURE_ARRAY, false);
-            }
         }
 
         loadCustomShadersForProject();
         loadBuiltinDemoShaders();
 
         initialized = true;
-
-
     }
 
     // ------------------------------------------------------------------------
