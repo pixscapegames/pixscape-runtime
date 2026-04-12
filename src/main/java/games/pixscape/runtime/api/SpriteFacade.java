@@ -1,5 +1,8 @@
 package games.pixscape.runtime.api;
 
+/**
+ * High-level sprite/material access for one entity.
+ */
 public interface SpriteFacade {
     int assetId();
 

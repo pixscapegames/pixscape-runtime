@@ -311,7 +311,12 @@ public final class PixscapeEngine {
         return animatedTileRegistry;
     }
 
-    /** Returns the high-level public runtime API facade. */
+    /**
+     * Returns the high-level API facade for runtime gameplay access.
+     *
+     * <p>The returned instance is cached for this engine instance and
+     * coexists with direct engine/ECS access methods.</p>
+     */
     public PixscapeAPI api() {
         if (publicApi == null) {
             publicApi = new PixscapeApiImpl(this);

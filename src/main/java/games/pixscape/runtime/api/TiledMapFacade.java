@@ -1,5 +1,8 @@
 package games.pixscape.runtime.api;
 
+/**
+ * Runtime tiled map/layer properties and coordinate conversion helpers.
+ */
 public interface TiledMapFacade {
     int width();
     int height();
@@ -29,7 +32,11 @@ public interface TiledMapFacade {
     float tileToWorldY(int gx, int gy);
 
     /**
-     * Expensive operation: reallocates chunks and preserves only in-bounds cells.
+     * Resizes the logical map in cells.
+     *
+     * <p>This is expensive and rebuilds tiled chunk data. Current runtime behavior preserves
+     * only cells that remain in bounds after resize. Tile size, chunk size, and projection are
+     * unchanged.</p>
      */
     TiledMapFacade resize(int width, int height);
 }

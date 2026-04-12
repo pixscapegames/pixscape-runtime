@@ -1,11 +1,14 @@
 package games.pixscape.runtime.api;
 
 /**
- * Float-only shader parameter facade for v1.
+ * Shader assignment and float uniform access for v1.
+ *
+ * <p>v1 supports float uniforms only: no vectors, matrices, textures, or generic typed uniforms.</p>
  */
 public interface ShaderFacade {
     String shader();
 
+    /** Selects a shader by logical name. */
     ShaderFacade use(String shaderName);
     ShaderFacade clear();
 

@@ -3,9 +3,8 @@ package games.pixscape.runtime.api;
 /**
  * Read-only animated tile definition view.
  *
- * <p>Implementations may return an ephemeral reused view object.
- * Callers should read values immediately and avoid retaining references
- * across subsequent API calls unless explicitly documented otherwise.</p>
+ * <p>Implementations may return an ephemeral reused object. Read values immediately and do not
+ * keep references as stable snapshots across subsequent API calls.</p>
  */
 public interface TileAnimationDefView {
     int id();

@@ -1,5 +1,8 @@
 package games.pixscape.runtime.api;
 
+/**
+ * High-level particle emitter controls for one entity.
+ */
 public interface ParticleFacade {
     boolean exists();
 
