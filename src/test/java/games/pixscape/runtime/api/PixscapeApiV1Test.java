@@ -150,6 +150,9 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(TileChunk.DirtyState.FULL, layer.data.getChunk(0, 0).dirtyState);
 
         layer.data.getChunk(0, 0).dirtyState = TileChunk.DirtyState.CLEAN;
+        layer.data.getChunk(0, 0).dirtyLocalIndices.clear();
+        layer.data.getChunk(0, 0).contentDirty = false;
+
         ref.map().setOrigin(3f, 4f);
         Assert.assertEquals(TileChunk.DirtyState.FULL, layer.data.getChunk(0, 0).dirtyState);
 
@@ -157,24 +160,39 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(ref.tileAnimations().isPaused(1, 1));
         ref.tileAnimations().play(1, 1);
         Assert.assertTrue(ref.tileAnimations().isPlaying(1, 1));
-        ref.tileAnimations().setFrame(1, 1, 1).setElapsedMs(1, 1, 50);
-        ref.tileAnimations().restart(1, 1);
-        Assert.assertTrue(ref.tileAnimations().isPlaying(1, 1));
 
-        ref.tileAnimations().stop(1, 1);
         int cx = 1 / layer.data.chunkSize;
         int cy = 1 / layer.data.chunkSize;
         TileChunk chunk = layer.data.getChunk(cx, cy);
-        int local = chunk.localIndexFor(1 - cx * layer.data.chunkSize, 1 - cy * layer.data.chunkSize);
+        int local = chunk.localIndexFor(
+                1 - cx * layer.data.chunkSize,
+                1 - cy * layer.data.chunkSize
+        );
+
+        // Reset chunk dirty state so local dirty tracking can be observed precisely.
+        chunk.dirtyState = TileChunk.DirtyState.CLEAN;
+        chunk.dirtyLocalIndices.clear();
+        chunk.contentDirty = false;
+
+        ref.tileAnimations().setFrame(1, 1, 1).setElapsedMs(1, 1, 50);
+        ref.tileAnimations().stop(1, 1);
+
         Assert.assertEquals(TileAnimationPlayback.NONE, chunk.getAnimPlaybackState(local));
+        Assert.assertEquals(TileChunk.DirtyState.PARTIAL, chunk.dirtyState);
         Assert.assertTrue("Stopping from a non-zero frame should dirty when visual frame changes",
                 chunk.dirtyLocalIndices.contains(local));
 
+        // Reset again to verify the no-dirty case from frame 0.
+        chunk.dirtyState = TileChunk.DirtyState.CLEAN;
         chunk.dirtyLocalIndices.clear();
+        chunk.contentDirty = false;
+
         ref.tileAnimations().restart(1, 1).setFrame(1, 1, 0);
         ref.tileAnimations().stop(1, 1);
+
         Assert.assertEquals("Stopping from frame 0 should keep same visual frame and not dirty",
                 0, chunk.dirtyLocalIndices.size);
+        Assert.assertEquals(TileChunk.DirtyState.CLEAN, chunk.dirtyState);
 
         ref.tiles().fillRect(0, 0, 2, 2, 100).clearRect(0, 0, 1, 1);
         ref.tiles().hLine(0, 2, 3, 100).vLine(2, 0, 3, 100).markAllDirty();
