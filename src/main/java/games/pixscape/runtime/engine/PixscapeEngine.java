@@ -9,6 +9,8 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.IntMap;
+import games.pixscape.runtime.api.PixscapeAPI;
+import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -67,6 +69,7 @@ public final class PixscapeEngine {
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
+    private PixscapeAPI publicApi;
 
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
@@ -306,6 +309,14 @@ public final class PixscapeEngine {
 
     public TileAnimationRegistry getAnimatedTileRegistry() {
         return animatedTileRegistry;
+    }
+
+    /** Returns the high-level public runtime API facade. */
+    public PixscapeAPI api() {
+        if (publicApi == null) {
+            publicApi = new PixscapeApiImpl(this);
+        }
+        return publicApi;
     }
 
     public int findEntityByStableId(long stableId) {
