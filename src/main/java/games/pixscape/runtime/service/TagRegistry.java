@@ -154,7 +154,8 @@ public final class TagRegistry {
 
     public Array<String> allTags() {
         Array<String> out = new Array<>(byTag.size);
-        for (ObjectMap.Entry<String, IntArray> entry : byTag.entries()) {
+        for (ObjectMap.Entries<String, IntArray> it = byTag.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, IntArray> entry = it.next();
             out.add(entry.key);
         }
         return out;

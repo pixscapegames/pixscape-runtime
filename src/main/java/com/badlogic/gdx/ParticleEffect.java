@@ -127,8 +127,8 @@ public class ParticleEffect implements Disposable {
 
 	/** Allocates all emitters particles. See {@link ParticleEmitter#preAllocateParticles()} */
 	public void preAllocateParticles () {
-		for (ParticleEmitter emitter : emitters) {
-			emitter.preAllocateParticles();
+		for (int i = 0, n = emitters.size; i < n; i++) {
+			emitters.get(i).preAllocateParticles();
 		}
 	}
 
@@ -181,7 +181,9 @@ public class ParticleEffect implements Disposable {
 			ParticleEmitter emitter = emitters.get(i);
 			if (emitter.getImagePaths().size == 0) continue;
 			Array<Sprite> sprites = new Array<Sprite>();
-			for (String imagePath : emitter.getImagePaths()) {
+			Array<String> imagePaths = emitter.getImagePaths();
+			for (int j = 0, m = imagePaths.size; j < m; j++) {
+				String imagePath = imagePaths.get(j);
 				String imageName = new File(imagePath.replace('\\', '/')).getName();
 				int lastDotIndex = imageName.lastIndexOf('.');
 				if (lastDotIndex != -1) imageName = imageName.substring(0, lastDotIndex);
@@ -201,7 +203,9 @@ public class ParticleEffect implements Disposable {
 			ParticleEmitter emitter = emitters.get(i);
 			if (emitter.getImagePaths().size == 0) continue;
 			Array<Sprite> sprites = new Array<Sprite>();
-			for (String imagePath : emitter.getImagePaths()) {
+			Array<String> imagePaths = emitter.getImagePaths();
+			for (int j = 0, m = imagePaths.size; j < m; j++) {
+				String imagePath = imagePaths.get(j);
 				String imageName = new File(imagePath.replace('\\', '/')).getName();
 				Sprite sprite = loadedSprites.get(imageName);
 				if (sprite == null) {
@@ -231,8 +235,9 @@ public class ParticleEffect implements Disposable {
 		if (!ownsTexture) return;
 		for (int i = 0, n = emitters.size; i < n; i++) {
 			ParticleEmitter emitter = emitters.get(i);
-			for (Sprite sprite : emitter.getSprites()) {
-				sprite.getTexture().dispose();
+			Array<Sprite> sprites = emitter.getSprites();
+			for (int j = 0, m = sprites.size; j < m; j++) {
+				sprites.get(j).getTexture().dispose();
 			}
 		}
 	}
@@ -243,8 +248,8 @@ public class ParticleEffect implements Disposable {
 
 		BoundingBox bounds = this.bounds;
 		bounds.inf();
-		for (ParticleEmitter emitter : this.emitters)
-			bounds.ext(emitter.getBoundingBox());
+		for (int i = 0, n = this.emitters.size; i < n; i++)
+			bounds.ext(this.emitters.get(i).getBoundingBox());
 		return bounds;
 	}
 
@@ -266,7 +271,8 @@ public class ParticleEffect implements Disposable {
 		xSizeScale *= xSizeScaleFactor;
 		ySizeScale *= ySizeScaleFactor;
 		motionScale *= motionScaleFactor;
-		for (ParticleEmitter particleEmitter : emitters) {
+		for (int i = 0, n = emitters.size; i < n; i++) {
+			ParticleEmitter particleEmitter = emitters.get(i);
 			particleEmitter.scaleSize(xSizeScaleFactor, ySizeScaleFactor);
 			particleEmitter.scaleMotion(motionScaleFactor);
 		}

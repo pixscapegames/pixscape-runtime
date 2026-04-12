@@ -646,7 +646,9 @@ public final class Box2dSyncSystem extends BaseSystem {
         Body body = box2d.world.createBody(def);
         int createdFixtures = 0;
 
-        for (FixtureDefData fd : defs.fixtures) {
+        Array<FixtureDefData> fixtures = defs.fixtures;
+        for (int i = 0, n = fixtures.size; i < n; i++) {
+            FixtureDefData fd = fixtures.get(i);
             if (fd == null) continue;
 
             Shape shape = null;

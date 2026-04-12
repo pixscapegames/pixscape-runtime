@@ -1015,17 +1015,20 @@ public class ParticleEmitter {
 	/** Permanently scales the size of the emitter by scaling all its ranged values related to size. */
 	public void scaleSize (float scaleX, float scaleY) {
 		if (scaleX == 1f && scaleY == 1f) return;
-		for (RangedNumericValue value : getXSizeValues())
-			value.scale(scaleX);
-		for (RangedNumericValue value : getYSizeValues())
-			value.scale(scaleY);
+		RangedNumericValue[] xValues = getXSizeValues();
+		for (int i = 0, n = xValues.length; i < n; i++)
+			xValues[i].scale(scaleX);
+		RangedNumericValue[] yValues = getYSizeValues();
+		for (int i = 0, n = yValues.length; i < n; i++)
+			yValues[i].scale(scaleY);
 	}
 
 	/** Permanently scales the speed of the emitter by scaling all its ranged values related to motion. */
 	public void scaleMotion (float scale) {
 		if (scale == 1f) return;
-		for (RangedNumericValue value : getMotionValues())
-			value.scale(scale);
+		RangedNumericValue[] values = getMotionValues();
+		for (int i = 0, n = values.length; i < n; i++)
+			values[i].scale(scale);
 	}
 
 	/** Sets all size-related ranged values to match those of the template emitter. */
@@ -1113,8 +1116,8 @@ public class ParticleEmitter {
 		output.write("premultipliedAlpha: " + premultipliedAlpha + "\n");
 		output.write("spriteMode: " + spriteMode.toString() + "\n");
 		output.write("- Image Paths -\n");
-		for (String imagePath : imagePaths) {
-			output.write(imagePath + "\n");
+		for (int i = 0, n = imagePaths.size; i < n; i++) {
+			output.write(imagePaths.get(i) + "\n");
 		}
 		output.write("\n");
 	}

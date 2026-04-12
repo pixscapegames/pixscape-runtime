@@ -97,7 +97,8 @@ public final class RuntimeProjectIO {
             return;
         }
 
-        for (TileAnimationDefData defData : data.animations) {
+        for (int i = 0, n = data.animations.size; i < n; i++) {
+            TileAnimationDefData defData = data.animations.get(i);
             if (defData == null) {
                 throw new GdxRuntimeException(
                         "Invalid tile animation entry (null): " + file.path()
