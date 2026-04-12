@@ -1,5 +1,8 @@
 package games.pixscape.runtime.api;
 
+/**
+ * High-level sprite clip animation controls for one entity.
+ */
 public interface AnimationFacade {
     boolean exists();
 

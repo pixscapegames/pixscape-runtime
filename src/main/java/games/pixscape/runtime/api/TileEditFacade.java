@@ -1,5 +1,10 @@
 package games.pixscape.runtime.api;
 
+/**
+ * Logical tile editing operations for one tiled layer.
+ *
+ * <p>Mutations keep per-cell tile animation playback state in sync with the logical tile value.</p>
+ */
 public interface TileEditFacade {
     int get(int x, int y);
     byte getFlags(int x, int y);

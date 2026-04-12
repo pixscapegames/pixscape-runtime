@@ -1,5 +1,8 @@
 package games.pixscape.runtime.api;
 
+/**
+ * High-level transform access for one entity.
+ */
 public interface TransformFacade {
     float x();
     float y();
