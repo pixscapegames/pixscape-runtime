@@ -5,6 +5,7 @@ import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.*;
@@ -21,6 +22,8 @@ import games.pixscape.runtime.service.Box2dWorldService;
 import java.util.Arrays;
 
 public final class Box2dSyncSystem extends BaseSystem {
+    private static final String RUNTIME_WHEEL_SYNC_DEBUG_PROP = "pixscape.debug.runtimeWheelSync";
+    private static final boolean RUNTIME_WHEEL_SYNC_DEBUG = Boolean.getBoolean(RUNTIME_WHEEL_SYNC_DEBUG_PROP);
 
     private Box2dWorldService box2d;
     private SceneMetaRuntime sceneMeta;
@@ -198,10 +201,26 @@ public final class Box2dSyncSystem extends BaseSystem {
 
             IntBag joints = jointsSub.getEntities();
             int[] jointsData = joints.getData();
+            if (RUNTIME_WHEEL_SYNC_DEBUG) {
+                int totalJointCount = joints.size();
+                int wheelCount = 0;
+                for (int i = 0, n = joints.size(); i < n; i++) {
+                    PhysicsJointComponent base = mJointBase.getSafe(jointsData[i], null);
+                    if (base != null && base.type == PhysicsJointComponent.TYPE_WHEEL) wheelCount++;
+                }
+                debugWheelSync("fullRebuildPending: mark joints dirty, totalJoints=" + totalJointCount
+                        + ", totalWheelJoints=" + wheelCount);
+            }
             for (int i = 0, n = joints.size(); i < n; i++) {
                 int jEid = jointsData[i];
                 indexJoint(jEid);
                 dirty.joint(jEid, JointDirtyBits.ALL);
+                if (RUNTIME_WHEEL_SYNC_DEBUG) {
+                    PhysicsJointComponent base = mJointBase.getSafe(jEid, null);
+                    if (base != null && base.type == PhysicsJointComponent.TYPE_WHEEL) {
+                        debugWheelSync("fullRebuildPending: wheel joint marked dirty jEid=" + jEid);
+                    }
+                }
             }
             fullRebuildPending = false;
         }
@@ -904,27 +923,59 @@ public final class Box2dSyncSystem extends BaseSystem {
             }
 
             case PhysicsJointComponent.TYPE_WHEEL -> {
-                PhysicsWheelJointComponent wheel = mJointWheel.getSafe(jEid, null);
-                if (wheel == null) {
-                    destroyRuntimeJointIfAny(jEid);
-                    return;
-                }
-
                 int aEid = base.aEid;
                 int bEid = base.bEid;
-                if (aEid < 0 || bEid < 0 || aEid == bEid) {
-                    destroyRuntimeJointIfAny(jEid);
-                    return;
-                }
-
+                boolean aActive = world.getEntityManager().isActive(aEid);
+                boolean bActive = world.getEntityManager().isActive(bEid);
+                boolean aHasBodyDef = mBodyDef.has(aEid);
+                boolean bHasBodyDef = mBodyDef.has(bEid);
+                boolean aHasRtBodyComp = mRuntime.has(aEid);
+                boolean bHasRtBodyComp = mRuntime.has(bEid);
+                PhysicsWheelJointComponent wheel = mJointWheel.getSafe(jEid, null);
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
                 PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(aEid, null);
                 PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(bEid, null);
-                if (aRt == null || bRt == null || aRt.body == null || bRt.body == null) {
+                if (RUNTIME_WHEEL_SYNC_DEBUG) {
+                    debugWheelSync("syncOneJoint TYPE_WHEEL start jEid=" + jEid
+                            + ", submask=" + sub
+                            + ", aEid=" + aEid
+                            + ", bEid=" + bEid
+                            + ", aActive=" + aActive
+                            + ", bActive=" + bActive
+                            + ", aHasPhysicsBodyComponent=" + aHasBodyDef
+                            + ", bHasPhysicsBodyComponent=" + bHasBodyDef
+                            + ", aHasPhysicsRuntimeBodyComponent=" + aHasRtBodyComp
+                            + ", bHasPhysicsRuntimeBodyComponent=" + bHasRtBodyComp
+                            + ", aRtBody=" + ((aRt != null && aRt.body != null) ? "non-null" : "null")
+                            + ", bRtBody=" + ((bRt != null && bRt.body != null) ? "non-null" : "null")
+                            + ", hasPhysicsWheelJointComponent=" + (wheel != null)
+                            + ", hasPhysicsRuntimeJointComponentBeforeSync=" + (rt != null)
+                            + ", rtJointBeforeSync=" + ((rt != null && rt.joint != null) ? "non-null" : "null"));
+                }
+                if (wheel == null) {
+                    debugWheelEarlyReturn(jEid, "missing PhysicsWheelJointComponent");
                     destroyRuntimeJointIfAny(jEid);
                     return;
                 }
 
-                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                if (aEid < 0 || bEid < 0 || aEid == bEid) {
+                    debugWheelEarlyReturn(jEid, "invalid endpoints");
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                if (aRt == null || bRt == null) {
+                    debugWheelEarlyReturn(jEid, "missing runtime body component");
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
+                if (aRt.body == null || bRt.body == null) {
+                    debugWheelEarlyReturn(jEid, "missing Box2D body");
+                    destroyRuntimeJointIfAny(jEid);
+                    return;
+                }
+
                 boolean needsRebuild = (rt == null || rt.joint == null);
 
                 if (!needsRebuild) {
@@ -932,18 +983,43 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
 
                 if (!needsRebuild && sub != 0) needsRebuild = true;
-                if (!needsRebuild) return;
+                if (!needsRebuild) {
+                    debugWheelEarlyReturn(jEid, "no rebuild needed");
+                    return;
+                }
 
                 destroyRuntimeJointIfAny(jEid);
 
-                Joint newJoint = createWheelJoint(base, wheel, aRt.body, bRt.body);
+                Joint newJoint;
+                try {
+                    newJoint = createWheelJoint(base, wheel, aRt.body, bRt.body);
+                } catch (Throwable t) {
+                    if (RUNTIME_WHEEL_SYNC_DEBUG) {
+                        debugWheelSync("createWheelJoint threw for jEid=" + jEid + ": "
+                                + t.getClass().getName() + ": " + t.getMessage());
+                        java.io.StringWriter sw = new java.io.StringWriter();
+                        java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+                        t.printStackTrace(pw);
+                        debugWheelSync(sw.toString());
+                    }
+                    throw t;
+                }
                 if (newJoint != null) {
                     PhysicsRuntimeJointComponent newRt = mJointRt.create(jEid);
                     newRt.joint = newJoint;
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
+                    if (RUNTIME_WHEEL_SYNC_DEBUG) {
+                        debugWheelSync("wheel joint created jEid=" + jEid
+                                + ", createdJointClass=" + newJoint.getClass().getName()
+                                + ", aGen=" + aRt.gen
+                                + ", bGen=" + bRt.gen
+                                + ", worldJointCount=" + box2d.world.getJointCount());
+                    }
 
                     markDependentGearJointsDirty(jEid);
+                } else {
+                    debugWheelEarlyReturn(jEid, "createWheelJoint returned null");
                 }
             }
             case PhysicsJointComponent.TYPE_FRICTION -> {
@@ -1194,6 +1270,21 @@ public final class Box2dSyncSystem extends BaseSystem {
                 // Unknown type => no runtime joint
                 destroyRuntimeJointIfAny(jEid);
             }
+        }
+    }
+
+    private void debugWheelEarlyReturn(int jEid, String reason) {
+        if (!RUNTIME_WHEEL_SYNC_DEBUG) return;
+        debugWheelSync("syncOneJoint TYPE_WHEEL early return jEid=" + jEid + ", reason=" + reason);
+    }
+
+    private void debugWheelSync(String message) {
+        if (!RUNTIME_WHEEL_SYNC_DEBUG) return;
+        String line = "[runtimeWheelSync] " + message;
+        if (Gdx.app != null) {
+            Gdx.app.log("Box2dSyncSystem", line);
+        } else {
+            System.out.println("Box2dSyncSystem " + line);
         }
     }
 
