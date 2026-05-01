@@ -1,6 +1,7 @@
 package games.pixscape.runtime.component.physics;
 
 import com.artemis.PooledComponent;
+import com.artemis.annotations.EntityId;
 
 /**
  * Common component for all joints (ECS equivalent of common b2JointDef fields).
@@ -28,7 +29,9 @@ public final class PhysicsJointComponent extends PooledComponent {
     public int type = TYPE_DISTANCE;
 
     /** Referenced bodies (ECS entity ids). */
+    @EntityId
     public int aEid = -1;
+    @EntityId
     public int bEid = -1;
 
     /** b2JointDef.collideConnected */
