@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module>
-    <inherits name="com.badlogic.gdx.gdx"/>
+    <inherits name="com.badlogic.gdx"/>
     <source path=""/>
 </module>
