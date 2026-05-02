@@ -2,6 +2,11 @@
 
 ## [0.1.3]
 
+### Breaking changes
+- Moved `ShaderRegistry` from `games.pixscape.runtime.render` to `games.pixscape.runtime.service`
+- Moved `TextureRegistry` from `games.pixscape.runtime.render` to `games.pixscape.runtime.service`
+- Renamed `ShaderMode.SPRITE` to `ShaderMode.TEXTURE_2D`
+
 ### Added
 - Added `PlatformTarget` runtime configuration for platform-specific rendering setup
 - Added platform-aware shader loading support:
