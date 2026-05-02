@@ -12,6 +12,7 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
@@ -42,6 +43,7 @@ public final class PixscapeEngine {
 
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
+    private PlatformTarget platformTarget = PlatformTarget.AUTO;
 
     private RuntimeConfig cfg;
     private boolean loaded;
@@ -446,7 +448,7 @@ public final class PixscapeEngine {
 
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
-        ShaderRegistry.initDefaults(config.glProfile, projectDir, config.shadersDir);
+        ShaderRegistry.initDefaults(platformTarget, projectDir, config.shadersDir);
 
         renderState = new RenderStateSOA();
         layerState  = new LayerStateSOA();
@@ -523,6 +525,8 @@ public final class PixscapeEngine {
     /** Initializes a runtime with default configuration and no scene file. */
     public PixscapeEngine initEmptyRuntime() {
         this.cfg = new RuntimeConfig();
+
+        ShaderRegistry.initDefaults(platformTarget, null, null);
 
         if (worldCamera == null) {
             worldCamera = new OrthographicCamera();
@@ -975,5 +979,18 @@ public final class PixscapeEngine {
 
     public boolean isLoaded() {
         return loaded;
+    }
+
+    public PixscapeEngine setPlatformTarget(PlatformTarget target) {
+        if (loaded) {
+            throw new IllegalStateException("PlatformTarget must be set before loadProject().");
+        }
+
+        this.platformTarget = target != null ? target : PlatformTarget.AUTO;
+        return this;
+    }
+
+    public PlatformTarget getPlatformTarget() {
+        return platformTarget;
     }
 }
