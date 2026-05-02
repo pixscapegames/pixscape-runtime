@@ -1,10 +1,9 @@
 package games.pixscape.runtime.render.batch;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import games.pixscape.runtime.render.RenderSettings;
 import games.pixscape.runtime.render.RenderSettings.RenderMode;
-import games.pixscape.runtime.render.ShaderRegistry;
+import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**

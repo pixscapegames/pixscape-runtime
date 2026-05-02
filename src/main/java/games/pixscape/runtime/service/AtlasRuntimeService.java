@@ -12,7 +12,6 @@ import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
 import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.render.InternalTextures;
-import games.pixscape.runtime.render.TextureRegistry;
 
 
 public class AtlasRuntimeService {

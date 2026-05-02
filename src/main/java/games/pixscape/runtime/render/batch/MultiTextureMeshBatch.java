@@ -10,7 +10,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.IntIntMap;
-import games.pixscape.runtime.render.TextureRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 

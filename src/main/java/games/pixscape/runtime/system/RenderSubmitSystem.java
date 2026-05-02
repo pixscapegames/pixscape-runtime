@@ -2,7 +2,6 @@ package games.pixscape.runtime.system;
 
 import com.artemis.*;
 import com.artemis.annotations.SkipWire;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
@@ -14,6 +13,7 @@ import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.ShaderRegistry;
 
 public final class RenderSubmitSystem extends BaseSystem {
 

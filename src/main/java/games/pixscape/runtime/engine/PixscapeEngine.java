@@ -29,7 +29,6 @@ import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
-import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 import java.util.function.Consumer;

@@ -24,7 +24,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.render.TextureRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**

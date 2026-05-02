@@ -7,7 +7,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
-import games.pixscape.runtime.render.ShaderRegistry;
+import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
