@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.3]
+
+### Added
+- Added `PlatformTarget` runtime configuration for platform-specific rendering setup
+- Added platform-aware shader loading support:
+    - `AUTO`
+    - `DESKTOP_GL30`
+    - `ANDROID_ES3`
+    - `HTML_WEBGL2`
+- Added `PixscapeEngine#setPlatformTarget(...)` to let applications choose the runtime platform target before loading a project
+- Added support for loading shaders according to the selected platform target:
+    - Desktop GL30 uses `assets/shaders/330`
+    - Android ES3 uses `assets/shaders/300es`
+    - HTML WebGL2 uses `assets/shaders/300es`
+
+### Improved
+- Moved `ShaderRegistry` to `games.pixscape.runtime.service`
+- Moved `TextureRegistry` to `games.pixscape.runtime.service`
+- Renamed `ShaderMode.SPRITE` to `ShaderMode.TEXTURE_2D` for clearer shader mode semantics
+- Kept shader lookup simple at runtime: shaders are still resolved by name or index after platform-specific initialization
+- Improved shader mode naming around texture binding strategy:
+    - `TEXTURE_2D`
+    - `MULTI_TEXTURE`
+    - `TEXTURE_ARRAY`
+- Cleaned up `ShaderRegistry` and removed unused/internal legacy code paths
+- Kept legacy shader directory compatibility for `TEXTURE_2D`, which still maps to `sprite`
+
+### Fixed
+- Updated runtime tests after shader service package moves and shader mode renaming
+- Fixed physics joint serialization/remapping test to validate serialized entity reference consistency without depending on Box2D joint construction details
+- Fixed outdated physics test calls that still used old joint creation signatures
+
 ## [0.1.2]
 
 ### Added
