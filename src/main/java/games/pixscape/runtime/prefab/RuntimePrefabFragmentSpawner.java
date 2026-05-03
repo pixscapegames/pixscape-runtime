@@ -6,7 +6,8 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -54,9 +55,6 @@ public class RuntimePrefabFragmentSpawner {
 
         ComponentMapper<TransformComponent> mTransform = world.getMapper(TransformComponent.class);
         ComponentMapper<PixscapeIdentityComponent> mIdentity = world.getMapper(PixscapeIdentityComponent.class);
-        ComponentMapper<AssetRefComponent> mAssetRef = world.getMapper(AssetRefComponent.class);
-        ComponentMapper<TextureRegionComponent> mTextureRegion = world.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> mRenderMaterial = world.getMapper(RenderMaterialComponent.class);
 
         identityRegistry.bind(world);
 
@@ -72,19 +70,6 @@ public class RuntimePrefabFragmentSpawner {
             PixscapeIdentityComponent id = mIdentity.get(eid);
             if (id != null) {
                 id.stableId = IdentityRegistry.UNASSIGNED_STABLE_ID;
-            }
-
-            AssetRefComponent ref = mAssetRef.getSafe(eid, null);
-            if (ref != null) {
-                TextureRegionComponent tr = mTextureRegion.getSafe(eid, null);
-                if (tr != null) {
-                    tr.valid = false;
-                }
-
-                RenderMaterialComponent mat = mRenderMaterial.getSafe(eid, null);
-                if (mat != null) {
-                    mat.textureHandle = -1;
-                }
             }
 
             identityRegistry.ensureStableId(eid);

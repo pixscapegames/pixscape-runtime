@@ -1,6 +1,7 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.*;
+import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
@@ -10,6 +11,8 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.component.*;
@@ -163,6 +166,25 @@ public final class PixscapeEngine {
         SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
         resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
         return result;
+    }
+
+    public SpawnResult spawnPrefab(String name, float offsetX, float offsetY) {
+        if (cfg == null) throw new IllegalStateException("Project is not loaded.");
+        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
+
+        FileHandle fragmentFile = runtimeProjectDir
+                .child(cfg.prefabsDir)
+                .child(name + ".pixfragment.json");
+
+        if (!fragmentFile.exists()) {
+            throw new GdxRuntimeException("Prefab fragment not found: " + fragmentFile.path());
+        }
+
+        JsonValue root = new JsonReader().parse(fragmentFile);
+        JsonArtemisSerializer serializer = new JsonArtemisSerializer(world);
+        SaveFileFormat fragment = serializer.load(root, SaveFileFormat.class);
+
+        return spawnPrefabFragment(fragment, offsetX, offsetY);
     }
 
     private void rebuildWorldWithBudget(RuntimeConfig config,
