@@ -1,6 +1,7 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.*;
+import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -16,6 +17,8 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
+import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
+import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.BatchFactory;
 import games.pixscape.runtime.render.batch.GLCaps;
@@ -152,6 +155,14 @@ public final class PixscapeEngine {
 
         sceneLoaded = true;
         return this;
+    }
+
+    public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
+        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
+        SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
+        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
+        return result;
     }
 
     private void rebuildWorldWithBudget(RuntimeConfig config,
@@ -892,6 +903,51 @@ public final class PixscapeEngine {
 
             if (dirty != null) {
                 dirty.material(e);
+            }
+        }
+    }
+
+    static void resolveAssetRefsForEntities(World world, AtlasRuntimeService atlasRuntimeService, IntBag entityIds) {
+        if (world == null || atlasRuntimeService == null || entityIds == null || entityIds.isEmpty()) return;
+
+        var mSrc = world.getMapper(AssetRefComponent.class);
+        var mTR = world.getMapper(TextureRegionComponent.class);
+        var mMat = world.getMapper(RenderMaterialComponent.class);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+
+        for (int i = 0; i < entityIds.size(); i++) {
+            int e = entityIds.get(i);
+
+            AssetRefComponent src = mSrc.getSafe(e, null);
+            TextureRegionComponent tr = mTR.getSafe(e, null);
+            RenderMaterialComponent mat = mMat.getSafe(e, null);
+            if (src == null || tr == null || mat == null) continue;
+
+            if (src.assetId < 0) {
+                throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
+            }
+            String atlasTag = src.atlasTag;
+            if (atlasTag == null || atlasTag.isBlank()) {
+                throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
+            }
+
+            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
+            if (region == null) {
+                tr.valid = false;
+                mat.textureHandle = 0;
+            } else {
+                tr.u1 = region.u1;
+                tr.v1 = region.v1;
+                tr.u2 = region.u2;
+                tr.v2 = region.v2;
+                tr.pixW = region.pixW;
+                tr.pixH = region.pixH;
+                tr.valid = true;
+                mat.textureHandle = region.textureHandle;
+            }
+
+            if (dirty != null) {
+                dirty.mark(e, DirtyBits.MATERIAL | DirtyBits.GEOMETRY | DirtyBits.LAYER | DirtyBits.ORDER);
             }
         }
     }
