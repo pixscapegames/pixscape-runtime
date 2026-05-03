@@ -4,7 +4,11 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import games.pixscape.runtime.component.OrientedBoundsComponent;
+import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
@@ -51,5 +55,38 @@ public class PrefabSpawnServiceTest {
         Assert.assertEquals(a, world.getMapper(PhysicsJointComponent.class).get(w).aEid);
         Assert.assertNotNull(world.getMapper(PhysicsWheelJointComponent.class).get(w));
         Assert.assertEquals(w, world.getMapper(PhysicsGearJointComponent.class).get(g).joint1Eid);
+    }
+
+    @Test
+    public void spawnVisualEntityCreatesOrientedBounds() {
+        World world = new World(new WorldConfigurationBuilder().build());
+        RuntimeConfig cfg = new RuntimeConfig();
+        IdentityRegistry identityRegistry = new IdentityRegistry();
+        identityRegistry.bind(world);
+        PrefabSpawnService service = new PrefabSpawnService(world, new PrefabLoader(), FileHandle.tempDirectory("runtime-proj"), cfg, identityRegistry, new AtlasRuntimeService());
+
+        PrefabAsset asset = new PrefabAsset();
+        PrefabAsset.PrefabEntityData sprite = new PrefabAsset.PrefabEntityData();
+        sprite.sourceEntityId = 7;
+        sprite.transform = new PrefabAsset.TransformData();
+        sprite.transform.scaleX = 1f;
+        sprite.transform.scaleY = 1f;
+        sprite.dimensions = new PrefabAsset.DimensionsData();
+        sprite.dimensions.width = 16f;
+        sprite.dimensions.height = 16f;
+        sprite.textureRegion = new PrefabAsset.TextureRegionData();
+        sprite.textureRegion.valid = true;
+        sprite.renderMaterial = new PrefabAsset.RenderMaterialData();
+        sprite.renderMaterial.textureHandle = 123;
+        sprite.visibility = new PrefabAsset.VisibilityData();
+        sprite.visibility.visible = true;
+        asset.entities.add(sprite);
+
+        PrefabInstance instance = service.spawn(asset, 0f, 0f, -1);
+        int eid = instance.getEntityForLocalId(7);
+        Assert.assertNotNull(world.getMapper(OrientedBoundsComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(DimensionsComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(RenderMaterialComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(VisibilityComponent.class).getSafe(eid, null));
     }
 }
