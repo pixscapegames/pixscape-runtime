@@ -14,6 +14,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.RenderSubmitSystem;
 
 public final class PrefabSpawnService {
     private static final String LOG_TAG = "PrefabSpawnService";
@@ -77,6 +78,7 @@ public final class PrefabSpawnService {
         refreshRuntimeSubscriptions();
         markSpawnedVisualsDirtyAfterRefresh(asset, instance);
         debugFinalVisualSync(asset, instance);
+        debugCompareWithSceneSprite(asset, instance);
 
         return instance;
     }
@@ -390,6 +392,59 @@ public final class PrefabSpawnService {
                     + " hasRenderComponents=" + hasRender
                     + " markedDirtyAfterFlush=true");
         }
+    }
+
+    private void debugCompareWithSceneSprite(PrefabAsset asset, PrefabInstance instance) {
+        if (!DEBUG) return;
+        RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+        if (submit == null) return;
+
+        int prefabEid = -1;
+        for (PrefabAsset.PrefabEntityData src : asset.entities) {
+            if (isVisualSpriteData(src)) {
+                prefabEid = instance.getEntityForLocalId(src.sourceEntityId);
+                break;
+            }
+        }
+        if (prefabEid < 0) return;
+
+        int sceneEid = -1;
+        int max = submit.getState().maxEntityId();
+        for (int e = 0; e <= max; e++) {
+            if (!world.getEntityManager().isActive(e) || e == prefabEid) continue;
+            if (!world.getMapper(VisibilityComponent.class).has(e)) continue;
+            if (!world.getMapper(OrientedBoundsComponent.class).has(e)) continue;
+            if (!world.getMapper(RenderMaterialComponent.class).has(e)) continue;
+            if (!world.getMapper(TextureRegionComponent.class).has(e)) continue;
+            if (!world.getMapper(EntityIndexComponent.class).has(e)) continue;
+            if (submit.getState().enabled[e] && submit.getState().visible[e]) { sceneEid = e; break; }
+        }
+
+        logEntityRenderSnapshot("scene", sceneEid, submit.getState());
+        logEntityRenderSnapshot("prefab", prefabEid, submit.getState());
+    }
+
+    private void logEntityRenderSnapshot(String label, int eid, games.pixscape.runtime.render.RenderStateSOA state) {
+        if (eid < 0) {
+            debug("compare " + label + " entity not found");
+            return;
+        }
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
+        TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).getSafe(eid, null);
+        RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).getSafe(eid, null);
+        VisibilityComponent vis = world.getMapper(VisibilityComponent.class).getSafe(eid, null);
+        debug("compare " + label + " eid=" + eid
+                + " active=" + world.getEntityManager().isActive(eid)
+                + " layer=" + (index != null ? index.layerIndex : Integer.MIN_VALUE)
+                + " z=" + (index != null ? index.zIndex : Integer.MIN_VALUE)
+                + " trValid=" + (tr != null && tr.valid)
+                + " texHandle=" + (mat != null ? mat.textureHandle : -1)
+                + " vis=" + (vis != null && vis.visible)
+                + " inView=" + (vis != null && vis.inView)
+                + " culled=" + (vis != null && vis.culledByFrustum)
+                + " soaEnabled=" + (eid < state.enabled.length && state.enabled[eid])
+                + " soaVisible=" + (eid < state.visible.length && state.visible[eid])
+                + " soaKind=" + (eid < state.kind.length ? state.kind[eid] : -1));
     }
 
     private static void debug(String message) {
