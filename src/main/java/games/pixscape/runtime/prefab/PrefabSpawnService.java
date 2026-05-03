@@ -66,13 +66,7 @@ public final class PrefabSpawnService {
             instance.addMapping(src.sourceEntityId, eid);
             copyEntityComponents(src, eid, dx, dy, overrideLayerIndex);
             markSpawnDirty(eid);
-            if (src.assetRef != null) {
-                debug("Visual entity mapped localId=" + src.sourceEntityId
-                        + " -> entityId=" + eid
-                        + " assetId=" + src.assetRef.assetId
-                        + " atlasTag=" + src.assetRef.atlasTag
-                        + " textureHandle=" + materialTextureHandle(eid));
-            }
+            debugVisualEntity(src, eid);
         }
 
         for (PrefabAsset.PrefabEntityData src : asset.entities) {
@@ -80,7 +74,6 @@ public final class PrefabSpawnService {
             remapJointRefs(src, eid, instance);
         }
 
-        world.process();
         return instance;
     }
 
@@ -161,6 +154,7 @@ public final class PrefabSpawnService {
             c.atlasTag = src.assetRef.atlasTag;
             rebindVisualRegion(eid, c.assetId, c.atlasTag);
         }
+        ensureVisualOrientedBounds(src, eid);
         if (src.tint != null) {
             TintComponent c = world.edit(eid).create(TintComponent.class);
             c.rgba = src.tint.rgba;
@@ -302,11 +296,56 @@ public final class PrefabSpawnService {
         dirty.geometry(eid, GeometryDirty.ALL);
         dirty.material(eid);
         dirty.color(eid);
+        dirty.order(eid);
+        dirty.layer(eid);
+    }
+
+    private void ensureVisualOrientedBounds(PrefabAsset.PrefabEntityData src, int eid) {
+        boolean hasVisualSpriteData = src.dimensions != null
+                && (src.textureRegion != null || src.assetRef != null)
+                && src.renderMaterial != null
+                && src.visibility != null;
+        boolean shouldHaveBounds = hasVisualSpriteData || src.boundsFlags != null;
+        if (!shouldHaveBounds) return;
+
+        var boundsMapper = world.getMapper(OrientedBoundsComponent.class);
+        if (!boundsMapper.has(eid)) {
+            boundsMapper.create(eid);
+        }
     }
 
     private int materialTextureHandle(int eid) {
         RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).getSafe(eid, null);
         return material != null ? material.textureHandle : -1;
+    }
+
+    private void debugVisualEntity(PrefabAsset.PrefabEntityData src, int eid) {
+        boolean hasVisualSpriteData = src.dimensions != null
+                && (src.textureRegion != null || src.assetRef != null)
+                && src.renderMaterial != null
+                && src.visibility != null;
+        if (!hasVisualSpriteData) return;
+
+        String localId = String.valueOf(src.sourceEntityId);
+        boolean hasOrientedBounds = world.getMapper(OrientedBoundsComponent.class).has(eid);
+        boolean hasTransform = world.getMapper(TransformComponent.class).has(eid);
+        boolean hasDimensions = world.getMapper(DimensionsComponent.class).has(eid);
+        boolean hasTextureRegion = world.getMapper(TextureRegionComponent.class).has(eid);
+        boolean hasRenderMaterial = world.getMapper(RenderMaterialComponent.class).has(eid);
+        boolean hasVisibility = world.getMapper(VisibilityComponent.class).has(eid);
+        int textureHandle = materialTextureHandle(eid);
+        boolean textureValid = textureHandle != 0;
+
+        debug("Visual entity mapped localId=" + localId
+                + " -> eid=" + eid
+                + " hasOrientedBounds=" + hasOrientedBounds
+                + " hasTransform=" + hasTransform
+                + " hasDimensions=" + hasDimensions
+                + " hasTextureRegion=" + hasTextureRegion
+                + " hasRenderMaterial=" + hasRenderMaterial
+                + " hasVisibility=" + hasVisibility
+                + " textureHandle=" + textureHandle
+                + " textureValid=" + textureValid);
     }
 
     private static void debug(String message) {
