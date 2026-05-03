@@ -1,6 +1,8 @@
 package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 
 import java.util.ArrayList;
@@ -72,6 +74,7 @@ public final class PrefabAsset {
         public float stateTime;
         public int frame;
         public String currentClip;
+        public ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
     }
     public static final class ShaderParamsData {
         public java.util.Map<String, Float> floats = new java.util.LinkedHashMap<>();
