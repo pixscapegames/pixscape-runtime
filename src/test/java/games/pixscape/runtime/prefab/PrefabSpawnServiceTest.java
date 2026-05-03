@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,7 +31,7 @@ public class PrefabSpawnServiceTest {
         RuntimeConfig cfg = new RuntimeConfig();
         IdentityRegistry identityRegistry = new IdentityRegistry();
         identityRegistry.bind(world);
-        PrefabSpawnService service = new PrefabSpawnService(world, new PrefabLoader(), FileHandle.tempDirectory("runtime-proj"), cfg, identityRegistry);
+        PrefabSpawnService service = new PrefabSpawnService(world, new PrefabLoader(), FileHandle.tempDirectory("runtime-proj"), cfg, identityRegistry, new AtlasRuntimeService());
 
         PrefabAsset asset = new PrefabAsset();
         PrefabAsset.PrefabEntityData bodyA = new PrefabAsset.PrefabEntityData();

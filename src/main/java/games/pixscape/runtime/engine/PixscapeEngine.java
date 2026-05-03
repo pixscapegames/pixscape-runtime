@@ -327,7 +327,7 @@ public final class PixscapeEngine {
             if (world == null || cfg == null || runtimeProjectDir == null) {
                 throw new IllegalStateException("Engine must be loaded before using prefabs API.");
             }
-            prefabSpawnService = new PrefabSpawnService(world, new PrefabLoader(), runtimeProjectDir, cfg, identityRegistry);
+            prefabSpawnService = new PrefabSpawnService(world, new PrefabLoader(), runtimeProjectDir, cfg, identityRegistry, atlasRuntimeService);
         }
         return prefabSpawnService;
     }

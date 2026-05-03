@@ -3,31 +3,40 @@ package games.pixscape.runtime.prefab;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 public final class PrefabSpawnService {
+    private static final String LOG_TAG = "PrefabSpawnService";
+    private static final boolean DEBUG = Boolean.getBoolean("pixscape.debug.prefabSpawn");
     private final World world;
     private final PrefabLoader loader;
     private final FileHandle runtimeProjectDir;
     private final RuntimeConfig config;
     private final IdentityRegistry identityRegistry;
+    private final AtlasRuntimeService atlasRuntimeService;
 
     public PrefabSpawnService(World world,
                               PrefabLoader loader,
                               FileHandle runtimeProjectDir,
                               RuntimeConfig config,
-                              IdentityRegistry identityRegistry) {
+                              IdentityRegistry identityRegistry,
+                              AtlasRuntimeService atlasRuntimeService) {
         this.world = world;
         this.loader = loader;
         this.runtimeProjectDir = runtimeProjectDir;
         this.config = config;
         this.identityRegistry = identityRegistry;
+        this.atlasRuntimeService = atlasRuntimeService;
     }
 
     public PrefabInstance spawn(String prefabName, float x, float y) {
@@ -37,6 +46,7 @@ public final class PrefabSpawnService {
     }
 
     public PrefabInstance spawn(FileHandle prefabFile, float x, float y) {
+        debug("Loading prefab file: " + (prefabFile != null ? prefabFile.path() : "<null>"));
         PrefabAsset asset = loader.load(prefabFile);
         return spawn(asset, x, y, -1);
     }
@@ -49,11 +59,20 @@ public final class PrefabSpawnService {
         float dy = y - originY;
 
         PrefabInstance instance = new PrefabInstance();
+        debug("Spawning prefab entities: count=" + asset.entities.size());
 
         for (PrefabAsset.PrefabEntityData src : asset.entities) {
             int eid = world.create();
             instance.addMapping(src.sourceEntityId, eid);
             copyEntityComponents(src, eid, dx, dy, overrideLayerIndex);
+            markSpawnDirty(eid);
+            if (src.assetRef != null) {
+                debug("Visual entity mapped localId=" + src.sourceEntityId
+                        + " -> entityId=" + eid
+                        + " assetId=" + src.assetRef.assetId
+                        + " atlasTag=" + src.assetRef.atlasTag
+                        + " textureHandle=" + materialTextureHandle(eid));
+            }
         }
 
         for (PrefabAsset.PrefabEntityData src : asset.entities) {
@@ -140,6 +159,7 @@ public final class PrefabSpawnService {
             AssetRefComponent c = world.edit(eid).create(AssetRefComponent.class);
             c.assetId = src.assetRef.assetId;
             c.atlasTag = src.assetRef.atlasTag;
+            rebindVisualRegion(eid, c.assetId, c.atlasTag);
         }
         if (src.tint != null) {
             TintComponent c = world.edit(eid).create(TintComponent.class);
@@ -240,6 +260,63 @@ public final class PrefabSpawnService {
         if (gear != null && src.gearJoint != null) {
             gear.joint1Eid = instance.getEntityForLocalId(src.gearJoint.joint1Eid);
             gear.joint2Eid = instance.getEntityForLocalId(src.gearJoint.joint2Eid);
+        }
+    }
+
+    private void rebindVisualRegion(int eid, int assetId, String atlasTag) {
+        TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).has(eid)
+                ? world.getMapper(TextureRegionComponent.class).get(eid)
+                : world.getMapper(TextureRegionComponent.class).create(eid);
+        RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).has(eid)
+                ? world.getMapper(RenderMaterialComponent.class).get(eid)
+                : world.getMapper(RenderMaterialComponent.class).create(eid);
+
+        AtlasRuntimeService.CachedRegion cached = atlasRuntimeService != null
+                ? atlasRuntimeService.resolveCached(assetId, atlasTag)
+                : null;
+        boolean resolved = cached != null;
+        if (!resolved) {
+            tr.valid = false;
+            mat.textureHandle = 0;
+            warn("Missing cached atlas region for assetId=" + assetId + " atlasTag=" + atlasTag);
+            debug("resolveCached assetId=" + assetId + " atlasTag=" + atlasTag + " resolved=false textureHandle=0");
+            return;
+        }
+
+        tr.u1 = cached.u1;
+        tr.v1 = cached.v1;
+        tr.u2 = cached.u2;
+        tr.v2 = cached.v2;
+        tr.pixW = cached.pixW;
+        tr.pixH = cached.pixH;
+        tr.valid = true;
+        mat.textureHandle = cached.textureHandle;
+        mat.debugAtlasTag = atlasTag;
+        debug("resolveCached assetId=" + assetId + " atlasTag=" + atlasTag
+                + " resolved=true textureHandle=" + mat.textureHandle);
+    }
+
+    private void markSpawnDirty(int eid) {
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        if (dirty == null) return;
+        dirty.geometry(eid, GeometryDirty.ALL);
+        dirty.material(eid);
+        dirty.color(eid);
+    }
+
+    private int materialTextureHandle(int eid) {
+        RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).getSafe(eid, null);
+        return material != null ? material.textureHandle : -1;
+    }
+
+    private static void debug(String message) {
+        if (!DEBUG || Gdx.app == null) return;
+        Gdx.app.log(LOG_TAG, message);
+    }
+
+    private static void warn(String message) {
+        if (Gdx.app != null) {
+            Gdx.app.error(LOG_TAG, message);
         }
     }
 }
