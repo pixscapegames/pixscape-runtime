@@ -153,7 +153,7 @@ public final class WorldConfigFactory {
                         layerState,
                         drawList,
                         stats,
-                        renderState.getCapacity(),
+                        entityCapacityHint,
                         vfxStartIndex,
                         vfxEndIndex
                 ),
