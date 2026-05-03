@@ -74,6 +74,10 @@ public final class PrefabSpawnService {
             remapJointRefs(src, eid, instance);
         }
 
+        refreshRuntimeSubscriptions();
+        markSpawnedVisualsDirtyAfterRefresh(asset, instance);
+        debugFinalVisualSync(asset, instance);
+
         return instance;
     }
 
@@ -290,6 +294,18 @@ public final class PrefabSpawnService {
                 + " resolved=true textureHandle=" + mat.textureHandle);
     }
 
+    private void refreshRuntimeSubscriptions() {
+        // Artemis only updates aspect subscriptions/listeners during world.process().
+        // We run one zero-delta process pass to flush entity/component insertion into runtime subscriptions.
+        float previousDelta = world.getDelta();
+        world.setDelta(0f);
+        try {
+            world.process();
+        } finally {
+            world.setDelta(previousDelta);
+        }
+    }
+
     private void markSpawnDirty(int eid) {
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty == null) return;
@@ -300,11 +316,16 @@ public final class PrefabSpawnService {
         dirty.layer(eid);
     }
 
+    private void markSpawnedVisualsDirtyAfterRefresh(PrefabAsset asset, PrefabInstance instance) {
+        for (PrefabAsset.PrefabEntityData src : asset.entities) {
+            if (!isVisualSpriteData(src)) continue;
+            int eid = instance.getEntityForLocalId(src.sourceEntityId);
+            markSpawnDirty(eid);
+        }
+    }
+
     private void ensureVisualOrientedBounds(PrefabAsset.PrefabEntityData src, int eid) {
-        boolean hasVisualSpriteData = src.dimensions != null
-                && (src.textureRegion != null || src.assetRef != null)
-                && src.renderMaterial != null
-                && src.visibility != null;
+        boolean hasVisualSpriteData = isVisualSpriteData(src);
         boolean shouldHaveBounds = hasVisualSpriteData || src.boundsFlags != null;
         if (!shouldHaveBounds) return;
 
@@ -320,10 +341,7 @@ public final class PrefabSpawnService {
     }
 
     private void debugVisualEntity(PrefabAsset.PrefabEntityData src, int eid) {
-        boolean hasVisualSpriteData = src.dimensions != null
-                && (src.textureRegion != null || src.assetRef != null)
-                && src.renderMaterial != null
-                && src.visibility != null;
+        boolean hasVisualSpriteData = isVisualSpriteData(src);
         if (!hasVisualSpriteData) return;
 
         String localId = String.valueOf(src.sourceEntityId);
@@ -346,6 +364,32 @@ public final class PrefabSpawnService {
                 + " hasVisibility=" + hasVisibility
                 + " textureHandle=" + textureHandle
                 + " textureValid=" + textureValid);
+    }
+
+
+    private boolean isVisualSpriteData(PrefabAsset.PrefabEntityData src) {
+        return src.dimensions != null
+                && (src.textureRegion != null || src.assetRef != null)
+                && src.renderMaterial != null
+                && src.visibility != null;
+    }
+
+    private void debugFinalVisualSync(PrefabAsset asset, PrefabInstance instance) {
+        for (PrefabAsset.PrefabEntityData src : asset.entities) {
+            if (!isVisualSpriteData(src)) continue;
+            int eid = instance.getEntityForLocalId(src.sourceEntityId);
+            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
+            boolean hasRender = world.getMapper(OrientedBoundsComponent.class).has(eid)
+                    && world.getMapper(RenderMaterialComponent.class).has(eid)
+                    && world.getMapper(VisibilityComponent.class).has(eid)
+                    && (world.getMapper(TextureRegionComponent.class).has(eid)
+                    || world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).has(eid)
+                    || world.getMapper(games.pixscape.runtime.component.light.ConeLightComponent.class).has(eid));
+            debug("Post-sync visual eid=" + eid
+                    + " layerIndex=" + (index != null ? index.layerIndex : Integer.MIN_VALUE)
+                    + " hasRenderComponents=" + hasRender
+                    + " markedDirtyAfterFlush=true");
+        }
     }
 
     private static void debug(String message) {

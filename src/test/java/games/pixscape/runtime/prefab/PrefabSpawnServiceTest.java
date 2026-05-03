@@ -1,11 +1,15 @@
 package games.pixscape.runtime.prefab;
 
 import com.artemis.World;
+import com.artemis.Aspect;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
@@ -14,7 +18,10 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.RenderSpriteSyncSystem;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -89,4 +96,55 @@ public class PrefabSpawnServiceTest {
         Assert.assertNotNull(world.getMapper(RenderMaterialComponent.class).getSafe(eid, null));
         Assert.assertNotNull(world.getMapper(VisibilityComponent.class).getSafe(eid, null));
     }
+    @Test
+    public void spawnVisualEntityRegistersInRenderPipelineAfterRefresh() {
+        RenderStateSOA renderState = new RenderStateSOA(64);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64), new RenderSpriteSyncSystem(renderState))
+                .build());
+        RuntimeConfig cfg = new RuntimeConfig();
+        IdentityRegistry identityRegistry = new IdentityRegistry();
+        identityRegistry.bind(world);
+        PrefabSpawnService service = new PrefabSpawnService(world, new PrefabLoader(), FileHandle.tempDirectory("runtime-proj"), cfg, identityRegistry, new AtlasRuntimeService());
+
+        PrefabAsset asset = new PrefabAsset();
+        PrefabAsset.PrefabEntityData sprite = new PrefabAsset.PrefabEntityData();
+        sprite.sourceEntityId = 9;
+        sprite.transform = new PrefabAsset.TransformData();
+        sprite.transform.scaleX = 1f;
+        sprite.transform.scaleY = 1f;
+        sprite.dimensions = new PrefabAsset.DimensionsData();
+        sprite.dimensions.width = 16f;
+        sprite.dimensions.height = 16f;
+        sprite.textureRegion = new PrefabAsset.TextureRegionData();
+        sprite.textureRegion.valid = true;
+        sprite.renderMaterial = new PrefabAsset.RenderMaterialData();
+        sprite.renderMaterial.textureHandle = 456;
+        sprite.visibility = new PrefabAsset.VisibilityData();
+        sprite.visibility.visible = true;
+        sprite.entityIndex = new PrefabAsset.EntityIndexData();
+        sprite.entityIndex.layerIndex = 2;
+        asset.entities.add(sprite);
+
+        PrefabInstance instance = service.spawn(asset, 0f, 0f, -1);
+        int eid = instance.getEntityForLocalId(9);
+
+        Assert.assertNotNull(world.getMapper(OrientedBoundsComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(TextureRegionComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(RenderMaterialComponent.class).getSafe(eid, null));
+        Assert.assertNotNull(world.getMapper(EntityIndexComponent.class).getSafe(eid, null));
+
+        IntBag sub = world.getAspectSubscriptionManager().get(Aspect.all(
+                OrientedBoundsComponent.class,
+                RenderMaterialComponent.class,
+                EntityIndexComponent.class,
+                VisibilityComponent.class
+        ).one(TextureRegionComponent.class)).getEntities();
+        Assert.assertTrue(sub.contains(eid));
+
+        world.process();
+        Assert.assertEquals(RenderStateSOA.KIND_SPRITE, renderState.kind[eid]);
+        Assert.assertTrue(renderState.enabled[eid]);
+    }
+
 }
