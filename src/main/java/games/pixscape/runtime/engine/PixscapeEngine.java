@@ -16,8 +16,6 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.prefab.PrefabLoader;
-import games.pixscape.runtime.prefab.PrefabSpawnService;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.BatchFactory;
 import games.pixscape.runtime.render.batch.GLCaps;
@@ -73,7 +71,6 @@ public final class PixscapeEngine {
     private final TagRegistry tagRegistry = new TagRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
     private PixscapeAPI publicApi;
-    private PrefabSpawnService prefabSpawnService;
 
 
     private Consumer<WorldConfigurationBuilder> configurationCustomizer;
@@ -222,7 +219,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        prefabSpawnService = null;
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
@@ -322,16 +318,6 @@ public final class PixscapeEngine {
      * <p>The returned instance is cached for this engine instance and
      * coexists with direct engine/ECS access methods.</p>
      */
-    public PrefabSpawnService prefabs() {
-        if (prefabSpawnService == null) {
-            if (world == null || cfg == null || runtimeProjectDir == null) {
-                throw new IllegalStateException("Engine must be loaded before using prefabs API.");
-            }
-            prefabSpawnService = new PrefabSpawnService(world, new PrefabLoader(), runtimeProjectDir, cfg, identityRegistry, atlasRuntimeService);
-        }
-        return prefabSpawnService;
-    }
-
     public PixscapeAPI api() {
         if (publicApi == null) {
             publicApi = new PixscapeApiImpl(this);
@@ -517,7 +503,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        prefabSpawnService = null;
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
@@ -598,7 +583,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        prefabSpawnService = null;
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
@@ -652,7 +636,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        prefabSpawnService = null;
         runtimeTiledStart = result.getTiledStart();
         runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();

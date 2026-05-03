@@ -17,8 +17,6 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
  */
 public final class RenderBuildDrawListSystem extends BaseSystem {
 
-    private static final boolean DEBUG_PREFAB = Boolean.getBoolean("pixscape.debug.prefabSpawn");
-
     private final RenderStateSOA state;
     private final LayerStateSOA  layerState;
     private final DrawList       drawList;
@@ -64,11 +62,6 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
 
         final int ecsUpper = Math.min(maxId, ecsEndExclusive - 1);
 
-        if (DEBUG_PREFAB && maxId >= ecsEndExclusive) {
-            System.out.println("[pixscape.debug.prefabSpawn] drawlist ecs scan clamped: maxId=" + maxId
-                    + " ecsEndExclusive=" + ecsEndExclusive + " skippedHighEntitySlots=" + (maxId - ecsUpper));
-        }
-
         for (int e = 0; e <= ecsUpper; e++) {
             if (isRenderableSlot(e)) {
                 drawList.add(e);
@@ -99,29 +92,20 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     }
 
     private boolean isRenderableSlot(int slot) {
-        if (!state.enabled[slot]) {
-            if (DEBUG_PREFAB) System.out.println("[pixscape.debug.prefabSpawn] drawlist skip slot=" + slot + " reason=disabled");
-            return false;
-        }
+        if (!state.enabled[slot]) return false;
 
         // Entity visibility already computed upstream (SOA cache).
-        if (!state.visible[slot]) {
-            if (DEBUG_PREFAB) System.out.println("[pixscape.debug.prefabSpawn] drawlist skip slot=" + slot + " reason=notVisible");
-            return false;
-        }
+        if (!state.visible[slot]) return false;
 
         // Layer filter (final authority on render side)
         if (layerState != null) {
             int layerIdx = state.layerIndex[slot];
             if (layerIdx >= 0 && layerIdx < layerState.enabled.length && !layerState.enabled[layerIdx]) {
-                if (DEBUG_PREFAB) System.out.println("[pixscape.debug.prefabSpawn] drawlist skip slot=" + slot + " reason=layerDisabled layer=" + layerIdx);
                 return false;
             }
         }
 
-        boolean sprite = state.kind[slot] == RenderStateSOA.KIND_SPRITE;
-        if (DEBUG_PREFAB && !sprite) System.out.println("[pixscape.debug.prefabSpawn] drawlist skip slot=" + slot + " reason=kind kind=" + state.kind[slot]);
-        return sprite;
+        return state.kind[slot] == RenderStateSOA.KIND_SPRITE;
     }
 
     public RenderStateSOA getRenderState() {
