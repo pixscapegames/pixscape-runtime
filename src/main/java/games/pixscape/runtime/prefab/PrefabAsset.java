@@ -74,12 +74,23 @@ public final class PrefabAsset {
         public float stateTime;
         public int frame;
         public String currentClip;
-        public ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
+        public ObjectMap<String, AnimationClipData> clips = new ObjectMap<>();
+    }
+    public static final class AnimationClipData {
+        public int start;
+        public int end;
+
+        public AnimationClipData() {
+        }
+
+        public AnimationClipData(int start, int end) {
+            this.start = start;
+            this.end = end;
+        }
     }
     public static final class ShaderParamsData {
         public java.util.Map<String, Float> floats = new java.util.LinkedHashMap<>();
     }
-
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep, awake, enabled;
