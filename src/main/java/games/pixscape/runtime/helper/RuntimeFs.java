@@ -8,6 +8,7 @@ public final class RuntimeFs {
 
     public static final String EXT_JSON = ".json";
     public static final String EXT_ATLAS = ".atlas";
+    public static final String EXT_PREFAB = ".pixprefab";
 
     public static final String FILE_PROJECT_JSON = "project.json";
     public static final String FILE_DEFAULT_SCENE = "scene1.json";
@@ -19,6 +20,7 @@ public final class RuntimeFs {
     public static final String DIR_ANIMATIONS = "animations";
     public static final String DIR_SHADERS = "shaders";
     public static final String DIR_AUDIO = "audio";
+    public static final String DIR_PREFABS = "prefabs";
 
     public static final String FILE_TILE_ANIMATIONS_JSON = "tiled-animations.json";
 

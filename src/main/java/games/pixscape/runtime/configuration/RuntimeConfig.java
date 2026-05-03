@@ -29,6 +29,7 @@ public final class RuntimeConfig {
     public String animationsDir = RuntimeFs.DIR_ANIMATIONS;
     public String shadersDir = RuntimeFs.DIR_SHADERS;
     public String audioDir = RuntimeFs.DIR_AUDIO;
+    public String prefabsDir = RuntimeFs.DIR_PREFABS;
 
     // --- Runtime scenes ---
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
@@ -125,6 +126,7 @@ public final class RuntimeConfig {
         animationsDir = nonBlankOrDefault(animationsDir, RuntimeFs.DIR_ANIMATIONS);
         shadersDir = nonBlankOrDefault(shadersDir, RuntimeFs.DIR_SHADERS);
         audioDir = nonBlankOrDefault(audioDir, RuntimeFs.DIR_AUDIO);
+        prefabsDir = nonBlankOrDefault(prefabsDir, RuntimeFs.DIR_PREFABS);
 
         if (!DEFAULT_VERSION.equals(version)) {
             throw new RuntimeException("Unsupported project version '" + version + "' in: " + pathForErrors);
@@ -215,6 +217,10 @@ public final class RuntimeConfig {
 
     public FileHandle audioRoot(FileHandle runtimeProjectDir) {
         return childOrNull(runtimeProjectDir, audioDir);
+    }
+
+    public FileHandle prefabsRoot(FileHandle runtimeProjectDir) {
+        return childOrNull(runtimeProjectDir, prefabsDir);
     }
 
     private static FileHandle childOrNull(FileHandle root, String child) {
