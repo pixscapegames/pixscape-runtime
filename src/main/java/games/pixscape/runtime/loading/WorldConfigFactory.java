@@ -6,10 +6,12 @@ import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.*;
 
 import java.util.function.Consumer;

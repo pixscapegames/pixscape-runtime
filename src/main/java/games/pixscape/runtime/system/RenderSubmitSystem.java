@@ -1,6 +1,8 @@
 package games.pixscape.runtime.system;
 
-import com.artemis.*;
+import com.artemis.BaseSystem;
+import com.artemis.ComponentMapper;
+import com.artemis.EntitySubscription;
 import com.artemis.annotations.SkipWire;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;

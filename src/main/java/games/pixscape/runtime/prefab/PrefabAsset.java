@@ -2,7 +2,6 @@ package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 
 import java.util.ArrayList;

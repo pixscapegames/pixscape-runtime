@@ -2,12 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import games.pixscape.runtime.component.AABBComponent;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.render.GeometryDirty;
 import org.junit.Assert;
 import org.junit.Test;

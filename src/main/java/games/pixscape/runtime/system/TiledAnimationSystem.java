@@ -10,8 +10,8 @@ import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
-import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
+import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
 public final class TiledAnimationSystem extends IteratingSystem {

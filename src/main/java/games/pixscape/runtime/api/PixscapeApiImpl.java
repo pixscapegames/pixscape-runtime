@@ -10,15 +10,18 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.animation.*;
+import games.pixscape.runtime.tiled.animation.TileAnimationDef;
+import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
+import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
+import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 public final class PixscapeApiImpl implements PixscapeAPI {
 

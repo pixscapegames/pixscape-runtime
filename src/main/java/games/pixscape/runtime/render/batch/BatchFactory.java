@@ -3,8 +3,8 @@ package games.pixscape.runtime.render.batch;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.render.RenderSettings;
 import games.pixscape.runtime.render.RenderSettings.RenderMode;
-import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.ShaderRegistry;
 
 /**
  * Creates runtime rendering batches and selects a compatible default shader.
