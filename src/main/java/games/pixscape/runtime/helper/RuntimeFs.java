@@ -30,6 +30,9 @@ public final class RuntimeFs {
     public static final String SHADER_VARIANT_DESKTOP_GL30 = "desktop-gl30";
     public static final String SHADER_VARIANT_ES3_WEBGL2 = "es3-webgl2";
 
+    public static final String TEXTURE_ARRAY_POINTLIGHT = "texture-array-pointlight";
+    public static final String TEXTURE_ARRAY_CONELIGHT = "texture-array-conelight";
+
     public static final String FILE_TILE_ANIMATIONS_JSON = "tiled-animations.json";
 
     public static String withExt(String name, String ext) {

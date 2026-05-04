@@ -306,14 +306,29 @@ public final class ShaderRegistry {
 
         if (isModeSupportedForCurrentProfile(ShaderMode.TEXTURE_ARRAY)) {
             loadOptionalCoreDefaultShader(variant, ShaderMode.TEXTURE_ARRAY);
-            loadCoreLightShader(variant, "texture-array-pointlight");
-            loadCoreLightShader(variant, "texture-array-conelight");
+            loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
+            loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
         }
 
+        registerCoreLightDefaults();
         loadCustomShadersForProject();
         loadExampleShaders();
 
         initialized = true;
+    }
+
+    private static void registerCoreLightDefaults() {
+        ObjectFloatMap<String> point = new ObjectFloatMap<>();
+        point.put("u_falloff", 1.5f);
+        defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
+
+        ObjectFloatMap<String> cone = new ObjectFloatMap<>();
+        cone.put("u_dirX", 1.0f);
+        cone.put("u_dirY", 0.0f);
+        cone.put("u_coneCos", 0.8660254f);
+        cone.put("u_softness", 0.1f);
+        cone.put("u_falloff", 1.5f);
+        defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_CONELIGHT, cone);
     }
 
     // ------------------------------------------------------------------------
