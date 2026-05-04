@@ -356,7 +356,21 @@ public final class ShaderRegistry {
 
         ShaderProgram.pedantic = false;
 
-        ShaderProgram sp = new ShaderProgram(vertexSource, fragmentSource);
+        FileHandle includesDir = Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_INCLUDES);
+
+        String processedVertexSource = ShaderSourcePreprocessor.preprocess(
+                vertexSource,
+                null,
+                includesDir
+        );
+
+        String processedFragmentSource = ShaderSourcePreprocessor.preprocess(
+                fragmentSource,
+                null,
+                includesDir
+        );
+
+        ShaderProgram sp = new ShaderProgram(processedVertexSource, processedFragmentSource);
         if (!sp.isCompiled()) {
             String msg = "Failed to compile shader '" + name + "' (" + mode + "):\n" + sp.getLog();
             sp.dispose();
