@@ -22,6 +22,14 @@ public final class RuntimeFs {
     public static final String DIR_AUDIO = "audio";
     public static final String DIR_PREFABS = "prefabs";
 
+    public static final String RUNTIME_DIR_SHADERS = "shaders";
+    public static final String RUNTIME_DIR_SHADER_CORE = RUNTIME_DIR_SHADERS + "/core";
+    public static final String RUNTIME_DIR_SHADER_EXAMPLES = RUNTIME_DIR_SHADERS + "/examples";
+    public static final String RUNTIME_DIR_SHADER_INCLUDES = RUNTIME_DIR_SHADERS + "/includes";
+
+    public static final String SHADER_VARIANT_DESKTOP_GL30 = "desktop-gl30";
+    public static final String SHADER_VARIANT_ES3_WEBGL2 = "es3-webgl2";
+
     public static final String FILE_TILE_ANIMATIONS_JSON = "tiled-animations.json";
 
     public static String withExt(String name, String ext) {

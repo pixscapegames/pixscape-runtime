@@ -11,6 +11,7 @@ import com.badlogic.gdx.utils.ObjectFloatMap;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.MetricsBatch;
+import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
 import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
@@ -30,6 +31,7 @@ public final class RenderSubmitSystem extends BaseSystem {
     private final MetricsBatch       metricsBatch;
     private final RenderStats        stats;
     private final RenderStatsSink    statsSink;
+    private final ShaderMode fallbackShaderMode;
     private float time = 0f;
 
     // --- ECS : params de shader par entity ---
@@ -62,6 +64,18 @@ public final class RenderSubmitSystem extends BaseSystem {
         this.metricsBatch = batch;
         this.stats        = stats;
         this.statsSink    = statsSink;
+        this.fallbackShaderMode = resolveFallbackShaderMode(batch);
+    }
+
+    private static ShaderMode resolveFallbackShaderMode(MetricsBatch batch) {
+        if (batch instanceof TextureArrayMeshBatch) {
+            return ShaderMode.TEXTURE_ARRAY;
+        }
+        else if (batch instanceof MultiTextureMeshBatch) {
+            return ShaderMode.MULTI_TEXTURE;
+        } else {
+            return ShaderMode.TEXTURE_2D;
+        }
     }
 
     public RenderStateSOA getState() {
@@ -135,7 +149,7 @@ public final class RenderSubmitSystem extends BaseSystem {
                 ShaderProgram sh = ShaderRegistry.getByIdx(shaderIdx);
 
                 if (sh == null) {
-                    sh = ShaderRegistry.get("default");
+                    sh = ShaderRegistry.get(fallbackShaderMode.defaultShaderName());
                 }
                 if (sh != curShader) {
                     metricsBatch.setShader(sh, stats);

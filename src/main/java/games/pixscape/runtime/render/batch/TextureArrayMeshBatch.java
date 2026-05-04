@@ -11,13 +11,13 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
  * Batch based on a single TextureArray (sampler2DArray in shader).
- *
- * Attributes (must match ta_sprite / ta_default shader):
+ * <p>
+ * Attributes must match the ShaderMode.TEXTURE_ARRAY core shader:
  *   0: a_position  (vec2)  -> float2
  *   1: a_texCoord0 (vec2)  -> float2
- *   2: a_color     (vec4)  -> PACKED RGBA8888 (Usage.ColorPacked) - shader side it remains vec4 0..1
+ *   2: a_color     (vec4)  -> PACKED RGBA8888
  *   3: a_layer     (float) -> float
- *
+ * <p>
  * Format CPU (float[]) :
  *   pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
  */
@@ -289,34 +289,30 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         float fl = (float) layer;
 
         // Fix UVs if pages do not all have same size
-        float uu  = u;
-        float uu2 = u2;
-        float vv  = v;
-        float vv2 = v2;
 
         int o = vertCount * VERT_STRIDE;
 
         // BL
         verts[o++] = x1; verts[o++] = y1;
-        verts[o++] = uu; verts[o++] = vv2;
+        verts[o++] = u; verts[o++] = v2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TL
         verts[o++] = x2; verts[o++] = y2;
-        verts[o++] = uu; verts[o++] = vv;
+        verts[o++] = u; verts[o++] = v;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TR
         verts[o++] = x3; verts[o++] = y3;
-        verts[o++] = uu2; verts[o++] = vv;
+        verts[o++] = u2; verts[o++] = v;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // BR
         verts[o++] = x4; verts[o++] = y4;
-        verts[o++] = uu2; verts[o++] = vv2;
+        verts[o++] = u2; verts[o++] = v2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 

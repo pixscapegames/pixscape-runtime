@@ -3,6 +3,7 @@ package games.pixscape.runtime.render.batch;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.render.RenderSettings;
 import games.pixscape.runtime.render.RenderSettings.RenderMode;
+import games.pixscape.runtime.render.ShaderMode;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 
@@ -15,33 +16,19 @@ public final class BatchFactory {
         public final MetricsBatch batch;
         /** Default shader assigned to newly created materials. */
         public final String defaultShaderName;
-        private Result(MetricsBatch b, String name){
+
+        private Result(MetricsBatch b, String name) {
             this.batch = b;
             this.defaultShaderName = name;
         }
     }
 
-    /**
-     * Convenience overload that detects {@link GLCaps} from the active context.
-     *
-     * @param atlasRuntimeService atlas runtime service used by texture-array mode
-     * @param settings runtime render mode configuration
-     * @return created batch and default shader name for new materials
-     */
     public static Result create(AtlasRuntimeService atlasRuntimeService, RenderSettings settings) {
         return create(atlasRuntimeService, settings, GLCaps.detect());
     }
 
-    /**
-     * Creates a batch using the requested render mode and GPU capabilities.
-     *
-     * @param atlasRuntimeService atlas runtime service used when texture arrays are selected
-     * @param settings render settings defining the preferred batch strategy
-     * @param caps detected GPU capability snapshot
-     * @return created batch and default shader name for new materials
-     */
     public static Result create(AtlasRuntimeService atlasRuntimeService, RenderSettings settings, GLCaps caps) {
-        final boolean hasES3     = caps.hasES3;
+        final boolean hasES3 = caps.hasES3;
         final boolean supportsTA = caps.supportsTextureArray();
 
         Gdx.app.log("BatchFactory", "mode=" + settings.mode()
@@ -66,9 +53,8 @@ public final class BatchFactory {
 
             case AUTO:
             default:
-                // AUTO: choose the best compromise based on GPU capabilities.
                 if (hasES3 && supportsTA) {
-                    return createArrayBatchOrFallback(atlasRuntimeService, caps, /*requireES3*/ false);
+                    return createArrayBatchOrFallback(atlasRuntimeService, caps, false);
                 }
                 if (caps.maxTextureUnits() >= 8) {
                     return createMultiBatchOrFallback(caps);
@@ -77,40 +63,38 @@ public final class BatchFactory {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Branch implementation details
-    // ------------------------------------------------------------------------
-
     private static Result createSimpleBatch() {
         MetricsBatch batch = new MeshBatch(4096);
+        String shaderName = ShaderMode.TEXTURE_2D.defaultShaderName();
 
-        if (ShaderRegistry.get("default") == null) {
-            throw new IllegalStateException("Missing shader 'default'. ShaderRegistry is not initialized correctly.");
+        if (ShaderRegistry.get(shaderName) == null) {
+            throw new IllegalStateException("Missing shader '" + shaderName + "'. ShaderRegistry is not initialized correctly.");
         }
-        return new Result(batch, "default");
+
+        return new Result(batch, shaderName);
     }
 
     private static Result createMultiBatchOrFallback(GLCaps caps) {
         if (caps.maxTextureUnits() < 4) {
-            Gdx.app.log("BatchFactory", "MULTI fallback -> SIMPLE (units<4)");
+            Gdx.app.log("BatchFactory", "MULTI fallback -> SIMPLE (texture units < 4)");
             return createSimpleBatch();
         }
 
-        // If mt_default is unavailable, fallback to SIMPLE.
-        if (ShaderRegistry.get("mt_default") == null) {
-            Gdx.app.log("BatchFactory", "MULTI fallback -> SIMPLE (mt_default missing)");
+        String shaderName = ShaderMode.MULTI_TEXTURE.defaultShaderName();
+
+        if (ShaderRegistry.get(shaderName) == null) {
+            Gdx.app.log("BatchFactory", "MULTI fallback -> SIMPLE (" + shaderName + " missing)");
             return createSimpleBatch();
         }
 
         MetricsBatch batch = new MultiTextureMeshBatch(4096);
-        return new Result(batch, "mt_default");
+        return new Result(batch, shaderName);
     }
-
 
     private static Result createArrayBatchOrFallback(AtlasRuntimeService atlasRuntimeService,
                                                      GLCaps caps,
                                                      boolean hardRequireES3) {
-        final boolean hasES3     = caps.hasES3;
+        final boolean hasES3 = caps.hasES3;
         final boolean supportsTA = caps.supportsTextureArray();
 
         if (!hasES3 || !supportsTA) {
@@ -123,8 +107,10 @@ public final class BatchFactory {
             return createSimpleBatch();
         }
 
-        // If the texture-array shader is unavailable, fallback to MULTI or SIMPLE.
-        if (ShaderRegistry.get("ta_default") == null) {
+        String shaderName = ShaderMode.TEXTURE_ARRAY.defaultShaderName();
+
+        if (ShaderRegistry.get(shaderName) == null) {
+            Gdx.app.log("BatchFactory", "ARRAY fallback -> MULTI/SIMPLE (" + shaderName + " missing)");
             if (caps.maxTextureUnits() >= 8) {
                 return createMultiBatchOrFallback(caps);
             }
@@ -132,7 +118,6 @@ public final class BatchFactory {
         }
 
         MetricsBatch batch = new TextureArrayMeshBatch(4096);
-        return new Result(batch, "ta_default");
+        return new Result(batch, shaderName);
     }
-
 }

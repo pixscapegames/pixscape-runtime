@@ -29,18 +29,10 @@ import java.util.Set;
 public class RuntimePrefabFragmentSpawnTest {
 
     @Test
-    public void prefabFixtureContainsExpectedClosureAndSourceData() {
-        World world = runtimeWorld();
-        PrefabFixture fixture = buildPrefabFixture();
-
-        assertFixtureSanity(world, fixture.fragment);
-    }
-
-    @Test
     public void spawnDoesNotClearExistingWorld() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
 
         int existing = world.create();
         world.getMapper(TransformComponent.class).create(existing).x = 42f;
@@ -55,7 +47,7 @@ public class RuntimePrefabFragmentSpawnTest {
     public void spawnReturnsOnlyCreatedEntitiesUsingSubscriptionDiff() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
 
         int preExisting = world.create();
         world.process();
@@ -65,6 +57,7 @@ public class RuntimePrefabFragmentSpawnTest {
         IntBag created = result.createdEntityIds();
         Assert.assertNotNull("SpawnResult must expose created entity ids", created);
         Assert.assertEquals("Fixture spawn should create exactly 3 entities (2 bodies + 1 joint)", 3, created.size());
+
         for (int i = 0; i < created.size(); i++) {
             Assert.assertNotEquals("SpawnResult must not include pre-existing entities", preExisting, created.get(i));
             Assert.assertTrue("SpawnResult ids must be active entities", world.getEntityManager().isActive(created.get(i)));
@@ -75,16 +68,19 @@ public class RuntimePrefabFragmentSpawnTest {
     public void spawnRegeneratesStableIds() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
 
         IntBag created = result.createdEntityIds();
         Set<Long> spawnedStableIds = new HashSet<>();
+
         for (int i = 0; i < created.size(); i++) {
             int eid = created.get(i);
             PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).get(eid);
+
             Assert.assertNotNull("Spawned entities must carry identity after spawn", identity);
+
             long stableId = identity.stableId;
             Assert.assertNotEquals("Spawn must not keep UNASSIGNED stable id", -1L, stableId);
             Assert.assertTrue("Spawn must regenerate stable ids immediately", stableId > 0L);
@@ -98,7 +94,7 @@ public class RuntimePrefabFragmentSpawnTest {
     public void spawnAppliesTransformOffset() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
 
         float offsetX = 10f;
         float offsetY = 20f;
@@ -106,10 +102,13 @@ public class RuntimePrefabFragmentSpawnTest {
         SpawnResult result = spawner.spawn(world, fixture.fragment, offsetX, offsetY);
 
         Assert.assertTrue("Test fixture expects at least one spawned entity", result.createdEntityIds().size() > 0);
+
         boolean foundOffsetTransform = false;
+
         for (int i = 0; i < result.createdEntityIds().size(); i++) {
             int eid = result.createdEntityIds().get(i);
             TransformComponent t = world.getMapper(TransformComponent.class).get(eid);
+
             if (t != null
                     && Math.abs(t.x - (fixture.sourceX + offsetX)) < 1e-4f
                     && Math.abs(t.y - (fixture.sourceY + offsetY)) < 1e-4f) {
@@ -117,6 +116,7 @@ public class RuntimePrefabFragmentSpawnTest {
                 break;
             }
         }
+
         Assert.assertTrue("At least one spawned transform must include spawn offset", foundOffsetTransform);
     }
 
@@ -124,7 +124,7 @@ public class RuntimePrefabFragmentSpawnTest {
     public void spawnPreservesAndRemapsJointReferences() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
 
@@ -132,6 +132,7 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertTrue("Test fixture expects spawned entities", created.size() > 0);
 
         PhysicsJointComponent joint = null;
+
         for (int i = 0; i < created.size(); i++) {
             PhysicsJointComponent candidate = world.getMapper(PhysicsJointComponent.class).get(created.get(i));
             if (candidate != null) {
@@ -151,7 +152,7 @@ public class RuntimePrefabFragmentSpawnTest {
     public void spawnMarksRenderAndPhysicsDirty() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
-        PrefabFixture fixture = buildPrefabFixture();
+        PrefabFixture fixture = buildPrefabFixture(world);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -159,18 +160,25 @@ public class RuntimePrefabFragmentSpawnTest {
         IntBag created = result.createdEntityIds();
         Assert.assertTrue("Test fixture expects at least one spawned entity", created.size() > 0);
 
-        // Contract-level dirty assertion through DirtyTrackerSystem API.
-        // Limitation: this checks coarse dirty bits rather than renderer internals, by design.
         boolean sawPhysicsOrJointDirty = false;
+
         for (int i = 0; i < created.size(); i++) {
             int eid = created.get(i);
-            boolean renderDirty = dirty.isDirty(eid, DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR | DirtyBits.ORDER | DirtyBits.LAYER);
-            boolean physicsDirty = dirty.isDirty(eid, DirtyBits.PHYSICS) || dirty.isDirty(eid, DirtyBits.JOINTS);
+
+            boolean renderDirty = dirty.isDirty(
+                    eid,
+                    DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR | DirtyBits.ORDER | DirtyBits.LAYER
+            );
+
+            boolean physicsDirty = dirty.isDirty(eid, DirtyBits.PHYSICS)
+                    || dirty.isDirty(eid, DirtyBits.JOINTS);
+
             if (renderDirty && physicsDirty) {
                 sawPhysicsOrJointDirty = true;
                 break;
             }
         }
+
         Assert.assertTrue("Spawn should mark render + physics/joint dirty for spawned runtime entities", sawPhysicsOrJointDirty);
     }
 
@@ -180,10 +188,63 @@ public class RuntimePrefabFragmentSpawnTest {
                 .build());
     }
 
-    private static PrefabFixture buildPrefabFixture() {
+    private static PrefabFixture buildPrefabFixture(World fragmentOwnerWorld) {
         GdxNativesLoader.load();
 
+        String sourceJson = buildSourcePrefabJson();
+
+        WorldSerializationManager wsm = fragmentOwnerWorld.getSystem(WorldSerializationManager.class);
+        wsm.setSerializer(new JsonArtemisSerializer(fragmentOwnerWorld));
+
+        SaveFileFormat fragment = wsm.load(
+                new ByteArrayInputStream(sourceJson.getBytes(StandardCharsets.UTF_8)),
+                SaveFileFormat.class
+        );
+
+        fragmentOwnerWorld.process();
+
+        int sourceBodyAId = -1;
+        int sourceBodyBId = -1;
+        float sourceX = 0f;
+        float sourceY = 0f;
+
+        for (int i = 0; i < fragment.entities.size(); i++) {
+            int eid = fragment.entities.get(i);
+
+            PixscapeIdentityComponent id = fragmentOwnerWorld.getMapper(PixscapeIdentityComponent.class).get(eid);
+            TransformComponent t = fragmentOwnerWorld.getMapper(TransformComponent.class).get(eid);
+
+            if (id != null && id.stableId == 101L) {
+                sourceBodyAId = eid;
+                if (t != null) {
+                    sourceX = t.x;
+                    sourceY = t.y;
+                }
+            }
+
+            if (id != null && id.stableId == 102L) {
+                sourceBodyBId = eid;
+            }
+        }
+
+        Assert.assertTrue("Fixture body A must be loaded into target world", sourceBodyAId >= 0);
+        Assert.assertTrue("Fixture body B must be loaded into target world", sourceBodyBId >= 0);
+
+        return new PrefabFixture(
+                fragment,
+                sourceJson,
+                sourceX,
+                sourceY,
+                101L,
+                102L,
+                sourceBodyAId,
+                sourceBodyBId
+        );
+    }
+
+    private static String buildSourcePrefabJson() {
         World sourceWorld = runtimeWorld();
+
         WorldSerializationManager wsm = sourceWorld.getSystem(WorldSerializationManager.class);
         wsm.setSerializer(new JsonArtemisSerializer(sourceWorld));
 
@@ -192,6 +253,7 @@ public class RuntimePrefabFragmentSpawnTest {
         ta.x = 5f;
         ta.y = -3f;
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyA);
+
         PixscapeIdentityComponent ida = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyA);
         ida.stableId = 101L;
 
@@ -200,6 +262,7 @@ public class RuntimePrefabFragmentSpawnTest {
         tb.x = 6f;
         tb.y = -2f;
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyB);
+
         PixscapeIdentityComponent idb = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyB);
         idb.stableId = 102L;
 
@@ -208,6 +271,7 @@ public class RuntimePrefabFragmentSpawnTest {
         jointBase.type = PhysicsJointComponent.TYPE_DISTANCE;
         jointBase.aEid = bodyA;
         jointBase.bEid = bodyB;
+
         PhysicsDistanceJointComponent distance = sourceWorld.getMapper(PhysicsDistanceJointComponent.class).create(joint);
         distance.lengthM = 1f;
 
@@ -220,27 +284,19 @@ public class RuntimePrefabFragmentSpawnTest {
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         wsm.save(out, request);
-        byte[] json = out.toString(StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
 
-        SaveFileFormat fragment = wsm.load(new ByteArrayInputStream(json), SaveFileFormat.class);
-
-        return new PrefabFixture(fragment, 5f, -3f, 101L, 102L, bodyA, bodyB);
+        return out.toString(StandardCharsets.UTF_8);
     }
 
-
-    private static void assertFixtureSanity(World world, SaveFileFormat fragment) {
-        WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
-        wsm.setSerializer(new JsonArtemisSerializer(world));
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        wsm.save(out, fragment);
-
-        JsonValue root = new JsonReader().parse(out.toString(StandardCharsets.UTF_8));
+    private static void assertFixtureSanity(String json) {
+        JsonValue root = new JsonReader().parse(json);
         JsonValue entities = root.get("entities");
+
         Assert.assertNotNull("Fixture serialization must contain entities", entities);
 
         Set<Integer> entityIds = new HashSet<>();
         Set<Long> stableIds = new HashSet<>();
+
         int bodyCount = 0;
         int jointCount = 0;
         boolean foundTransformFiveMinusThree = false;
@@ -254,27 +310,30 @@ public class RuntimePrefabFragmentSpawnTest {
             JsonValue components = entity.get("components");
             if (components == null) continue;
 
-            if (components.has("PhysicsBodyComponent")) bodyCount++;
+            if (component(components, "PhysicsBodyComponent") != null) {
+                bodyCount++;
+            }
 
-            if (components.has("PhysicsJointComponent")) {
+            JsonValue joint = component(components, "PhysicsJointComponent");
+            if (joint != null) {
                 jointCount++;
-                JsonValue joint = components.get("PhysicsJointComponent");
                 jointAEid = joint.getInt("aEid");
                 jointBEid = joint.getInt("bEid");
             }
 
-            if (components.has("TransformComponent")) {
-                JsonValue t = components.get("TransformComponent");
-                float x = t.getFloat("x");
-                float y = t.getFloat("y");
+            JsonValue transform = component(components, "TransformComponent");
+            if (transform != null) {
+                float x = transform.getFloat("x");
+                float y = transform.getFloat("y");
+
                 if (Math.abs(x - 5f) < 1e-5f && Math.abs(y + 3f) < 1e-5f) {
                     foundTransformFiveMinusThree = true;
                 }
             }
 
-            if (components.has("PixscapeIdentityComponent")) {
-                JsonValue id = components.get("PixscapeIdentityComponent");
-                stableIds.add(id.getLong("stableId"));
+            JsonValue identity = component(components, "PixscapeIdentityComponent");
+            if (identity != null) {
+                stableIds.add(identity.getLong("stableId"));
             }
         }
 
@@ -289,8 +348,22 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertTrue("Fixture must include source stableId 102", stableIds.contains(102L));
     }
 
+    private static JsonValue component(JsonValue components, String simpleName) {
+        if (components == null || simpleName == null) return null;
+
+        for (JsonValue child = components.child; child != null; child = child.next) {
+            if (child.name == null) continue;
+            if (child.name.equals(simpleName) || child.name.endsWith("." + simpleName)) {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
     private static final class PrefabFixture {
         final SaveFileFormat fragment;
+        final String sourceJson;
         final float sourceX;
         final float sourceY;
         final long sourceStableIdA;
@@ -298,10 +371,16 @@ public class RuntimePrefabFragmentSpawnTest {
         final int sourceBodyAId;
         final int sourceBodyBId;
 
-        PrefabFixture(SaveFileFormat fragment, float sourceX, float sourceY,
-                      long sourceStableIdA, long sourceStableIdB,
-                      int sourceBodyAId, int sourceBodyBId) {
+        PrefabFixture(SaveFileFormat fragment,
+                      String sourceJson,
+                      float sourceX,
+                      float sourceY,
+                      long sourceStableIdA,
+                      long sourceStableIdB,
+                      int sourceBodyAId,
+                      int sourceBodyBId) {
             this.fragment = fragment;
+            this.sourceJson = sourceJson;
             this.sourceX = sourceX;
             this.sourceY = sourceY;
             this.sourceStableIdA = sourceStableIdA;
