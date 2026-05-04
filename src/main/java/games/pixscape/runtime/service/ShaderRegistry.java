@@ -319,10 +319,16 @@ public final class ShaderRegistry {
 
     private static void registerCoreLightDefaults() {
         ObjectFloatMap<String> point = new ObjectFloatMap<>();
+        point.put("u_centerX", 0f);
+        point.put("u_centerY", 0f);
+        point.put("u_radius", 1f);
         point.put("u_falloff", 1.5f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
 
         ObjectFloatMap<String> cone = new ObjectFloatMap<>();
+        cone.put("u_centerX", 0f);
+        cone.put("u_centerY", 0f);
+        cone.put("u_radius", 1f);
         cone.put("u_dirX", 1.0f);
         cone.put("u_dirY", 0.0f);
         cone.put("u_coneCos", 0.8660254f);
@@ -747,7 +753,6 @@ public final class ShaderRegistry {
         }
 
         JsonValue root = new JsonReader().parse(presets);
-        defaultUniforms.clear();
 
         for (JsonValue entry = root.child; entry != null; entry = entry.next) {
             String name = entry.name;
