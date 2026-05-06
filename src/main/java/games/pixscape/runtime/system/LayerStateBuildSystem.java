@@ -112,9 +112,9 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                 break;
             }
 
-            case LayerComponent.TYPE_CLASSIC,
-                 LayerComponent.TYPE_LIGHT,
-                 LayerComponent.TYPE_TILED: {
+            case LayerComponent.TYPE_CLASSIC:
+            case LayerComponent.TYPE_LIGHT:
+            case LayerComponent.TYPE_TILED: {
                 LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
                 if (lp != null) {
                     layerState.parallaxX[layerIdx] = lp.factorX;
