@@ -92,7 +92,7 @@ public final class WorldConfigFactory {
      * </ul>
      *
      * <h3>postRenderCustomizer</h3>
-     * <p>Runs after the submit/render system and before {@link DirtyFlushSystem}.</p>
+     * <p>Runs after the submit/render system and after {@link DirtyFlushSystem}.</p>
      *
      * <p>Use this hook for editor tools, UI refresh, picking, gizmos, and overlays that do
      * not need to feed the current frame draw list.</p>
@@ -179,11 +179,11 @@ public final class WorldConfigFactory {
                 submitSupplier
         );
 
+        builder.with(new DirtyFlushSystem());
+
         if (postRenderCustomizer != null) {
             postRenderCustomizer.accept(builder);
         }
-
-        builder.with(new DirtyFlushSystem());
 
         World world = new World(builder.build());
 

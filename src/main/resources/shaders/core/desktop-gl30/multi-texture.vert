@@ -14,6 +14,6 @@ flat out int v_texIndex;
 void main() {
   v_uv = a_texCoord0;
   v_color = a_color;
-  v_texIndex = int(a_texIndex + 0.5); // cast côté VS
+  v_texIndex = int(a_texIndex + 0.5);
   gl_Position = u_projTrans * vec4(a_position, 0.0, 1.0);
 }

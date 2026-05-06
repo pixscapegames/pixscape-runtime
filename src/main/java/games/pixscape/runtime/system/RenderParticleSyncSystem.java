@@ -266,9 +266,8 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 template.load(effectFile, atlas);
                 template.setEmittersCleanUpBlendFunction(false);
             } catch (Exception ex) {
-                Gdx.app.error("RenderParticleSyncSystem",
-                        "Failed to load particle effect from atlas '" + emitter.atlasTag
-                                + "': " + effectFile.path(), ex);
+                template.dispose();
+                waitingAtlasLoggedEntities.add(entityId);
                 return null;
             }
 
