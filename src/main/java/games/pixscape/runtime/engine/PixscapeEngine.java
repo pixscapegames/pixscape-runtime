@@ -1,6 +1,6 @@
 package games.pixscape.runtime.engine;
-import com.badlogic.gdx.utils.Array;
 
+import com.badlogic.gdx.utils.Array;
 import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
@@ -930,7 +930,7 @@ public final class PixscapeEngine {
                         "AssetRef entity without assetId during rebuild: e=" + e);
 
             String atlasTag = src.atlasTag;
-            if (atlasTag == null || isBlank(atlasTag)) {
+            if (isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
@@ -978,7 +978,7 @@ public final class PixscapeEngine {
                 throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
             }
             String atlasTag = src.atlasTag;
-            if (atlasTag == null || isBlank(atlasTag)) {
+            if (isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 

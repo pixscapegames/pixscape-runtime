@@ -1,6 +1,6 @@
 package games.pixscape.runtime.service;
-import com.artemis.AspectSubscriptionManager;
 
+import com.artemis.AspectSubscriptionManager;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;

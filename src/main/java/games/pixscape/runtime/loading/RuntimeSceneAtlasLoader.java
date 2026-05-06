@@ -1,5 +1,4 @@
 package games.pixscape.runtime.loading;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;

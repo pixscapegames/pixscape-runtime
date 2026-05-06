@@ -1,6 +1,6 @@
 package games.pixscape.runtime.api;
-import com.badlogic.gdx.utils.IntMap;
 
+import com.badlogic.gdx.utils.IntMap;
 import com.artemis.BaseSystem;
 import com.artemis.Component;
 import com.artemis.ComponentMapper;
@@ -300,7 +300,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (src == null) return this;
             boolean changed = false;
             if (src.assetId != assetId) { src.assetId = assetId; changed = true; }
-            String normalizedTag = atlasTag == null || isBlank(atlasTag) ? "main" : atlasTag;
+            String normalizedTag = isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalizedTag.equals(src.atlasTag)) { src.atlasTag = normalizedTag; changed = true; }
             if (changed) {
                 resolveRegion(src);
@@ -613,7 +613,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override public TiledMapFacade setAtlasTag(String atlasTag) {
             TiledLayerComponent c = comp(true);
             if (c == null) return this;
-            String normalized = atlasTag == null || isBlank(atlasTag) ? "main" : atlasTag;
+            String normalized = isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalized.equals(c.atlasTag)) {
                 c.atlasTag = normalized;
                 if (c.data != null) {

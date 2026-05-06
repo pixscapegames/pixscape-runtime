@@ -1,6 +1,6 @@
 package games.pixscape.runtime.loading;
-import com.artemis.EntitySubscription;
 
+import com.artemis.EntitySubscription;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
