@@ -90,11 +90,14 @@ public final class TileAnimationStateSupport {
     }
 
     private static byte sanitizeInitialPlayback(byte playbackState) {
-        return switch (playbackState) {
-            case TileAnimationPlayback.PLAYING -> TileAnimationPlayback.PLAYING;
-            case TileAnimationPlayback.PAUSED -> TileAnimationPlayback.PAUSED;
-            default -> TileAnimationPlayback.PLAYING;
-        };
+        switch (playbackState) {
+            case TileAnimationPlayback.PLAYING:
+                return TileAnimationPlayback.PLAYING;
+            case TileAnimationPlayback.PAUSED:
+                return TileAnimationPlayback.PAUSED;
+            default:
+                return TileAnimationPlayback.PLAYING;
+        }
     }
 
     public static void syncWorldCell(TileChunk chunk,

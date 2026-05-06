@@ -45,28 +45,34 @@ public enum BlendMode {
      * Returns the render pass family used for sorting and batching.
      */
     public int passId() {
-        return switch (this) {
-            case OPAQUE, CUTOUT -> PASS_OPAQUE;
-            case ADDITIVE, ADDITIVE_ALPHA, MULTIPLY -> PASS_COMMUTATIVE;
-            default -> PASS_ORDERED;
-        };
+        switch (this) {
+            case OPAQUE:
+            case CUTOUT:
+                return PASS_OPAQUE;
+            case ADDITIVE:
+            case ADDITIVE_ALPHA:
+            case MULTIPLY:
+                return PASS_COMMUTATIVE;
+            default:
+                return PASS_ORDERED;
+        }
     }
 
     /**
      * Resolves a blend mode from serialized numeric ids.
      */
     public static BlendMode fromId(int id) {
-        return switch (id) {
-            case 0 -> OPAQUE;
-            case 1 -> ALPHA;
-            case 2 -> PREMULT_ALPHA;
-            case 3 -> ADDITIVE;
-            case 4 -> ADDITIVE_ALPHA;
-            case 5 -> MULTIPLY;
-            case 6 -> MULTIPLY_ALPHA;
-            case 7 -> CUTOUT;
-            default -> OPAQUE;
-        };
+        switch (id) {
+            case 0: return OPAQUE;
+            case 1: return ALPHA;
+            case 2: return PREMULT_ALPHA;
+            case 3: return ADDITIVE;
+            case 4: return ADDITIVE_ALPHA;
+            case 5: return MULTIPLY;
+            case 6: return MULTIPLY_ALPHA;
+            case 7: return CUTOUT;
+            default: return OPAQUE;
+        }
     }
 
     /**

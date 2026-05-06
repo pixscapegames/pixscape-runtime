@@ -614,7 +614,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 Body body = bodyScratch.get(i);
                 if (body == null) continue;
                 Object userData = body.getUserData();
-                if (!(userData instanceof Integer bodyEid) || bodyEid != e) continue;
+                if (!(userData instanceof Integer) || ((Integer) userData).intValue() != e) continue;
                 box2d.world.destroyBody(body);
                 break;
             }
@@ -687,11 +687,14 @@ public final class Box2dSyncSystem extends BaseSystem {
     }
 
     private Shape createShape(FixtureDefData fd) {
-        return switch (fd.shapeType) {
-            case FixtureDefData.SHAPE_CIRCLE -> createCircleShape(fd);
-            case FixtureDefData.SHAPE_POLYGON -> createPolygonShape(fd);
-            default -> createBoxShape(fd);
-        };
+        switch (fd.shapeType) {
+            case FixtureDefData.SHAPE_CIRCLE:
+                return createCircleShape(fd);
+            case FixtureDefData.SHAPE_POLYGON:
+                return createPolygonShape(fd);
+            default:
+                return createBoxShape(fd);
+        }
     }
 
     private Shape createBoxShape(FixtureDefData fd) {
@@ -768,7 +771,7 @@ public final class Box2dSyncSystem extends BaseSystem {
         // ---- dispatch by type (fill later) ----
         switch (base.type) {
 
-            case PhysicsJointComponent.TYPE_DISTANCE -> {
+            case PhysicsJointComponent.TYPE_DISTANCE: {
                 PhysicsDistanceJointComponent dist = mJointDist.getSafe(jEid, null);
                 if (dist == null) {
                     // Invalid entity: base says distance but missing the type component
@@ -815,7 +818,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_REVOLUTE -> {
+            case PhysicsJointComponent.TYPE_REVOLUTE: {
                 PhysicsRevoluteJointComponent rev = mJointRev.getSafe(jEid, null);
                 if (rev == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -859,7 +862,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_PRISMATIC -> {
+            case PhysicsJointComponent.TYPE_PRISMATIC: {
                 PhysicsPrismaticJointComponent prism = mJointPrism.getSafe(jEid, null);
                 if (prism == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -903,7 +906,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_WHEEL -> {
+            case PhysicsJointComponent.TYPE_WHEEL: {
                 PhysicsWheelJointComponent wheel = mJointWheel.getSafe(jEid, null);
                 if (wheel == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -946,7 +949,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                     markDependentGearJointsDirty(jEid);
                 }
             }
-            case PhysicsJointComponent.TYPE_FRICTION -> {
+            case PhysicsJointComponent.TYPE_FRICTION: {
                 PhysicsFrictionJointComponent friction = mFriction.getSafe(jEid, null);
                 if (friction == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -990,7 +993,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_MOTOR -> {
+            case PhysicsJointComponent.TYPE_MOTOR: {
                 PhysicsMotorJointComponent motor = mMotor.getSafe(jEid, null);
                 if (motor == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -1034,7 +1037,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_WELD -> {
+            case PhysicsJointComponent.TYPE_WELD: {
                 PhysicsWeldJointComponent weld = mWeld.getSafe(jEid, null);
                 if (weld == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -1078,7 +1081,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_PULLEY -> {
+            case PhysicsJointComponent.TYPE_PULLEY: {
                 PhysicsPulleyJointComponent pulley = mPulley.getSafe(jEid, null);
                 if (pulley == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -1122,7 +1125,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            case PhysicsJointComponent.TYPE_GEAR -> {
+            case PhysicsJointComponent.TYPE_GEAR: {
                 PhysicsGearJointComponent gear = mGear.getSafe(jEid, null);
                 if (gear == null) {
                     destroyRuntimeJointIfAny(jEid);
@@ -1190,7 +1193,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            default -> {
+            default: {
                 // Unknown type => no runtime joint
                 destroyRuntimeJointIfAny(jEid);
             }
