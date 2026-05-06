@@ -816,6 +816,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_REVOLUTE: {
@@ -860,6 +861,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_PRISMATIC: {
@@ -904,6 +906,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_WHEEL: {
@@ -948,6 +951,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
             case PhysicsJointComponent.TYPE_FRICTION: {
                 PhysicsFrictionJointComponent friction = mFriction.getSafe(jEid, null);
@@ -991,6 +995,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_MOTOR: {
@@ -1035,6 +1040,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_WELD: {
@@ -1079,6 +1085,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_PULLEY: {
@@ -1123,6 +1130,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
                     markDependentGearJointsDirty(jEid);
                 }
+                break;
             }
 
             case PhysicsJointComponent.TYPE_GEAR: {
@@ -1191,6 +1199,7 @@ public final class Box2dSyncSystem extends BaseSystem {
                     newRt.aGen = aRt.gen;
                     newRt.bGen = bRt.gen;
                 }
+                break;
             }
 
             default: {
