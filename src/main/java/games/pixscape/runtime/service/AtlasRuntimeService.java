@@ -19,6 +19,10 @@ import games.pixscape.runtime.render.InternalTextures;
 
 public class AtlasRuntimeService {
 
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
     private static final int ATLAS_SIZE = 2048;
 
     public static int fixedLayerSize() {
@@ -77,7 +81,7 @@ public class AtlasRuntimeService {
 
     // ---------------- access ----------------
     public CachedRegion resolveCached(int assetId, String tag) {
-        if (tag == null || tag.isBlank() || assetId < 0) return null;
+        if (tag == null || isBlank(tag) || assetId < 0) return null;
 
         IntMap<CachedRegion> tagCache = regionCache.get(tag);
         if (tagCache == null) {
@@ -117,7 +121,7 @@ public class AtlasRuntimeService {
         if (assetId < 0) {
             throw new IllegalStateException("Asset id must be >= 0.");
         }
-        if (tag == null || tag.isBlank()) return null;
+        if (tag == null || isBlank(tag)) return null;
 
         TextureAtlas atlas = atlases.get(tag);
         if (atlas == null) return null;

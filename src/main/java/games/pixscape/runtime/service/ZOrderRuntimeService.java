@@ -1,4 +1,5 @@
 package games.pixscape.runtime.service;
+import com.artemis.AspectSubscriptionManager;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
@@ -25,7 +26,7 @@ public final class ZOrderRuntimeService {
 
     /** Returns the list of layer entities, SORTED by ascending z. */
     private List<Integer> entitiesInLayerSorted(int layer) {
-        var asm = world.getAspectSubscriptionManager();
+        AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
         IntBag bag = asm.get(Aspect.all(EntityIndexComponent.class)).getEntities();
         int[] data = bag.getData();
 

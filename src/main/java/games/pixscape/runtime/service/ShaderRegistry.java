@@ -12,6 +12,10 @@ import games.pixscape.runtime.render.batch.GLCaps;
 
 public final class ShaderRegistry {
 
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
     private static final ShaderRegistry INSTANCE = new ShaderRegistry();
 
     private static final ObjectIntMap<String> nameToIdx = new ObjectIntMap<>();
@@ -45,7 +49,7 @@ public final class ShaderRegistry {
                                ShaderMode mode,
                                ShaderOrigin origin,
                                ShaderRole role) {
-        if (name == null || name.isBlank()) {
+        if (name == null || isBlank(name)) {
             throw new IllegalArgumentException("Shader name is empty");
         }
         if (sp == null) {
@@ -437,7 +441,7 @@ public final class ShaderRegistry {
     private static void setProjectContext(PlatformTarget target, FileHandle projectDir, String shadersDir) {
         requestedPlatformTarget = target != null ? target : PlatformTarget.AUTO;
 
-        if (projectDir != null && shadersDir != null && !shadersDir.isBlank()) {
+        if (projectDir != null && shadersDir != null && !isBlank(shadersDir)) {
             projectShadersRoot = projectDir.child(shadersDir);
         } else {
             projectShadersRoot = null;
@@ -677,7 +681,7 @@ public final class ShaderRegistry {
             role = parseShaderRole(kind, role);
         }
 
-        if (shaderName == null || shaderName.isBlank()) {
+        if (shaderName == null || isBlank(shaderName)) {
             throw new IllegalStateException("Project shader name is empty: " + shaderDir.path());
         }
 
@@ -733,7 +737,7 @@ public final class ShaderRegistry {
     }
 
     private static ShaderMode parseShaderMode(String raw, ShaderMode fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (raw == null || isBlank(raw)) return fallback;
 
         try {
             return ShaderMode.valueOf(raw.trim());
@@ -743,7 +747,7 @@ public final class ShaderRegistry {
     }
 
     private static ShaderRole parseShaderRole(String raw, ShaderRole fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (raw == null || isBlank(raw)) return fallback;
 
         String normalized = raw.trim().toUpperCase().replace('-', '_');
         if ("POSTFX".equals(normalized) || "POST_FX".equals(normalized)) return ShaderRole.FX;
@@ -770,11 +774,11 @@ public final class ShaderRegistry {
 
         for (JsonValue entry = root.child; entry != null; entry = entry.next) {
             String name = entry.name;
-            if (name == null || name.isBlank()) continue;
+            if (name == null || isBlank(name)) continue;
 
             ObjectFloatMap<String> defaults = new ObjectFloatMap<>();
             for (JsonValue uniform = entry.child; uniform != null; uniform = uniform.next) {
-                if (uniform.name == null || uniform.name.isBlank()) continue;
+                if (uniform.name == null || isBlank(uniform.name)) continue;
                 defaults.put(uniform.name, uniform.asFloat());
             }
             defaultUniforms.put(name, defaults);

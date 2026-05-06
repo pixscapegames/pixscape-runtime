@@ -23,6 +23,10 @@ import com.badlogic.gdx.utils.ObjectSet;
  */
 public final class ShaderSourcePreprocessor {
 
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
     private static final String INCLUDE_DIRECTIVE = "#include";
 
     private ShaderSourcePreprocessor() {
@@ -192,7 +196,7 @@ public final class ShaderSourcePreprocessor {
     }
 
     private static boolean isUnsafeIncludePath(String includeName) {
-        if (includeName == null || includeName.isBlank()) return true;
+        if (includeName == null || isBlank(includeName)) return true;
 
         String p = includeName.replace('\\', '/');
 

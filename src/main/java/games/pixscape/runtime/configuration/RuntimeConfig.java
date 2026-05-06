@@ -13,6 +13,10 @@ import games.pixscape.runtime.render.ShaderMode;
  */
 public final class RuntimeConfig {
 
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
     public static final String DEFAULT_VERSION = "1";
 
     /** Technical identity of exported project. */
@@ -82,7 +86,7 @@ public final class RuntimeConfig {
     }
 
     public String findSceneNameByFile(String file) {
-        if (file == null || file.isBlank()) return null;
+        if (file == null || isBlank(file)) return null;
 
         String expected = RuntimeFs.filenameOnly(file);
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
@@ -106,15 +110,15 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public void applyDefaultsAndValidate(String pathForErrors) {
-        if (pathForErrors == null || pathForErrors.isBlank()) {
+        if (pathForErrors == null || isBlank(pathForErrors)) {
             pathForErrors = "<runtime-config>";
         }
 
-        if (version == null || version.isBlank()) {
+        if (version == null || isBlank(version)) {
             version = DEFAULT_VERSION;
         }
 
-        if (projectFileName == null || projectFileName.isBlank()) {
+        if (projectFileName == null || isBlank(projectFileName)) {
             throw new RuntimeException("Missing projectFileName in: " + pathForErrors);
         }
 
@@ -152,17 +156,17 @@ public final class RuntimeConfig {
                 throw new RuntimeException("Scene '" + key + "' is null in: " + pathForErrors);
             }
 
-            if (meta.name == null || meta.name.isBlank()) {
+            if (meta.name == null || isBlank(meta.name)) {
                 meta.name = key;
             }
 
-            if (meta.file == null || meta.file.isBlank()) {
+            if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has no file in: " + pathForErrors);
             }
 
             meta.file = RuntimeFs.filenameOnly(meta.file);
 
-            if (meta.file == null || meta.file.isBlank()) {
+            if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has invalid file in: " + pathForErrors);
             }
 
@@ -186,7 +190,7 @@ public final class RuntimeConfig {
     }
 
     private static String nonBlankOrDefault(String value, String defaultValue) {
-        return (value == null || value.isBlank()) ? defaultValue : value;
+        return (value == null || isBlank(value)) ? defaultValue : value;
     }
 
     // ---------------------------------------------------------------------

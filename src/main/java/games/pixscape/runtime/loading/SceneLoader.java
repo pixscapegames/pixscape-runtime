@@ -1,4 +1,5 @@
 package games.pixscape.runtime.loading;
+import com.artemis.EntitySubscription;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
@@ -82,7 +83,7 @@ public final class SceneLoader {
 
         ComponentMapper<VisibilityComponent> mVis = world.getMapper(VisibilityComponent.class);
 
-        var geometrySub = world.getAspectSubscriptionManager().get(
+        EntitySubscription geometrySub = world.getAspectSubscriptionManager().get(
                 Aspect.all(TransformComponent.class,
                         DimensionsComponent.class,
                         OrientedBoundsComponent.class,
@@ -96,7 +97,7 @@ public final class SceneLoader {
             dirty.geometry(e, GeometryDirty.ALL);
         }
 
-        var renderSub = world.getAspectSubscriptionManager().get(
+        EntitySubscription renderSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(
                         OrientedBoundsComponent.class,
                         RenderMaterialComponent.class,

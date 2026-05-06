@@ -18,6 +18,10 @@ import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
  */
 public final class RuntimeProjectIO {
 
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
     public static final String PROJECT_JSON = RuntimeFs.FILE_PROJECT_JSON;
 
     private static final Json json = new Json();
@@ -55,7 +59,7 @@ public final class RuntimeProjectIO {
 
         // Source of truth: the runtime folder (pixscape-project)
         // => set it if absent / empty
-        if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
+        if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = projectDir.path();
         }
 

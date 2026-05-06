@@ -1,4 +1,5 @@
 package games.pixscape.runtime.system;
+import com.artemis.AspectSubscriptionManager;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
@@ -128,7 +129,7 @@ public final class Box2dSyncSystem extends BaseSystem {
 
         dirty = world.getSystem(DirtyTrackerSystem.class);
 
-        var asm = world.getAspectSubscriptionManager();
+        AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
 
         subWanted = asm.get(Aspect.all(
                 TransformComponent.class,
