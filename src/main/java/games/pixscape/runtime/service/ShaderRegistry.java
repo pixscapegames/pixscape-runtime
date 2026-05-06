@@ -13,7 +13,15 @@ import games.pixscape.runtime.render.batch.GLCaps;
 public final class ShaderRegistry {
 
     private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static final ShaderRegistry INSTANCE = new ShaderRegistry();

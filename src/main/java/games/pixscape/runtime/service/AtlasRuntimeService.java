@@ -20,7 +20,15 @@ import games.pixscape.runtime.render.InternalTextures;
 public class AtlasRuntimeService {
 
     private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static final int ATLAS_SIZE = 2048;

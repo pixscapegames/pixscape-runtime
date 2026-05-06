@@ -24,7 +24,15 @@ import com.badlogic.gdx.utils.ObjectSet;
 public final class ShaderSourcePreprocessor {
 
     private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static final String INCLUDE_DIRECTIVE = "#include";
