@@ -1,4 +1,4 @@
-package com.badlogic.gdx;
+package games.pixscape.runtime.particle;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Texture;
@@ -10,9 +10,16 @@ import com.badlogic.gdx.utils.*;
 
 import java.io.*;
 
-/** See <a href=
- * "https://web.archive.org/web/20200427191041/http://www.badlogicgames.com/wordpress/?p=12555">http://www.badlogicgames.com/wordpress/?p=12555</a>
- * @author mzechner */
+/*
+ * Adapted from libGDX ParticleEmitter / ParticleEffect internals.
+ * Original project: libGDX
+ * Original license: Apache License 2.0
+ *
+ * Modifications:
+ * - moved into games.pixscape.runtime.particle
+ * - exposed particle arrays for Pixscape SOA runtime extraction
+ * - adapted for Pixscape runtime rendering pipeline
+ */
 public class ParticleEffect implements Disposable {
 	private final Array<ParticleEmitter> emitters;
     public BoundingBox bounds;

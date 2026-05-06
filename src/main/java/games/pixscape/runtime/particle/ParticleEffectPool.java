@@ -1,9 +1,18 @@
-package com.badlogic.gdx;
-
+package games.pixscape.runtime.particle;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Pool;
 
+/*
+ * Adapted from libGDX ParticleEmitter / ParticleEffect internals.
+ * Original project: libGDX
+ * Original license: Apache License 2.0
+ *
+ * Modifications:
+ * - moved into games.pixscape.runtime.particle
+ * - exposed particle arrays for Pixscape SOA runtime extraction
+ * - adapted for Pixscape runtime rendering pipeline
+ */
 public class ParticleEffectPool extends Pool<ParticleEffectPool.PooledEffect> {
 	private final ParticleEffect effect;
 
