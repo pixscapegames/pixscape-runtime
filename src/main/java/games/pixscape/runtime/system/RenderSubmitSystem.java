@@ -103,7 +103,8 @@ public final class RenderSubmitSystem extends BaseSystem {
         cam.update();
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
-        if (metricsBatch instanceof TextureArrayMeshBatch taBatch) {
+        if (metricsBatch instanceof TextureArrayMeshBatch) {
+            TextureArrayMeshBatch taBatch = (TextureArrayMeshBatch) metricsBatch;
             activeBundle = taBatch.getBundle();
 
         }

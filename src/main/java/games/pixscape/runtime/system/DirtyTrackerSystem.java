@@ -253,47 +253,55 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private void addToList(int e, int bit) {
         switch (bit) {
-            case DirtyBits.GEOMETRY -> {
+            case DirtyBits.GEOMETRY: {
                 if (idxGeometry[e] != -1) return;
                 idxGeometry[e] = geometry.size;
                 geometry.add(e);
+                return;
             }
-            case DirtyBits.MATERIAL -> {
+            case DirtyBits.MATERIAL: {
                 if (idxMaterial[e] != -1) return;
                 idxMaterial[e] = material.size;
                 material.add(e);
+                return;
             }
-            case DirtyBits.COLOR -> {
+            case DirtyBits.COLOR: {
                 if (idxColor[e] != -1) return;
                 idxColor[e] = color.size;
                 color.add(e);
+                return;
             }
-            case DirtyBits.ORDER -> {
+            case DirtyBits.ORDER: {
                 if (idxOrder[e] != -1) return;
                 idxOrder[e] = order.size;
                 order.add(e);
+                return;
             }
-            case DirtyBits.LAYER -> {
+            case DirtyBits.LAYER: {
                 if (idxLayer[e] != -1) return;
                 idxLayer[e] = layer.size;
                 layer.add(e);
+                return;
             }
-            case DirtyBits.CAMERA -> {
+            case DirtyBits.CAMERA: {
                 if (idxCamera[e] != -1) return;
                 idxCamera[e] = camera.size;
                 camera.add(e);
+                return;
             }
-            case DirtyBits.PHYSICS -> {
+            case DirtyBits.PHYSICS: {
                 if (idxPhysics[e] != -1) return;
                 idxPhysics[e] = physics.size;
                 physics.add(e);
+                return;
             }
-            case DirtyBits.JOINTS -> {
+            case DirtyBits.JOINTS: {
                 if (idxJoints[e] != -1) return;
                 idxJoints[e] = joints.size;
                 joints.add(e);
+                return;
             }
-            default -> { /* ignore */ }
+            default: { /* ignore */ }
         }
     }
 
@@ -423,30 +431,30 @@ public final class DirtyTrackerSystem extends BaseSystem {
     }
 
     private IntArray listOf(int bit) {
-        return switch (bit) {
-            case DirtyBits.GEOMETRY -> geometry;
-            case DirtyBits.MATERIAL -> material;
-            case DirtyBits.COLOR -> color;
-            case DirtyBits.ORDER -> order;
-            case DirtyBits.LAYER -> layer;
-            case DirtyBits.CAMERA -> camera;
-            case DirtyBits.PHYSICS -> physics;
-            case DirtyBits.JOINTS -> joints;
-            default -> null;
-        };
+        switch (bit) {
+            case DirtyBits.GEOMETRY: return geometry;
+            case DirtyBits.MATERIAL: return material;
+            case DirtyBits.COLOR: return color;
+            case DirtyBits.ORDER: return order;
+            case DirtyBits.LAYER: return layer;
+            case DirtyBits.CAMERA: return camera;
+            case DirtyBits.PHYSICS: return physics;
+            case DirtyBits.JOINTS: return joints;
+            default: return null;
+        }
     }
 
     private void removeFromList(int e, int bit) {
         switch (bit) {
-            case DirtyBits.GEOMETRY -> swapPopRemove(geometry, idxGeometry, e);
-            case DirtyBits.MATERIAL -> swapPopRemove(material, idxMaterial, e);
-            case DirtyBits.COLOR -> swapPopRemove(color, idxColor, e);
-            case DirtyBits.ORDER -> swapPopRemove(order, idxOrder, e);
-            case DirtyBits.LAYER -> swapPopRemove(layer, idxLayer, e);
-            case DirtyBits.CAMERA -> swapPopRemove(camera, idxCamera, e);
-            case DirtyBits.PHYSICS -> swapPopRemove(physics, idxPhysics, e);
-            case DirtyBits.JOINTS -> swapPopRemove(joints, idxJoints, e);
-            default -> { /* ignore */ }
+            case DirtyBits.GEOMETRY: swapPopRemove(geometry, idxGeometry, e); return;
+            case DirtyBits.MATERIAL: swapPopRemove(material, idxMaterial, e); return;
+            case DirtyBits.COLOR: swapPopRemove(color, idxColor, e); return;
+            case DirtyBits.ORDER: swapPopRemove(order, idxOrder, e); return;
+            case DirtyBits.LAYER: swapPopRemove(layer, idxLayer, e); return;
+            case DirtyBits.CAMERA: swapPopRemove(camera, idxCamera, e); return;
+            case DirtyBits.PHYSICS: swapPopRemove(physics, idxPhysics, e); return;
+            case DirtyBits.JOINTS: swapPopRemove(joints, idxJoints, e); return;
+            default: { /* ignore */ }
         }
     }
 

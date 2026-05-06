@@ -242,7 +242,15 @@ public final class TiledMapLayerData {
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {
 
-        record SavedTile(int assetId, byte flags) {}
+        final class SavedTile {
+            final int assetId;
+            final byte flags;
+
+            SavedTile(int assetId, byte flags) {
+                this.assetId = assetId;
+                this.flags = flags;
+            }
+        }
 
         IntMap<IntMap<SavedTile>> saved = new IntMap<>();
 
@@ -287,7 +295,7 @@ public final class TiledMapLayerData {
                 SavedTile savedTile = ys.get(gy);
 
                 if (isInside(gx, gy)) {
-                    setTile(gx, gy, savedTile.assetId(), savedTile.flags());
+                    setTile(gx, gy, savedTile.assetId, savedTile.flags);
                 }
             }
         }

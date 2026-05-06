@@ -44,11 +44,9 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public ShaderMode getShaderMode() {
-        return switch (glProfile) {
-            case "GL30" -> ShaderMode.TEXTURE_ARRAY;
-            case "GL20" -> ShaderMode.TEXTURE_2D;
-            default -> ShaderMode.MULTI_TEXTURE;
-        };
+        if ("GL30".equals(glProfile)) return ShaderMode.TEXTURE_ARRAY;
+        if ("GL20".equals(glProfile)) return ShaderMode.TEXTURE_2D;
+        return ShaderMode.MULTI_TEXTURE;
     }
 
     // ---------------------------------------------------------------------

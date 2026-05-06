@@ -49,39 +49,47 @@ public final class TileQuadTransforms {
         float ty;
 
         switch (flags & 0x7) {
-            case TileTransformFlags.NONE -> {
+            case TileTransformFlags.NONE: {
                 tx = lx;
                 ty = ly;
+                break;
             }
-            case TileTransformFlags.FLIP_H -> {
+            case TileTransformFlags.FLIP_H: {
                 tx = -lx;
                 ty = ly;
+                break;
             }
-            case TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_V: {
                 tx = lx;
                 ty = -ly;
+                break;
             }
-            case TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
                 tx = -lx;
                 ty = -ly;
+                break;
             }
-            case TileTransformFlags.FLIP_D -> {
+            case TileTransformFlags.FLIP_D: {
                 tx = ly;
                 ty = lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H: {
                 tx = -ly;
                 ty = lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = ly;
                 ty = -lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
                 tx = -ly;
                 ty = -lx;
+                break;
             }
-            default -> {
+            default: {
                 tx = lx;
                 ty = ly;
             }

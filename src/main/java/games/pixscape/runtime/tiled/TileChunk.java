@@ -322,10 +322,13 @@ public final class TileChunk {
     }
 
     private static byte sanitizePlaybackState(byte playbackState) {
-        return switch (playbackState) {
-            case TileAnimationPlayback.PLAYING -> TileAnimationPlayback.PLAYING;
-            case TileAnimationPlayback.PAUSED -> TileAnimationPlayback.PAUSED;
-            default -> TileAnimationPlayback.NONE;
-        };
+        switch (playbackState) {
+            case TileAnimationPlayback.PLAYING:
+                return TileAnimationPlayback.PLAYING;
+            case TileAnimationPlayback.PAUSED:
+                return TileAnimationPlayback.PAUSED;
+            default:
+                return TileAnimationPlayback.NONE;
+        }
     }
 }
