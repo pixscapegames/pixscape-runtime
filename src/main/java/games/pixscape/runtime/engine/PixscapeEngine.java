@@ -160,6 +160,20 @@ public final class PixscapeEngine {
         return this;
     }
 
+    /**
+     * Spawns an in-memory prefab fragment into the currently loaded scene.
+     *
+     * <p>The fragment is deserialized into the active Artemis world. All spawned
+     * transforms are offset by {@code offsetX}/{@code offsetY}, spawned identities
+     * receive fresh stable IDs, and asset references are resolved against the
+     * currently loaded runtime atlases.</p>
+     *
+     * @param fragment prefab fragment to instantiate
+     * @param offsetX world-space X offset applied to spawned transforms
+     * @param offsetY world-space Y offset applied to spawned transforms
+     * @return result containing all created entity IDs
+     * @throws IllegalStateException if no world is initialized
+     */
     public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
         RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
@@ -168,6 +182,19 @@ public final class PixscapeEngine {
         return result;
     }
 
+    /**
+     * Loads and spawns an exported prefab fragment by name.
+     *
+     * <p>The prefab is resolved from {@code <runtimeProject>/<prefabsDir>/<name>.pixfragment.json}
+     * and then spawned into the currently loaded scene.</p>
+     *
+     * @param name prefab name without the {@code .pixfragment.json} extension
+     * @param offsetX world-space X offset applied to spawned transforms
+     * @param offsetY world-space Y offset applied to spawned transforms
+     * @return result containing all created entity IDs
+     * @throws IllegalStateException if the project or world is not initialized
+     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the prefab fragment file does not exist
+     */
     public SpawnResult spawnPrefab(String name, float offsetX, float offsetY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");

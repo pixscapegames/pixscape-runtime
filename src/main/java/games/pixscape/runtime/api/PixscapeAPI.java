@@ -14,4 +14,6 @@ public interface PixscapeAPI {
      * <p>This escape hatch coexists with the high-level API and does not replace it.</p>
      */
     ECSAPI ecs();
+
+    PrefabsAPI prefabs();
 }

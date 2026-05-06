@@ -4,11 +4,13 @@ import com.artemis.BaseSystem;
 import com.artemis.Component;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.artemis.io.SaveFileFormat;
 import com.badlogic.gdx.graphics.Color;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -29,12 +31,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
+    private final PrefabsAPI prefabs;
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
         this.ecs = new EcsApiImpl(engine);
         this.entities = new EntitiesApiImpl(engine, ecs);
         this.tiled = new TiledApiImpl(engine, ecs, entities);
+        this.prefabs = new PrefabsApiImpl(engine, entities);
     }
 
     @Override
@@ -51,6 +55,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     public ECSAPI ecs() {
         return ecs;
     }
+
+    public PrefabsAPI prefabs() { return prefabs; }
 
     static final class EcsApiImpl implements ECSAPI {
         private final PixscapeEngine engine;
@@ -867,5 +873,43 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return c != null ? c.data : null;
         }
 
+    }
+
+    static final class PrefabsApiImpl implements PrefabsAPI {
+        private final PixscapeEngine engine;
+        private final EntitiesAPI entities;
+
+        PrefabsApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
+            this.engine = engine;
+            this.entities = entities;
+        }
+
+        @Override
+        public SpawnResult spawn(String name, float x, float y) {
+            return engine.spawnPrefab(name, x, y);
+        }
+
+        @Override
+        public SpawnResult spawnFragment(SaveFileFormat fragment, float x, float y) {
+            return engine.spawnPrefabFragment(fragment, x, y);
+        }
+
+        @Override
+        public EntityRef first(String name, float x, float y) {
+            SpawnResult result = spawn(name, x, y);
+            if (result == null || result.createdEntityIds() == null || result.createdEntityIds().isEmpty()) {
+                return entities.ofEntityId(-1);
+            }
+            return entities.ofEntityId(result.createdEntityIds().get(0));
+        }
+
+        @Override
+        public EntityRef requireFirst(String name, float x, float y) {
+            SpawnResult result = spawn(name, x, y);
+            if (result == null || result.createdEntityIds() == null || result.createdEntityIds().isEmpty()) {
+                throw new IllegalStateException("Prefab spawn created no entities: " + name);
+            }
+            return entities.ofEntityId(result.createdEntityIds().get(0));
+        }
     }
 }
