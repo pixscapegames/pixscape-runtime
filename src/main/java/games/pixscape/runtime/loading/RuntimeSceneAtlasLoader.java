@@ -1,4 +1,5 @@
 package games.pixscape.runtime.loading;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -23,7 +24,7 @@ public final class RuntimeSceneAtlasLoader {
             return;
         }
 
-        var meta = cfg.getSceneMeta(sceneName);
+        SceneMetaRuntime meta = cfg.getSceneMeta(sceneName);
         String sceneDirName = RuntimeConfig.sceneDirName(meta);
         if (sceneDirName == null || sceneDirName.isEmpty()) {
             Gdx.app.error("RuntimeSceneAtlasLoader",

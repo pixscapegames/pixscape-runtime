@@ -245,9 +245,9 @@ public final class RenderSubmitSystem extends BaseSystem {
     private static int hashShaderParams(com.badlogic.gdx.utils.ObjectFloatMap<String> floats) {
         // Commutative hash (iteration order not guaranteed): XOR/mix
         int h = 0x9E3779B9;
-        var it = floats.entries();
+        ObjectFloatMap.Entries<String> it = floats.entries();
         while (it.hasNext()) {
-            var e = it.next();
+            ObjectFloatMap.Entry<String> e = it.next();
             int kh = (e.key != null ? e.key.hashCode() : 0);
             int vh = Float.floatToIntBits(e.value);
             int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;

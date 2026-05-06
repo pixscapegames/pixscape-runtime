@@ -1,4 +1,5 @@
 package games.pixscape.runtime.api;
+import com.badlogic.gdx.utils.IntMap;
 
 import com.artemis.BaseSystem;
 import com.artemis.Component;
@@ -26,6 +27,10 @@ import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 public final class PixscapeApiImpl implements PixscapeAPI {
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
 
     private final PixscapeEngine engine;
     private final ECSAPI ecs;
@@ -295,7 +300,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (src == null) return this;
             boolean changed = false;
             if (src.assetId != assetId) { src.assetId = assetId; changed = true; }
-            String normalizedTag = atlasTag == null || atlasTag.isBlank() ? "main" : atlasTag;
+            String normalizedTag = atlasTag == null || isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalizedTag.equals(src.atlasTag)) { src.atlasTag = normalizedTag; changed = true; }
             if (changed) {
                 resolveRegion(src);
@@ -475,7 +480,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override public ShaderFacade setFloat(String uniform, float value) {
-            if (uniform == null || uniform.isBlank()) return this;
+            if (uniform == null || isBlank(uniform)) return this;
             ShaderParamsComponent params = params(true);
             if (params != null) params.floats.put(uniform, value);
             markMaterial();
@@ -484,7 +489,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override public float getFloat(String uniform, float defaultValue) {
             ShaderParamsComponent params = params(false);
-            if (params == null || uniform == null || uniform.isBlank()) return defaultValue;
+            if (params == null || uniform == null || isBlank(uniform)) return defaultValue;
             return params.floats.get(uniform, defaultValue);
         }
 
@@ -608,7 +613,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override public TiledMapFacade setAtlasTag(String atlasTag) {
             TiledLayerComponent c = comp(true);
             if (c == null) return this;
-            String normalized = atlasTag == null || atlasTag.isBlank() ? "main" : atlasTag;
+            String normalized = atlasTag == null || isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalized.equals(c.atlasTag)) {
                 c.atlasTag = normalized;
                 if (c.data != null) {
@@ -626,7 +631,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (d != null && (d.originX != x || d.originY != y)) {
                 d.originX = x;
                 d.originY = y;
-                for (var it = d.getChunks(); it.hasNext();) d.updateChunkBounds(it.next());
+                for (IntMap.Values<TileChunk> it = d.getChunks(); it.hasNext();) d.updateChunkBounds(it.next());
                 d.markAllChunksContentDirty();
             }
             if (c != null) {
@@ -705,7 +710,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         static void syncAllChunkAnimations(PixscapeEngine engine, TiledMapLayerData d) {
             if (d == null) return;
-            for (var it = d.getChunks(); it.hasNext();) {
+            for (IntMap.Values<TileChunk> it = d.getChunks(); it.hasNext();) {
                 TileChunk chunk = it.next();
                 TileAnimationStateSupport.syncChunk(chunk, engine.getAnimatedTileRegistry());
             }

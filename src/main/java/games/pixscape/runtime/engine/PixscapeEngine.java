@@ -1,4 +1,5 @@
 package games.pixscape.runtime.engine;
+import com.badlogic.gdx.utils.Array;
 
 import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
@@ -10,6 +11,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
@@ -120,7 +122,7 @@ public final class PixscapeEngine {
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
 
-        if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
+        if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
@@ -400,21 +402,21 @@ public final class PixscapeEngine {
             throw new IllegalArgumentException("out is null");
         }
         out.setSize(0);
-        if (name == null || name.isBlank()) {
+        if (name == null || isBlank(name)) {
             return;
         }
         IdentityRegistry registry = getIdentityRegistry();
         if (registry == null) {
             return;
         }
-        var hits = registry.getByName(name);
+        IntArray hits = registry.getByName(name);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
     }
 
     public int firstEntityByTag(String tag) {
-        if (tag == null || tag.isBlank()) {
+        if (tag == null || isBlank(tag)) {
             return -1;
         }
         TagRegistry registry = getTagRegistry();
@@ -426,14 +428,14 @@ public final class PixscapeEngine {
             throw new IllegalArgumentException("out is null");
         }
         out.setSize(0);
-        if (tag == null || tag.isBlank()) {
+        if (tag == null || isBlank(tag)) {
             return;
         }
         TagRegistry registry = getTagRegistry();
         if (registry == null) {
             return;
         }
-        var hits = registry.get(tag);
+        IntArray hits = registry.get(tag);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
@@ -726,7 +728,7 @@ public final class PixscapeEngine {
         if (meta == null) throw new IllegalArgumentException("Unknown scene: " + resolvedName);
 
         String sceneTag = RuntimeConfig.sceneDirName(meta);
-        if (sceneTag == null || sceneTag.isBlank()) {
+        if (sceneTag == null || isBlank(sceneTag)) {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
         applyPhysicsFromScene(meta);
@@ -837,7 +839,7 @@ public final class PixscapeEngine {
         if (atlasRuntimeService == null) {
             throw new IllegalStateException("Atlas runtime service is not initialized.");
         }
-        if (sceneTag == null || sceneTag.isBlank()) {
+        if (sceneTag == null || isBlank(sceneTag)) {
             throw new IllegalStateException("Scene tag must not be null or blank.");
         }
         TextureAtlas atlas = atlasRuntimeService.getAtlas(sceneTag);
@@ -902,9 +904,9 @@ public final class PixscapeEngine {
 
     private void rebuildSceneAssets(String sceneTag) {
 
-        var mSrc = world.getMapper(AssetRefComponent.class);
-        var mTR  = world.getMapper(TextureRegionComponent.class);
-        var mMat = world.getMapper(RenderMaterialComponent.class);
+        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> mTR  = world.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
         IntBag bag = world.getAspectSubscriptionManager()
@@ -928,7 +930,7 @@ public final class PixscapeEngine {
                         "AssetRef entity without assetId during rebuild: e=" + e);
 
             String atlasTag = src.atlasTag;
-            if (atlasTag == null || atlasTag.isBlank()) {
+            if (atlasTag == null || isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
@@ -959,9 +961,9 @@ public final class PixscapeEngine {
     static void resolveAssetRefsForEntities(World world, AtlasRuntimeService atlasRuntimeService, IntBag entityIds) {
         if (world == null || atlasRuntimeService == null || entityIds == null || entityIds.isEmpty()) return;
 
-        var mSrc = world.getMapper(AssetRefComponent.class);
-        var mTR = world.getMapper(TextureRegionComponent.class);
-        var mMat = world.getMapper(RenderMaterialComponent.class);
+        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
         for (int i = 0; i < entityIds.size(); i++) {
@@ -976,7 +978,7 @@ public final class PixscapeEngine {
                 throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
             }
             String atlasTag = src.atlasTag;
-            if (atlasTag == null || atlasTag.isBlank()) {
+            if (atlasTag == null || isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
@@ -1002,12 +1004,12 @@ public final class PixscapeEngine {
     }
 
     private String resolveSceneName(String sceneName) {
-        if (sceneName != null && !sceneName.isBlank()) return sceneName;
+        if (sceneName != null && !isBlank(sceneName)) return sceneName;
 
         String cur = cfg.currentSceneName;
         if (cur != null && cfg.getSceneMeta(cur) != null) return cur;
 
-        var names = cfg.getSceneNamesSorted();
+        Array<String> names = cfg.getSceneNamesSorted();
         if (names != null && names.size > 0) return names.first();
 
         throw new IllegalStateException("RuntimeConfig has no scenes.");
@@ -1076,10 +1078,15 @@ public final class PixscapeEngine {
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {
-        String effectsDir = (config != null && config.effectsDir != null && !config.effectsDir.isBlank())
+        String effectsDir = (config != null && config.effectsDir != null && !isBlank(config.effectsDir))
                 ? config.effectsDir
                 : "effects";
         return (projectDir != null) ? projectDir.child(effectsDir) : null;
+    }
+
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     public boolean isLoaded() {
