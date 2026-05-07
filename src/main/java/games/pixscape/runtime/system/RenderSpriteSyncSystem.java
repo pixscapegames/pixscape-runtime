@@ -25,7 +25,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
     private final RenderStateSOA state;
 
-    private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem dirty;
 
     private ComponentMapper<OrientedBoundsComponent> mBounds;
     private ComponentMapper<TextureRegionComponent>  mTR;
@@ -45,8 +45,9 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     private final float[] tmpCorners = new float[8];
     private final float[] tmpColor   = new float[4];
 
-    public RenderSpriteSyncSystem(RenderStateSOA state) {
+    public RenderSpriteSyncSystem(RenderStateSOA state, DirtyTrackerSystem dirty) {
         this.state = state;
+        this.dirty = dirty;
     }
 
     @Override
@@ -54,7 +55,6 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
         InternalTextures.initIfNeeded();
 
-        dirty         = world.getSystem(DirtyTrackerSystem.class);
 
         mBounds       = world.getMapper(OrientedBoundsComponent.class);
         mTR           = world.getMapper(TextureRegionComponent.class);
@@ -84,9 +84,6 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
             @Override
             public void inserted(IntBag entities) {
                 DirtyTrackerSystem tracker = dirty;
-                if (tracker == null) {
-                    tracker = world.getSystem(DirtyTrackerSystem.class);
-                }
                 if (tracker == null) return;
 
                 int[] data = entities.getData();

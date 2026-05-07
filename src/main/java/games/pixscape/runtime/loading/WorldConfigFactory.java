@@ -146,6 +146,8 @@ public final class WorldConfigFactory {
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
 
+        DirtyTrackerSystem dirtyTracker = new DirtyTrackerSystem(ecsEnd);
+
         addCoreSyncSystems(
                 builder,
                 camera,
@@ -160,7 +162,8 @@ public final class WorldConfigFactory {
                 tiledEnd,
                 vfxStart,
                 totalCapacity,
-                effectiveAnimatedTileRegistry
+                effectiveAnimatedTileRegistry,
+                dirtyTracker
         );
 
         if (preRenderCustomizer != null) {
@@ -179,7 +182,7 @@ public final class WorldConfigFactory {
                 submitSupplier
         );
 
-        builder.with(new DirtyFlushSystem());
+        builder.with(new DirtyFlushSystem(dirtyTracker));
 
         if (postRenderCustomizer != null) {
             postRenderCustomizer.accept(builder);
@@ -196,7 +199,8 @@ public final class WorldConfigFactory {
                 vfxStart,
                 totalCapacity,
                 totalCapacity,
-                effectiveAnimatedTileRegistry
+                effectiveAnimatedTileRegistry,
+                dirtyTracker
         );
     }
 
@@ -214,16 +218,17 @@ public final class WorldConfigFactory {
             int tiledEnd,
             int vfxStartIndex,
             int vfxEndIndex,
-            TileAnimationRegistry animatedTileRegistry
+            TileAnimationRegistry animatedTileRegistry,
+            DirtyTrackerSystem dirtyTracker
     ) {
         builder.with(
                 new WorldSerializationManager(),
-                new DirtyTrackerSystem(entityCapacityHint),
-                new Box2dSyncSystem(null),
-                new UpdateWorldGeometrySystem(),
-                new AnimationSystem(atlasRuntimeService),
+                dirtyTracker,
+                new Box2dSyncSystem(null, dirtyTracker),
+                new UpdateWorldGeometrySystem(dirtyTracker),
+                new AnimationSystem(atlasRuntimeService, dirtyTracker),
                 new LayerStateBuildSystem(layerState, meta),
-                new RenderSpriteSyncSystem(renderState),
+                new RenderSpriteSyncSystem(renderState, dirtyTracker),
                 new ParallaxDisplaySystem(renderState, layerState, worldCamera),
                 new CullingSystem(worldCamera, renderState),
                 new TiledAnimationSystem(animatedTileRegistry),

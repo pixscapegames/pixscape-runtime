@@ -19,7 +19,11 @@ import games.pixscape.runtime.render.GeometryDirty;
  */
 public final class UpdateWorldGeometrySystem extends BaseSystem {
 
-    private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem dirty;
+
+    public UpdateWorldGeometrySystem(DirtyTrackerSystem dirty) {
+        this.dirty = dirty;
+    }
 
     private ComponentMapper<TransformComponent>       mT;
     private ComponentMapper<DimensionsComponent>      mD;
@@ -34,7 +38,6 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
         mD     = world.getMapper(DimensionsComponent.class);
         mB    = world.getMapper(OrientedBoundsComponent.class);
         mA    = world.getMapper(AABBComponent.class);
-        dirty = world.getSystem(DirtyTrackerSystem.class);
     }
 
     @Override

@@ -41,7 +41,7 @@ public final class Box2dSyncSystem extends BaseSystem {
     private ComponentMapper<PhysicsGearJointComponent>      mGear;
 
 
-    private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem dirty;
 
     private EntitySubscription subWanted;   // T + Body + Fixtures
     private EntitySubscription subRuntime;  // RuntimeBody
@@ -68,8 +68,9 @@ public final class Box2dSyncSystem extends BaseSystem {
 
     private final Array<Body> bodyScratch = new Array<>(false, 64);
 
-    public Box2dSyncSystem(Box2dWorldService box2d) {
+    public Box2dSyncSystem(Box2dWorldService box2d, DirtyTrackerSystem dirty) {
         this.box2d = box2d;
+        this.dirty = dirty;
     }
 
     public void setBox2d(Box2dWorldService box2d) {
@@ -122,8 +123,6 @@ public final class Box2dSyncSystem extends BaseSystem {
         mPulley     = world.getMapper(PhysicsPulleyJointComponent.class);
         mGear       = world.getMapper(PhysicsGearJointComponent.class);
 
-
-        dirty = world.getSystem(DirtyTrackerSystem.class);
 
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
 

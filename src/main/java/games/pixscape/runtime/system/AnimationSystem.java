@@ -26,7 +26,7 @@ public final class AnimationSystem extends IteratingSystem {
     private ComponentMapper<RenderMaterialComponent> mMat;
     private ComponentMapper<AssetRefComponent> mSrc;
 
-    private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem dirty;
 
     private final AtlasRuntimeService atlasRuntimeService;
 
@@ -36,13 +36,14 @@ public final class AnimationSystem extends IteratingSystem {
 
     private final ObjectMap<String, AnimationBinding> bindingCache = new ObjectMap<>();
 
-    public AnimationSystem(AtlasRuntimeService atlasRuntimeService) {
+    public AnimationSystem(AtlasRuntimeService atlasRuntimeService, DirtyTrackerSystem dirty) {
         super(Aspect.all(AnimationComponent.class,
                 TextureRegionComponent.class,
                 RenderMaterialComponent.class,
                 AssetRefComponent.class));
 
         this.atlasRuntimeService = atlasRuntimeService;
+        this.dirty = dirty;
     }
 
     @Override
@@ -51,7 +52,6 @@ public final class AnimationSystem extends IteratingSystem {
         mTR     = world.getMapper(TextureRegionComponent.class);
         mMat    = world.getMapper(RenderMaterialComponent.class);
         mSrc    = world.getMapper(AssetRefComponent.class);
-        dirty   = world.getSystem(DirtyTrackerSystem.class);
     }
 
     @Override

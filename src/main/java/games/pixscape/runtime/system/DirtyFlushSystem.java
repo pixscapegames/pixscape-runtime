@@ -5,11 +5,10 @@ import com.artemis.BaseSystem;
 /** Explicit dirty flush at end of frame, to remove dependency on implicit ordering. */
 public final class DirtyFlushSystem extends BaseSystem {
 
-    private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem dirty;
 
-    @Override
-    protected void initialize() {
-        dirty = world.getSystem(DirtyTrackerSystem.class);
+    public DirtyFlushSystem(DirtyTrackerSystem dirty) {
+        this.dirty = dirty;
     }
 
     @Override
