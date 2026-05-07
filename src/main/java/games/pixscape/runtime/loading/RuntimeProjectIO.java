@@ -3,6 +3,8 @@ package games.pixscape.runtime.loading;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -46,6 +48,35 @@ public final class RuntimeProjectIO {
 
     private RuntimeProjectIO() {}
 
+    private static RuntimeConfig parseRuntimeConfig(JsonValue root) {
+        if (root == null || !root.isObject()) return null;
+
+        RuntimeConfig cfg = new RuntimeConfig();
+        cfg.projectFileName = root.getString("projectFileName", cfg.projectFileName);
+        cfg.version = root.getString("version", cfg.version);
+        cfg.runtimeRootDir = root.getString("runtimeRootDir", cfg.runtimeRootDir);
+        cfg.scenesDir = root.getString("scenesDir", cfg.scenesDir);
+        cfg.atlasesDir = root.getString("atlasesDir", cfg.atlasesDir);
+        cfg.effectsDir = root.getString("effectsDir", cfg.effectsDir);
+        cfg.animationsDir = root.getString("animationsDir", cfg.animationsDir);
+        cfg.shadersDir = root.getString("shadersDir", cfg.shadersDir);
+        cfg.audioDir = root.getString("audioDir", cfg.audioDir);
+        cfg.prefabsDir = root.getString("prefabsDir", cfg.prefabsDir);
+        cfg.currentSceneName = root.getString("currentSceneName", cfg.currentSceneName);
+        cfg.glProfile = root.getString("glProfile", cfg.glProfile);
+        cfg.glSamples = root.getInt("glSamples", cfg.glSamples);
+
+        JsonValue scenesNode = root.get("scenes");
+        if (scenesNode != null && scenesNode.isObject()) {
+            for (JsonValue sceneEntry = scenesNode.child; sceneEntry != null; sceneEntry = sceneEntry.next) {
+                if (sceneEntry.name == null) continue;
+                cfg.scenes.put(sceneEntry.name, SceneMetaRuntime.fromJson(sceneEntry, sceneEntry.name));
+            }
+        }
+
+        return cfg;
+    }
+
     public static RuntimeConfig loadProject(FileHandle projectDir) {
         if (projectDir == null) throw new GdxRuntimeException("projectDir is null");
 
@@ -56,7 +87,8 @@ public final class RuntimeProjectIO {
 
         final RuntimeConfig cfg;
         try {
-            cfg = json.fromJson(RuntimeConfig.class, file);
+            JsonValue root = new JsonReader().parse(file);
+            cfg = parseRuntimeConfig(root);
         } catch (Exception e) {
             throw new GdxRuntimeException("Failed to parse " + PROJECT_JSON + ": " + file.path(), e);
         }
