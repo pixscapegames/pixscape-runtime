@@ -1,6 +1,7 @@
 #version 300 es
 precision mediump float;
 precision mediump int;
+precision mediump sampler2DArray;
 
 #include "pixscape_common.glsl"
 

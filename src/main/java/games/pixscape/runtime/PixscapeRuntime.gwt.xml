@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module>
     <source path=""/>
+
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.system.LayerStateBuildSystem"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.system"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
 </module>
