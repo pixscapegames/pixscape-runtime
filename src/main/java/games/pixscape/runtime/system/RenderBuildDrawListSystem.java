@@ -22,8 +22,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     private final DrawList       drawList;
     private final RenderStats    stats;
     private final int            ecsEndExclusive;
-    private final int reservedStartInclusive;
-    private final int reservedEndExclusive;
+    private final int            reservedStartInclusive;
+    private final int            reservedEndExclusive;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
                                      LayerStateSOA layerState,

@@ -8,6 +8,11 @@ public final class DirtyFlushSystem extends BaseSystem {
     private DirtyTrackerSystem dirty;
 
     @Override
+    protected void initialize() {
+        dirty = world.getSystem(DirtyTrackerSystem.class);
+    }
+
+    @Override
     protected void processSystem() {
         if (dirty != null) dirty.clearFrame();
     }

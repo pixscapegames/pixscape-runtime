@@ -31,7 +31,6 @@ import games.pixscape.runtime.service.TextureRegistry;
  * SOA version of particles: updates ParticleEffect and
  * injects each active particle Sprite into RenderStateSOA.
  */
-@All({ParticleEmitterComponent.class, TransformComponent.class})
 public final class RenderParticleSyncSystem extends BaseSystem {
 
     private final OrthographicCamera camera;
@@ -51,11 +50,11 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private final IntSet loggedEntities = new IntSet();
     private final IntSet waitingAtlasLoggedEntities = new IntSet();
 
-    private ComponentMapper<ParticleEmitterComponent>  mEmitter;
-    private ComponentMapper<TransformComponent>        mTransform;
-    private ComponentMapper<VisibilityComponent>       mVis;
-    private ComponentMapper<EntityIndexComponent>      mEntityIndex;
-    private ComponentMapper<LayerComponent>       mLayerIndex;
+    private ComponentMapper<ParticleEmitterComponent>   mEmitter;
+    private ComponentMapper<TransformComponent>         mTransform;
+    private ComponentMapper<VisibilityComponent>        mVis;
+    private ComponentMapper<EntityIndexComponent>       mEntityIndex;
+    private ComponentMapper<LayerComponent>             mLayerIndex;
     private ComponentMapper<ParticleOverridesComponent> mOverrides;
 
     private EntitySubscription subscription;
@@ -98,6 +97,13 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        mEmitter     = world.getMapper(ParticleEmitterComponent.class);
+        mTransform   = world.getMapper(TransformComponent.class);
+        mVis         = world.getMapper(VisibilityComponent.class);
+        mEntityIndex = world.getMapper(EntityIndexComponent.class);
+        mLayerIndex  = world.getMapper(LayerComponent.class);
+        mOverrides   = world.getMapper(ParticleOverridesComponent.class);
+
         subscription = world.getAspectSubscriptionManager().get(
                 Aspect.all(ParticleEmitterComponent.class, TransformComponent.class)
         );

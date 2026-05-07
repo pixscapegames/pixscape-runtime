@@ -31,6 +31,12 @@ public final class CullingSystem extends IteratingSystem {
     }
 
     @Override
+    protected void initialize() {
+        mAABB = world.getMapper(AABBComponent.class);
+        mVis  = world.getMapper(VisibilityComponent.class);
+    }
+
+    @Override
     protected void begin() {
         cam.update(false);
 

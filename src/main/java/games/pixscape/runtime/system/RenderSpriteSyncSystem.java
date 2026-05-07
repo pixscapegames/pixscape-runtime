@@ -32,7 +32,6 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     private ComponentMapper<RenderMaterialComponent> mMat;
     private ComponentMapper<EntityIndexComponent>    mEntityIndex;
     private ComponentMapper<TintComponent>           mTint;
-
     private ComponentMapper<PointLightComponent>     mPointLight;
     private ComponentMapper<ConeLightComponent>      mConeLight;
     private ComponentMapper<TransformComponent>      mTransform;
@@ -52,7 +51,20 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+
         InternalTextures.initIfNeeded();
+
+        dirty         = world.getSystem(DirtyTrackerSystem.class);
+
+        mBounds       = world.getMapper(OrientedBoundsComponent.class);
+        mTR           = world.getMapper(TextureRegionComponent.class);
+        mMat          = world.getMapper(RenderMaterialComponent.class);
+        mEntityIndex  = world.getMapper(EntityIndexComponent.class);
+        mTint         = world.getMapper(TintComponent.class);
+        mPointLight   = world.getMapper(PointLightComponent.class);
+        mConeLight    = world.getMapper(ConeLightComponent.class);
+        mTransform    = world.getMapper(TransformComponent.class);
+        mShaderParams = world.getMapper(ShaderParamsComponent.class);
 
         // subscription = all "sprite renderable" entities
         spriteSub = world.getAspectSubscriptionManager().get(

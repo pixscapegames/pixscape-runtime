@@ -29,6 +29,15 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
     private final float[] tmpCorners = new float[8];
 
     @Override
+    protected void initialize() {
+        mT   = world.getMapper(TransformComponent.class);
+        mD     = world.getMapper(DimensionsComponent.class);
+        mB    = world.getMapper(OrientedBoundsComponent.class);
+        mA    = world.getMapper(AABBComponent.class);
+        dirty = world.getSystem(DirtyTrackerSystem.class);
+    }
+
+    @Override
     protected void processSystem() {
         if (dirty == null) return;
 

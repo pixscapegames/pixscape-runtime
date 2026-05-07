@@ -1,10 +1,6 @@
 package games.pixscape.runtime.system;
 
-import com.artemis.AspectSubscriptionManager;
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;

@@ -8,7 +8,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.ObjectFloatMap;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
@@ -36,13 +38,6 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
-
-    // --- DEBUG (reflection, no runtime->studio dependency) ---
-    @SkipWire private EntitySubscription pointLightSub;
-
-    @SkipWire private final float[] debugBatchColor = new float[4];
-    @SkipWire private final StringBuilder debugSb = new StringBuilder(256);
-    @SkipWire private final StringBuilder debugPreviewSb = new StringBuilder(256);
 
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
@@ -80,6 +75,11 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     public RenderStateSOA getState() {
         return state;
+    }
+
+    @Override
+    protected void initialize() {
+        mShaderParams = world.getMapper(ShaderParamsComponent.class);
     }
 
     @Override

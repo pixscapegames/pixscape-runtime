@@ -1,7 +1,7 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
@@ -13,10 +13,9 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
-@All({LayerComponent.class, TiledLayerComponent.class})
 public final class TiledAnimationSystem extends IteratingSystem {
 
-    private ComponentMapper<LayerComponent> mLayer;
+    private ComponentMapper<LayerComponent>      mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private TileAnimationLookup tileAnimationLookup;
@@ -42,6 +41,7 @@ public final class TiledAnimationSystem extends IteratingSystem {
     }
 
     public TiledAnimationSystem(TileAnimationLookup tileAnimationLookup) {
+        super(Aspect.all(LayerComponent.class, TiledLayerComponent.class));
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
     }
 
@@ -55,6 +55,13 @@ public final class TiledAnimationSystem extends IteratingSystem {
 
     public boolean isAdvanceOnlyVisibleChunks() {
         return advanceOnlyVisibleChunks;
+    }
+
+
+    @Override
+    protected void initialize() {
+        mLayer   = world.getMapper(LayerComponent.class);
+        mTiled     = world.getMapper(TiledLayerComponent.class);
     }
 
     @Override

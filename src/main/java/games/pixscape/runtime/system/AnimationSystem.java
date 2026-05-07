@@ -46,6 +46,15 @@ public final class AnimationSystem extends IteratingSystem {
     }
 
     @Override
+    protected void initialize() {
+        mAnim   = world.getMapper(AnimationComponent.class);
+        mTR     = world.getMapper(TextureRegionComponent.class);
+        mMat    = world.getMapper(RenderMaterialComponent.class);
+        mSrc    = world.getMapper(AssetRefComponent.class);
+        dirty   = world.getSystem(DirtyTrackerSystem.class);
+    }
+
+    @Override
     protected void process(int e) {
         AnimationComponent a = mAnim.get(e);
         if (!a.playing || a.fps <= 0f) return;

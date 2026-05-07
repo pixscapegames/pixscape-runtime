@@ -1,7 +1,7 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -20,27 +20,26 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 
-@All({LayerComponent.class, TiledLayerComponent.class})
 public final class RenderTiledSyncSystem extends IteratingSystem {
 
-    private ComponentMapper<LayerComponent> mLayer;
+    private ComponentMapper<LayerComponent>      mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
-    private final OrthographicCamera camera;
-    private final RenderStateSOA state;
+    private final OrthographicCamera  camera;
+    private final RenderStateSOA      state;
     private final AtlasRuntimeService atlasRuntimeService;
-    private final int defaultShaderIdx;
-    private TileAnimationLookup tileAnimationLookup;
+    private final int                 defaultShaderIdx;
+    private TileAnimationLookup       tileAnimationLookup;
 
     private final Rectangle viewBounds = new Rectangle();
-    private final float[] tmpQuad = new float[8];
-    private final int[] tmpWindow = new int[4];
-    private int testedChunkCount;
-    private int visibleChunkCount;
-    private int shownChunkCount;
-    private int hiddenChunkCount;
-    private int dirtyFullChunkCount;
-    private int dirtyPartialChunkCount;
+    private final float[]   tmpQuad = new float[8];
+    private final int[]     tmpWindow = new int[4];
+    private int             testedChunkCount;
+    private int             visibleChunkCount;
+    private int             shownChunkCount;
+    private int             hiddenChunkCount;
+    private int             dirtyFullChunkCount;
+    private int             dirtyPartialChunkCount;
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
@@ -66,12 +65,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
                                  int tiledStart,
                                  int tiledEnd,
                                  TileAnimationLookup tileAnimationLookup) {
-
+        super(Aspect.all(LayerComponent.class, TiledLayerComponent.class));
         this.camera = camera;
         this.state = state;
         this.atlasRuntimeService = atlasRuntimeService;
         this.defaultShaderIdx = defaultShaderIdx;
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
+    }
+
+    @Override
+    protected void initialize() {
+        mLayer = world.getMapper(LayerComponent.class);
+        mTiled = world.getMapper(TiledLayerComponent.class);
     }
 
     @Override

@@ -1,7 +1,7 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.LayerComponent;
@@ -19,7 +19,6 @@ import games.pixscape.runtime.render.LayerStateSOA;
  * - TYPE_LIGHT:   parallax is read from LayerParallaxComponent when present; otherwise NaN
  * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
  */
-@All(LayerComponent.class)
 public final class LayerStateBuildSystem extends IteratingSystem {
 
     private static final String TAG = "LayerStateBuild";
@@ -32,8 +31,16 @@ public final class LayerStateBuildSystem extends IteratingSystem {
     private ComponentMapper<VisibilityComponent>    mVis;
 
     public LayerStateBuildSystem(LayerStateSOA layerState, SceneMetaRuntime sceneMeta) {
+        super(Aspect.all(LayerComponent.class));
         this.layerState = layerState;
         this.sceneMeta  = sceneMeta;
+    }
+
+    @Override
+    protected void initialize() {
+        mLayer = world.getMapper(LayerComponent.class);
+        mParallax = world.getMapper(LayerParallaxComponent.class);
+        mVis = world.getMapper(VisibilityComponent.class);
     }
 
     @Override

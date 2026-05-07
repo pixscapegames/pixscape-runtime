@@ -1,8 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <module>
     <source path=""/>
 
-    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.system.LayerStateBuildSystem"/>
-    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.system"/>
-    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
+    <source path="javax/annotation/meta">
+        <include name="TypeQualifierValidator.java"/>
+        <include name="When.java"/>
+    </source>
+
+    <source path="javax/annotation">
+        <include name="Nonnull.java"/>
+    </source>
 </module>
