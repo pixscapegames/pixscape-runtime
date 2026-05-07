@@ -313,14 +313,22 @@ public final class ShaderRegistry {
                 + " glProfile=" + getGlProfile()
                 + " caps=" + c);
 
-        loadMandatoryCoreDefaultShader(variant, ShaderMode.TEXTURE_2D);
-        loadOptionalCoreDefaultShader(variant, ShaderMode.MULTI_TEXTURE);
-
-        if (isModeSupportedForCurrentProfile(ShaderMode.TEXTURE_ARRAY)) {
-            loadOptionalCoreDefaultShader(variant, ShaderMode.TEXTURE_ARRAY);
-            loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
-            loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
+        if (!isModeSupportedForCurrentProfile(ShaderMode.TEXTURE_ARRAY)) {
+            throw new IllegalStateException(
+                    "Pixscape runtime requires texture array support for target="
+                            + requestedPlatformTarget
+                            + ", variant=" + variant
+                            + ", caps=" + c
+            );
         }
+
+        loadMandatoryCoreDefaultShader(variant, ShaderMode.TEXTURE_ARRAY);
+
+        loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
+        loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
+
+        loadOptionalCoreDefaultShader(variant, ShaderMode.TEXTURE_2D);
+        loadOptionalCoreDefaultShader(variant, ShaderMode.MULTI_TEXTURE);
 
         registerCoreLightDefaults();
         loadCustomShadersForProject();

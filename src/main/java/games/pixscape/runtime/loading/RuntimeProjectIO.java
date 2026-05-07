@@ -123,7 +123,8 @@ public final class RuntimeProjectIO {
 
         final TileAnimationsRuntimeData data;
         try {
-            data = json.fromJson(TileAnimationsRuntimeData.class, file);
+            JsonValue root = new JsonReader().parse(file);
+            data = parseTileAnimations(root);
         } catch (Exception e) {
             throw new GdxRuntimeException(
                     "Failed to parse " + RuntimeFs.FILE_TILE_ANIMATIONS_JSON + ": " + file.path(),
@@ -131,24 +132,57 @@ public final class RuntimeProjectIO {
             );
         }
 
-        if (data == null) {
-            throw new GdxRuntimeException(
-                    "Invalid " + RuntimeFs.FILE_TILE_ANIMATIONS_JSON + " (null): " + file.path()
-            );
-        }
-
-        if (data.animations == null) {
+        if (data == null || data.animations == null) {
             return;
         }
 
         for (int i = 0, n = data.animations.size; i < n; i++) {
             TileAnimationDefData defData = data.animations.get(i);
             if (defData == null) {
-                throw new GdxRuntimeException(
-                        "Invalid tile animation entry (null): " + file.path()
-                );
+                throw new GdxRuntimeException("Invalid tile animation entry (null): " + file.path());
             }
             registry.put(defData);
         }
+    }
+
+    private static TileAnimationsRuntimeData parseTileAnimations(JsonValue root) {
+        TileAnimationsRuntimeData data = new TileAnimationsRuntimeData();
+
+        if (root == null || !root.isObject()) {
+            return data;
+        }
+
+        JsonValue animations = root.get("animations");
+        if (animations == null || !animations.isArray()) {
+            return data;
+        }
+
+        for (JsonValue node = animations.child; node != null; node = node.next) {
+            if (node == null || !node.isObject()) continue;
+
+            TileAnimationDefData def = new TileAnimationDefData();
+            def.id = node.getInt("id", 0);
+            def.frameAssetIds = readIntArray(node.get("frameAssetIds"));
+            def.frameDurationsMs = readIntArray(node.get("frameDurationsMs"));
+
+            data.animations.add(def);
+        }
+
+        return data;
+    }
+
+    private static int[] readIntArray(JsonValue array) {
+        if (array == null || !array.isArray()) {
+            return new int[0];
+        }
+
+        int[] out = new int[array.size];
+
+        int i = 0;
+        for (JsonValue item = array.child; item != null; item = item.next) {
+            out[i++] = item.asInt();
+        }
+
+        return out;
     }
 }

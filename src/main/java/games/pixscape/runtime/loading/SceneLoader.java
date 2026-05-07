@@ -43,7 +43,7 @@ public final class SceneLoader {
         }
 
         if (clearContentFirst) {
-            // 🔥 Reset render cache
+            // Reset render cache
             RenderStateSOA state = world.getSystem(RenderSubmitSystem.class).getState();
             state.clearAll();
             // remove existing entities, or only the "scene" content

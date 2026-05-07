@@ -71,7 +71,7 @@ public class SceneMetaRuntime {
 
         String projection = json.getString("tiledProjection", meta.tiledProjection.name());
         try {
-            meta.tiledProjection = TiledProjection.valueOf(projection);
+            meta.tiledProjection = TiledProjection.valueOf(projection.trim().toUpperCase());
         } catch (Exception ignored) {
             meta.tiledProjection = TiledProjection.ORTHO;
         }
@@ -85,6 +85,7 @@ public class SceneMetaRuntime {
 
     /** Copies only the "runtime settings" fields (not identity). */
     public void copyFrom(SceneMetaRuntime other) {
+        if (other == null) return;
         this.name               = other.name;
         this.file               = other.file;
         this.physicsEnabled     = other.physicsEnabled;
