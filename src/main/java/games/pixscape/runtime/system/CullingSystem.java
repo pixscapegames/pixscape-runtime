@@ -12,9 +12,9 @@ import games.pixscape.runtime.render.RenderStateSOA;
 public final class CullingSystem extends IteratingSystem {
 
     private final OrthographicCamera cam;
-    private final RenderStateSOA     renderState;
+    private final RenderStateSOA renderState;
 
-    private ComponentMapper<AABBComponent>       mAABB;
+    private ComponentMapper<AABBComponent> mAABB;
     private ComponentMapper<VisibilityComponent> mVis;
 
     private float frMinX;
@@ -26,7 +26,7 @@ public final class CullingSystem extends IteratingSystem {
 
     public CullingSystem(OrthographicCamera worldCamera, RenderStateSOA renderState) {
         super(Aspect.all(AABBComponent.class, VisibilityComponent.class));
-        this.cam         = worldCamera;
+        this.cam = worldCamera;
         this.renderState = renderState;
     }
 
@@ -71,7 +71,7 @@ public final class CullingSystem extends IteratingSystem {
 
         AABBComponent a = mAABB.get(e);
 
-        float pad  = v.padding;
+        float pad = v.padding;
         float minX = a.minX - pad;
         float minY = a.minY - pad;
         float maxX = a.maxX + pad;
@@ -81,8 +81,10 @@ public final class CullingSystem extends IteratingSystem {
         float ox = RenderSpaceMapper.offsetX(renderState, e);
         float oy = RenderSpaceMapper.offsetY(renderState, e);
 
-        minX += ox; maxX += ox;
-        minY += oy; maxY += oy;
+        minX += ox;
+        maxX += ox;
+        minY += oy;
+        maxY += oy;
 
         boolean overlap = !(maxX < frMinX || minX > frMaxX || maxY < frMinY || minY > frMaxY);
 

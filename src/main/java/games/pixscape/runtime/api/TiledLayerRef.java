@@ -5,11 +5,15 @@ package games.pixscape.runtime.api;
  */
 public interface TiledLayerRef {
     int entityId();
-    long stableId();
+
+    int stableId();
+
     boolean exists();
 
     TiledMapFacade map();
+
     TileEditFacade tiles();
+
     /**
      * Per-cell animation playback control for this layer.
      *

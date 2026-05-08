@@ -1,11 +1,12 @@
 package games.pixscape.runtime.tiled;
 
 public final class TileQuadTransforms {
-    private TileQuadTransforms() {}
+    private TileQuadTransforms() {
+    }
 
     /**
      * Construit le quad monde d'un tile sprite transformé.
-     *
+     * <p>
      * out8 order:
      * 0,1 = BL
      * 2,3 = TL
@@ -32,9 +33,9 @@ public final class TileQuadTransforms {
         float halfH = spriteH * 0.5f;
 
         writeCorner(cx, cy, -halfW, -halfH, flags, out8, 0); // BL
-        writeCorner(cx, cy, -halfW,  halfH, flags, out8, 2); // TL
-        writeCorner(cx, cy,  halfW,  halfH, flags, out8, 4); // TR
-        writeCorner(cx, cy,  halfW, -halfH, flags, out8, 6); // BR
+        writeCorner(cx, cy, -halfW, halfH, flags, out8, 2); // TL
+        writeCorner(cx, cy, halfW, halfH, flags, out8, 4); // TR
+        writeCorner(cx, cy, halfW, -halfH, flags, out8, 6); // BR
     }
 
     private static void writeCorner(float cx,

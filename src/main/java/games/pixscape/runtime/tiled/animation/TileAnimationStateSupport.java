@@ -9,7 +9,7 @@ public final class TileAnimationStateSupport {
 
     /**
      * Synchronizes the per-cell animation state with the logical asset stored in the map.
-     *
+     * <p>
      * Rules:
      * - no asset            -> clear state
      * - unknown animation   -> clear state

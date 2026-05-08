@@ -5,7 +5,6 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.render.ShaderMode;
 
 /**
  * Exported runtime configuration (project.json on user project side).
@@ -27,12 +26,16 @@ public final class RuntimeConfig {
 
     public static final String DEFAULT_VERSION = "1";
 
-    /** Technical identity of exported project. */
+    /**
+     * Technical identity of exported project.
+     */
     public String projectFileName = "";
 
     public String version = DEFAULT_VERSION;
 
-    /** Optional: can be inferred from FileHandle on engine side. */
+    /**
+     * Optional: can be inferred from FileHandle on engine side.
+     */
     public String runtimeRootDir;
 
     public String scenesDir = RuntimeFs.DIR_SCENES;
@@ -48,18 +51,7 @@ public final class RuntimeConfig {
     public String currentSceneName;
 
     // --- Options projet (runtime) ---
-    public String glProfile = "GL30";
     public int glSamples = 0;
-
-    // ---------------------------------------------------------------------
-    // Shader mode
-    // ---------------------------------------------------------------------
-
-    public ShaderMode getShaderMode() {
-        if ("GL30".equals(glProfile)) return ShaderMode.TEXTURE_ARRAY;
-        if ("GL20".equals(glProfile)) return ShaderMode.TEXTURE_2D;
-        return ShaderMode.MULTI_TEXTURE;
-    }
 
     // ---------------------------------------------------------------------
     // Scenes
@@ -84,7 +76,9 @@ public final class RuntimeConfig {
         return names;
     }
 
-    /** scene1.json -> scene1 */
+    /**
+     * scene1.json -> scene1
+     */
     public static String sceneDirName(SceneMetaRuntime meta) {
         return RuntimeFs.sceneDirName(meta);
     }
@@ -118,10 +112,6 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public void applyDefaultsAndValidate(String pathForErrors) {
-        if (pathForErrors == null || isBlank(pathForErrors)) {
-            pathForErrors = "<runtime-config>";
-        }
-
         if (version == null || isBlank(version)) {
             version = DEFAULT_VERSION;
         }
@@ -140,10 +130,6 @@ public final class RuntimeConfig {
 
         if (!DEFAULT_VERSION.equals(version)) {
             throw new RuntimeException("Unsupported project version '" + version + "' in: " + pathForErrors);
-        }
-
-        if (!"GL20".equals(glProfile) && !"GL30".equals(glProfile)) {
-            glProfile = "GL30";
         }
 
         if (glSamples != 0 && glSamples != 2 && glSamples != 4 && glSamples != 8) {

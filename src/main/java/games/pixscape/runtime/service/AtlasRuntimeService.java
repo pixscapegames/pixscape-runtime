@@ -123,7 +123,9 @@ public class AtlasRuntimeService {
         regionCache.clear();
     }
 
-    public TextureAtlas getAtlas(String tag) { return atlases.get(tag); }
+    public TextureAtlas getAtlas(String tag) {
+        return atlases.get(tag);
+    }
 
     public Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
         if (assetId < 0) {
@@ -170,7 +172,8 @@ public class AtlasRuntimeService {
 
     public static final class TextureArrayBundle {
         public final TextureArray textureArray;
-        public final IntIntMap    handle2layer; // handle(Texture) -> layer
+        public final IntIntMap handle2layer; // handle(Texture) -> layer
+
         public TextureArrayBundle(TextureArray ta, IntIntMap map) {
             this.textureArray = ta;
             this.handle2layer = map;
@@ -249,7 +252,7 @@ public class AtlasRuntimeService {
         ta.setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
 
         // 6) Build map: handle -> layer.
-        IntIntMap   handle2layer = new IntIntMap();
+        IntIntMap handle2layer = new IntIntMap();
 
         int whiteHandle = InternalTextures.whiteHandle();
         handle2layer.put(whiteHandle, 0);
@@ -257,7 +260,7 @@ public class AtlasRuntimeService {
         // Layers 1..N map to sources[i].
         for (int i = 0; i < sources.size; i++) {
             Texture page = sources.get(i);
-            int handle   = TextureRegistry.handleOf(page);
+            int handle = TextureRegistry.handleOf(page);
 
             int layer = i + 1;
             handle2layer.put(handle, layer);
@@ -271,8 +274,6 @@ public class AtlasRuntimeService {
 
         return new TextureArrayBundle(ta, handle2layer);
     }
-
-
 
 
     // --------------- bundle cache + active tag ---------------

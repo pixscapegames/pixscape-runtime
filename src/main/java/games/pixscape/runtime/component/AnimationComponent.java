@@ -20,7 +20,9 @@ public class AnimationComponent extends PooledComponent {
     public boolean playing = true;
     public boolean loop = true;
 
-    /** Last resolved global frame index (for change detection only). */
+    /**
+     * Last resolved global frame index (for change detection only).
+     */
     public int frame = -1;
 
     @Override
@@ -40,8 +42,13 @@ public class AnimationComponent extends PooledComponent {
         public int end;
         public boolean flipX = false;
 
-        public Clip() {}
-        public Clip(int start, int end) { this.start = start; this.end = end; }
+        public Clip() {
+        }
+
+        public Clip(int start, int end) {
+            this.start = start;
+            this.end = end;
+        }
     }
 
     public Clip getClip() {

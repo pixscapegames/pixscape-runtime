@@ -14,7 +14,8 @@ public final class PhysicsRuntimeJointComponent extends PooledComponent {
     public transient int aGen = -1;
     public transient int bGen = -1;
 
-    @Override protected void reset() {
+    @Override
+    protected void reset() {
         joint = null;
         aGen = bGen = -1;
     }

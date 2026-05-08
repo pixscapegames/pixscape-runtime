@@ -6,7 +6,8 @@ import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import games.pixscape.runtime.service.TextureRegistry;
 
 public final class InternalTextures {
-    private InternalTextures() {}
+    private InternalTextures() {
+    }
 
     private static Texture white1x1;
 

@@ -4,7 +4,8 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class RuntimeFs {
 
-    private RuntimeFs() {}
+    private RuntimeFs() {
+    }
 
     public static final String EXT_JSON = ".json";
     public static final String EXT_ATLAS = ".atlas";

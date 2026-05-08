@@ -10,7 +10,9 @@ public final class AssetRefComponent extends PooledComponent {
 
     public int assetId = -1;
 
-    /** Scene atlas tag, ex: "MainScene". */
+    /**
+     * Scene atlas tag, ex: "MainScene".
+     */
     public String atlasTag = "main";
 
     @Override

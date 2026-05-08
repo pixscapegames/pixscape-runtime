@@ -8,7 +8,10 @@ package games.pixscape.runtime.api;
  */
 public interface TileAnimationDefView {
     int id();
+
     int frameCount();
+
     int frameAssetId(int index);
+
     int frameDurationMs(int index);
 }

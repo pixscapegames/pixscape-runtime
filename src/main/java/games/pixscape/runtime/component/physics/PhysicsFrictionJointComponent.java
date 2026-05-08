@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsFrictionJointComponent extends PooledComponent {
 
-    public float maxForce  = 0f;
+    public float maxForce = 0f;
     public float maxTorque = 0f;
 
     @Override

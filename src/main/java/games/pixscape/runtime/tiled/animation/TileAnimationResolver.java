@@ -12,8 +12,7 @@ public final class TileAnimationResolver {
      * @param assetId    logical asset stored in the map
      * @param frameIndex current frame index for this instance
      * @param lookup     animation definitions lookup
-     * @return
-     * the visual asset to be rendered
+     * @return the visual asset to be rendered
      */
     public static int resolveVisualAssetId(int assetId,
                                            int frameIndex,

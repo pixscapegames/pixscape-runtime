@@ -2,7 +2,7 @@ package games.pixscape.runtime.component.physics;
 
 /**
  * Simple generator of stable IDs for editor fixtures.
- *
+ * <p>
  * IDs live in FixtureDefData. This generator only allocates and reseeds.
  */
 public final class FixtureIdSequence {

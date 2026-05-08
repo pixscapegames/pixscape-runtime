@@ -1,5 +1,6 @@
 package games.pixscape.runtime.service;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.glutils.GLVersion;
@@ -7,7 +8,10 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.ShaderMode;
+import games.pixscape.runtime.render.ShaderOrigin;
+import games.pixscape.runtime.render.ShaderRole;
+import games.pixscape.runtime.render.ShaderVariant;
 import games.pixscape.runtime.render.batch.GLCaps;
 
 public final class ShaderRegistry {
@@ -37,12 +41,14 @@ public final class ShaderRegistry {
     private static GLCaps caps;
 
     private static PlatformTarget requestedPlatformTarget = PlatformTarget.AUTO;
+    private static PlatformTarget cachedResolvedPlatformTarget = null;
+
     private static FileHandle projectShadersRoot = null;
 
     private static ShaderVariant cachedVariant = null;
-    private static String cachedGlProfile = null;
 
-    private ShaderRegistry() {}
+    private ShaderRegistry() {
+    }
 
     public static ShaderRegistry getInstance() {
         return INSTANCE;
@@ -247,9 +253,6 @@ public final class ShaderRegistry {
         return coreShaderDir(getShaderVariant());
     }
 
-    public static String getCurrentGlProfile() {
-        return getGlProfile();
-    }
 
     // ------------------------------------------------------------------------
     // Lifecycle
@@ -271,32 +274,22 @@ public final class ShaderRegistry {
         initialized = false;
 
         requestedPlatformTarget = PlatformTarget.AUTO;
+        cachedResolvedPlatformTarget = null;
         projectShadersRoot = null;
 
         cachedVariant = null;
-        cachedGlProfile = null;
         caps = null;
     }
 
-    public static void reloadForProject(PlatformTarget target, FileHandle projectDir, String shadersDir) {
+    public static void reloadForProject(FileHandle projectDir, String shadersDir) {
         disposeAll();
-        setProjectContext(target, projectDir, shadersDir);
+        setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
         initDefaults();
     }
 
-    public static void initDefaults(PlatformTarget target, FileHandle projectDir, String shadersDir) {
-        setProjectContext(target, projectDir, shadersDir);
+    public static void initDefaults(FileHandle projectDir, String shadersDir) {
+        setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
         initDefaults();
-    }
-
-    @Deprecated
-    public static void reloadForProject(String glProfile, FileHandle projectDir, String shadersDir) {
-        reloadForProject(legacyGlProfileToPlatformTarget(glProfile), projectDir, shadersDir);
-    }
-
-    @Deprecated
-    public static void initDefaults(String glProfile, FileHandle projectDir, String shadersDir) {
-        initDefaults(legacyGlProfileToPlatformTarget(glProfile), projectDir, shadersDir);
     }
 
     public static void initDefaults() {
@@ -306,12 +299,6 @@ public final class ShaderRegistry {
 
         GLCaps c = caps();
         ShaderVariant variant = getShaderVariant();
-
-        log("ShaderRegistry", "Init defaults with target=" + requestedPlatformTarget
-                + " variant=" + variant
-                + " variantDir=" + coreShaderDir(variant)
-                + " glProfile=" + getGlProfile()
-                + " caps=" + c);
 
         if (!isModeSupportedForCurrentProfile(ShaderMode.TEXTURE_ARRAY)) {
             throw new IllegalStateException(
@@ -355,6 +342,15 @@ public final class ShaderRegistry {
         cone.put("u_softness", 0.1f);
         cone.put("u_falloff", 1.5f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_CONELIGHT, cone);
+    }
+
+    public static PlatformTarget getResolvedPlatformTarget() {
+        if (cachedResolvedPlatformTarget == null) {
+            getShaderVariant();
+        }
+        return cachedResolvedPlatformTarget != null
+                ? cachedResolvedPlatformTarget
+                : requestedPlatformTarget;
     }
 
     // ------------------------------------------------------------------------
@@ -464,12 +460,9 @@ public final class ShaderRegistry {
         }
 
         cachedVariant = null;
-        cachedGlProfile = null;
+        cachedResolvedPlatformTarget = null;
     }
 
-    private static PlatformTarget legacyGlProfileToPlatformTarget(String glProfile) {
-        return PlatformTarget.AUTO;
-    }
 
     private static GLCaps caps() {
         if (caps == null) caps = GLCaps.detect();
@@ -481,42 +474,71 @@ public final class ShaderRegistry {
 
         switch (requestedPlatformTarget) {
             case DESKTOP_GL30:
+                cachedResolvedPlatformTarget = PlatformTarget.DESKTOP_GL30;
                 cachedVariant = ShaderVariant.DESKTOP_GL30;
-                cachedGlProfile = "GL30";
                 return cachedVariant;
 
             case ANDROID_ES3:
-            case HTML_WEBGL2:
+                cachedResolvedPlatformTarget = PlatformTarget.ANDROID_ES3;
                 cachedVariant = ShaderVariant.ES3_WEBGL2;
-                cachedGlProfile = "GL30";
+                return cachedVariant;
+
+            case HTML_WEBGL2:
+                cachedResolvedPlatformTarget = PlatformTarget.HTML_WEBGL2;
+                cachedVariant = ShaderVariant.ES3_WEBGL2;
                 return cachedVariant;
 
             case AUTO:
             default:
-                cachedVariant = detectShaderVariant();
-                cachedGlProfile = "GL30";
+                cachedResolvedPlatformTarget = detectPlatformTarget();
+                cachedVariant = shaderVariantFor(cachedResolvedPlatformTarget);
                 return cachedVariant;
         }
     }
 
-    private static ShaderVariant detectShaderVariant() {
+    private static ShaderVariant shaderVariantFor(PlatformTarget target) {
+        switch (target) {
+            case DESKTOP_GL30:
+                return ShaderVariant.DESKTOP_GL30;
+
+            case ANDROID_ES3:
+            case HTML_WEBGL2:
+                return ShaderVariant.ES3_WEBGL2;
+
+            case AUTO:
+            default:
+                return shaderVariantFor(detectPlatformTarget());
+        }
+    }
+
+    private static PlatformTarget detectPlatformTarget() {
         GLCaps c = caps();
 
         if (!c.supportsES3()) {
             throw new IllegalStateException(
-                    "Pixscape 0.1.3 requires Desktop GL30, Android ES3, or HTML WebGL2. GL20 fallback is no longer supported."
+                    "Pixscape requires Desktop GL30, Android ES3, or HTML WebGL2. GL20 fallback is no longer supported."
             );
         }
 
+        Gdx.app.log("ShaderRegistry", "appType=" + Gdx.app.getType()
+                + " glVersion=" + Gdx.graphics.getGLVersion());
+
+        if (Gdx.app != null
+                && Gdx.app.getType() == Application.ApplicationType.WebGL) {
+            Gdx.app.log("ShaderRegistry", "Resolved platform target HTML_WEBGL2");
+            return PlatformTarget.HTML_WEBGL2;
+        }
+
         GLVersion glVersion = Gdx.graphics.getGLVersion();
-        boolean isGles = glVersion.getType() == GLVersion.Type.GLES;
+        boolean isGles = glVersion != null && glVersion.getType() == GLVersion.Type.GLES;
 
-        return isGles ? ShaderVariant.ES3_WEBGL2 : ShaderVariant.DESKTOP_GL30;
-    }
+        if (isGles) {
+            Gdx.app.log("ShaderRegistry", "Resolved platform target ANDROID_ES3");
+            return PlatformTarget.ANDROID_ES3;
+        }
 
-    private static String getGlProfile() {
-        if (cachedGlProfile == null) getShaderVariant();
-        return cachedGlProfile != null ? cachedGlProfile : "GL30";
+        Gdx.app.log("ShaderRegistry", "Resolved platform target DESKTOP_GL30");
+        return PlatformTarget.DESKTOP_GL30;
     }
 
     private static String variantDirName(ShaderVariant variant) {
@@ -549,7 +571,7 @@ public final class ShaderRegistry {
 
     private static void requireModeSupported(ShaderMode mode) {
         if (!isModeSupportedForCurrentProfile(mode)) {
-            throw new IllegalStateException("Shader mode " + mode + " is not supported for current GL profile.");
+            throw new IllegalStateException("Shader mode " + mode + " is not supported for target " + getResolvedPlatformTarget() + ".");
         }
     }
 
@@ -909,6 +931,11 @@ public final class ShaderRegistry {
         String vertSrc = preprocessShader(vertFile);
         String fragSrc = preprocessShader(fragFile);
 
+        Gdx.app.log("ShaderRegistry", "VERT first chars=[" + vertSrc.substring(0, Math.min(80, vertSrc.length())) + "]");
+        Gdx.app.log("ShaderRegistry", "FRAG first chars=[" + fragSrc.substring(0, Math.min(80, fragSrc.length())) + "]");
+        log("ShaderRegistry", "Compiled shader " + friendlyName + " from "
+                + vertFile.path() + " / " + fragFile.path());
+
         ShaderProgram sp = new ShaderProgram(vertSrc, fragSrc);
         if (!sp.isCompiled()) {
             String msg = "Failed to compile shader " + friendlyName + " from "
@@ -922,9 +949,6 @@ public final class ShaderRegistry {
             logError("ShaderRegistry", msg, null);
             return null;
         }
-
-        log("ShaderRegistry", "Compiled shader " + friendlyName + " from "
-                + vertFile.path() + " / " + fragFile.path());
 
         return sp;
     }

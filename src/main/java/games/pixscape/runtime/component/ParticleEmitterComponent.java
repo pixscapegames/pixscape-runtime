@@ -9,19 +9,29 @@ import com.artemis.PooledComponent;
  */
 public final class ParticleEmitterComponent extends PooledComponent {
 
-    /** Relative path to the .p file (e.g.: "particles/fire.p"). */
+    /**
+     * Relative path to the .p file (e.g.: "particles/fire.p").
+     */
     public String effectPath;
 
-    /** Atlas tag to use for particle sprites (e.g.: "MainScene" or "Particles"). */
+    /**
+     * Atlas tag to use for particle sprites (e.g.: "MainScene" or "Particles").
+     */
     public String atlasTag;
 
-    /** Whether the emitter follows the entity (Transform). */
+    /**
+     * Whether the emitter follows the entity (Transform).
+     */
     public boolean localSpace = true;
 
-    /** Automatically start when the entity appears. */
+    /**
+     * Automatically start when the entity appears.
+     */
     public boolean autoStart = true;
 
-    /** Loop indefinitely. If false: plays once then remains complete. */
+    /**
+     * Loop indefinitely. If false: plays once then remains complete.
+     */
     public boolean looping = true;
 
     public boolean paused = false;

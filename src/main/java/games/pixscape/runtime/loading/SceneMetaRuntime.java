@@ -26,6 +26,7 @@ public class SceneMetaRuntime {
         ORTHO,
         ISO
     }
+
     public boolean tiledEnabled = false;
     public TiledProjection tiledProjection = TiledProjection.ORTHO;
     public float tileWidth = 32f;
@@ -36,12 +37,20 @@ public class SceneMetaRuntime {
     public boolean mainCameraOffscreen = false;
 
 
-    public String getName() { return name; }
-    public String getFile() { return file; }
+    public String getName() {
+        return name;
+    }
 
-    public SceneMetaRuntime(SceneMetaRuntime other) { copyFrom(other); }
+    public String getFile() {
+        return file;
+    }
 
-    public SceneMetaRuntime() {}
+    public SceneMetaRuntime(SceneMetaRuntime other) {
+        copyFrom(other);
+    }
+
+    public SceneMetaRuntime() {
+    }
 
     public SceneMetaRuntime(String name, String file) {
         this.name = name;
@@ -83,26 +92,28 @@ public class SceneMetaRuntime {
         return meta;
     }
 
-    /** Copies only the "runtime settings" fields (not identity). */
+    /**
+     * Copies only the "runtime settings" fields (not identity).
+     */
     public void copyFrom(SceneMetaRuntime other) {
         if (other == null) return;
-        this.name               = other.name;
-        this.file               = other.file;
-        this.physicsEnabled     = other.physicsEnabled;
-        this.pixelsPerMeter     = other.pixelsPerMeter;
-        this.gravityX           = other.gravityX;
-        this.gravityY           = other.gravityY;
-        this.doSleep            = other.doSleep;
-        this.physicsParallaxX   = other.physicsParallaxX;
-        this.physicsParallaxY   = other.physicsParallaxY;
-        this.ambientMulR        = other.ambientMulR;
-        this.ambientMulG        = other.ambientMulG;
-        this.ambientMulB        = other.ambientMulB;
-        this.tiledEnabled       = other.tiledEnabled;
-        this.tiledProjection    = other.tiledProjection;
-        this.tileWidth          = other.tileWidth;
-        this.tileHeight         = other.tileHeight;
-        this.chunkSize          = other.chunkSize;
-        this.mainCameraOffscreen= other.mainCameraOffscreen;
+        this.name = other.name;
+        this.file = other.file;
+        this.physicsEnabled = other.physicsEnabled;
+        this.pixelsPerMeter = other.pixelsPerMeter;
+        this.gravityX = other.gravityX;
+        this.gravityY = other.gravityY;
+        this.doSleep = other.doSleep;
+        this.physicsParallaxX = other.physicsParallaxX;
+        this.physicsParallaxY = other.physicsParallaxY;
+        this.ambientMulR = other.ambientMulR;
+        this.ambientMulG = other.ambientMulG;
+        this.ambientMulB = other.ambientMulB;
+        this.tiledEnabled = other.tiledEnabled;
+        this.tiledProjection = other.tiledProjection;
+        this.tileWidth = other.tileWidth;
+        this.tileHeight = other.tileHeight;
+        this.chunkSize = other.chunkSize;
+        this.mainCameraOffscreen = other.mainCameraOffscreen;
     }
 }

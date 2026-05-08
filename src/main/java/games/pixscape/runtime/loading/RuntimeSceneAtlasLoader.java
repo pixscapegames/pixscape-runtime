@@ -8,7 +8,8 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 
 public final class RuntimeSceneAtlasLoader {
 
-    private RuntimeSceneAtlasLoader() {}
+    private RuntimeSceneAtlasLoader() {
+    }
 
     public static void loadSceneAtlas(RuntimeConfig cfg,
                                       String sceneName,
@@ -32,7 +33,7 @@ public final class RuntimeSceneAtlasLoader {
         }
 
         FileHandle atlasesRoot = projectDir.child(cfg.atlasesDir);
-        FileHandle atlasFile   = atlasesRoot.child(RuntimeFs.withExt(sceneDirName, RuntimeFs.EXT_ATLAS));
+        FileHandle atlasFile = atlasesRoot.child(RuntimeFs.withExt(sceneDirName, RuntimeFs.EXT_ATLAS));
 
         if (!atlasFile.exists()) {
             Gdx.app.log("RuntimeSceneAtlasLoader",

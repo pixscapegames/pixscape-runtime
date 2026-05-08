@@ -6,6 +6,7 @@
     <inherits name="com.artemis-json-libgdx"/>
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.system"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.physics"/>
@@ -13,5 +14,6 @@
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.light"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.light"/>
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ObjectFloatMap"/>
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ObjectFloatMap"/>
     <source path=""/>
 </module>

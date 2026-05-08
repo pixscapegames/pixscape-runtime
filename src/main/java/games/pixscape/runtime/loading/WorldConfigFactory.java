@@ -24,11 +24,12 @@ public final class WorldConfigFactory {
 
     private static final int ECS_WATERMARK = 150_000;
 
-    private WorldConfigFactory() {}
+    private WorldConfigFactory() {
+    }
 
     /**
      * Backward-compatible overload.
-     *
+     * <p>
      * The customizer is treated as post-render, matching the previous behavior.
      */
     public static WorldBootstrapResult buildWorld(

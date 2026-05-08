@@ -20,17 +20,17 @@ import games.pixscape.runtime.service.ShaderRegistry;
 
 public final class RenderSubmitSystem extends BaseSystem {
 
-    private final RenderStateSOA     state;
-    private final LayerStateSOA      layerState;
-    private final DrawList           drawList;
+    private final RenderStateSOA state;
+    private final LayerStateSOA layerState;
+    private final DrawList drawList;
     private final OrthographicCamera cam;
     private final float ambientMulR;
     private final float ambientMulG;
     private final float ambientMulB;
 
-    private final MetricsBatch       metricsBatch;
-    private final RenderStats        stats;
-    private final RenderStatsSink    statsSink;
+    private final MetricsBatch metricsBatch;
+    private final RenderStats stats;
+    private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
     private float time = 0f;
 
@@ -38,11 +38,15 @@ public final class RenderSubmitSystem extends BaseSystem {
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
     // --- DEBUG (reflection, no runtime->studio dependency) ---
-    @SkipWire private EntitySubscription pointLightSub;
+    @SkipWire
+    private EntitySubscription pointLightSub;
 
-    @SkipWire private final float[] debugBatchColor = new float[4];
-    @SkipWire private final StringBuilder debugSb = new StringBuilder(256);
-    @SkipWire private final StringBuilder debugPreviewSb = new StringBuilder(256);
+    @SkipWire
+    private final float[] debugBatchColor = new float[4];
+    @SkipWire
+    private final StringBuilder debugSb = new StringBuilder(256);
+    @SkipWire
+    private final StringBuilder debugPreviewSb = new StringBuilder(256);
 
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
@@ -54,24 +58,23 @@ public final class RenderSubmitSystem extends BaseSystem {
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
-        this.state        = state;
-        this.layerState   = layerState;
-        this.drawList     = drawList;
-        this.cam          = cam;
-        this.ambientMulR  = ambientMulR;
-        this.ambientMulG  = ambientMulG;
-        this.ambientMulB  = ambientMulB;
+        this.state = state;
+        this.layerState = layerState;
+        this.drawList = drawList;
+        this.cam = cam;
+        this.ambientMulR = ambientMulR;
+        this.ambientMulG = ambientMulG;
+        this.ambientMulB = ambientMulB;
         this.metricsBatch = batch;
-        this.stats        = stats;
-        this.statsSink    = statsSink;
+        this.stats = stats;
+        this.statsSink = statsSink;
         this.fallbackShaderMode = resolveFallbackShaderMode(batch);
     }
 
     private static ShaderMode resolveFallbackShaderMode(MetricsBatch batch) {
         if (batch instanceof TextureArrayMeshBatch) {
             return ShaderMode.TEXTURE_ARRAY;
-        }
-        else if (batch instanceof MultiTextureMeshBatch) {
+        } else if (batch instanceof MultiTextureMeshBatch) {
             return ShaderMode.MULTI_TEXTURE;
         } else {
             return ShaderMode.TEXTURE_2D;
@@ -161,10 +164,9 @@ public final class RenderSubmitSystem extends BaseSystem {
                     lastParamsHash = 0;
 
                     if (curShader != null) {
-                        setUniform1f(curShader, "u_time", time);
-                        setUniformLayerOffset(curShader);
-                        setUniformAmbientMul(curShader);
-
+                        safeSetUniform1f(curShader, "u_time", time);
+                        safeSetUniform2f(curShader, "u_layerOffset", 0f, 0f);
+                        safeSetUniform3f(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
                     }
                 }
             }
@@ -202,7 +204,7 @@ public final class RenderSubmitSystem extends BaseSystem {
             }
 
             // Per-entity uniforms (only flush when actual values differ)
-            if (curShader != null && mShaderParams != null) {
+            if (enableEntityShaderParams() && curShader != null && mShaderParams != null) {
                 final int entityId = state.entityId[slot];
                 if (entityId >= 0 && mShaderParams.has(entityId)) {
                     ShaderParamsComponent params = mShaderParams.get(entityId);
@@ -236,12 +238,6 @@ public final class RenderSubmitSystem extends BaseSystem {
         metricsBatch.end(stats);
     }
 
-    private void setUniformAmbientMul(ShaderProgram shader) {
-        if (shader == null || !shader.hasUniform("u_ambientMul")) return;
-        shader.setUniformf("u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
-    }
-
-
     private static int hashShaderParams(com.badlogic.gdx.utils.ObjectFloatMap<String> floats) {
         // Commutative hash (iteration order not guaranteed): XOR/mix
         int h = 0x9E3779B9;
@@ -261,20 +257,44 @@ public final class RenderSubmitSystem extends BaseSystem {
 
 
     private void applyShaderParams(ShaderProgram shader, ObjectFloatMap<String> floats) {
+        if (shader == null || floats == null || floats.size == 0) return;
+
         ObjectFloatMap.Entries<String> it = floats.entries();
         while (it.hasNext()) {
             ObjectFloatMap.Entry<String> entry = it.next();
-            setUniform1f(shader, entry.key, entry.value);
+            if (entry == null || entry.key == null || entry.key.length() == 0) continue;
+
+            String name = entry.key;
+
+            if (!shader.hasUniform(name)) {
+                continue;
+            }
+
+            shader.setUniformf(name, entry.value);
         }
     }
 
-    private void setUniform1f(ShaderProgram shader, String name, float value) {
-        if (shader != null) shader.setUniformf(name, value);
+    private static void safeSetUniform1f(ShaderProgram shader, String name, float v0) {
+        if (shader == null || name == null || name.length() == 0) return;
+        if (!shader.hasUniform(name)) return;
+        shader.setUniformf(name, v0);
     }
 
-    private void setUniformLayerOffset(ShaderProgram shader) {
-        if (shader != null && shader.hasUniform("u_layerOffset")) {
-            shader.setUniformf("u_layerOffset", 0f, 0f);
-        }
+    private static void safeSetUniform2f(ShaderProgram shader, String name, float v0, float v1) {
+        if (shader == null || name == null || name.length() == 0) return;
+        if (!shader.hasUniform(name)) return;
+        shader.setUniformf(name, v0, v1);
     }
+
+    private static void safeSetUniform3f(ShaderProgram shader, String name, float v0, float v1, float v2) {
+        if (shader == null || name == null || name.length() == 0) return;
+        if (!shader.hasUniform(name)) return;
+        shader.setUniformf(name, v0, v1, v2);
+    }
+
+    private static boolean enableEntityShaderParams() {
+        return Gdx.app == null
+                || Gdx.app.getType() != com.badlogic.gdx.Application.ApplicationType.WebGL;
+    }
+
 }

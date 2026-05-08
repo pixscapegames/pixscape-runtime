@@ -54,7 +54,6 @@ public final class AnimationSystem extends IteratingSystem {
         if (clip == null) return;
 
 
-
         AnimationBinding binding = resolveBinding(e);
         if (binding == null || binding.frames.size == 0) return;
 

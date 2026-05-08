@@ -13,13 +13,13 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * Batch based on a single TextureArray (sampler2DArray in shader).
  * <p>
  * Attributes must match the ShaderMode.TEXTURE_ARRAY core shader:
- *   0: a_position  (vec2)  -> float2
- *   1: a_texCoord0 (vec2)  -> float2
- *   2: a_color     (vec4)  -> PACKED RGBA8888
- *   3: a_layer     (float) -> float
+ * 0: a_position  (vec2)  -> float2
+ * 1: a_texCoord0 (vec2)  -> float2
+ * 2: a_color     (vec4)  -> PACKED RGBA8888
+ * 3: a_layer     (float) -> float
  * <p>
  * Format CPU (float[]) :
- *   pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
+ * pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
  */
 public final class TextureArrayMeshBatch implements MetricsBatch {
 
@@ -36,7 +36,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     // current color (packed RGBA8888 in float bits, like SpriteBatch)
     private float colorPacked = Color.WHITE.toFloatBits();
 
-    /** Current shader used for TextureArray quads (ta_default). */
+    /**
+     * Current shader used for TextureArray quads (ta_default).
+     */
     private ShaderProgram shader;
 
     // Cache uniform locations (avoids string lookup and avoids setUniformMatrix on flush)
@@ -245,7 +247,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.uArrayLoc = sh.getUniformLocation("u_array");
     }
 
-    /** Ensures shader + uniforms + texture array are ready. */
+    /**
+     * Ensures shader + uniforms + texture array are ready.
+     */
     private void prepareDrawState(RenderStats stats) {
         if (shader == null || !hasBundle()) return;
 
@@ -293,26 +297,34 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         int o = vertCount * VERT_STRIDE;
 
         // BL
-        verts[o++] = x1; verts[o++] = y1;
-        verts[o++] = u; verts[o++] = v2;
+        verts[o++] = x1;
+        verts[o++] = y1;
+        verts[o++] = u;
+        verts[o++] = v2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TL
-        verts[o++] = x2; verts[o++] = y2;
-        verts[o++] = u; verts[o++] = v;
+        verts[o++] = x2;
+        verts[o++] = y2;
+        verts[o++] = u;
+        verts[o++] = v;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TR
-        verts[o++] = x3; verts[o++] = y3;
-        verts[o++] = u2; verts[o++] = v;
+        verts[o++] = x3;
+        verts[o++] = y3;
+        verts[o++] = u2;
+        verts[o++] = v;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // BR
-        verts[o++] = x4; verts[o++] = y4;
-        verts[o++] = u2; verts[o++] = v2;
+        verts[o++] = x4;
+        verts[o++] = y4;
+        verts[o++] = u2;
+        verts[o++] = v2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
 

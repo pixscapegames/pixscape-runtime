@@ -1,7 +1,8 @@
 package games.pixscape.runtime.tiled;
 
 public final class PackedTileValue {
-    private PackedTileValue() {}
+    private PackedTileValue() {
+    }
 
     private static final int ASSET_MASK = 0x00FF_FFFF;
     private static final int FLAGS_SHIFT = 24;

@@ -50,22 +50,47 @@ public final class PrefabAsset {
     public static final class EntityIndexData {
         public int layerIndex, zIndex;
     }
-    public static final class MetaData { public String kind; }
-    public static final class IdentityData { public String name; }
-    public static final class VisibilityData { public boolean visible; }
-    public static final class BoundsFlagsData { public boolean hasAabb, hasObb; }
-    public static final class DimensionsData { public float width, height; }
+
+    public static final class MetaData {
+        public String kind;
+    }
+
+    public static final class IdentityData {
+        public String name;
+    }
+
+    public static final class VisibilityData {
+        public boolean visible;
+    }
+
+    public static final class BoundsFlagsData {
+        public boolean hasAabb, hasObb;
+    }
+
+    public static final class DimensionsData {
+        public float width, height;
+    }
+
     public static final class TextureRegionData {
         public float u1, v1, u2, v2;
         public int pixW, pixH;
         public boolean valid;
     }
+
     public static final class RenderMaterialData {
         public int shaderIdx, blendModeId, textureHandle;
         public String debugAtlasTag;
     }
-    public static final class AssetRefData { public int assetId; public String atlasTag; }
-    public static final class TintData { public int rgba; }
+
+    public static final class AssetRefData {
+        public int assetId;
+        public String atlasTag;
+    }
+
+    public static final class TintData {
+        public int rgba;
+    }
+
     public static final class AnimationData {
         public String name;
         public float fps;
@@ -75,6 +100,7 @@ public final class PrefabAsset {
         public String currentClip;
         public ObjectMap<String, AnimationClipData> clips = new ObjectMap<>();
     }
+
     public static final class AnimationClipData {
         public int start;
         public int end;
@@ -87,17 +113,21 @@ public final class PrefabAsset {
             this.end = end;
         }
     }
+
     public static final class ShaderParamsData {
         public java.util.Map<String, Float> floats = new java.util.LinkedHashMap<>();
     }
+
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep, awake, enabled;
         public float gravityScale, linearDamping, angularDamping;
     }
+
     public static final class PhysicsAuthoringData {
         public List<AuthoredPolygonDto> polygons = new ArrayList<>();
     }
+
     public static final class AuthoredPolygonDto {
         public long authoringId;
         public float[] sourceVerts;
@@ -113,6 +143,7 @@ public final class PrefabAsset {
         public short categoryBits, maskBits, groupIndex;
         public float offsetX, offsetY, angleDeg;
     }
+
     public static final class ConvexPolygonPartDto {
         public float[] verts;
         public int count;

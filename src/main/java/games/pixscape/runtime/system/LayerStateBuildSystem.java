@@ -27,13 +27,13 @@ public final class LayerStateBuildSystem extends IteratingSystem {
     private final LayerStateSOA layerState;
     private final SceneMetaRuntime sceneMeta; // can be null
 
-    private ComponentMapper<LayerComponent>        mLayer;
+    private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<LayerParallaxComponent> mParallax;
-    private ComponentMapper<VisibilityComponent>    mVis;
+    private ComponentMapper<VisibilityComponent> mVis;
 
     public LayerStateBuildSystem(LayerStateSOA layerState, SceneMetaRuntime sceneMeta) {
         this.layerState = layerState;
-        this.sceneMeta  = sceneMeta;
+        this.sceneMeta = sceneMeta;
     }
 
     @Override

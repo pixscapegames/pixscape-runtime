@@ -255,7 +255,7 @@ public class RuntimePrefabFragmentSpawnTest {
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyA);
 
         PixscapeIdentityComponent ida = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyA);
-        ida.stableId = 101L;
+        ida.stableId = 101;
 
         int bodyB = sourceWorld.create();
         TransformComponent tb = sourceWorld.getMapper(TransformComponent.class).create(bodyB);
@@ -264,7 +264,7 @@ public class RuntimePrefabFragmentSpawnTest {
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyB);
 
         PixscapeIdentityComponent idb = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyB);
-        idb.stableId = 102L;
+        idb.stableId = 102;
 
         int joint = sourceWorld.create();
         PhysicsJointComponent jointBase = sourceWorld.getMapper(PhysicsJointComponent.class).create(joint);

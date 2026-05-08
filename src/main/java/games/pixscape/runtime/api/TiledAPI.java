@@ -5,9 +5,12 @@ package games.pixscape.runtime.api;
  */
 public interface TiledAPI {
     TiledLayerRef ofEntityId(int entityId);
-    TiledLayerRef ofStableId(long stableId);
+
+    TiledLayerRef ofStableId(int stableId);
+
     TiledLayerRef requireEntityId(int entityId);
-    TiledLayerRef requireStableId(long stableId);
+
+    TiledLayerRef requireStableId(int stableId);
 
     /**
      * Global animated tile definition registry.

@@ -12,7 +12,7 @@ import games.pixscape.runtime.service.TextureRegistry;
 public final class MeshBatch implements MetricsBatch {
 
     private static final int VERT_STRIDE_FLOATS = 8;  // pos2 + uv2 + color4
-    private static final int VERT_STRIDE_BYTES  = VERT_STRIDE_FLOATS * 4;
+    private static final int VERT_STRIDE_BYTES = VERT_STRIDE_FLOATS * 4;
 
     private final int maxQuads;
 
@@ -24,7 +24,7 @@ public final class MeshBatch implements MetricsBatch {
 
     private ShaderProgram shader = null;
     private Texture texture = null;
-    private float cr=1f, cg=1f, cb=1f, ca=1f;
+    private float cr = 1f, cg = 1f, cb = 1f, ca = 1f;
 
     private boolean blendingEnabled = false;
     private int blendSrc = GL20.GL_SRC_ALPHA;
@@ -54,12 +54,12 @@ public final class MeshBatch implements MetricsBatch {
         int idx = 0;
         short base = 0;
         for (int q = 0; q < maxQuads; q++) {
-            indices[idx++] = (short)(base);
-            indices[idx++] = (short)(base + 1);
-            indices[idx++] = (short)(base + 2);
-            indices[idx++] = (short)(base + 2);
-            indices[idx++] = (short)(base + 3);
-            indices[idx++] = (short)(base);
+            indices[idx++] = (short) (base);
+            indices[idx++] = (short) (base + 1);
+            indices[idx++] = (short) (base + 2);
+            indices[idx++] = (short) (base + 2);
+            indices[idx++] = (short) (base + 3);
+            indices[idx++] = (short) (base);
             base += 4;
         }
         mesh.setIndices(indices);
@@ -67,7 +67,10 @@ public final class MeshBatch implements MetricsBatch {
 
     @Override
     public void setColor(float r, float g, float b, float a) {
-        this.cr = r; this.cg = g; this.cb = b; this.ca = a;
+        this.cr = r;
+        this.cg = g;
+        this.cb = b;
+        this.ca = a;
     }
 
     @Override
@@ -108,9 +111,9 @@ public final class MeshBatch implements MetricsBatch {
     }
 
     public void drawTex(Texture tex,
-                     float x1,float y1, float x2,float y2, float x3,float y3, float x4,float y4,
-                     float u,float v, float u2,float v2,
-                     RenderStats stats) {
+                        float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+                        float u, float v, float u2, float v2,
+                        RenderStats stats) {
         if (tex != texture) {
             flush(stats);
             texture = tex;
@@ -121,24 +124,44 @@ public final class MeshBatch implements MetricsBatch {
         int o = vertCount;
 
         // BL -> (u, v2)
-        verts[o++] = x1; verts[o++] = y1;
-        verts[o++] = u;  verts[o++] = v2;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x1;
+        verts[o++] = y1;
+        verts[o++] = u;
+        verts[o++] = v2;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
 
         // TL -> (u, v)
-        verts[o++] = x2; verts[o++] = y2;
-        verts[o++] = u;  verts[o++] = v;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x2;
+        verts[o++] = y2;
+        verts[o++] = u;
+        verts[o++] = v;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
 
         // TR -> (u2, v)
-        verts[o++] = x3; verts[o++] = y3;
-        verts[o++] = u2; verts[o++] = v;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x3;
+        verts[o++] = y3;
+        verts[o++] = u2;
+        verts[o++] = v;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
 
         // BR -> (u2, v2)
-        verts[o++] = x4; verts[o++] = y4;
-        verts[o++] = u2; verts[o++] = v2;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x4;
+        verts[o++] = y4;
+        verts[o++] = u2;
+        verts[o++] = v2;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
 
         vertCount = o;
         quadCount++;
@@ -150,7 +173,7 @@ public final class MeshBatch implements MetricsBatch {
                      float u, float v, float u2, float v2,
                      RenderStats stats) {
         Texture tex = TextureRegistry.getByHandle(textureHandle);
-        drawTex(tex, x1,y1,x2,y2,x3,y3,x4,y4, u,v,u2,v2, stats);
+        drawTex(tex, x1, y1, x2, y2, x3, y3, x4, y4, u, v, u2, v2, stats);
     }
 
     @Override

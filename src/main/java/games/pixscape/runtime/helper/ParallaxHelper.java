@@ -9,9 +9,9 @@ public final class ParallaxHelper {
 
     /**
      * Convention:
-     *  - {@code factor = 1} means no parallax ({@code offset 0,0})
-     *  - {@code factor < 1} means a "far" layer (moves slower than the camera)
-     *  - {@code factor > 1} means a "near" layer (moves faster than the camera)
+     * - {@code factor = 1} means no parallax ({@code offset 0,0})
+     * - {@code factor < 1} means a "far" layer (moves slower than the camera)
+     * - {@code factor > 1} means a "near" layer (moves faster than the camera)
      */
     public static void computeParallaxOffset(
             float cameraX,

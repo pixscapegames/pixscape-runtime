@@ -5,18 +5,21 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 
 /**
  * Simple runtime index for Pixscape identity lookups.
- *
+ * <p>
  * Source of truth = {@link PixscapeIdentityComponent}.
  * This registry is only a cache / lookup index.
  */
 public final class IdentityRegistry {
 
-    public static final long UNASSIGNED_STABLE_ID = -1L;
+    public static final int UNASSIGNED_STABLE_ID = -1;
     public static final String DEFAULT_NAME = "unnamed";
 
     private World world;
@@ -24,18 +27,26 @@ public final class IdentityRegistry {
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener subscriptionListener;
 
-    /** Internal unique index: stableId -> entityId. */
-    private final LongMap<Integer> byStableId = new LongMap<>();
+    /**
+     * Internal unique index: stableId -> entityId.
+     */
+    private final IntMap<Integer> byStableId = new IntMap<>();
 
-    /** Internal non-unique index: name -> entityIds. */
+    /**
+     * Internal non-unique index: name -> entityIds.
+     */
     private final ObjectMap<String, IntArray> byName = new ObjectMap<>();
 
-    /** Reverse indexes for efficient entity-local updates. */
-    private final IntMap<Long> stableIdByEntity = new IntMap<>();
+    /**
+     * Reverse indexes for efficient entity-local updates.
+     */
+    private final IntMap<Integer> stableIdByEntity = new IntMap<>();
     private final IntMap<String> nameByEntity = new IntMap<>();
 
-    /** Next candidate for stable id allocation. */
-    private long nextStableId = 1L;
+    /**
+     * Next candidate for stable id allocation.
+     */
+    private int nextStableId = 1;
 
     public IdentityRegistry() {
     }
@@ -49,7 +60,7 @@ public final class IdentityRegistry {
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1L;
+        nextStableId = 1;
 
         this.world = world;
         this.mIdentity = null;
@@ -91,16 +102,12 @@ public final class IdentityRegistry {
         }
     }
 
-    /**
-     * Fully rebuilds the index from active entities.
-     * Call this after scene load or whenever a clean rebuild is needed.
-     */
     public void rebuild() {
         byStableId.clear();
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1L;
+        nextStableId = 1;
 
         if (world == null || subscription == null) return;
 
@@ -115,20 +122,20 @@ public final class IdentityRegistry {
         advanceNextStableId();
     }
 
-    public long allocateStableId() {
+    public int allocateStableId() {
         advanceNextStableId();
 
-        long allocated = nextStableId;
+        int allocated = nextStableId;
         nextStableId++;
 
         return allocated;
     }
 
-    public long ensureStableId(int eid) {
+    public int ensureStableId(int eid) {
         if (!isEntityActive(eid)) return UNASSIGNED_STABLE_ID;
 
         PixscapeIdentityComponent c = mIdentity.has(eid) ? mIdentity.get(eid) : mIdentity.create(eid);
-        long current = c.stableId;
+        int current = c.stableId;
 
         if (current != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(current);
@@ -140,12 +147,12 @@ public final class IdentityRegistry {
             byStableId.put(current, eid);
             stableIdByEntity.put(eid, current);
             if (current >= nextStableId) {
-                nextStableId = current + 1L;
+                nextStableId = current + 1;
             }
             return current;
         }
 
-        long allocated = allocateStableId();
+        int allocated = allocateStableId();
         c.stableId = allocated;
 
         String normalizedName = normalizeName(c.name);
@@ -159,11 +166,11 @@ public final class IdentityRegistry {
         return allocated;
     }
 
-    public boolean hasStableId(long stableId) {
+    public boolean hasStableId(int stableId) {
         return stableId != UNASSIGNED_STABLE_ID && byStableId.containsKey(stableId);
     }
 
-    public int findByStableId(long stableId) {
+    public int findByStableId(int stableId) {
         if (stableId == UNASSIGNED_STABLE_ID || world == null) return -1;
 
         Integer eid = byStableId.get(stableId);
@@ -172,7 +179,7 @@ public final class IdentityRegistry {
         return world.getEntityManager().isActive(eid) ? eid : -1;
     }
 
-    public long getStableId(int eid) {
+    public int getStableId(int eid) {
         if (eid < 0 || mIdentity == null) return UNASSIGNED_STABLE_ID;
 
         PixscapeIdentityComponent c = mIdentity.getSafe(eid, null);
@@ -245,11 +252,11 @@ public final class IdentityRegistry {
         return out;
     }
 
-    public void setStableId(int eid, long stableId) {
+    public void setStableId(int eid, int stableId) {
         if (!isEntityActive(eid)) return;
 
         PixscapeIdentityComponent c = mIdentity.has(eid) ? mIdentity.get(eid) : mIdentity.create(eid);
-        long oldStableId = c.stableId;
+        int oldStableId = c.stableId;
 
         if (oldStableId == stableId) {
             if (stableId != UNASSIGNED_STABLE_ID) {
@@ -276,7 +283,7 @@ public final class IdentityRegistry {
             byStableId.put(stableId, eid);
             stableIdByEntity.put(eid, stableId);
             if (stableId >= nextStableId) {
-                nextStableId = stableId + 1L;
+                nextStableId = stableId + 1;
             }
         }
     }
@@ -291,13 +298,13 @@ public final class IdentityRegistry {
         replaceNameIndex(eid, normalized);
     }
 
-    public void setIdentity(int eid, long stableId, String name) {
+    public void setIdentity(int eid, int stableId, String name) {
         if (!isEntityActive(eid)) return;
 
         PixscapeIdentityComponent c = mIdentity.has(eid) ? mIdentity.get(eid) : mIdentity.create(eid);
         String normalizedName = normalizeName(name);
 
-        long oldStableId = c.stableId;
+        int oldStableId = c.stableId;
         if (oldStableId != stableId) {
             if (stableId != UNASSIGNED_STABLE_ID) {
                 Integer existing = byStableId.get(stableId);
@@ -313,7 +320,7 @@ public final class IdentityRegistry {
                 byStableId.put(stableId, eid);
                 stableIdByEntity.put(eid, stableId);
                 if (stableId >= nextStableId) {
-                    nextStableId = stableId + 1L;
+                    nextStableId = stableId + 1;
                 }
             }
         }
@@ -340,7 +347,7 @@ public final class IdentityRegistry {
         if (!isEntityActive(eid) || !mIdentity.has(eid)) return;
 
         PixscapeIdentityComponent c = mIdentity.get(eid);
-        long stableId = c.stableId;
+        int stableId = c.stableId;
         String normalizedName = normalizeName(c.name);
         c.name = normalizedName;
 
@@ -358,7 +365,7 @@ public final class IdentityRegistry {
             stableIdByEntity.put(eid, stableId);
 
             if (stableId >= nextStableId) {
-                nextStableId = stableId + 1L;
+                nextStableId = stableId + 1;
             }
         }
 
@@ -376,10 +383,10 @@ public final class IdentityRegistry {
     }
 
     private void unindexStableId(int eid) {
-        Long previousStableIdObj = stableIdByEntity.get(eid);
+        Integer previousStableIdObj = stableIdByEntity.get(eid);
         if (previousStableIdObj == null) return;
 
-        long previousStableId = previousStableIdObj;
+        int previousStableId = previousStableIdObj;
 
         Integer mapped = byStableId.get(previousStableId);
         if (mapped != null && mapped.intValue() == eid) {
@@ -427,8 +434,8 @@ public final class IdentityRegistry {
     }
 
     private void advanceNextStableId() {
-        if (nextStableId < 1L) {
-            nextStableId = 1L;
+        if (nextStableId < 1) {
+            nextStableId = 1;
         }
 
         while (byStableId.containsKey(nextStableId)) {

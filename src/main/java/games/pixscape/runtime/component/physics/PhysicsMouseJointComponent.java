@@ -4,14 +4,16 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsMouseJointComponent extends PooledComponent {
 
-    /** Target world (meters). */
+    /**
+     * Target world (meters).
+     */
     public float targetX = 0f;
     public float targetY = 0f;
 
     public float maxForce = 0f;
 
     public float stiffness = 0f;
-    public float damping   = 0f;
+    public float damping = 0f;
 
     @Override
     protected void reset() {

@@ -16,7 +16,7 @@ public final class TiledLayerComponent extends PooledComponent {
     public String atlasTag = "main";
 
     public int tiledStart = 0;
-    public int tiledEnd   = 0;
+    public int tiledEnd = 0;
 
     public int mapWidthCells = 100;
     public int mapHeightCells = 100;

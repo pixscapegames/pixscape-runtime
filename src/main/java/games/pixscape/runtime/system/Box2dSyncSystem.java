@@ -1,10 +1,6 @@
 package games.pixscape.runtime.system;
 
-import com.artemis.AspectSubscriptionManager;
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
@@ -26,23 +22,23 @@ public final class Box2dSyncSystem extends BaseSystem {
     private Box2dWorldService box2d;
     private SceneMetaRuntime sceneMeta;
 
-    private ComponentMapper<TransformComponent>             mT;
-    private ComponentMapper<PhysicsBodyComponent>           mBodyDef;
-    private ComponentMapper<PhysicsFixturesComponent>       mFixDefs;
-    private ComponentMapper<PhysicsRuntimeBodyComponent>    mRuntime;
+    private ComponentMapper<TransformComponent> mT;
+    private ComponentMapper<PhysicsBodyComponent> mBodyDef;
+    private ComponentMapper<PhysicsFixturesComponent> mFixDefs;
+    private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
 
-    private ComponentMapper<PhysicsJointComponent>          mJointBase;
-    private ComponentMapper<PhysicsRuntimeJointComponent>   mJointRt;
+    private ComponentMapper<PhysicsJointComponent> mJointBase;
+    private ComponentMapper<PhysicsRuntimeJointComponent> mJointRt;
 
-    private ComponentMapper<PhysicsDistanceJointComponent>  mJointDist;
-    private ComponentMapper<PhysicsRevoluteJointComponent>  mJointRev;
+    private ComponentMapper<PhysicsDistanceJointComponent> mJointDist;
+    private ComponentMapper<PhysicsRevoluteJointComponent> mJointRev;
     private ComponentMapper<PhysicsPrismaticJointComponent> mJointPrism;
-    private ComponentMapper<PhysicsWheelJointComponent>     mJointWheel;
-    private ComponentMapper<PhysicsFrictionJointComponent>  mFriction;
-    private ComponentMapper<PhysicsMotorJointComponent>     mMotor;
-    private ComponentMapper<PhysicsWeldJointComponent>      mWeld;
-    private ComponentMapper<PhysicsPulleyJointComponent>    mPulley;
-    private ComponentMapper<PhysicsGearJointComponent>      mGear;
+    private ComponentMapper<PhysicsWheelJointComponent> mJointWheel;
+    private ComponentMapper<PhysicsFrictionJointComponent> mFriction;
+    private ComponentMapper<PhysicsMotorJointComponent> mMotor;
+    private ComponentMapper<PhysicsWeldJointComponent> mWeld;
+    private ComponentMapper<PhysicsPulleyJointComponent> mPulley;
+    private ComponentMapper<PhysicsGearJointComponent> mGear;
 
 
     private DirtyTrackerSystem dirty;
@@ -108,23 +104,23 @@ public final class Box2dSyncSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
-        mT       = world.getMapper(TransformComponent.class);
+        mT = world.getMapper(TransformComponent.class);
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
         mFixDefs = world.getMapper(PhysicsFixturesComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
 
-        mJointBase  = world.getMapper(PhysicsJointComponent.class);
-        mJointRt    = world.getMapper(PhysicsRuntimeJointComponent.class);
+        mJointBase = world.getMapper(PhysicsJointComponent.class);
+        mJointRt = world.getMapper(PhysicsRuntimeJointComponent.class);
 
-        mJointDist  = world.getMapper(PhysicsDistanceJointComponent.class);
-        mJointRev   = world.getMapper(PhysicsRevoluteJointComponent.class);
+        mJointDist = world.getMapper(PhysicsDistanceJointComponent.class);
+        mJointRev = world.getMapper(PhysicsRevoluteJointComponent.class);
         mJointPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
         mJointWheel = world.getMapper(PhysicsWheelJointComponent.class);
-        mFriction   = world.getMapper(PhysicsFrictionJointComponent.class);
-        mMotor      = world.getMapper(PhysicsMotorJointComponent.class);
-        mWeld       = world.getMapper(PhysicsWeldJointComponent.class);
-        mPulley     = world.getMapper(PhysicsPulleyJointComponent.class);
-        mGear       = world.getMapper(PhysicsGearJointComponent.class);
+        mFriction = world.getMapper(PhysicsFrictionJointComponent.class);
+        mMotor = world.getMapper(PhysicsMotorJointComponent.class);
+        mWeld = world.getMapper(PhysicsWeldJointComponent.class);
+        mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
+        mGear = world.getMapper(PhysicsGearJointComponent.class);
 
 
         dirty = world.getSystem(DirtyTrackerSystem.class);
@@ -141,9 +137,12 @@ public final class Box2dSyncSystem extends BaseSystem {
                 PhysicsRuntimeBodyComponent.class
         ));
         subRuntime.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) {}
+            @Override
+            public void inserted(IntBag entities) {
+            }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     destroyRuntimeBodyByEntityId(data[i]);
@@ -154,7 +153,8 @@ public final class Box2dSyncSystem extends BaseSystem {
         // Insert/remove => index/unindex + rebuild joint
         jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
         jointsSub.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) {
+            @Override
+            public void inserted(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int jEid = data[i];
@@ -163,7 +163,8 @@ public final class Box2dSyncSystem extends BaseSystem {
                 }
             }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int jEid = data[i];
@@ -1220,7 +1221,7 @@ public final class Box2dSyncSystem extends BaseSystem {
         def.localAnchorB.set(base.anchorBx, base.anchorBy);
 
         def.length = Math.max(0.001f, dist.lengthM);
-        def.frequencyHz  = Math.max(0f, dist.frequencyHz);
+        def.frequencyHz = Math.max(0f, dist.frequencyHz);
         def.dampingRatio = Math.max(0f, Math.min(1f, dist.dampingRatio));
 
         return box2d.world.createJoint(def);
@@ -1294,12 +1295,12 @@ public final class Box2dSyncSystem extends BaseSystem {
         float ax = wheel.axisX;
         float ay = wheel.axisY;
 
-        float len2 = ax*ax + ay*ay;
+        float len2 = ax * ax + ay * ay;
         if (len2 < 1e-12f) { // fallback critique
             ax = 0f;
             ay = 1f;
         } else {
-            float inv = (float)(1.0 / Math.sqrt(len2));
+            float inv = (float) (1.0 / Math.sqrt(len2));
             ax *= inv;
             ay *= inv;
         }
@@ -1443,6 +1444,11 @@ public final class Box2dSyncSystem extends BaseSystem {
     // API
     // -------------------------------------------------------------
 
-    public void setStepEnabled(boolean v) { this.stepEnabled = v; }
-    public boolean isStepEnabled() { return stepEnabled; }
+    public void setStepEnabled(boolean v) {
+        this.stepEnabled = v;
+    }
+
+    public boolean isStepEnabled() {
+        return stepEnabled;
+    }
 }

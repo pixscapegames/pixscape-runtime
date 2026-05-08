@@ -6,20 +6,20 @@ import com.badlogic.gdx.utils.ObjectSet;
 
 /**
  * Lightweight GLSL source preprocessor.
- *
+ * <p>
  * Supports:
- *   #include "file.glsl"
- *
+ * #include "file.glsl"
+ * <p>
  * Resolution order:
- *   1. relative to the current shader file directory
- *   2. relative to shader-local includes/ directory
- *   3. relative to shared includes directory, if provided
- *
+ * 1. relative to the current shader file directory
+ * 2. relative to shader-local includes/ directory
+ * 3. relative to shared includes directory, if provided
+ * <p>
  * GWT-compatible:
- *   - uses LibGDX FileHandle
- *   - no java.io.File
- *   - no NIO
- *   - no reflection
+ * - uses LibGDX FileHandle
+ * - no java.io.File
+ * - no NIO
+ * - no reflection
  */
 public final class ShaderSourcePreprocessor {
 
@@ -36,6 +36,7 @@ public final class ShaderSourcePreprocessor {
     }
 
     private static final String INCLUDE_DIRECTIVE = "#include";
+    private static final String VERSION_DIRECTIVE = "#version";
 
     private ShaderSourcePreprocessor() {
     }
@@ -55,8 +56,15 @@ public final class ShaderSourcePreprocessor {
         ObjectSet<String> includeStack = new ObjectSet<>();
         Array<String> includeTrace = new Array<>();
 
-        return preprocessFile(shaderFile, shaderFile.parent(), shaderFile.parent().child("includes"), sharedIncludesDir,
-                includeStack, includeTrace);
+        return preprocessFile(
+                shaderFile,
+                shaderFile.parent(),
+                shaderFile.parent().child("includes"),
+                sharedIncludesDir,
+                includeStack,
+                includeTrace,
+                true
+        );
     }
 
     public static String preprocess(String source, FileHandle baseDir, FileHandle sharedIncludesDir) {
@@ -69,8 +77,15 @@ public final class ShaderSourcePreprocessor {
         ObjectSet<String> includeStack = new ObjectSet<>();
         Array<String> includeTrace = new Array<>();
 
-        return preprocessSource(source, baseDir, localIncludesDir, sharedIncludesDir, "<memory>",
-                includeStack, includeTrace);
+        return preprocessRootSource(
+                source,
+                baseDir,
+                localIncludesDir,
+                sharedIncludesDir,
+                "<memory>",
+                includeStack,
+                includeTrace
+        );
     }
 
     private static String preprocessFile(FileHandle file,
@@ -78,7 +93,8 @@ public final class ShaderSourcePreprocessor {
                                          FileHandle localIncludesDir,
                                          FileHandle sharedIncludesDir,
                                          ObjectSet<String> includeStack,
-                                         Array<String> includeTrace) {
+                                         Array<String> includeTrace,
+                                         boolean root) {
         String key = normalizePath(file);
 
         if (includeStack.contains(key)) {
@@ -90,7 +106,17 @@ public final class ShaderSourcePreprocessor {
 
         String source = file.readString("UTF-8");
 
-        String result = preprocessSource(
+        String result = root
+                ? preprocessRootSource(
+                source,
+                file.parent(),
+                localIncludesDir,
+                sharedIncludesDir,
+                file.path(),
+                includeStack,
+                includeTrace
+        )
+                : preprocessSource(
                 source,
                 file.parent(),
                 localIncludesDir,
@@ -106,6 +132,55 @@ public final class ShaderSourcePreprocessor {
         return result;
     }
 
+    /**
+     * Root shader preprocessing.
+     *
+     * Guarantees that #version, when present, is emitted as the very first
+     * line of the final shader source. This is required by GLSL ES/WebGL.
+     */
+    private static String preprocessRootSource(String source,
+                                               FileHandle baseDir,
+                                               FileHandle localIncludesDir,
+                                               FileHandle sharedIncludesDir,
+                                               String sourceName,
+                                               ObjectSet<String> includeStack,
+                                               Array<String> includeTrace) {
+        String normalized = stripBom(source);
+
+        String[] lines = normalized.split("\\r?\\n", -1);
+
+        String versionLine = null;
+        StringBuilder body = new StringBuilder(normalized.length());
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmed = line.trim();
+
+            if (versionLine == null && trimmed.startsWith(VERSION_DIRECTIVE)) {
+                versionLine = trimmed;
+                continue;
+            }
+
+            body.append(line).append('\n');
+        }
+
+        String processedBody = preprocessSource(
+                body.toString(),
+                baseDir,
+                localIncludesDir,
+                sharedIncludesDir,
+                sourceName,
+                includeStack,
+                includeTrace
+        );
+
+        if (versionLine == null) {
+            return processedBody;
+        }
+
+        return versionLine + "\n" + processedBody;
+    }
+
     private static String preprocessSource(String source,
                                            FileHandle baseDir,
                                            FileHandle localIncludesDir,
@@ -113,12 +188,18 @@ public final class ShaderSourcePreprocessor {
                                            String sourceName,
                                            ObjectSet<String> includeStack,
                                            Array<String> includeTrace) {
-        String[] lines = source.split("\\r?\\n", -1);
+        String[] lines = stripBom(source).split("\\r?\\n", -1);
         StringBuilder out = new StringBuilder(source.length() + 256);
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             String trimmed = line.trim();
+
+            // #version is only legal at the root and must be first.
+            // Includes containing #version are ignored deliberately.
+            if (trimmed.startsWith(VERSION_DIRECTIVE)) {
+                continue;
+            }
 
             if (!trimmed.startsWith(INCLUDE_DIRECTIVE)) {
                 out.append(line).append('\n');
@@ -126,7 +207,7 @@ public final class ShaderSourcePreprocessor {
             }
 
             String includeName = parseIncludeName(trimmed);
-            if (includeName == null || includeName.isEmpty()) {
+            if (includeName == null || includeName.length() == 0) {
                 throw new IllegalStateException("Invalid shader include at " + sourceName + ":" + (i + 1)
                         + "\nExpected: #include \"file.glsl\"");
             }
@@ -148,7 +229,8 @@ public final class ShaderSourcePreprocessor {
                     localIncludesDir,
                     sharedIncludesDir,
                     includeStack,
-                    includeTrace
+                    includeTrace,
+                    false
             ));
 
             out.append("// END include \"").append(includeName).append("\"\n");
@@ -170,7 +252,7 @@ public final class ShaderSourcePreprocessor {
         }
 
         String after = rest.substring(end + 1).trim();
-        if (!after.isEmpty() && !after.startsWith("//")) {
+        if (after.length() > 0 && !after.startsWith("//")) {
             return null;
         }
 
@@ -214,6 +296,13 @@ public final class ShaderSourcePreprocessor {
                 || p.startsWith("../")
                 || p.endsWith("/..")
                 || p.contains("/../");
+    }
+
+    private static String stripBom(String source) {
+        if (source != null && source.length() > 0 && source.charAt(0) == '\uFEFF') {
+            return source.substring(1);
+        }
+        return source;
     }
 
     private static String normalizePath(FileHandle file) {

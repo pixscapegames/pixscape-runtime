@@ -7,7 +7,9 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 
 public interface MetricsBatch extends AutoCloseable {
     void begin(Matrix4 combined, RenderStats stats);
+
     void setShader(ShaderProgram shader, RenderStats stats);
+
     void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats);
 
     void setColor(float r, float g, float b, float a);
@@ -22,7 +24,9 @@ public interface MetricsBatch extends AutoCloseable {
               RenderStats stats);
 
     void flush(RenderStats stats);
+
     void end(RenderStats stats);
+
     void close();
 
     default void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {

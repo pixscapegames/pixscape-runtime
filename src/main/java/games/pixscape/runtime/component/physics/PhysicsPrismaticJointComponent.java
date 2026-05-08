@@ -4,7 +4,9 @@ import com.artemis.PooledComponent;
 
 public final class PhysicsPrismaticJointComponent extends PooledComponent {
 
-    /** Local axis A (ideally normalized). */
+    /**
+     * Local axis A (ideally normalized).
+     */
     public float axisX = 1f;
     public float axisY = 0f;
 

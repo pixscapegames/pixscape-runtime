@@ -1,8 +1,8 @@
 package games.pixscape.runtime.loading;
 
-import com.artemis.EntitySubscription;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
+import com.artemis.EntitySubscription;
 import com.artemis.World;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
@@ -24,7 +24,8 @@ import java.io.InputStream;
 
 public final class SceneLoader {
 
-    private SceneLoader() {}
+    private SceneLoader() {
+    }
 
     /**
      * Loads a scene from the given file.

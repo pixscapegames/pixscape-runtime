@@ -384,10 +384,14 @@ public final class TiledMapLayerData {
         float x2 = x + spriteW;
         float y2 = y + spriteH;
 
-        out8[0] = x;  out8[1] = y;
-        out8[2] = x;  out8[3] = y2;
-        out8[4] = x2; out8[5] = y2;
-        out8[6] = x2; out8[7] = y;
+        out8[0] = x;
+        out8[1] = y;
+        out8[2] = x;
+        out8[3] = y2;
+        out8[4] = x2;
+        out8[5] = y2;
+        out8[6] = x2;
+        out8[7] = y;
     }
 
     /**
@@ -438,10 +442,14 @@ public final class TiledMapLayerData {
         float x2 = x + tileWidth;
         float y2 = y + tileHeight;
 
-        out8[0] = x;  out8[1] = y;
-        out8[2] = x;  out8[3] = y2;
-        out8[4] = x2; out8[5] = y2;
-        out8[6] = x2; out8[7] = y;
+        out8[0] = x;
+        out8[1] = y;
+        out8[2] = x;
+        out8[3] = y2;
+        out8[4] = x2;
+        out8[5] = y2;
+        out8[6] = x2;
+        out8[7] = y;
     }
 
     /**
@@ -457,20 +465,28 @@ public final class TiledMapLayerData {
             float x2 = x + tileWidth;
             float y2 = y + tileHeight;
 
-            out8[0] = x;  out8[1] = y;
-            out8[2] = x;  out8[3] = y2;
-            out8[4] = x2; out8[5] = y2;
-            out8[6] = x2; out8[7] = y;
+            out8[0] = x;
+            out8[1] = y;
+            out8[2] = x;
+            out8[3] = y2;
+            out8[4] = x2;
+            out8[5] = y2;
+            out8[6] = x2;
+            out8[7] = y;
             return;
         }
 
         float halfW = tileWidth * 0.5f;
         float halfH = tileHeight * 0.5f;
 
-        out8[0] = x + halfW;    out8[1] = y;
-        out8[2] = x;            out8[3] = y + halfH;
-        out8[4] = x + halfW;    out8[5] = y + tileHeight;
-        out8[6] = x + tileWidth;out8[7] = y + halfH;
+        out8[0] = x + halfW;
+        out8[1] = y;
+        out8[2] = x;
+        out8[3] = y + halfH;
+        out8[4] = x + halfW;
+        out8[5] = y + tileHeight;
+        out8[6] = x + tileWidth;
+        out8[7] = y + halfH;
     }
 
     public boolean isPointInsideCell(int gx, int gy, float worldX, float worldY) {

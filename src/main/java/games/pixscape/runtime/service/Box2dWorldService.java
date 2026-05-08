@@ -10,7 +10,9 @@ public final class Box2dWorldService {
     public World world;
     private boolean disposed;
 
-    /** Scale: pixels -> meters (ex: 100px = 1m). Ajuste selon ton moteur. */
+    /**
+     * Scale: pixels -> meters (ex: 100px = 1m). Ajuste selon ton moteur.
+     */
     public float ppm;
     private boolean doSleep = true;
     private final Vector2 gravity = new Vector2();
@@ -47,8 +49,13 @@ public final class Box2dWorldService {
         this(ppm, gravity, true);
     }
 
-    public float pxToM(float px) { return px / ppm; }
-    public float mToPx(float m) { return m * ppm; }
+    public float pxToM(float px) {
+        return px / ppm;
+    }
+
+    public float mToPx(float m) {
+        return m * ppm;
+    }
 
     public void setPpm(float ppm) {
         if (ppm <= 0f) return;
@@ -69,7 +76,9 @@ public final class Box2dWorldService {
         }
     }
 
-    public boolean isDoSleep() {return doSleep; }
+    public boolean isDoSleep() {
+        return doSleep;
+    }
 
     public void setGravity(float gx, float gy) {
         gravity.set(gx, gy);
@@ -115,6 +124,9 @@ public final class Box2dWorldService {
             disposed = true;
         }
     }
-    public boolean isDisposed() { return disposed; }
+
+    public boolean isDisposed() {
+        return disposed;
+    }
 
 }

@@ -2,7 +2,9 @@ package games.pixscape.runtime.component.physics;
 
 import com.artemis.PooledComponent;
 
-/** Serializable definition of the Box2D body. */
+/**
+ * Serializable definition of the Box2D body.
+ */
 public final class PhysicsBodyComponent extends PooledComponent {
     public static final int STATIC = 0;
     public static final int KINEMATIC = 1;
@@ -21,7 +23,8 @@ public final class PhysicsBodyComponent extends PooledComponent {
 
     public boolean enabled = true;
 
-    @Override protected void reset() {
+    @Override
+    protected void reset() {
         type = DYNAMIC;
         fixedRotation = false;
         bullet = false;

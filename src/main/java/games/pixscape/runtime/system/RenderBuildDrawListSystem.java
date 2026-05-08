@@ -8,20 +8,20 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /**
  * Builds the flat draw list from RenderStateSOA.
- *
+ * <p>
  * IMPORTANT:
  * - This system is SOA-only: no ECS reads (ComponentMapper) here.
  * - "Per-entity" visibility (visible + culling) must be computed upstream
- *   and stored in RenderStateSOA.visible[e].
+ * and stored in RenderStateSOA.visible[e].
  * - Here we additionally apply layer filtering via LayerStateSOA (if present).
  */
 public final class RenderBuildDrawListSystem extends BaseSystem {
 
     private final RenderStateSOA state;
-    private final LayerStateSOA  layerState;
-    private final DrawList       drawList;
-    private final RenderStats    stats;
-    private final int            ecsEndExclusive;
+    private final LayerStateSOA layerState;
+    private final DrawList drawList;
+    private final RenderStats stats;
+    private final int ecsEndExclusive;
     private final int reservedStartInclusive;
     private final int reservedEndExclusive;
 

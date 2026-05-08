@@ -7,6 +7,7 @@ package games.pixscape.runtime.api;
  */
 public interface TiledAnimationsAPI {
     boolean contains(int animatedTileAssetId);
+
     /**
      * Returns a read-only definition view for the asset id, or {@code null} when absent.
      *
@@ -16,6 +17,8 @@ public interface TiledAnimationsAPI {
     TileAnimationDefView get(int animatedTileAssetId);
 
     TiledAnimationsAPI put(int animatedTileAssetId, int[] frameAssetIds, int[] frameDurationsMs);
+
     TiledAnimationsAPI remove(int animatedTileAssetId);
+
     void clear();
 }

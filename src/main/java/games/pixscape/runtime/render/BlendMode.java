@@ -63,15 +63,24 @@ public enum BlendMode {
      */
     public static BlendMode fromId(int id) {
         switch (id) {
-            case 0: return OPAQUE;
-            case 1: return ALPHA;
-            case 2: return PREMULT_ALPHA;
-            case 3: return ADDITIVE;
-            case 4: return ADDITIVE_ALPHA;
-            case 5: return MULTIPLY;
-            case 6: return MULTIPLY_ALPHA;
-            case 7: return CUTOUT;
-            default: return OPAQUE;
+            case 0:
+                return OPAQUE;
+            case 1:
+                return ALPHA;
+            case 2:
+                return PREMULT_ALPHA;
+            case 3:
+                return ADDITIVE;
+            case 4:
+                return ADDITIVE_ALPHA;
+            case 5:
+                return MULTIPLY;
+            case 6:
+                return MULTIPLY_ALPHA;
+            case 7:
+                return CUTOUT;
+            default:
+                return OPAQUE;
         }
     }
 

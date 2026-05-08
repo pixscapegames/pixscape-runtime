@@ -4,7 +4,6 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
-import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
@@ -28,20 +27,20 @@ public final class PhysicsService {
     private Box2dWorldService box2d;
     private final DirtyTrackerSystem dirty;
 
-    private final ComponentMapper<TransformComponent>       mT;
-    private final ComponentMapper<PhysicsBodyComponent>     mBody;
+    private final ComponentMapper<TransformComponent> mT;
+    private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsFixturesComponent> mFixtures;
 
-    private final ComponentMapper<PhysicsJointComponent>            mJoint;
-    private final ComponentMapper<PhysicsDistanceJointComponent>    mDist;
-    private final ComponentMapper<PhysicsRevoluteJointComponent>    mRev;
-    private final ComponentMapper<PhysicsPrismaticJointComponent>   mPrism;
-    private final ComponentMapper<PhysicsWheelJointComponent>       mWheel;
-    private final ComponentMapper<PhysicsFrictionJointComponent>    mFriction;
-    private final ComponentMapper<PhysicsMotorJointComponent>       mMotor;
-    private final ComponentMapper<PhysicsWeldJointComponent>        mWeld;
-    private final ComponentMapper<PhysicsPulleyJointComponent>      mPulley;
-    private final ComponentMapper<PhysicsGearJointComponent>        mGear;
+    private final ComponentMapper<PhysicsJointComponent> mJoint;
+    private final ComponentMapper<PhysicsDistanceJointComponent> mDist;
+    private final ComponentMapper<PhysicsRevoluteJointComponent> mRev;
+    private final ComponentMapper<PhysicsPrismaticJointComponent> mPrism;
+    private final ComponentMapper<PhysicsWheelJointComponent> mWheel;
+    private final ComponentMapper<PhysicsFrictionJointComponent> mFriction;
+    private final ComponentMapper<PhysicsMotorJointComponent> mMotor;
+    private final ComponentMapper<PhysicsWeldJointComponent> mWeld;
+    private final ComponentMapper<PhysicsPulleyJointComponent> mPulley;
+    private final ComponentMapper<PhysicsGearJointComponent> mGear;
 
     private final Vector2 tmpA = new Vector2();
     private final Vector2 tmpB = new Vector2();
@@ -51,27 +50,29 @@ public final class PhysicsService {
         this.box2d = box2d;
         this.dirty = world.getSystem(DirtyTrackerSystem.class);
 
-        this.mT         = world.getMapper(TransformComponent.class);
-        this.mBody      = world.getMapper(PhysicsBodyComponent.class);
-        this.mFixtures  = world.getMapper(PhysicsFixturesComponent.class);
-        this.mJoint     = world.getMapper(PhysicsJointComponent.class);
+        this.mT = world.getMapper(TransformComponent.class);
+        this.mBody = world.getMapper(PhysicsBodyComponent.class);
+        this.mFixtures = world.getMapper(PhysicsFixturesComponent.class);
+        this.mJoint = world.getMapper(PhysicsJointComponent.class);
 
-        this.mDist      = world.getMapper(PhysicsDistanceJointComponent.class);
-        this.mRev       = world.getMapper(PhysicsRevoluteJointComponent.class);
-        this.mPrism     = world.getMapper(PhysicsPrismaticJointComponent.class);
-        this.mWheel     = world.getMapper(PhysicsWheelJointComponent.class);
-        this.mFriction  = world.getMapper(PhysicsFrictionJointComponent.class);
-        this.mMotor     = world.getMapper(PhysicsMotorJointComponent.class);
-        this.mWeld      = world.getMapper(PhysicsWeldJointComponent.class);
-        this.mPulley    = world.getMapper(PhysicsPulleyJointComponent.class);
-        this.mGear      = world.getMapper(PhysicsGearJointComponent.class);
+        this.mDist = world.getMapper(PhysicsDistanceJointComponent.class);
+        this.mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
+        this.mPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
+        this.mWheel = world.getMapper(PhysicsWheelJointComponent.class);
+        this.mFriction = world.getMapper(PhysicsFrictionJointComponent.class);
+        this.mMotor = world.getMapper(PhysicsMotorJointComponent.class);
+        this.mWeld = world.getMapper(PhysicsWeldJointComponent.class);
+        this.mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
+        this.mGear = world.getMapper(PhysicsGearJointComponent.class);
     }
 
     public void setBox2d(Box2dWorldService box2d) {
         this.box2d = box2d;
     }
 
-    /** Box2D disponible (world created). */
+    /**
+     * Box2D disponible (world created).
+     */
     public boolean isAvailable() {
         return box2d != null;
     }
@@ -80,9 +81,17 @@ public final class PhysicsService {
     // Body / Fixture
     // ---------------------------------------------------------------------
 
-    public boolean hasBody(int eid)      { return eid >= 0 && mBody.has(eid); }
-    public boolean hasFixtures(int eid)  { return eid >= 0 && mFixtures.has(eid) && mFixtures.get(eid).hasFixtures(); }
-    public boolean hasPhysics(int eid)   { return hasBody(eid) && hasFixtures(eid); }
+    public boolean hasBody(int eid) {
+        return eid >= 0 && mBody.has(eid);
+    }
+
+    public boolean hasFixtures(int eid) {
+        return eid >= 0 && mFixtures.has(eid) && mFixtures.get(eid).hasFixtures();
+    }
+
+    public boolean hasPhysics(int eid) {
+        return hasBody(eid) && hasFixtures(eid);
+    }
 
     public void ensurePhysics(int eid) {
         if (eid < 0) return;
@@ -104,7 +113,7 @@ public final class PhysicsService {
         // keep runtime consistent: no orphan joint
         deleteAllJointsReferencingBody(eid);
 
-        if (mFixtures.has(eid))  mFixtures.remove(eid);
+        if (mFixtures.has(eid)) mFixtures.remove(eid);
         if (mBody.has(eid)) mBody.remove(eid);
 
         markPhysicsDirty(eid);
@@ -155,34 +164,19 @@ public final class PhysicsService {
         return count;
     }
 
-    public FixtureDefData getFixtureById(int eid, long fixtureId) {
-        if (fixtureId <= 0L) return null;
+    public FixtureDefData getFixtureById(int eid, int fixtureId) {
+        if (fixtureId <= 0) return null;
         PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
         if (fixtures == null) return null;
+
         for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
             FixtureDefData f = fixtures.fixtures.get(i);
             if (f == null) continue;
             FixtureIdSequence.i().ensure(f);
             if (f.fixtureId == fixtureId) return f;
         }
+
         return null;
-    }
-
-    public long pickFixtureId(int bodyEid, float worldX, float worldY, float toleranceWU) {
-        if (!hasPhysics(bodyEid) || !isAvailable()) return -1L;
-        PhysicsFixturesComponent fixtures = getFixturesComponent(bodyEid);
-        if (fixtures == null || fixtures.fixtures.size == 0) return -1L;
-
-        float[] verts = new float[32];
-        for (int i = fixtures.fixtures.size - 1; i >= 0; i--) {
-            FixtureDefData fixture = fixtures.fixtures.get(i);
-            if (fixture == null) continue;
-            FixtureIdSequence.i().ensure(fixture);
-            if (hitTestFixture(bodyEid, fixture, worldX, worldY, toleranceWU, verts)) {
-                return fixture.fixtureId;
-            }
-        }
-        return -1L;
     }
 
     public boolean computeFixtureCenterWU(int bodyEid, FixtureDefData fixture, Vector2 outCenterWU) {
@@ -219,75 +213,6 @@ public final class PhysicsService {
         }
 
         return 0;
-    }
-
-    private boolean hitTestFixture(int bodyEid,
-                                   FixtureDefData fixture,
-                                   float worldX,
-                                   float worldY,
-                                   float toleranceWU,
-                                   float[] scratchVerts) {
-        if (fixture == null) return false;
-
-        if (fixture.shapeType == FixtureDefData.SHAPE_CIRCLE) {
-            if (!computeFixtureCenterWU(bodyEid, fixture, tmpA)) return false;
-            float r = computeFixtureRadiusWU(fixture) + Math.max(0f, toleranceWU);
-            return tmpA.dst2(worldX, worldY) <= r * r;
-        }
-
-        int neededFloats = fixture.shapeType == FixtureDefData.SHAPE_BOX ? 8 : safePolyCount(fixture) * 2;
-        if (neededFloats <= 0) return false;
-
-        float[] verts = scratchVerts;
-        if (verts.length < neededFloats) {
-            verts = new float[neededFloats];
-        }
-        int vertexCount = computeFixtureVerticesWU(bodyEid, fixture, verts);
-        if (vertexCount < 3) return false;
-
-        int floatCount = vertexCount * 2;
-        if (Intersector.isPointInPolygon(verts, 0, floatCount, worldX, worldY)) {
-            return true;
-        }
-        return isNearClosedPolyline(verts, vertexCount, worldX, worldY, toleranceWU);
-    }
-
-    private boolean isNearClosedPolyline(float[] verts, int vertexCount, float worldX, float worldY, float toleranceWU) {
-        if (vertexCount < 2) return false;
-        float tol2 = toleranceWU * toleranceWU;
-        for (int i = 0; i < vertexCount; i++) {
-            int j = (i + 1) % vertexCount;
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[j * 2];
-            float by = verts[j * 2 + 1];
-            if (pointSegmentDst2(worldX, worldY, ax, ay, bx, by) <= tol2) return true;
-        }
-        return false;
-    }
-
-    private static float pointSegmentDst2(float px, float py, float ax, float ay, float bx, float by) {
-        float abx = bx - ax;
-        float aby = by - ay;
-        float apx = px - ax;
-        float apy = py - ay;
-
-        float abLen2 = abx * abx + aby * aby;
-        if (abLen2 <= 1e-12f) {
-            float dx = px - ax;
-            float dy = py - ay;
-            return dx * dx + dy * dy;
-        }
-
-        float t = (apx * abx + apy * aby) / abLen2;
-        if (t < 0f) t = 0f;
-        else if (t > 1f) t = 1f;
-
-        float cx = ax + abx * t;
-        float cy = ay + aby * t;
-        float dx = px - cx;
-        float dy = py - cy;
-        return dx * dx + dy * dy;
     }
 
     private int safePolyCount(FixtureDefData fixture) {
@@ -419,7 +344,7 @@ public final class PhysicsService {
         }
         dist.lengthM = lenM;
 
-        dist.frequencyHz  = Math.max(0f, dist.frequencyHz);
+        dist.frequencyHz = Math.max(0f, dist.frequencyHz);
         dist.dampingRatio = Math.max(0f, Math.min(1f, dist.dampingRatio));
 
         markJointDirty(jEid);

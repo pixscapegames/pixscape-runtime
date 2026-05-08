@@ -1,11 +1,7 @@
 package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.GdxRuntimeException;
-import com.badlogic.gdx.utils.Json;
-import com.badlogic.gdx.utils.JsonReader;
-import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.JsonWriter;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.service.TileAnimationRegistry;
@@ -35,6 +31,7 @@ public final class RuntimeProjectIO {
     public static final String PROJECT_JSON = RuntimeFs.FILE_PROJECT_JSON;
 
     private static final Json json = new Json();
+
     static {
         // also write values == defaults (useful for stability / debug)
         json.setUsePrototypes(false);
@@ -46,7 +43,8 @@ public final class RuntimeProjectIO {
         json.setIgnoreUnknownFields(true);
     }
 
-    private RuntimeProjectIO() {}
+    private RuntimeProjectIO() {
+    }
 
     private static RuntimeConfig parseRuntimeConfig(JsonValue root) {
         if (root == null || !root.isObject()) return null;
@@ -63,7 +61,6 @@ public final class RuntimeProjectIO {
         cfg.audioDir = root.getString("audioDir", cfg.audioDir);
         cfg.prefabsDir = root.getString("prefabsDir", cfg.prefabsDir);
         cfg.currentSceneName = root.getString("currentSceneName", cfg.currentSceneName);
-        cfg.glProfile = root.getString("glProfile", cfg.glProfile);
         cfg.glSamples = root.getInt("glSamples", cfg.glSamples);
 
         JsonValue scenesNode = root.get("scenes");

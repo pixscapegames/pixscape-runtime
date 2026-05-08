@@ -7,10 +7,6 @@ import com.artemis.EntitySubscription;
 import com.artemis.annotations.All;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
-import games.pixscape.runtime.particle.ParticleEffect;
-import games.pixscape.runtime.particle.ParticleEffectPool;
-import games.pixscape.runtime.particle.ParticleEmitter;
-import games.pixscape.runtime.particle.ParticleEmitter.Particle;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -21,6 +17,10 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
+import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.particle.ParticleEmitter.Particle;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
@@ -51,11 +51,11 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private final IntSet loggedEntities = new IntSet();
     private final IntSet waitingAtlasLoggedEntities = new IntSet();
 
-    private ComponentMapper<ParticleEmitterComponent>  mEmitter;
-    private ComponentMapper<TransformComponent>        mTransform;
-    private ComponentMapper<VisibilityComponent>       mVis;
-    private ComponentMapper<EntityIndexComponent>      mEntityIndex;
-    private ComponentMapper<LayerComponent>       mLayerIndex;
+    private ComponentMapper<ParticleEmitterComponent> mEmitter;
+    private ComponentMapper<TransformComponent> mTransform;
+    private ComponentMapper<VisibilityComponent> mVis;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private ComponentMapper<LayerComponent> mLayerIndex;
     private ComponentMapper<ParticleOverridesComponent> mOverrides;
 
     private EntitySubscription subscription;
@@ -77,13 +77,13 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                                     int defaultShaderIdx,
                                     AtlasRuntimeService atlasRuntimeService,
                                     FileHandle effectsRoot) {
-        this.state               = state;
-        this.camera              = camera;
-        this.vfxStartIndex       = vfxStartIndex;
-        this.vfxEndIndex         = vfxEndIndex;
-        this.defaultShaderIdx    = defaultShaderIdx;
+        this.state = state;
+        this.camera = camera;
+        this.vfxStartIndex = vfxStartIndex;
+        this.vfxEndIndex = vfxEndIndex;
+        this.defaultShaderIdx = defaultShaderIdx;
         this.atlasRuntimeService = atlasRuntimeService;
-        this.effectsRoot         = effectsRoot;
+        this.effectsRoot = effectsRoot;
     }
 
     private static String effectPoolKey(ParticleEmitterComponent emitter) {
@@ -105,11 +105,13 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 .get(Aspect.all(LayerComponent.class));
 
         subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) {
+            @Override
+            public void inserted(IntBag entities) {
                 // lazy-load effects in processSystem
             }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];
@@ -134,7 +136,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
         IntBag bag = subscription.getEntities();
         int[] data = bag.getData();
-        int count  = bag.size();
+        int count = bag.size();
         if (count == 0) return;
 
         int cursor = vfxStartIndex;
@@ -148,7 +150,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             if (!isLayerVisible(e)) continue;
 
             ParticleEmitterComponent comp = mEmitter.get(e);
-            TransformComponent t          = mTransform.get(e);
+            TransformComponent t = mTransform.get(e);
             if (comp == null || t == null) continue;
 
             ParticleOverridesComponent ov = (mOverrides != null) ? mOverrides.getSafe(e, null) : null;
@@ -204,7 +206,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             // inject all active particles into the SOA,
             // as long as there is room in [vfxStartIndex, vfxEndIndex)
             int layerIndex = resolveLayerIndex(e);
-            int zIndex     = resolveZIndex(e);
+            int zIndex = resolveZIndex(e);
             cursor = collectEffect(fx, cursor, layerIndex, zIndex, ov);
             if (cursor >= vfxEndIndex) break;
         }
@@ -286,8 +288,8 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
         float halfW = camera.viewportWidth * 0.5f * camera.zoom;
         float halfH = camera.viewportHeight * 0.5f * camera.zoom;
-        float camX  = camera.position.x;
-        float camY  = camera.position.y;
+        float camX = camera.position.x;
+        float camY = camera.position.y;
 
         float viewMinX = camX - halfW;
         float viewMaxX = camX + halfW;
@@ -332,7 +334,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                     : BlendMode.ALPHA.id;
 
             Particle[] particles = emitter.particles;
-            boolean[]  active    = emitter.getActiveArray();
+            boolean[] active = emitter.getActiveArray();
             if (particles == null || active == null) continue;
 
             int cap = emitter.getCapacity();
@@ -349,9 +351,9 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
     private int pushParticle(Sprite sprite, int index, int blendId, int layerIndex, int zIndex, ParticleOverridesComponent ov) {
         state.touch(index);
-        state.enabled[index]  = true;
-        state.visible[index]  = true;
-        state.kind[index]     = RenderStateSOA.KIND_SPRITE;
+        state.enabled[index] = true;
+        state.visible[index] = true;
+        state.kind[index] = RenderStateSOA.KIND_SPRITE;
         state.entityId[index] = -1;
 
         float[] v = sprite.getVertices();
@@ -366,7 +368,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         int tintRgba = -1;
 
         if (ov != null) {
-            sizeMul  = ov.sizeMul;
+            sizeMul = ov.sizeMul;
             alphaMul = ov.alphaMul;
             tintRgba = ov.tintRgba;
         }
@@ -376,15 +378,23 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             float cx = (x1 + x2 + x3 + x4) * 0.25f;
             float cy = (y1 + y2 + y3 + y4) * 0.25f;
 
-            state.x1[index] = cx + (x1 - cx) * sizeMul; state.y1[index] = cy + (y1 - cy) * sizeMul;
-            state.x2[index] = cx + (x2 - cx) * sizeMul; state.y2[index] = cy + (y2 - cy) * sizeMul;
-            state.x3[index] = cx + (x3 - cx) * sizeMul; state.y3[index] = cy + (y3 - cy) * sizeMul;
-            state.x4[index] = cx + (x4 - cx) * sizeMul; state.y4[index] = cy + (y4 - cy) * sizeMul;
+            state.x1[index] = cx + (x1 - cx) * sizeMul;
+            state.y1[index] = cy + (y1 - cy) * sizeMul;
+            state.x2[index] = cx + (x2 - cx) * sizeMul;
+            state.y2[index] = cy + (y2 - cy) * sizeMul;
+            state.x3[index] = cx + (x3 - cx) * sizeMul;
+            state.y3[index] = cy + (y3 - cy) * sizeMul;
+            state.x4[index] = cx + (x4 - cx) * sizeMul;
+            state.y4[index] = cy + (y4 - cy) * sizeMul;
         } else {
-            state.x1[index] = x1; state.y1[index] = y1;
-            state.x2[index] = x2; state.y2[index] = y2;
-            state.x3[index] = x3; state.y3[index] = y3;
-            state.x4[index] = x4; state.y4[index] = y4;
+            state.x1[index] = x1;
+            state.y1[index] = y1;
+            state.x2[index] = x2;
+            state.y2[index] = y2;
+            state.x3[index] = x3;
+            state.y3[index] = y3;
+            state.x4[index] = x4;
+            state.y4[index] = y4;
         }
 
         // UV rect
@@ -393,8 +403,10 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         float vMin = Math.min(Math.min(vv1, vv2), Math.min(vv3, vv4));
         float vMax = Math.max(Math.max(vv1, vv2), Math.max(vv3, vv4));
 
-        state.u1[index] = uMin; state.v1[index] = vMin;
-        state.u2[index] = uMax; state.v2[index] = vMax;
+        state.u1[index] = uMin;
+        state.v1[index] = vMin;
+        state.u2[index] = uMax;
+        state.v2[index] = vMax;
 
         // color (spriteColor * tintRgba) puis alphaMul
         Color col = sprite.getColor();
@@ -413,10 +425,14 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         if (alphaMul != 1f) a *= alphaMul;
 
         // clamp
-        if (r < 0f) r = 0f; else if (r > 1f) r = 1f;
-        if (g < 0f) g = 0f; else if (g > 1f) g = 1f;
-        if (b < 0f) b = 0f; else if (b > 1f) b = 1f;
-        if (a < 0f) a = 0f; else if (a > 1f) a = 1f;
+        if (r < 0f) r = 0f;
+        else if (r > 1f) r = 1f;
+        if (g < 0f) g = 0f;
+        else if (g > 1f) g = 1f;
+        if (b < 0f) b = 0f;
+        else if (b > 1f) b = 1f;
+        if (a < 0f) a = 0f;
+        else if (a > 1f) a = 1f;
 
         state.colorPacked[index] = Color.toFloatBits(r, g, b, a);
         state.a[index] = a;
@@ -433,14 +449,14 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         }
 
         state.textureHandle[index] = texHandle;
-        state.shader[index]        = defaultShaderIdx;
-        state.blend[index]         = blendId;
-        state.layerIndex[index]    = layerIndex;
-        state.z[index]             = zIndex;
+        state.shader[index] = defaultShaderIdx;
+        state.blend[index] = blendId;
+        state.layerIndex[index] = layerIndex;
+        state.z[index] = zIndex;
 
         // tri
         int runtimeOrder = (index - vfxStartIndex) & ((1 << SortKey64.TIE_BITS) - 1);
-        state.paramsId[index]       = 0;
+        state.paramsId[index] = 0;
         state.customParamsId[index] = 0;
 
         state.sortKey[index] = SortKey64.packForBlend(

@@ -15,38 +15,40 @@ import java.util.Arrays;
 
 /**
  * Dirty tracker outside components (per bit) + GEOMETRY submask packed in bitsByEntity[e].
- *
+ * <p>
  * - bitsByEntity[e] : int packed (coarse bits + submask GEOMETRY)
  * - 1 list per coarse bit (IntArray) + idx[] for O(1) swap-pop
  * - purge auto via SubscriptionListener.removed()
- *
+ * <p>
  * Convention:
  * - Le submask GEOMETRY = logical granularity (pos/origin/rot/scale/size).
  * - Le bit coarse GEOMETRY = "render pipeline must be recomputed side sprite sync".
- *
+ * <p>
  * API dev-friendly:
- *   dirty.markDirty().transform(e).position().rotation();
- *   dirty.markDirty().material(e);
- *   dirty.markDirty().transform(e).all();
- *
+ * dirty.markDirty().transform(e).position().rotation();
+ * dirty.markDirty().material(e);
+ * dirty.markDirty().transform(e).all();
+ * <p>
  * IMPORTANT: returned builders are reused (zero alloc). Do not store them.
  */
 public final class DirtyTrackerSystem extends BaseSystem {
 
     private final int initialCapacityHint;
 
-    /** Packed bits: coarse + geom submask. */
+    /**
+     * Packed bits: coarse + geom submask.
+     */
     private int[] bitsByEntity;
 
     // lists per coarse bit
-    private final IntArray geometry   = new IntArray(false, 256);
-    private final IntArray material   = new IntArray(false, 256);
-    private final IntArray color      = new IntArray(false, 256);
-    private final IntArray order      = new IntArray(false, 256);
-    private final IntArray layer      = new IntArray(false, 256);
-    private final IntArray camera     = new IntArray(false, 256);
-    private final IntArray physics    = new IntArray(false, 256);
-    private final IntArray joints     = new IntArray(false, 256);
+    private final IntArray geometry = new IntArray(false, 256);
+    private final IntArray material = new IntArray(false, 256);
+    private final IntArray color = new IntArray(false, 256);
+    private final IntArray order = new IntArray(false, 256);
+    private final IntArray layer = new IntArray(false, 256);
+    private final IntArray camera = new IntArray(false, 256);
+    private final IntArray physics = new IntArray(false, 256);
+    private final IntArray joints = new IntArray(false, 256);
 
     // idx per list
     private int[] idxGeometry;
@@ -77,9 +79,11 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
         EntitySubscription subAll = world.getAspectSubscriptionManager().get(Aspect.all());
         subAll.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) { /* no-op */ }
+            @Override
+            public void inserted(IntBag entities) { /* no-op */ }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     clearEntity(data[i]);
@@ -114,13 +118,13 @@ public final class DirtyTrackerSystem extends BaseSystem {
             bitsByEntity = Arrays.copyOf(bitsByEntity, capacity);
         }
 
-        idxGeometry   = ensureIdx(idxGeometry, capacity);
-        idxMaterial   = ensureIdx(idxMaterial, capacity);
-        idxColor      = ensureIdx(idxColor, capacity);
-        idxOrder      = ensureIdx(idxOrder, capacity);
-        idxLayer      = ensureIdx(idxLayer, capacity);
-        idxCamera     = ensureIdx(idxCamera, capacity);
-        idxPhysics    = ensureIdx(idxPhysics, capacity);
+        idxGeometry = ensureIdx(idxGeometry, capacity);
+        idxMaterial = ensureIdx(idxMaterial, capacity);
+        idxColor = ensureIdx(idxColor, capacity);
+        idxOrder = ensureIdx(idxOrder, capacity);
+        idxLayer = ensureIdx(idxLayer, capacity);
+        idxCamera = ensureIdx(idxCamera, capacity);
+        idxPhysics = ensureIdx(idxPhysics, capacity);
         idxJoints = ensureIdx(idxJoints, capacity);
 
         if (physicsSubByEntity == null) {
@@ -183,27 +187,43 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
         bitsByEntity[e] = packed | (coarseMask & DirtyBits.COARSE_MASK);
 
-        if ((add & DirtyBits.GEOMETRY) != 0)   addToList(e, DirtyBits.GEOMETRY);
-        if ((add & DirtyBits.MATERIAL) != 0)   addToList(e, DirtyBits.MATERIAL);
-        if ((add & DirtyBits.COLOR) != 0)      addToList(e, DirtyBits.COLOR);
-        if ((add & DirtyBits.ORDER) != 0)      addToList(e, DirtyBits.ORDER);
-        if ((add & DirtyBits.LAYER) != 0)      addToList(e, DirtyBits.LAYER);
-        if ((add & DirtyBits.CAMERA) != 0)     addToList(e, DirtyBits.CAMERA);
-        if ((add & DirtyBits.PHYSICS) != 0)    addToList(e, DirtyBits.PHYSICS);
-        if ((add & DirtyBits.JOINTS) != 0)     addToList(e, DirtyBits.JOINTS);
+        if ((add & DirtyBits.GEOMETRY) != 0) addToList(e, DirtyBits.GEOMETRY);
+        if ((add & DirtyBits.MATERIAL) != 0) addToList(e, DirtyBits.MATERIAL);
+        if ((add & DirtyBits.COLOR) != 0) addToList(e, DirtyBits.COLOR);
+        if ((add & DirtyBits.ORDER) != 0) addToList(e, DirtyBits.ORDER);
+        if ((add & DirtyBits.LAYER) != 0) addToList(e, DirtyBits.LAYER);
+        if ((add & DirtyBits.CAMERA) != 0) addToList(e, DirtyBits.CAMERA);
+        if ((add & DirtyBits.PHYSICS) != 0) addToList(e, DirtyBits.PHYSICS);
+        if ((add & DirtyBits.JOINTS) != 0) addToList(e, DirtyBits.JOINTS);
     }
 
-    public void material(int e)   { mark(e, DirtyBits.MATERIAL); }
-    public void color(int e)      { mark(e, DirtyBits.COLOR); }
-    public void order(int e)      { mark(e, DirtyBits.ORDER); }
-    public void layer(int e)      { mark(e, DirtyBits.LAYER); }
-    public void camera(int e)     { mark(e, DirtyBits.CAMERA); }
+    public void material(int e) {
+        mark(e, DirtyBits.MATERIAL);
+    }
+
+    public void color(int e) {
+        mark(e, DirtyBits.COLOR);
+    }
+
+    public void order(int e) {
+        mark(e, DirtyBits.ORDER);
+    }
+
+    public void layer(int e) {
+        mark(e, DirtyBits.LAYER);
+    }
+
+    public void camera(int e) {
+        mark(e, DirtyBits.CAMERA);
+    }
 
     // ------------------------------------------------------------
     // GEOMETRY API (coarse + submask)
     // ------------------------------------------------------------
 
-    /** Marks coarse GEOMETRY and ORs GeometryDirty.* submask into the packed field. */
+    /**
+     * Marks coarse GEOMETRY and ORs GeometryDirty.* submask into the packed field.
+     */
     public void geometry(int e, int geomSubMask) {
         if (!isActive(e)) return;
 
@@ -309,13 +329,17 @@ public final class DirtyTrackerSystem extends BaseSystem {
     // Query
     // ------------------------------------------------------------
 
-    /** packed bits (coarse + geom sub). */
+    /**
+     * packed bits (coarse + geom sub).
+     */
     public int packedBits(int e) {
         if (e < 0 || bitsByEntity == null || e >= bitsByEntity.length) return DirtyBits.NONE;
         return bitsByEntity[e];
     }
 
-    /** coarse only */
+    /**
+     * coarse only
+     */
     public int coarseBits(int e) {
         return packedBits(e) & DirtyBits.COARSE_MASK;
     }
@@ -359,14 +383,14 @@ public final class DirtyTrackerSystem extends BaseSystem {
     }
 
     public void consumeMask(int mask, IntConsumer fn) {
-        if ((mask & DirtyBits.GEOMETRY) != 0)   consume(DirtyBits.GEOMETRY, fn);
-        if ((mask & DirtyBits.MATERIAL) != 0)   consume(DirtyBits.MATERIAL, fn);
-        if ((mask & DirtyBits.COLOR) != 0)      consume(DirtyBits.COLOR, fn);
-        if ((mask & DirtyBits.ORDER) != 0)      consume(DirtyBits.ORDER, fn);
-        if ((mask & DirtyBits.LAYER) != 0)      consume(DirtyBits.LAYER, fn);
-        if ((mask & DirtyBits.CAMERA) != 0)     consume(DirtyBits.CAMERA, fn);
-        if ((mask & DirtyBits.PHYSICS) != 0)    consumePhysics(fn);
-        if ((mask & DirtyBits.JOINTS) != 0)     consumeJoints(fn);
+        if ((mask & DirtyBits.GEOMETRY) != 0) consume(DirtyBits.GEOMETRY, fn);
+        if ((mask & DirtyBits.MATERIAL) != 0) consume(DirtyBits.MATERIAL, fn);
+        if ((mask & DirtyBits.COLOR) != 0) consume(DirtyBits.COLOR, fn);
+        if ((mask & DirtyBits.ORDER) != 0) consume(DirtyBits.ORDER, fn);
+        if ((mask & DirtyBits.LAYER) != 0) consume(DirtyBits.LAYER, fn);
+        if ((mask & DirtyBits.CAMERA) != 0) consume(DirtyBits.CAMERA, fn);
+        if ((mask & DirtyBits.PHYSICS) != 0) consumePhysics(fn);
+        if ((mask & DirtyBits.JOINTS) != 0) consumeJoints(fn);
     }
 
     public void consumePhysics(IntConsumer fn) {
@@ -432,28 +456,53 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private IntArray listOf(int bit) {
         switch (bit) {
-            case DirtyBits.GEOMETRY: return geometry;
-            case DirtyBits.MATERIAL: return material;
-            case DirtyBits.COLOR: return color;
-            case DirtyBits.ORDER: return order;
-            case DirtyBits.LAYER: return layer;
-            case DirtyBits.CAMERA: return camera;
-            case DirtyBits.PHYSICS: return physics;
-            case DirtyBits.JOINTS: return joints;
-            default: return null;
+            case DirtyBits.GEOMETRY:
+                return geometry;
+            case DirtyBits.MATERIAL:
+                return material;
+            case DirtyBits.COLOR:
+                return color;
+            case DirtyBits.ORDER:
+                return order;
+            case DirtyBits.LAYER:
+                return layer;
+            case DirtyBits.CAMERA:
+                return camera;
+            case DirtyBits.PHYSICS:
+                return physics;
+            case DirtyBits.JOINTS:
+                return joints;
+            default:
+                return null;
         }
     }
 
     private void removeFromList(int e, int bit) {
         switch (bit) {
-            case DirtyBits.GEOMETRY: swapPopRemove(geometry, idxGeometry, e); return;
-            case DirtyBits.MATERIAL: swapPopRemove(material, idxMaterial, e); return;
-            case DirtyBits.COLOR: swapPopRemove(color, idxColor, e); return;
-            case DirtyBits.ORDER: swapPopRemove(order, idxOrder, e); return;
-            case DirtyBits.LAYER: swapPopRemove(layer, idxLayer, e); return;
-            case DirtyBits.CAMERA: swapPopRemove(camera, idxCamera, e); return;
-            case DirtyBits.PHYSICS: swapPopRemove(physics, idxPhysics, e); return;
-            case DirtyBits.JOINTS: swapPopRemove(joints, idxJoints, e); return;
+            case DirtyBits.GEOMETRY:
+                swapPopRemove(geometry, idxGeometry, e);
+                return;
+            case DirtyBits.MATERIAL:
+                swapPopRemove(material, idxMaterial, e);
+                return;
+            case DirtyBits.COLOR:
+                swapPopRemove(color, idxColor, e);
+                return;
+            case DirtyBits.ORDER:
+                swapPopRemove(order, idxOrder, e);
+                return;
+            case DirtyBits.LAYER:
+                swapPopRemove(layer, idxLayer, e);
+                return;
+            case DirtyBits.CAMERA:
+                swapPopRemove(camera, idxCamera, e);
+                return;
+            case DirtyBits.PHYSICS:
+                swapPopRemove(physics, idxPhysics, e);
+                return;
+            case DirtyBits.JOINTS:
+                swapPopRemove(joints, idxJoints, e);
+                return;
             default: { /* ignore */ }
         }
     }
@@ -481,11 +530,11 @@ public final class DirtyTrackerSystem extends BaseSystem {
     /**
      * Flush de fin de frame (coarse + sub).
      * Goal: remove dependency on "which system consumes what".
-     *
+     * <p>
      * - Empties all coarse lists.
      * - Clears corresponding coarse bits.
      * - Also clears geomSub for entities still ticketed in GEOMETRY (fail-safe).
-     *
+     * <p>
      * NB: normal flow = UpdateWorldGeometrySystem clearAllGeomSub(e) itself.
      * Here we force to 0 if something was missed (otherwise submask can "leak").
      */
@@ -502,7 +551,10 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private void clearListAndCoarseBit(IntArray list, int[] idx, int coarseBit, boolean clearGeomSub) {
         if (list == null || idx == null) return;
-        if (bitsByEntity == null) { list.clear(); return; }
+        if (bitsByEntity == null) {
+            list.clear();
+            return;
+        }
 
         for (int i = 0, n = list.size; i < n; i++) {
             int e = list.get(i);
@@ -521,7 +573,10 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private void clearPhysicsListAndBits() {
         if (physics == null || idxPhysics == null) return;
-        if (bitsByEntity == null) { physics.clear(); return; }
+        if (bitsByEntity == null) {
+            physics.clear();
+            return;
+        }
 
         for (int i = 0, n = physics.size; i < n; i++) {
             int e = physics.get(i);
@@ -534,7 +589,10 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private void clearJointsListAndBits() {
         if (joints == null || idxJoints == null) return;
-        if (bitsByEntity == null) { joints.clear(); return; }
+        if (bitsByEntity == null) {
+            joints.clear();
+            return;
+        }
 
         for (int i = 0, n = joints.size; i < n; i++) {
             int e = joints.get(i);
@@ -544,7 +602,6 @@ public final class DirtyTrackerSystem extends BaseSystem {
         }
         joints.clear();
     }
-
 
 
     public void clearAll() {
@@ -580,17 +637,17 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
         int coarse = packed & DirtyBits.COARSE_MASK;
 
-        if ((coarse & DirtyBits.GEOMETRY) != 0)   swapPopRemove(geometry, idxGeometry, e);
-        if ((coarse & DirtyBits.MATERIAL) != 0)   swapPopRemove(material, idxMaterial, e);
-        if ((coarse & DirtyBits.COLOR) != 0)      swapPopRemove(color, idxColor, e);
-        if ((coarse & DirtyBits.ORDER) != 0)      swapPopRemove(order, idxOrder, e);
-        if ((coarse & DirtyBits.LAYER) != 0)      swapPopRemove(layer, idxLayer, e);
-        if ((coarse & DirtyBits.CAMERA) != 0)     swapPopRemove(camera, idxCamera, e);
-        if ((coarse & DirtyBits.PHYSICS) != 0)    swapPopRemove(physics, idxPhysics, e);
-        if ((coarse & DirtyBits.JOINTS) != 0)     swapPopRemove(joints, idxJoints, e);
+        if ((coarse & DirtyBits.GEOMETRY) != 0) swapPopRemove(geometry, idxGeometry, e);
+        if ((coarse & DirtyBits.MATERIAL) != 0) swapPopRemove(material, idxMaterial, e);
+        if ((coarse & DirtyBits.COLOR) != 0) swapPopRemove(color, idxColor, e);
+        if ((coarse & DirtyBits.ORDER) != 0) swapPopRemove(order, idxOrder, e);
+        if ((coarse & DirtyBits.LAYER) != 0) swapPopRemove(layer, idxLayer, e);
+        if ((coarse & DirtyBits.CAMERA) != 0) swapPopRemove(camera, idxCamera, e);
+        if ((coarse & DirtyBits.PHYSICS) != 0) swapPopRemove(physics, idxPhysics, e);
+        if ((coarse & DirtyBits.JOINTS) != 0) swapPopRemove(joints, idxJoints, e);
 
         if (physicsSubByEntity != null && e < physicsSubByEntity.length) physicsSubByEntity[e] = 0;
-        if (jointSubByEntity != null && e < jointSubByEntity.length)     jointSubByEntity[e] = 0;
+        if (jointSubByEntity != null && e < jointSubByEntity.length) jointSubByEntity[e] = 0;
 
         bitsByEntity[e] = DirtyBits.NONE;
     }
@@ -599,27 +656,55 @@ public final class DirtyTrackerSystem extends BaseSystem {
     // Access to lists (tight loops)
     // ------------------------------------------------------------
 
-    /** Live list of GEOMETRY-ticketed entities (do not modify). */
-    public IntArray geometryEntities() { return geometry; }
+    /**
+     * Live list of GEOMETRY-ticketed entities (do not modify).
+     */
+    public IntArray geometryEntities() {
+        return geometry;
+    }
 
-    /** Live list of MATERIAL-ticketed entities (do not modify). */
-    public IntArray materialEntities() { return material; }
+    /**
+     * Live list of MATERIAL-ticketed entities (do not modify).
+     */
+    public IntArray materialEntities() {
+        return material;
+    }
 
-    /** Live list of COLOR-ticketed entities (do not modify). */
-    public IntArray colorEntities() { return color; }
+    /**
+     * Live list of COLOR-ticketed entities (do not modify).
+     */
+    public IntArray colorEntities() {
+        return color;
+    }
 
-    /** Live list of ORDER-ticketed entities (do not modify). */
-    public IntArray orderEntities() { return order; }
+    /**
+     * Live list of ORDER-ticketed entities (do not modify).
+     */
+    public IntArray orderEntities() {
+        return order;
+    }
 
-    /** Live list of LAYER-ticketed entities (do not modify). */
-    public IntArray layerEntities() { return layer; }
+    /**
+     * Live list of LAYER-ticketed entities (do not modify).
+     */
+    public IntArray layerEntities() {
+        return layer;
+    }
 
-    /** Live list of CAMERA-ticketed entities (do not modify). */
-    public IntArray cameraEntities() { return camera; }
+    /**
+     * Live list of CAMERA-ticketed entities (do not modify).
+     */
+    public IntArray cameraEntities() {
+        return camera;
+    }
 
-    public IntArray physicsEntities() { return physics; }
+    public IntArray physicsEntities() {
+        return physics;
+    }
 
-    public IntArray jointsEntities() { return joints; }
+    public IntArray jointsEntities() {
+        return joints;
+    }
 
 
     public void physics(int e, int subMask) {
@@ -675,7 +760,9 @@ public final class DirtyTrackerSystem extends BaseSystem {
             this.dirty = dirty;
         }
 
-        /** Transform fluent. */
+        /**
+         * Transform fluent.
+         */
         public TransformMark transform(int entityId) {
             this.e = entityId;
             transform.e = entityId;
@@ -683,18 +770,46 @@ public final class DirtyTrackerSystem extends BaseSystem {
             return transform;
         }
 
-        /** Coarse-only helpers (no submask). */
-        public MarkDirty material(int entityId)   { dirty.material(entityId);   return this; }
-        public MarkDirty color(int entityId)      { dirty.color(entityId);      return this; }
-        public MarkDirty order(int entityId)      { dirty.order(entityId);      return this; }
-        public MarkDirty layer(int entityId)      { dirty.layer(entityId);      return this; }
-        public MarkDirty camera(int entityId)     { dirty.camera(entityId);     return this; }
+        /**
+         * Coarse-only helpers (no submask).
+         */
+        public MarkDirty material(int entityId) {
+            dirty.material(entityId);
+            return this;
+        }
 
-        /** Convenience. */
-        public MarkDirty everything(int entityId) { dirty.mark(entityId, DirtyBits.EVERYTHING); return this; }
+        public MarkDirty color(int entityId) {
+            dirty.color(entityId);
+            return this;
+        }
+
+        public MarkDirty order(int entityId) {
+            dirty.order(entityId);
+            return this;
+        }
+
+        public MarkDirty layer(int entityId) {
+            dirty.layer(entityId);
+            return this;
+        }
+
+        public MarkDirty camera(int entityId) {
+            dirty.camera(entityId);
+            return this;
+        }
+
+        /**
+         * Convenience.
+         */
+        public MarkDirty everything(int entityId) {
+            dirty.mark(entityId, DirtyBits.EVERYTHING);
+            return this;
+        }
     }
 
-    /** Fluent builder transform/geometry submask. Reused: DO NOT STORE. */
+    /**
+     * Fluent builder transform/geometry submask. Reused: DO NOT STORE.
+     */
     public static final class TransformMark {
         private DirtyTrackerSystem dirty;
         private int e;
@@ -702,13 +817,16 @@ public final class DirtyTrackerSystem extends BaseSystem {
         // submask accumulated locally to limit writes to bitsByEntity
         private int sub;
 
-        private TransformMark() {}
+        private TransformMark() {
+        }
 
         private void add(int m) {
             sub |= m;
         }
 
-        /** Implicit commit (automatically called at the end of chains) */
+        /**
+         * Implicit commit (automatically called at the end of chains)
+         */
         private void commitIfNeeded() {
             if (sub != GeometryDirty.NONE) {
                 dirty.geometry(e, sub);
@@ -719,22 +837,53 @@ public final class DirtyTrackerSystem extends BaseSystem {
         }
 
         // --- fluent ops ---
-        public TransformMark position() { add(GeometryDirty.POSITION); return this; }
-        public TransformMark origin()   { add(GeometryDirty.ORIGIN);   return this; }
-        public TransformMark rotation() { add(GeometryDirty.ROTATION); return this; }
-        public TransformMark scale()    { add(GeometryDirty.SCALE);    return this; }
-        public TransformMark size()     { add(GeometryDirty.SIZE);     return this; }
-        public TransformMark axes()     { add(GeometryDirty.AXES_MASK);return this; }
-        public TransformMark all()      { add(GeometryDirty.ALL);      return this; }
+        public TransformMark position() {
+            add(GeometryDirty.POSITION);
+            return this;
+        }
 
-        /** Force coarse only (rare). */
+        public TransformMark origin() {
+            add(GeometryDirty.ORIGIN);
+            return this;
+        }
+
+        public TransformMark rotation() {
+            add(GeometryDirty.ROTATION);
+            return this;
+        }
+
+        public TransformMark scale() {
+            add(GeometryDirty.SCALE);
+            return this;
+        }
+
+        public TransformMark size() {
+            add(GeometryDirty.SIZE);
+            return this;
+        }
+
+        public TransformMark axes() {
+            add(GeometryDirty.AXES_MASK);
+            return this;
+        }
+
+        public TransformMark all() {
+            add(GeometryDirty.ALL);
+            return this;
+        }
+
+        /**
+         * Force coarse only (rare).
+         */
         public TransformMark coarseOnly() {
             dirty.mark(e, DirtyBits.GEOMETRY);
             sub = GeometryDirty.NONE;
             return this;
         }
 
-        /** Explicit commit to finish a chain: transform(e).position().rotation().commit() */
+        /**
+         * Explicit commit to finish a chain: transform(e).position().rotation().commit()
+         */
         public void commit() {
             commitIfNeeded();
         }

@@ -43,7 +43,7 @@ public class PixscapeApiV1Test {
         engine.getTagRegistry().rebuild();
 
         EntitiesAPI entities = engine.api().entities();
-        long stableId = entities.ensureStableId(e);
+        int stableId = entities.ensureStableId(e);
 
         Assert.assertEquals(e, entities.entityIdOf(stableId));
         Assert.assertEquals(stableId, entities.stableIdOf(e));
