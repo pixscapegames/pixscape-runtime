@@ -49,8 +49,6 @@ public final class PhysicsJointComponent extends PooledComponent {
     public float anchorBx = 0f;
     public float anchorBy = 0f;
 
-    /** Optionnel : tag/debug/serial. */
-    public long userData = 0L;
 
     @Override
     protected void reset() {
@@ -63,7 +61,5 @@ public final class PhysicsJointComponent extends PooledComponent {
         anchorAy = 0f;
         anchorBx = 0f;
         anchorBy = 0f;
-
-        userData = 0L;
     }
 }

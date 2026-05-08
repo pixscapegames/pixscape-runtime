@@ -105,7 +105,9 @@ public final class PrefabAsset {
         public int decompositionAlgorithmVersion;
         public long sourceHash;
         public List<ConvexPolygonPartDto> convexParts = new ArrayList<>();
-        public long[] generatedFixtureIds;
+
+        public int[] generatedFixtureIds;
+
         public float density, friction, restitution;
         public boolean isSensor;
         public short categoryBits, maskBits, groupIndex;
