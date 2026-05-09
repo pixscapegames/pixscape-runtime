@@ -198,8 +198,6 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                 x1, y1, x2, y2, x3, y3, x4, y4,
                 u, v, u2, v2,
                 stats);
-
-        Gdx.app.log("TABatch", "draw texHandle=" + textureHandle + " layer=" + layer);
     }
 
     @Override
@@ -209,7 +207,6 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // Upload vertices
         mesh.setVertices(verts, 0, vertCount * VERT_STRIDE);
 
-        // IMPORTANT: on ne reset PAS u_projTrans ici
         // => prepareDrawState will only resend u_projTrans if projDirty = true
         prepareDrawState(s);
 
