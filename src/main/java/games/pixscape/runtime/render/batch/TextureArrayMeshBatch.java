@@ -63,17 +63,21 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         int maxVerts = this.maxQuads * 4;
         int maxIndices = this.maxQuads * 6;
 
+        Mesh.VertexDataType vertexDataType =
+                (Gdx.gl30 != null)
+                        ? Mesh.VertexDataType.VertexBufferObjectWithVAO
+                        : Mesh.VertexDataType.VertexBufferObject;
+
         // Mesh : a_position (2), a_texCoord0 (2), a_color (packed), a_layer (1)
         this.mesh = new Mesh(
-                false,  // vertices dynamiques
-                true,   // indices statiques
-                maxVerts, maxIndices,
-                new VertexAttributes(
-                        new VertexAttribute(Usage.Position, 2, "a_position"),
-                        new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
-                        VertexAttribute.ColorPacked(),
-                        new VertexAttribute(Usage.Generic, 1, "a_layer")
-                )
+                vertexDataType,
+                false,
+                maxVerts,
+                maxIndices,
+                new VertexAttribute(Usage.Position, 2, "a_position"),
+                new VertexAttribute(Usage.ColorPacked, 4, "a_color"),
+                new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
+                new VertexAttribute(Usage.Generic, 1, "a_layer")
         );
 
         // indices (quads -> 2 triangles)
@@ -90,6 +94,11 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         }
         mesh.setIndices(idx);
 
+        if (vertexDataType != Mesh.VertexDataType.VertexArray) {
+            mesh.getIndexData().bind();
+            mesh.getIndexData().unbind();
+        }
+
         this.verts = new float[maxVerts * VERT_STRIDE];
     }
 
@@ -99,6 +108,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
     @Override
     public void begin(Matrix4 combined, RenderStats stats) {
+        Gdx.gl.glDepthMask(false);
         this.stats = stats;
         this.drawing = true;
 
@@ -119,6 +129,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // We no longer rely on GL state after end()
         this.arrayBound = false;
         this.projDirty = true;
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     @Override
@@ -186,6 +198,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                 x1, y1, x2, y2, x3, y3, x4, y4,
                 u, v, u2, v2,
                 stats);
+
+        Gdx.app.log("TABatch", "draw texHandle=" + textureHandle + " layer=" + layer);
     }
 
     @Override
@@ -299,33 +313,33 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // BL
         verts[o++] = x1;
         verts[o++] = y1;
+        verts[o++] = colorPacked;
         verts[o++] = u;
         verts[o++] = v2;
-        verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TL
         verts[o++] = x2;
         verts[o++] = y2;
+        verts[o++] = colorPacked;
         verts[o++] = u;
         verts[o++] = v;
-        verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // TR
         verts[o++] = x3;
         verts[o++] = y3;
+        verts[o++] = colorPacked;
         verts[o++] = u2;
         verts[o++] = v;
-        verts[o++] = colorPacked;
         verts[o++] = fl;
 
         // BR
         verts[o++] = x4;
         verts[o++] = y4;
+        verts[o++] = colorPacked;
         verts[o++] = u2;
         verts[o++] = v2;
-        verts[o++] = colorPacked;
         verts[o++] = fl;
 
         vertCount += 4;

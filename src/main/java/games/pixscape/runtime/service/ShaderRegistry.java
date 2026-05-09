@@ -520,24 +520,26 @@ public final class ShaderRegistry {
             );
         }
 
-        Gdx.app.log("ShaderRegistry", "appType=" + Gdx.app.getType()
-                + " glVersion=" + Gdx.graphics.getGLVersion());
+        Application.ApplicationType appType = Gdx.app != null ? Gdx.app.getType() : null;
+        GLVersion glVersionForLog = Gdx.graphics != null ? Gdx.graphics.getGLVersion() : null;
+        if (Gdx.app != null) {
+            Gdx.app.log("ShaderRegistry", "appType=" + appType + " glVersion=" + glVersionForLog);
+        }
 
-        if (Gdx.app != null
-                && Gdx.app.getType() == Application.ApplicationType.WebGL) {
-            Gdx.app.log("ShaderRegistry", "Resolved platform target HTML_WEBGL2");
+        if (appType == Application.ApplicationType.WebGL) {
+            if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target HTML_WEBGL2");
             return PlatformTarget.HTML_WEBGL2;
         }
 
-        GLVersion glVersion = Gdx.graphics.getGLVersion();
+        GLVersion glVersion = Gdx.graphics != null ? Gdx.graphics.getGLVersion() : null;
         boolean isGles = glVersion != null && glVersion.getType() == GLVersion.Type.GLES;
 
         if (isGles) {
-            Gdx.app.log("ShaderRegistry", "Resolved platform target ANDROID_ES3");
+            if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target ANDROID_ES3");
             return PlatformTarget.ANDROID_ES3;
         }
 
-        Gdx.app.log("ShaderRegistry", "Resolved platform target DESKTOP_GL30");
+        if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target DESKTOP_GL30");
         return PlatformTarget.DESKTOP_GL30;
     }
 

@@ -37,17 +37,6 @@ public final class RenderSubmitSystem extends BaseSystem {
     // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
-    // --- DEBUG (reflection, no runtime->studio dependency) ---
-    @SkipWire
-    private EntitySubscription pointLightSub;
-
-    @SkipWire
-    private final float[] debugBatchColor = new float[4];
-    @SkipWire
-    private final StringBuilder debugSb = new StringBuilder(256);
-    @SkipWire
-    private final StringBuilder debugPreviewSb = new StringBuilder(256);
-
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
                               DrawList drawList,
@@ -89,7 +78,6 @@ public final class RenderSubmitSystem extends BaseSystem {
     protected void begin() {
         time += world.getDelta();
         cam.update();
-        // metricsBatch.begin is called in render().
     }
 
     @Override
@@ -141,9 +129,8 @@ public final class RenderSubmitSystem extends BaseSystem {
             int layerIdx = state.layerIndex[slot];
 
             if (hasLayerMeta) {
-                if (layerIdx < 0 || layerIdx >= 31) continue;
+                if (layerIdx < 0 || layerIdx >= layerState.enabled.length) continue;
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
-
             }
 
             // Shader switch (will flush inside setShader)
@@ -155,6 +142,7 @@ public final class RenderSubmitSystem extends BaseSystem {
                 if (sh == null) {
                     sh = ShaderRegistry.get(fallbackShaderMode.defaultShaderName());
                 }
+
                 if (sh != curShader) {
                     metricsBatch.setShader(sh, stats);
                     curShader = sh;
@@ -234,11 +222,10 @@ public final class RenderSubmitSystem extends BaseSystem {
             );
             stats.drawnQuads++;
         }
-
         metricsBatch.end(stats);
     }
 
-    private static int hashShaderParams(com.badlogic.gdx.utils.ObjectFloatMap<String> floats) {
+    private static int hashShaderParams(ObjectFloatMap<String> floats) {
         // Commutative hash (iteration order not guaranteed): XOR/mix
         int h = 0x9E3779B9;
         ObjectFloatMap.Entries<String> it = floats.entries();
