@@ -12,8 +12,8 @@ public final class TileChunk {
         FULL
     }
 
-    public DirtyState dirtyState = DirtyState.FULL; // initial build
-    public IntArray dirtyLocalIndices = new IntArray(false, 8);
+    public transient DirtyState dirtyState = DirtyState.FULL; // initial build
+    public transient IntArray dirtyLocalIndices = new IntArray(false, 8);
 
     public int chunkX;
     public int chunkY;
@@ -53,16 +53,16 @@ public final class TileChunk {
     /**
      * Évite les doublons dans animatedLocalIndices.
      */
-    private boolean[] animatedMembership;
+    private transient boolean[] animatedMembership;
 
     public int soaStartIndex;
     public int soaCount;
 
     public boolean contentDirty = true;
     public boolean collisionDirty = true;
-    public boolean visibleLastFrame = false;
+    public transient boolean visibleLastFrame = false;
 
-    public Rectangle bounds;
+    public transient Rectangle bounds;
 
     public TileChunk() {
         this.bounds = new Rectangle();

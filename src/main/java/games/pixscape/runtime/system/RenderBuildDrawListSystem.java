@@ -12,28 +12,25 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     private final LayerStateSOA layerState;
     private final DrawList drawList;
     private final RenderStats stats;
-    private final int ecsEndExclusive;
 
-    public RenderBuildDrawListSystem(RenderStateSOA state,
-                                     LayerStateSOA layerState,
-                                     DrawList drawList,
-                                     RenderStats stats,
-                                     int ecsEndExclusive) {
-        this(state, layerState, drawList, stats, ecsEndExclusive, -1, -1);
-    }
+    private final int ecsEndExclusive;
+    private final int vfxStartInclusive;
+    private final int vfxEndExclusive;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
                                      RenderStats stats,
                                      int ecsEndExclusive,
-                                     int reservedStartInclusive,
-                                     int reservedEndExclusive) {
+                                     int vfxStartInclusive,
+                                     int vfxEndExclusive) {
         this.state = state;
         this.layerState = layerState;
         this.drawList = drawList;
         this.stats = stats;
         this.ecsEndExclusive = ecsEndExclusive;
+        this.vfxStartInclusive = vfxStartInclusive;
+        this.vfxEndExclusive = vfxEndExclusive;
     }
 
     @Override
@@ -49,9 +46,9 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
         if (maxId >= 0) {
             final int ecsUpper = Math.min(maxId, ecsEndExclusive - 1);
 
-            for (int e = 0; e <= ecsUpper; e++) {
-                if (isRenderableSlot(e)) {
-                    drawList.add(e);
+            for (int slot = 0; slot <= ecsUpper; slot++) {
+                if (isRenderableSlot(slot)) {
+                    drawList.add(slot);
                 }
             }
 
@@ -67,8 +64,23 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
                 continue;
             }
 
+            if (isVfxSlot(slot)) {
+                continue;
+            }
+
             if (isRenderableSlot(slot)) {
                 drawList.add(slot);
+            }
+        }
+
+        if (vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
+            int start = Math.max(vfxStartInclusive, 0);
+            int end = Math.min(vfxEndExclusive, state.enabled.length);
+
+            for (int slot = start; slot < end; slot++) {
+                if (isRenderableSlot(slot)) {
+                    drawList.add(slot);
+                }
             }
         }
 
@@ -76,7 +88,14 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
         stats.extractedQuads = drawList.size;
     }
 
+    private boolean isVfxSlot(int slot) {
+        return vfxStartInclusive >= 0
+                && slot >= vfxStartInclusive
+                && slot < vfxEndExclusive;
+    }
+
     private boolean isRenderableSlot(int slot) {
+        if (slot < 0 || slot >= state.enabled.length) return false;
         if (!state.enabled[slot]) return false;
         if (!state.visible[slot]) return false;
 

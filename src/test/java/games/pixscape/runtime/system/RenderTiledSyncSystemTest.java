@@ -287,8 +287,7 @@ public class RenderTiledSyncSystemTest {
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
-                .build());
+                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))                .build());
 
         Entity layerA = world.createEntity();
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
@@ -347,7 +346,7 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64)
+                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1)
                 )
                 .build());
 
@@ -388,7 +387,7 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64)
+                        new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1,-1)
                 )
                 .build());
 
@@ -429,7 +428,7 @@ public class RenderTiledSyncSystemTest {
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 4096);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
+                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -463,7 +462,7 @@ public class RenderTiledSyncSystemTest {
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
+                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();

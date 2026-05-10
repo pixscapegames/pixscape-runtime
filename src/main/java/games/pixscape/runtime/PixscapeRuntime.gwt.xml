@@ -11,10 +11,14 @@
     <inherits name="com.artemis-json-libgdx"/>
     <source path=""/>
 
-    <!-- Artemis a besoin des systèmes pour les annotations/aspects -->
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
 
-    <!-- Artemis a besoin des composants ECS -->
+    <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
+    <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
+
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.tiled"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.physics"/>
