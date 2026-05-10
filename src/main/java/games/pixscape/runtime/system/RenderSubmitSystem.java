@@ -6,6 +6,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ObjectIntMap;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.render.*;
@@ -35,6 +37,8 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
+
+    private final ObjectMap<ShaderProgram, ObjectIntMap<String>> uniformLocationCache = new ObjectMap<>();
 
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
@@ -90,6 +94,9 @@ public final class RenderSubmitSystem extends BaseSystem {
     }
 
     private void render() {
+
+        final boolean hasShaderParamsMapper = mShaderParams != null;
+
         cam.update();
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
@@ -152,10 +159,9 @@ public final class RenderSubmitSystem extends BaseSystem {
                     lastParamsHash = 0;
 
                     if (curShader != null) {
-                        safeSetUniform1f(curShader, "u_time", time);
-                        safeSetUniform2f(curShader, "u_layerOffset", 0f, 0f);
-                        safeSetUniform3f(curShader, "u_ambientMul",
-                                ambientMulR, ambientMulG, ambientMulB);
+                        setUniform1fCached(curShader, "u_time", time);
+                        setUniform2fCached(curShader, "u_layerOffset", 0f, 0f);
+                        setUniform3fCached(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
                     }
                 }
             }
@@ -189,11 +195,13 @@ public final class RenderSubmitSystem extends BaseSystem {
                     stats.batchesAlpha++;
                 }
 
-                if (curShader != null && curShader.hasUniform("u_cutoutThreshold")) {
+                if (curShader != null) {
                     float th = (blendId == BlendMode.CUTOUT.id) ? 0.5f : -1f;
 
                     if (Float.isNaN(curCutoutThreshold) || th != curCutoutThreshold) {
-                        curShader.setUniformf("u_cutoutThreshold", th);
+                        metricsBatch.flush(stats);
+                        curShader.bind();
+                        setUniform1fCached(curShader, "u_cutoutThreshold", th);
                         curCutoutThreshold = th;
                     }
                 }
@@ -208,7 +216,7 @@ public final class RenderSubmitSystem extends BaseSystem {
             }
 
             // Per-entity uniforms
-            if (curShader != null && mShaderParams != null) {
+            if (curShader != null && hasShaderParamsMapper) {
                 final int entityId = state.entityId[slot];
 
                 if (entityId >= 0 && mShaderParams.has(entityId)) {
@@ -222,6 +230,7 @@ public final class RenderSubmitSystem extends BaseSystem {
 
                         if (h != lastParamsHash) {
                             metricsBatch.flush(stats);
+                            curShader.bind();
                             applyShaderParams(curShader, params.floats);
                             lastParamsHash = h;
                         }
@@ -277,9 +286,7 @@ public final class RenderSubmitSystem extends BaseSystem {
         return h;
     }
 
-    private void applyShaderParams(ShaderProgram shader,
-                                   Array<ShaderFloatParam> floats) {
-
+    private void applyShaderParams(ShaderProgram shader, Array<ShaderFloatParam> floats) {
         if (shader == null || floats == null || floats.size == 0) {
             return;
         }
@@ -287,68 +294,53 @@ public final class RenderSubmitSystem extends BaseSystem {
         for (int i = 0; i < floats.size; i++) {
             ShaderFloatParam param = floats.get(i);
 
-            if (param == null
-                    || param.name == null
-                    || param.name.length() == 0) {
+            if (param == null || param.name == null || param.name.length() == 0) {
                 continue;
             }
 
-            if (!shader.hasUniform(param.name)) {
-                continue;
-            }
-
-            shader.setUniformf(param.name, param.value);
+            setUniform1fCached(shader, param.name, param.value);
         }
     }
 
-    private static void safeSetUniform1f(
-            ShaderProgram shader,
-            String name,
-            float v0) {
-
-        if (shader == null || name == null || name.length() == 0) {
-            return;
+    private int getUniformLocationCached(ShaderProgram shader, String uniformName) {
+        if (shader == null || uniformName == null || uniformName.length() == 0) {
+            return -1;
         }
 
-        if (!shader.hasUniform(name)) {
-            return;
+        ObjectIntMap<String> shaderCache = uniformLocationCache.get(shader);
+
+        if (shaderCache == null) {
+            shaderCache = new ObjectIntMap<>();
+            uniformLocationCache.put(shader, shaderCache);
         }
 
-        shader.setUniformf(name, v0);
+        if (shaderCache.containsKey(uniformName)) {
+            return shaderCache.get(uniformName, -1);
+        }
+
+        int location = shader.getUniformLocation(uniformName);
+        shaderCache.put(uniformName, location);
+        return location;
     }
 
-    private static void safeSetUniform2f(
-            ShaderProgram shader,
-            String name,
-            float v0,
-            float v1) {
+    private void setUniform1fCached(ShaderProgram shader, String name, float v0) {
+        int location = getUniformLocationCached(shader, name);
+        if (location < 0) return;
 
-        if (shader == null || name == null || name.length() == 0) {
-            return;
-        }
-
-        if (!shader.hasUniform(name)) {
-            return;
-        }
-
-        shader.setUniformf(name, v0, v1);
+        shader.setUniformf(location, v0);
     }
 
-    private static void safeSetUniform3f(
-            ShaderProgram shader,
-            String name,
-            float v0,
-            float v1,
-            float v2) {
+    private void setUniform2fCached(ShaderProgram shader, String name, float v0, float v1) {
+        int location = getUniformLocationCached(shader, name);
+        if (location < 0) return;
 
-        if (shader == null || name == null || name.length() == 0) {
-            return;
-        }
+        shader.setUniformf(location, v0, v1);
+    }
 
-        if (!shader.hasUniform(name)) {
-            return;
-        }
+    private void setUniform3fCached(ShaderProgram shader, String name, float v0, float v1, float v2) {
+        int location = getUniformLocationCached(shader, name);
+        if (location < 0) return;
 
-        shader.setUniformf(name, v0, v1, v2);
+        shader.setUniformf(location, v0, v1, v2);
     }
 }

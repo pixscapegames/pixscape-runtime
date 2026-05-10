@@ -1,5 +1,7 @@
 package games.pixscape.runtime.component.physics;
 
+import java.util.Arrays;
+
 public final class FixtureDefData {
     public static final int SHAPE_BOX = 0;
     public static final int SHAPE_CIRCLE = 1;
@@ -45,7 +47,7 @@ public final class FixtureDefData {
         f.shapeType = shapeType;
         f.polyCount = polyCount;
         f.polyVerts = (polyVerts != null)
-                ? java.util.Arrays.copyOf(polyVerts, polyVerts.length)
+                ? Arrays.copyOf(polyVerts, polyVerts.length)
                 : new float[0];
         f.halfW = halfW;
         f.halfH = halfH;
