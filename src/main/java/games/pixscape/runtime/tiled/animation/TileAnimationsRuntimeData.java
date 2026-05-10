@@ -4,5 +4,5 @@ import com.badlogic.gdx.utils.Array;
 
 public final class TileAnimationsRuntimeData {
     public String version = "1";
-    public Array<TileAnimationDefData> animations = new Array<>();
+    public Array<TileAnimationDefData> animations = new Array<>(TileAnimationDefData[]::new);
 }

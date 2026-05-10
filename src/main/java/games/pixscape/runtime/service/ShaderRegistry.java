@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.glutils.GLVersion;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.ShaderFloatParam;
+import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.render.ShaderMode;
@@ -331,14 +332,14 @@ public final class ShaderRegistry {
     }
 
     private static void registerCoreLightDefaults() {
-        Array<ShaderFloatParam> point = new Array<>();
+        Array<ShaderFloatParam> point = ShaderParamsComponent.newShaderFloatArray();
         addDefaultUniform(point, "u_centerX", 0f);
         addDefaultUniform(point, "u_centerY", 0f);
         addDefaultUniform(point, "u_radius", 1f);
         addDefaultUniform(point, "u_falloff", 1.5f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
 
-        Array<ShaderFloatParam> cone = new Array<>();
+        Array<ShaderFloatParam> cone = ShaderParamsComponent.newShaderFloatArray();
         addDefaultUniform(cone, "u_centerX", 0f);
         addDefaultUniform(cone, "u_centerY", 0f);
         addDefaultUniform(cone, "u_radius", 1f);
@@ -822,7 +823,7 @@ public final class ShaderRegistry {
             String name = entry.name;
             if (name == null || isBlank(name)) continue;
 
-            Array<ShaderFloatParam> defaults = new Array<>();
+            Array<ShaderFloatParam> defaults = ShaderParamsComponent.newShaderFloatArray();
 
             for (JsonValue uniform = entry.child; uniform != null; uniform = uniform.next) {
                 if (uniform.name == null || isBlank(uniform.name)) continue;
