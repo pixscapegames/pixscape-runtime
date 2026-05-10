@@ -21,7 +21,4 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.physics"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.light"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.light"/>
-    <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ObjectFloatMap"/>
-    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ObjectFloatMap"/>
-
 </module>

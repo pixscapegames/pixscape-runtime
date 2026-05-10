@@ -2,12 +2,11 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.annotations.SkipWire;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.utils.ObjectFloatMap;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.MetricsBatch;
@@ -97,7 +96,6 @@ public final class RenderSubmitSystem extends BaseSystem {
         if (metricsBatch instanceof TextureArrayMeshBatch) {
             TextureArrayMeshBatch taBatch = (TextureArrayMeshBatch) metricsBatch;
             activeBundle = taBatch.getBundle();
-
         }
 
         metricsBatch.begin(cam.combined, stats);
@@ -122,6 +120,7 @@ public final class RenderSubmitSystem extends BaseSystem {
 
             final int texHandle = state.textureHandle[slot];
             if (texHandle == 0) continue;
+
             if (activeBundle != null && !activeBundle.handle2layer.containsKey(texHandle)) {
                 continue;
             }
@@ -133,10 +132,12 @@ public final class RenderSubmitSystem extends BaseSystem {
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
             }
 
-            // Shader switch (will flush inside setShader)
+            // Shader switch
             final int shaderIdx = state.shader[slot];
+
             if (shaderIdx != curShaderIdx) {
                 curShaderIdx = shaderIdx;
+
                 ShaderProgram sh = ShaderRegistry.getByIdx(shaderIdx);
 
                 if (sh == null) {
@@ -147,36 +148,50 @@ public final class RenderSubmitSystem extends BaseSystem {
                     metricsBatch.setShader(sh, stats);
                     curShader = sh;
 
-                    // Reset caches dependent on shader state
                     curCutoutThreshold = Float.NaN;
                     lastParamsHash = 0;
 
                     if (curShader != null) {
                         safeSetUniform1f(curShader, "u_time", time);
                         safeSetUniform2f(curShader, "u_layerOffset", 0f, 0f);
-                        safeSetUniform3f(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
+                        safeSetUniform3f(curShader, "u_ambientMul",
+                                ambientMulR, ambientMulG, ambientMulB);
                     }
                 }
             }
 
             // Blend switch
             final int blendId = state.blend[slot];
+
             if (blendId != curBlendId) {
                 metricsBatch.flush(stats);
 
                 BlendMode blendMode = BlendMode.fromId(blendId);
+
                 Blend.apply(blendMode);
 
-                metricsBatch.setBlendMode(blendMode.blending, blendMode.srcFactor, blendMode.dstFactor, stats);
-                if (stats != null) stats.blendSwitches++;
+                metricsBatch.setBlendMode(
+                        blendMode.blending,
+                        blendMode.srcFactor,
+                        blendMode.dstFactor,
+                        stats
+                );
+
+                if (stats != null) {
+                    stats.blendSwitches++;
+                }
+
                 curBlendId = blendId;
 
-                if (!blendMode.blending) stats.batchesOpaque++;
-                else stats.batchesAlpha++;
+                if (!blendMode.blending) {
+                    stats.batchesOpaque++;
+                } else {
+                    stats.batchesAlpha++;
+                }
 
-                // CUTOUT uniform follows blend
                 if (curShader != null && curShader.hasUniform("u_cutoutThreshold")) {
                     float th = (blendId == BlendMode.CUTOUT.id) ? 0.5f : -1f;
+
                     if (Float.isNaN(curCutoutThreshold) || th != curCutoutThreshold) {
                         curShader.setUniformf("u_cutoutThreshold", th);
                         curCutoutThreshold = th;
@@ -184,20 +199,27 @@ public final class RenderSubmitSystem extends BaseSystem {
                 }
             }
 
-            // Color change (attribute, safe)
+            // Color change
             float packedColor = state.colorPacked[slot];
+
             if (packedColor != curPackedColor) {
                 metricsBatch.setPackedColor(packedColor);
                 curPackedColor = packedColor;
             }
 
-            // Per-entity uniforms (only flush when actual values differ)
-            if (enableEntityShaderParams() && curShader != null && mShaderParams != null) {
+            // Per-entity uniforms
+            if (curShader != null && mShaderParams != null) {
                 final int entityId = state.entityId[slot];
+
                 if (entityId >= 0 && mShaderParams.has(entityId)) {
                     ShaderParamsComponent params = mShaderParams.get(entityId);
-                    if (params != null && params.floats != null && params.floats.size > 0) {
+
+                    if (params != null
+                            && params.floats != null
+                            && params.floats.size > 0) {
+
                         int h = hashShaderParams(params.floats);
+
                         if (h != lastParamsHash) {
                             metricsBatch.flush(stats);
                             applyShaderParams(curShader, params.floats);
@@ -220,68 +242,113 @@ public final class RenderSubmitSystem extends BaseSystem {
                     state.u2[slot], state.v2[slot],
                     stats
             );
+
             stats.drawnQuads++;
         }
+
         metricsBatch.end(stats);
     }
 
-    private static int hashShaderParams(ObjectFloatMap<String> floats) {
-        // Commutative hash (iteration order not guaranteed): XOR/mix
-        int h = 0x9E3779B9;
-        ObjectFloatMap.Entries<String> it = floats.entries();
-        while (it.hasNext()) {
-            ObjectFloatMap.Entry<String> e = it.next();
-            int kh = (e.key != null ? e.key.hashCode() : 0);
-            int vh = Float.floatToIntBits(e.value);
-            int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;
-            // mix
-            x ^= (x >>> 16);
-            h ^= x;
-            h = Integer.rotateLeft(h, 13) * 5 + 0xE6546B64;
+    private static int hashShaderParams(Array<ShaderFloatParam> floats) {
+        if (floats == null || floats.size == 0) {
+            return 0;
         }
-        return h;
-    }
 
+        int h = 0x9E3779B9;
 
-    private void applyShaderParams(ShaderProgram shader, ObjectFloatMap<String> floats) {
-        if (shader == null || floats == null || floats.size == 0) return;
+        for (int i = 0; i < floats.size; i++) {
+            ShaderFloatParam param = floats.get(i);
 
-        ObjectFloatMap.Entries<String> it = floats.entries();
-        while (it.hasNext()) {
-            ObjectFloatMap.Entry<String> entry = it.next();
-            if (entry == null || entry.key == null || entry.key.length() == 0) continue;
-
-            String name = entry.key;
-
-            if (!shader.hasUniform(name)) {
+            if (param == null || param.name == null) {
                 continue;
             }
 
-            shader.setUniformf(name, entry.value);
+            int kh = param.name.hashCode();
+            int vh = Float.floatToIntBits(param.value);
+
+            int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;
+
+            x ^= (x >>> 16);
+
+            h ^= x;
+            h = Integer.rotateLeft(h, 13) * 5 + 0xE6546B64;
+        }
+
+        return h;
+    }
+
+    private void applyShaderParams(ShaderProgram shader,
+                                   Array<ShaderFloatParam> floats) {
+
+        if (shader == null || floats == null || floats.size == 0) {
+            return;
+        }
+
+        for (int i = 0; i < floats.size; i++) {
+            ShaderFloatParam param = floats.get(i);
+
+            if (param == null
+                    || param.name == null
+                    || param.name.length() == 0) {
+                continue;
+            }
+
+            if (!shader.hasUniform(param.name)) {
+                continue;
+            }
+
+            shader.setUniformf(param.name, param.value);
         }
     }
 
-    private static void safeSetUniform1f(ShaderProgram shader, String name, float v0) {
-        if (shader == null || name == null || name.length() == 0) return;
-        if (!shader.hasUniform(name)) return;
+    private static void safeSetUniform1f(
+            ShaderProgram shader,
+            String name,
+            float v0) {
+
+        if (shader == null || name == null || name.length() == 0) {
+            return;
+        }
+
+        if (!shader.hasUniform(name)) {
+            return;
+        }
+
         shader.setUniformf(name, v0);
     }
 
-    private static void safeSetUniform2f(ShaderProgram shader, String name, float v0, float v1) {
-        if (shader == null || name == null || name.length() == 0) return;
-        if (!shader.hasUniform(name)) return;
+    private static void safeSetUniform2f(
+            ShaderProgram shader,
+            String name,
+            float v0,
+            float v1) {
+
+        if (shader == null || name == null || name.length() == 0) {
+            return;
+        }
+
+        if (!shader.hasUniform(name)) {
+            return;
+        }
+
         shader.setUniformf(name, v0, v1);
     }
 
-    private static void safeSetUniform3f(ShaderProgram shader, String name, float v0, float v1, float v2) {
-        if (shader == null || name == null || name.length() == 0) return;
-        if (!shader.hasUniform(name)) return;
+    private static void safeSetUniform3f(
+            ShaderProgram shader,
+            String name,
+            float v0,
+            float v1,
+            float v2) {
+
+        if (shader == null || name == null || name.length() == 0) {
+            return;
+        }
+
+        if (!shader.hasUniform(name)) {
+            return;
+        }
+
         shader.setUniformf(name, v0, v1, v2);
     }
-
-    private static boolean enableEntityShaderParams() {
-        return Gdx.app == null
-                || Gdx.app.getType() != com.badlogic.gdx.Application.ApplicationType.WebGL;
-    }
-
 }

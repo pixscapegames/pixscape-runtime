@@ -906,9 +906,22 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public ShaderFacade setFloat(String uniform, float value) {
             if (uniform == null || isBlank(uniform)) return this;
+
             ShaderParamsComponent params = params(true);
-            if (params != null) params.floats.put(uniform, value);
-            markMaterial();
+            if (params != null) {
+                for (int i = 0; i < params.floats.size; i++) {
+                    ShaderFloatParam param = params.floats.get(i);
+                    if (param != null && uniform.equals(param.name)) {
+                        param.value = value;
+                        markMaterial();
+                        return this;
+                    }
+                }
+
+                params.floats.add(new ShaderFloatParam(uniform, value));
+                markMaterial();
+            }
+
             return this;
         }
 
@@ -916,25 +929,46 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public float getFloat(String uniform, float defaultValue) {
             ShaderParamsComponent params = params(false);
             if (params == null || uniform == null || isBlank(uniform)) return defaultValue;
-            return params.floats.get(uniform, defaultValue);
+
+            for (int i = 0; i < params.floats.size; i++) {
+                ShaderFloatParam param = params.floats.get(i);
+                if (param != null && uniform.equals(param.name)) {
+                    return param.value;
+                }
+            }
+
+            return defaultValue;
         }
 
         @Override
         public boolean hasFloat(String uniform) {
             ShaderParamsComponent params = params(false);
-            return params != null
-                    && uniform != null
-                    && !isBlank(uniform)
-                    && params.floats.containsKey(uniform);
+            if (params == null || uniform == null || isBlank(uniform)) return false;
+
+            for (int i = 0; i < params.floats.size; i++) {
+                ShaderFloatParam param = params.floats.get(i);
+                if (param != null && uniform.equals(param.name)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         @Override
         public ShaderFacade removeFloat(String uniform) {
             ShaderParamsComponent params = params(false);
-            if (params != null && uniform != null && !isBlank(uniform) && params.floats.containsKey(uniform)) {
-                params.floats.remove(uniform, 0f);
-                markMaterial();
+            if (params == null || uniform == null || isBlank(uniform)) return this;
+
+            for (int i = params.floats.size - 1; i >= 0; i--) {
+                ShaderFloatParam param = params.floats.get(i);
+                if (param != null && uniform.equals(param.name)) {
+                    params.floats.removeIndex(i);
+                    markMaterial();
+                    break;
+                }
             }
+
             return this;
         }
 

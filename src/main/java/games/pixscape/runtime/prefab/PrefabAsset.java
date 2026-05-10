@@ -5,7 +5,9 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class PrefabAsset {
     public String type = "pixscape-prefab";
@@ -115,7 +117,7 @@ public final class PrefabAsset {
     }
 
     public static final class ShaderParamsData {
-        public java.util.Map<String, Float> floats = new java.util.LinkedHashMap<>();
+        public Map<String, Float> floats = new LinkedHashMap<>();
     }
 
     public static final class PhysicsBodyData {

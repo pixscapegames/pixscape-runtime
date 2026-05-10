@@ -6,6 +6,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.glutils.GLVersion;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.*;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.render.ShaderMode;
@@ -35,7 +36,7 @@ public final class ShaderRegistry {
     private static final Array<ShaderMode> modesByIdx = new Array<>();
     private static final Array<ShaderOrigin> originsByIdx = new Array<>();
     private static final Array<ShaderRole> rolesByIdx = new Array<>();
-    private static final ObjectMap<String, ObjectFloatMap<String>> defaultUniforms = new ObjectMap<>();
+    private static final ObjectMap<String, Array<ShaderFloatParam>> defaultUniforms = new ObjectMap<>();
 
     private static boolean initialized = false;
     private static GLCaps caps;
@@ -237,8 +238,13 @@ public final class ShaderRegistry {
         return rolesByIdx.get(idx);
     }
 
-    public static ObjectFloatMap<String> getDefaultUniforms(String shaderName) {
+    public static Array<ShaderFloatParam> getDefaultUniforms(String shaderName) {
         return defaultUniforms.get(shaderName);
+    }
+
+    private static void addDefaultUniform(Array<ShaderFloatParam> uniforms, String name, float value) {
+        if (uniforms == null || name == null || isBlank(name)) return;
+        uniforms.add(new ShaderFloatParam(name, value));
     }
 
     public static PlatformTarget getCurrentPlatformTarget() {
@@ -325,22 +331,22 @@ public final class ShaderRegistry {
     }
 
     private static void registerCoreLightDefaults() {
-        ObjectFloatMap<String> point = new ObjectFloatMap<>();
-        point.put("u_centerX", 0f);
-        point.put("u_centerY", 0f);
-        point.put("u_radius", 1f);
-        point.put("u_falloff", 1.5f);
+        Array<ShaderFloatParam> point = new Array<>();
+        addDefaultUniform(point, "u_centerX", 0f);
+        addDefaultUniform(point, "u_centerY", 0f);
+        addDefaultUniform(point, "u_radius", 1f);
+        addDefaultUniform(point, "u_falloff", 1.5f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
 
-        ObjectFloatMap<String> cone = new ObjectFloatMap<>();
-        cone.put("u_centerX", 0f);
-        cone.put("u_centerY", 0f);
-        cone.put("u_radius", 1f);
-        cone.put("u_dirX", 1.0f);
-        cone.put("u_dirY", 0.0f);
-        cone.put("u_coneCos", 0.8660254f);
-        cone.put("u_softness", 0.1f);
-        cone.put("u_falloff", 1.5f);
+        Array<ShaderFloatParam> cone = new Array<>();
+        addDefaultUniform(cone, "u_centerX", 0f);
+        addDefaultUniform(cone, "u_centerY", 0f);
+        addDefaultUniform(cone, "u_radius", 1f);
+        addDefaultUniform(cone, "u_dirX", 1.0f);
+        addDefaultUniform(cone, "u_dirY", 0.0f);
+        addDefaultUniform(cone, "u_coneCos", 0.8660254f);
+        addDefaultUniform(cone, "u_softness", 0.1f);
+        addDefaultUniform(cone, "u_falloff", 1.5f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_CONELIGHT, cone);
     }
 
@@ -816,11 +822,13 @@ public final class ShaderRegistry {
             String name = entry.name;
             if (name == null || isBlank(name)) continue;
 
-            ObjectFloatMap<String> defaults = new ObjectFloatMap<>();
+            Array<ShaderFloatParam> defaults = new Array<>();
+
             for (JsonValue uniform = entry.child; uniform != null; uniform = uniform.next) {
                 if (uniform.name == null || isBlank(uniform.name)) continue;
-                defaults.put(uniform.name, uniform.asFloat());
+                defaults.add(new ShaderFloatParam(uniform.name, uniform.asFloat()));
             }
+
             defaultUniforms.put(name, defaults);
 
             boolean loaded =
