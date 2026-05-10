@@ -8,9 +8,13 @@ import com.badlogic.gdx.utils.Array;
  * For this first version: only float uniforms (name -> value).
  */
 public class ShaderParamsComponent extends Component {
+    public static Array<ShaderFloatParam> newShaderFloatArray() {
+        return new Array<>(ShaderFloatParam[]::new);
+    }
+
     /**
      * Map nom d'uniform -> valeur float.
      */
-    public Array<ShaderFloatParam> floats = new Array<>(ShaderFloatParam[]::new);
+    public Array<ShaderFloatParam> floats = newShaderFloatArray();
 
 }

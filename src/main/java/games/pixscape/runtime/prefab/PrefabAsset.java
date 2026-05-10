@@ -31,7 +31,7 @@ public final class PrefabAsset {
         public AnimationData animation;
         public ShaderParamsData shaderParams;
         public PhysicsBodyData physicsBody;
-        public Array<FixtureDefData> fixtures = new Array<>();
+        public Array<FixtureDefData> fixtures = new Array<>(FixtureDefData[]::new);
         public PhysicsAuthoringData physicsAuthoring;
         public JointBaseData joint;
         public DistanceJointData distanceJoint;
