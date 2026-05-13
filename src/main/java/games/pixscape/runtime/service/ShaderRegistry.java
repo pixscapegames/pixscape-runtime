@@ -528,13 +528,8 @@ public final class ShaderRegistry {
         }
 
         Application.ApplicationType appType = Gdx.app != null ? Gdx.app.getType() : null;
-        GLVersion glVersionForLog = Gdx.graphics != null ? Gdx.graphics.getGLVersion() : null;
-        if (Gdx.app != null) {
-            Gdx.app.log("ShaderRegistry", "appType=" + appType + " glVersion=" + glVersionForLog);
-        }
 
         if (appType == Application.ApplicationType.WebGL) {
-            if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target HTML_WEBGL2");
             return PlatformTarget.HTML_WEBGL2;
         }
 
@@ -542,11 +537,9 @@ public final class ShaderRegistry {
         boolean isGles = glVersion != null && glVersion.getType() == GLVersion.Type.GLES;
 
         if (isGles) {
-            if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target ANDROID_ES3");
             return PlatformTarget.ANDROID_ES3;
         }
 
-        if (Gdx.app != null) Gdx.app.log("ShaderRegistry", "Resolved platform target DESKTOP_GL30");
         return PlatformTarget.DESKTOP_GL30;
     }
 
@@ -656,26 +649,23 @@ public final class ShaderRegistry {
         FileHandle frag = Gdx.files.internal(fragPath);
 
         if (!vert.exists() || !frag.exists()) {
-            logError("ShaderRegistry", "Missing core light shader: " + vertPath + " / " + fragPath, null);
-            return;
+            throw new IllegalStateException("Missing core light shader: " + vertPath + " / " + fragPath);
         }
 
         ShaderProgram shader = compileShader(
                 vertPath,
                 fragPath,
                 "light/" + fileBaseName,
-                false
+                true
         );
 
-        if (shader != null) {
-            registerOrReplace(
-                    fileBaseName,
-                    shader,
-                    ShaderMode.TEXTURE_ARRAY,
-                    ShaderOrigin.CORE,
-                    ShaderRole.LIGHT
-            );
-        }
+        registerOrReplace(
+                fileBaseName,
+                shader,
+                ShaderMode.TEXTURE_ARRAY,
+                ShaderOrigin.CORE,
+                ShaderRole.LIGHT
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -733,8 +723,6 @@ public final class ShaderRegistry {
         }
 
         if (!isModeSupportedForCurrentProfile(mode)) {
-            log("ShaderRegistry", "Skipping project shader '" + shaderName
-                    + "' because mode " + mode + " is not supported for current profile.");
             return;
         }
 
@@ -766,21 +754,13 @@ public final class ShaderRegistry {
             throw new IllegalArgumentException("Fragment shader file does not exist for '" + name + "': "
                     + (fragFile != null ? fragFile.path() : "null"));
         }
-
         ShaderProgram sp = compileShader(
                 vertFile,
                 fragFile,
                 "project/" + name,
                 true
         );
-
-        int idx = registerOrReplace(name, sp, mode, ShaderOrigin.USER, role);
-
-        log("ShaderRegistry", "Registered project shader '" + name + "' (" + mode
-                + ", role=" + role + ") at index " + idx
-                + " from files " + vertFile.path() + " / " + fragFile.path());
-
-        return idx;
+        return registerOrReplace(name, sp, mode, ShaderOrigin.USER, role);
     }
 
     private static ShaderMode parseShaderMode(String raw, ShaderMode fallback) {
@@ -812,10 +792,7 @@ public final class ShaderRegistry {
 
     private static void loadExampleShaders() {
         FileHandle presets = Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/params.json");
-        if (!presets.exists()) {
-            log("ShaderRegistry", "No example shader presets found");
-            return;
-        }
+        if (!presets.exists()) return;
 
         JsonValue root = new JsonReader().parse(presets);
 
@@ -832,13 +809,8 @@ public final class ShaderRegistry {
 
             defaultUniforms.put(name, defaults);
 
-            boolean loaded =
-                    tryExample(name, "material", ShaderMode.TEXTURE_ARRAY, ShaderRole.MATERIAL)
-                            || tryExample(name, "fx", ShaderMode.TEXTURE_ARRAY, ShaderRole.FX);
-
-            if (!loaded) {
-                log("ShaderRegistry", "Example shader '" + name + "' has no matching .frag and was skipped");
-            }
+            tryExample(name, "material", ShaderMode.TEXTURE_ARRAY, ShaderRole.MATERIAL);
+            tryExample(name, "fx", ShaderMode.TEXTURE_ARRAY, ShaderRole.FX);
         }
     }
 
@@ -849,8 +821,6 @@ public final class ShaderRegistry {
         if (!isModeSupportedForCurrentProfile(mode)) return false;
 
         if (nameToIdx.get(name, -1) >= 0) {
-            log("ShaderRegistry", "Skipping example shader '" + name
-                    + "' because a shader with the same name is already registered");
             return true;
         }
 
@@ -877,7 +847,6 @@ public final class ShaderRegistry {
 
         try {
             registerExampleShader(name, vertFile, fragFile, mode, role);
-            log("ShaderRegistry", "Loaded example shader '" + name + "' from " + fragFile.path());
             return true;
         } catch (Exception ex) {
             logError("ShaderRegistry", "Failed to load example shader '" + name + "'", ex);
@@ -896,14 +865,7 @@ public final class ShaderRegistry {
                 "example/" + name,
                 true
         );
-
-        int idx = registerOrReplace(name, sp, mode, ShaderOrigin.EXAMPLE, role);
-
-        log("ShaderRegistry", "Registered example shader '" + name + "' (" + mode
-                + ", role=" + role + ") at index " + idx
-                + " from files " + vertFile.path() + " / " + fragFile.path());
-
-        return idx;
+        return registerOrReplace(name, sp, mode, ShaderOrigin.EXAMPLE, role);
     }
 
     // ------------------------------------------------------------------------
@@ -941,11 +903,6 @@ public final class ShaderRegistry {
 
         String vertSrc = preprocessShader(vertFile);
         String fragSrc = preprocessShader(fragFile);
-
-        Gdx.app.log("ShaderRegistry", "VERT first chars=[" + vertSrc.substring(0, Math.min(80, vertSrc.length())) + "]");
-        Gdx.app.log("ShaderRegistry", "FRAG first chars=[" + fragSrc.substring(0, Math.min(80, fragSrc.length())) + "]");
-        log("ShaderRegistry", "Compiled shader " + friendlyName + " from "
-                + vertFile.path() + " / " + fragFile.path());
 
         ShaderProgram sp = new ShaderProgram(vertSrc, fragSrc);
         if (!sp.isCompiled()) {
@@ -1013,15 +970,6 @@ public final class ShaderRegistry {
         while (modesByIdx.size < size) modesByIdx.add(ShaderMode.TEXTURE_2D);
         while (originsByIdx.size < size) originsByIdx.add(ShaderOrigin.USER);
         while (rolesByIdx.size < size) rolesByIdx.add(ShaderRole.MATERIAL);
-    }
-
-    // ------------------------------------------------------------------------
-    // Logging
-    // ------------------------------------------------------------------------
-
-    private static void log(String tag, String msg) {
-        if (Gdx.app != null) Gdx.app.log(tag, msg);
-        else System.out.println("[" + tag + "] " + msg);
     }
 
     private static void logError(String tag, String msg, Throwable t) {
