@@ -39,8 +39,6 @@ public class PixscapeApiV1Test {
         world.getMapper(PixscapeIdentityComponent.class).create(e).name = "hero";
         world.getMapper(PixscapeTagComponent.class).create(e).tags.add("player");
         world.process();
-        engine.getIdentityRegistry().rebuild();
-        engine.getTagRegistry().rebuild();
 
         EntitiesAPI entities = engine.api().entities();
         int stableId = entities.ensureStableId(e);
@@ -58,6 +56,7 @@ public class PixscapeApiV1Test {
 
         world.process();
         Assert.assertFalse(world.getEntityManager().isActive(e));
+        Assert.assertFalse(entities.existsStableId(stableId));
     }
 
     @Test
