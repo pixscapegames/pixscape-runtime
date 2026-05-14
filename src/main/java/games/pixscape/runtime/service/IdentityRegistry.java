@@ -22,6 +22,8 @@ public final class IdentityRegistry {
     public static final int UNASSIGNED_STABLE_ID = -1;
     public static final String DEFAULT_NAME = "unnamed";
 
+    private static final ObjectMap<World, Array<IdentityRegistry>> REGISTRIES_BY_WORLD = new ObjectMap<>();
+
     private World world;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private EntitySubscription subscription;
@@ -55,6 +57,7 @@ public final class IdentityRegistry {
         if (this.world == world) return;
 
         detachSubscriptionListener();
+        unregisterBoundWorld();
 
         byStableId.clear();
         byName.clear();
@@ -68,6 +71,8 @@ public final class IdentityRegistry {
         this.subscriptionListener = null;
 
         if (world == null) return;
+
+        registerBoundWorld(world);
 
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.subscription = world.getAspectSubscriptionManager().get(Aspect.all(PixscapeIdentityComponent.class));
@@ -99,6 +104,43 @@ public final class IdentityRegistry {
     private void detachSubscriptionListener() {
         if (subscription != null && subscriptionListener != null) {
             subscription.removeSubscriptionListener(subscriptionListener);
+        }
+    }
+
+    private void registerBoundWorld(World world) {
+        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
+        if (registries == null) {
+            registries = new Array<>();
+            REGISTRIES_BY_WORLD.put(world, registries);
+        }
+        if (!registries.contains(this, true)) {
+            registries.add(this);
+        }
+    }
+
+    private void unregisterBoundWorld() {
+        if (this.world == null) return;
+
+        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(this.world);
+        if (registries == null) return;
+
+        registries.removeValue(this, true);
+        if (registries.size == 0) {
+            REGISTRIES_BY_WORLD.remove(this.world);
+        }
+    }
+
+    public static void unindexEntityImmediately(World world, int eid) {
+        if (world == null || eid < 0) return;
+
+        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
+        if (registries == null || registries.size == 0) return;
+
+        for (int i = 0; i < registries.size; i++) {
+            IdentityRegistry registry = registries.get(i);
+            if (registry != null) {
+                registry.unindexEntityImmediately(eid);
+            }
         }
     }
 
@@ -140,9 +182,7 @@ public final class IdentityRegistry {
         if (current != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(current);
             if (existing != null && existing.intValue() != eid) {
-                throw new IllegalStateException(
-                        "Duplicate stableId " + current + " for entity " + eid + ", already used by entity " + existing
-                );
+                throw new IllegalStateException(duplicateStableIdMessage(current, eid, existing));
             }
             byStableId.put(current, eid);
             stableIdByEntity.put(eid, current);
@@ -269,9 +309,7 @@ public final class IdentityRegistry {
         if (stableId != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
-                throw new IllegalStateException(
-                        "Duplicate stableId " + stableId + " for entity " + eid + ", already used by entity " + existing
-                );
+                throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
             }
         }
 
@@ -309,9 +347,7 @@ public final class IdentityRegistry {
             if (stableId != UNASSIGNED_STABLE_ID) {
                 Integer existing = byStableId.get(stableId);
                 if (existing != null && existing.intValue() != eid) {
-                    throw new IllegalStateException(
-                            "Duplicate stableId " + stableId + " for entity " + eid + ", already used by entity " + existing
-                    );
+                    throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
                 }
             }
             unindexStableId(eid);
@@ -356,9 +392,7 @@ public final class IdentityRegistry {
         if (stableId != UNASSIGNED_STABLE_ID) {
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
-                throw new IllegalStateException(
-                        "Duplicate stableId " + stableId + " for entity " + eid + ", already used by entity " + existing
-                );
+                throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
             }
 
             byStableId.put(stableId, eid);
@@ -375,6 +409,30 @@ public final class IdentityRegistry {
 
     private void unindexEntity(int eid) {
         unindexStableId(eid);
+
+        String oldName = nameByEntity.remove(eid);
+        if (oldName != null) {
+            unindexName(oldName, eid);
+        }
+    }
+
+    private void unindexEntityImmediately(int eid) {
+        if (eid < 0 || world == null || mIdentity == null) return;
+
+        PixscapeIdentityComponent identity = mIdentity.getSafe(eid, null);
+        int stableId = identity != null ? identity.stableId : UNASSIGNED_STABLE_ID;
+
+        if (stableId != UNASSIGNED_STABLE_ID) {
+            Integer mapped = byStableId.get(stableId);
+            if (mapped != null && mapped.intValue() == eid) {
+                byStableId.remove(stableId);
+            }
+
+            Integer reverse = stableIdByEntity.get(eid);
+            if (reverse != null && reverse.intValue() == stableId) {
+                stableIdByEntity.remove(eid);
+            }
+        }
 
         String oldName = nameByEntity.remove(eid);
         if (oldName != null) {
@@ -445,6 +503,17 @@ public final class IdentityRegistry {
 
     private boolean isEntityActive(int eid) {
         return world != null && mIdentity != null && eid >= 0 && world.getEntityManager().isActive(eid);
+    }
+
+    private String duplicateStableIdMessage(int stableId, int eid, int existing) {
+        boolean existingActive = world != null && existing >= 0 && world.getEntityManager().isActive(existing);
+        boolean existingHasIdentity = mIdentity != null && existing >= 0 && mIdentity.getSafe(existing, null) != null;
+        return "Duplicate stableId " + stableId
+                + " for entity " + eid
+                + ", already used by entity " + existing
+                + " (existingActive=" + existingActive
+                + ", existingDeleted=" + !existingActive
+                + ", existingHasIdentity=" + existingHasIdentity + ")";
     }
 
     private static String normalizeName(String name) {
