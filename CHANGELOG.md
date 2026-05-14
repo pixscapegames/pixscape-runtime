@@ -15,7 +15,7 @@
     - `ANDROID_ES3`
     - `HTML_WEBGL2`
 - Added `PixscapeEngine#setPlatformTarget(...)` to let applications choose the runtime platform target before loading a project
-- Added support for loading shaders according to the selected platform target:
+- Added platform-specific shader loading:
     - Desktop GL30 uses `assets/shaders/330`
     - Android ES3 uses `assets/shaders/300es`
     - HTML WebGL2 uses `assets/shaders/300es`
@@ -30,10 +30,9 @@
 - Added typed array factory support for shader float params to avoid GWT array cast issues.
 - Added WebGL2-safe shader uniform application using cached uniform locations and explicit shader binding before uniform updates.
 - Added runtime tiled map support for HTML WebGL2 preview/export.
+- Added `PixscapeEngine#setLogLevel(...)` runtime API for configuring LibGDX log verbosity (`LOG_NONE`, `LOG_ERROR`, `LOG_INFO`, `LOG_DEBUG`).
 
 ### Improved
-- Moved `ShaderRegistry` to `games.pixscape.runtime.service`
-- Moved `TextureRegistry` to `games.pixscape.runtime.service`
 - Renamed `ShaderMode.SPRITE` to `ShaderMode.TEXTURE_2D` for clearer shader mode semantics
 - Kept shader lookup simple at runtime: shaders are still resolved by name or index after platform-specific initialization
 - Improved shader mode naming around texture binding strategy:
@@ -49,6 +48,7 @@
 - Improved shader uniform handling for WebGL2 by avoiding libGDX map implementations that are fragile under GWT.
 - Improved render submit performance by caching shader uniform locations per shader.
 - Improved tiled runtime initialization by rebuilding dense tiled data from sparse serialized layer data instead of serializing runtime-only chunk state.
+- Improved runtime logging configurability by exposing public log-level control instead of relying only on the default internal INFO configuration.
 
 ### Fixed
 - Updated runtime tests after shader service package moves and shader mode renaming
