@@ -52,6 +52,7 @@ public final class PixscapeEngine {
     private RuntimeConfig cfg;
     private boolean loaded;
     private boolean sceneLoaded;
+    private int configuredLogLevel = Application.LOG_INFO;
 
     // World + rendering
     private World world;
@@ -92,6 +93,34 @@ public final class PixscapeEngine {
     public PixscapeEngine setConfigurationCustomizer(Consumer<WorldConfigurationBuilder> customizer) {
         this.configurationCustomizer = customizer;
         return this;
+    }
+
+    /**
+     * Sets the LibGDX runtime log level used by this engine.
+     *
+     * <p>Accepted values are {@link Application#LOG_NONE}, {@link Application#LOG_ERROR},
+     * {@link Application#LOG_INFO}, and {@link Application#LOG_DEBUG}. The configured
+     * level is stored on the engine and applied immediately when {@link Gdx#app} is
+     * available; otherwise it is applied during runtime initialization.</p>
+     *
+     * @param logLevel LibGDX log level constant
+     * @return this engine for fluent configuration
+     * @throws IllegalArgumentException if {@code logLevel} is not a standard LibGDX level
+     */
+    public PixscapeEngine setLogLevel(int logLevel) {
+        validateLogLevel(logLevel);
+        this.configuredLogLevel = logLevel;
+        applyConfiguredLogLevel();
+        return this;
+    }
+
+    /**
+     * Returns the LibGDX runtime log level configured for this engine.
+     *
+     * <p>The default is {@link Application#LOG_INFO}.</p>
+     */
+    public int getLogLevel() {
+        return configuredLogLevel;
     }
 
     // ---------------------------------------------------------------------
@@ -540,7 +569,7 @@ public final class PixscapeEngine {
      * Fully initializes runtime resources and creates an empty world.
      */
     private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
-        configureDefaultLogLevel();
+        applyConfiguredLogLevel();
         disposeWorldAndRuntime();
 
         if (config == null) throw new IllegalArgumentException("config is null");
@@ -620,7 +649,7 @@ public final class PixscapeEngine {
      * Initializes a runtime with default configuration and no scene file.
      */
     public PixscapeEngine initEmptyRuntime() {
-        configureDefaultLogLevel();
+        applyConfiguredLogLevel();
         this.cfg = new RuntimeConfig();
 
         ShaderRegistry.initDefaults(null, null);
@@ -1101,10 +1130,20 @@ public final class PixscapeEngine {
         );
     }
 
-    private static void configureDefaultLogLevel() {
+    private void applyConfiguredLogLevel() {
         if (Gdx.app != null) {
-            Gdx.app.setLogLevel(Application.LOG_INFO);
+            Gdx.app.setLogLevel(configuredLogLevel);
         }
+    }
+
+    private static void validateLogLevel(int logLevel) {
+        if (logLevel == Application.LOG_NONE
+                || logLevel == Application.LOG_ERROR
+                || logLevel == Application.LOG_INFO
+                || logLevel == Application.LOG_DEBUG) {
+            return;
+        }
+        throw new IllegalArgumentException("Unsupported LibGDX log level: " + logLevel);
     }
 
     private void logRuntimeInitialized(GLCaps caps) {
