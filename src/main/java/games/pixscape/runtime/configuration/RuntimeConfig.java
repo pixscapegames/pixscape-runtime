@@ -8,7 +8,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
  * Exported runtime configuration (project.json on user project side).
- * Ne contient aucun champ studio.
+ * Contains no studio-side fields.
  */
 public final class RuntimeConfig {
 
@@ -50,7 +50,7 @@ public final class RuntimeConfig {
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
     public String currentSceneName;
 
-    // --- Options projet (runtime) ---
+    // --- Project options (runtime) ---
     public int glSamples = 0;
 
     // ---------------------------------------------------------------------
@@ -140,7 +140,7 @@ public final class RuntimeConfig {
             throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
         }
 
-        // Nettoyage scenes + normalisation file + defaults
+        // Clean scenes, normalize files, and apply defaults.
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
             String key = e.key;
@@ -169,9 +169,9 @@ public final class RuntimeConfig {
             }
         }
 
-        // Choix scene courante by default :
-        // 1) currentSceneName valide
-        // 2) scene dont file == scene1.json
+        // Default current scene choice:
+        // 1) valid currentSceneName
+        // 2) scene whose file == scene1.json
         // 3) first sorted
         if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
             String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);

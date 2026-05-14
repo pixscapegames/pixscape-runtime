@@ -373,7 +373,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             tintRgba = ov.tintRgba;
         }
 
-        // positions (+ sizeMul autour du centre)
+        // positions (+ sizeMul around the center)
         if (sizeMul != 1f) {
             float cx = (x1 + x2 + x3 + x4) * 0.25f;
             float cy = (y1 + y2 + y3 + y4) * 0.25f;
@@ -408,7 +408,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         state.u2[index] = uMax;
         state.v2[index] = vMax;
 
-        // color (spriteColor * tintRgba) puis alphaMul
+        // color (spriteColor * tintRgba), then alphaMul
         Color col = sprite.getColor();
         float r = col.r, g = col.g, b = col.b, a = col.a;
 
@@ -454,7 +454,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         state.layerIndex[index] = layerIndex;
         state.z[index] = zIndex;
 
-        // tri
+        // sort
         int runtimeOrder = (index - vfxStartIndex) & ((1 << SortKey64.TIE_BITS) - 1);
         state.paramsId[index] = 0;
         state.customParamsId[index] = 0;

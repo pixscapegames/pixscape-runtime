@@ -5,7 +5,7 @@ public final class TileQuadTransforms {
     }
 
     /**
-     * Construit le quad monde d'un tile sprite transformé.
+     * Builds the world quad for a transformed tile sprite.
      * <p>
      * out8 order:
      * 0,1 = BL

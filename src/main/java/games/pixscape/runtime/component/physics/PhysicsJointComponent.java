@@ -7,9 +7,9 @@ import com.artemis.annotations.EntityId;
  * Common component for all joints (ECS equivalent of common b2JointDef fields).
  * <p>
  * Recommended invariant:
- * - Une entity "joint" doit avoir EXACTEMENT :
+ * - A "joint" entity must have EXACTLY:
  * - PhysicsJointComponent (base)
- * - + 1 composant de type (Distance/Revolute/Prismatic/etc.)
+ * - + 1 typed component (Distance/Revolute/Prismatic/etc.)
  */
 public final class PhysicsJointComponent extends PooledComponent {
 
@@ -48,7 +48,7 @@ public final class PhysicsJointComponent extends PooledComponent {
      * - localAnchorA : in body A local frame
      * - localAnchorB : in body B local frame
      * <p>
-     * Convention : (0,0) = centre du body.
+     * Convention: (0,0) = body center.
      */
     public float anchorAx = 0f;
     public float anchorAy = 0f;

@@ -52,7 +52,7 @@ public final class SceneLoader {
         }
 
         if (!inFile.exists()) {
-            throw new RuntimeException("Fichier de scène introuvable: " + inFile.path());
+            throw new RuntimeException("Scene file not found: " + inFile.path());
         }
 
         try (InputStream in = inFile.read()) {
@@ -61,7 +61,7 @@ public final class SceneLoader {
             return format;
 
         } catch (Exception e) {
-            throw new RuntimeException("Erreur lors du chargement de la scène: " + inFile.path(), e);
+            throw new RuntimeException("Error while loading scene: " + inFile.path(), e);
         }
     }
 

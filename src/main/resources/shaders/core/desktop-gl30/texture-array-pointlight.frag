@@ -6,7 +6,7 @@ out vec4 fragColor;
 uniform float u_falloff;
 
 void main() {
-    // UV -> [-1..1] (centre en 0,0)
+    // UV -> [-1..1] (centered on 0,0)
     vec2 p = v_uv * 2.0 - 1.0;
 
     float d = length(p);

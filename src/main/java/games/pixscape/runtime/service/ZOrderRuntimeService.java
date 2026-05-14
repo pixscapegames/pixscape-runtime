@@ -125,7 +125,7 @@ public final class ZOrderRuntimeService {
     }
 
     /**
-     * Envoie en haut (z = n-1).
+     * Moves the entity to top (z = n-1).
      */
     public void moveToTop(int e) {
         if (!mIndex.has(e)) return;
@@ -137,7 +137,7 @@ public final class ZOrderRuntimeService {
     }
 
     /**
-     * Envoie en bas (z = 0).
+     * Moves the entity to bottom (z = 0).
      */
     public void moveToBottom(int e) {
         if (!mIndex.has(e)) return;

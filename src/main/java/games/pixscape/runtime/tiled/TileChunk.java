@@ -30,28 +30,28 @@ public final class TileChunk {
 
     /**
      * NONE / PLAYING / PAUSED
-     * Null tant qu'aucune cellule de ce chunk n'utilise d'état d'animation.
+     * Null while no cell in this chunk uses animation state.
      */
     public byte[] animPlaybackState;
 
     /**
-     * Index de frame courant par cellule.
+     * Current frame index per cell.
      */
     public short[] animFrameIndex;
 
     /**
-     * Temps écoulé dans la frame courante.
+     * Elapsed time in the current frame.
      */
     public int[] animFrameElapsedMs;
 
     /**
-     * Indices locaux des cellules animées de ce chunk.
-     * Sert à éviter de scanner tout le chunk dans le futur TiledAnimationSystem.
+     * Local indices of this chunk's animated cells.
+     * Avoids scanning the whole chunk in the future TiledAnimationSystem.
      */
     public IntArray animatedLocalIndices;
 
     /**
-     * Évite les doublons dans animatedLocalIndices.
+     * Avoids duplicates in animatedLocalIndices.
      */
     private transient boolean[] animatedMembership;
 
@@ -122,8 +122,8 @@ public final class TileChunk {
         assetIds[index] = assetId;
         transformFlags[index] = sanitizedFlags;
 
-        // Si l'asset change, l'état d'animation précédent n'a plus de sens.
-        // On le remet à zéro sans re-dirty ici, car le set() dirty déjà la cellule.
+        // If the asset changes, the previous animation state is no longer valid.
+        // Reset it without marking dirty again here, since set() already dirties the cell.
         if (previousAssetId != assetId) {
             clearAnimationStateInternal(index);
         }
@@ -193,9 +193,9 @@ public final class TileChunk {
     }
 
     /**
-     * Initialise ou met à jour l'état d'animation d'une cellule.
-     * Ne dirty pas automatiquement la cellule.
-     * Le caller décide s'il faut re-rendre selon changement de frame visible.
+     * Initializes or updates a cell's animation state.
+     * Does not automatically mark the cell dirty.
+     * The caller decides whether to re-render based on visible frame changes.
      */
     public void setAnimationState(int localIndex,
                                   byte playbackState,

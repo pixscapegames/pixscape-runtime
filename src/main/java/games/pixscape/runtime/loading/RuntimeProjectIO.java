@@ -9,7 +9,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
 
 /**
- * I/O du projet runtime (pixscape-project/project.json).
+ * Runtime project I/O (pixscape-project/project.json).
  * Style identical to ProjectIO:
  * - load: parse -> hydrate runtimeRootDir -> applyDefaultsAndValidate
  * - save: ensure dir -> hydrate runtimeRootDir -> applyDefaultsAndValidate -> prettyPrint

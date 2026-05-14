@@ -19,7 +19,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
  * - Marks dirty bits
  * - Helpers anchors (local meters) -> world WU(px)
  * <p>
- * Le runtime Box2D (Body/Joint) est created/destroyed par Box2dSyncSystem.
+ * The Box2D runtime objects (Body/Joint) are created/destroyed by Box2dSyncSystem.
  */
 public final class PhysicsService {
 
@@ -71,7 +71,7 @@ public final class PhysicsService {
     }
 
     /**
-     * Box2D disponible (world created).
+     * Box2D available (world created).
      */
     public boolean isAvailable() {
         return box2d != null;
@@ -313,7 +313,7 @@ public final class PhysicsService {
 
     /**
      * Creates a Distance joint between two bodies.
-     * Anchors au centre local (0,0).
+     * Anchors at the local center (0,0).
      */
     public int createDistanceJoint(int aEid, int bEid) {
         if (aEid < 0 || bEid < 0 || aEid == bEid) return -1;
@@ -716,7 +716,7 @@ public final class PhysicsService {
     // ---------------------------------------------------------------------
 
     /**
-     * Anchor local (m) -> world (WU/pixels), rotation incluse.
+     * Local anchor (m) -> world (WU/pixels), including rotation.
      * Returns false if Box2D is unavailable (avoids NPE).
      */
     public boolean computeAnchorWorldWU(int bodyEid, float localAx_m, float localAy_m, Vector2 outWU) {

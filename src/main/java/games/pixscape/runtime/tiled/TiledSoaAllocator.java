@@ -38,7 +38,7 @@ public final class TiledSoaAllocator {
             throw new IllegalArgumentException("size must be > 0");
         }
 
-        // --- 1) chercher tror entre ranges ---
+        // --- 1) Find a gap between ranges ---
         int cursor = start;
 
         for (int i = 0; i < used.size; i++) {

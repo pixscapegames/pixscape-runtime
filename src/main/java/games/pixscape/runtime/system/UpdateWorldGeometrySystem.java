@@ -58,7 +58,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
                 continue;
             }
 
-            // 1) ROTATION / SCALE / SIZE => axes + demi-extents (+ caches)
+            // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
                 float rad = t.rotationRad;
                 float cos = (float) Math.cos(rad);
@@ -83,7 +83,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
                 t.invScaleY = (sy != 0f) ? 1f / sy : 0f;
             }
 
-            // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => centre + AABB
+            // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB
             if ((sub & GeometryDirty.AABB_MASK) != 0) {
 
                 float pivotWorldX = t.x;

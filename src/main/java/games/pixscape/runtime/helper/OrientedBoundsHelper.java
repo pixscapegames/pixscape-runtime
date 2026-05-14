@@ -41,7 +41,7 @@ public final class OrientedBoundsHelper {
     }
 
     public static boolean contains(OrientedBoundsComponent b, float x, float y, float tolerance) {
-        // vecteur point -> centre
+        // point -> center vector
         float dx = x - b.cx;
         float dy = y - b.cy;
 
@@ -64,8 +64,8 @@ public final class OrientedBoundsHelper {
 
     /**
      * Point test in an OBB defined by its 4 corners (x0,y0,...,x3,y3) clockwise.
-     * Les coins doivent venir de {@link #toCorners(OrientedBoundsComponent, float[])} puis
-     * may possibly be translated (parallax, etc.).
+     * Corners must come from {@link #toCorners(OrientedBoundsComponent, float[])} and
+     * may then be translated (parallax, etc.).
      */
     public static boolean contains(float[] corners8, float x, float y, float tolerance) {
         float x0 = corners8[0], y0 = corners8[1];
