@@ -48,8 +48,6 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     // cache : entityId -> ParticleEffect
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
     private final ObjectMap<String, ParticleEffectPool> effectPools = new ObjectMap<>();
-    private final IntSet loggedEntities = new IntSet();
-    private final IntSet waitingAtlasLoggedEntities = new IntSet();
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
     private ComponentMapper<TransformComponent> mTransform;
@@ -119,8 +117,6 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                     if (fx != null) {
                         fx.free();
                     }
-                    loggedEntities.remove(e);
-                    waitingAtlasLoggedEntities.remove(e);
                 }
             }
         });
@@ -157,16 +153,9 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
             ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx == null) {
-                fx = createEffect(e, comp);
+                fx = createEffect(comp);
                 if (fx == null) continue;
                 effects.put(e, fx);
-                waitingAtlasLoggedEntities.remove(e);
-
-                if (!loggedEntities.contains(e)) {
-                    String log = "Created effect for entity " + e + " path=" + comp.effectPath;
-                    Gdx.app.log("RenderParticleSyncSystem", log);
-                    loggedEntities.add(e);
-                }
 
                 if (comp.autoStart) fx.start();
             }
@@ -227,7 +216,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         lastUsedVfxSlots = 0;
     }
 
-    private ParticleEffectPool.PooledEffect createEffect(int entityId, ParticleEmitterComponent emitter) {
+    private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;
 
         if (effectsRoot == null) {
@@ -255,11 +244,6 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         if (pool == null) {
             TextureAtlas atlas = atlasRuntimeService.getAtlas(emitter.atlasTag);
             if (atlas == null) {
-                if (!waitingAtlasLoggedEntities.contains(entityId)) {
-                    Gdx.app.log("RenderParticleSyncSystem",
-                            "Waiting atlas '" + emitter.atlasTag + "' before loading effect " + effectFile.path());
-                    waitingAtlasLoggedEntities.add(entityId);
-                }
                 return null;
             }
 
@@ -269,7 +253,6 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 template.setEmittersCleanUpBlendFunction(false);
             } catch (Exception ex) {
                 template.dispose();
-                waitingAtlasLoggedEntities.add(entityId);
                 return null;
             }
 
@@ -318,8 +301,6 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
         effects.clear();
         effectPools.clear();
-        loggedEntities.clear();
-        waitingAtlasLoggedEntities.clear();
         lastTex = null;
         lastTexHandle = 0;
     }

@@ -37,14 +37,13 @@ public final class RuntimeSceneAtlasLoader {
 
         if (!atlasFile.exists()) {
             Gdx.app.log("RuntimeSceneAtlasLoader",
-                    "No atlas file for scene '" + sceneName + "' (dir '" + sceneDirName + "') at " + atlasFile.path() +
-                            " — sprites SCENE_ATLAS will stay invalid.");
+                    "No atlas file for scene '" + sceneName + "'. Scene atlas sprites will stay invalid.");
             return;
         }
 
         atlasRuntimeService.unload(sceneDirName);
         atlasRuntimeService.load(sceneDirName, atlasFile);
         Gdx.app.log("RuntimeSceneAtlasLoader",
-                "Atlas loaded for scene '" + sceneName + "' (key '" + sceneDirName + "'): " + atlasFile.path());
+                "Scene atlas loaded for '" + sceneName + "'.");
     }
 }

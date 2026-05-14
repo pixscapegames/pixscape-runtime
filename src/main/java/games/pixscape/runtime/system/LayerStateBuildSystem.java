@@ -103,12 +103,6 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                 layerState.parallaxX[layerIdx] = px;
                 layerState.parallaxY[layerIdx] = py;
 
-                LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
-                if (lp != null) {
-                    Gdx.app.log(TAG,
-                            "Layer entity=" + entityId + " is TYPE_PHYSICS but has LayerParallaxComponent. " +
-                                    "Ignored (sceneMeta physics parallax wins).");
-                }
                 break;
             }
 

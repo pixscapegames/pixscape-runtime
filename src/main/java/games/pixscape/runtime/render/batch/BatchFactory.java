@@ -37,7 +37,7 @@ public final class BatchFactory {
             caps = GLCaps.detect();
         }
 
-        Gdx.app.log("BatchFactory", "caps=" + caps);
+        Gdx.app.debug("BatchFactory", "caps=" + caps);
 
         if (!caps.supportsES3() || !caps.supportsTextureArray()) {
             throw new IllegalStateException(

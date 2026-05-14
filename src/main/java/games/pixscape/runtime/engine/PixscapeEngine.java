@@ -4,6 +4,7 @@ import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -81,8 +82,6 @@ public final class PixscapeEngine {
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
-    private boolean loggedFirstUpdate;
-    private boolean loggedFirstRender;
     private int runtimeTiledStart;
     private int runtimeTiledEnd;
 
@@ -290,8 +289,6 @@ public final class PixscapeEngine {
             box2dSyncSystem.setStepEnabled(false);
         }
 
-        loggedFirstUpdate = false;
-        loggedFirstRender = false;
     }
 
     /**
@@ -300,10 +297,6 @@ public final class PixscapeEngine {
     public void update(float dt) {
         if (world == null) return;
         world.setDelta(dt);
-        if (!loggedFirstUpdate) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "update dt=" + dt + " worldId=" + System.identityHashCode(world));
-            loggedFirstUpdate = true;
-        }
     }
 
     /**
@@ -311,10 +304,6 @@ public final class PixscapeEngine {
      */
     public void render() {
         if (world == null) return;
-        if (!loggedFirstRender) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "render worldId=" + System.identityHashCode(world));
-            loggedFirstRender = true;
-        }
         world.process();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
@@ -551,6 +540,7 @@ public final class PixscapeEngine {
      * Fully initializes runtime resources and creates an empty world.
      */
     private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
+        configureDefaultLogLevel();
         disposeWorldAndRuntime();
 
         if (config == null) throw new IllegalArgumentException("config is null");
@@ -620,11 +610,7 @@ public final class PixscapeEngine {
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
         }
-        Gdx.app.log(
-                PHYSICS_LOG_TAG,
-                "initRuntime worldId=" + System.identityHashCode(world)
-                        + " box2dSyncSystem=" + (box2dSyncSystem != null)
-        );
+        logRuntimeInitialized(caps);
 
         sceneLoaded = false;
     }
@@ -634,6 +620,7 @@ public final class PixscapeEngine {
      * Initializes a runtime with default configuration and no scene file.
      */
     public PixscapeEngine initEmptyRuntime() {
+        configureDefaultLogLevel();
         this.cfg = new RuntimeConfig();
 
         ShaderRegistry.initDefaults(null, null);
@@ -695,6 +682,8 @@ public final class PixscapeEngine {
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
+        logRuntimeInitialized(caps);
+
         return this;
     }
 
@@ -755,7 +744,7 @@ public final class PixscapeEngine {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
         }
-        Gdx.app.log(
+        Gdx.app.debug(
                 PHYSICS_LOG_TAG,
                 "rebuildWorldOnly worldId=" + System.identityHashCode(world)
                         + " box2dSyncSystem=" + (box2dSyncSystem != null)
@@ -779,8 +768,6 @@ public final class PixscapeEngine {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
         applyPhysicsFromScene(meta);
-        loggedFirstUpdate = false;
-        loggedFirstRender = false;
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
@@ -1076,14 +1063,14 @@ public final class PixscapeEngine {
 
     private void applyPhysicsFromScene(SceneMetaRuntime meta) {
         if (box2dSyncSystem == null) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "applyPhysicsFromScene: box2dSyncSystem missing");
+            Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: box2dSyncSystem missing");
             return;
         }
 
         if (meta == null || !meta.physicsEnabled) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
-            Gdx.app.log(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
+            Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
             return;
         }
 
@@ -1105,12 +1092,29 @@ public final class PixscapeEngine {
         box2dSyncSystem.setSceneMeta(meta);
         box2dSyncSystem.setEnabled(true);
         box2dSyncSystem.setStepEnabled(true);
-        Gdx.app.log(
+        Gdx.app.debug(
                 PHYSICS_LOG_TAG,
                 "applyPhysicsFromScene: enabled ppm=" + meta.pixelsPerMeter
                         + " gravity=(" + meta.gravityX + "," + meta.gravityY + ")"
                         + " doSleep=" + meta.doSleep
                         + " stepEnabled=" + box2dSyncSystem.isStepEnabled()
+        );
+    }
+
+    private static void configureDefaultLogLevel() {
+        if (Gdx.app != null) {
+            Gdx.app.setLogLevel(Application.LOG_INFO);
+        }
+    }
+
+    private void logRuntimeInitialized(GLCaps caps) {
+        if (Gdx.app == null) return;
+        Gdx.app.log(
+                "PixscapeRuntime",
+                "Runtime initialized: target=" + ShaderRegistry.getResolvedPlatformTarget()
+                        + ", shaderVariant=" + ShaderRegistry.getCurrentShaderVariant()
+                        + ", defaultShader=" + defaultShaderName
+                        + ", caps=" + caps
         );
     }
 

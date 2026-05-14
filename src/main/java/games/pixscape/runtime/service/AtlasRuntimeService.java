@@ -58,7 +58,7 @@ public class AtlasRuntimeService {
         atlases.put(tag, atlas);
         bundles.remove(tag);
         clearRegionCache();
-        Gdx.app.log("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
+        Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
     public void unload(String tag) {
@@ -379,7 +379,7 @@ public class AtlasRuntimeService {
 
     private void logBundleEvent(String action, String tag, TextureArray textureArray) {
         if (!DEBUG_BUNDLE_LIFECYCLE || textureArray == null) return;
-        Gdx.app.log("AtlasService", action
+        Gdx.app.debug("AtlasService", action
                 + " bundle tag=" + tag
                 + " textureArray@" + System.identityHashCode(textureArray));
     }
