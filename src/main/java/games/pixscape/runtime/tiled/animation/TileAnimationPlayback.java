@@ -1,7 +1,8 @@
 package games.pixscape.runtime.tiled.animation;
 
 public final class TileAnimationPlayback {
-    private TileAnimationPlayback() {}
+    private TileAnimationPlayback() {
+    }
 
     public static final byte NONE = 0;
     public static final byte PLAYING = 1;

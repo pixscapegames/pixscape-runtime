@@ -13,7 +13,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 /**
  * Recompute world geometry (axes/oriented bounds/AABB) ONLY for entities
  * marked GEOMETRY dirty via DirtyTrackerSystem (outside components).
- *
+ * <p>
  * - Reads GeometryDirty submask (pos/origin/rot/scale/size) to avoid unnecessary trig recomputation.
  * - Does not consume/remove: DirtyFlushSystem flushes at end of frame.
  */
@@ -21,10 +21,10 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
 
     private DirtyTrackerSystem dirty;
 
-    private ComponentMapper<TransformComponent>       mT;
-    private ComponentMapper<DimensionsComponent>      mD;
-    private ComponentMapper<OrientedBoundsComponent>  mB;
-    private ComponentMapper<AABBComponent>            mA;
+    private ComponentMapper<TransformComponent> mT;
+    private ComponentMapper<DimensionsComponent> mD;
+    private ComponentMapper<OrientedBoundsComponent> mB;
+    private ComponentMapper<AABBComponent> mA;
 
     private final float[] tmpCorners = new float[8];
 
@@ -58,35 +58,38 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
                 continue;
             }
 
-            // 1) ROTATION / SCALE / SIZE => axes + demi-extents (+ caches)
+            // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
                 float rad = t.rotationRad;
                 float cos = (float) Math.cos(rad);
                 float sin = (float) Math.sin(rad);
 
-                b.ux =  cos; b.uy =  sin;
-                b.vx = -sin; b.vy =  cos;
+                b.ux = cos;
+                b.uy = sin;
+                b.vx = -sin;
+                b.vy = cos;
 
                 float sx = t.scaleX;
                 float sy = t.scaleY;
 
-                b.hx = 0.5f * d.width  * Math.abs(sx);
+                b.hx = 0.5f * d.width * Math.abs(sx);
                 b.hy = 0.5f * d.height * Math.abs(sy);
 
-                t.cos = cos; t.sin = sin;
+                t.cos = cos;
+                t.sin = sin;
                 t.absCos = Math.abs(cos);
                 t.absSin = Math.abs(sin);
                 t.invScaleX = (sx != 0f) ? 1f / sx : 0f;
                 t.invScaleY = (sy != 0f) ? 1f / sy : 0f;
             }
 
-            // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => centre + AABB
+            // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB
             if ((sub & GeometryDirty.AABB_MASK) != 0) {
 
                 float pivotWorldX = t.x;
                 float pivotWorldY = t.y;
 
-                float dx = (d.width  * 0.5f - t.originX) * t.scaleX;
+                float dx = (d.width * 0.5f - t.originX) * t.scaleX;
                 float dy = (d.height * 0.5f - t.originY) * t.scaleY;
 
                 b.cx = pivotWorldX + b.ux * dx + b.vx * dy;
@@ -104,7 +107,10 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
                 float minY = Math.min(Math.min(y1, y2), Math.min(y3, y4));
                 float maxY = Math.max(Math.max(y1, y2), Math.max(y3, y4));
 
-                a.minX = minX; a.minY = minY; a.maxX = maxX; a.maxY = maxY;
+                a.minX = minX;
+                a.minY = minY;
+                a.maxX = maxX;
+                a.maxY = maxY;
             }
 
             // 3) Consume geometry logic (submask)

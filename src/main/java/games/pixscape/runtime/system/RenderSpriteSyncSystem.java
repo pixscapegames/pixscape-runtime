@@ -16,7 +16,7 @@ import games.pixscape.runtime.render.*;
 
 /**
  * Sync RenderStateSOA only on "dirty" entities via DirtyTrackerSystem.
- *
+ * <p>
  * - Union of lists (geometry/material/color/order/layer) without duplicates.
  * - Partial update according to coarse mask.
  * - Aucun consume/remove: DirtyFlushSystem flush en fin de frame.
@@ -28,15 +28,15 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     private DirtyTrackerSystem dirty;
 
     private ComponentMapper<OrientedBoundsComponent> mBounds;
-    private ComponentMapper<TextureRegionComponent>  mTR;
+    private ComponentMapper<TextureRegionComponent> mTR;
     private ComponentMapper<RenderMaterialComponent> mMat;
-    private ComponentMapper<EntityIndexComponent>    mEntityIndex;
-    private ComponentMapper<TintComponent>           mTint;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private ComponentMapper<TintComponent> mTint;
 
-    private ComponentMapper<PointLightComponent>     mPointLight;
-    private ComponentMapper<ConeLightComponent>      mConeLight;
-    private ComponentMapper<TransformComponent>      mTransform;
-    private ComponentMapper<ShaderParamsComponent>   mShaderParams;
+    private ComponentMapper<PointLightComponent> mPointLight;
+    private ComponentMapper<ConeLightComponent> mConeLight;
+    private ComponentMapper<TransformComponent> mTransform;
+    private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
     private EntitySubscription spriteSub;
 
@@ -44,7 +44,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
     private final IntArray work = new IntArray(false, 256);
 
     private final float[] tmpCorners = new float[8];
-    private final float[] tmpColor   = new float[4];
+    private final float[] tmpColor = new float[4];
 
     public RenderSpriteSyncSystem(RenderStateSOA state) {
         this.state = state;
@@ -129,16 +129,16 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
             if (!world.getEntityManager().isActive(e)) continue;
 
             PointLightComponent pointLight = mPointLight.getSafe(e, null);
-            ConeLightComponent coneLight   = mConeLight.getSafe(e, null);
+            ConeLightComponent coneLight = mConeLight.getSafe(e, null);
             boolean isLight = (pointLight != null) || (coneLight != null);
 
-            OrientedBoundsComponent b        = mBounds.getSafe(e, null);
-            RenderMaterialComponent mat      = mMat.getSafe(e, null);
+            OrientedBoundsComponent b = mBounds.getSafe(e, null);
+            RenderMaterialComponent mat = mMat.getSafe(e, null);
             EntityIndexComponent entityIndex = mEntityIndex.getSafe(e, null);
 
             // TextureRegion + Transform only for non-light sprites
             TextureRegionComponent tr = isLight ? null : mTR.getSafe(e, null);
-            TransformComponent t      = isLight ? null : mTransform.getSafe(e, null);
+            TransformComponent t = isLight ? null : mTransform.getSafe(e, null);
 
             if (b == null || mat == null || entityIndex == null || (!isLight && tr == null)) {
                 state.disable(e);
@@ -187,27 +187,33 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
                 float tlx = tmpCorners[6];
                 float tly = tmpCorners[7];
 
-                state.x1[e] = blx; state.y1[e] = bly;
-                state.x2[e] = tlx; state.y2[e] = tly;
-                state.x3[e] = trx; state.y3[e] = tryValue;
-                state.x4[e] = brx; state.y4[e] = bry;
+                state.x1[e] = blx;
+                state.y1[e] = bly;
+                state.x2[e] = tlx;
+                state.y2[e] = tly;
+                state.x3[e] = trx;
+                state.y3[e] = tryValue;
+                state.x4[e] = brx;
+                state.y4[e] = bry;
             }
 
             // --- MATERIAL ---
             if (isLight) {
                 state.shader[e] = mat.getShaderIdx();
-                state.blend[e]  = mat.getBlendModeId();
+                state.blend[e] = mat.getBlendModeId();
             } else if ((mask & DirtyBits.MATERIAL) != 0) {
                 state.shader[e] = mat.getShaderIdx();
-                state.blend[e]  = mat.getBlendModeId();
+                state.blend[e] = mat.getBlendModeId();
                 state.textureHandle[e] = mat.getTextureHandle();
             }
 
             // --- LIGHT FORCING: texture + UVs ---
             if (isLight) {
                 state.textureHandle[e] = InternalTextures.whiteHandle();
-                state.u1[e] = 0f; state.v1[e] = 0f;
-                state.u2[e] = 1f; state.v2[e] = 1f;
+                state.u1[e] = 0f;
+                state.v1[e] = 0f;
+                state.u2[e] = 1f;
+                state.v2[e] = 1f;
             } else {
                 // UVs must also be refreshed on GEOMETRY dirty because negative scale
                 // changes the visual flip even if the material itself did not change.
@@ -231,8 +237,10 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
                         v2 = tmp;
                     }
 
-                    state.u1[e] = u1; state.v1[e] = v1;
-                    state.u2[e] = u2; state.v2[e] = v2;
+                    state.u1[e] = u1;
+                    state.v1[e] = v1;
+                    state.u2[e] = u2;
+                    state.v2[e] = v2;
                 }
             }
 
@@ -276,7 +284,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
             // --- ORDER / LAYER / MATERIAL => sortKey ---
             if ((mask & (DirtyBits.MATERIAL | DirtyBits.ORDER | DirtyBits.LAYER)) != 0) {
                 boolean orderDirty = (mask & (DirtyBits.ORDER | DirtyBits.LAYER)) != 0;
-                boolean matDirty   = isLight || (mask & DirtyBits.MATERIAL) != 0;
+                boolean matDirty = isLight || (mask & DirtyBits.MATERIAL) != 0;
 
                 int layerIndex = entityIndex.getLayerIndex();
                 int z = entityIndex.getZIndex();

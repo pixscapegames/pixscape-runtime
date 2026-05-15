@@ -1,6 +1,5 @@
 package games.pixscape.runtime.component.physics;
 
-import com.artemis.Component;
 import com.artemis.PooledComponent;
 
 public final class PhysicsWheelJointComponent extends PooledComponent {

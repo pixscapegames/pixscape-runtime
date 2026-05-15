@@ -27,13 +27,13 @@ public final class LayerStateBuildSystem extends IteratingSystem {
     private final LayerStateSOA layerState;
     private final SceneMetaRuntime sceneMeta; // can be null
 
-    private ComponentMapper<LayerComponent>        mLayer;
+    private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<LayerParallaxComponent> mParallax;
-    private ComponentMapper<VisibilityComponent>    mVis;
+    private ComponentMapper<VisibilityComponent> mVis;
 
     public LayerStateBuildSystem(LayerStateSOA layerState, SceneMetaRuntime sceneMeta) {
         this.layerState = layerState;
-        this.sceneMeta  = sceneMeta;
+        this.sceneMeta = sceneMeta;
     }
 
     @Override
@@ -91,7 +91,7 @@ public final class LayerStateBuildSystem extends IteratingSystem {
 
     private void applyParallax(int layerIdx, int type, int entityId) {
         switch (type) {
-            case LayerComponent.TYPE_PHYSICS -> {
+            case LayerComponent.TYPE_PHYSICS: {
                 float px = Float.NaN;
                 float py = Float.NaN;
 
@@ -103,17 +103,12 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                 layerState.parallaxX[layerIdx] = px;
                 layerState.parallaxY[layerIdx] = py;
 
-                LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
-                if (lp != null) {
-                    Gdx.app.log(TAG,
-                            "Layer entity=" + entityId + " is TYPE_PHYSICS but has LayerParallaxComponent. " +
-                                    "Ignored (sceneMeta physics parallax wins).");
-                }
+                break;
             }
 
-            case LayerComponent.TYPE_CLASSIC,
-                 LayerComponent.TYPE_LIGHT,
-                 LayerComponent.TYPE_TILED -> {
+            case LayerComponent.TYPE_CLASSIC:
+            case LayerComponent.TYPE_LIGHT:
+            case LayerComponent.TYPE_TILED: {
                 LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
                 if (lp != null) {
                     layerState.parallaxX[layerIdx] = lp.factorX;
@@ -122,11 +117,13 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                     layerState.parallaxX[layerIdx] = Float.NaN;
                     layerState.parallaxY[layerIdx] = Float.NaN;
                 }
+                break;
             }
 
-            default -> {
+            default: {
                 layerState.parallaxX[layerIdx] = Float.NaN;
                 layerState.parallaxY[layerIdx] = Float.NaN;
+                break;
             }
         }
     }

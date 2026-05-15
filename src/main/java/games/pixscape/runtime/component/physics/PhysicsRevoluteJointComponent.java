@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 
 /**
  * Revolute joint (b2RevoluteJointDef).
- *
+ * <p>
  * Angles in radians.
  */
 public final class PhysicsRevoluteJointComponent extends PooledComponent {

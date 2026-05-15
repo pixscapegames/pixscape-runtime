@@ -3,16 +3,24 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 
 public class VisibilityComponent extends PooledComponent {
-    /** Logical masking (the user can uncheck "eye" in the editor). */
+    /**
+     * Logical masking (the user can uncheck "eye" in the editor).
+     */
     public boolean visible = true;
 
-    /** If true, the entity is currently considered culled (outside frustum or viewport). */
+    /**
+     * If true, the entity is currently considered culled (outside frustum or viewport).
+     */
     public boolean culledByFrustum = true;
 
-    /** If true, the entity intersects the view area, regardless of its visible flag. */
+    /**
+     * If true, the entity intersects the view area, regardless of its visible flag.
+     */
     public boolean inView = false;
 
-    /** Padding to extend the culling test area (e.g.: 1.1 = +10%). */
+    /**
+     * Padding to extend the culling test area (e.g.: 1.1 = +10%).
+     */
     public float padding = 1f;
 
     @Override
@@ -41,7 +49,9 @@ public class VisibilityComponent extends PooledComponent {
         return padding;
     }
 
-    /** "Logical + frustum" visibility. */
+    /**
+     * "Logical + frustum" visibility.
+     */
     public boolean isEffectivelyVisible() {
         return visible && !culledByFrustum;
     }

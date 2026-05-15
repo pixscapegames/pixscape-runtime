@@ -10,28 +10,29 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.IntIntMap;
-import games.pixscape.runtime.render.TextureRegistry;
+import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.TextureRegistry;
 
 import java.nio.IntBuffer;
 import java.util.Arrays;
 
 /**
- * Batch multi-textures (ES2/desktop-friendly) :
+ * Multi-texture batch (ES2/desktop-friendly):
  * - no sampler2DArray, bind N textures on N units (u_textures[i])
- * - chaque sommet porte a_texIndex (=unit index)
+ * - each vertex carries a_texIndex (=unit index)
  * - if we exceed available unit count, flush then rebind
- *
- * Shaders attendus (ex: shaders/330/mt_sprite.*):
- *   attributes:
- *     a_position (vec2)
- *     a_texCoord0 (vec2)
- *     a_color     (vec4)  // Unpacked
- *     a_texIndex  (float)
- *   uniforms :
- *     u_projTrans (mat4)
- *     u_textures[16] (sampler2D array)
+ * <p>
+ * Expected shaders (ex: shaders/330/mt_sprite.*):
+ * attributes:
+ * a_position (vec2)
+ * a_texCoord0 (vec2)
+ * a_color     (vec4)  // Unpacked
+ * a_texIndex  (float)
+ * uniforms:
+ * u_projTrans (mat4)
+ * u_textures[16] (sampler2D array)
  */
 public final class MultiTextureMeshBatch implements MetricsBatch {
 
@@ -45,7 +46,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
     private int vertCount = 0;
     private int quadCount = 0;
 
-    // color courante (unpacked RGBA)
+    // current color (unpacked RGBA)
     private float cr = 1f, cg = 1f, cb = 1f, ca = 1f;
 
     // shader + matrix
@@ -75,7 +76,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
         this.unitHandle = new int[this.maxUnitsUsed];
         Arrays.fill(this.unitHandle, -1);
 
-        // Mesh : a_position (2), a_texCoord0 (2), a_color (4), a_texIndex (1)
+        // Mesh: a_position (2), a_texCoord0 (2), a_color (4), a_texIndex (1)
         this.mesh = new Mesh(
                 true, maxVerts, maxIndices,
                 new VertexAttribute(Usage.Position, 2, "a_position"),
@@ -175,7 +176,7 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
 
     @Override
     public void setPackedColor(float packed) {
-        int bits = Float.floatToRawIntBits(packed);
+        int bits = NumberUtils.floatToRawIntBits(packed);
         this.cr = (bits & 0xff) / 255f;
         this.cg = ((bits >>> 8) & 0xff) / 255f;
         this.cb = ((bits >>> 16) & 0xff) / 255f;
@@ -223,27 +224,47 @@ public final class MultiTextureMeshBatch implements MetricsBatch {
         int o = vertCount * VERT_STRIDE;
 
         // BL
-        verts[o++] = x1; verts[o++] = y1;
-        verts[o++] = u;  verts[o++] = v2;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x1;
+        verts[o++] = y1;
+        verts[o++] = u;
+        verts[o++] = v2;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
         verts[o++] = fUnit;
 
         // TL
-        verts[o++] = x2; verts[o++] = y2;
-        verts[o++] = u;  verts[o++] = v;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x2;
+        verts[o++] = y2;
+        verts[o++] = u;
+        verts[o++] = v;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
         verts[o++] = fUnit;
 
         // TR
-        verts[o++] = x3; verts[o++] = y3;
-        verts[o++] = u2; verts[o++] = v;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x3;
+        verts[o++] = y3;
+        verts[o++] = u2;
+        verts[o++] = v;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
         verts[o++] = fUnit;
 
         // BR
-        verts[o++] = x4; verts[o++] = y4;
-        verts[o++] = u2; verts[o++] = v2;
-        verts[o++] = cr; verts[o++] = cg; verts[o++] = cb; verts[o++] = ca;
+        verts[o++] = x4;
+        verts[o++] = y4;
+        verts[o++] = u2;
+        verts[o++] = v2;
+        verts[o++] = cr;
+        verts[o++] = cg;
+        verts[o++] = cb;
+        verts[o++] = ca;
         verts[o++] = fUnit;
 
         vertCount += 4;

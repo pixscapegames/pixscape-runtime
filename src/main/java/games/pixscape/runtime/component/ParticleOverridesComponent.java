@@ -8,16 +8,24 @@ import com.artemis.PooledComponent;
  */
 public final class ParticleOverridesComponent extends PooledComponent {
 
-    /** Enables/disables applying overrides. */
+    /**
+     * Enables/disables applying overrides.
+     */
     public boolean enabled = true;
 
-    /** Multiplies particle size (>=0). */
+    /**
+     * Multiplies particle size (>=0).
+     */
     public float sizeMul = 1f;
 
-    /** Multiplie l'alpha (>=0). */
+    /**
+     * Multiplie l'alpha (>=0).
+     */
     public float alphaMul = 1f;
 
-    /** -1 = none, sinon RGBA packed int. */
+    /**
+     * -1 = none, sinon RGBA packed int.
+     */
     public int tintRgba = -1;
 
     @Override

@@ -1,20 +1,25 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.*;
+import com.artemis.io.JsonArtemisSerializer;
+import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.utils.GdxRuntimeException;
-import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
+import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
+import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.BatchFactory;
 import games.pixscape.runtime.render.batch.GLCaps;
@@ -29,7 +34,6 @@ import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
-import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 import java.util.function.Consumer;
@@ -43,10 +47,12 @@ public final class PixscapeEngine {
 
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
+    private PlatformTarget platformTarget = PlatformTarget.AUTO;
 
     private RuntimeConfig cfg;
     private boolean loaded;
     private boolean sceneLoaded;
+    private int configuredLogLevel = Application.LOG_INFO;
 
     // World + rendering
     private World world;
@@ -77,8 +83,6 @@ public final class PixscapeEngine {
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
-    private boolean loggedFirstUpdate;
-    private boolean loggedFirstRender;
     private int runtimeTiledStart;
     private int runtimeTiledEnd;
 
@@ -91,11 +95,41 @@ public final class PixscapeEngine {
         return this;
     }
 
+    /**
+     * Sets the LibGDX runtime log level used by this engine.
+     *
+     * <p>Accepted values are {@link Application#LOG_NONE}, {@link Application#LOG_ERROR},
+     * {@link Application#LOG_INFO}, and {@link Application#LOG_DEBUG}. The configured
+     * level is stored on the engine and applied immediately when {@link Gdx#app} is
+     * available; otherwise it is applied during runtime initialization.</p>
+     *
+     * @param logLevel LibGDX log level constant
+     * @return this engine for fluent configuration
+     * @throws IllegalArgumentException if {@code logLevel} is not a standard LibGDX level
+     */
+    public PixscapeEngine setLogLevel(int logLevel) {
+        validateLogLevel(logLevel);
+        this.configuredLogLevel = logLevel;
+        applyConfiguredLogLevel();
+        return this;
+    }
+
+    /**
+     * Returns the LibGDX runtime log level configured for this engine.
+     *
+     * <p>The default is {@link Application#LOG_INFO}.</p>
+     */
+    public int getLogLevel() {
+        return configuredLogLevel;
+    }
+
     // ---------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------
 
-    /** Loads {@code project.json} and initializes runtime state once. */
+    /**
+     * Loads {@code project.json} and initializes runtime state once.
+     */
     public PixscapeEngine loadProject(FileHandle userRootDir) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         this.userRootDir = userRootDir;
@@ -113,7 +147,7 @@ public final class PixscapeEngine {
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
 
-        if (cfg.runtimeRootDir == null || cfg.runtimeRootDir.isBlank()) {
+        if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
@@ -124,7 +158,9 @@ public final class PixscapeEngine {
         return this;
     }
 
-    /** Loads a scene and rebuilds world state for that scene. */
+    /**
+     * Loads a scene and rebuilds world state for that scene.
+     */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
 
@@ -151,6 +187,60 @@ public final class PixscapeEngine {
 
         sceneLoaded = true;
         return this;
+    }
+
+    /**
+     * Spawns an in-memory prefab fragment into the currently loaded scene.
+     *
+     * <p>The fragment is deserialized into the active Artemis world. All spawned
+     * transforms are offset by {@code offsetX}/{@code offsetY}, spawned identities
+     * receive fresh stable IDs, and asset references are resolved against the
+     * currently loaded runtime atlases.</p>
+     *
+     * @param fragment prefab fragment to instantiate
+     * @param offsetX  world-space X offset applied to spawned transforms
+     * @param offsetY  world-space Y offset applied to spawned transforms
+     * @return result containing all created entity IDs
+     * @throws IllegalStateException if no world is initialized
+     */
+    public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
+        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
+        SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
+        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
+        return result;
+    }
+
+    /**
+     * Loads and spawns an exported prefab fragment by name.
+     *
+     * <p>The prefab is resolved from {@code <runtimeProject>/<prefabsDir>/<name>.pixfragment.json}
+     * and then spawned into the currently loaded scene.</p>
+     *
+     * @param name    prefab name without the {@code .pixfragment.json} extension
+     * @param offsetX world-space X offset applied to spawned transforms
+     * @param offsetY world-space Y offset applied to spawned transforms
+     * @return result containing all created entity IDs
+     * @throws IllegalStateException                      if the project or world is not initialized
+     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the prefab fragment file does not exist
+     */
+    public SpawnResult spawnPrefab(String name, float offsetX, float offsetY) {
+        if (cfg == null) throw new IllegalStateException("Project is not loaded.");
+        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
+
+        FileHandle fragmentFile = runtimeProjectDir
+                .child(cfg.prefabsDir)
+                .child(name + ".pixfragment.json");
+
+        if (!fragmentFile.exists()) {
+            throw new GdxRuntimeException("Prefab fragment not found: " + fragmentFile.path());
+        }
+
+        JsonValue root = new JsonReader().parse(fragmentFile);
+        JsonArtemisSerializer serializer = new JsonArtemisSerializer(world);
+        SaveFileFormat fragment = serializer.load(root, SaveFileFormat.class);
+
+        return spawnPrefabFragment(fragment, offsetX, offsetY);
     }
 
     private void rebuildWorldWithBudget(RuntimeConfig config,
@@ -180,7 +270,7 @@ public final class PixscapeEngine {
         }
 
         renderState = new RenderStateSOA();
-        drawList    = new DrawList();
+        drawList = new DrawList();
 
         GLCaps caps = GLCaps.detect();
         new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
@@ -228,34 +318,30 @@ public final class PixscapeEngine {
             box2dSyncSystem.setStepEnabled(false);
         }
 
-        loggedFirstUpdate = false;
-        loggedFirstRender = false;
     }
 
-    /** Updates ECS delta time; call once per frame before {@link #render()}. */
+    /**
+     * Updates ECS delta time; call once per frame before {@link #render()}.
+     */
     public void update(float dt) {
         if (world == null) return;
         world.setDelta(dt);
-        if (!loggedFirstUpdate) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "update dt=" + dt + " worldId=" + System.identityHashCode(world));
-            loggedFirstUpdate = true;
-        }
     }
 
-    /** Processes the ECS world and flushes deferred atlas disposals. */
+    /**
+     * Processes the ECS world and flushes deferred atlas disposals.
+     */
     public void render() {
         if (world == null) return;
-        if (!loggedFirstRender) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "render worldId=" + System.identityHashCode(world));
-            loggedFirstRender = true;
-        }
         world.process();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
         }
     }
 
-    /** Resizes the runtime camera viewport. */
+    /**
+     * Resizes the runtime camera viewport.
+     */
     public void resize(int w, int h) {
         if (worldCamera != null) {
             worldCamera.viewportWidth = w;
@@ -264,7 +350,9 @@ public final class PixscapeEngine {
         }
     }
 
-    /** Disposes world and runtime resources; the instance must be reinitialized afterwards. */
+    /**
+     * Disposes world and runtime resources; the instance must be reinitialized afterwards.
+     */
     public void dispose() {
         disposeWorldAndRuntime();
 
@@ -324,7 +412,7 @@ public final class PixscapeEngine {
         return publicApi;
     }
 
-    public int findEntityByStableId(long stableId) {
+    public int findEntityByStableId(int stableId) {
         IdentityRegistry registry = getIdentityRegistry();
         return registry.findByStableId(stableId);
     }
@@ -339,21 +427,21 @@ public final class PixscapeEngine {
             throw new IllegalArgumentException("out is null");
         }
         out.setSize(0);
-        if (name == null || name.isBlank()) {
+        if (name == null || isBlank(name)) {
             return;
         }
         IdentityRegistry registry = getIdentityRegistry();
         if (registry == null) {
             return;
         }
-        var hits = registry.getByName(name);
+        IntArray hits = registry.getByName(name);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
     }
 
     public int firstEntityByTag(String tag) {
-        if (tag == null || tag.isBlank()) {
+        if (tag == null || isBlank(tag)) {
             return -1;
         }
         TagRegistry registry = getTagRegistry();
@@ -365,14 +453,14 @@ public final class PixscapeEngine {
             throw new IllegalArgumentException("out is null");
         }
         out.setSize(0);
-        if (tag == null || tag.isBlank()) {
+        if (tag == null || isBlank(tag)) {
             return;
         }
         TagRegistry registry = getTagRegistry();
         if (registry == null) {
             return;
         }
-        var hits = registry.get(tag);
+        IntArray hits = registry.get(tag);
         for (int i = 0; i < hits.size; i++) {
             out.add(hits.get(i));
         }
@@ -382,26 +470,65 @@ public final class PixscapeEngine {
     // Getters
     // ---------------------------------------------------------------------
 
-    public RuntimeConfig config() { return cfg; }
-    public FileHandle userRootDir() { return userRootDir; }
-    public FileHandle runtimeProjectDir() { return runtimeProjectDir; }
+    public RuntimeConfig config() {
+        return cfg;
+    }
 
-    public World getWorld() { return world; }
-    public OrthographicCamera getCamera() { return worldCamera; }
-    public RenderStateSOA getRenderState() { return renderState; }
-    public LayerStateSOA getLayerState() { return layerState; }
-    public DrawList getDrawList() { return drawList; }
-    public MetricsBatch getMetricsBatch() { return metricsBatch; }
-    public RenderStats getRenderStats() { return stats; }
-    public RenderStatsSink getRenderStatsSink() { return statsSink; }
-    public AtlasRuntimeService getAtlasRuntimeService() { return atlasRuntimeService; }
-    public String getDefaultShaderName() { return defaultShaderName; }
+    public FileHandle userRootDir() {
+        return userRootDir;
+    }
+
+    public FileHandle runtimeProjectDir() {
+        return runtimeProjectDir;
+    }
+
+    public World getWorld() {
+        return world;
+    }
+
+    public OrthographicCamera getCamera() {
+        return worldCamera;
+    }
+
+    public RenderStateSOA getRenderState() {
+        return renderState;
+    }
+
+    public LayerStateSOA getLayerState() {
+        return layerState;
+    }
+
+    public DrawList getDrawList() {
+        return drawList;
+    }
+
+    public MetricsBatch getMetricsBatch() {
+        return metricsBatch;
+    }
+
+    public RenderStats getRenderStats() {
+        return stats;
+    }
+
+    public RenderStatsSink getRenderStatsSink() {
+        return statsSink;
+    }
+
+    public AtlasRuntimeService getAtlasRuntimeService() {
+        return atlasRuntimeService;
+    }
+
+    public String getDefaultShaderName() {
+        return defaultShaderName;
+    }
 
     // ---------------------------------------------------------------------
     // Internal init / reset
     // ---------------------------------------------------------------------
 
-    /** Disposes world and GPU-side runtime resources. */
+    /**
+     * Disposes world and GPU-side runtime resources.
+     */
     private void disposeWorldAndRuntime() {
         // World first (systems may touch services)
         if (world != null) {
@@ -438,8 +565,11 @@ public final class PixscapeEngine {
         tagRegistry.bind(null);
     }
 
-    /** Fully initializes runtime resources and creates an empty world. */
+    /**
+     * Fully initializes runtime resources and creates an empty world.
+     */
     private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
+        applyConfiguredLogLevel();
         disposeWorldAndRuntime();
 
         if (config == null) throw new IllegalArgumentException("config is null");
@@ -447,21 +577,19 @@ public final class PixscapeEngine {
 
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
-        ShaderRegistry.initDefaults(config.glProfile, projectDir, config.shadersDir);
+        ShaderRegistry.initDefaults(projectDir, config.shadersDir);
 
         renderState = new RenderStateSOA();
-        layerState  = new LayerStateSOA();
-        drawList    = new DrawList();
+        layerState = new LayerStateSOA();
+        drawList = new DrawList();
 
-        GLCaps caps             = GLCaps.detect();
-        RenderSettings settings = RenderSettings.defaultEditor(caps);
-
+        GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
-        BatchFactory.Result r = BatchFactory.create(atlasRuntimeService, settings, caps);
-        metricsBatch      = r.batch;
+        BatchFactory.Result r = BatchFactory.create(atlasRuntimeService, caps);
+        metricsBatch = r.batch;
         defaultShaderName = r.defaultShaderName;
 
-        stats     = new RenderStats();
+        stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
         new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
@@ -511,38 +639,36 @@ public final class PixscapeEngine {
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
         }
-        Gdx.app.log(
-                PHYSICS_LOG_TAG,
-                "initRuntime worldId=" + System.identityHashCode(world)
-                        + " box2dSyncSystem=" + (box2dSyncSystem != null)
-        );
+        logRuntimeInitialized(caps);
 
         sceneLoaded = false;
     }
 
 
-    /** Initializes a runtime with default configuration and no scene file. */
+    /**
+     * Initializes a runtime with default configuration and no scene file.
+     */
     public PixscapeEngine initEmptyRuntime() {
+        applyConfiguredLogLevel();
         this.cfg = new RuntimeConfig();
+
+        ShaderRegistry.initDefaults(null, null);
 
         if (worldCamera == null) {
             worldCamera = new OrthographicCamera();
         }
 
         renderState = new RenderStateSOA();
-        layerState  = new LayerStateSOA();
-        drawList    = new DrawList();
+        layerState = new LayerStateSOA();
+        drawList = new DrawList();
 
         GLCaps caps = GLCaps.detect();
-        RenderSettings settings = RenderSettings.defaultEditor(caps);
-
         atlasRuntimeService = new AtlasRuntimeService();
-
-        BatchFactory.Result r = BatchFactory.create(atlasRuntimeService, settings, caps);
+        BatchFactory.Result r = BatchFactory.create(atlasRuntimeService, caps);
         metricsBatch = r.batch;
         defaultShaderName = r.defaultShaderName;
 
-        stats     = new RenderStats();
+        stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
         new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
@@ -585,11 +711,15 @@ public final class PixscapeEngine {
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
+        logRuntimeInitialized(caps);
+
         return this;
     }
 
 
-    /** Rebuilds the ECS world while keeping existing render resources. */
+    /**
+     * Rebuilds the ECS world while keeping existing render resources.
+     */
     public void rebuildWorldOnly(RuntimeConfig config, FileHandle projectDir) {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -643,7 +773,7 @@ public final class PixscapeEngine {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
         }
-        Gdx.app.log(
+        Gdx.app.debug(
                 PHYSICS_LOG_TAG,
                 "rebuildWorldOnly worldId=" + System.identityHashCode(world)
                         + " box2dSyncSystem=" + (box2dSyncSystem != null)
@@ -663,12 +793,10 @@ public final class PixscapeEngine {
         if (meta == null) throw new IllegalArgumentException("Unknown scene: " + resolvedName);
 
         String sceneTag = RuntimeConfig.sceneDirName(meta);
-        if (sceneTag == null || sceneTag.isBlank()) {
+        if (sceneTag == null || isBlank(sceneTag)) {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
         applyPhysicsFromScene(meta);
-        loggedFirstUpdate = false;
-        loggedFirstRender = false;
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
@@ -774,7 +902,7 @@ public final class PixscapeEngine {
         if (atlasRuntimeService == null) {
             throw new IllegalStateException("Atlas runtime service is not initialized.");
         }
-        if (sceneTag == null || sceneTag.isBlank()) {
+        if (sceneTag == null || isBlank(sceneTag)) {
             throw new IllegalStateException("Scene tag must not be null or blank.");
         }
         TextureAtlas atlas = atlasRuntimeService.getAtlas(sceneTag);
@@ -825,7 +953,7 @@ public final class PixscapeEngine {
     private void maskTiledSlotsInvisible(TiledMapLayerData tiledData) {
         if (renderState == null || tiledData == null) return;
 
-        for (IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext();) {
+        for (IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext(); ) {
             TileChunk chunk = chunks.next();
             if (chunk == null || chunk.soaCount <= 0) continue;
 
@@ -839,9 +967,9 @@ public final class PixscapeEngine {
 
     private void rebuildSceneAssets(String sceneTag) {
 
-        var mSrc = world.getMapper(AssetRefComponent.class);
-        var mTR  = world.getMapper(TextureRegionComponent.class);
-        var mMat = world.getMapper(RenderMaterialComponent.class);
+        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
         IntBag bag = world.getAspectSubscriptionManager()
@@ -865,7 +993,7 @@ public final class PixscapeEngine {
                         "AssetRef entity without assetId during rebuild: e=" + e);
 
             String atlasTag = src.atlasTag;
-            if (atlasTag == null || atlasTag.isBlank()) {
+            if (isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
@@ -893,13 +1021,58 @@ public final class PixscapeEngine {
         }
     }
 
+    static void resolveAssetRefsForEntities(World world, AtlasRuntimeService atlasRuntimeService, IntBag entityIds) {
+        if (world == null || atlasRuntimeService == null || entityIds == null || entityIds.isEmpty()) return;
+
+        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+
+        for (int i = 0; i < entityIds.size(); i++) {
+            int e = entityIds.get(i);
+
+            AssetRefComponent src = mSrc.getSafe(e, null);
+            TextureRegionComponent tr = mTR.getSafe(e, null);
+            RenderMaterialComponent mat = mMat.getSafe(e, null);
+            if (src == null || tr == null || mat == null) continue;
+
+            if (src.assetId < 0) {
+                throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
+            }
+            String atlasTag = src.atlasTag;
+            if (isBlank(atlasTag)) {
+                throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
+            }
+
+            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
+            if (region == null) {
+                tr.valid = false;
+                mat.textureHandle = 0;
+            } else {
+                tr.u1 = region.u1;
+                tr.v1 = region.v1;
+                tr.u2 = region.u2;
+                tr.v2 = region.v2;
+                tr.pixW = region.pixW;
+                tr.pixH = region.pixH;
+                tr.valid = true;
+                mat.textureHandle = region.textureHandle;
+            }
+
+            if (dirty != null) {
+                dirty.mark(e, DirtyBits.MATERIAL | DirtyBits.GEOMETRY | DirtyBits.LAYER | DirtyBits.ORDER);
+            }
+        }
+    }
+
     private String resolveSceneName(String sceneName) {
-        if (sceneName != null && !sceneName.isBlank()) return sceneName;
+        if (sceneName != null && !isBlank(sceneName)) return sceneName;
 
         String cur = cfg.currentSceneName;
         if (cur != null && cfg.getSceneMeta(cur) != null) return cur;
 
-        var names = cfg.getSceneNamesSorted();
+        Array<String> names = cfg.getSceneNamesSorted();
         if (names != null && names.size > 0) return names.first();
 
         throw new IllegalStateException("RuntimeConfig has no scenes.");
@@ -919,14 +1092,14 @@ public final class PixscapeEngine {
 
     private void applyPhysicsFromScene(SceneMetaRuntime meta) {
         if (box2dSyncSystem == null) {
-            Gdx.app.log(PHYSICS_LOG_TAG, "applyPhysicsFromScene: box2dSyncSystem missing");
+            Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: box2dSyncSystem missing");
             return;
         }
 
         if (meta == null || !meta.physicsEnabled) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
-            Gdx.app.log(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
+            Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
             return;
         }
 
@@ -948,12 +1121,39 @@ public final class PixscapeEngine {
         box2dSyncSystem.setSceneMeta(meta);
         box2dSyncSystem.setEnabled(true);
         box2dSyncSystem.setStepEnabled(true);
-        Gdx.app.log(
+        Gdx.app.debug(
                 PHYSICS_LOG_TAG,
                 "applyPhysicsFromScene: enabled ppm=" + meta.pixelsPerMeter
                         + " gravity=(" + meta.gravityX + "," + meta.gravityY + ")"
                         + " doSleep=" + meta.doSleep
                         + " stepEnabled=" + box2dSyncSystem.isStepEnabled()
+        );
+    }
+
+    private void applyConfiguredLogLevel() {
+        if (Gdx.app != null) {
+            Gdx.app.setLogLevel(configuredLogLevel);
+        }
+    }
+
+    private static void validateLogLevel(int logLevel) {
+        if (logLevel == Application.LOG_NONE
+                || logLevel == Application.LOG_ERROR
+                || logLevel == Application.LOG_INFO
+                || logLevel == Application.LOG_DEBUG) {
+            return;
+        }
+        throw new IllegalArgumentException("Unsupported LibGDX log level: " + logLevel);
+    }
+
+    private void logRuntimeInitialized(GLCaps caps) {
+        if (Gdx.app == null) return;
+        Gdx.app.log(
+                "PixscapeRuntime",
+                "Runtime initialized: target=" + ShaderRegistry.getResolvedPlatformTarget()
+                        + ", shaderVariant=" + ShaderRegistry.getCurrentShaderVariant()
+                        + ", defaultShader=" + defaultShaderName
+                        + ", caps=" + caps
         );
     }
 
@@ -968,13 +1168,39 @@ public final class PixscapeEngine {
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {
-        String effectsDir = (config != null && config.effectsDir != null && !config.effectsDir.isBlank())
+        String effectsDir = (config != null && config.effectsDir != null && !isBlank(config.effectsDir))
                 ? config.effectsDir
                 : "effects";
         return (projectDir != null) ? projectDir.child(effectsDir) : null;
     }
 
+
+    private static boolean isBlank(String s) {
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public boolean isLoaded() {
         return loaded;
+    }
+
+    public PixscapeEngine setPlatformTarget(PlatformTarget target) {
+        if (loaded) {
+            throw new IllegalStateException("PlatformTarget must be set before loadProject().");
+        }
+
+        this.platformTarget = target != null ? target : PlatformTarget.AUTO;
+        return this;
+    }
+
+    public PlatformTarget getPlatformTarget() {
+        return platformTarget;
     }
 }

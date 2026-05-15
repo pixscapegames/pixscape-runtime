@@ -6,19 +6,17 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.BodyDef;
-import com.badlogic.gdx.physics.box2d.Fixture;
-import com.badlogic.gdx.physics.box2d.QueryCallback;
-import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.MouseJoint;
 import com.badlogic.gdx.physics.box2d.joints.MouseJointDef;
+import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 
 public final class PhysicsMouseDragSystem extends BaseSystem {
 
     private final OrthographicCamera camera;
+    private LayerStateSOA layerState;
     private Box2dSyncSystem box2dSync;
     private Box2dWorldService box2d;
     private World lastWorld;
@@ -75,6 +73,19 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
 
     public PhysicsMouseDragSystem(OrthographicCamera camera) {
         this.camera = camera;
+    }
+
+    /**
+     * Optional late binding for parallax-aware runtime/Preview picking.
+     * <p>
+     * This is not constructor-required because external developers may create the
+     * drag system before the engine exists. When unset, physics parallax defaults
+     * to {@code 1f}, preserving old behavior and avoiding NPEs. Runtime/Preview
+     * hosts should inject the real engine {@link LayerStateSOA} after engine
+     * creation when parallax-aware mouse picking is desired.
+     */
+    public void setLayerState(LayerStateSOA layerState) {
+        this.layerState = layerState;
     }
 
     public void setMaxForce(float maxForce) {
@@ -159,8 +170,14 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         if (box2d == null || box2d.world == null) return false;
         tmpScreen.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         camera.unproject(tmpScreen);
-        float xM = box2d.pxToM(tmpScreen.x);
-        float yM = box2d.pxToM(tmpScreen.y);
+        float parallaxX = physicsParallaxX();
+        float parallaxY = physicsParallaxY();
+        float offsetX = (1f - parallaxX) * camera.position.x;
+        float offsetY = (1f - parallaxY) * camera.position.y;
+        float logicalX = tmpScreen.x - offsetX;
+        float logicalY = tmpScreen.y - offsetY;
+        float xM = box2d.pxToM(logicalX);
+        float yM = box2d.pxToM(logicalY);
         tmpTarget.set(xM, yM);
         if (mouseJoint != null) {
             mouseJoint.setTarget(tmpTarget);
@@ -177,6 +194,23 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         float r = grabRadiusMeters;
         box2d.world.QueryAABB(pickCallback, queryPoint.x - r, queryPoint.y - r, queryPoint.x + r, queryPoint.y + r);
         return pickedBody;
+    }
+
+    private float physicsParallaxX() {
+        if (layerState == null) return 1f;
+        float factor = layerState.physicsParallaxX;
+        return Float.isNaN(factor) ? 1f : factor;
+    }
+
+    private float physicsParallaxY() {
+        if (layerState == null) return 1f;
+        float factor = layerState.physicsParallaxY;
+        return Float.isNaN(factor) ? 1f : factor;
+    }
+
+    static float toLogicalPhysicsWorld(float renderedWorld, float cameraPosition, float physicsParallax) {
+        float factor = Float.isNaN(physicsParallax) ? 1f : physicsParallax;
+        return renderedWorld - (1f - factor) * cameraPosition;
     }
 
     private void ensureGroundBody() {

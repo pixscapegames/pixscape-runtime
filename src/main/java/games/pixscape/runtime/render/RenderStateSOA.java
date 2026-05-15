@@ -11,14 +11,14 @@ package games.pixscape.runtime.render;
  */
 public final class RenderStateSOA {
 
-    public static final int KIND_NONE   = 0;
+    public static final int KIND_NONE = 0;
     public static final int KIND_SPRITE = 1;
-    public static final int KIND_LAYER  = 2;
+    public static final int KIND_LAYER = 2;
 
-    private int capacity   = 0;
+    private int capacity = 0;
     private int maxEntityId = -1;
 
-    public int[]     kind;
+    public int[] kind;
     public boolean[] enabled;
     public boolean[] visible;
 
@@ -45,14 +45,20 @@ public final class RenderStateSOA {
     public int[] paramsId;
     public int[] customParamsId;
 
-    /** Runtime-specific internal order (Talos, Spine, Pixscape...). */
+    /**
+     * Runtime-specific internal order (Talos, Spine, Pixscape...).
+     */
     public int[] runtimeOrder;
 
     public long[] sortKey;
 
-    /** Mapping direct entityId -> entityId... */
+    /**
+     * Mapping direct entityId -> entityId...
+     */
     public int[] entityId;
-    /** Frame-local list of tiled slots belonging to currently visible chunks. */
+    /**
+     * Frame-local list of tiled slots belonging to currently visible chunks.
+     */
     public int[] tiledVisibleSlots;
     public int tiledVisibleSlotCount;
 
@@ -68,38 +74,44 @@ public final class RenderStateSOA {
             throw new IllegalArgumentException("RenderStateSOA capacity must be > 0");
         }
 
-        capacity    = newCapacity;
+        capacity = newCapacity;
         maxEntityId = -1;
 
-        kind    = new int[capacity];
+        kind = new int[capacity];
         enabled = new boolean[capacity];
         visible = new boolean[capacity];
 
-        x1 = new float[capacity]; y1 = new float[capacity];
-        x2 = new float[capacity]; y2 = new float[capacity];
-        x3 = new float[capacity]; y3 = new float[capacity];
-        x4 = new float[capacity]; y4 = new float[capacity];
+        x1 = new float[capacity];
+        y1 = new float[capacity];
+        x2 = new float[capacity];
+        y2 = new float[capacity];
+        x3 = new float[capacity];
+        y3 = new float[capacity];
+        x4 = new float[capacity];
+        y4 = new float[capacity];
 
         offsetX = new float[capacity];
         offsetY = new float[capacity];
 
-        u1 = new float[capacity]; v1 = new float[capacity];
-        u2 = new float[capacity]; v2 = new float[capacity];
+        u1 = new float[capacity];
+        v1 = new float[capacity];
+        u2 = new float[capacity];
+        v2 = new float[capacity];
 
         colorPacked = new float[capacity];
         a = new float[capacity];
 
-        shader        = new int[capacity];
-        blend         = new int[capacity];
+        shader = new int[capacity];
+        blend = new int[capacity];
         textureHandle = new int[capacity];
-        layerIndex    = new int[capacity];
-        z             = new int[capacity];
-        paramsId      = new int[capacity];
-        customParamsId= new int[capacity];
+        layerIndex = new int[capacity];
+        z = new int[capacity];
+        paramsId = new int[capacity];
+        customParamsId = new int[capacity];
 
-        runtimeOrder  = new int[capacity];
+        runtimeOrder = new int[capacity];
 
-        sortKey  = new long[capacity];
+        sortKey = new long[capacity];
         entityId = new int[capacity];
         tiledVisibleSlots = new int[capacity];
         tiledVisibleSlotCount = 0;
@@ -120,7 +132,7 @@ public final class RenderStateSOA {
         }
         enabled[entity] = false;
         visible[entity] = false;
-        kind[entity]    = KIND_NONE;
+        kind[entity] = KIND_NONE;
         sortKey[entity] = 0L;
         textureHandle[entity] = 0;
 
@@ -175,13 +187,13 @@ public final class RenderStateSOA {
     public void clearAll() {
         if (capacity == 0) return;
         for (int i = 0; i < capacity; i++) {
-            kind[i]    = KIND_NONE;
+            kind[i] = KIND_NONE;
             enabled[i] = false;
             visible[i] = false;
             sortKey[i] = 0L;
             entityId[i] = 0;
-            offsetX[i]  = 0f;
-            offsetY[i]  = 0f;
+            offsetX[i] = 0f;
+            offsetY[i] = 0f;
             runtimeOrder[i] = 0;
         }
         maxEntityId = -1;

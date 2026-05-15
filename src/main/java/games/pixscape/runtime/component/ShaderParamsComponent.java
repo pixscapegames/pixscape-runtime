@@ -1,14 +1,20 @@
 package games.pixscape.runtime.component;
 
 import com.artemis.Component;
-import com.badlogic.gdx.utils.ObjectFloatMap;
+import com.badlogic.gdx.utils.Array;
 
 /**
- * Parameters de shader par entity.
+ * Shader parameters per entity.
  * For this first version: only float uniforms (name -> value).
  */
 public class ShaderParamsComponent extends Component {
-    /** Map nom d'uniform -> valeur float. */
-    public ObjectFloatMap<String> floats = new ObjectFloatMap<>();
+    public static Array<ShaderFloatParam> newShaderFloatArray() {
+        return new Array<>(ShaderFloatParam[]::new);
+    }
+
+    /**
+     * Uniform name -> float value map.
+     */
+    public Array<ShaderFloatParam> floats = newShaderFloatArray();
 
 }

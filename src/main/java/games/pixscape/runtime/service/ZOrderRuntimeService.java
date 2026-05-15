@@ -1,6 +1,7 @@
 package games.pixscape.runtime.service;
 
 import com.artemis.Aspect;
+import com.artemis.AspectSubscriptionManager;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
@@ -23,15 +24,17 @@ public final class ZOrderRuntimeService {
 
     /* ========== Helpers ========== */
 
-    /** Returns the list of layer entities, SORTED by ascending z. */
+    /**
+     * Returns the list of layer entities, SORTED by ascending z.
+     */
     private List<Integer> entitiesInLayerSorted(int layer) {
-        var asm = world.getAspectSubscriptionManager();
+        AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
         IntBag bag = asm.get(Aspect.all(EntityIndexComponent.class)).getEntities();
         int[] data = bag.getData();
 
         // simple bucket-sort by z (typically small n) -> make a copy and sort once
         List<Integer> list = new ArrayList<>(bag.size());
-        for (int i=0, n=bag.size(); i<n; i++) {
+        for (int i = 0, n = bag.size(); i < n; i++) {
             int e = data[i];
             if (mIndex.get(e).getLayerIndex() == layer) list.add(e);
         }
@@ -44,7 +47,9 @@ public final class ZOrderRuntimeService {
         return list;
     }
 
-    /** Reassigns z = index (0..n-1) on the provided list (already sorted). */
+    /**
+     * Reassigns z = index (0..n-1) on the provided list (already sorted).
+     */
     private void writeSequentialZ(List<Integer> sorted) {
         for (int i = 0; i < sorted.size(); i++) {
             int e = sorted.get(i);
@@ -56,7 +61,9 @@ public final class ZOrderRuntimeService {
         }
     }
 
-    /** Ensures the entity has required components and places it in the layer. */
+    /**
+     * Ensures the entity has required components and places it in the layer.
+     */
     private void ensureEntityHasComponents(int e, int layer) {
         EntityIndexComponent index = mIndex.getSafe(e, null);
         if (index == null) index = mIndex.create(e);
@@ -70,21 +77,25 @@ public final class ZOrderRuntimeService {
 
     /* ========== API ========== */
 
-    /** Adds the entity at TOP of the layer (z = n). Creates components if missing. */
+    /**
+     * Adds the entity at TOP of the layer (z = n). Creates components if missing.
+     */
     public void addOnTop(int e, int layer) {
         ensureEntityHasComponents(e, layer);
         List<Integer> L = entitiesInLayerSorted(layer);
         // if entity was not in L (new), place it last
         if (!L.contains(e)) L.add(e);
         else { // already in the layer: move it up
-            L.remove((Integer)e);
+            L.remove((Integer) e);
             L.add(e);
         }
         writeSequentialZ(L); // z = 0..n-1
     }
 
 
-    /** Moves the entity up by one step (if possible). */
+    /**
+     * Moves the entity up by one step (if possible).
+     */
     public void moveUp(int e) {
         if (!mIndex.has(e)) return;
         int layer = mIndex.get(e).getLayerIndex();
@@ -98,7 +109,9 @@ public final class ZOrderRuntimeService {
         writeSequentialZ(L);
     }
 
-    /** Moves the entity down by one step (if possible). */
+    /**
+     * Moves the entity down by one step (if possible).
+     */
     public void moveDown(int e) {
         if (!mIndex.has(e)) return;
         int layer = mIndex.get(e).getLayerIndex();
@@ -111,43 +124,63 @@ public final class ZOrderRuntimeService {
         writeSequentialZ(L);
     }
 
-    /** Envoie en haut (z = n-1). */
+    /**
+     * Moves the entity to top (z = n-1).
+     */
     public void moveToTop(int e) {
         if (!mIndex.has(e)) return;
         int layer = mIndex.get(e).getLayerIndex();
         List<Integer> L = entitiesInLayerSorted(layer);
-        if (!L.remove((Integer)e)) L.add(e); else L.add(e);
+        if (!L.remove((Integer) e)) L.add(e);
+        else L.add(e);
         writeSequentialZ(L);
     }
 
-    /** Envoie en bas (z = 0). */
+    /**
+     * Moves the entity to bottom (z = 0).
+     */
     public void moveToBottom(int e) {
         if (!mIndex.has(e)) return;
         int layer = mIndex.get(e).getLayerIndex();
         List<Integer> L = entitiesInLayerSorted(layer);
-        if (!L.remove((Integer)e)) L.add(0, e); else L.add(0, e);
+        if (!L.remove((Integer) e)) L.add(0, e);
+        else L.add(0, e);
         writeSequentialZ(L);
     }
 
-    /** Explicitly recompacts an entire layer (safety/maintenance). */
+    /**
+     * Explicitly recompacts an entire layer (safety/maintenance).
+     */
     public void normalizeLayer(int layer) {
         List<Integer> L = entitiesInLayerSorted(layer);
         writeSequentialZ(L);
     }
 
-    /** Moves an entity to another layer and puts it at the top of that layer. */
+    /**
+     * Moves an entity to another layer and puts it at the top of that layer.
+     */
     public void moveToLayerTop(int e, int targetLayer) {
         ensureEntityHasComponents(e, targetLayer);
         List<Integer> L = entitiesInLayerSorted(targetLayer);
-        if (!L.contains(e)) L.add(e); else { L.remove((Integer)e); L.add(e); }
+        if (!L.contains(e)) L.add(e);
+        else {
+            L.remove((Integer) e);
+            L.add(e);
+        }
         writeSequentialZ(L);
     }
 
-    /** Moves an entity to another layer and puts it at the bottom. */
+    /**
+     * Moves an entity to another layer and puts it at the bottom.
+     */
     public void moveToLayerBottom(int e, int targetLayer) {
         ensureEntityHasComponents(e, targetLayer);
         List<Integer> L = entitiesInLayerSorted(targetLayer);
-        if (!L.contains(e)) L.add(0, e); else { L.remove((Integer)e); L.add(0, e); }
+        if (!L.contains(e)) L.add(0, e);
+        else {
+            L.remove((Integer) e);
+            L.add(0, e);
+        }
         writeSequentialZ(L);
     }
 }

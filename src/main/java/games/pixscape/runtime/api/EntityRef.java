@@ -7,18 +7,30 @@ package games.pixscape.runtime.api;
  * resolves the preferred persistent/public identity.</p>
  */
 public interface EntityRef {
-    /** Runtime ECS-oriented entity identifier (may be short-lived/recycled). */
+    /**
+     * Runtime ECS-oriented entity identifier (may be short-lived/recycled).
+     */
     int entityId();
-    /** Preferred persistent/public entity identity. */
+
+    /**
+     * Preferred persistent/public entity identity.
+     */
     long stableId();
+
     boolean exists();
 
     TransformFacade transform();
+
     SpriteFacade sprite();
+
     AnimationFacade animation();
+
     ParticleFacade particles();
+
     ShaderFacade shader();
+
     LightFacade light();
+
     /**
      * Expert ECS escape hatch.
      *

@@ -2,6 +2,7 @@ package games.pixscape.runtime.loading;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
+import com.artemis.EntitySubscription;
 import com.artemis.World;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
@@ -10,14 +11,7 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.runtime.component.AABBComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.DirtyBits;
@@ -30,7 +24,8 @@ import java.io.InputStream;
 
 public final class SceneLoader {
 
-    private SceneLoader() {}
+    private SceneLoader() {
+    }
 
     /**
      * Loads a scene from the given file.
@@ -49,7 +44,7 @@ public final class SceneLoader {
         }
 
         if (clearContentFirst) {
-            // 🔥 Reset render cache
+            // Reset render cache
             RenderStateSOA state = world.getSystem(RenderSubmitSystem.class).getState();
             state.clearAll();
             // remove existing entities, or only the "scene" content
@@ -57,7 +52,7 @@ public final class SceneLoader {
         }
 
         if (!inFile.exists()) {
-            throw new RuntimeException("Fichier de scène introuvable: " + inFile.path());
+            throw new RuntimeException("Scene file not found: " + inFile.path());
         }
 
         try (InputStream in = inFile.read()) {
@@ -66,7 +61,7 @@ public final class SceneLoader {
             return format;
 
         } catch (Exception e) {
-            throw new RuntimeException("Erreur lors du chargement de la scène: " + inFile.path(), e);
+            throw new RuntimeException("Error while loading scene: " + inFile.path(), e);
         }
     }
 
@@ -89,7 +84,7 @@ public final class SceneLoader {
 
         ComponentMapper<VisibilityComponent> mVis = world.getMapper(VisibilityComponent.class);
 
-        var geometrySub = world.getAspectSubscriptionManager().get(
+        EntitySubscription geometrySub = world.getAspectSubscriptionManager().get(
                 Aspect.all(TransformComponent.class,
                         DimensionsComponent.class,
                         OrientedBoundsComponent.class,
@@ -103,7 +98,7 @@ public final class SceneLoader {
             dirty.geometry(e, GeometryDirty.ALL);
         }
 
-        var renderSub = world.getAspectSubscriptionManager().get(
+        EntitySubscription renderSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(
                         OrientedBoundsComponent.class,
                         RenderMaterialComponent.class,

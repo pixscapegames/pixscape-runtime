@@ -1,16 +1,18 @@
-package games.pixscape.runtime.render;
+package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.render.SortKey64;
 
 import java.util.IdentityHashMap;
 
 public final class TextureRegistry {
 
-    private TextureRegistry() {}
+    private TextureRegistry() {
+    }
 
     public static final int INVALID_HANDLE = 0;
-    public static final int WHITE_HANDLE   = 1; // reserved for InternalTextures
+    public static final int WHITE_HANDLE = 1; // reserved for InternalTextures
 
     private static final IdentityHashMap<Texture, Integer> tex2id = new IdentityHashMap<>();
     private static final Array<Texture> id2tex = new Array<>();
@@ -23,7 +25,9 @@ public final class TextureRegistry {
         while (id2tex.size <= idx) id2tex.add(null);
     }
 
-    /** Assigns (or reassigns) a reserved handle to a given texture. */
+    /**
+     * Assigns (or reassigns) a reserved handle to a given texture.
+     */
     public static void reserveHandle(int handle, Texture t) {
         if (handle <= 0) throw new IllegalArgumentException("handle must be > 0");
         if (handle > SortKey64.MAX_TEXTURE_HANDLE) {

@@ -1,11 +1,12 @@
 package games.pixscape.runtime.tiled;
 
 public final class TileQuadTransforms {
-    private TileQuadTransforms() {}
+    private TileQuadTransforms() {
+    }
 
     /**
-     * Construit le quad monde d'un tile sprite transformé.
-     *
+     * Builds the world quad for a transformed tile sprite.
+     * <p>
      * out8 order:
      * 0,1 = BL
      * 2,3 = TL
@@ -32,9 +33,9 @@ public final class TileQuadTransforms {
         float halfH = spriteH * 0.5f;
 
         writeCorner(cx, cy, -halfW, -halfH, flags, out8, 0); // BL
-        writeCorner(cx, cy, -halfW,  halfH, flags, out8, 2); // TL
-        writeCorner(cx, cy,  halfW,  halfH, flags, out8, 4); // TR
-        writeCorner(cx, cy,  halfW, -halfH, flags, out8, 6); // BR
+        writeCorner(cx, cy, -halfW, halfH, flags, out8, 2); // TL
+        writeCorner(cx, cy, halfW, halfH, flags, out8, 4); // TR
+        writeCorner(cx, cy, halfW, -halfH, flags, out8, 6); // BR
     }
 
     private static void writeCorner(float cx,
@@ -49,39 +50,47 @@ public final class TileQuadTransforms {
         float ty;
 
         switch (flags & 0x7) {
-            case TileTransformFlags.NONE -> {
+            case TileTransformFlags.NONE: {
                 tx = lx;
                 ty = ly;
+                break;
             }
-            case TileTransformFlags.FLIP_H -> {
+            case TileTransformFlags.FLIP_H: {
                 tx = -lx;
                 ty = ly;
+                break;
             }
-            case TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_V: {
                 tx = lx;
                 ty = -ly;
+                break;
             }
-            case TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
                 tx = -lx;
                 ty = -ly;
+                break;
             }
-            case TileTransformFlags.FLIP_D -> {
+            case TileTransformFlags.FLIP_D: {
                 tx = ly;
                 ty = lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H: {
                 tx = -ly;
                 ty = lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = ly;
                 ty = -lx;
+                break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V -> {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
                 tx = -ly;
                 ty = -lx;
+                break;
             }
-            default -> {
+            default: {
                 tx = lx;
                 ty = ly;
             }

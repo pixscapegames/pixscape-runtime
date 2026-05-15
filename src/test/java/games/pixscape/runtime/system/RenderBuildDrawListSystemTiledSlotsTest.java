@@ -20,7 +20,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         RenderStats stats = new RenderStats();
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64))
+                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         int tiledSlot = 128;

@@ -11,15 +11,15 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
  * Batch based on a single TextureArray (sampler2DArray in shader).
- *
- * Attributes (must match ta_sprite / ta_default shader):
- *   0: a_position  (vec2)  -> float2
- *   1: a_texCoord0 (vec2)  -> float2
- *   2: a_color     (vec4)  -> PACKED RGBA8888 (Usage.ColorPacked) - shader side it remains vec4 0..1
- *   3: a_layer     (float) -> float
- *
+ * <p>
+ * Attributes must match the ShaderMode.TEXTURE_ARRAY core shader:
+ * 0: a_position  (vec2)  -> float2
+ * 1: a_texCoord0 (vec2)  -> float2
+ * 2: a_color     (vec4)  -> PACKED RGBA8888
+ * 3: a_layer     (float) -> float
+ * <p>
  * Format CPU (float[]) :
- *   pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
+ * pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
  */
 public final class TextureArrayMeshBatch implements MetricsBatch {
 
@@ -36,7 +36,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     // current color (packed RGBA8888 in float bits, like SpriteBatch)
     private float colorPacked = Color.WHITE.toFloatBits();
 
-    /** Current shader used for TextureArray quads (ta_default). */
+    /**
+     * Current shader used for TextureArray quads (ta_default).
+     */
     private ShaderProgram shader;
 
     // Cache uniform locations (avoids string lookup and avoids setUniformMatrix on flush)
@@ -61,17 +63,21 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         int maxVerts = this.maxQuads * 4;
         int maxIndices = this.maxQuads * 6;
 
+        Mesh.VertexDataType vertexDataType =
+                (Gdx.gl30 != null)
+                        ? Mesh.VertexDataType.VertexBufferObjectWithVAO
+                        : Mesh.VertexDataType.VertexBufferObject;
+
         // Mesh : a_position (2), a_texCoord0 (2), a_color (packed), a_layer (1)
         this.mesh = new Mesh(
-                false,  // vertices dynamiques
-                true,   // indices statiques
-                maxVerts, maxIndices,
-                new VertexAttributes(
-                        new VertexAttribute(Usage.Position, 2, "a_position"),
-                        new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
-                        VertexAttribute.ColorPacked(),
-                        new VertexAttribute(Usage.Generic, 1, "a_layer")
-                )
+                vertexDataType,
+                false,
+                maxVerts,
+                maxIndices,
+                new VertexAttribute(Usage.Position, 2, "a_position"),
+                new VertexAttribute(Usage.ColorPacked, 4, "a_color"),
+                new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
+                new VertexAttribute(Usage.Generic, 1, "a_layer")
         );
 
         // indices (quads -> 2 triangles)
@@ -88,6 +94,11 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         }
         mesh.setIndices(idx);
 
+        if (vertexDataType != Mesh.VertexDataType.VertexArray) {
+            mesh.getIndexData().bind();
+            mesh.getIndexData().unbind();
+        }
+
         this.verts = new float[maxVerts * VERT_STRIDE];
     }
 
@@ -97,6 +108,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
     @Override
     public void begin(Matrix4 combined, RenderStats stats) {
+        Gdx.gl.glDepthMask(false);
         this.stats = stats;
         this.drawing = true;
 
@@ -117,6 +129,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // We no longer rely on GL state after end()
         this.arrayBound = false;
         this.projDirty = true;
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     @Override
@@ -193,7 +207,6 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // Upload vertices
         mesh.setVertices(verts, 0, vertCount * VERT_STRIDE);
 
-        // IMPORTANT: on ne reset PAS u_projTrans ici
         // => prepareDrawState will only resend u_projTrans if projDirty = true
         prepareDrawState(s);
 
@@ -245,7 +258,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.uArrayLoc = sh.getUniformLocation("u_array");
     }
 
-    /** Ensures shader + uniforms + texture array are ready. */
+    /**
+     * Ensures shader + uniforms + texture array are ready.
+     */
     private void prepareDrawState(RenderStats stats) {
         if (shader == null || !hasBundle()) return;
 
@@ -289,35 +304,39 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         float fl = (float) layer;
 
         // Fix UVs if pages do not all have same size
-        float uu  = u;
-        float uu2 = u2;
-        float vv  = v;
-        float vv2 = v2;
 
         int o = vertCount * VERT_STRIDE;
 
         // BL
-        verts[o++] = x1; verts[o++] = y1;
-        verts[o++] = uu; verts[o++] = vv2;
+        verts[o++] = x1;
+        verts[o++] = y1;
         verts[o++] = colorPacked;
+        verts[o++] = u;
+        verts[o++] = v2;
         verts[o++] = fl;
 
         // TL
-        verts[o++] = x2; verts[o++] = y2;
-        verts[o++] = uu; verts[o++] = vv;
+        verts[o++] = x2;
+        verts[o++] = y2;
         verts[o++] = colorPacked;
+        verts[o++] = u;
+        verts[o++] = v;
         verts[o++] = fl;
 
         // TR
-        verts[o++] = x3; verts[o++] = y3;
-        verts[o++] = uu2; verts[o++] = vv;
+        verts[o++] = x3;
+        verts[o++] = y3;
         verts[o++] = colorPacked;
+        verts[o++] = u2;
+        verts[o++] = v;
         verts[o++] = fl;
 
         // BR
-        verts[o++] = x4; verts[o++] = y4;
-        verts[o++] = uu2; verts[o++] = vv2;
+        verts[o++] = x4;
+        verts[o++] = y4;
         verts[o++] = colorPacked;
+        verts[o++] = u2;
+        verts[o++] = v2;
         verts[o++] = fl;
 
         vertCount += 4;

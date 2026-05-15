@@ -7,7 +7,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 
 /**
  * Default runtime registry for animated tile definitions.
- *
+ * <p>
  * This registry is the standard storage used by the runtime to resolve
  * animated tile definitions from logical asset ids.
  */

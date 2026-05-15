@@ -24,10 +24,14 @@ public final class TagRegistry {
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener subscriptionListener;
 
-    /** Internal index: tag -> entities. */
+    /**
+     * Internal index: tag -> entities.
+     */
     private final ObjectMap<String, IntArray> byTag = new ObjectMap<>();
 
-    /** Reverse index for efficient entity-local updates. */
+    /**
+     * Reverse index for efficient entity-local updates.
+     */
     private final IntMap<Array<String>> tagsByEntity = new IntMap<>();
 
     public TagRegistry() {

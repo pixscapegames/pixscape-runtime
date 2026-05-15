@@ -6,11 +6,11 @@ import games.pixscape.runtime.render.RenderStateSOA;
 
 /**
  * Trie drawList (indices SOA) par state.sortKey[slot].
- *
+ * <p>
  * Important:
  * - drawList contains "slots" RenderStateSOA, not entityId ECS.
  * - STABLE sort (LSD radix) => preserves relative order for equal keys
- *   (useful for tie/runtimeOrder).
+ * (useful for tie/runtimeOrder).
  */
 public final class RenderSortSystem extends BaseSystem {
 

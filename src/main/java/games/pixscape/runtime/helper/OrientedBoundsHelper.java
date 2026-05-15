@@ -2,16 +2,21 @@ package games.pixscape.runtime.helper;
 
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 
-/** AABB tests and culling/picking utilities. Zero allocations. */
+/**
+ * AABB tests and culling/picking utilities. Zero allocations.
+ */
 public final class OrientedBoundsHelper {
-    private OrientedBoundsHelper(){}
+    private OrientedBoundsHelper() {
+    }
 
-    /** Computes x1..y4 (8 floats) from an OBB (corner 1..4 clockwise). */
+    /**
+     * Computes x1..y4 (8 floats) from an OBB (corner 1..4 clockwise).
+     */
     public static void toCorners(OrientedBoundsComponent b, float[] out8) {
-        float cx=b.cx, cy=b.cy, ux=b.ux, uy=b.uy, vx=b.vx, vy=b.vy, hx=b.hx, hy=b.hy;
+        float cx = b.cx, cy = b.cy, ux = b.ux, uy = b.uy, vx = b.vx, vy = b.vy, hx = b.hx, hy = b.hy;
 
-        float ux_hx = ux*hx, uy_hx = uy*hx;
-        float vx_hy = vx*hy, vy_hy = vy*hy;
+        float ux_hx = ux * hx, uy_hx = uy * hx;
+        float vx_hy = vx * hy, vy_hy = vy * hy;
 
         // P1 = C - U*hx - V*hy
         out8[0] = cx - ux_hx - vx_hy;
@@ -27,14 +32,16 @@ public final class OrientedBoundsHelper {
         out8[7] = cy - uy_hx + vy_hy;
     }
 
-    /** Axis-aligned if U≈(1,0) and V≈(0,1). */
+    /**
+     * Axis-aligned if U≈(1,0) and V≈(0,1).
+     */
     public static boolean isAxisAligned(OrientedBoundsComponent b, float eps) {
         return Math.abs(b.ux - 1f) <= eps && Math.abs(b.uy) <= eps
                 && Math.abs(b.vx) <= eps && Math.abs(b.vy - 1f) <= eps;
     }
 
     public static boolean contains(OrientedBoundsComponent b, float x, float y, float tolerance) {
-        // vecteur point -> centre
+        // point -> center vector
         float dx = x - b.cx;
         float dy = y - b.cy;
 
@@ -48,15 +55,17 @@ public final class OrientedBoundsHelper {
         return Math.abs(pu) <= hx && Math.abs(pv) <= hy;
     }
 
-    /** Version without tolerance. */
+    /**
+     * Version without tolerance.
+     */
     public static boolean contains(OrientedBoundsComponent b, float x, float y) {
         return contains(b, x, y, 0f);
     }
 
     /**
      * Point test in an OBB defined by its 4 corners (x0,y0,...,x3,y3) clockwise.
-     * Les coins doivent venir de {@link #toCorners(OrientedBoundsComponent, float[])} puis
-     * may possibly be translated (parallax, etc.).
+     * Corners must come from {@link #toCorners(OrientedBoundsComponent, float[])} and
+     * may then be translated (parallax, etc.).
      */
     public static boolean contains(float[] corners8, float x, float y, float tolerance) {
         float x0 = corners8[0], y0 = corners8[1];
@@ -83,8 +92,8 @@ public final class OrientedBoundsHelper {
         }
 
         float invDet = 1f / det;
-        float u = ( dy * (-vyX) + dx *  vyY) * invDet;
-        float v = ( dy *  vxX  + dx * (-vxY)) * invDet;
+        float u = (dy * (-vyX) + dx * vyY) * invDet;
+        float v = (dy * vxX + dx * (-vxY)) * invDet;
 
         float tolU = tolerance / lenUx;
         float tolV = tolerance / lenVy;

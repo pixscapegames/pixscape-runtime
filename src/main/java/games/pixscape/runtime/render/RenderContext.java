@@ -10,11 +10,11 @@ import games.pixscape.runtime.render.batch.MetricsBatch;
 public final class RenderContext {
 
     public final RenderStateSOA renderState;
-    public final LayerStateSOA  layerState;
-    public final DrawList       drawList;
+    public final LayerStateSOA layerState;
+    public final DrawList drawList;
 
-    public final MetricsBatch   batch; // or interface plus abstraite
-    public final GLCaps         glCaps;
+    public final MetricsBatch batch; // or interface plus abstraite
+    public final GLCaps glCaps;
 
     public RenderContext(RenderStateSOA renderState,
                          LayerStateSOA layerState,
@@ -22,10 +22,10 @@ public final class RenderContext {
                          MetricsBatch batch,
                          GLCaps glCaps) {
         this.renderState = renderState;
-        this.layerState  = layerState;
-        this.drawList    = drawList;
-        this.batch       = batch;
-        this.glCaps      = glCaps;
+        this.layerState = layerState;
+        this.drawList = drawList;
+        this.batch = batch;
+        this.glCaps = glCaps;
     }
 
     // Helpers to add (bindFbo, bindShader, drawFullscreenQuad, etc.)

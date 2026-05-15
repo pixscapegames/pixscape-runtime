@@ -7,58 +7,57 @@ import com.badlogic.gdx.utils.BufferUtils;
 import java.nio.IntBuffer;
 
 public final class GLCaps {
-    public final boolean hasES3;
-    public final boolean hasTextureArray;   // simplified: = ES3
+
+    public final boolean es3;
     public final int maxTextureUnits;
     public final int maxTextureSize;
 
-    private GLCaps(boolean es3, boolean texArray, int units, int size) {
-        this.hasES3 = es3;
-        this.hasTextureArray = texArray;
-        this.maxTextureUnits = units;
-        this.maxTextureSize = size;
+    private GLCaps(boolean es3, int maxTextureUnits, int maxTextureSize) {
+        this.es3 = es3;
+        this.maxTextureUnits = maxTextureUnits;
+        this.maxTextureSize = maxTextureSize;
     }
 
     public static GLCaps detect() {
-        final boolean es3 = (Gdx.gl30 != null);
+        boolean es3 = Gdx.gl30 != null;
 
-        IntBuffer buf = BufferUtils.newIntBuffer(16);
+        IntBuffer buf = BufferUtils.newIntBuffer(4);
 
-        // --- Max fragment texture units ---
-        buf.clear();
-        Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS, buf);
-        int units = buf.get(0);
-
-        // Fallback: certains drivers/backends peuvent renvoyer 0 ici
-        if (units <= 0) {
-            buf.clear();
-            Gdx.gl.glGetIntegerv(GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, buf);
-            units = buf.get(0);
+        int units = readInt(buf, GL20.GL_MAX_TEXTURE_IMAGE_UNITS, 1);
+        if (units <= 1) {
+            units = readInt(buf, GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, units);
         }
 
-        // Clamp safety
-        if (units <= 0) units = 1;
+        int size = readInt(buf, GL20.GL_MAX_TEXTURE_SIZE, 64);
 
-        // --- Max texture size ---
-        buf.clear();
-        Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_SIZE, buf);
-        int size = buf.get(0);
-        if (size <= 0) size = 64;
-
-        return new GLCaps(es3, es3, units, size);
+        return new GLCaps(es3, Math.max(1, units), Math.max(64, size));
     }
 
+    private static int readInt(IntBuffer buf, int pname, int fallback) {
+        try {
+            buf.clear();
+            Gdx.gl.glGetIntegerv(pname, buf);
+            int value = buf.get(0);
+            return value > 0 ? value : fallback;
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
 
-    // Petits helpers lisibles
-    public boolean supportsTextureArray() { return hasTextureArray; }
-    public boolean supportsES3() { return hasES3; }
-    public int maxTextureUnits()         { return maxTextureUnits; }
-    public int maxTextureSize()          { return maxTextureSize; }
+    public boolean supportsES3() {
+        return es3;
+    }
 
-    @Override public String toString() {
-        return "GLCaps{ES3=" + hasES3 +
-            ", texArray=" + hasTextureArray +
-            ", maxUnits=" + maxTextureUnits +
-            ", maxTexSize=" + maxTextureSize + "}";
+    public boolean supportsTextureArray() {
+        return es3;
+    }
+
+    @Override
+    public String toString() {
+        return "GLCaps{es3=" + es3
+                + ", textureArray=" + supportsTextureArray()
+                + ", maxTextureUnits=" + maxTextureUnits
+                + ", maxTextureSize=" + maxTextureSize
+                + "}";
     }
 }

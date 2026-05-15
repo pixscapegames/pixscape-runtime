@@ -6,11 +6,7 @@ import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.helper.ParallaxHelper;
@@ -20,16 +16,16 @@ import games.pixscape.runtime.render.RenderStateSOA;
 /**
  * Computes display-space {@code offsetX/offsetY} for each renderable entity,
  * based on editor camera position and layer parallax.
- *
+ * <p>
  * Pipeline:
- *   - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill {@code RenderStateSOA} &amp; {@code LayerStateSOA}
- *   - {@code ParallaxDisplaySystem} fills {@code RenderStateSOA.offsetX/offsetY}
- *   - Culling / Gizmo / Picking / RenderSubmit use {@code xN + offsetX}, {@code yN + offsetY}
+ * - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill {@code RenderStateSOA} &amp; {@code LayerStateSOA}
+ * - {@code ParallaxDisplaySystem} fills {@code RenderStateSOA.offsetX/offsetY}
+ * - Culling / Gizmo / Picking / RenderSubmit use {@code xN + offsetX}, {@code yN + offsetY}
  */
 public final class ParallaxDisplaySystem extends BaseSystem {
 
-    private final RenderStateSOA     renderState;
-    private final LayerStateSOA      layerState;
+    private final RenderStateSOA renderState;
+    private final LayerStateSOA layerState;
     private final OrthographicCamera worldCam;
     private EntitySubscription spriteSubscription;
 
@@ -39,8 +35,8 @@ public final class ParallaxDisplaySystem extends BaseSystem {
                                  LayerStateSOA layerState,
                                  OrthographicCamera worldCam) {
         this.renderState = renderState;
-        this.layerState  = layerState;
-        this.worldCam    = worldCam;
+        this.layerState = layerState;
+        this.worldCam = worldCam;
     }
 
     @Override
@@ -59,9 +55,11 @@ public final class ParallaxDisplaySystem extends BaseSystem {
         );
 
         spriteSubscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) { /* no-op */ }
+            @Override
+            public void inserted(IntBag entities) { /* no-op */ }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];

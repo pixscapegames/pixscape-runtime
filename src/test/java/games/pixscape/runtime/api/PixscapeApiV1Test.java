@@ -1,14 +1,14 @@
 package games.pixscape.runtime.api;
 
+import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import com.artemis.BaseSystem;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
-import games.pixscape.runtime.render.ShaderRegistry;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -39,11 +39,9 @@ public class PixscapeApiV1Test {
         world.getMapper(PixscapeIdentityComponent.class).create(e).name = "hero";
         world.getMapper(PixscapeTagComponent.class).create(e).tags.add("player");
         world.process();
-        engine.getIdentityRegistry().rebuild();
-        engine.getTagRegistry().rebuild();
 
         EntitiesAPI entities = engine.api().entities();
-        long stableId = entities.ensureStableId(e);
+        int stableId = entities.ensureStableId(e);
 
         Assert.assertEquals(e, entities.entityIdOf(stableId));
         Assert.assertEquals(stableId, entities.stableIdOf(e));
@@ -58,6 +56,7 @@ public class PixscapeApiV1Test {
 
         world.process();
         Assert.assertFalse(world.getEntityManager().isActive(e));
+        Assert.assertFalse(entities.existsStableId(stableId));
     }
 
     @Test

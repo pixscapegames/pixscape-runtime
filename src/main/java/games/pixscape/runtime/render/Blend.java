@@ -2,7 +2,6 @@ package games.pixscape.runtime.render;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
-import games.pixscape.runtime.component.RenderMaterialComponent;
 
 public final class Blend {
     public static void apply(BlendMode mode) {

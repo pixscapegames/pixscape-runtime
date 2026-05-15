@@ -12,8 +12,8 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.render.TextureRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.TextureRegistry;
 
 /**
  * Updates animated sprite UVs using atlas frame groups (atlas.findRegions(animation)).
@@ -52,7 +52,6 @@ public final class AnimationSystem extends IteratingSystem {
 
         AnimationComponent.Clip clip = a.getClip();
         if (clip == null) return;
-
 
 
         AnimationBinding binding = resolveBinding(e);

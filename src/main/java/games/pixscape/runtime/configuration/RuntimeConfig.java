@@ -5,22 +5,37 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.render.ShaderMode;
 
 /**
  * Exported runtime configuration (project.json on user project side).
- * Ne contient aucun champ studio.
+ * Contains no studio-side fields.
  */
 public final class RuntimeConfig {
 
+    private static boolean isBlank(String s) {
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static final String DEFAULT_VERSION = "1";
 
-    /** Technical identity of exported project. */
+    /**
+     * Technical identity of exported project.
+     */
     public String projectFileName = "";
 
     public String version = DEFAULT_VERSION;
 
-    /** Optional: can be inferred from FileHandle on engine side. */
+    /**
+     * Optional: can be inferred from FileHandle on engine side.
+     */
     public String runtimeRootDir;
 
     public String scenesDir = RuntimeFs.DIR_SCENES;
@@ -29,26 +44,14 @@ public final class RuntimeConfig {
     public String animationsDir = RuntimeFs.DIR_ANIMATIONS;
     public String shadersDir = RuntimeFs.DIR_SHADERS;
     public String audioDir = RuntimeFs.DIR_AUDIO;
+    public String prefabsDir = RuntimeFs.DIR_PREFABS;
 
     // --- Runtime scenes ---
     public final ObjectMap<String, SceneMetaRuntime> scenes = new ObjectMap<>();
     public String currentSceneName;
 
-    // --- Options projet (runtime) ---
-    public String glProfile = "GL30";
+    // --- Project options (runtime) ---
     public int glSamples = 0;
-
-    // ---------------------------------------------------------------------
-    // Shader mode
-    // ---------------------------------------------------------------------
-
-    public ShaderMode getShaderMode() {
-        return switch (glProfile) {
-            case "GL30" -> ShaderMode.TEXTURE_ARRAY;
-            case "GL20" -> ShaderMode.SPRITE;
-            default -> ShaderMode.MULTI_TEXTURE;
-        };
-    }
 
     // ---------------------------------------------------------------------
     // Scenes
@@ -73,7 +76,9 @@ public final class RuntimeConfig {
         return names;
     }
 
-    /** scene1.json -> scene1 */
+    /**
+     * scene1.json -> scene1
+     */
     public static String sceneDirName(SceneMetaRuntime meta) {
         return RuntimeFs.sceneDirName(meta);
     }
@@ -83,7 +88,7 @@ public final class RuntimeConfig {
     }
 
     public String findSceneNameByFile(String file) {
-        if (file == null || file.isBlank()) return null;
+        if (file == null || isBlank(file)) return null;
 
         String expected = RuntimeFs.filenameOnly(file);
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
@@ -107,15 +112,11 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public void applyDefaultsAndValidate(String pathForErrors) {
-        if (pathForErrors == null || pathForErrors.isBlank()) {
-            pathForErrors = "<runtime-config>";
-        }
-
-        if (version == null || version.isBlank()) {
+        if (version == null || isBlank(version)) {
             version = DEFAULT_VERSION;
         }
 
-        if (projectFileName == null || projectFileName.isBlank()) {
+        if (projectFileName == null || isBlank(projectFileName)) {
             throw new RuntimeException("Missing projectFileName in: " + pathForErrors);
         }
 
@@ -125,13 +126,10 @@ public final class RuntimeConfig {
         animationsDir = nonBlankOrDefault(animationsDir, RuntimeFs.DIR_ANIMATIONS);
         shadersDir = nonBlankOrDefault(shadersDir, RuntimeFs.DIR_SHADERS);
         audioDir = nonBlankOrDefault(audioDir, RuntimeFs.DIR_AUDIO);
+        prefabsDir = nonBlankOrDefault(prefabsDir, RuntimeFs.DIR_PREFABS);
 
         if (!DEFAULT_VERSION.equals(version)) {
             throw new RuntimeException("Unsupported project version '" + version + "' in: " + pathForErrors);
-        }
-
-        if (!"GL20".equals(glProfile) && !"GL30".equals(glProfile)) {
-            glProfile = "GL30";
         }
 
         if (glSamples != 0 && glSamples != 2 && glSamples != 4 && glSamples != 8) {
@@ -142,7 +140,7 @@ public final class RuntimeConfig {
             throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
         }
 
-        // Nettoyage scenes + normalisation file + defaults
+        // Clean scenes, normalize files, and apply defaults.
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
             String key = e.key;
@@ -152,17 +150,17 @@ public final class RuntimeConfig {
                 throw new RuntimeException("Scene '" + key + "' is null in: " + pathForErrors);
             }
 
-            if (meta.name == null || meta.name.isBlank()) {
+            if (meta.name == null || isBlank(meta.name)) {
                 meta.name = key;
             }
 
-            if (meta.file == null || meta.file.isBlank()) {
+            if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has no file in: " + pathForErrors);
             }
 
             meta.file = RuntimeFs.filenameOnly(meta.file);
 
-            if (meta.file == null || meta.file.isBlank()) {
+            if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has invalid file in: " + pathForErrors);
             }
 
@@ -171,9 +169,9 @@ public final class RuntimeConfig {
             }
         }
 
-        // Choix scene courante by default :
-        // 1) currentSceneName valide
-        // 2) scene dont file == scene1.json
+        // Default current scene choice:
+        // 1) valid currentSceneName
+        // 2) scene whose file == scene1.json
         // 3) first sorted
         if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
             String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
@@ -186,7 +184,7 @@ public final class RuntimeConfig {
     }
 
     private static String nonBlankOrDefault(String value, String defaultValue) {
-        return (value == null || value.isBlank()) ? defaultValue : value;
+        return (value == null || isBlank(value)) ? defaultValue : value;
     }
 
     // ---------------------------------------------------------------------
@@ -215,6 +213,10 @@ public final class RuntimeConfig {
 
     public FileHandle audioRoot(FileHandle runtimeProjectDir) {
         return childOrNull(runtimeProjectDir, audioDir);
+    }
+
+    public FileHandle prefabsRoot(FileHandle runtimeProjectDir) {
+        return childOrNull(runtimeProjectDir, prefabsDir);
     }
 
     private static FileHandle childOrNull(FileHandle root, String child) {

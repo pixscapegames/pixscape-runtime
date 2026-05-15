@@ -10,12 +10,26 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
 import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
 import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.render.InternalTextures;
-import games.pixscape.runtime.render.TextureRegistry;
 
 
 public class AtlasRuntimeService {
+
+    private static boolean isBlank(String s) {
+        if (s == null || s.length() == 0) return true;
+
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static final int ATLAS_SIZE = 2048;
 
@@ -44,7 +58,7 @@ public class AtlasRuntimeService {
         atlases.put(tag, atlas);
         bundles.remove(tag);
         clearRegionCache();
-        Gdx.app.log("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
+        Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
     public void unload(String tag) {
@@ -75,7 +89,7 @@ public class AtlasRuntimeService {
 
     // ---------------- access ----------------
     public CachedRegion resolveCached(int assetId, String tag) {
-        if (tag == null || tag.isBlank() || assetId < 0) return null;
+        if (tag == null || isBlank(tag) || assetId < 0) return null;
 
         IntMap<CachedRegion> tagCache = regionCache.get(tag);
         if (tagCache == null) {
@@ -109,13 +123,15 @@ public class AtlasRuntimeService {
         regionCache.clear();
     }
 
-    public TextureAtlas getAtlas(String tag) { return atlases.get(tag); }
+    public TextureAtlas getAtlas(String tag) {
+        return atlases.get(tag);
+    }
 
     public Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
         if (assetId < 0) {
             throw new IllegalStateException("Asset id must be >= 0.");
         }
-        if (tag == null || tag.isBlank()) return null;
+        if (tag == null || isBlank(tag)) return null;
 
         TextureAtlas atlas = atlases.get(tag);
         if (atlas == null) return null;
@@ -156,7 +172,8 @@ public class AtlasRuntimeService {
 
     public static final class TextureArrayBundle {
         public final TextureArray textureArray;
-        public final IntIntMap    handle2layer; // handle(Texture) -> layer
+        public final IntIntMap handle2layer; // handle(Texture) -> layer
+
         public TextureArrayBundle(TextureArray ta, IntIntMap map) {
             this.textureArray = ta;
             this.handle2layer = map;
@@ -235,7 +252,7 @@ public class AtlasRuntimeService {
         ta.setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
 
         // 6) Build map: handle -> layer.
-        IntIntMap   handle2layer = new IntIntMap();
+        IntIntMap handle2layer = new IntIntMap();
 
         int whiteHandle = InternalTextures.whiteHandle();
         handle2layer.put(whiteHandle, 0);
@@ -243,7 +260,7 @@ public class AtlasRuntimeService {
         // Layers 1..N map to sources[i].
         for (int i = 0; i < sources.size; i++) {
             Texture page = sources.get(i);
-            int handle   = TextureRegistry.handleOf(page);
+            int handle = TextureRegistry.handleOf(page);
 
             int layer = i + 1;
             handle2layer.put(handle, layer);
@@ -257,8 +274,6 @@ public class AtlasRuntimeService {
 
         return new TextureArrayBundle(ta, handle2layer);
     }
-
-
 
 
     // --------------- bundle cache + active tag ---------------
@@ -364,7 +379,7 @@ public class AtlasRuntimeService {
 
     private void logBundleEvent(String action, String tag, TextureArray textureArray) {
         if (!DEBUG_BUNDLE_LIFECYCLE || textureArray == null) return;
-        Gdx.app.log("AtlasService", action
+        Gdx.app.debug("AtlasService", action
                 + " bundle tag=" + tag
                 + " textureArray@" + System.identityHashCode(textureArray));
     }

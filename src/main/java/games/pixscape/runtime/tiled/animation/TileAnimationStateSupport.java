@@ -9,7 +9,7 @@ public final class TileAnimationStateSupport {
 
     /**
      * Synchronizes the per-cell animation state with the logical asset stored in the map.
-     *
+     * <p>
      * Rules:
      * - no asset            -> clear state
      * - unknown animation   -> clear state
@@ -90,11 +90,14 @@ public final class TileAnimationStateSupport {
     }
 
     private static byte sanitizeInitialPlayback(byte playbackState) {
-        return switch (playbackState) {
-            case TileAnimationPlayback.PLAYING -> TileAnimationPlayback.PLAYING;
-            case TileAnimationPlayback.PAUSED -> TileAnimationPlayback.PAUSED;
-            default -> TileAnimationPlayback.PLAYING;
-        };
+        switch (playbackState) {
+            case TileAnimationPlayback.PLAYING:
+                return TileAnimationPlayback.PLAYING;
+            case TileAnimationPlayback.PAUSED:
+                return TileAnimationPlayback.PAUSED;
+            default:
+                return TileAnimationPlayback.PLAYING;
+        }
     }
 
     public static void syncWorldCell(TileChunk chunk,
