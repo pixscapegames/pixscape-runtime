@@ -21,13 +21,30 @@ public interface PixscapeAPI {
      */
     ECSAPI ecs();
 
+    /**
+     * Asset lookup in the current scene atlas.
+     *
+     * <p>Only assets included in Runtime Availability during export are available here.</p>
+     */
     AssetsAPI assets();
 
+    /**
+     * Sprite entity factory API.
+     */
     SpritesAPI sprites();
 
+    /**
+     * Sprite animation factory and control API.
+     */
     AnimationsAPI animations();
 
+    /**
+     * Particle entity factory API.
+     */
     ParticlesAPI particles();
 
+    /**
+     * Prefab spawning API.
+     */
     PrefabsAPI prefabs();
 }
