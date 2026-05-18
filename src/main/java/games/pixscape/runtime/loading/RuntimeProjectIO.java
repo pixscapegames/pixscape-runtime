@@ -2,8 +2,12 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
+import games.pixscape.runtime.animation.AnimationsRuntimeData;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
@@ -142,6 +146,42 @@ public final class RuntimeProjectIO {
         }
     }
 
+    public static void loadAnimations(FileHandle projectDir,
+                                      AnimationRegistry registry) {
+        if (projectDir == null) throw new GdxRuntimeException("projectDir is null");
+        if (registry == null) throw new GdxRuntimeException("registry is null");
+
+        registry.clear();
+
+        FileHandle file = projectDir.child(RuntimeFs.FILE_ANIMATIONS_JSON);
+        if (!file.exists()) {
+            return;
+        }
+
+        final AnimationsRuntimeData data;
+        try {
+            JsonValue root = new JsonReader().parse(file);
+            data = parseAnimations(root);
+        } catch (Exception e) {
+            throw new GdxRuntimeException(
+                    "Failed to parse " + RuntimeFs.FILE_ANIMATIONS_JSON + ": " + file.path(),
+                    e
+            );
+        }
+
+        if (data == null || data.animations == null) {
+            return;
+        }
+
+        for (int i = 0, n = data.animations.size; i < n; i++) {
+            AnimationDefData defData = data.animations.get(i);
+            if (defData == null) {
+                throw new GdxRuntimeException("Invalid animation entry (null): " + file.path());
+            }
+            registry.put(defData);
+        }
+    }
+
     private static TileAnimationsRuntimeData parseTileAnimations(JsonValue root) {
         TileAnimationsRuntimeData data = new TileAnimationsRuntimeData();
 
@@ -161,6 +201,47 @@ public final class RuntimeProjectIO {
             def.id = node.getInt("id", 0);
             def.frameAssetIds = readIntArray(node.get("frameAssetIds"));
             def.frameDurationsMs = readIntArray(node.get("frameDurationsMs"));
+
+            data.animations.add(def);
+        }
+
+        return data;
+    }
+
+    private static AnimationsRuntimeData parseAnimations(JsonValue root) {
+        AnimationsRuntimeData data = new AnimationsRuntimeData();
+
+        if (root == null || !root.isObject()) {
+            return data;
+        }
+
+        JsonValue animations = root.get("animations");
+        if (animations == null || !animations.isArray()) {
+            return data;
+        }
+
+        for (JsonValue node = animations.child; node != null; node = node.next) {
+            if (node == null || !node.isObject()) continue;
+
+            AnimationDefData def = new AnimationDefData();
+            def.assetId = node.getInt("assetId", 0);
+            def.name = node.getString("name", null);
+            def.fps = node.getFloat("fps", 12f);
+            def.currentClip = node.getString("currentClip", null);
+            def.frameCount = node.getInt("frameCount", 0);
+
+            JsonValue clips = node.get("clips");
+            if (clips != null && clips.isArray()) {
+                for (JsonValue clipNode = clips.child; clipNode != null; clipNode = clipNode.next) {
+                    if (clipNode == null || !clipNode.isObject()) continue;
+                    AnimationClipDefData clip = new AnimationClipDefData();
+                    clip.name = clipNode.getString("name", null);
+                    clip.start = clipNode.getInt("start", 0);
+                    clip.end = clipNode.getInt("end", clip.start);
+                    clip.flipX = clipNode.getBoolean("flipX", false);
+                    def.clips.add(clip);
+                }
+            }
 
             data.animations.add(def);
         }

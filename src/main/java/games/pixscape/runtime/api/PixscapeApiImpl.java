@@ -10,6 +10,8 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -60,7 +62,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.tiled = new TiledApiImpl(engine, ecs, entities);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
-        this.animations = new AnimationsApiImpl(engine, entities, sprites);
+        this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
         this.prefabs = new PrefabsApiImpl(engine, entities);
     }
@@ -223,8 +225,44 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             }
         }
 
+        animation.clips.clear();
         animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, frameCount - 1)));
         animation.currentClip = "default";
+        animation.fps = 12f;
+        animation.playing = true;
+        animation.loop = true;
+        animation.frame = -1;
+        animation.stateTime = 0f;
+        markSpawnDirty(world, entityId);
+    }
+
+    private static void configureAnimationFromDef(PixscapeEngine engine, int entityId, AnimationDef def) {
+        if (def == null) {
+            throw new IllegalArgumentException("def must not be null");
+        }
+
+        World world = requireWorld(engine);
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
+                ? world.getMapper(AnimationComponent.class).get(entityId)
+                : world.getMapper(AnimationComponent.class).create(entityId);
+
+        animation.clips.clear();
+        Array<AnimationClipDefData> clips = def.clips();
+        for (int i = 0, n = clips.size; i < n; i++) {
+            AnimationClipDefData source = clips.get(i);
+            if (source == null || isBlank(source.name)) continue;
+            AnimationComponent.Clip clip = new AnimationComponent.Clip(source.start, source.end);
+            clip.flipX = source.flipX;
+            animation.clips.put(source.name, clip);
+        }
+
+        if (animation.clips.size == 0) {
+            animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, def.frameCount() - 1)));
+            animation.currentClip = "default";
+        } else {
+            animation.currentClip = !isBlank(def.currentClip()) ? def.currentClip() : clips.first().name;
+        }
+        animation.fps = def.fps();
         animation.playing = true;
         animation.loop = true;
         animation.frame = -1;
@@ -1533,16 +1571,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class AnimationsApiImpl implements AnimationsAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
+        private final AssetsAPI assets;
         private final SpritesAPI sprites;
 
-        AnimationsApiImpl(PixscapeEngine engine, EntitiesAPI entities, SpritesAPI sprites) {
+        AnimationsApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets, SpritesAPI sprites) {
             this.engine = engine;
             this.entities = entities;
+            this.assets = assets;
             this.sprites = sprites;
         }
 
         @Override
         public AnimationRef spawn(int assetId, float x, float y) {
+            AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
+            if (def != null) {
+                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
+                configureAnimationFromDef(engine, sprite.entityId(), def);
+                return new AnimationRefImpl(sprite.entity());
+            }
+
             SpriteRef sprite = sprites.spawn(assetId, x, y);
             configureDefaultAnimation(engine, sprite.entityId(), assetId);
             return new AnimationRefImpl(sprite.entity());
@@ -1550,6 +1597,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AnimationRef spawn(String name, float x, float y) {
+            AnimationDef def = engine.getAnimationRegistry().getByName(name);
+            if (def != null) {
+                if (!assets.contains(def.assetId())) {
+                    throw new IllegalArgumentException(
+                            "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                    );
+                }
+                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
+                configureAnimationFromDef(engine, sprite.entityId(), def);
+                return new AnimationRefImpl(sprite.entity());
+            }
+
             SpriteRef sprite = sprites.spawn(name, x, y);
             configureDefaultAnimation(engine, sprite.entityId(), sprite.sprite().assetId());
             return new AnimationRefImpl(sprite.entity());

@@ -5,6 +5,8 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -436,6 +438,52 @@ public class PixscapeApiV1Test {
         Assert.assertSame(ref.animation(), engine.api().animations().get(ref.entity()));
     }
 
+    @Test
+    public void animationsSpawnAssetIdUsesRegistryClips() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f);
+
+        AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
+        Assert.assertEquals("idle", animation.currentClip);
+        Assert.assertEquals(12f, animation.fps, 0.0001f);
+        Assert.assertNotNull(animation.clips.get("attack"));
+        Assert.assertEquals(4, animation.clips.get("attack").start);
+        Assert.assertEquals(7, animation.clips.get("attack").end);
+        Assert.assertTrue(animation.clips.get("attack").flipX);
+    }
+
+    @Test
+    public void animationsSpawnNameUsesRegistryClipsAndPlaySelectsClip() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        AnimationRef ref = engine.api().animations().spawn("hero", 7f, 8f).play("attack");
+
+        AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
+        Assert.assertEquals("attack", animation.currentClip);
+        Assert.assertTrue(animation.playing);
+        Assert.assertEquals(4, animation.clips.get("attack").start);
+    }
+
+    @Test
+    public void animationsSpawnRegistryNameMissingFromAtlasGivesAnimationError() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(99, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        try {
+            engine.api().animations().spawn("hero", 0f, 0f);
+            Assert.fail("Expected unavailable registered animation to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Animation 'hero'"));
+            Assert.assertTrue(expected.getMessage().contains("Runtime Availability"));
+        }
+    }
+
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
     }
@@ -467,6 +515,27 @@ public class PixscapeApiV1Test {
         if (field == null) throw new NoSuchFieldException(fieldName);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private static AnimationDefData animationDef(int assetId, String name) {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = assetId;
+        def.name = name;
+        def.fps = 12f;
+        def.currentClip = "idle";
+        def.frameCount = 8;
+        def.clips.add(animationClip("idle", 0, 3, false));
+        def.clips.add(animationClip("attack", 4, 7, true));
+        return def;
+    }
+
+    private static AnimationClipDefData animationClip(String name, int start, int end, boolean flipX) {
+        AnimationClipDefData clip = new AnimationClipDefData();
+        clip.name = name;
+        clip.start = start;
+        clip.end = end;
+        clip.flipX = flipX;
+        return clip;
     }
 
     private static final class FakeAtlasRuntimeService extends AtlasRuntimeService {

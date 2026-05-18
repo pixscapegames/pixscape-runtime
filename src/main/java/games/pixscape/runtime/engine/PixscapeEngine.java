@@ -74,6 +74,7 @@ public final class PixscapeEngine {
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
+    private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
     private PixscapeAPI publicApi;
 
@@ -145,6 +146,7 @@ public final class PixscapeEngine {
         }
 
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
+        RuntimeProjectIO.loadAnimations(runtimeProjectDir, animationRegistry);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
 
         if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
@@ -397,6 +399,10 @@ public final class PixscapeEngine {
 
     public TileAnimationRegistry getAnimatedTileRegistry() {
         return animatedTileRegistry;
+    }
+
+    public AnimationRegistry getAnimationRegistry() {
+        return animationRegistry;
     }
 
     /**
