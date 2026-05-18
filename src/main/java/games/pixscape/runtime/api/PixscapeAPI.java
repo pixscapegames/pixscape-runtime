@@ -21,5 +21,13 @@ public interface PixscapeAPI {
      */
     ECSAPI ecs();
 
+    AssetsAPI assets();
+
+    SpritesAPI sprites();
+
+    AnimationsAPI animations();
+
+    ParticlesAPI particles();
+
     PrefabsAPI prefabs();
 }

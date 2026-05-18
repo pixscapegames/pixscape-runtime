@@ -6,6 +6,9 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.io.SaveFileFormat;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
@@ -45,12 +48,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
     private final PrefabsAPI prefabs;
+    private final AssetsAPI assets;
+    private final SpritesAPI sprites;
+    private final AnimationsAPI animations;
+    private final ParticlesAPI particles;
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
         this.ecs = new EcsApiImpl(engine);
         this.entities = new EntitiesApiImpl(engine, ecs);
         this.tiled = new TiledApiImpl(engine, ecs, entities);
+        this.assets = new AssetsApiImpl(engine);
+        this.sprites = new SpritesApiImpl(engine, entities, assets);
+        this.animations = new AnimationsApiImpl(engine, entities, sprites);
+        this.particles = new ParticlesApiImpl(engine, entities);
         this.prefabs = new PrefabsApiImpl(engine, entities);
     }
 
@@ -69,8 +80,259 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return ecs;
     }
 
+    @Override
+    public AssetsAPI assets() {
+        return assets;
+    }
+
+    @Override
+    public SpritesAPI sprites() {
+        return sprites;
+    }
+
+    @Override
+    public AnimationsAPI animations() {
+        return animations;
+    }
+
+    @Override
+    public ParticlesAPI particles() {
+        return particles;
+    }
+
+    @Override
     public PrefabsAPI prefabs() {
         return prefabs;
+    }
+
+    private static String currentAtlasTag(PixscapeEngine engine) {
+        String tag = engine != null ? engine.getCurrentSceneAtlasTag() : null;
+        return isBlank(tag) ? "main" : tag;
+    }
+
+    private static TextureAtlas.AtlasRegion firstRegion(AtlasRuntimeService atlasService, int assetId, String atlasTag) {
+        if (atlasService == null) return null;
+        com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
+        return regions != null && regions.size > 0 ? regions.first() : null;
+    }
+
+    private static int assetIdFromRegionName(String regionName) {
+        if (regionName == null) return -1;
+        int marker = regionName.lastIndexOf("__a");
+        if (marker < 0 || marker + 3 >= regionName.length()) return -1;
+        int value = 0;
+        for (int i = marker + 3; i < regionName.length(); i++) {
+            char c = regionName.charAt(i);
+            if (c < '0' || c > '9') return -1;
+            value = value * 10 + (c - '0');
+        }
+        return value;
+    }
+
+    private static String normalizedName(String regionName) {
+        if (regionName == null) return "";
+        int marker = regionName.lastIndexOf("__a");
+        String base = marker >= 0 ? regionName.substring(0, marker) : regionName;
+        int slash = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < base.length()) {
+            base = base.substring(slash + 1);
+        }
+        int dot = base.lastIndexOf('.');
+        if (dot > 0) {
+            base = base.substring(0, dot);
+        }
+        return base;
+    }
+
+    private static String normalizeLookupName(String name) {
+        if (name == null) return null;
+        String normalized = name.trim();
+        if (normalized.isEmpty()) return null;
+        normalized = normalized.replace('\\', '/');
+        int slash = normalized.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < normalized.length()) {
+            normalized = normalized.substring(slash + 1);
+        }
+        int dot = normalized.lastIndexOf('.');
+        if (dot > 0) {
+            normalized = normalized.substring(0, dot);
+        }
+        return normalized;
+    }
+
+    private static boolean matchesLookupName(String regionName, String lookupName) {
+        return regionName != null && lookupName != null && regionName.equalsIgnoreCase(lookupName);
+    }
+
+    private static int createSpriteEntity(PixscapeEngine engine,
+                                          int assetId,
+                                          String atlasTag,
+                                          float x,
+                                          float y,
+                                          float width,
+                                          float height) {
+        World world = requireWorld(engine);
+        int e = world.create();
+
+        TransformComponent transform = world.edit(e).create(TransformComponent.class);
+        transform.x = x;
+        transform.y = y;
+
+        DimensionsComponent dimensions = world.edit(e).create(DimensionsComponent.class);
+        dimensions.width = width;
+        dimensions.height = height;
+
+        world.edit(e).create(OrientedBoundsComponent.class);
+        world.edit(e).create(AABBComponent.class);
+        VisibilityComponent visibility = world.edit(e).create(VisibilityComponent.class);
+        visibility.visible = true;
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+        world.edit(e).create(EntityIndexComponent.class);
+        world.edit(e).create(LayerComponent.class);
+        world.edit(e).create(TintComponent.class);
+
+        AssetRefComponent assetRef = world.edit(e).create(AssetRefComponent.class);
+        assetRef.assetId = assetId;
+        assetRef.atlasTag = atlasTag;
+
+        TextureRegionComponent textureRegion = world.edit(e).create(TextureRegionComponent.class);
+        RenderMaterialComponent material = world.edit(e).create(RenderMaterialComponent.class);
+
+        resolveSpriteRegion(engine, assetRef, textureRegion, material);
+        markSpawnDirty(world, e);
+        return e;
+    }
+
+    private static void configureDefaultAnimation(PixscapeEngine engine, int entityId, int assetId) {
+        World world = requireWorld(engine);
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
+                ? world.getMapper(AnimationComponent.class).get(entityId)
+                : world.getMapper(AnimationComponent.class).create(entityId);
+
+        // TODO 0.1.4 Studio integration:
+        // When animation assets export clip metadata, load exported clips here instead of
+        // creating a single default clip across every atlas frame.
+        int frameCount = 1;
+        AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
+        String atlasTag = currentAtlasTag(engine);
+        if (atlasService != null) {
+            com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
+            if (regions != null && regions.size > 0) {
+                frameCount = regions.size;
+            }
+        }
+
+        animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, frameCount - 1)));
+        animation.currentClip = "default";
+        animation.playing = true;
+        animation.loop = true;
+        animation.frame = -1;
+        animation.stateTime = 0f;
+        markSpawnDirty(world, entityId);
+    }
+
+    private static int createParticleEntity(PixscapeEngine engine, String effectPathOrName, float x, float y, boolean looping) {
+        if (effectPathOrName == null || effectPathOrName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Particle effect path/name must not be blank.");
+        }
+
+        World world = requireWorld(engine);
+        int e = world.create();
+
+        TransformComponent transform = world.edit(e).create(TransformComponent.class);
+        transform.x = x;
+        transform.y = y;
+        world.edit(e).create(LayerComponent.class);
+        world.edit(e).create(EntityIndexComponent.class);
+        VisibilityComponent visibility = world.edit(e).create(VisibilityComponent.class);
+        visibility.visible = true;
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+
+        ParticleEmitterComponent emitter = world.edit(e).create(ParticleEmitterComponent.class);
+        emitter.effectPath = normalizeEffectPath(effectPathOrName);
+        emitter.atlasTag = currentAtlasTag(engine);
+        emitter.looping = looping;
+        emitter.autoRemoveWhenComplete = !looping;
+        emitter.autoStart = true;
+        emitter.paused = false;
+        emitter.playRequested = true;
+
+        markSpawnDirty(world, e);
+        return e;
+    }
+
+    private static String normalizeEffectPath(String effectPathOrName) {
+        String value = effectPathOrName.trim().replace('\\', '/');
+        return value.endsWith(".p") ? value : value + ".p";
+    }
+
+    private static World requireWorld(PixscapeEngine engine) {
+        World world = engine != null ? engine.getWorld() : null;
+        if (world == null) {
+            throw new IllegalStateException("World is not initialized. Call loadScene() first.");
+        }
+        return world;
+    }
+
+    private static void resolveSpriteRegion(PixscapeEngine engine,
+                                            AssetRefComponent assetRef,
+                                            TextureRegionComponent textureRegion,
+                                            RenderMaterialComponent material) {
+        AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
+        if (atlasService == null) {
+            throw new IllegalArgumentException(
+                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+            );
+        }
+
+        AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetRef.assetId, assetRef.atlasTag);
+        if (cached == null) {
+            throw new IllegalArgumentException(
+                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+            );
+        }
+
+        textureRegion.u1 = cached.u1;
+        textureRegion.v1 = cached.v1;
+        textureRegion.u2 = cached.u2;
+        textureRegion.v2 = cached.v2;
+        textureRegion.pixW = cached.pixW;
+        textureRegion.pixH = cached.pixH;
+        textureRegion.valid = true;
+        material.textureHandle = cached.textureHandle;
+        material.debugAtlasTag = assetRef.atlasTag;
+    }
+
+    private static void markSpawnDirty(World world, int entityId) {
+        DirtyTrackerSystem dirty = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+        if (dirty == null) return;
+        dirty.geometry(entityId, GeometryDirty.ALL);
+        dirty.material(entityId);
+        dirty.color(entityId);
+        dirty.order(entityId);
+        dirty.layer(entityId);
+    }
+
+    static final class ResolvedAsset {
+        final int assetId;
+        final String name;
+        final String atlasTag;
+        final AtlasRuntimeService.CachedRegion cached;
+        final TextureRegion region;
+
+        ResolvedAsset(int assetId,
+                      String name,
+                      String atlasTag,
+                      AtlasRuntimeService.CachedRegion cached,
+                      TextureRegion region) {
+            this.assetId = assetId;
+            this.name = name;
+            this.atlasTag = atlasTag;
+            this.cached = cached;
+            this.region = region;
+        }
     }
 
     static final class EcsApiImpl implements ECSAPI {
@@ -283,6 +545,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public ECSAPI ecs() {
             return ecs;
+        }
+
+        @Override
+        public void remove() {
+            World world = engine.getWorld();
+            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
+            world.delete(entityId);
         }
     }
 
@@ -1025,6 +1294,437 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private boolean has(Class<? extends Component> type) {
             World world = engine.getWorld();
             return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId) && world.getMapper(type).has(entityId);
+        }
+    }
+
+    static final class AssetsApiImpl implements AssetsAPI {
+        private final PixscapeEngine engine;
+
+        AssetsApiImpl(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        @Override
+        public AssetRegionRef region(String name) {
+            ResolvedAsset asset = resolveByName(name);
+            if (asset == null) {
+                throw new IllegalArgumentException(
+                        "Asset '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return new AssetRegionRefImpl(asset);
+        }
+
+        @Override
+        public AssetRegionRef region(int assetId) {
+            ResolvedAsset asset = resolveById(assetId);
+            if (asset == null) {
+                throw new IllegalArgumentException(
+                        "Asset #" + assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return new AssetRegionRefImpl(asset);
+        }
+
+        @Override
+        public boolean contains(String name) {
+            try {
+                return resolveByName(name) != null;
+            } catch (IllegalStateException ex) {
+                return false;
+            }
+        }
+
+        @Override
+        public boolean contains(int assetId) {
+            try {
+                return resolveById(assetId) != null;
+            } catch (IllegalStateException ex) {
+                return false;
+            }
+        }
+
+        ResolvedAsset resolveById(int assetId) {
+            if (assetId < 0) return null;
+            AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
+            if (atlasService == null) return null;
+            String atlasTag = currentAtlasTag(engine);
+            AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
+            if (cached == null) return null;
+            TextureAtlas.AtlasRegion region = firstRegion(atlasService, assetId, atlasTag);
+            if (region == null) {
+                throw new IllegalStateException(
+                        "Asset '#" + assetId + "' is resolved in the current scene atlas but no TextureRegion could be created."
+                );
+            }
+            String name = region != null ? normalizedName(region.name) : cached.regionName;
+            return new ResolvedAsset(assetId, name, atlasTag, cached, region);
+        }
+
+        ResolvedAsset resolveByName(String name) {
+            String normalized = normalizeLookupName(name);
+            if (normalized == null) return null;
+            AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
+            if (atlasService == null) return null;
+            String atlasTag = currentAtlasTag(engine);
+            TextureAtlas atlas = atlasService.getAtlas(atlasTag);
+            if (atlas == null) return null;
+
+            Array<TextureAtlas.AtlasRegion> regions = atlas.getRegions();
+            for (int i = 0; i < regions.size; i++) {
+                TextureAtlas.AtlasRegion region = regions.get(i);
+                int assetId = assetIdFromRegionName(region.name);
+                if (assetId < 0) continue;
+                String regionName = normalizedName(region.name);
+                if (matchesLookupName(regionName, normalized)) {
+                    AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
+                    if (cached == null) continue;
+                    if (region == null) {
+                        throw new IllegalStateException(
+                                "Asset '" + name + "' is resolved in the current scene atlas but no TextureRegion could be created."
+                        );
+                    }
+                    return new ResolvedAsset(assetId, regionName, atlasTag, cached, region);
+                }
+            }
+            return null;
+        }
+    }
+
+    static final class AssetRegionRefImpl implements AssetRegionRef {
+        private final ResolvedAsset asset;
+
+        AssetRegionRefImpl(ResolvedAsset asset) {
+            this.asset = asset;
+        }
+
+        @Override
+        public int assetId() {
+            return asset.assetId;
+        }
+
+        @Override
+        public String name() {
+            return asset.name;
+        }
+
+        @Override
+        public TextureRegion region() {
+            return asset.region;
+        }
+
+        @Override
+        public float width() {
+            return asset.cached.pixW;
+        }
+
+        @Override
+        public float height() {
+            return asset.cached.pixH;
+        }
+    }
+
+    static final class SpritesApiImpl implements SpritesAPI {
+        private final PixscapeEngine engine;
+        private final EntitiesAPI entities;
+        private final AssetsAPI assets;
+
+        SpritesApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets) {
+            this.engine = engine;
+            this.entities = entities;
+            this.assets = assets;
+        }
+
+        @Override
+        public SpriteRef spawn(int assetId, float x, float y) {
+            AssetRegionRef region = assets.region(assetId);
+            int entityId = createSpriteEntity(engine, assetId, currentAtlasTag(engine), x, y, region.width(), region.height());
+            return new SpriteRefImpl(entities.ofEntityId(entityId));
+        }
+
+        @Override
+        public SpriteRef spawn(String name, float x, float y) {
+            AssetRegionRef region = assets.region(name);
+            int entityId = createSpriteEntity(engine, region.assetId(), currentAtlasTag(engine), x, y, region.width(), region.height());
+            return new SpriteRefImpl(entities.ofEntityId(entityId));
+        }
+    }
+
+    static final class SpriteRefImpl implements SpriteRef {
+        private final EntityRef entity;
+
+        SpriteRefImpl(EntityRef entity) {
+            this.entity = entity;
+        }
+
+        @Override
+        public int entityId() {
+            return entity.entityId();
+        }
+
+        @Override
+        public EntityRef entity() {
+            return entity;
+        }
+
+        @Override
+        public TransformFacade transform() {
+            return entity.transform();
+        }
+
+        @Override
+        public SpriteFacade sprite() {
+            return entity.sprite();
+        }
+
+        @Override
+        public ShaderFacade shader() {
+            return entity.shader();
+        }
+
+        @Override
+        public SpriteRef position(float x, float y) {
+            transform().setPosition(x, y);
+            return this;
+        }
+
+        @Override
+        public SpriteRef scale(float scale) {
+            transform().setScale(scale);
+            return this;
+        }
+
+        @Override
+        public SpriteRef scale(float sx, float sy) {
+            transform().setScale(sx, sy);
+            return this;
+        }
+
+        @Override
+        public SpriteRef rotationRad(float radians) {
+            transform().setRotationRad(radians);
+            return this;
+        }
+
+        @Override
+        public SpriteRef tint(float r, float g, float b, float a) {
+            sprite().setTint(r, g, b, a);
+            return this;
+        }
+
+        @Override
+        public SpriteRef alpha(float alpha) {
+            sprite().setAlpha(alpha);
+            return this;
+        }
+
+        @Override
+        public SpriteRef shader(String shaderName) {
+            shader().use(shaderName);
+            return this;
+        }
+
+        @Override
+        public void remove() {
+            entity.remove();
+        }
+    }
+
+    static final class AnimationsApiImpl implements AnimationsAPI {
+        private final PixscapeEngine engine;
+        private final EntitiesAPI entities;
+        private final SpritesAPI sprites;
+
+        AnimationsApiImpl(PixscapeEngine engine, EntitiesAPI entities, SpritesAPI sprites) {
+            this.engine = engine;
+            this.entities = entities;
+            this.sprites = sprites;
+        }
+
+        @Override
+        public AnimationRef spawn(int assetId, float x, float y) {
+            SpriteRef sprite = sprites.spawn(assetId, x, y);
+            configureDefaultAnimation(engine, sprite.entityId(), assetId);
+            return new AnimationRefImpl(sprite.entity());
+        }
+
+        @Override
+        public AnimationRef spawn(String name, float x, float y) {
+            SpriteRef sprite = sprites.spawn(name, x, y);
+            configureDefaultAnimation(engine, sprite.entityId(), sprite.sprite().assetId());
+            return new AnimationRefImpl(sprite.entity());
+        }
+
+        @Override
+        public AnimationFacade get(EntityRef entity) {
+            if (entity == null) throw new IllegalArgumentException("entity must not be null");
+            return entity.animation();
+        }
+    }
+
+    static final class AnimationRefImpl implements AnimationRef {
+        private final EntityRef entity;
+
+        AnimationRefImpl(EntityRef entity) {
+            this.entity = entity;
+        }
+
+        @Override
+        public int entityId() {
+            return entity.entityId();
+        }
+
+        @Override
+        public EntityRef entity() {
+            return entity;
+        }
+
+        @Override
+        public TransformFacade transform() {
+            return entity.transform();
+        }
+
+        @Override
+        public SpriteFacade sprite() {
+            return entity.sprite();
+        }
+
+        @Override
+        public AnimationFacade animation() {
+            return entity.animation();
+        }
+
+        @Override
+        public ShaderFacade shader() {
+            return entity.shader();
+        }
+
+        @Override
+        public AnimationRef play() {
+            animation().play();
+            return this;
+        }
+
+        @Override
+        public AnimationRef play(String clip) {
+            animation().play(clip);
+            return this;
+        }
+
+        @Override
+        public AnimationRef loop(boolean loop) {
+            animation().setLoop(loop);
+            return this;
+        }
+
+        @Override
+        public AnimationRef fps(float fps) {
+            animation().setFps(fps);
+            return this;
+        }
+
+        @Override
+        public AnimationRef scale(float scale) {
+            transform().setScale(scale);
+            return this;
+        }
+
+        @Override
+        public AnimationRef rotationRad(float radians) {
+            transform().setRotationRad(radians);
+            return this;
+        }
+
+        @Override
+        public void remove() {
+            entity.remove();
+        }
+    }
+
+    static final class ParticlesApiImpl implements ParticlesAPI {
+        private final PixscapeEngine engine;
+        private final EntitiesAPI entities;
+
+        ParticlesApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
+            this.engine = engine;
+            this.entities = entities;
+        }
+
+        @Override
+        public ParticleRef spawn(String effectPathOrName, float x, float y) {
+            int entityId = createParticleEntity(engine, effectPathOrName, x, y, true);
+            return new ParticleRefImpl(entities.ofEntityId(entityId));
+        }
+
+        @Override
+        public ParticleRef oneshot(String effectPathOrName, float x, float y) {
+            int entityId = createParticleEntity(engine, effectPathOrName, x, y, false);
+            EntityRef ref = entities.ofEntityId(entityId);
+            ref.particles().restart();
+            return new ParticleRefImpl(ref);
+        }
+    }
+
+    static final class ParticleRefImpl implements ParticleRef {
+        private final EntityRef entity;
+
+        ParticleRefImpl(EntityRef entity) {
+            this.entity = entity;
+        }
+
+        @Override
+        public int entityId() {
+            return entity.entityId();
+        }
+
+        @Override
+        public EntityRef entity() {
+            return entity;
+        }
+
+        @Override
+        public TransformFacade transform() {
+            return entity.transform();
+        }
+
+        @Override
+        public ParticleFacade particles() {
+            return entity.particles();
+        }
+
+        @Override
+        public ParticleRef play() {
+            particles().play();
+            return this;
+        }
+
+        @Override
+        public ParticleRef pause() {
+            particles().pause();
+            return this;
+        }
+
+        @Override
+        public ParticleRef stop() {
+            particles().stop();
+            return this;
+        }
+
+        @Override
+        public ParticleRef loop(boolean loop) {
+            particles().setLooping(loop);
+            return this;
+        }
+
+        @Override
+        public ParticleRef scale(float scale) {
+            transform().setScale(scale);
+            return this;
+        }
+
+        @Override
+        public void remove() {
+            entity.remove();
         }
     }
 

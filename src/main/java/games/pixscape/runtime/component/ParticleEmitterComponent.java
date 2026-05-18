@@ -34,6 +34,11 @@ public final class ParticleEmitterComponent extends PooledComponent {
      */
     public boolean looping = true;
 
+    /**
+     * Runtime one-shot lifecycle helper. Scene-authored emitters keep this false.
+     */
+    public boolean autoRemoveWhenComplete = false;
+
     public boolean paused = false;
     public boolean playRequested = false;
     public boolean restartRequested = false;
@@ -47,6 +52,7 @@ public final class ParticleEmitterComponent extends PooledComponent {
         atlasTag = "";
         localSpace = true;
         looping = true;
+        autoRemoveWhenComplete = false;
         autoStart = true;
         paused = false;
         playRequested = false;

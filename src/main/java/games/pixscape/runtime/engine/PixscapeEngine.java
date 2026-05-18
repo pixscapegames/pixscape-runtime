@@ -518,6 +518,13 @@ public final class PixscapeEngine {
         return atlasRuntimeService;
     }
 
+    public String getCurrentSceneAtlasTag() {
+        if (cfg == null) return "main";
+        SceneMetaRuntime meta = cfg.getCurrentSceneMeta();
+        String sceneTag = RuntimeConfig.sceneDirName(meta);
+        return sceneTag == null || isBlank(sceneTag) ? "main" : sceneTag;
+    }
+
     public String getDefaultShaderName() {
         return defaultShaderName;
     }
