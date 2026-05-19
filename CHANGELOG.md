@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.4]
+
+### Added
+- Added the high-level `PixscapeAPI` runtime entry point with dedicated accessors for assets, sprites, animations, particles, tiled maps, prefabs, entities, and expert ECS usage.
+- Added runtime asset lookup through `AssetsAPI`, including atlas region resolution by asset name or asset id.
+- Added sprite spawning through `SpritesAPI`, with fluent `SpriteRef` controls for transform, tint, alpha, shader, and removal.
+- Added animation spawning through `AnimationsAPI`, with `AnimationRef` controls for playback, clips, looping, FPS, transform, shader, and removal.
+- Added runtime animation definition loading, animation clip data, and `AnimationRegistry` support for exported animation assets.
+- Added particle spawning through `ParticlesAPI`, including regular and one-shot particle effects.
+- Added tiled animation registry APIs for lookup, registration, replacement, removal, and clearing of animated tile definitions.
+- Added tiled layer editing helpers for setting static or animated tiles by asset id or animation name.
+- Added public Javadoc coverage for the new runtime API surface.
+
+### Changed
+- Extended `PixscapeEngine` to expose and back the new runtime API facade.
+- Updated runtime project loading to read exported animation metadata alongside scene and atlas data.
+- Improved tiled map runtime editing so tile changes keep animated-cell playback state in sync.
+- Extended GWT module configuration for the new API, animation, and tiled runtime support.
+
+### Fixed
+- Avoided ECS lockups during tiled map edits by extending tiled APIs to mutate runtime tile data through dedicated facades.
+- Preserved tile animation definitions and lookup behavior when loading runtime projects.
+- Expanded API, animation loading, and tile animation tests for the 0.1.4 runtime surface.
+
 ## [0.1.3]
 
 ### Breaking changes
