@@ -199,6 +199,7 @@ public final class RuntimeProjectIO {
 
             TileAnimationDefData def = new TileAnimationDefData();
             def.id = node.getInt("id", 0);
+            def.name = node.getString("name", null);
             def.frameAssetIds = readIntArray(node.get("frameAssetIds"));
             def.frameDurationsMs = readIntArray(node.get("frameDurationsMs"));
 

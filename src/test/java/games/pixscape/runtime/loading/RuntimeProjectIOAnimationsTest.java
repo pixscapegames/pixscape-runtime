@@ -2,6 +2,7 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.service.AnimationRegistry;
+import games.pixscape.runtime.service.TileAnimationRegistry;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +36,22 @@ public class RuntimeProjectIOAnimationsTest {
         Assert.assertNotNull(registry.getByName("hero"));
         Assert.assertEquals(2, registry.getByAssetId(123).clips().size);
         Assert.assertTrue(registry.getByAssetId(123).clips().get(1).flipX);
+    }
+
+    @Test
+    public void tileAnimationsJsonLoadsNames() throws Exception {
+        File dir = makeTempDir("pixscape-runtime-tiled-animations");
+        File file = new File(dir, "tiled-animations.json");
+        FileWriter writer = new FileWriter(file);
+        writer.write("{\"animations\":[{\"id\":100,\"name\":\"test\",\"frameAssetIds\":[101,102],\"frameDurationsMs\":[100,100]}]}");
+        writer.close();
+
+        TileAnimationRegistry registry = new TileAnimationRegistry();
+        RuntimeProjectIO.loadTileAnimations(new FileHandle(dir), registry);
+
+        Assert.assertEquals(1, registry.size());
+        Assert.assertTrue(registry.containsName("test"));
+        Assert.assertEquals(100, registry.idByName("test"));
     }
 
     private static File makeTempDir(String prefix) {

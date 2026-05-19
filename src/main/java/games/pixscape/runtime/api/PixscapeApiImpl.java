@@ -1,10 +1,12 @@
 package games.pixscape.runtime.api;
 
 import com.artemis.BaseSystem;
+import com.artemis.Aspect;
 import com.artemis.Component;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.io.SaveFileFormat;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -1811,6 +1813,93 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public TiledLayerRef ofLayerIndex(int layerIndex) {
+            return layer(layerIndex);
+        }
+
+        @Override
+        public TiledLayerRef ofLayerName(String name) {
+            return layer(name);
+        }
+
+        @Override
+        public TiledLayerRef layer(int layerIndex) {
+            World world = engine.getWorld();
+            if (world == null) {
+                throw new IllegalStateException("Cannot resolve tiled layer index " + layerIndex + ": world is not loaded.");
+            }
+
+            ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
+            ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
+            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(LayerComponent.class)).getEntities();
+            int[] data = bag.getData();
+            boolean foundLayerIndex = false;
+
+            for (int i = 0, n = bag.size(); i < n; i++) {
+                int entityId = data[i];
+                if (!world.getEntityManager().isActive(entityId)) continue;
+
+                LayerComponent layer = layers.get(entityId);
+                if (layer.layerIndex != layerIndex) continue;
+
+                foundLayerIndex = true;
+                if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId)) {
+                    TiledLayerRef ref = ofEntityId(entityId);
+                    if (ref.exists()) return ref;
+                }
+            }
+
+            if (foundLayerIndex) {
+                throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
+            }
+            throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
+        }
+
+        @Override
+        public TiledLayerRef layer(String name) {
+            String normalizedName = normalizeLookupName(name);
+            if (isBlank(normalizedName)) {
+                throw new IllegalArgumentException("Tiled layer name must not be blank.");
+            }
+
+            World world = engine.getWorld();
+            if (world == null) {
+                throw new IllegalStateException("Cannot resolve tiled layer name '" + name + "': world is not loaded.");
+            }
+
+            ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
+            ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
+            ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
+            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities();
+            int[] data = bag.getData();
+            int match = -1;
+            int matchCount = 0;
+
+            for (int i = 0, n = bag.size(); i < n; i++) {
+                int entityId = data[i];
+                if (!world.getEntityManager().isActive(entityId) || !tiledLayers.has(entityId)) continue;
+                if (layers.has(entityId) && layers.get(entityId).type != LayerComponent.TYPE_TILED) continue;
+
+                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+                String layerName = identity != null ? normalizeLookupName(identity.name) : null;
+                if (!normalizedName.equals(layerName)) continue;
+
+                TiledLayerRef ref = ofEntityId(entityId);
+                if (!ref.exists()) continue;
+
+                match = entityId;
+                matchCount++;
+            }
+
+            if (matchCount == 1) return ofEntityId(match);
+            if (matchCount > 1) {
+                throw new IllegalArgumentException("Tiled layer name '" + name + "' is ambiguous (" + matchCount
+                        + " tiled layers match). Use layer(index) instead.");
+            }
+            throw new IllegalArgumentException("No tiled layer exists for name '" + name + "'.");
+        }
+
+        @Override
         public TiledLayerRef requireEntityId(int entityId) {
             TiledLayerRef ref = ofEntityId(entityId);
             if (!ref.exists())
@@ -2100,6 +2189,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public TileEditFacade set(int x, int y, String animationName) {
+            return setAnimated(x, y, animationName);
+        }
+
+        @Override
+        public TileEditFacade setAnimated(int x, int y, String animationName) {
+            int animationId = engine.getAnimatedTileRegistry().idByName(animationName);
+            mutateCell(x, y, animationId, TileTransformFlags.NONE);
+            return this;
+        }
+
+        @Override
         public TileEditFacade clear(int x, int y) {
             mutateCell(x, y, 0, TileTransformFlags.NONE);
             return this;
@@ -2203,8 +2304,26 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean contains(String name) {
+            return engine.getAnimatedTileRegistry().containsName(name);
+        }
+
+        @Override
+        public int animationId(String name) {
+            return engine.getAnimatedTileRegistry().idByName(name);
+        }
+
+        @Override
         public TileAnimationDefView get(int animatedTileAssetId) {
             TileAnimationDef def = engine.getAnimatedTileRegistry().get(animatedTileAssetId);
+            if (def == null) return null;
+            reusableView.bind(def);
+            return reusableView;
+        }
+
+        @Override
+        public TileAnimationDefView get(String name) {
+            TileAnimationDef def = engine.getAnimatedTileRegistry().getByName(name);
             if (def == null) return null;
             reusableView.bind(def);
             return reusableView;

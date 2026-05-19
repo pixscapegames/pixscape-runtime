@@ -14,6 +14,10 @@ public interface TiledAnimationsAPI {
      */
     boolean contains(int animatedTileAssetId);
 
+    boolean contains(String name);
+
+    int animationId(String name);
+
     /**
      * Returns a read-only definition view for the asset id, or {@code null} when absent.
      *
@@ -21,6 +25,8 @@ public interface TiledAnimationsAPI {
      * Read needed values immediately and do not retain it as a stable snapshot.</p>
      */
     TileAnimationDefView get(int animatedTileAssetId);
+
+    TileAnimationDefView get(String name);
 
     /**
      * Registers or replaces an animated tile definition.

@@ -17,6 +17,7 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import org.junit.Assert;
 import org.junit.Test;
@@ -202,6 +203,110 @@ public class PixscapeApiV1Test {
         ref.tiles().hLine(0, 2, 3, 100).vLine(2, 0, 3, 100).markAllDirty();
         ref.map().setOrigin(3f, 4f).setVisible(false).setCollisionEnabled(false).resize(3, 3);
         Assert.assertEquals(3, ref.map().width());
+    }
+
+    @Test
+    public void tiledLayerResolvesByVisualLayerIndex() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int tiled = createTiledLayer(engine, 3, "new layer");
+
+        TiledLayerRef ref = engine.api().tiled().layer(3);
+
+        Assert.assertEquals(tiled, ref.entityId());
+        Assert.assertTrue(ref.exists());
+    }
+
+    @Test
+    public void tiledLayerResolvesByName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int tiled = createTiledLayer(engine, 3, "new layer");
+
+        TiledLayerRef ref = engine.api().tiled().layer("new layer");
+
+        Assert.assertEquals(tiled, ref.entityId());
+        Assert.assertTrue(ref.exists());
+    }
+
+    @Test
+    public void tiledLayerNameRejectsAmbiguousMatches() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+        createTiledLayer(engine, 4, "new layer");
+
+        try {
+            engine.api().tiled().layer("new layer");
+            Assert.fail("Expected ambiguous tiled layer name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("ambiguous"));
+            Assert.assertTrue(expected.getMessage().contains("layer(index)"));
+        }
+    }
+
+    @Test
+    public void tiledLayerIndexRejectsNonTiledLayer() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int e = world.create();
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = 3;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        world.process();
+
+        try {
+            engine.api().tiled().layer(3);
+            Assert.fail("Expected non-tiled layer index to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("does not designate a tiled layer"));
+        }
+    }
+
+    @Test
+    public void tiledLayerIndexRejectsMissingLayer() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+
+        try {
+            engine.api().tiled().layer(99);
+            Assert.fail("Expected missing tiled layer index to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("No tiled layer exists for layer index 99"));
+        }
+    }
+
+    @Test
+    public void tiledLayerApiSetsStaticTileId() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+
+        engine.api().tiled().layer(3).tiles().set(0, 0, 5);
+
+        Assert.assertEquals(5, engine.api().tiled().layer(3).tiles().get(0, 0));
+    }
+
+    @Test
+    public void tiledLayerApiSetsAnimationByName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(100, "test", new int[]{101, 102}, new int[]{100, 100}));
+
+        engine.api().tiled().layer(3).tiles().set(1, 0, "test");
+
+        TiledLayerRef ref = engine.api().tiled().layer(3);
+        Assert.assertEquals(100, ref.tiles().get(1, 0));
+        Assert.assertTrue(ref.tileAnimations().isAnimated(1, 0));
+        Assert.assertEquals(100, engine.api().tiled().animations().animationId("test"));
+    }
+
+    @Test
+    public void tiledLayerApiRejectsUnknownAnimationName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+
+        try {
+            engine.api().tiled().layer(3).tiles().set(1, 0, "missing");
+            Assert.fail("Expected unknown tiled animation name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Unknown tiled animation name 'missing'"));
+        }
     }
 
     @Test
@@ -486,6 +591,37 @@ public class PixscapeApiV1Test {
 
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
+    }
+
+    private static int createTiledLayer(PixscapeEngine engine, int layerIndex, String name) {
+        World world = engine.getWorld();
+        int e = world.create();
+
+        PixscapeIdentityComponent identity = world.edit(e).create(PixscapeIdentityComponent.class);
+        identity.name = name;
+
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = layerIndex;
+        layer.type = LayerComponent.TYPE_TILED;
+
+        TiledLayerComponent tiled = world.edit(e).create(TiledLayerComponent.class);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
+        tiled.data.initSlotRange(0, 16);
+
+        world.process();
+        return e;
+    }
+
+    private static TileAnimationDefData tileAnimationData(int id,
+                                                          String name,
+                                                          int[] frameAssetIds,
+                                                          int[] frameDurationsMs) {
+        TileAnimationDefData def = new TileAnimationDefData();
+        def.id = id;
+        def.name = name;
+        def.frameAssetIds = frameAssetIds;
+        def.frameDurationsMs = frameDurationsMs;
+        return def;
     }
 
     private static PixscapeEngine setupEngineWithWorld(ProcessCounterSystem processCounter) throws Exception {
