@@ -16,6 +16,10 @@
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
+    <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.physics.box2d.Body"/>
+    <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.physics.box2d.Joint"/>
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.physics.box2d.Body"/>
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.physics.box2d.Joint"/>
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.tiled"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>

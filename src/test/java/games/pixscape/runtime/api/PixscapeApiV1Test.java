@@ -3,15 +3,21 @@ package games.pixscape.runtime.api;
 import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import org.junit.Assert;
 import org.junit.Test;
@@ -200,6 +206,110 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void tiledLayerResolvesByVisualLayerIndex() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int tiled = createTiledLayer(engine, 3, "new layer");
+
+        TiledLayerRef ref = engine.api().tiled().layer(3);
+
+        Assert.assertEquals(tiled, ref.entityId());
+        Assert.assertTrue(ref.exists());
+    }
+
+    @Test
+    public void tiledLayerResolvesByName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int tiled = createTiledLayer(engine, 3, "new layer");
+
+        TiledLayerRef ref = engine.api().tiled().layer("new layer");
+
+        Assert.assertEquals(tiled, ref.entityId());
+        Assert.assertTrue(ref.exists());
+    }
+
+    @Test
+    public void tiledLayerNameRejectsAmbiguousMatches() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+        createTiledLayer(engine, 4, "new layer");
+
+        try {
+            engine.api().tiled().layer("new layer");
+            Assert.fail("Expected ambiguous tiled layer name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("ambiguous"));
+            Assert.assertTrue(expected.getMessage().contains("layer(index)"));
+        }
+    }
+
+    @Test
+    public void tiledLayerIndexRejectsNonTiledLayer() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int e = world.create();
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = 3;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        world.process();
+
+        try {
+            engine.api().tiled().layer(3);
+            Assert.fail("Expected non-tiled layer index to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("does not designate a tiled layer"));
+        }
+    }
+
+    @Test
+    public void tiledLayerIndexRejectsMissingLayer() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+
+        try {
+            engine.api().tiled().layer(99);
+            Assert.fail("Expected missing tiled layer index to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("No tiled layer exists for layer index 99"));
+        }
+    }
+
+    @Test
+    public void tiledLayerApiSetsStaticTileId() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+
+        engine.api().tiled().layer(3).tiles().set(0, 0, 5);
+
+        Assert.assertEquals(5, engine.api().tiled().layer(3).tiles().get(0, 0));
+    }
+
+    @Test
+    public void tiledLayerApiSetsAnimationByName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(100, "test", new int[]{101, 102}, new int[]{100, 100}));
+
+        engine.api().tiled().layer(3).tiles().set(1, 0, "test");
+
+        TiledLayerRef ref = engine.api().tiled().layer(3);
+        Assert.assertEquals(100, ref.tiles().get(1, 0));
+        Assert.assertTrue(ref.tileAnimations().isAnimated(1, 0));
+        Assert.assertEquals(100, engine.api().tiled().animations().animationId("test"));
+    }
+
+    @Test
+    public void tiledLayerApiRejectsUnknownAnimationName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createTiledLayer(engine, 3, "new layer");
+
+        try {
+            engine.api().tiled().layer(3).tiles().set(1, 0, "missing");
+            Assert.fail("Expected unknown tiled animation name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Unknown tiled animation name 'missing'"));
+        }
+    }
+
+    @Test
     public void ecsExpertAccessAndLightFacade() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -267,8 +377,251 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(5, first.frameAssetId(2));
     }
 
+    @Test
+    public void assetsRegionResolvesKnownAssetId() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+
+        AssetRegionRef region = engine.api().assets().region(42);
+
+        Assert.assertEquals(42, region.assetId());
+        Assert.assertNotNull(region);
+        Assert.assertNotNull(region.region());
+        Assert.assertEquals(16f, region.width(), 0.0001f);
+        Assert.assertEquals(24f, region.height(), 0.0001f);
+        Assert.assertTrue(engine.api().assets().contains(42));
+        Assert.assertFalse(engine.api().assets().contains(99));
+    }
+
+    @Test
+    public void assetsRegionResolvedWithoutTextureRegionFailsClearly() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, false));
+
+        try {
+            engine.api().assets().region(42);
+            Assert.fail("Expected resolved asset without TextureRegion to fail");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("no TextureRegion could be created"));
+        }
+    }
+
+    @Test
+    public void spritesSpawnCreatesRenderableEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        World world = engine.getWorld();
+
+        SpriteRef ref = engine.api().sprites().spawn(42, 10f, 20f);
+
+        Assert.assertTrue(world.getEntityManager().isActive(ref.entityId()));
+        Assert.assertTrue(world.getMapper(TransformComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(DimensionsComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(AssetRefComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(TextureRegionComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(RenderMaterialComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(VisibilityComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(LayerComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(EntityIndexComponent.class).has(ref.entityId()));
+
+        Assert.assertEquals(10f, ref.transform().x(), 0.0001f);
+        Assert.assertEquals(20f, ref.transform().y(), 0.0001f);
+        Assert.assertEquals(42, ref.sprite().assetId());
+        Assert.assertTrue(world.getMapper(TextureRegionComponent.class).get(ref.entityId()).valid);
+        Assert.assertEquals(7, world.getMapper(RenderMaterialComponent.class).get(ref.entityId()).textureHandle);
+    }
+
+    @Test
+    public void spritesSpawnMissingAssetGivesClearError() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+
+        try {
+            engine.api().sprites().spawn(99, 0f, 0f);
+            Assert.fail("Expected missing asset to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Runtime Availability"));
+            Assert.assertTrue(expected.getMessage().contains("current scene atlas"));
+        }
+    }
+
+    @Test
+    public void spriteRefDelegatesTransformSpriteAndShader() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        SpriteRef ref = engine.api().sprites().spawn(42, 0f, 0f)
+                .position(2f, 3f)
+                .scale(2f)
+                .rotationRad(1f)
+                .tint(1f, 0f, 0f, 1f)
+                .alpha(0.5f);
+
+        Assert.assertEquals(2f, ref.transform().x(), 0.0001f);
+        Assert.assertEquals(3f, ref.transform().y(), 0.0001f);
+        Assert.assertEquals(2f, ref.transform().scaleX(), 0.0001f);
+        Assert.assertEquals(1f, ref.transform().rotationRad(), 0.0001f);
+        Assert.assertSame(ref.entity(), ref.entity());
+        Assert.assertNotNull(ref.shader());
+    }
+
+    @Test
+    public void highLevelRefsRemoveThroughEntityRefAndAreIdempotent() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        World world = engine.getWorld();
+
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        int spriteEntity = sprite.entityId();
+        sprite.remove();
+        sprite.remove();
+        world.process();
+        Assert.assertFalse(world.getEntityManager().isActive(spriteEntity));
+
+        AnimationRef animation = engine.api().animations().spawn(42, 0f, 0f);
+        int animationEntity = animation.entityId();
+        animation.remove();
+        animation.remove();
+        world.process();
+        Assert.assertFalse(world.getEntityManager().isActive(animationEntity));
+
+        ParticleRef particle = engine.api().particles().spawn("impact", 0f, 0f);
+        int particleEntity = particle.entityId();
+        particle.remove();
+        particle.remove();
+        world.process();
+        Assert.assertFalse(world.getEntityManager().isActive(particleEntity));
+    }
+
+    @Test
+    public void particlesSpawnCreatesParticleEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().spawn("impact", 5f, 6f);
+        World world = engine.getWorld();
+
+        Assert.assertTrue(world.getMapper(TransformComponent.class).has(ref.entityId()));
+        Assert.assertTrue(world.getMapper(ParticleEmitterComponent.class).has(ref.entityId()));
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).get(ref.entityId());
+        Assert.assertEquals("impact.p", emitter.effectPath);
+        Assert.assertTrue(emitter.looping);
+        Assert.assertFalse(emitter.autoRemoveWhenComplete);
+        Assert.assertTrue(emitter.playRequested);
+
+        ref.loop(false).pause().play().scale(3f);
+        Assert.assertFalse(emitter.looping);
+        Assert.assertEquals(3f, ref.transform().scaleX(), 0.0001f);
+    }
+
+    @Test
+    public void particlesOneshotCreatesNonLoopingParticleEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().oneshot("impact.p", 1f, 2f);
+        ParticleEmitterComponent emitter = engine.getWorld().getMapper(ParticleEmitterComponent.class).get(ref.entityId());
+
+        Assert.assertEquals("impact.p", emitter.effectPath);
+        Assert.assertFalse(emitter.looping);
+        Assert.assertTrue(emitter.autoRemoveWhenComplete);
+        Assert.assertTrue(emitter.restartRequested);
+    }
+
+    @Test
+    public void animationsSpawnCreatesAnimatedEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f)
+                .fps(18f)
+                .loop(false)
+                .play();
+
+        World world = engine.getWorld();
+        Assert.assertTrue(world.getMapper(AnimationComponent.class).has(ref.entityId()));
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).get(ref.entityId());
+        Assert.assertEquals("default", animation.currentClip);
+        Assert.assertNotNull(animation.clips.get("default"));
+        Assert.assertEquals(18f, animation.fps, 0.0001f);
+        Assert.assertFalse(animation.loop);
+        Assert.assertTrue(animation.playing);
+        Assert.assertSame(ref.animation(), engine.api().animations().get(ref.entity()));
+    }
+
+    @Test
+    public void animationsSpawnAssetIdUsesRegistryClips() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f);
+
+        AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
+        Assert.assertEquals("idle", animation.currentClip);
+        Assert.assertEquals(12f, animation.fps, 0.0001f);
+        Assert.assertNotNull(animation.clips.get("attack"));
+        Assert.assertEquals(4, animation.clips.get("attack").start);
+        Assert.assertEquals(7, animation.clips.get("attack").end);
+        Assert.assertTrue(animation.clips.get("attack").flipX);
+    }
+
+    @Test
+    public void animationsSpawnNameUsesRegistryClipsAndPlaySelectsClip() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        AnimationRef ref = engine.api().animations().spawn("hero", 7f, 8f).play("attack");
+
+        AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
+        Assert.assertEquals("attack", animation.currentClip);
+        Assert.assertTrue(animation.playing);
+        Assert.assertEquals(4, animation.clips.get("attack").start);
+    }
+
+    @Test
+    public void animationsSpawnRegistryNameMissingFromAtlasGivesAnimationError() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(99, true));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
+
+        try {
+            engine.api().animations().spawn("hero", 0f, 0f);
+            Assert.fail("Expected unavailable registered animation to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Animation 'hero'"));
+            Assert.assertTrue(expected.getMessage().contains("Runtime Availability"));
+        }
+    }
+
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
+    }
+
+    private static int createTiledLayer(PixscapeEngine engine, int layerIndex, String name) {
+        World world = engine.getWorld();
+        int e = world.create();
+
+        PixscapeIdentityComponent identity = world.edit(e).create(PixscapeIdentityComponent.class);
+        identity.name = name;
+
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = layerIndex;
+        layer.type = LayerComponent.TYPE_TILED;
+
+        TiledLayerComponent tiled = world.edit(e).create(TiledLayerComponent.class);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
+        tiled.data.initSlotRange(0, 16);
+
+        world.process();
+        return e;
+    }
+
+    private static TileAnimationDefData tileAnimationData(int id,
+                                                          String name,
+                                                          int[] frameAssetIds,
+                                                          int[] frameDurationsMs) {
+        TileAnimationDefData def = new TileAnimationDefData();
+        def.id = id;
+        def.name = name;
+        def.frameAssetIds = frameAssetIds;
+        def.frameDurationsMs = frameDurationsMs;
+        return def;
     }
 
     private static PixscapeEngine setupEngineWithWorld(ProcessCounterSystem processCounter) throws Exception {
@@ -285,10 +638,84 @@ public class PixscapeApiV1Test {
         return engine;
     }
 
-    private static void setField(PixscapeEngine engine, String fieldName, Object value) throws Exception {
-        Field field = PixscapeEngine.class.getDeclaredField(fieldName);
+    private static void setField(Object target, String fieldName, Object value) throws Exception {
+        Class<?> type = target.getClass();
+        Field field = null;
+        while (type != null && field == null) {
+            try {
+                field = type.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                type = type.getSuperclass();
+            }
+        }
+        if (field == null) throw new NoSuchFieldException(fieldName);
         field.setAccessible(true);
-        field.set(engine, value);
+        field.set(target, value);
+    }
+
+    private static AnimationDefData animationDef(int assetId, String name) {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = assetId;
+        def.name = name;
+        def.fps = 12f;
+        def.currentClip = "idle";
+        def.frameCount = 8;
+        def.clips.add(animationClip("idle", 0, 3, false));
+        def.clips.add(animationClip("attack", 4, 7, true));
+        return def;
+    }
+
+    private static AnimationClipDefData animationClip(String name, int start, int end, boolean flipX) {
+        AnimationClipDefData clip = new AnimationClipDefData();
+        clip.name = name;
+        clip.start = start;
+        clip.end = end;
+        clip.flipX = flipX;
+        return clip;
+    }
+
+    private static final class FakeAtlasRuntimeService extends AtlasRuntimeService {
+        private final int availableAssetId;
+        private final boolean includeRegion;
+
+        FakeAtlasRuntimeService(int availableAssetId, boolean includeRegion) {
+            this.availableAssetId = availableAssetId;
+            this.includeRegion = includeRegion;
+        }
+
+        @Override
+        public CachedRegion resolveCached(int assetId, String tag) {
+            if (assetId != availableAssetId) return null;
+            return new CachedRegion("crate__a" + assetId, 0f, 0f, 1f, 1f, 7, 16, 24);
+        }
+
+        @Override
+        public com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
+            com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> out = new com.badlogic.gdx.utils.Array<>();
+            if (assetId == availableAssetId && includeRegion) {
+                out.add(new TextureAtlas.AtlasRegion(new DummyTexture(), 0, 0, 16, 24));
+                out.first().name = "crate__a" + assetId;
+                out.first().packedWidth = 16;
+                out.first().packedHeight = 24;
+            }
+            return out;
+        }
+    }
+
+    private static final class DummyTexture extends Texture {
+        DummyTexture() {
+            super();
+        }
+
+        @Override
+        public int getWidth() {
+            return 16;
+        }
+
+        @Override
+        public int getHeight() {
+            return 24;
+        }
     }
 
     private static final class ProcessCounterSystem extends BaseSystem {

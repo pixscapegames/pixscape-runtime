@@ -44,6 +44,7 @@ public final class TileAnimationDef {
 
         TileAnimationDefData copy = new TileAnimationDefData();
         copy.id = source.id;
+        copy.name = source.name;
         copy.frameAssetIds = Arrays.copyOf(source.frameAssetIds, source.frameAssetIds.length);
         copy.frameDurationsMs = Arrays.copyOf(source.frameDurationsMs, source.frameDurationsMs.length);
 
@@ -53,6 +54,10 @@ public final class TileAnimationDef {
 
     public int id() {
         return data.id;
+    }
+
+    public String name() {
+        return data.name;
     }
 
     public int frameCount() {
@@ -86,6 +91,7 @@ public final class TileAnimationDef {
     public TileAnimationDefData toDataCopy() {
         TileAnimationDefData out = new TileAnimationDefData();
         out.id = data.id;
+        out.name = data.name;
         out.frameAssetIds = Arrays.copyOf(data.frameAssetIds, data.frameAssetIds.length);
         out.frameDurationsMs = Arrays.copyOf(data.frameDurationsMs, data.frameDurationsMs.length);
         return out;

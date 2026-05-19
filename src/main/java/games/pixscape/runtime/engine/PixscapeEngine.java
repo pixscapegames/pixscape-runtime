@@ -74,6 +74,7 @@ public final class PixscapeEngine {
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
+    private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
     private PixscapeAPI publicApi;
 
@@ -145,6 +146,7 @@ public final class PixscapeEngine {
         }
 
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
+        RuntimeProjectIO.loadAnimations(runtimeProjectDir, animationRegistry);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
 
         if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
@@ -399,6 +401,10 @@ public final class PixscapeEngine {
         return animatedTileRegistry;
     }
 
+    public AnimationRegistry getAnimationRegistry() {
+        return animationRegistry;
+    }
+
     /**
      * Returns the high-level API facade for runtime gameplay access.
      *
@@ -516,6 +522,13 @@ public final class PixscapeEngine {
 
     public AtlasRuntimeService getAtlasRuntimeService() {
         return atlasRuntimeService;
+    }
+
+    public String getCurrentSceneAtlasTag() {
+        if (cfg == null) return "main";
+        SceneMetaRuntime meta = cfg.getCurrentSceneMeta();
+        String sceneTag = RuntimeConfig.sceneDirName(meta);
+        return sceneTag == null || isBlank(sceneTag) ? "main" : sceneTag;
     }
 
     public String getDefaultShaderName() {

@@ -31,6 +31,8 @@ public interface EntityRef {
 
     LightFacade light();
 
+    void remove();
+
     /**
      * Expert ECS escape hatch.
      *

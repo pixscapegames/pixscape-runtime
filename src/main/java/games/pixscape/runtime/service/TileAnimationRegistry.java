@@ -1,6 +1,7 @@
 package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
@@ -14,6 +15,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 public final class TileAnimationRegistry implements TileAnimationLookup {
 
     private final IntMap<TileAnimationDef> defs = new IntMap<>();
+    private final ObjectMap<String, Integer> idsByName = new ObjectMap<>();
 
     @Override
     public TileAnimationDef get(int assetId) {
@@ -27,7 +29,12 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
         if (def == null) {
             throw new IllegalArgumentException("def must not be null");
         }
+        TileAnimationDef existing = defs.get(def.id());
+        if (existing != null) {
+            unindexName(existing);
+        }
         defs.put(def.id(), def);
+        indexName(def);
     }
 
     /**
@@ -55,6 +62,10 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
      * Removes a definition for the given logical asset id.
      */
     public void remove(int assetId) {
+        TileAnimationDef existing = defs.get(assetId);
+        if (existing != null) {
+            unindexName(existing);
+        }
         defs.remove(assetId);
     }
 
@@ -63,6 +74,7 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
      */
     public void clear() {
         defs.clear();
+        idsByName.clear();
     }
 
     /**
@@ -70,6 +82,23 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
      */
     public boolean contains(int assetId) {
         return defs.containsKey(assetId);
+    }
+
+    public boolean containsName(String name) {
+        return idByName(name, 0) > 0;
+    }
+
+    public int idByName(String name) {
+        int id = idByName(name, 0);
+        if (id <= 0) {
+            throw new IllegalArgumentException("Unknown tiled animation name '" + name + "'.");
+        }
+        return id;
+    }
+
+    public TileAnimationDef getByName(String name) {
+        int id = idByName(name, 0);
+        return id > 0 ? defs.get(id) : null;
     }
 
     /**
@@ -93,5 +122,33 @@ public final class TileAnimationRegistry implements TileAnimationLookup {
      */
     public IntMap.Entries<TileAnimationDef> entries() {
         return defs.entries();
+    }
+
+    private void indexName(TileAnimationDef def) {
+        String name = normalizeName(def.name());
+        if (name == null) return;
+        idsByName.put(name, def.id());
+    }
+
+    private void unindexName(TileAnimationDef def) {
+        String name = normalizeName(def.name());
+        if (name == null) return;
+        Integer indexedId = idsByName.get(name);
+        if (indexedId != null && indexedId.intValue() == def.id()) {
+            idsByName.remove(name);
+        }
+    }
+
+    private int idByName(String name, int defaultValue) {
+        String normalized = normalizeName(name);
+        if (normalized == null) return defaultValue;
+        Integer id = idsByName.get(normalized);
+        return id != null ? id : defaultValue;
+    }
+
+    private static String normalizeName(String name) {
+        if (name == null) return null;
+        String normalized = name.trim();
+        return normalized.length() == 0 ? null : normalized;
     }
 }

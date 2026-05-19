@@ -159,6 +159,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
                 fx = createEffect(comp);
                 if (fx == null) continue;
                 effects.put(e, fx);
+                applyLooping(fx, comp.looping);
 
                 if (comp.autoStart) fx.start();
             }
@@ -171,10 +172,12 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             }
 
             if (comp.restartRequested) {
+                applyLooping(fx, comp.looping);
                 fx.reset(true, true);
                 comp.restartRequested = false;
             }
             if (comp.playRequested) {
+                applyLooping(fx, comp.looping);
                 fx.start();
                 comp.playRequested = false;
             }
@@ -184,6 +187,13 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
             // simulation
             fx.update(dt);
+
+            if (comp.autoRemoveWhenComplete && fx.isComplete()) {
+                effects.remove(e);
+                fx.free();
+                world.delete(e);
+                continue;
+            }
 
             // culling effect-level : bounding box vs camera
             if (!isEffectVisible(fx)) {
@@ -266,6 +276,17 @@ public final class RenderParticleSyncSystem extends BaseSystem {
         ParticleEffectPool.PooledEffect fx = pool.obtain();
         fx.setEmittersCleanUpBlendFunction(false);
         return fx;
+    }
+
+    private void applyLooping(ParticleEffect fx, boolean looping) {
+        if (fx == null) return;
+        Array<ParticleEmitter> emitters = fx.getEmitters();
+        for (int i = 0, n = emitters.size; i < n; i++) {
+            ParticleEmitter emitter = emitters.get(i);
+            if (emitter != null) {
+                emitter.setContinuous(looping);
+            }
+        }
     }
 
     private boolean isEffectVisible(ParticleEffect fx) {

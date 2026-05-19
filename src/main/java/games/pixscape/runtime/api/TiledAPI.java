@@ -8,6 +8,14 @@ public interface TiledAPI {
 
     TiledLayerRef ofStableId(int stableId);
 
+    TiledLayerRef ofLayerIndex(int layerIndex);
+
+    TiledLayerRef ofLayerName(String name);
+
+    TiledLayerRef layer(int layerIndex);
+
+    TiledLayerRef layer(String name);
+
     TiledLayerRef requireEntityId(int entityId);
 
     TiledLayerRef requireStableId(int stableId);
