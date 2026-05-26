@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.5]
+
+### Fixed
+- Fixed runtime preview culling for isometric tiled maps so chunks entering the top of the viewport are rendered before visible gaps can appear.
+- Expanded isometric tiled culling bounds to account for tall tile sprites that extend beyond their chunk's logical bounds.
+
 ## [0.1.4]
 
 ### Added
