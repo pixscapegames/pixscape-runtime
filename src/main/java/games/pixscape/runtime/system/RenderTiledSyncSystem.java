@@ -112,7 +112,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
                 testedChunkCount++;
 
                 // Final safety overlap check remains required (especially for ISO).
-                boolean inView = viewBounds.overlaps(chunk.bounds);
+                boolean inView = chunkOverlapsView(map, chunk);
                 if (!inView) {
                     if (chunk.visibleLastFrame) {
                         hideChunkSlots(chunk);
@@ -290,10 +290,13 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
         maxTy = Math.max(maxTy, ty);
 
         // Conservative expansion avoids edge misses; overlap test filters extras.
-        minTx -= 1;
-        minTy -= 1;
-        maxTx += 1;
-        maxTy += 1;
+        int tilePadding = map.projection == SceneMetaRuntime.TiledProjection.ISO
+                ? Math.max(1, map.chunkSize)
+                : 1;
+        minTx -= tilePadding;
+        minTy -= tilePadding;
+        maxTx += tilePadding;
+        maxTy += tilePadding;
 
         int clampedMinTx = clamp(minTx, 0, map.mapWidth - 1);
         int clampedMaxTx = clamp(maxTx, 0, map.mapWidth - 1);
@@ -320,6 +323,20 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
         if (value < min) return min;
         if (value > max) return max;
         return value;
+    }
+
+    private boolean chunkOverlapsView(TiledMapLayerData map, TileChunk chunk) {
+        if (map.projection != SceneMetaRuntime.TiledProjection.ISO) {
+            return viewBounds.overlaps(chunk.bounds);
+        }
+
+        float padX = Math.max(map.tileWidth, 0);
+        float padY = Math.max(map.tileHeight * map.chunkSize, map.tileHeight);
+
+        return viewBounds.x < chunk.bounds.x + chunk.bounds.width + padX
+                && viewBounds.x + viewBounds.width > chunk.bounds.x - padX
+                && viewBounds.y < chunk.bounds.y + chunk.bounds.height + padY
+                && viewBounds.y + viewBounds.height > chunk.bounds.y - padY;
     }
 
     private void hideChunkSlots(TileChunk chunk) {
