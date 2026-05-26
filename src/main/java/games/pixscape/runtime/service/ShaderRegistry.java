@@ -566,9 +566,21 @@ public final class ShaderRegistry {
         return coreShaderPath(variant, mode.shaderFileBaseName(), extension);
     }
 
+    private static FileHandle resolveShaderFile(String path) {
+        if (projectShadersRoot != null
+                && path != null
+                && path.startsWith(RuntimeFs.RUNTIME_DIR_SHADERS + "/")) {
+            String rel = path.substring(RuntimeFs.RUNTIME_DIR_SHADERS.length() + 1);
+            FileHandle projectFile = projectShadersRoot.child(rel);
+            if (projectFile.exists()) return projectFile;
+        }
+
+        return Gdx.files.internal(path);
+    }
+
     private static FileHandle getVertexShaderForMode(ShaderMode mode) {
         ShaderVariant variant = getShaderVariant();
-        return Gdx.files.internal(coreShaderPath(variant, mode, ".vert"));
+        return resolveShaderFile(coreShaderPath(variant, mode, ".vert"));
     }
 
     private static void requireModeSupported(ShaderMode mode) {
@@ -598,9 +610,12 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     private static void loadMandatoryCoreDefaultShader(ShaderVariant variant, ShaderMode mode) {
+        String vertPath = coreShaderPath(variant, mode, ".vert");
+        String fragPath = coreShaderPath(variant, mode, ".frag");
+
         ShaderProgram shader = compileShader(
-                coreShaderPath(variant, mode, ".vert"),
-                coreShaderPath(variant, mode, ".frag"),
+                resolveShaderFile(vertPath),
+                resolveShaderFile(fragPath),
                 mode.shaderFileBaseName() + "/" + mode.defaultShaderName(),
                 true
         );
@@ -618,14 +633,14 @@ public final class ShaderRegistry {
         String vertPath = coreShaderPath(variant, mode, ".vert");
         String fragPath = coreShaderPath(variant, mode, ".frag");
 
-        FileHandle vert = Gdx.files.internal(vertPath);
-        FileHandle frag = Gdx.files.internal(fragPath);
+        FileHandle vert = resolveShaderFile(vertPath);
+        FileHandle frag = resolveShaderFile(fragPath);
 
         if (!vert.exists() || !frag.exists()) return;
 
         ShaderProgram shader = compileShader(
-                vertPath,
-                fragPath,
+                vert,
+                frag,
                 mode.shaderFileBaseName() + "/" + mode.defaultShaderName(),
                 false
         );
@@ -645,16 +660,16 @@ public final class ShaderRegistry {
         String vertPath = coreShaderPath(variant, fileBaseName, ".vert");
         String fragPath = coreShaderPath(variant, fileBaseName, ".frag");
 
-        FileHandle vert = Gdx.files.internal(vertPath);
-        FileHandle frag = Gdx.files.internal(fragPath);
+        FileHandle vert = resolveShaderFile(vertPath);
+        FileHandle frag = resolveShaderFile(fragPath);
 
         if (!vert.exists() || !frag.exists()) {
             throw new IllegalStateException("Missing core light shader: " + vertPath + " / " + fragPath);
         }
 
         ShaderProgram shader = compileShader(
-                vertPath,
-                fragPath,
+                vert,
+                frag,
                 "light/" + fileBaseName,
                 true
         );
@@ -791,7 +806,7 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     private static void loadExampleShaders() {
-        FileHandle presets = Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/params.json");
+        FileHandle presets = resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/params.json");
         if (!presets.exists()) return;
 
         JsonValue root = new JsonReader().parse(presets);
@@ -825,7 +840,7 @@ public final class ShaderRegistry {
         }
 
         String variantDir = variantDirName(getShaderVariant());
-        FileHandle categoryVariantDir = Gdx.files.internal(
+        FileHandle categoryVariantDir = resolveShaderFile(
                 RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/" + category + "/" + variantDir
         );
 
