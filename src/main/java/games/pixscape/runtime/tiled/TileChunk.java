@@ -23,6 +23,9 @@ public final class TileChunk {
 
     public int[] assetIds;
     public byte[] transformFlags;
+    public float[] elevations;
+    public float[] heights;
+    public int[] spatialFlags;
 
     // ------------------------------------------------------------
     // Animation state per tile instance (lazy)
@@ -99,6 +102,21 @@ public final class TileChunk {
         return transformFlags[localY * chunkWidth + localX];
     }
 
+    public float getElevation(int localX, int localY) {
+        int index = localY * chunkWidth + localX;
+        return elevations != null ? elevations[index] : 0f;
+    }
+
+    public float getHeight(int localX, int localY) {
+        int index = localY * chunkWidth + localX;
+        return heights != null ? heights[index] : 0f;
+    }
+
+    public int getSpatialFlags(int localX, int localY) {
+        int index = localY * chunkWidth + localX;
+        return spatialFlags != null ? spatialFlags[index] : 0;
+    }
+
     public void set(int localX, int localY, int assetId) {
         set(localX, localY, assetId, TileTransformFlags.NONE);
     }
@@ -135,6 +153,31 @@ public final class TileChunk {
             dirtyLocalIndices.add(index);
         }
 
+        collisionDirty = true;
+    }
+
+    public void setSpatial(int localX, int localY, float elevation, float height, int flags) {
+        if (localX < 0 || localY < 0 ||
+                localX >= chunkWidth || localY >= chunkHeight) {
+            return;
+        }
+
+        int index = localY * chunkWidth + localX;
+
+        if (elevation == 0f && height == 0f && flags == 0
+                && elevations == null && heights == null && spatialFlags == null) {
+            return;
+        }
+
+        ensureSpatialStorage();
+
+        if (elevations[index] == elevation && heights[index] == height && spatialFlags[index] == flags) {
+            return;
+        }
+
+        elevations[index] = elevation;
+        heights[index] = height;
+        spatialFlags[index] = flags;
         collisionDirty = true;
     }
 
@@ -298,6 +341,16 @@ public final class TileChunk {
         animFrameElapsedMs = new int[soaCount];
         animatedMembership = new boolean[soaCount];
         animatedLocalIndices = new IntArray(false, 8);
+    }
+
+    private void ensureSpatialStorage() {
+        if (elevations != null && heights != null && spatialFlags != null) {
+            return;
+        }
+
+        if (elevations == null) elevations = new float[soaCount];
+        if (heights == null) heights = new float[soaCount];
+        if (spatialFlags == null) spatialFlags = new int[soaCount];
     }
 
     private void clearAnimationStateInternal(int localIndex) {

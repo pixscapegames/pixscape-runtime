@@ -222,6 +222,54 @@ public final class TiledMapLayerData {
         chunk.set(lx, ly, assetId, flags);
     }
 
+    public float getTileElevation(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0f;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0f;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.getElevation(lx, ly);
+    }
+
+    public float getTileHeight(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0f;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0f;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.getHeight(lx, ly);
+    }
+
+    public int getTileSpatialFlags(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.getSpatialFlags(lx, ly);
+    }
+
+    public void setTileSpatial(int gx, int gy, float elevation, float height, int flags) {
+        if (!isInside(gx, gy)) return;
+
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+
+        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        if (chunk == null) return;
+
+        int lx = gx - (cx * chunkSize);
+        int ly = gy - (cy * chunkSize);
+
+        chunk.setSpatial(lx, ly, elevation, height, flags);
+    }
+
     // ============================================================
     // DIRTY MANAGEMENT
     // ============================================================
@@ -245,10 +293,16 @@ public final class TiledMapLayerData {
         final class SavedTile {
             final int assetId;
             final byte flags;
+            final float elevation;
+            final float height;
+            final int spatialFlags;
 
-            SavedTile(int assetId, byte flags) {
+            SavedTile(int assetId, byte flags, float elevation, float height, int spatialFlags) {
                 this.assetId = assetId;
                 this.flags = flags;
+                this.elevation = elevation;
+                this.height = height;
+                this.spatialFlags = spatialFlags;
             }
         }
 
@@ -262,9 +316,12 @@ public final class TiledMapLayerData {
                 for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
                     int asset = chunk.get(lx, ly);
-                    if (asset == 0) continue;
-
                     byte flags = chunk.getTransformFlags(lx, ly);
+                    float elevation = chunk.getElevation(lx, ly);
+                    float height = chunk.getHeight(lx, ly);
+                    int spatialFlags = chunk.getSpatialFlags(lx, ly);
+
+                    if (asset == 0 && elevation == 0f && height == 0f && spatialFlags == 0) continue;
 
                     int gx = chunk.chunkX * chunkSize + lx;
                     int gy = chunk.chunkY * chunkSize + ly;
@@ -274,7 +331,7 @@ public final class TiledMapLayerData {
                         col = new IntMap<>();
                         saved.put(gx, col);
                     }
-                    col.put(gy, new SavedTile(asset, flags));
+                    col.put(gy, new SavedTile(asset, flags, elevation, height, spatialFlags));
                 }
             }
         }
@@ -296,6 +353,7 @@ public final class TiledMapLayerData {
 
                 if (isInside(gx, gy)) {
                     setTile(gx, gy, savedTile.assetId, savedTile.flags);
+                    setTileSpatial(gx, gy, savedTile.elevation, savedTile.height, savedTile.spatialFlags);
                 }
             }
         }
@@ -527,16 +585,19 @@ public final class TiledMapLayerData {
     public byte getTileTransformFlags(int gx, int gy) {
         if (!isInside(gx, gy)) return TileTransformFlags.NONE;
 
-        int cx = gx / chunkSize;
-        int cy = gy / chunkSize;
-
-        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        TileChunk chunk = chunkForTile(gx, gy);
         if (chunk == null) return TileTransformFlags.NONE;
 
-        int lx = gx - (cx * chunkSize);
-        int ly = gy - (cy * chunkSize);
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
 
         return chunk.getTransformFlags(lx, ly);
+    }
+
+    private TileChunk chunkForTile(int gx, int gy) {
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+        return chunks.get(packChunk(cx, cy));
     }
 
     public IntMap.Values<TileChunk> getChunks() {

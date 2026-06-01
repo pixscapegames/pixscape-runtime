@@ -870,8 +870,12 @@ public final class PixscapeEngine {
                 int gy = tiled.tileYs.get(t);
                 int assetId = tiled.tileAssetIds.get(t);
                 byte flags = tiled.tileTransformFlags.get(t);
+                float elevation = tiled.sparseTileElevation(t);
+                float height = tiled.sparseTileHeight(t);
+                int spatialFlags = tiled.sparseTileSpatialFlags(t);
 
                 tiled.data.setTile(gx, gy, assetId, flags);
+                tiled.data.setTileSpatial(gx, gy, elevation, height, spatialFlags);
 
                 int cx = gx / tiled.data.chunkSize;
                 int cy = gy / tiled.data.chunkSize;
