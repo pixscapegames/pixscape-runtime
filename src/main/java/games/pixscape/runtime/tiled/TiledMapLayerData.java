@@ -551,9 +551,33 @@ public final class TiledMapLayerData {
     }
 
     /**
+     * Continuous tile-space variant of {@link #tileToWorldX(int, int)}.
+     */
+    public float tileToWorldX(float gx, float gy) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return originX + gx * tileWidth;
+        }
+
+        float halfW = tileWidth * 0.5f;
+        return originX + (gx - gy) * halfW;
+    }
+
+    /**
      * Top-left of render rect.
      */
     public float tileToWorldY(int gx, int gy) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return originY + gy * tileHeight;
+        }
+
+        float halfH = tileHeight * 0.5f;
+        return originY + (gx + gy) * halfH;
+    }
+
+    /**
+     * Continuous tile-space variant of {@link #tileToWorldY(int, int)}.
+     */
+    public float tileToWorldY(float gx, float gy) {
         if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
             return originY + gy * tileHeight;
         }
