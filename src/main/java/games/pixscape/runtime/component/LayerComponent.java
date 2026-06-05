@@ -11,10 +11,12 @@ public final class LayerComponent extends PooledComponent {
 
     public int layerIndex = 0;
     public int type = TYPE_CLASSIC;
+    public boolean spatialEnabled = false;
 
     @Override
     protected void reset() {
         layerIndex = 0;
         type = TYPE_CLASSIC;
+        spatialEnabled = false;
     }
 }

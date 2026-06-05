@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 public final class SpatialVolume {
     public float worldX;
     public float worldY;
-    public float elevation;
+    public float altitude;
     public float height;
     public float footprintMinX;
     public float footprintMinY;
@@ -11,11 +11,11 @@ public final class SpatialVolume {
     public float footprintMaxY;
 
     public float bottom() {
-        return elevation;
+        return altitude;
     }
 
     public float top() {
-        return elevation + height;
+        return altitude + height;
     }
 
     public boolean hasHeight() {
@@ -41,7 +41,7 @@ public final class SpatialVolume {
 
     public SpatialVolume set(float worldX,
                              float worldY,
-                             float elevation,
+                             float altitude,
                              float height,
                              float footprintMinX,
                              float footprintMinY,
@@ -49,7 +49,7 @@ public final class SpatialVolume {
                              float footprintMaxY) {
         this.worldX = worldX;
         this.worldY = worldY;
-        this.elevation = elevation;
+        this.altitude = altitude;
         this.height = height;
         this.footprintMinX = Math.min(footprintMinX, footprintMaxX);
         this.footprintMinY = Math.min(footprintMinY, footprintMaxY);

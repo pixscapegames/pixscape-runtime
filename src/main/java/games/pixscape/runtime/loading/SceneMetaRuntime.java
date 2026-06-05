@@ -36,7 +36,6 @@ public class SceneMetaRuntime {
     // PostFX
     public boolean mainCameraOffscreen = false;
 
-
     public String getName() {
         return name;
     }

@@ -25,7 +25,7 @@ public final class SpatialQueryService {
                                            SpatialVolume out) {
         if (out == null) out = new SpatialVolume();
         if (transform == null) {
-            return out.set(0f, 0f, elevationOf(height), heightOf(height),
+            return out.set(0f, 0f, altitudeOf(height), heightOf(height),
                     -FALLBACK_HALF_EXTENT, -FALLBACK_HALF_EXTENT,
                     FALLBACK_HALF_EXTENT, FALLBACK_HALF_EXTENT);
         }
@@ -58,7 +58,7 @@ public final class SpatialQueryService {
             }
         }
 
-        return out.set(transform.x, transform.y, elevationOf(height), heightOf(height), minX, minY, maxX, maxY);
+        return out.set(transform.x, transform.y, altitudeOf(height), heightOf(height), minX, minY, maxX, maxY);
     }
 
     public SpatialVolume buildTiledCellVolume(TiledMapLayerData map, int gx, int gy) {
@@ -90,7 +90,7 @@ public final class SpatialQueryService {
         return out.set(
                 map.tileToWorldX(gx, gy),
                 map.tileToWorldY(gx, gy),
-                map.getTileElevation(gx, gy),
+                map.getTileAltitude(gx, gy),
                 map.getTileHeight(gx, gy),
                 minX,
                 minY,
@@ -141,6 +141,10 @@ public final class SpatialQueryService {
         return actorOcclusion(actor, occluder, actorOccluder, null).occluded;
     }
 
+    public boolean actorOrderedBehindOccluder(SpatialVolume actor, SpatialVolume occluder, boolean actorOccluder) {
+        return actorOcclusionForOrdering(actor, occluder, actorOccluder, null).occluded;
+    }
+
     public boolean actorOccludedByAny(SpatialVolume actor,
                                       SpatialVolume[] candidateVolumes,
                                       boolean[] candidateActorOccluders,
@@ -157,6 +161,20 @@ public final class SpatialQueryService {
             }
         }
         return false;
+    }
+
+    public SpatialOcclusionResult actorOcclusionForOrdering(SpatialVolume actor,
+                                                            SpatialVolume occluder,
+                                                            boolean actorOccluder,
+                                                            SpatialOcclusionResult out) {
+        if (out == null) out = new SpatialOcclusionResult();
+        out.reset();
+
+        if (actor == null || occluder == null || !isBehind(actor, occluder)) {
+            return out;
+        }
+
+        return actorOcclusion(actor, occluder, actorOccluder, out);
     }
 
     public SpatialOcclusionResult actorOcclusion(SpatialVolume actor,
@@ -206,8 +224,8 @@ public final class SpatialQueryService {
                 && (shape.collisionEnabled || shape.actorOccluder || shape.lightOccluder || shape.particleOccluder);
     }
 
-    private static float elevationOf(SpatialHeightComponent height) {
-        return height != null ? height.elevation : 0f;
+    private static float altitudeOf(SpatialHeightComponent height) {
+        return height != null ? height.altitude : 0f;
     }
 
     private static float heightOf(SpatialHeightComponent height) {

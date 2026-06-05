@@ -834,6 +834,8 @@ public final class PixscapeEngine {
 
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
+        ComponentMapper<LayerComponent> mLayer =
+                world.getMapper(LayerComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -845,6 +847,7 @@ public final class PixscapeEngine {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+            LayerComponent layer = mLayer.getSafe(e, null);
 
             tiled.ensureSparseTileStorageConsistency();
 
@@ -858,6 +861,9 @@ public final class PixscapeEngine {
             );
             tiled.data.originX = tiled.originX;
             tiled.data.originY = tiled.originY;
+            tiled.data.spatialEnabled = tiled.spatialEnabled || (layer != null && layer.spatialEnabled);
+            tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
+            tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 
             int required = tiled.mapWidthCells * tiled.mapHeightCells;
             TiledSoaAllocator.Range r = allocator.allocate(required);
@@ -870,12 +876,14 @@ public final class PixscapeEngine {
                 int gy = tiled.tileYs.get(t);
                 int assetId = tiled.tileAssetIds.get(t);
                 byte flags = tiled.tileTransformFlags.get(t);
-                float elevation = tiled.sparseTileElevation(t);
+                float altitude = tiled.sparseTileAltitude(t);
                 float height = tiled.sparseTileHeight(t);
                 int spatialFlags = tiled.sparseTileSpatialFlags(t);
 
                 tiled.data.setTile(gx, gy, assetId, flags);
-                tiled.data.setTileSpatial(gx, gy, elevation, height, spatialFlags);
+                if (tiled.hasSparseSpatialOverride(t)) {
+                    tiled.data.setTileSpatialOverride(gx, gy, altitude, height, spatialFlags);
+                }
 
                 int cx = gx / tiled.data.chunkSize;
                 int cy = gy / tiled.data.chunkSize;

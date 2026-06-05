@@ -23,9 +23,10 @@ public final class TileChunk {
 
     public int[] assetIds;
     public byte[] transformFlags;
-    public float[] elevations;
+    public float[] altitudes;
     public float[] heights;
     public int[] spatialFlags;
+    public boolean[] spatialOverrides;
 
     // ------------------------------------------------------------
     // Animation state per tile instance (lazy)
@@ -102,9 +103,9 @@ public final class TileChunk {
         return transformFlags[localY * chunkWidth + localX];
     }
 
-    public float getElevation(int localX, int localY) {
+    public float getAltitude(int localX, int localY) {
         int index = localY * chunkWidth + localX;
-        return elevations != null ? elevations[index] : 0f;
+        return altitudes != null ? altitudes[index] : 0f;
     }
 
     public float getHeight(int localX, int localY) {
@@ -115,6 +116,18 @@ public final class TileChunk {
     public int getSpatialFlags(int localX, int localY) {
         int index = localY * chunkWidth + localX;
         return spatialFlags != null ? spatialFlags[index] : 0;
+    }
+
+    public boolean hasSpatialOverride(int localX, int localY) {
+        int index = localY * chunkWidth + localX;
+        return spatialOverrides != null && spatialOverrides[index];
+    }
+
+    public boolean hasSpatialOverride(int localIndex) {
+        return spatialOverrides != null
+                && localIndex >= 0
+                && localIndex < soaCount
+                && spatialOverrides[localIndex];
     }
 
     public void set(int localX, int localY, int assetId) {
@@ -156,7 +169,20 @@ public final class TileChunk {
         collisionDirty = true;
     }
 
-    public void setSpatial(int localX, int localY, float elevation, float height, int flags) {
+    public void setSpatial(int localX, int localY, float altitude, float height, int flags) {
+        setSpatialInternal(localX, localY, altitude, height, flags, false);
+    }
+
+    public void setSpatialOverride(int localX, int localY, float altitude, float height, int flags) {
+        setSpatialInternal(localX, localY, altitude, height, flags, true);
+    }
+
+    private void setSpatialInternal(int localX,
+                                    int localY,
+                                    float altitude,
+                                    float height,
+                                    int flags,
+                                    boolean explicitOverride) {
         if (localX < 0 || localY < 0 ||
                 localX >= chunkWidth || localY >= chunkHeight) {
             return;
@@ -164,20 +190,25 @@ public final class TileChunk {
 
         int index = localY * chunkWidth + localX;
 
-        if (elevation == 0f && height == 0f && flags == 0
-                && elevations == null && heights == null && spatialFlags == null) {
+        if (altitude == 0f && height == 0f && flags == 0
+                && !explicitOverride
+                && altitudes == null && heights == null && spatialFlags == null && spatialOverrides == null) {
             return;
         }
 
         ensureSpatialStorage();
 
-        if (elevations[index] == elevation && heights[index] == height && spatialFlags[index] == flags) {
+        if (altitudes[index] == altitude
+                && heights[index] == height
+                && spatialFlags[index] == flags
+                && spatialOverrides[index] == explicitOverride) {
             return;
         }
 
-        elevations[index] = elevation;
+        altitudes[index] = altitude;
         heights[index] = height;
         spatialFlags[index] = flags;
+        spatialOverrides[index] = explicitOverride;
         collisionDirty = true;
     }
 
@@ -344,13 +375,14 @@ public final class TileChunk {
     }
 
     private void ensureSpatialStorage() {
-        if (elevations != null && heights != null && spatialFlags != null) {
+        if (altitudes != null && heights != null && spatialFlags != null && spatialOverrides != null) {
             return;
         }
 
-        if (elevations == null) elevations = new float[soaCount];
+        if (altitudes == null) altitudes = new float[soaCount];
         if (heights == null) heights = new float[soaCount];
         if (spatialFlags == null) spatialFlags = new int[soaCount];
+        if (spatialOverrides == null) spatialOverrides = new boolean[soaCount];
     }
 
     private void clearAnimationStateInternal(int localIndex) {

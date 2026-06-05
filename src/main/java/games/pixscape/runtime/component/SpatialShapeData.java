@@ -25,7 +25,7 @@ public final class SpatialShapeData {
     public boolean lightOccluder = false;
     public boolean particleOccluder = false;
 
-    public float elevation = 0f;
+    public float altitude = 0f;
     public float height = 0f;
 
     public SpatialShapeData copy() {
@@ -43,7 +43,7 @@ public final class SpatialShapeData {
         s.actorOccluder = actorOccluder;
         s.lightOccluder = lightOccluder;
         s.particleOccluder = particleOccluder;
-        s.elevation = elevation;
+        s.altitude = altitude;
         s.height = height;
         return s;
     }

@@ -69,7 +69,7 @@ public class SpatialQueryServiceTest {
 
         Assert.assertEquals(4f, volume.worldX, 0.0001f);
         Assert.assertEquals(6f, volume.worldY, 0.0001f);
-        Assert.assertEquals(0f, volume.elevation, 0.0001f);
+        Assert.assertEquals(0f, volume.altitude, 0.0001f);
         Assert.assertEquals(0f, volume.height, 0.0001f);
         Assert.assertFalse(volume.hasHeight());
     }
@@ -82,7 +82,7 @@ public class SpatialQueryServiceTest {
         transform.y = 20f;
 
         SpatialHeightComponent height = new SpatialHeightComponent();
-        height.elevation = 1f;
+        height.altitude = 1f;
         height.height = 5f;
 
         SpatialShapesComponent shapes = new SpatialShapesComponent();
@@ -94,7 +94,7 @@ public class SpatialQueryServiceTest {
 
         SpatialVolume volume = service.buildEntityVolume(transform, height, shapes);
 
-        Assert.assertEquals(1f, volume.elevation, 0.0001f);
+        Assert.assertEquals(1f, volume.altitude, 0.0001f);
         Assert.assertEquals(5f, volume.height, 0.0001f);
         Assert.assertEquals(8f, volume.footprintMinX, 0.0001f);
         Assert.assertEquals(17f, volume.footprintMinY, 0.0001f);
@@ -110,14 +110,14 @@ public class SpatialQueryServiceTest {
         map.setTile(1, 1, 10);
 
         SpatialVolume defaultVolume = service.buildTiledCellVolume(map, 1, 1);
-        Assert.assertEquals(0f, defaultVolume.elevation, 0.0001f);
+        Assert.assertEquals(0f, defaultVolume.altitude, 0.0001f);
         Assert.assertEquals(0f, defaultVolume.height, 0.0001f);
         Assert.assertEquals(0, service.getTileSpatialFlags(map, 1, 1));
 
         map.setTileSpatial(1, 1, 7f, 12f, 3);
 
         SpatialVolume explicitVolume = service.buildTiledCellVolume(map, 1, 1);
-        Assert.assertEquals(7f, explicitVolume.elevation, 0.0001f);
+        Assert.assertEquals(7f, explicitVolume.altitude, 0.0001f);
         Assert.assertEquals(12f, explicitVolume.height, 0.0001f);
         Assert.assertEquals(3, service.getTileSpatialFlags(map, 1, 1));
         Assert.assertEquals(16f, explicitVolume.footprintMinX, 0.0001f);
@@ -212,7 +212,7 @@ public class SpatialQueryServiceTest {
         Assert.assertTrue(service.actorOccludedByAny(actor, volumes, actorOccluders, candidates));
     }
 
-    private static SpatialVolume volume(float elevation,
+    private static SpatialVolume volume(float altitude,
                                         float height,
                                         float minX,
                                         float minY,
@@ -220,6 +220,6 @@ public class SpatialQueryServiceTest {
                                         float maxY) {
         float cx = (minX + maxX) * 0.5f;
         float cy = (minY + maxY) * 0.5f;
-        return new SpatialVolume().set(cx, cy, elevation, height, minX, minY, maxX, maxY);
+        return new SpatialVolume().set(cx, cy, altitude, height, minX, minY, maxX, maxY);
     }
 }

@@ -146,7 +146,6 @@ public final class WorldConfigFactory {
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
-
         addCoreSyncSystems(
                 builder,
                 camera,
@@ -270,7 +269,9 @@ public final class WorldConfigFactory {
                         vfxStartIndex,
                         vfxEndIndex
                 ),
-                new RenderSortSystem(renderState, drawList)
+                new RenderSortSystem(renderState, drawList),
+                new SpatialRenderOrderSystem(renderState, drawList),
+                new SpatialActorFinalDrawOrderDebugSystem(renderState, drawList)
         );
 
         if (submitSupplier != null) {

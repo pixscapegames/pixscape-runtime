@@ -58,7 +58,7 @@ public class SpatialHeightPhase1SerializationTest {
 
         int entity = world.create();
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(entity);
-        spatial.elevation = 8.5f;
+        spatial.altitude = 8.5f;
         spatial.height = 24.25f;
         world.process();
 
@@ -68,7 +68,7 @@ public class SpatialHeightPhase1SerializationTest {
 
         SpatialHeightComponent loadedSpatial =
                 loadedWorld.getMapper(SpatialHeightComponent.class).get(loadedEntity);
-        Assert.assertEquals(8.5f, loadedSpatial.elevation, 0.0001f);
+        Assert.assertEquals(8.5f, loadedSpatial.altitude, 0.0001f);
         Assert.assertEquals(24.25f, loadedSpatial.height, 0.0001f);
     }
 
@@ -84,7 +84,7 @@ public class SpatialHeightPhase1SerializationTest {
         shape.polyCount = 3;
         shape.actorOccluder = true;
         shape.lightOccluder = true;
-        shape.elevation = 3f;
+        shape.altitude = 3f;
         shape.height = 11f;
         shapes.shapes.add(shape);
         world.process();
@@ -104,7 +104,7 @@ public class SpatialHeightPhase1SerializationTest {
         Assert.assertTrue(loadedShape.actorOccluder);
         Assert.assertTrue(loadedShape.lightOccluder);
         Assert.assertFalse(loadedShape.particleOccluder);
-        Assert.assertEquals(3f, loadedShape.elevation, 0.0001f);
+        Assert.assertEquals(3f, loadedShape.altitude, 0.0001f);
         Assert.assertEquals(11f, loadedShape.height, 0.0001f);
     }
 
@@ -116,11 +116,11 @@ public class SpatialHeightPhase1SerializationTest {
 
         TileChunk chunk = map.getChunk(0, 0);
         Assert.assertNotNull(chunk);
-        Assert.assertNull("Spatial arrays should be lazy until non-default data is written", chunk.elevations);
+        Assert.assertNull("Spatial arrays should be lazy until non-default data is written", chunk.altitudes);
         Assert.assertNull("Spatial arrays should be lazy until non-default data is written", chunk.heights);
         Assert.assertNull("Spatial arrays should be lazy until non-default data is written", chunk.spatialFlags);
 
-        Assert.assertEquals(0f, map.getTileElevation(0, 0), 0.0001f);
+        Assert.assertEquals(0f, map.getTileAltitude(0, 0), 0.0001f);
         Assert.assertEquals(0f, map.getTileHeight(0, 0), 0.0001f);
         Assert.assertEquals(0, map.getTileSpatialFlags(0, 0));
     }
@@ -135,10 +135,7 @@ public class SpatialHeightPhase1SerializationTest {
         tiled.tileYs.add(2);
         tiled.tileAssetIds.add(44);
         tiled.ensureSparseTileStorageConsistency();
-        tiled.ensureSparseSpatialStorage();
-        tiled.tileElevations.set(0, 7f);
-        tiled.tileHeights.set(0, 13f);
-        tiled.tileSpatialFlags.set(0, 5);
+        tiled.setSparseSpatialOverride(0, 7f, 13f, 5);
         world.process();
 
         World loadedWorld = serializationWorld();
@@ -148,21 +145,62 @@ public class SpatialHeightPhase1SerializationTest {
         Assert.assertEquals(1, loadedTiled.tileXs.get(0));
         Assert.assertEquals(2, loadedTiled.tileYs.get(0));
         Assert.assertEquals(44, loadedTiled.tileAssetIds.get(0));
-        Assert.assertEquals(7f, loadedTiled.sparseTileElevation(0), 0.0001f);
+        Assert.assertEquals(7f, loadedTiled.sparseTileAltitude(0), 0.0001f);
         Assert.assertEquals(13f, loadedTiled.sparseTileHeight(0), 0.0001f);
         Assert.assertEquals(5, loadedTiled.sparseTileSpatialFlags(0));
+        Assert.assertTrue(loadedTiled.hasSparseSpatialOverride(0));
 
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
         map.initSlotRange(64, 80);
         map.setTile(1, 2, loadedTiled.tileAssetIds.get(0), loadedTiled.tileTransformFlags.get(0));
         map.setTileSpatial(1, 2,
-                loadedTiled.sparseTileElevation(0),
+                loadedTiled.sparseTileAltitude(0),
                 loadedTiled.sparseTileHeight(0),
                 loadedTiled.sparseTileSpatialFlags(0));
 
-        Assert.assertEquals(7f, map.getTileElevation(1, 2), 0.0001f);
+        Assert.assertEquals(7f, map.getTileAltitude(1, 2), 0.0001f);
         Assert.assertEquals(13f, map.getTileHeight(1, 2), 0.0001f);
         Assert.assertEquals(5, map.getTileSpatialFlags(1, 2));
+    }
+
+    @Test
+    public void allocatedZeroSparseSpatialArraysDoNotCountAsAuthoredOverride() {
+        TiledLayerComponent tiled = new TiledLayerComponent();
+        tiled.tileXs.add(1);
+        tiled.tileYs.add(2);
+        tiled.tileAssetIds.add(44);
+        tiled.ensureSparseTileStorageConsistency();
+        tiled.ensureSparseSpatialStorage();
+
+        Assert.assertFalse(tiled.hasSparseSpatialOverride(0));
+    }
+
+    @Test
+    public void explicitZeroSparseSpatialOverrideSuppressesDefaultHeight() {
+        TiledLayerComponent tiled = new TiledLayerComponent();
+        tiled.tileXs.add(1);
+        tiled.tileYs.add(2);
+        tiled.tileAssetIds.add(44);
+        tiled.ensureSparseTileStorageConsistency();
+        tiled.setSparseSpatialOverride(0, 0f, 0f, 0);
+
+        Assert.assertTrue(tiled.hasSparseSpatialOverride(0));
+
+        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
+        map.defaultTileHeight = 12f;
+        map.initSlotRange(64, 80);
+        map.setTile(1, 2, tiled.tileAssetIds.get(0), tiled.tileTransformFlags.get(0));
+        if (tiled.hasSparseSpatialOverride(0)) {
+            map.setTileSpatialOverride(
+                    1,
+                    2,
+                    tiled.sparseTileAltitude(0),
+                    tiled.sparseTileHeight(0),
+                    tiled.sparseTileSpatialFlags(0)
+            );
+        }
+
+        Assert.assertEquals(0f, map.getTileHeight(1, 2), 0.0001f);
     }
 
     @Test
@@ -172,7 +210,7 @@ public class SpatialHeightPhase1SerializationTest {
         int entity = targetWorld.create();
         targetWorld.getMapper(TransformComponent.class).create(entity);
         SpatialHeightComponent spatial = targetWorld.getMapper(SpatialHeightComponent.class).create(entity);
-        spatial.elevation = 2f;
+        spatial.altitude = 2f;
         spatial.height = 9f;
 
         SpatialShapesComponent shapes = targetWorld.getMapper(SpatialShapesComponent.class).create(entity);
@@ -182,7 +220,7 @@ public class SpatialHeightPhase1SerializationTest {
         shape.halfH = 4f;
         shape.collisionEnabled = true;
         shape.actorOccluder = true;
-        shape.elevation = 2f;
+        shape.altitude = 2f;
         shape.height = 9f;
         shapes.shapes.add(shape);
         targetWorld.process();
@@ -202,7 +240,7 @@ public class SpatialHeightPhase1SerializationTest {
 
         SpatialHeightComponent spawnedSpatial =
                 targetWorld.getMapper(SpatialHeightComponent.class).get(spawned);
-        Assert.assertEquals(2f, spawnedSpatial.elevation, 0.0001f);
+        Assert.assertEquals(2f, spawnedSpatial.altitude, 0.0001f);
         Assert.assertEquals(9f, spawnedSpatial.height, 0.0001f);
 
         SpatialShapesComponent spawnedShapes =
