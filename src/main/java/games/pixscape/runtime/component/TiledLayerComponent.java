@@ -2,11 +2,12 @@ package games.pixscape.runtime.component;
 
 import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.ByteArray;
-import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
+
+import java.util.Arrays;
 
 public final class TiledLayerComponent extends PooledComponent {
 
@@ -35,8 +36,8 @@ public final class TiledLayerComponent extends PooledComponent {
     public IntArray tileYs = new IntArray();
     public IntArray tileAssetIds = new IntArray();
     public ByteArray tileTransformFlags = new ByteArray();
-    public FloatArray tileAltitudes;
-    public FloatArray tileHeights;
+    public float[] tileAltitudes;
+    public float[] tileHeights;
     public IntArray tileSpatialFlags;
     public ByteArray tileSpatialOverrides;
 
@@ -58,14 +59,14 @@ public final class TiledLayerComponent extends PooledComponent {
     }
 
     public float sparseTileAltitude(int index) {
-        return tileAltitudes != null && index >= 0 && index < tileAltitudes.size
-                ? tileAltitudes.get(index)
+        return tileAltitudes != null && index >= 0 && index < tileAltitudes.length
+                ? tileAltitudes[index]
                 : 0f;
     }
 
     public float sparseTileHeight(int index) {
-        return tileHeights != null && index >= 0 && index < tileHeights.size
-                ? tileHeights.get(index)
+        return tileHeights != null && index >= 0 && index < tileHeights.length
+                ? tileHeights[index]
                 : 0f;
     }
 
@@ -90,13 +91,13 @@ public final class TiledLayerComponent extends PooledComponent {
     }
 
     public void ensureSparseSpatialStorage() {
-        if (tileAltitudes == null) tileAltitudes = new FloatArray();
-        if (tileHeights == null) tileHeights = new FloatArray();
+        if (tileAltitudes == null) tileAltitudes = new float[0];
+        if (tileHeights == null) tileHeights = new float[0];
         if (tileSpatialFlags == null) tileSpatialFlags = new IntArray();
         if (tileSpatialOverrides == null) tileSpatialOverrides = new ByteArray();
 
-        while (tileAltitudes.size < tileAssetIds.size) tileAltitudes.add(0f);
-        while (tileHeights.size < tileAssetIds.size) tileHeights.add(0f);
+        if (tileAltitudes.length < tileAssetIds.size) tileAltitudes = Arrays.copyOf(tileAltitudes, tileAssetIds.size);
+        if (tileHeights.length < tileAssetIds.size) tileHeights = Arrays.copyOf(tileHeights, tileAssetIds.size);
         while (tileSpatialFlags.size < tileAssetIds.size) tileSpatialFlags.add(0);
         while (tileSpatialOverrides.size < tileAssetIds.size) tileSpatialOverrides.add((byte) 0);
     }
@@ -104,8 +105,8 @@ public final class TiledLayerComponent extends PooledComponent {
     public void setSparseSpatialOverride(int index, float altitude, float height, int flags) {
         if (index < 0 || index >= tileAssetIds.size) return;
         ensureSparseSpatialStorage();
-        tileAltitudes.set(index, altitude);
-        tileHeights.set(index, height);
+        tileAltitudes[index] = altitude;
+        tileHeights[index] = height;
         tileSpatialFlags.set(index, flags);
         tileSpatialOverrides.set(index, (byte) 1);
     }
@@ -121,8 +122,8 @@ public final class TiledLayerComponent extends PooledComponent {
         tileYs.clear();
         tileAssetIds.clear();
         tileTransformFlags.clear();
-        if (tileAltitudes != null) tileAltitudes.clear();
-        if (tileHeights != null) tileHeights.clear();
+        tileAltitudes = null;
+        tileHeights = null;
         if (tileSpatialFlags != null) tileSpatialFlags.clear();
         if (tileSpatialOverrides != null) tileSpatialOverrides.clear();
         mapWidthCells = 100;

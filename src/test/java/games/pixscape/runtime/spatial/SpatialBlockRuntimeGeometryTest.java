@@ -48,14 +48,58 @@ public class SpatialBlockRuntimeGeometryTest {
 
         Assert.assertTrue(SpatialBlockGeometry.writeTileCellFootprint(block, map, out));
 
-        Assert.assertEquals(-35f, out[0], 0.0001f);
+        Assert.assertEquals(10f, out[0], 0.0001f);
         Assert.assertEquals(65f, out[1], 0.0001f);
-        Assert.assertEquals(55f, out[2], 0.0001f);
+        Assert.assertEquals(100f, out[2], 0.0001f);
         Assert.assertEquals(95f, out[3], 0.0001f);
-        Assert.assertEquals(-12.5f, out[4], 0.0001f);
+        Assert.assertEquals(32.5f, out[4], 0.0001f);
         Assert.assertEquals(117.5f, out[5], 0.0001f);
-        Assert.assertEquals(-102.5f, out[6], 0.0001f);
+        Assert.assertEquals(-57.5f, out[6], 0.0001f);
         Assert.assertEquals(87.5f, out[7], 0.0001f);
+    }
+
+    @Test
+    public void oneByOneIsoBlockFootprintMatchesTileCellFootprint() {
+        TiledMapLayerData map = new TiledMapLayerData(
+                16,
+                16,
+                90,
+                30,
+                4,
+                SceneMetaRuntime.TiledProjection.ISO
+        );
+        SpatialBlockData block = block(8, 8f, 9f, 1f, 1f);
+        float[] blockFootprint = new float[8];
+        float[] tileFootprint = new float[8];
+
+        Assert.assertTrue(SpatialBlockGeometry.writeTileCellFootprint(block, map, blockFootprint));
+        map.tileToCellVertices(8, 9, tileFootprint);
+
+        assertPoint(blockFootprint, 0, tileFootprint, 0);
+        assertPoint(blockFootprint, 2, tileFootprint, 6);
+        assertPoint(blockFootprint, 4, tileFootprint, 4);
+        assertPoint(blockFootprint, 6, tileFootprint, 2);
+    }
+
+    @Test
+    public void thinIsoBlockFootprintUsesCellOriginOffset() {
+        TiledMapLayerData map = new TiledMapLayerData(
+                16,
+                16,
+                90,
+                30,
+                4,
+                SceneMetaRuntime.TiledProjection.ISO
+        );
+        SpatialBlockData block = block(9, 9.003479f, 10.03523f, 3.035983f, 0.21065998f);
+        float[] footprint = new float[8];
+
+        Assert.assertTrue(SpatialBlockGeometry.writeTileCellFootprint(block, map, footprint));
+
+        Assert.assertEquals(map.tileToWorldX(block.x, block.y) + 45f, footprint[0], 0.0001f);
+        Assert.assertEquals(map.tileToWorldY(block.x, block.y), footprint[1], 0.0001f);
+        Assert.assertEquals(map.tileToWorldX(block.x + block.width, block.y) + 45f, footprint[2], 0.0001f);
+        Assert.assertEquals(map.tileToWorldY(block.x + block.width, block.y), footprint[3], 0.0001f);
     }
 
     @Test
@@ -211,6 +255,11 @@ public class SpatialBlockRuntimeGeometryTest {
     private static void assertSingleBlockAt(SpatialBlockIndex index, int gx, int gy, IntArray out) {
         index.queryCell(gx, gy, out);
         Assert.assertEquals("Expected block at " + gx + "," + gy, 1, out.size);
+    }
+
+    private static void assertPoint(float[] actual, int actualOffset, float[] expected, int expectedOffset) {
+        Assert.assertEquals(expected[expectedOffset], actual[actualOffset], 0.0001f);
+        Assert.assertEquals(expected[expectedOffset + 1], actual[actualOffset + 1], 0.0001f);
     }
 
     private static SpatialBlockData block(int id, float x, float y, float width, float depth) {

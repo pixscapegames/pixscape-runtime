@@ -5,9 +5,16 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.component.SpatialBlockOrientation;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.SpatialHeightComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -215,7 +222,1027 @@ public class SpatialRenderOrderSystemTest {
         Assert.assertEquals(capacityAfterWarmup, fixture.spatial.getActorWorkArrayCapacity());
     }
 
+    @Test
+    public void actorFootInsideTileCellBlockBehindReferenceRendersBeforeLinkedTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorFootInsideTileCellBlockInFrontOfReferenceRendersAfterLinkedTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorOutsideBlockKeepsLegacyPosition() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(40f, 40f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+    }
+
+    @Test
+    public void actorFootprintFindsBlockWhenFootPointMisses() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 1f, 1f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 1, 1, 101, 1, 20);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.footprintOffsetX = 16f;
+        height.footprintWidth = 18f;
+        height.footprintDepth = 10f;
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorFootprintMissDoesNotCreateBlockIntent() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 2f, 2f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 2, 2, 101, 1, 10);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.footprintWidth = 8f;
+        height.footprintDepth = 8f;
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void invalidActorFootprintFallsBackToFootPoint() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.footprintWidth = 0f;
+        height.footprintDepth = 0f;
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorBehindAuthoredBlockBottomSegmentRendersBehindBlock() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertFalse(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertEquals(0, fixture.spatial.getLastIntentMinLinkedDrawIndexForTest());
+        Assert.assertEquals(-1, fixture.spatial.getLastIntentTargetDrawIndexForTest());
+        Assert.assertArrayEquals(new int[]{actor, tile}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorInFrontOfAuthoredBlockBottomSegmentRendersInFrontOfBlock() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAuthoredLinkedRefsForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertEquals(0, fixture.spatial.getLastIntentMaxLinkedDrawIndexForTest());
+        Assert.assertEquals(1, fixture.spatial.getLastIntentTargetDrawIndexForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockIgnoresActorOutsideFiniteBottomSegmentInfluence() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(6, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(64f, 8f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoAuthoredBlockUsesLineSideForBottomSegmentRelation() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+
+        fixture.setActorPosition(actor, map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f));
+        fixture.setSortOrder(actor, 2, 0, 10);
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertFalse(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertArrayEquals(new int[]{actor, tile}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockUsesFirstAndLastLinkedRefsAsDrawListSlice() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 2f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        block.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, map, block);
+        int firstTile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int lastTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
+        int actor = fixture.createActor(8f, 40f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertFalse(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertEquals(0, fixture.spatial.getLastIntentMinLinkedDrawIndexForTest());
+        Assert.assertEquals(-1, fixture.spatial.getLastIntentTargetDrawIndexForTest());
+        Assert.assertArrayEquals(new int[]{actor, firstTile, lastTile}, fixture.drawOrder());
+
+        fixture.setActorPosition(actor, 8f, 8f);
+        fixture.setSortOrder(actor, 2, 0, 5);
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertEquals(1, fixture.spatial.getLastIntentMaxLinkedDrawIndexForTest());
+        Assert.assertEquals(2, fixture.spatial.getLastIntentTargetDrawIndexForTest());
+        Assert.assertArrayEquals(new int[]{firstTile, lastTile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockOutsideActorQueryBboxStillUsesBottomSegmentRelation() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 2f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 2, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 2, 101, 1, 20);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAuthoredLinkedRefsForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorBetweenTwoAuthoredWallsRendersBetweenTheirLinkedTiles() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData backWall = block(10, 0f, 0f, 1f, 1f);
+        backWall.beginAuthoredLinkedTileRefs();
+        backWall.addLinkedTileRef(0, 0, 101);
+        SpatialBlockData frontWall = block(20, 0f, 1f, 1f, 1f);
+        frontWall.beginAuthoredLinkedTileRefs();
+        frontWall.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, map, backWall, frontWall);
+        int backTile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int frontTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{actor, backTile, frontTile}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockWithVerticalNonOverlapIsNotApplicable() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.altitude = 10f;
+        block.height = 5f;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockUsesActorBaseAltitudeInsteadOfVisualHeightOverlap() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.altitude = 10f;
+        block.height = 5f;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.altitude = 0f;
+        height.height = 20f;
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockCapturesHighestReachedLowerAltitude() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.altitude = 10f;
+        block.height = 5f;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.altitude = 12f;
+        height.height = 1f;
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockSelectionUsesHighestReachedAltitudeBeforeBlockId() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData ground = block(10, 0f, 0f, 1f, 1f);
+        ground.altitude = 0f;
+        ground.beginAuthoredLinkedTileRefs();
+        ground.addLinkedTileRef(0, 0, 101);
+        SpatialBlockData upper = block(20, 0f, 0f, 1f, 1f);
+        upper.altitude = 155f;
+        upper.beginAuthoredLinkedTileRefs();
+        upper.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, ground, upper);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.altitude = 170f;
+        height.height = 1f;
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(20, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockWithInvalidLinkedRefsIsNotApplicable() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorBehindSpatialTileRendersBeforeTileAnchorRegardlessOfLayerOrder() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(8f, 4f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorInFrontOfSpatialTileRendersAfterTileAnchor() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorOutsideSpatialTileGroundFootprintDoesNotMove() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(40f, 40f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void tileWithoutSpatialHeightDoesNotAffectActorDepth() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        map.setTile(0, 0, 101);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(8f, 4f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorMovingAroundSpatialTileFlipsLocalDepthStably() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(8f, 4f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+
+        fixture.setActorPosition(actor, 8f, 18f);
+        fixture.process();
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredSpatialBlockWinsOverDirectSpatialTileCandidate() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 2f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, map, block);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int authoredTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{directTile, authoredTile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredSpatialBlockRemainsBestWhenLaterSpatialTileIsCloser() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData blockMap = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 2f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, blockMap, block);
+        int authoredTile = fixture.createLinkedTile(blockMap, 0, 1, 202, 1, 20);
+
+        TiledMapLayerData directMap = fixture.createBlockMap(3, 3, 16, 16, 400);
+        fixture.createSpatialTiledLayerWithMap(3, directMap);
+        fixture.setSpatialTile(directMap, 0, 0, 101, 0f, 12f);
+        int directTile = fixture.createTiledSlot(directMap.slotForTile(0, 0), 3, 30);
+
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAuthoredLinkedRefsForTest());
+        Assert.assertArrayEquals(new int[]{authoredTile, actor, directTile}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void directSpatialTileStillOrdersActorWithoutSpatialBlock() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredSpatialBlocksStillUseDeterministicTieBreak() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData higherId = block(20, 0f, 0f, 1f, 2f);
+        higherId.beginAuthoredLinkedTileRefs();
+        higherId.addLinkedTileRef(0, 1, 202);
+        SpatialBlockData lowerId = block(10, 0f, 0f, 1f, 2f);
+        lowerId.beginAuthoredLinkedTileRefs();
+        lowerId.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, map, higherId, lowerId);
+        int authoredTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 20);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAuthoredLinkedRefsForTest());
+        Assert.assertArrayEquals(new int[]{authoredTile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void authoredBlockOnHigherLayerCanWinWithoutBestReplacementPath() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+
+        TiledMapLayerData lowerMap = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData lowerLayerBlock = block(20, 0f, 0f, 1f, 1f);
+        lowerLayerBlock.beginAuthoredLinkedTileRefs();
+        lowerLayerBlock.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, lowerMap, lowerLayerBlock);
+        int lowerTile = fixture.createLinkedTile(lowerMap, 0, 0, 101, 1, 10);
+
+        TiledMapLayerData upperMap = fixture.createBlockMap(3, 3, 16, 16, 400);
+        SpatialBlockData upperLayerBlock = block(10, 0f, 1f, 1f, 1f);
+        upperLayerBlock.beginAuthoredLinkedTileRefs();
+        upperLayerBlock.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(3, upperMap, upperLayerBlock);
+        int upperTile = fixture.createLinkedTile(upperMap, 0, 1, 202, 3, 30);
+
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertEquals(2, fixture.spatial.getLastIntentMaxLinkedDrawIndexForTest());
+        Assert.assertEquals(3, fixture.spatial.getLastIntentTargetDrawIndexForTest());
+        Assert.assertArrayEquals(new int[]{lowerTile, upperTile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void colonoKeepsOutOfInfluenceAuthoredBlockFromWinningTieBreak() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+
+        TiledMapLayerData layer3Map = fixture.createBlockMap(4, 3, 16, 16, 300);
+        SpatialBlockData outOfInfluence = block(10, 0f, 0f, 1f, 1f);
+        outOfInfluence.beginAuthoredLinkedTileRefs();
+        outOfInfluence.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(3, layer3Map, outOfInfluence);
+        int layer3Tile = fixture.createLinkedTile(layer3Map, 0, 0, 101, 3, 10);
+
+        TiledMapLayerData layer4Map = fixture.createBlockMap(4, 3, 16, 16, 400);
+        SpatialBlockData relevant = block(20, 1f, 0f, 1f, 1f);
+        relevant.beginAuthoredLinkedTileRefs();
+        relevant.addLinkedTileRef(1, 0, 202);
+        fixture.createBlockTiledLayer(4, layer4Map, relevant);
+        int layer4Tile = fixture.createLinkedTile(layer4Map, 1, 0, 202, 4, 30);
+
+        int actor = fixture.createActor(24f, 8f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertEquals(20, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertTrue(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertArrayEquals(new int[]{layer3Tile, layer4Tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void invalidAuthoredSpatialBlockRefsDoNotOverrideDirectSpatialTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 1, 202);
+        fixture.createBlockTiledLayer(1, map, block);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(8f, 18f, 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertArrayEquals(new int[]{directTile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoSpatialTileUsesGroundCellNotTextureBounds() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoActorClearlyInFrontOfSpatialTileRendersAboveTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoActorClearlyBehindSpatialTileRendersBelowTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void actorBaseSegmentIntersectingIsoTileBaseRendersBelowTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(0f, map.tileToWorldY(1f, 0f) - 2f, 0, 2, true);
+        fixture.setActorFootprint(actor, 12f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoActorRightOfSpatialTileRendersAboveTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(map.tileToWorldX(1.25f, 0.25f), map.tileToWorldY(1.25f, 0.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoActorBottomLeftOfSpatialTileRendersAboveTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int actor = fixture.createActor(map.tileToWorldX(0.25f, 1.25f), map.tileToWorldY(0.25f, 1.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void isoActorCrossingTileBaseFlipsOrder() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(1, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+
+        fixture.setActorPosition(actor, map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f));
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{anchor, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void spatialTileOrderIsIndependentFromRelativeActorAndTiledLayers() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(1, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createSpatialTiledLayerWithMap(3, map);
+        fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
+        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 3, 20);
+        int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 1, true);
+        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setSortOrder(actor, 1, 0, 10);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{actor, anchor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void verticalNonOverlapDoesNotCreateBlockIntent() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        SpatialBlockData block = block(10, 0f, 0f, 2f, 2f);
+        block.altitude = 10f;
+        block.height = 5f;
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+    }
+
+    @Test
+    public void spatialActorWithoutCircleFixtureDoesNotCreateBlockIntent() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.clearActorPhysicsFootprint(actor);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void circleFixtureWithoutSpatialHeightDoesNotCreateBlockIntent() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 24f, 0, 2, false);
+        fixture.addPhysicsCircleFootprint(actor, 2f);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void blockWithoutLinkedTilesKeepsActorStable() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void blockFootprintLinksNeighborTileWhenOriginCellIsEmpty() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0.75f, 0f, 0.75f, 1f));
+        int tile = fixture.createLinkedTile(map, 1, 0, 101, 1, 10);
+        int actor = fixture.createActor(20f, 8f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void blockWithoutIntersectingTilesKeepsActorStableEvenWhenMapHasOtherTiles() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 2, 2, 101, 1, 10);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void multipleActorsAroundSameBlockSplitAroundLinkedTileBase() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int back = fixture.createActor(8f, 12f, 0, 2, true);
+        fixture.setSortOrder(back, 2, 0, 20);
+        int fartherBack = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(fartherBack, 2, 0, 30);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, back, fartherBack}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void tiledRelativeOrderRemainsLegacyWhenActorMovesAroundLinkedTile() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int tileB = fixture.createTiledSlot(301, 1, 30);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, tileB, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void unsupportedBlockOrientationIsSkippedWithoutMovingActor() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        SpatialBlockData block = block(10, 0f, 0f, 2f, 2f);
+        block.orientation = SpatialBlockOrientation.TILE_AXIS_X;
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+    }
+
+    @Test
+    public void isoBlockOrderingUsesConfiguredNonTwoToOneProjection() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+
+        float actorX = map.tileToWorldX(0.25f, 0.25f);
+        float actorY = map.tileToWorldY(0.25f, 0.25f);
+        int actor = fixture.createActor(actorX, actorY, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void highLinkedTileSlotAndDifferentActorEntityRemainSafe() {
+        Fixture fixture = new Fixture(1024);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 700);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int actorEntity = fixture.createActorInRenderSlot(8f, 8f, 0, 2, 50);
+        fixture.setSortOrder(50, 2, 0, 20);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, 50}, fixture.drawOrder());
+        Assert.assertTrue(actorEntity >= 0);
+        fixture.assertDrawListIntegrity();
+    }
+
     private static final class Fixture {
+        static final float PIXELS_PER_METER = 100f;
+
         final RenderStateSOA state;
         final LayerStateSOA layerState;
         final DrawList drawList;
@@ -285,6 +1312,100 @@ public class SpatialRenderOrderSystemTest {
             tiled.data.initSlotRange(300, 301);
         }
 
+        int createBlockTiledLayer(int layerIndex, TiledMapLayerData map, SpatialBlockData... blocks) {
+            int entity = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            layer.layerIndex = layerIndex;
+            layer.type = LayerComponent.TYPE_TILED;
+            layer.spatialEnabled = true;
+
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
+            tiled.spatialEnabled = true;
+            tiled.data = map;
+            if (tiled.data != null) {
+                tiled.data.spatialEnabled = true;
+            }
+
+            SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(entity);
+            for (SpatialBlockData block : blocks) {
+                component.blocks.add(block);
+            }
+            return entity;
+        }
+
+        int createSpatialTiledLayerWithMap(int layerIndex, TiledMapLayerData map) {
+            int entity = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            layer.layerIndex = layerIndex;
+            layer.type = LayerComponent.TYPE_TILED;
+            layer.spatialEnabled = true;
+
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
+            tiled.spatialEnabled = true;
+            tiled.data = map;
+            if (tiled.data != null) {
+                tiled.data.spatialEnabled = true;
+            }
+            return entity;
+        }
+
+        void setSpatialTile(TiledMapLayerData map, int gx, int gy, int assetId, float altitude, float height) {
+            map.setTile(gx, gy, assetId);
+            map.setTileSpatialOverride(gx, gy, altitude, height, 0);
+        }
+
+        int createLinkedTile(TiledMapLayerData map, int gx, int gy, int assetId, int layerIndex, int runtimeOrder) {
+            map.setTile(gx, gy, assetId);
+            return createTiledSlot(map.slotForTile(gx, gy), layerIndex, runtimeOrder);
+        }
+
+        void setActorFootprint(int actor, float width, float depth) {
+            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(actor);
+            height.footprintWidth = width;
+            height.footprintDepth = depth;
+            setActorCircleFootprint(actor, Math.max(width, depth) * 0.5f);
+        }
+
+        void setActorCircleFootprint(int actor, float radiusPx) {
+            PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).get(actor);
+            if (fixtures == null) return;
+            fixtures.fixtures.clear();
+            FixtureDefData fixture = new FixtureDefData();
+            fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
+            fixture.radius = radiusPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
+            fixture.offsetX = 0f;
+            fixture.offsetY = 0f;
+            fixtures.fixtures.add(fixture);
+        }
+
+        void addPhysicsCircleFootprint(int actor, float radiusPx) {
+            world.getMapper(PhysicsBodyComponent.class).create(actor);
+            world.getMapper(PhysicsFixturesComponent.class).create(actor);
+            setActorCircleFootprint(actor, radiusPx);
+        }
+
+        void clearActorPhysicsFootprint(int actor) {
+            PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).get(actor);
+            if (fixtures != null) {
+                fixtures.fixtures.clear();
+            }
+        }
+
+        TiledMapLayerData createBlockMap(int width, int height, int tileWidth, int tileHeight, int startSlot) {
+            return createBlockMap(width, height, tileWidth, tileHeight, startSlot, SceneMetaRuntime.TiledProjection.ORTHO);
+        }
+
+        TiledMapLayerData createBlockMap(int width,
+                                         int height,
+                                         int tileWidth,
+                                         int tileHeight,
+                                         int startSlot,
+                                         SceneMetaRuntime.TiledProjection projection) {
+            TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
+            map.initSlotRange(startSlot, startSlot + width * height);
+            return map;
+        }
+
         int createSpatialTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             createSpatialTiledLayer(layerIndex);
             return createTiledSlot(slot, layerIndex, runtimeOrder);
@@ -303,6 +1424,7 @@ public class SpatialRenderOrderSystemTest {
             if (spatial) {
                 SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
                 height.height = 2f;
+                addPhysicsCircleFootprint(entity, 1f);
             }
 
             enableSlot(entity, layerIndex, z, entity);
@@ -322,6 +1444,7 @@ public class SpatialRenderOrderSystemTest {
 
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
             height.height = 2f;
+            addPhysicsCircleFootprint(entity, 1f);
 
             enableSlot(slot, layerIndex, z, slot);
             state.entityId[slot] = entity;
@@ -393,6 +1516,26 @@ public class SpatialRenderOrderSystemTest {
             System.arraycopy(drawList.data(), 0, out, 0, drawList.size);
             return out;
         }
+
+        void assertDrawListIntegrity() {
+            int[] order = drawOrder();
+            for (int i = 0; i < order.length; i++) {
+                for (int j = i + 1; j < order.length; j++) {
+                    Assert.assertNotEquals("Duplicate draw slot", order[i], order[j]);
+                }
+            }
+        }
+    }
+
+    private static SpatialBlockData block(int id, float x, float y, float width, float depth) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = id;
+        block.x = x;
+        block.y = y;
+        block.width = width;
+        block.depth = depth;
+        block.height = 10f;
+        return block;
     }
 
     private interface OrderSink {

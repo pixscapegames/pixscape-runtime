@@ -1,5 +1,7 @@
 package games.pixscape.runtime.component;
 
+import com.badlogic.gdx.utils.Array;
+
 public final class SpatialBlockData {
     public static final float DEFAULT_HEIGHT = 128f;
 
@@ -25,6 +27,8 @@ public final class SpatialBlockData {
     public boolean lightOccluder = false;
     public boolean shadowCaster = false;
     public boolean particleOccluder = false;
+    public boolean linkedTileRefsAuthored = false;
+    public Array<LinkedTileRef> linkedTileRefs = new Array<>(LinkedTileRef[]::new);
 
     public SpatialBlockData copy() {
         SpatialBlockData b = new SpatialBlockData();
@@ -43,6 +47,64 @@ public final class SpatialBlockData {
         b.lightOccluder = lightOccluder;
         b.shadowCaster = shadowCaster;
         b.particleOccluder = particleOccluder;
+        b.linkedTileRefsAuthored = linkedTileRefsAuthored;
+        b.copyLinkedTileRefsFrom(this);
         return b;
+    }
+
+    public boolean hasAuthoredLinkedTileRefs() {
+        return linkedTileRefsAuthored;
+    }
+
+    public boolean hasLinkedTileRefs() {
+        return linkedTileRefs != null && linkedTileRefs.size > 0;
+    }
+
+    public void clearLinkedTileRefs() {
+        if (linkedTileRefs == null) {
+            linkedTileRefs = new Array<>(LinkedTileRef[]::new);
+        } else {
+            linkedTileRefs.clear();
+        }
+        linkedTileRefsAuthored = false;
+    }
+
+    public void beginAuthoredLinkedTileRefs() {
+        clearLinkedTileRefs();
+        linkedTileRefsAuthored = true;
+    }
+
+    public void addLinkedTileRef(int gx, int gy, int tileId) {
+        if (linkedTileRefs == null) {
+            linkedTileRefs = new Array<>(LinkedTileRef[]::new);
+        }
+        linkedTileRefsAuthored = true;
+        LinkedTileRef ref = new LinkedTileRef();
+        ref.gx = gx;
+        ref.gy = gy;
+        ref.tileId = tileId;
+        linkedTileRefs.add(ref);
+    }
+
+    public void copyLinkedTileRefsFrom(SpatialBlockData source) {
+        boolean authored = source != null && source.linkedTileRefsAuthored;
+        clearLinkedTileRefs();
+        if (source == null || source.linkedTileRefs == null) return;
+        linkedTileRefsAuthored = authored;
+        for (int i = 0, n = source.linkedTileRefs.size; i < n; i++) {
+            LinkedTileRef ref = source.linkedTileRefs.get(i);
+            if (ref == null) continue;
+            LinkedTileRef copy = new LinkedTileRef();
+            copy.gx = ref.gx;
+            copy.gy = ref.gy;
+            copy.tileId = ref.tileId;
+            linkedTileRefs.add(copy);
+        }
+    }
+
+    public static final class LinkedTileRef {
+        public int gx = 0;
+        public int gy = 0;
+        public int tileId = 0;
     }
 }

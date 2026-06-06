@@ -2,9 +2,21 @@
 
 ## [0.1.5]
 
+### Added
+- Introduced the new 2.5D Spatial System for isometric and orthographic worlds.
+- Added authorable `SpatialBlock` volumes for deterministic front/behind occlusion.
+- Added support for altitude-aware spatial layers and multi-level environments.
+- Added automatic actor-to-environment spatial sorting based on physical footprints.
+- Added seamless front/behind rendering transitions for walls, columns, and architectural structures.
+- Added runtime support for authored spatial occluders and linked tile groups.
+
+### Improved
+- Added Android-compatible support to `PhysicsDragMouseSystem`, allowing the same drag-based physics interactions to work consistently across Desktop and Android platforms.
+
 ### Fixed
 - Fixed runtime preview culling for isometric tiled maps so chunks entering the top of the viewport are rendered before visible gaps can appear.
 - Expanded isometric tiled culling bounds to account for tall tile sprites that extend beyond their chunk's logical bounds.
+
 
 ## [0.1.4]
 

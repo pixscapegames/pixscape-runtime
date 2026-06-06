@@ -96,6 +96,9 @@ public class SpatialBlocksComponentTest {
         source.lightOccluder = true;
         source.shadowCaster = true;
         source.particleOccluder = true;
+        source.beginAuthoredLinkedTileRefs();
+        source.addLinkedTileRef(1, 2, 101);
+        source.addLinkedTileRef(3, 4, 102);
 
         SpatialBlockData loaded = roundTripBlocks(source).blocks.get(0);
 
@@ -225,6 +228,17 @@ public class SpatialBlocksComponentTest {
         Assert.assertEquals(expected.lightOccluder, actual.lightOccluder);
         Assert.assertEquals(expected.shadowCaster, actual.shadowCaster);
         Assert.assertEquals(expected.particleOccluder, actual.particleOccluder);
+        Assert.assertEquals(expected.linkedTileRefsAuthored, actual.linkedTileRefsAuthored);
+        int expectedRefs = expected.linkedTileRefs != null ? expected.linkedTileRefs.size : 0;
+        int actualRefs = actual.linkedTileRefs != null ? actual.linkedTileRefs.size : 0;
+        Assert.assertEquals(expectedRefs, actualRefs);
+        for (int i = 0; i < expectedRefs; i++) {
+            SpatialBlockData.LinkedTileRef er = expected.linkedTileRefs.get(i);
+            SpatialBlockData.LinkedTileRef ar = actual.linkedTileRefs.get(i);
+            Assert.assertEquals(er.gx, ar.gx);
+            Assert.assertEquals(er.gy, ar.gy);
+            Assert.assertEquals(er.tileId, ar.tileId);
+        }
     }
 
     private static byte[] saveEntity(World world, int entity) {

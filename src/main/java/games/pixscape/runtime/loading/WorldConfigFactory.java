@@ -21,6 +21,7 @@ public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;
     public static final int DEFAULT_TILED_BUDGET = 200_000;
+    private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
     private static final int ECS_WATERMARK = 150_000;
 
@@ -176,6 +177,7 @@ public final class WorldConfigFactory {
                 ecsEnd,
                 vfxStart,
                 totalCapacity,
+                meta,
                 submitSupplier
         );
 
@@ -257,6 +259,7 @@ public final class WorldConfigFactory {
             int entityCapacityHint,
             int vfxStartIndex,
             int vfxEndIndex,
+            SceneMetaRuntime meta,
             Supplier<BaseSystem> submitSupplier
     ) {
         builder.with(
@@ -270,8 +273,13 @@ public final class WorldConfigFactory {
                         vfxEndIndex
                 ),
                 new RenderSortSystem(renderState, drawList),
-                new SpatialRenderOrderSystem(renderState, drawList),
-                new SpatialActorFinalDrawOrderDebugSystem(renderState, drawList)
+                new SpatialRenderOrderSystem(
+                        renderState,
+                        drawList,
+                        meta != null && meta.pixelsPerMeter > 0f
+                                ? meta.pixelsPerMeter
+                                : DEFAULT_PIXELS_PER_METER
+                )
         );
 
         if (submitSupplier != null) {

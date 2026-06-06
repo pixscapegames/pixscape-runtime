@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlockOrientation;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 public final class SpatialBlockGeometry {
@@ -40,16 +41,27 @@ public final class SpatialBlockGeometry {
         float y0 = block.y;
         float x1 = block.x + block.width;
         float y1 = block.y + block.depth;
+        float offsetX = cellOriginOffsetX(map);
+        float offsetY = cellOriginOffsetY(map);
 
-        out8[0] = map.tileToWorldX(x0, y0);
-        out8[1] = map.tileToWorldY(x0, y0);
-        out8[2] = map.tileToWorldX(x1, y0);
-        out8[3] = map.tileToWorldY(x1, y0);
-        out8[4] = map.tileToWorldX(x1, y1);
-        out8[5] = map.tileToWorldY(x1, y1);
-        out8[6] = map.tileToWorldX(x0, y1);
-        out8[7] = map.tileToWorldY(x0, y1);
+        out8[0] = map.tileToWorldX(x0, y0) + offsetX;
+        out8[1] = map.tileToWorldY(x0, y0) + offsetY;
+        out8[2] = map.tileToWorldX(x1, y0) + offsetX;
+        out8[3] = map.tileToWorldY(x1, y0) + offsetY;
+        out8[4] = map.tileToWorldX(x1, y1) + offsetX;
+        out8[5] = map.tileToWorldY(x1, y1) + offsetY;
+        out8[6] = map.tileToWorldX(x0, y1) + offsetX;
+        out8[7] = map.tileToWorldY(x0, y1) + offsetY;
         return true;
+    }
+
+    private static float cellOriginOffsetX(TiledMapLayerData map) {
+        if (map == null || map.projection != SceneMetaRuntime.TiledProjection.ISO) return 0f;
+        return map.tileWidth * 0.5f;
+    }
+
+    private static float cellOriginOffsetY(TiledMapLayerData map) {
+        return 0f;
     }
 
     public static boolean writeCoveredCellRange(SpatialBlockData block, CellRange out) {
