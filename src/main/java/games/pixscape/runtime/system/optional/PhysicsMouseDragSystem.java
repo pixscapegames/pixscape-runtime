@@ -132,6 +132,12 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
             lastWorld = current.world;
         }
 
+        if (Gdx.input.isTouched(1)) {
+            destroyJoint();
+            wasPressed = false;
+            return;
+        }
+
         boolean pressed = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
         if (pressed && !wasPressed) {
             tryBeginDrag();

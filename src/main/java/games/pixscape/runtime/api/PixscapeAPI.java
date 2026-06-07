@@ -15,6 +15,11 @@ public interface PixscapeAPI {
     TiledAPI tiled();
 
     /**
+     * Runtime spatial render-order API.
+     */
+    SpatialAPI spatial();
+
+    /**
      * Expert ECS access for low-level use cases.
      *
      * <p>This escape hatch coexists with the high-level API and does not replace it.</p>

@@ -272,6 +272,40 @@ public class RenderTiledSyncSystemTest {
     }
 
     @Test
+    public void isometricWindowIncludesTallSpritesNearViewportTopEdge() {
+        Fixture fixture = createTallIsometricFixture(
+                1920f,
+                1000f,
+                -1240f,
+                600f,
+                32,
+                41
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals("Tall ISO tile entering from the top edge should render immediately", 1, fixture.drawList.size);
+        Assert.assertTrue("The owning chunk must be considered visible", fixture.tiledSync.getVisibleChunkCount() >= 1);
+    }
+
+    @Test
+    public void isometricFinalOverlapAllowsTallSpritesExtendingPastChunkBounds() {
+        Fixture fixture = createTallIsometricFixture(
+                62f,
+                8f,
+                32f,
+                -92f,
+                0,
+                0
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals("Tall ISO tile extending past chunk bounds should not be culled", 1, fixture.drawList.size);
+        Assert.assertTrue("The padded final overlap should keep the chunk visible", fixture.tiledSync.getVisibleChunkCount() >= 1);
+    }
+
+    @Test
     public void multiLayerWindowsRemainIsolated() {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
@@ -480,6 +514,44 @@ public class RenderTiledSyncSystemTest {
         return new Fixture(world, camera, state, drawList, atlas, map, tiledSync);
     }
 
+    private static Fixture createTallIsometricFixture(float viewportWidth,
+                                                      float viewportHeight,
+                                                      float cameraX,
+                                                      float cameraY,
+                                                      int tileX,
+                                                      int tileY) {
+        OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
+        camera.position.set(cameraX, cameraY, 0f);
+
+        RenderStateSOA state = new RenderStateSOA(20000);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+
+        DrawList drawList = new DrawList(20000);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new TallCountingAtlasRuntimeService();
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 20000);
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
+                .build());
+
+        Entity layerEntity = world.createEntity();
+        LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.layerIndex = 0;
+
+        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+        TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
+        map.initSlotRange(96, 20000);
+        map.setTile(tileX, tileY, 1);
+        tiled.data = map;
+
+        return new Fixture(world, camera, state, drawList, atlas, map, tiledSync);
+    }
+
     private static TileChunk findChunk(TiledMapLayerData map, int cx, int cy) {
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
@@ -517,7 +589,7 @@ public class RenderTiledSyncSystemTest {
         }
     }
 
-    private static final class CountingAtlasRuntimeService extends AtlasRuntimeService {
+    private static class CountingAtlasRuntimeService extends AtlasRuntimeService {
         int resolveCalls = 0;
 
         @Override
@@ -533,6 +605,26 @@ public class RenderTiledSyncSystemTest {
                         200 + assetId,
                         16,
                         16
+                );
+            }
+            return null;
+        }
+    }
+
+    private static final class TallCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
+        @Override
+        public CachedRegion resolveCached(int assetId, String tag) {
+            resolveCalls++;
+            if (assetId == 1) {
+                return new CachedRegion(
+                        "tall-tile",
+                        0f,
+                        0f,
+                        1f,
+                        1f,
+                        301,
+                        64,
+                        128
                 );
             }
             return null;

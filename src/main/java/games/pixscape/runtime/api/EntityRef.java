@@ -31,6 +31,11 @@ public interface EntityRef {
 
     LightFacade light();
 
+    /**
+     * Spatial render-order settings for this entity.
+     */
+    SpatialEntityFacade spatial();
+
     void remove();
 
     /**

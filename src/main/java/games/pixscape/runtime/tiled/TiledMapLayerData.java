@@ -20,6 +20,9 @@ public final class TiledMapLayerData {
 
     public float originX;
     public float originY;
+    public boolean spatialEnabled;
+    public float defaultTileAltitude;
+    public float defaultTileHeight;
 
     public int chunkSize;
 
@@ -222,6 +225,91 @@ public final class TiledMapLayerData {
         chunk.set(lx, ly, assetId, flags);
     }
 
+    public float getTileAltitude(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0f;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0f;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.hasSpatialOverride(lx, ly) ? chunk.getAltitude(lx, ly) : defaultTileAltitude;
+    }
+
+    public float getTileHeight(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0f;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0f;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.hasSpatialOverride(lx, ly) ? chunk.getHeight(lx, ly) : defaultTileHeight;
+    }
+
+    public int getTileSpatialFlags(int gx, int gy) {
+        if (!isInside(gx, gy)) return 0;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return 0;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.hasSpatialOverride(lx, ly) ? chunk.getSpatialFlags(lx, ly) : 0;
+    }
+
+    public boolean hasTileSpatialOverride(int gx, int gy) {
+        if (!isInside(gx, gy)) return false;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return false;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.hasSpatialOverride(lx, ly);
+    }
+
+    public void setTileSpatial(int gx, int gy, float altitude, float height, int flags) {
+        setTileSpatial(gx, gy, altitude, height, flags, true);
+    }
+
+    public void setTileSpatialOverride(int gx, int gy, float altitude, float height, int flags) {
+        setTileSpatial(gx, gy, altitude, height, flags, true);
+    }
+
+    public void clearTileSpatialOverride(int gx, int gy) {
+        if (!isInside(gx, gy)) return;
+
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+
+        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        if (chunk == null) return;
+
+        int lx = gx - (cx * chunkSize);
+        int ly = gy - (cy * chunkSize);
+        chunk.clearSpatialOverride(lx, ly);
+    }
+
+    private void setTileSpatial(int gx, int gy, float altitude, float height, int flags, boolean explicitOverride) {
+        if (!isInside(gx, gy)) return;
+
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+
+        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        if (chunk == null) return;
+
+        int lx = gx - (cx * chunkSize);
+        int ly = gy - (cy * chunkSize);
+
+        if (explicitOverride) {
+            chunk.setSpatialOverride(lx, ly, altitude, height, flags);
+        } else {
+            chunk.setSpatial(lx, ly, altitude, height, flags);
+        }
+    }
+
     // ============================================================
     // DIRTY MANAGEMENT
     // ============================================================
@@ -245,10 +333,23 @@ public final class TiledMapLayerData {
         final class SavedTile {
             final int assetId;
             final byte flags;
+            final float altitude;
+            final float height;
+            final int spatialFlags;
+            final boolean spatialOverride;
 
-            SavedTile(int assetId, byte flags) {
+            SavedTile(int assetId,
+                      byte flags,
+                      float altitude,
+                      float height,
+                      int spatialFlags,
+                      boolean spatialOverride) {
                 this.assetId = assetId;
                 this.flags = flags;
+                this.altitude = altitude;
+                this.height = height;
+                this.spatialFlags = spatialFlags;
+                this.spatialOverride = spatialOverride;
             }
         }
 
@@ -262,9 +363,13 @@ public final class TiledMapLayerData {
                 for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
                     int asset = chunk.get(lx, ly);
-                    if (asset == 0) continue;
-
                     byte flags = chunk.getTransformFlags(lx, ly);
+                    float altitude = chunk.getAltitude(lx, ly);
+                    float height = chunk.getHeight(lx, ly);
+                    int spatialFlags = chunk.getSpatialFlags(lx, ly);
+                    boolean spatialOverride = chunk.hasSpatialOverride(lx, ly);
+
+                    if (asset == 0 && !spatialOverride) continue;
 
                     int gx = chunk.chunkX * chunkSize + lx;
                     int gy = chunk.chunkY * chunkSize + ly;
@@ -274,7 +379,7 @@ public final class TiledMapLayerData {
                         col = new IntMap<>();
                         saved.put(gx, col);
                     }
-                    col.put(gy, new SavedTile(asset, flags));
+                    col.put(gy, new SavedTile(asset, flags, altitude, height, spatialFlags, spatialOverride));
                 }
             }
         }
@@ -296,6 +401,9 @@ public final class TiledMapLayerData {
 
                 if (isInside(gx, gy)) {
                     setTile(gx, gy, savedTile.assetId, savedTile.flags);
+                    if (savedTile.spatialOverride) {
+                        setTileSpatialOverride(gx, gy, savedTile.altitude, savedTile.height, savedTile.spatialFlags);
+                    }
                 }
             }
         }
@@ -337,6 +445,42 @@ public final class TiledMapLayerData {
         return unpackTileY(worldToTilePacked(worldX, worldY));
     }
 
+    /**
+     * Continuous tile-space projection using the exact inverse of tileToWorldX/Y.
+     * For ISO this inverts the logical top-left tile transform, not cell containment.
+     */
+    public float projectWorldToTileX(float worldX, float worldY) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return (worldX - originX) / Math.max(tileWidth, EPSILON);
+        }
+
+        float halfW = tileWidth * 0.5f;
+        float halfH = tileHeight * 0.5f;
+        if (halfW <= EPSILON || halfH <= EPSILON) return 0f;
+
+        float localX = (worldX - originX) / halfW;
+        float localY = (worldY - originY) / halfH;
+        return (localY + localX) * 0.5f;
+    }
+
+    /**
+     * Continuous tile-space projection using the exact inverse of tileToWorldX/Y.
+     * For ISO this inverts the logical top-left tile transform, not cell containment.
+     */
+    public float projectWorldToTileY(float worldX, float worldY) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return (worldY - originY) / Math.max(tileHeight, EPSILON);
+        }
+
+        float halfW = tileWidth * 0.5f;
+        float halfH = tileHeight * 0.5f;
+        if (halfW <= EPSILON || halfH <= EPSILON) return 0f;
+
+        float localX = (worldX - originX) / halfW;
+        float localY = (worldY - originY) / halfH;
+        return (localY - localX) * 0.5f;
+    }
+
     private long worldToTilePacked(float worldX, float worldY) {
         if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
             int gx = (int) Math.floor((worldX - originX) / tileWidth);
@@ -352,7 +496,7 @@ public final class TiledMapLayerData {
         }
 
         float localX = worldX - originX - halfW;
-        float localY = worldY - originY;
+        float localY = worldY - originY - halfH;
 
         int approxGX = (int) Math.floor(((localY / halfH) + (localX / halfW)) * 0.5f);
         int approxGY = (int) Math.floor(((localY / halfH) - (localX / halfW)) * 0.5f);
@@ -421,9 +565,33 @@ public final class TiledMapLayerData {
     }
 
     /**
+     * Continuous tile-space variant of {@link #tileToWorldX(int, int)}.
+     */
+    public float tileToWorldX(float gx, float gy) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return originX + gx * tileWidth;
+        }
+
+        float halfW = tileWidth * 0.5f;
+        return originX + (gx - gy) * halfW;
+    }
+
+    /**
      * Top-left of render rect.
      */
     public float tileToWorldY(int gx, int gy) {
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+            return originY + gy * tileHeight;
+        }
+
+        float halfH = tileHeight * 0.5f;
+        return originY + (gx + gy) * halfH;
+    }
+
+    /**
+     * Continuous tile-space variant of {@link #tileToWorldY(int, int)}.
+     */
+    public float tileToWorldY(float gx, float gy) {
         if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
             return originY + gy * tileHeight;
         }
@@ -527,16 +695,30 @@ public final class TiledMapLayerData {
     public byte getTileTransformFlags(int gx, int gy) {
         if (!isInside(gx, gy)) return TileTransformFlags.NONE;
 
-        int cx = gx / chunkSize;
-        int cy = gy / chunkSize;
-
-        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        TileChunk chunk = chunkForTile(gx, gy);
         if (chunk == null) return TileTransformFlags.NONE;
 
-        int lx = gx - (cx * chunkSize);
-        int ly = gy - (cy * chunkSize);
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
 
         return chunk.getTransformFlags(lx, ly);
+    }
+
+    public int slotForTile(int gx, int gy) {
+        if (!isInside(gx, gy)) return -1;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return -1;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.slotFor(lx, ly);
+    }
+
+    private TileChunk chunkForTile(int gx, int gy) {
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+        return chunks.get(packChunk(cx, cy));
     }
 
     public IntMap.Values<TileChunk> getChunks() {

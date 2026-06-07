@@ -7,7 +7,6 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 public final class RenderBuildDrawListSystem extends BaseSystem {
-
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
     private final DrawList drawList;
@@ -47,7 +46,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
             final int ecsUpper = Math.min(maxId, ecsEndExclusive - 1);
 
             for (int slot = 0; slot <= ecsUpper; slot++) {
-                if (isRenderableSlot(slot)) {
+                boolean renderable = isRenderableSlot(slot);
+                if (renderable) {
                     drawList.add(slot);
                 }
             }
@@ -68,7 +68,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
                 continue;
             }
 
-            if (isRenderableSlot(slot)) {
+            boolean renderable = isRenderableSlot(slot);
+            if (renderable) {
                 drawList.add(slot);
             }
         }
@@ -78,7 +79,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
             int end = Math.min(vfxEndExclusive, state.enabled.length);
 
             for (int slot = start; slot < end; slot++) {
-                if (isRenderableSlot(slot)) {
+                boolean renderable = isRenderableSlot(slot);
+                if (renderable) {
                     drawList.add(slot);
                 }
             }
