@@ -5,6 +5,7 @@ import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -24,6 +25,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     private static final int BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK = 2;
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
+    private static final int ITEM_ACTOR = 1;
+    private static final int ITEM_BLOCK = 2;
+    private static final int ITEM_OTHER_SPATIAL = 3;
+
     private final RenderStateSOA state;
     private final DrawList drawList;
 
@@ -40,38 +45,37 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     private EntitySubscription blockLayersSub;
 
     private boolean[] spatialLayers = new boolean[0];
-    private int[] actorSlots = new int[0];
-    private int[] actorScratchSlots = new int[0];
-    private int[] actorPositions = new int[0];
-    private float[] actorFootY = new float[0];
-    private float[] actorScratchFootY = new float[0];
 
     private SpatialBlockIndex[] blockIndices = new SpatialBlockIndex[0];
     private int[] blockLayerEntities = new int[0];
     private int blockLayerCount;
 
-    private int[] snapshot = new int[0];
-    private int[] slotDrawIndex = new int[0];
-    private int[] slotDrawIndexFrame = new int[0];
-    private int slotDrawIndexFrameId = 1;
+    private int[] itemType = new int[0];
+    private int[] itemEntryStart = new int[0];
+    private int[] itemEntryCount = new int[0];
+    private int[] itemOriginalDrawIndex = new int[0];
+    private int[] itemLayerOrder = new int[0];
+    private int[] itemStableId = new int[0];
+    private int[] itemActorSlot = new int[0];
+    private int[] itemActorEntity = new int[0];
+    private int[] itemBlockOwner = new int[0];
+    private int[] itemBlockIndex = new int[0];
+    private int[] itemBlockId = new int[0];
+    private float[] itemDepthKey = new float[0];
+    private int itemCount;
 
-    private int[] intentActorSlot = new int[0];
-    private int[] intentFirstLinkedTileSlot = new int[0];
-    private int[] intentLastLinkedTileSlot = new int[0];
-    private int[] intentSpatialBlockId = new int[0];
-    private int[] intentOriginalActorDrawIndex = new int[0];
-    private int[] intentFirstLinkedDrawIndex = new int[0];
-    private int[] intentLastLinkedDrawIndex = new int[0];
-    private int[] intentTargetDrawIndex = new int[0];
-    private int[] intentBlockRelation = new int[0];
-    private int[] intentApplyOrder = new int[0];
-    private boolean[] intentAfterLinkedTile = new boolean[0];
-    private boolean[] intentLinkedRefsAuthoredSource = new boolean[0];
-    private int intentCount;
+    private int[] itemEntries = new int[0];
+    private int itemEntryCountTotal;
 
-    private boolean[] movedActorSlots = new boolean[0];
-    private int[] touchedMovedSlots = new int[0];
-    private int touchedMovedCount;
+    private int[] edgeFrom = new int[0];
+    private int[] edgeTo = new int[0];
+    private int[] itemIndegree = new int[0];
+    private boolean[] itemEmitted = new boolean[0];
+    private int[] sortedItems = new int[0];
+    private int edgeCount;
+
+    private int[] rewriteSlots = new int[0];
+
     private final SpatialActorGeometry.Footprint tmpActorFootprint = new SpatialActorGeometry.Footprint();
     private final SpatialActorGeometry.Footprint tmpActorSortFootprint = new SpatialActorGeometry.Footprint();
     private final float[] tmpActorBaseSegment = new float[4];
@@ -79,10 +83,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     private final float[] tmpActorReferencePoint = new float[2];
     private final float[] tmpBlockFootprint = new float[8];
     private final SpatialBlockLinkedTiles.Refs tmpLinkedTileRefs = new SpatialBlockLinkedTiles.Refs();
+    private final SpatialBlockGeometry.CellRange tmpActorCellRange = new SpatialBlockGeometry.CellRange();
+    private final IntArray tmpCandidateBlocks = new IntArray(false, 16);
 
-    private float tmpProjectionTLeft;
-    private float tmpProjectionTRight;
-    private boolean tmpInfluencePassed;
     private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
 
     public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList) {
@@ -112,20 +115,32 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         int[] data = drawList.data();
         int start = 0;
         while (start < drawList.size) {
-            int layer = state.layerIndex[data[start]];
+            while (start < drawList.size && !isSpatialRunEntry(data[start])) {
+                start++;
+            }
+            if (start >= drawList.size) break;
+
             int end = start + 1;
-            while (end < drawList.size && state.layerIndex[data[end]] == layer) {
+            while (end < drawList.size && isSpatialRunEntry(data[end])) {
                 end++;
             }
 
-            if (isSpatialLayer(layer)) {
-                sortSpatialActorsInLayerRun(data, start, end);
-            }
-
+            processSpatialRun(data, start, end);
             start = end;
         }
+    }
 
-        applySpatialBlockOrdering();
+    private void processSpatialRun(int[] data, int start, int end) {
+        itemCount = 0;
+        itemEntryCountTotal = 0;
+        edgeCount = 0;
+
+        buildSpatialItemsForRun(data, start, end);
+        if (itemCount <= 1) return;
+
+        computeSpatialRelationsForRun();
+        int sortedCount = sortSpatialItemsDeterministically();
+        rewriteRun(data, start, end, sortedCount);
     }
 
     private void rebuildSpatialLayers() {
@@ -148,117 +163,325 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         }
     }
 
-    private int sortSpatialActorsInLayerRun(int[] data, int start, int end) {
-        int count = 0;
-        for (int i = start; i < end; i++) {
-            int slot = data[i];
-            if (!isSpatialActorSlot(slot)) continue;
+    private void rebuildSpatialBlockIndices() {
+        blockLayerCount = 0;
+        if (blockLayersSub == null) return;
 
-            ensureActorCapacity(count + 1);
-            actorSlots[count] = slot;
-            actorPositions[count] = i;
-            actorFootY[count] = actorFootY(state.entityId[slot]);
+        IntBag layers = blockLayersSub.getEntities();
+        int[] data = layers.getData();
+        for (int i = 0, n = layers.size(); i < n; i++) {
+            int entity = data[i];
+            LayerComponent layer = mLayer.getSafe(entity, null);
+            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
+            SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entity, null);
+            if (layer == null || tiled == null) continue;
+            if (layer.type != LayerComponent.TYPE_TILED) continue;
+            if (tiled.data == null) continue;
+            if (!isSpatialTiledLayer(layer, tiled)) continue;
+
+            ensureBlockLayerCapacity(blockLayerCount + 1);
+            SpatialBlockIndex index = blockIndices[blockLayerCount];
+            if (index == null) {
+                index = new SpatialBlockIndex();
+                blockIndices[blockLayerCount] = index;
+            }
+            if (blocks != null && blocks.hasBlocks()) {
+                index.rebuild(entity, blocks);
+            } else {
+                index.clear();
+            }
+            blockLayerEntities[blockLayerCount] = entity;
+            blockLayerCount++;
+        }
+    }
+
+    private void buildSpatialItemsForRun(int[] data, int start, int end) {
+        for (int drawIndex = start; drawIndex < end; drawIndex++) {
+            int slot = data[drawIndex];
+            if (isSlotAlreadyGrouped(slot)) continue;
+
+            if (isSpatialActorSlot(slot)) {
+                addActorItem(slot, drawIndex);
+                continue;
+            }
+
+            int blockOwner = findLinkedBlockOwnerForTileSlot(slot);
+            if (blockOwner >= 0) {
+                int blockIndex = tmpFoundBlockIndex;
+                if (findBlockItem(blockOwner, blockIndex) < 0) {
+                    addBlockItem(data, start, end, blockOwner, blockIndex, drawIndex);
+                }
+                continue;
+            }
+
+            addOtherSpatialItem(slot, drawIndex);
+        }
+    }
+
+    private int tmpFoundBlockIndex = -1;
+
+    private int findLinkedBlockOwnerForTileSlot(int slot) {
+        tmpFoundBlockIndex = -1;
+        if (!isRenderableSlot(slot)) return -1;
+        for (int i = 0; i < blockLayerCount; i++) {
+            int owner = blockLayerEntities[i];
+            TiledLayerComponent tiled = mTiled.getSafe(owner, null);
+            SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
+            if (tiled == null || tiled.data == null || blocks == null || blocks.blocks == null) continue;
+            if (slot < tiled.data.layerTiledStart || slot >= tiled.data.layerTiledEnd) continue;
+
+            for (int blockIndex = 0, n = blocks.blocks.size; blockIndex < n; blockIndex++) {
+                SpatialBlockData block = blocks.blocks.get(blockIndex);
+                if (!SpatialBlockGeometry.isIndexableActorOccluder(block)) continue;
+                SpatialBlockLinkedTiles.compute(block, tiled.data, tmpLinkedTileRefs);
+                for (int ref = 0; ref < tmpLinkedTileRefs.count; ref++) {
+                    if (tmpLinkedTileRefs.slot(ref) == slot) {
+                        tmpFoundBlockIndex = blockIndex;
+                        return owner;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    private void addActorItem(int slot, int drawIndex) {
+        int entity = state.entityId[slot];
+        int item = addItem(ITEM_ACTOR, drawIndex, state.layerIndex[slot], actorFootY(entity), stableActorId(slot));
+        itemActorSlot[item] = slot;
+        itemActorEntity[item] = entity;
+        appendItemEntry(slot);
+        itemEntryCount[item] = 1;
+    }
+
+    private void addBlockItem(int[] data, int start, int end, int owner, int blockIndex, int firstDrawIndex) {
+        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
+        TiledLayerComponent tiled = mTiled.getSafe(owner, null);
+        if (blocks == null || tiled == null || tiled.data == null) return;
+
+        SpatialBlockData block = blocks.blocks.get(blockIndex);
+        if (!SpatialBlockGeometry.isIndexableActorOccluder(block)) return;
+
+        int item = addItem(ITEM_BLOCK, firstDrawIndex, layerOrderOf(owner), blockDepthKey(tiled.data, block),
+                stableBlockId(owner, block, blockIndex));
+        itemBlockOwner[item] = owner;
+        itemBlockIndex[item] = blockIndex;
+        itemBlockId[item] = block.id;
+
+        SpatialBlockLinkedTiles.compute(block, tiled.data, tmpLinkedTileRefs);
+        int count = 0;
+        for (int linked = 0; linked < tmpLinkedTileRefs.count; linked++) {
+            int slot = tmpLinkedTileRefs.slot(linked);
+            if (!isRenderableSlot(slot)) continue;
+            if (findDrawIndexInRun(data, start, end, slot) < 0) continue;
+            appendItemEntry(slot);
             count++;
         }
-
-        if (count <= 1) return count;
-
-        stableSortActorsByFootY(count);
-
-        for (int i = 0; i < count; i++) {
-            data[actorPositions[i]] = actorSlots[i];
-        }
-
-        return count;
-    }
-
-    private void stableSortActorsByFootY(int count) {
-        for (int width = 1; width < count; width <<= 1) {
-            for (int left = 0; left < count; left += width << 1) {
-                int mid = Math.min(left + width, count);
-                int right = Math.min(left + (width << 1), count);
-                mergeActorRuns(left, mid, right);
-            }
-
-            System.arraycopy(actorScratchSlots, 0, actorSlots, 0, count);
-            System.arraycopy(actorScratchFootY, 0, actorFootY, 0, count);
+        itemEntryCount[item] = count;
+        if (count == 0) {
+            itemCount--;
+            itemEntryCountTotal = itemEntryStart[item];
         }
     }
 
-    private void mergeActorRuns(int left, int mid, int right) {
-        int a = left;
-        int b = mid;
-        int write = left;
+    private void addOtherSpatialItem(int slot, int drawIndex) {
+        int item = addItem(ITEM_OTHER_SPATIAL, drawIndex, state.layerIndex[slot], state.runtimeOrder[slot], slot);
+        itemActorSlot[item] = slot;
+        appendItemEntry(slot);
+        itemEntryCount[item] = 1;
+    }
 
-        while (a < mid && b < right) {
-            if (Float.compare(actorFootY[a], actorFootY[b]) >= 0) {
-                actorScratchSlots[write] = actorSlots[a];
-                actorScratchFootY[write] = actorFootY[a];
-                a++;
-            } else {
-                actorScratchSlots[write] = actorSlots[b];
-                actorScratchFootY[write] = actorFootY[b];
-                b++;
+    private int addItem(int type, int originalDrawIndex, int layerOrder, float depthKey, int stableId) {
+        ensureItemCapacity(itemCount + 1);
+        int item = itemCount++;
+        itemType[item] = type;
+        itemEntryStart[item] = itemEntryCountTotal;
+        itemEntryCount[item] = 0;
+        itemOriginalDrawIndex[item] = originalDrawIndex;
+        itemLayerOrder[item] = layerOrder;
+        itemDepthKey[item] = depthKey;
+        itemStableId[item] = stableId;
+        itemActorSlot[item] = -1;
+        itemActorEntity[item] = -1;
+        itemBlockOwner[item] = -1;
+        itemBlockIndex[item] = -1;
+        itemBlockId[item] = 0;
+        return item;
+    }
+
+    private void appendItemEntry(int slot) {
+        ensureItemEntryCapacity(itemEntryCountTotal + 1);
+        itemEntries[itemEntryCountTotal++] = slot;
+    }
+
+    private void computeSpatialRelationsForRun() {
+        ensureSortCapacity(itemCount);
+        for (int i = 0; i < itemCount; i++) {
+            itemIndegree[i] = 0;
+            itemEmitted[i] = false;
+        }
+
+        for (int item = 0; item < itemCount; item++) {
+            if (itemType[item] != ITEM_ACTOR) continue;
+            int entity = itemActorEntity[item];
+            SpatialHeightComponent height = mSpatialHeight.getSafe(entity, null);
+            TransformComponent transform = mTransform.getSafe(entity, null);
+            if (!writeActorPhysicsCircleFootprint(entity, transform, height, tmpActorFootprint)) continue;
+            writeActorBaseSegment(tmpActorFootprint, tmpActorBaseSegment);
+
+            for (int layer = 0; layer < blockLayerCount; layer++) {
+                int owner = blockLayerEntities[layer];
+                TiledLayerComponent tiled = mTiled.getSafe(owner, null);
+                if (tiled == null || tiled.data == null) continue;
+                if (!writeActorCandidateCellRange(tiled.data, tmpActorFootprint, tmpActorCellRange)) continue;
+
+                SpatialBlockIndex index = blockIndices[layer];
+                if (index == null) continue;
+                index.queryRange(tmpActorCellRange.minGx, tmpActorCellRange.maxGxExclusive,
+                        tmpActorCellRange.minGy, tmpActorCellRange.maxGyExclusive, tmpCandidateBlocks);
+                sortCandidateBlockRefs(index, tmpCandidateBlocks);
+
+                for (int c = 0; c < tmpCandidateBlocks.size; c++) {
+                    int ref = tmpCandidateBlocks.get(c);
+                    int blockItem = findBlockItem(owner, index.getRefBlockIndex(ref));
+                    if (blockItem < 0) continue;
+                    addActorBlockRelation(item, blockItem, owner, index.getRefBlockIndex(ref), tiled.data);
+                }
             }
-            write++;
+        }
+    }
+
+    private void addActorBlockRelation(int actorItem, int blockItem, int owner, int blockIndex, TiledMapLayerData map) {
+        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
+        if (blocks == null || blocks.blocks == null || blockIndex < 0 || blockIndex >= blocks.blocks.size) return;
+        SpatialBlockData block = blocks.blocks.get(blockIndex);
+        if (!verticalOverlaps(tmpActorFootprint.bottom, tmpActorFootprint.top,
+                SpatialBlockGeometry.bottom(block), SpatialBlockGeometry.top(block))) {
+            return;
+        }
+        if (!writeBlockBottomSegment(map, block, tmpBlockBottomSegment)) return;
+        if (!isActorInAuthoredBlockInfluence(tmpActorBaseSegment, tmpBlockBottomSegment,
+                tmpActorFootprint.bottom, block)) {
+            return;
         }
 
-        while (a < mid) {
-            actorScratchSlots[write] = actorSlots[a];
-            actorScratchFootY[write] = actorFootY[a];
-            a++;
-            write++;
+        int relation = actorBlockBottomSegmentRelation(map, tmpActorFootprint, block, tmpBlockBottomSegment);
+        if (relation == BLOCK_RELATION_ACTOR_BEHIND_BLOCK) {
+            addEdge(actorItem, blockItem);
+        } else if (relation == BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK) {
+            addEdge(blockItem, actorItem);
         }
+    }
 
-        while (b < right) {
-            actorScratchSlots[write] = actorSlots[b];
-            actorScratchFootY[write] = actorFootY[b];
-            b++;
-            write++;
+    private int sortSpatialItemsDeterministically() {
+        int out = 0;
+        while (out < itemCount) {
+            int next = -1;
+            for (int i = 0; i < itemCount; i++) {
+                if (itemEmitted[i]) continue;
+                if (itemIndegree[i] != 0) continue;
+                if (next < 0 || compareItemStable(i, next) < 0) next = i;
+            }
+            if (next < 0) {
+                for (int i = 0; i < itemCount; i++) {
+                    if (itemEmitted[i]) continue;
+                    if (next < 0 || compareItemStable(i, next) < 0) next = i;
+                }
+            }
+
+            itemEmitted[next] = true;
+            sortedItems[out++] = next;
+            for (int edge = 0; edge < edgeCount; edge++) {
+                if (edgeFrom[edge] == next && !itemEmitted[edgeTo[edge]]) {
+                    itemIndegree[edgeTo[edge]]--;
+                }
+            }
         }
+        return out;
+    }
+
+    private void rewriteRun(int[] data, int start, int end, int sortedCount) {
+        int runSize = end - start;
+        ensureRewriteCapacity(runSize);
+        int write = 0;
+        for (int i = 0; i < sortedCount; i++) {
+            int item = sortedItems[i];
+            int entryStart = itemEntryStart[item];
+            int entryCount = itemEntryCount[item];
+            for (int entry = 0; entry < entryCount; entry++) {
+                rewriteSlots[write++] = itemEntries[entryStart + entry];
+            }
+        }
+        if (write != runSize) return;
+        System.arraycopy(rewriteSlots, 0, data, start, runSize);
+    }
+
+    private void addEdge(int from, int to) {
+        if (from == to) return;
+        for (int i = 0; i < edgeCount; i++) {
+            if (edgeFrom[i] == from && edgeTo[i] == to) return;
+        }
+        ensureEdgeCapacity(edgeCount + 1);
+        edgeFrom[edgeCount] = from;
+        edgeTo[edgeCount] = to;
+        edgeCount++;
+        itemIndegree[to]++;
+    }
+
+    private int compareItemStable(int left, int right) {
+        if (itemType[left] == ITEM_ACTOR && itemType[right] == ITEM_ACTOR) {
+            int depth = compareFloatDescending(itemDepthKey[left], itemDepthKey[right]);
+            if (depth != 0) return depth;
+        }
+        if (itemOriginalDrawIndex[left] != itemOriginalDrawIndex[right]) {
+            return itemOriginalDrawIndex[left] < itemOriginalDrawIndex[right] ? -1 : 1;
+        }
+        if (itemLayerOrder[left] != itemLayerOrder[right]) {
+            return itemLayerOrder[left] < itemLayerOrder[right] ? -1 : 1;
+        }
+        if (itemStableId[left] != itemStableId[right]) {
+            return itemStableId[left] < itemStableId[right] ? -1 : 1;
+        }
+        return Integer.compare(left, right);
+    }
+
+    private static int compareFloatDescending(float left, float right) {
+        int cmp = Float.compare(right, left);
+        return cmp < 0 ? -1 : (cmp > 0 ? 1 : 0);
+    }
+
+    private boolean isSpatialRunEntry(int slot) {
+        return isSpatialActorSlot(slot) || isSpatialTiledSlot(slot);
+    }
+
+    private boolean isSpatialTiledSlot(int slot) {
+        if (!isRenderableSlot(slot)) return false;
+        for (int i = 0; i < blockLayerCount; i++) {
+            int owner = blockLayerEntities[i];
+            TiledLayerComponent tiled = mTiled.getSafe(owner, null);
+            if (tiled == null || tiled.data == null) continue;
+            if (slot >= tiled.data.layerTiledStart && slot < tiled.data.layerTiledEnd) return true;
+        }
+        return false;
     }
 
     private boolean isSpatialActorSlot(int slot) {
-        if (!isRenderableSlot(slot)) {
-            return false;
-        }
+        if (!isRenderableSlot(slot)) return false;
 
         int entity = state.entityId[slot];
-        if (entity < 0 || entity >= state.getCapacity()) {
-            return false;
-        }
-        if (!world.getEntityManager().isActive(entity)) {
-            return false;
-        }
+        if (entity < 0 || entity >= state.getCapacity()) return false;
+        if (!world.getEntityManager().isActive(entity)) return false;
 
         EntityIndexComponent index = mEntityIndex.getSafe(entity, null);
-        if (index == null) {
-            return false;
-        }
-        if (index.layerIndex != state.layerIndex[slot]) {
-            return false;
-        }
-        if (!isSpatialLayer(index.layerIndex)) {
-            return false;
-        }
+        if (index == null) return false;
+        if (index.layerIndex != state.layerIndex[slot]) return false;
+        if (!isSpatialLayer(index.layerIndex)) return false;
 
         SpatialHeightComponent height = mSpatialHeight.getSafe(entity, null);
-        if (height == null) {
-            return false;
-        }
-        if (height.height <= 0f) {
-            return false;
-        }
+        if (height == null || height.height <= 0f) return false;
 
-        if (!mTransform.has(entity)) {
-            return false;
-        }
-        TransformComponent transform = mTransform.get(entity);
-        if (!writeActorPhysicsCircleFootprint(entity, transform, height, tmpActorSortFootprint)) {
-            return false;
-        }
-
-        return true;
+        TransformComponent transform = mTransform.getSafe(entity, null);
+        return writeActorPhysicsCircleFootprint(entity, transform, height, tmpActorSortFootprint);
     }
 
     private boolean isRenderableSlot(int slot) {
@@ -320,238 +543,109 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         return false;
     }
 
-    private void rebuildSpatialBlockIndices() {
-        blockLayerCount = 0;
-        if (blockLayersSub == null) return;
+    private boolean writeActorCandidateCellRange(TiledMapLayerData map,
+                                                 SpatialActorGeometry.Footprint footprint,
+                                                 SpatialBlockGeometry.CellRange out) {
+        if (map == null || footprint == null || out == null) return false;
+        float gx0 = map.projectWorldToTileX(footprint.minX, footprint.minY);
+        float gy0 = map.projectWorldToTileY(footprint.minX, footprint.minY);
+        float gx1 = map.projectWorldToTileX(footprint.maxX, footprint.minY);
+        float gy1 = map.projectWorldToTileY(footprint.maxX, footprint.minY);
+        float gx2 = map.projectWorldToTileX(footprint.minX, footprint.maxY);
+        float gy2 = map.projectWorldToTileY(footprint.minX, footprint.maxY);
+        float gx3 = map.projectWorldToTileX(footprint.maxX, footprint.maxY);
+        float gy3 = map.projectWorldToTileY(footprint.maxX, footprint.maxY);
 
-        IntBag layers = blockLayersSub.getEntities();
-        int[] data = layers.getData();
-        for (int i = 0, n = layers.size(); i < n; i++) {
-            int entity = data[i];
-            LayerComponent layer = mLayer.getSafe(entity, null);
-            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
-            SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entity, null);
-            if (layer == null || tiled == null) continue;
-            if (layer.type != LayerComponent.TYPE_TILED) continue;
-            if (tiled.data == null) continue;
-            if (!isSpatialTiledLayer(layer, tiled)) continue;
+        int minGx = (int) Math.floor(Math.min(Math.min(gx0, gx1), Math.min(gx2, gx3))) - 1;
+        int maxGx = (int) Math.ceil(Math.max(Math.max(gx0, gx1), Math.max(gx2, gx3))) + 2;
+        int minGy = (int) Math.floor(Math.min(Math.min(gy0, gy1), Math.min(gy2, gy3))) - 1;
+        int maxGy = (int) Math.ceil(Math.max(Math.max(gy0, gy1), Math.max(gy2, gy3))) + 2;
+        out.set(minGx, maxGx, minGy, maxGy);
+        return true;
+    }
 
-            ensureBlockLayerCapacity(blockLayerCount + 1);
-            SpatialBlockIndex index = blockIndices[blockLayerCount];
-            if (index == null) {
-                index = new SpatialBlockIndex();
-                blockIndices[blockLayerCount] = index;
+    private void sortCandidateBlockRefs(SpatialBlockIndex index, IntArray refs) {
+        for (int i = 1; i < refs.size; i++) {
+            int ref = refs.get(i);
+            int j = i - 1;
+            while (j >= 0 && compareBlockRefs(index, ref, refs.get(j)) < 0) {
+                refs.set(j + 1, refs.get(j));
+                j--;
             }
-            if (blocks != null && blocks.hasBlocks()) {
-                index.rebuild(entity, blocks);
-            } else {
-                index.clear();
-            }
-            blockLayerEntities[blockLayerCount] = entity;
-            blockLayerCount++;
+            refs.set(j + 1, ref);
         }
+    }
+
+    private int compareBlockRefs(SpatialBlockIndex index, int left, int right) {
+        float leftAltitude = index.getRefAltitude(left);
+        float rightAltitude = index.getRefAltitude(right);
+        if (Math.abs(leftAltitude - rightAltitude) > BLOCK_BOUNDARY_EPSILON) {
+            return leftAltitude > rightAltitude ? -1 : 1;
+        }
+        int leftId = index.getRefBlockId(left);
+        int rightId = index.getRefBlockId(right);
+        if (leftId != rightId) return leftId < rightId ? -1 : 1;
+        int leftBlock = index.getRefBlockIndex(left);
+        int rightBlock = index.getRefBlockIndex(right);
+        if (leftBlock != rightBlock) return leftBlock < rightBlock ? -1 : 1;
+        return 0;
+    }
+
+    private boolean isSlotAlreadyGrouped(int slot) {
+        for (int item = 0; item < itemCount; item++) {
+            int start = itemEntryStart[item];
+            int count = itemEntryCount[item];
+            for (int i = 0; i < count; i++) {
+                if (itemEntries[start + i] == slot) return true;
+            }
+        }
+        return false;
+    }
+
+    private int findBlockItem(int owner, int blockIndex) {
+        for (int i = 0; i < itemCount; i++) {
+            if (itemType[i] == ITEM_BLOCK
+                    && itemBlockOwner[i] == owner
+                    && itemBlockIndex[i] == blockIndex) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int findDrawIndexInRun(int[] data, int start, int end, int slot) {
+        if (data == null) return -1;
+        for (int i = start; i < end; i++) {
+            if (data[i] == slot) return i;
+        }
+        return -1;
+    }
+
+    private int layerOrderOf(int owner) {
+        LayerComponent layer = mLayer.getSafe(owner, null);
+        return layer != null ? layer.layerIndex : 0;
+    }
+
+    private int stableActorId(int slot) {
+        int entity = state.entityId[slot];
+        return entity >= 0 ? entity : slot;
+    }
+
+    private int stableBlockId(int owner, SpatialBlockData block, int blockIndex) {
+        int id = block != null ? block.id : 0;
+        int low = id != 0 ? id : blockIndex + 1;
+        return (owner << 12) ^ low;
+    }
+
+    private float blockDepthKey(TiledMapLayerData map, SpatialBlockData block) {
+        if (!writeBlockBottomSegment(map, block, tmpBlockBottomSegment)) return 0f;
+        return (tmpBlockBottomSegment[1] + tmpBlockBottomSegment[3]) * 0.5f;
     }
 
     private boolean isSpatialTiledLayer(LayerComponent layer, TiledLayerComponent tiled) {
         return (layer != null && layer.spatialEnabled)
                 || (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
-    }
-
-    private void applySpatialBlockOrdering() {
-        if (blockLayerCount <= 0 || drawList.size <= 1) return;
-
-        int size = drawList.size;
-        ensureSnapshotCapacity(size);
-        int[] data = drawList.data();
-        System.arraycopy(data, 0, snapshot, 0, size);
-        captureSlotDrawIndices(snapshot, size);
-
-        intentCount = 0;
-        for (int i = 0; i < size; i++) {
-            int slot = snapshot[i];
-            if (!isSpatialActorSlot(slot)) continue;
-            computeAuthoredSpatialBlockIntent(slot, i);
-        }
-
-        if (intentCount <= 0) {
-            return;
-        }
-        rebuildDrawListFromBlockIntents(data, size);
-    }
-
-    private void computeAuthoredSpatialBlockIntent(int actorSlot, int stableActorOrderIndex) {
-        int actorEntity = state.entityId[actorSlot];
-        SpatialHeightComponent actorHeight = mSpatialHeight.getSafe(actorEntity, null);
-        if (actorHeight == null || actorHeight.height <= 0f) return;
-
-        TransformComponent actorTransform = mTransform.getSafe(actorEntity, null);
-        boolean hasFootprint = writeActorPhysicsCircleFootprint(actorEntity, actorTransform, actorHeight, tmpActorFootprint);
-        if (!hasFootprint) {
-            return;
-        }
-        float actorBottom = tmpActorFootprint.bottom;
-
-        boolean hasSelected = false;
-        SpatialBlockData selectedBlock = null;
-        int selectedOwner = -1;
-        int selectedBlockIndex = -1;
-        int selectedBlockId = 0;
-        int selectedTileId = 0;
-        int selectedLinkedTileSlot = -1;
-        int selectedLinkedTileDrawIndex = -1;
-        int selectedLinkedTileGx = 0;
-        int selectedLinkedTileGy = 0;
-        int selectedMinLinkedTileSlot = -1;
-        int selectedMaxLinkedTileSlot = -1;
-        int selectedMinLinkedDrawIndex = -1;
-        int selectedMaxLinkedDrawIndex = -1;
-        int selectedAuthoredLinkedRefsCount = 0;
-        int selectedResolvedLinkedRefsCount = 0;
-        int selectedTargetDrawIndex = -1;
-        int selectedRelation = BLOCK_RELATION_NOT_APPLICABLE;
-        float selectedBlockAltitude = -Float.MAX_VALUE;
-        float selectedActorReferenceX = 0f;
-        float selectedActorReferenceY = 0f;
-        float selectedBlockBottomStartX = 0f;
-        float selectedBlockBottomStartY = 0f;
-        float selectedBlockBottomEndX = 0f;
-        float selectedBlockBottomEndY = 0f;
-        float selectedCrossSide = 0f;
-        boolean selectedAfterLinkedTile = false;
-
-        writeActorBaseSegment(tmpActorFootprint, tmpActorBaseSegment);
-        for (int i = 0; i < blockLayerCount; i++) {
-            int owner = blockLayerEntities[i];
-            TiledLayerComponent tiled = mTiled.getSafe(owner, null);
-            SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
-            if (tiled == null || tiled.data == null) continue;
-            if (blocks == null || blocks.blocks == null || blocks.blocks.size == 0) continue;
-
-            TiledMapLayerData map = tiled.data;
-            for (int blockIndex = 0, n = blocks.blocks.size; blockIndex < n; blockIndex++) {
-                SpatialBlockData block = blocks.blocks.get(blockIndex);
-                if (block == null || !block.hasAuthoredLinkedTileRefs()) continue;
-
-                resetAuthoredInfluenceDebug();
-                if (!SpatialBlockGeometry.isIndexableActorOccluder(block)) {
-                    continue;
-                }
-                if (!writeBlockBottomSegment(map, block, tmpBlockBottomSegment)) {
-                    continue;
-                }
-
-                SpatialBlockLinkedTiles.compute(block, map, tmpLinkedTileRefs);
-                if (tmpLinkedTileRefs.count == 0) {
-                    continue;
-                }
-
-                boolean hasRenderableLinkedTile = false;
-                int minLinkedTileSlot = -1;
-                int minLinkedTileDrawIndex = Integer.MAX_VALUE;
-                int minLinkedTileGx = 0;
-                int minLinkedTileGy = 0;
-                int minLinkedTileId = 0;
-                int maxLinkedTileSlot = -1;
-                int maxLinkedTileDrawIndex = Integer.MIN_VALUE;
-                int maxLinkedTileGx = 0;
-                int maxLinkedTileGy = 0;
-                int maxLinkedTileId = 0;
-                for (int linked = 0; linked < tmpLinkedTileRefs.count; linked++) {
-                    int tileSlot = tmpLinkedTileRefs.slot(linked);
-                    int tileDrawIndex = drawIndexOfSlot(tileSlot);
-                    if (tileSlot < 0 || tileDrawIndex < 0 || !isRenderableSlot(tileSlot)) {
-                        continue;
-                    }
-                    hasRenderableLinkedTile = true;
-                    int tileId = tmpLinkedTileRefs.tileId(linked);
-                    if (tileDrawIndex < minLinkedTileDrawIndex) {
-                        minLinkedTileSlot = tileSlot;
-                        minLinkedTileDrawIndex = tileDrawIndex;
-                        minLinkedTileGx = tmpLinkedTileRefs.gx(linked);
-                        minLinkedTileGy = tmpLinkedTileRefs.gy(linked);
-                        minLinkedTileId = tileId;
-                    }
-                    if (tileDrawIndex > maxLinkedTileDrawIndex) {
-                        maxLinkedTileSlot = tileSlot;
-                        maxLinkedTileDrawIndex = tileDrawIndex;
-                        maxLinkedTileGx = tmpLinkedTileRefs.gx(linked);
-                        maxLinkedTileGy = tmpLinkedTileRefs.gy(linked);
-                        maxLinkedTileId = tileId;
-                    }
-                }
-                if (!hasRenderableLinkedTile) {
-                    continue;
-                }
-
-                if (!isActorInAuthoredBlockInfluence(tmpActorBaseSegment, tmpBlockBottomSegment, actorBottom, block)) {
-                    continue;
-                }
-
-                int blockRelation = actorBlockBottomSegmentRelation(map, tmpActorFootprint, block, tmpBlockBottomSegment);
-                if (blockRelation == BLOCK_RELATION_NOT_APPLICABLE) {
-                    continue;
-                }
-
-                boolean afterLinkedTile = blockRelation == BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK;
-                int targetDrawIndex = afterLinkedTile
-                        ? maxLinkedTileDrawIndex + 1
-                        : minLinkedTileDrawIndex - 1;
-                int linkedTileSlot = afterLinkedTile ? maxLinkedTileSlot : minLinkedTileSlot;
-                int linkedTileDrawIndex = afterLinkedTile ? maxLinkedTileDrawIndex : minLinkedTileDrawIndex;
-                int linkedTileGx = afterLinkedTile ? maxLinkedTileGx : minLinkedTileGx;
-                int linkedTileGy = afterLinkedTile ? maxLinkedTileGy : minLinkedTileGy;
-                int linkedTileId = afterLinkedTile ? maxLinkedTileId : minLinkedTileId;
-
-                int tieBreak = hasSelected
-                        ? compareAuthoredSelection(block.altitude, block.id, blockIndex,
-                        selectedBlockAltitude, selectedBlockId, selectedBlockIndex)
-                        : -1;
-                boolean selectedByTieBreak = !hasSelected
-                        || tieBreak < 0;
-                if (!selectedByTieBreak) {
-                    continue;
-                }
-
-                hasSelected = true;
-                selectedBlock = block;
-                selectedOwner = owner;
-                selectedBlockIndex = blockIndex;
-                selectedBlockId = block.id;
-                selectedTileId = linkedTileId;
-                selectedLinkedTileSlot = linkedTileSlot;
-                selectedLinkedTileDrawIndex = linkedTileDrawIndex;
-                selectedLinkedTileGx = linkedTileGx;
-                selectedLinkedTileGy = linkedTileGy;
-                selectedMinLinkedTileSlot = minLinkedTileSlot;
-                selectedMaxLinkedTileSlot = maxLinkedTileSlot;
-                selectedMinLinkedDrawIndex = minLinkedTileDrawIndex;
-                selectedMaxLinkedDrawIndex = maxLinkedTileDrawIndex;
-                selectedAuthoredLinkedRefsCount = tmpLinkedTileRefs.authoredRefCount;
-                selectedResolvedLinkedRefsCount = tmpLinkedTileRefs.count;
-                selectedTargetDrawIndex = targetDrawIndex;
-                selectedRelation = blockRelation;
-                selectedBlockAltitude = block.altitude;
-                selectedActorReferenceX = tmpActorReferencePoint[0];
-                selectedActorReferenceY = tmpActorReferencePoint[1];
-                selectedBlockBottomStartX = tmpBlockBottomSegment[0];
-                selectedBlockBottomStartY = tmpBlockBottomSegment[1];
-                selectedBlockBottomEndX = tmpBlockBottomSegment[2];
-                selectedBlockBottomEndY = tmpBlockBottomSegment[3];
-                selectedCrossSide = crossSide(tmpBlockBottomSegment[0], tmpBlockBottomSegment[1],
-                        tmpBlockBottomSegment[2], tmpBlockBottomSegment[3],
-                        tmpActorReferencePoint[0], tmpActorReferencePoint[1]);
-                selectedAfterLinkedTile = afterLinkedTile;
-            }
-        }
-
-        if (hasSelected) {
-            addIntent(actorSlot, selectedBlockId, selectedAfterLinkedTile, true, stableActorOrderIndex,
-                    selectedMinLinkedTileSlot, selectedMaxLinkedTileSlot,
-                    selectedMinLinkedDrawIndex, selectedMaxLinkedDrawIndex,
-                    selectedTargetDrawIndex, selectedRelation);
-            return;
-        }
     }
 
     private static boolean verticalOverlaps(float actorBottom,
@@ -566,19 +660,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
                 && block.altitude <= actorBaseAltitude + BLOCK_BOUNDARY_EPSILON;
     }
 
-    private void resetAuthoredInfluenceDebug() {
-        tmpProjectionTLeft = Float.NaN;
-        tmpProjectionTRight = Float.NaN;
-        tmpInfluencePassed = false;
-    }
-
     private boolean isActorInAuthoredBlockInfluence(float[] actorBottomSegment,
                                                     float[] blockBottomSegment,
                                                     float actorBaseAltitude,
                                                     SpatialBlockData block) {
-        tmpProjectionTLeft = Float.NaN;
-        tmpProjectionTRight = Float.NaN;
-        tmpInfluencePassed = false;
         if (actorBottomSegment == null || actorBottomSegment.length < 4) return false;
         if (blockBottomSegment == null || blockBottomSegment.length < 4) return false;
         if (!isActorOnBlockAltitude(actorBaseAltitude, block)) return false;
@@ -589,9 +674,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         float blockLength2 = blockDx * blockDx + blockDy * blockDy;
         if (blockLength2 <= BLOCK_BOUNDARY_EPSILON * BLOCK_BOUNDARY_EPSILON) return false;
 
-        tmpProjectionTLeft = projectionT(blockBottomSegment, actorBottomSegment[0], actorBottomSegment[1]);
-        tmpProjectionTRight = projectionT(blockBottomSegment, actorBottomSegment[2], actorBottomSegment[3]);
-
+        float projectionLeft = projectionT(blockBottomSegment, actorBottomSegment[0], actorBottomSegment[1]);
+        float projectionRight = projectionT(blockBottomSegment, actorBottomSegment[2], actorBottomSegment[3]);
         float actorDx = actorBottomSegment[2] - actorBottomSegment[0];
         float actorDy = actorBottomSegment[3] - actorBottomSegment[1];
         float actorLength = (float) Math.sqrt(actorDx * actorDx + actorDy * actorDy);
@@ -600,10 +684,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
                 ? Math.min(0.25f, actorLength / blockLength * 0.5f + BLOCK_BOUNDARY_EPSILON)
                 : BLOCK_BOUNDARY_EPSILON;
 
-        float minT = Math.min(tmpProjectionTLeft, tmpProjectionTRight);
-        float maxT = Math.max(tmpProjectionTLeft, tmpProjectionTRight);
-        tmpInfluencePassed = maxT >= -margin && minT <= 1f + margin;
-        return tmpInfluencePassed;
+        float minT = Math.min(projectionLeft, projectionRight);
+        float maxT = Math.max(projectionLeft, projectionRight);
+        return maxT >= -margin && minT <= 1f + margin;
     }
 
     private static float projectionT(float[] segment, float pointX, float pointY) {
@@ -686,29 +769,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         if (d > BLOCK_BOUNDARY_EPSILON) return BLOCK_RELATION_ACTOR_BEHIND_BLOCK;
         if (d < -BLOCK_BOUNDARY_EPSILON) return BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK;
         return BLOCK_RELATION_NOT_APPLICABLE;
-    }
-
-    private static int segmentRelationByLineEquation(float[] blockBottomSegment, float[] actorBottomSegment) {
-        if (blockBottomSegment == null || blockBottomSegment.length < 4) return BLOCK_RELATION_NOT_APPLICABLE;
-        if (actorBottomSegment == null || actorBottomSegment.length < 4) return BLOCK_RELATION_NOT_APPLICABLE;
-        float fLeft = lineYAt(blockBottomSegment, actorBottomSegment[0]);
-        float fRight = lineYAt(blockBottomSegment, actorBottomSegment[2]);
-        if (Float.isNaN(fLeft) || Float.isNaN(fRight)) return BLOCK_RELATION_NOT_APPLICABLE;
-        float dLeft = actorBottomSegment[1] - fLeft;
-        float dRight = actorBottomSegment[3] - fRight;
-        if (dLeft > BLOCK_BOUNDARY_EPSILON && dRight > BLOCK_BOUNDARY_EPSILON) {
-            return BLOCK_RELATION_ACTOR_BEHIND_BLOCK;
-        }
-        if (dLeft < -BLOCK_BOUNDARY_EPSILON && dRight < -BLOCK_BOUNDARY_EPSILON) {
-            return BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK;
-        }
-        return BLOCK_RELATION_NOT_APPLICABLE;
-    }
-
-    private static int targetDrawIndexForRelation(int relation, int minLinkedDrawIndex, int maxLinkedDrawIndex) {
-        if (relation == BLOCK_RELATION_ACTOR_BEHIND_BLOCK) return minLinkedDrawIndex - 1;
-        if (relation == BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK) return maxLinkedDrawIndex + 1;
-        return -1;
     }
 
     private static float lineYAt(float[] segment, float x) {
@@ -796,266 +856,21 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         return true;
     }
 
-    private static int compareAuthoredSelection(float blockAltitude,
-                                                int blockId,
-                                                int blockIndex,
-                                                float selectedBlockAltitude,
-                                                int selectedBlockId,
-                                                int selectedBlockIndex) {
-        if (Math.abs(blockAltitude - selectedBlockAltitude) > BLOCK_BOUNDARY_EPSILON) {
-            return blockAltitude > selectedBlockAltitude ? -1 : 1;
-        }
-        if (blockId != selectedBlockId) return blockId < selectedBlockId ? -1 : 1;
-        if (blockIndex == selectedBlockIndex) return 0;
-        return blockIndex < selectedBlockIndex ? -1 : 1;
-    }
-
-    int getLastIntentSpatialBlockIdForTest() {
-        return intentCount > 0 ? intentSpatialBlockId[intentCount - 1] : 0;
-    }
-
-    boolean isLastIntentAuthoredLinkedRefsForTest() {
-        return intentCount > 0 && intentLinkedRefsAuthoredSource[intentCount - 1];
-    }
-
-    boolean isLastIntentAfterLinkedTileForTest() {
-        return intentCount > 0 && intentAfterLinkedTile[intentCount - 1];
-    }
-
-    int getLastIntentTargetDrawIndexForTest() {
-        return intentCount > 0 ? intentTargetDrawIndex[intentCount - 1] : -1;
-    }
-
-    int getLastIntentMinLinkedDrawIndexForTest() {
-        return intentCount > 0 ? intentFirstLinkedDrawIndex[intentCount - 1] : -1;
-    }
-
-    int getLastIntentMaxLinkedDrawIndexForTest() {
-        return intentCount > 0 ? intentLastLinkedDrawIndex[intentCount - 1] : -1;
-    }
-
-    private void addIntent(int actorSlot,
-                           int spatialBlockId,
-                           boolean afterLinkedTile,
-                           boolean linkedRefsAuthoredSource,
-                           int stableActorOrderIndex,
-                           int firstLinkedTileSlot,
-                           int lastLinkedTileSlot,
-                           int firstLinkedDrawIndex,
-                           int lastLinkedDrawIndex,
-                           int targetDrawIndex,
-                           int blockRelation) {
-        ensureIntentCapacity(intentCount + 1);
-        int intent = intentCount++;
-        intentActorSlot[intent] = actorSlot;
-        intentSpatialBlockId[intent] = spatialBlockId;
-        intentOriginalActorDrawIndex[intent] = stableActorOrderIndex;
-        intentFirstLinkedTileSlot[intent] = firstLinkedTileSlot;
-        intentLastLinkedTileSlot[intent] = lastLinkedTileSlot;
-        intentLinkedRefsAuthoredSource[intent] = linkedRefsAuthoredSource;
-        intentFirstLinkedDrawIndex[intent] = firstLinkedDrawIndex;
-        intentLastLinkedDrawIndex[intent] = lastLinkedDrawIndex;
-        intentTargetDrawIndex[intent] = targetDrawIndex;
-        intentAfterLinkedTile[intent] = afterLinkedTile;
-        intentBlockRelation[intent] = blockRelation;
-        if (stableActorOrderIndex < 0) {
-            // Stable actor order is implicit: intents are collected from the snapshot in order.
-        }
-    }
-
-    private void rebuildDrawListFromBlockIntents(int[] data, int size) {
-        ensureApplyCapacity(state.getCapacity());
-
-        touchedMovedCount = 0;
-        int applyCount = buildIntentApplyOrder(size);
-        sortIntentApplyOrderDescending(applyCount);
-        for (int i = 0; i < applyCount; i++) {
-            applyIntentMove(data, size, intentApplyOrder[i]);
-        }
-
-        clearMovedActors();
-    }
-
-    private int buildIntentApplyOrder(int size) {
-        int applyCount = 0;
-        ensureIntentApplyOrderCapacity(intentCount);
-        for (int intent = 0; intent < intentCount; intent++) {
-            int actorSlot = intentActorSlot[intent];
-            if (actorSlot < 0 || actorSlot >= movedActorSlots.length) continue;
-            if (findDrawIndex(snapshot, size, actorSlot) < 0) continue;
-            if (intentTargetDrawIndex[intent] < -1 || intentTargetDrawIndex[intent] > size) continue;
-
-            intentApplyOrder[applyCount++] = intent;
-            if (!movedActorSlots[actorSlot]) {
-                movedActorSlots[actorSlot] = true;
-                ensureTouchedMovedCapacity(touchedMovedCount + 1);
-                touchedMovedSlots[touchedMovedCount++] = actorSlot;
-            }
-        }
-        return applyCount;
-    }
-
-    private void sortIntentApplyOrderDescending(int count) {
-        for (int i = 1; i < count; i++) {
-            int intent = intentApplyOrder[i];
-            int j = i - 1;
-            while (j >= 0 && compareIntentApplyOrder(intent, intentApplyOrder[j]) < 0) {
-                intentApplyOrder[j + 1] = intentApplyOrder[j];
-                j--;
-            }
-            intentApplyOrder[j + 1] = intent;
-        }
-    }
-
-    private int compareIntentApplyOrder(int left, int right) {
-        int leftTarget = intentTargetDrawIndex[left];
-        int rightTarget = intentTargetDrawIndex[right];
-        if (leftTarget != rightTarget) return leftTarget > rightTarget ? -1 : 1;
-        int leftOriginal = intentOriginalActorDrawIndex[left];
-        int rightOriginal = intentOriginalActorDrawIndex[right];
-        if (leftOriginal != rightOriginal) return leftOriginal > rightOriginal ? -1 : 1;
-        if (left == right) return 0;
-        return left < right ? -1 : 1;
-    }
-
-    private void applyIntentMove(int[] data, int size, int intent) {
-        int actorSlot = intentActorSlot[intent];
-        int currentIndex = findDrawIndex(data, size, actorSlot);
-        if (currentIndex < 0) return;
-
-        int targetIndex = currentLinkedRefInsertionIndex(data, size, intent);
-        if (targetIndex < 0) return;
-        if (currentIndex < targetIndex) {
-            targetIndex--;
-        }
-        if (targetIndex < 0) targetIndex = 0;
-        if (targetIndex >= size) targetIndex = size - 1;
-        targetIndex = clampTargetIndexToActorOrder(data, size, actorSlot, currentIndex, targetIndex);
-
-        if (currentIndex < targetIndex) {
-            for (int i = currentIndex; i < targetIndex; i++) {
-                data[i] = data[i + 1];
-            }
-            data[targetIndex] = actorSlot;
-        } else if (currentIndex > targetIndex) {
-            for (int i = currentIndex; i > targetIndex; i--) {
-                data[i] = data[i - 1];
-            }
-            data[targetIndex] = actorSlot;
-        }
-    }
-
-    private int clampTargetIndexToActorOrder(int[] data, int size, int actorSlot, int currentIndex, int targetIndex) {
-        if (data == null || currentIndex < 0 || currentIndex >= size || targetIndex == currentIndex) return targetIndex;
-
-        int actorEntity = state.entityId[actorSlot];
-        float movingFootY = actorFootY(actorEntity);
-        if (currentIndex > targetIndex) {
-            for (int i = currentIndex - 1; i >= targetIndex; i--) {
-                int otherSlot = data[i];
-                if (!isSpatialActorSlot(otherSlot)) continue;
-                float otherFootY = actorFootY(state.entityId[otherSlot]);
-                if (Float.compare(otherFootY, movingFootY) >= 0) {
-                    return i + 1;
-                }
-            }
-        } else {
-            for (int i = currentIndex + 1; i <= targetIndex; i++) {
-                int otherSlot = data[i];
-                if (!isSpatialActorSlot(otherSlot)) continue;
-                float otherFootY = actorFootY(state.entityId[otherSlot]);
-                if (Float.compare(otherFootY, movingFootY) <= 0) {
-                    return i - 1;
-                }
-            }
-        }
-        return targetIndex;
-    }
-
-    private int currentLinkedRefInsertionIndex(int[] data, int size, int intent) {
-        if (intentBlockRelation[intent] == BLOCK_RELATION_ACTOR_BEHIND_BLOCK) {
-            return findDrawIndex(data, size, intentFirstLinkedTileSlot[intent]);
-        }
-        int lastLinkedPosition = findDrawIndex(data, size, intentLastLinkedTileSlot[intent]);
-        return lastLinkedPosition >= 0 ? lastLinkedPosition + 1 : -1;
-    }
-
-    private void captureSlotDrawIndices(int[] slots, int size) {
-        ensureSlotDrawIndexCapacity(state.getCapacity());
-        slotDrawIndexFrameId++;
-        if (slotDrawIndexFrameId == 0) {
-            for (int i = 0, n = slotDrawIndexFrame.length; i < n; i++) {
-                slotDrawIndexFrame[i] = 0;
-            }
-            slotDrawIndexFrameId = 1;
-        }
-
-        for (int i = 0; i < size; i++) {
-            int slot = slots[i];
-            if (slot < 0 || slot >= slotDrawIndex.length) continue;
-            slotDrawIndex[slot] = i;
-            slotDrawIndexFrame[slot] = slotDrawIndexFrameId;
-        }
-    }
-
-    private int drawIndexOfSlot(int slot) {
-        if (slot < 0 || slot >= slotDrawIndex.length) return -1;
-        return slotDrawIndexFrame[slot] == slotDrawIndexFrameId ? slotDrawIndex[slot] : -1;
-    }
-
-    private static int findDrawIndex(int[] data, int size, int slot) {
-        if (data == null) return -1;
-        for (int i = 0; i < size; i++) {
-            if (data[i] == slot) return i;
-        }
-        return -1;
-    }
-
     private boolean isSpatialLayer(int layerIndex) {
         return layerIndex >= 0 && layerIndex < spatialLayers.length && spatialLayers[layerIndex];
     }
 
     private void ensureSpatialLayerCapacity(int required) {
         if (required <= spatialLayers.length) return;
-
         int next = Math.max(8, spatialLayers.length);
         while (required > next) next <<= 1;
-
         boolean[] expanded = new boolean[next];
         System.arraycopy(spatialLayers, 0, expanded, 0, spatialLayers.length);
         spatialLayers = expanded;
     }
 
-    private void ensureActorCapacity(int required) {
-        if (required <= actorSlots.length) return;
-
-        int next = Math.max(8, actorSlots.length);
-        while (required > next) next <<= 1;
-
-        int[] expandedSlots = new int[next];
-        System.arraycopy(actorSlots, 0, expandedSlots, 0, actorSlots.length);
-        actorSlots = expandedSlots;
-
-        int[] expandedScratchSlots = new int[next];
-        System.arraycopy(actorScratchSlots, 0, expandedScratchSlots, 0, actorScratchSlots.length);
-        actorScratchSlots = expandedScratchSlots;
-
-        int[] expandedPositions = new int[next];
-        System.arraycopy(actorPositions, 0, expandedPositions, 0, actorPositions.length);
-        actorPositions = expandedPositions;
-
-        float[] expandedFootY = new float[next];
-        System.arraycopy(actorFootY, 0, expandedFootY, 0, actorFootY.length);
-        actorFootY = expandedFootY;
-
-        float[] expandedScratchFootY = new float[next];
-        System.arraycopy(actorScratchFootY, 0, expandedScratchFootY, 0, actorScratchFootY.length);
-        actorScratchFootY = expandedScratchFootY;
-    }
-
     private void ensureBlockLayerCapacity(int required) {
         if (required <= blockLayerEntities.length) return;
-
         int next = Math.max(4, blockLayerEntities.length);
         while (required > next) next <<= 1;
 
@@ -1066,93 +881,59 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         int[] expandedEntities = new int[next];
         System.arraycopy(blockLayerEntities, 0, expandedEntities, 0, blockLayerEntities.length);
         blockLayerEntities = expandedEntities;
-
     }
 
-    private void ensureSnapshotCapacity(int required) {
-        if (required <= snapshot.length) return;
-
-        int next = Math.max(8, snapshot.length);
+    private void ensureItemCapacity(int required) {
+        if (required <= itemType.length) return;
+        int next = Math.max(8, itemType.length);
         while (required > next) next <<= 1;
 
-        int[] expanded = new int[next];
-        System.arraycopy(snapshot, 0, expanded, 0, snapshot.length);
-        snapshot = expanded;
+        itemType = grow(itemType, next);
+        itemEntryStart = grow(itemEntryStart, next);
+        itemEntryCount = grow(itemEntryCount, next);
+        itemOriginalDrawIndex = grow(itemOriginalDrawIndex, next);
+        itemLayerOrder = grow(itemLayerOrder, next);
+        itemStableId = grow(itemStableId, next);
+        itemActorSlot = grow(itemActorSlot, next);
+        itemActorEntity = grow(itemActorEntity, next);
+        itemBlockOwner = grow(itemBlockOwner, next);
+        itemBlockIndex = grow(itemBlockIndex, next);
+        itemBlockId = grow(itemBlockId, next);
+        itemDepthKey = grow(itemDepthKey, next);
     }
 
-    private void ensureSlotDrawIndexCapacity(int required) {
-        if (required <= slotDrawIndex.length) return;
-
-        int next = Math.max(8, slotDrawIndex.length);
+    private void ensureItemEntryCapacity(int required) {
+        if (required <= itemEntries.length) return;
+        int next = Math.max(8, itemEntries.length);
         while (required > next) next <<= 1;
-
-        int[] expandedIndex = new int[next];
-        System.arraycopy(slotDrawIndex, 0, expandedIndex, 0, slotDrawIndex.length);
-        slotDrawIndex = expandedIndex;
-
-        int[] expandedFrame = new int[next];
-        System.arraycopy(slotDrawIndexFrame, 0, expandedFrame, 0, slotDrawIndexFrame.length);
-        slotDrawIndexFrame = expandedFrame;
+        itemEntries = grow(itemEntries, next);
     }
 
-    private void ensureIntentCapacity(int required) {
-        if (required <= intentActorSlot.length) return;
-
-        int next = Math.max(8, intentActorSlot.length);
+    private void ensureSortCapacity(int required) {
+        if (required <= itemIndegree.length) return;
+        int next = Math.max(8, itemIndegree.length);
         while (required > next) next <<= 1;
+        itemIndegree = grow(itemIndegree, next);
+        sortedItems = grow(sortedItems, next);
 
-        intentActorSlot = grow(intentActorSlot, next);
-        intentFirstLinkedTileSlot = grow(intentFirstLinkedTileSlot, next);
-        intentLastLinkedTileSlot = grow(intentLastLinkedTileSlot, next);
-        intentSpatialBlockId = grow(intentSpatialBlockId, next);
-        intentOriginalActorDrawIndex = grow(intentOriginalActorDrawIndex, next);
-        intentFirstLinkedDrawIndex = grow(intentFirstLinkedDrawIndex, next);
-        intentLastLinkedDrawIndex = grow(intentLastLinkedDrawIndex, next);
-        intentTargetDrawIndex = grow(intentTargetDrawIndex, next);
-        intentBlockRelation = grow(intentBlockRelation, next);
-
-        boolean[] expandedAfter = new boolean[next];
-        System.arraycopy(intentAfterLinkedTile, 0, expandedAfter, 0, intentAfterLinkedTile.length);
-        intentAfterLinkedTile = expandedAfter;
-
-        boolean[] expandedAuthored = new boolean[next];
-        System.arraycopy(intentLinkedRefsAuthoredSource, 0, expandedAuthored, 0, intentLinkedRefsAuthoredSource.length);
-        intentLinkedRefsAuthoredSource = expandedAuthored;
+        boolean[] expandedEmitted = new boolean[next];
+        System.arraycopy(itemEmitted, 0, expandedEmitted, 0, itemEmitted.length);
+        itemEmitted = expandedEmitted;
     }
 
-    private void ensureIntentApplyOrderCapacity(int required) {
-        if (required <= intentApplyOrder.length) return;
-
-        int next = Math.max(8, intentApplyOrder.length);
+    private void ensureEdgeCapacity(int required) {
+        if (required <= edgeFrom.length) return;
+        int next = Math.max(8, edgeFrom.length);
         while (required > next) next <<= 1;
-        intentApplyOrder = grow(intentApplyOrder, next);
+        edgeFrom = grow(edgeFrom, next);
+        edgeTo = grow(edgeTo, next);
     }
 
-    private void ensureApplyCapacity(int required) {
-        if (required <= movedActorSlots.length) return;
-
-        int old = movedActorSlots.length;
-        int next = Math.max(8, old);
+    private void ensureRewriteCapacity(int required) {
+        if (required <= rewriteSlots.length) return;
+        int next = Math.max(8, rewriteSlots.length);
         while (required > next) next <<= 1;
-
-        boolean[] expandedMoved = new boolean[next];
-        System.arraycopy(movedActorSlots, 0, expandedMoved, 0, movedActorSlots.length);
-        movedActorSlots = expandedMoved;
-    }
-
-    private void ensureTouchedMovedCapacity(int required) {
-        if (required <= touchedMovedSlots.length) return;
-
-        int next = Math.max(8, touchedMovedSlots.length);
-        while (required > next) next <<= 1;
-        touchedMovedSlots = grow(touchedMovedSlots, next);
-    }
-
-    private void clearMovedActors() {
-        for (int i = 0; i < touchedMovedCount; i++) {
-            movedActorSlots[touchedMovedSlots[i]] = false;
-        }
-        touchedMovedCount = 0;
+        rewriteSlots = grow(rewriteSlots, next);
     }
 
     private static int[] grow(int[] source, int next) {
@@ -1174,10 +955,23 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     }
 
     int getActorWorkArrayCapacity() {
-        return actorSlots.length
-                + actorScratchSlots.length
-                + actorPositions.length
-                + actorFootY.length
-                + actorScratchFootY.length;
+        return itemType.length
+                + itemEntryStart.length
+                + itemEntryCount.length
+                + itemOriginalDrawIndex.length
+                + itemLayerOrder.length
+                + itemStableId.length
+                + itemActorSlot.length
+                + itemActorEntity.length
+                + itemBlockOwner.length
+                + itemBlockIndex.length
+                + itemBlockId.length
+                + itemDepthKey.length
+                + itemEntries.length
+                + edgeFrom.length
+                + edgeTo.length
+                + itemIndegree.length
+                + sortedItems.length
+                + rewriteSlots.length;
     }
 }
