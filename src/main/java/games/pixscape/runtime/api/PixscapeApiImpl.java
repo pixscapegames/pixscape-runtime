@@ -1,10 +1,6 @@
 package games.pixscape.runtime.api;
 
-import com.artemis.BaseSystem;
-import com.artemis.Aspect;
-import com.artemis.Component;
-import com.artemis.ComponentMapper;
-import com.artemis.World;
+import com.artemis.*;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
