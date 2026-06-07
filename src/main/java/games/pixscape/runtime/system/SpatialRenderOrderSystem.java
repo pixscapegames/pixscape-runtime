@@ -638,6 +638,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         float radius = actorFootRadius(footprint);
         float lineY = lineYAt(blockBottomSegment, cx);
         if (Float.isNaN(lineY)) return BLOCK_RELATION_NOT_APPLICABLE;
+        float centerT = projectionT(blockBottomSegment, cx, cy);
+        if (centerT < -BLOCK_BOUNDARY_EPSILON || centerT > 1f + BLOCK_BOUNDARY_EPSILON) {
+            return pointRelationByLineEquation(blockBottomSegment, cx, cy);
+        }
         float d = lineY - cy;
         if (d > radius + BLOCK_BOUNDARY_EPSILON) return BLOCK_RELATION_ACTOR_IN_FRONT_OF_BLOCK;
         if (d < -radius - BLOCK_BOUNDARY_EPSILON) return BLOCK_RELATION_ACTOR_BEHIND_BLOCK;

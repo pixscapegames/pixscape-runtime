@@ -1,0 +1,67 @@
+package games.pixscape.runtime.api;
+
+/**
+ * Spatial render-order settings for one tiled layer.
+ *
+ * <p>This facade exposes tiled layer participation, default tile volume, and
+ * per-cell volume overrides. Authored occluder blocks remain internal runtime
+ * data and are not exposed here.</p>
+ */
+public interface TiledSpatialFacade {
+    /**
+     * Returns whether this tiled layer participates in spatial render ordering.
+     */
+    boolean enabled();
+
+    /**
+     * Enables or disables spatial render ordering for this tiled layer.
+     */
+    TiledSpatialFacade setEnabled(boolean enabled);
+
+    /**
+     * Default bottom altitude used by tiles without a per-cell override.
+     */
+    float defaultAltitude();
+
+    /**
+     * Default height used by tiles without a per-cell override.
+     */
+    float defaultHeight();
+
+    /**
+     * Sets the default spatial volume used by tiles without per-cell overrides.
+     *
+     * <p>Negative height values are clamped to zero.</p>
+     */
+    TiledSpatialFacade setDefaultVolume(float altitude, float height);
+
+    /**
+     * Returns whether the cell has an explicit spatial volume override.
+     */
+    boolean hasTileOverride(int x, int y);
+
+    /**
+     * Returns the effective tile altitude, including the layer default when no
+     * per-cell override exists.
+     */
+    float tileAltitude(int x, int y);
+
+    /**
+     * Returns the effective tile height, including the layer default when no
+     * per-cell override exists.
+     */
+    float tileHeight(int x, int y);
+
+    /**
+     * Sets an explicit spatial volume override for one tile cell.
+     *
+     * <p>Negative height values are clamped to zero.</p>
+     */
+    TiledSpatialFacade setTileVolume(int x, int y, float altitude, float height);
+
+    /**
+     * Clears the explicit spatial volume override for one tile cell so it uses
+     * the layer default again.
+     */
+    TiledSpatialFacade clearTileOverride(int x, int y);
+}

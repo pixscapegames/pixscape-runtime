@@ -277,6 +277,20 @@ public final class TiledMapLayerData {
         setTileSpatial(gx, gy, altitude, height, flags, true);
     }
 
+    public void clearTileSpatialOverride(int gx, int gy) {
+        if (!isInside(gx, gy)) return;
+
+        int cx = gx / chunkSize;
+        int cy = gy / chunkSize;
+
+        TileChunk chunk = chunks.get(packChunk(cx, cy));
+        if (chunk == null) return;
+
+        int lx = gx - (cx * chunkSize);
+        int ly = gy - (cy * chunkSize);
+        chunk.clearSpatialOverride(lx, ly);
+    }
+
     private void setTileSpatial(int gx, int gy, float altitude, float height, int flags, boolean explicitOverride) {
         if (!isInside(gx, gy)) return;
 

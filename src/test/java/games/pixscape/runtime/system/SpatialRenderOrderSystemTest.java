@@ -384,6 +384,28 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
+    public void actorAtLeftPassageEdgeBehindBottomSegmentRendersBehindBlock() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int actor = fixture.createActor(-1f, 18f, 0, 2, true);
+        fixture.setActorCircleFootprint(actor, 2f);
+        fixture.setSortOrder(actor, 2, 0, 40);
+
+        fixture.process();
+
+        Assert.assertEquals(10, fixture.spatial.getLastIntentSpatialBlockIdForTest());
+        Assert.assertFalse(fixture.spatial.isLastIntentAfterLinkedTileForTest());
+        Assert.assertArrayEquals(new int[]{actor, tile}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
     public void authoredBlockIgnoresActorOutsideFiniteBottomSegmentInfluence() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);

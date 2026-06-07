@@ -32,8 +32,92 @@ public class PixscapeApiV1Test {
         PixscapeAPI api = engine.api();
         Assert.assertNotNull(api);
         Assert.assertSame(api, engine.api());
+        Assert.assertNotNull(api.spatial());
         Assert.assertNotNull(engine.getWorld());
         Assert.assertNotNull(engine.mapper(TransformComponent.class));
+    }
+
+    @Test
+    public void spatialEntityFacadeCreatesUpdatesAndRemovesVolume() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int e = world.create();
+        world.process();
+
+        EntityRef ref = engine.api().entities().ofEntityId(e);
+        Assert.assertFalse(ref.spatial().enabled());
+        Assert.assertFalse(ref.spatial().participatesInRenderOrder());
+
+        ref.spatial().enable().setVolume(3f, 7f);
+
+        Assert.assertTrue(ref.spatial().enabled());
+        Assert.assertTrue(ref.spatial().participatesInRenderOrder());
+        Assert.assertEquals(3f, ref.spatial().altitude(), 0.0001f);
+        Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
+        Assert.assertEquals(3f, world.getMapper(SpatialHeightComponent.class).get(e).altitude, 0.0001f);
+        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).height, 0.0001f);
+
+        ref.spatial().setHeight(-10f);
+        Assert.assertEquals(0f, ref.spatial().height(), 0.0001f);
+        Assert.assertFalse(ref.spatial().participatesInRenderOrder());
+
+        ref.spatial().disable();
+        Assert.assertFalse(ref.spatial().enabled());
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(e));
+    }
+
+    @Test
+    public void spatialApiTogglesLayerByLayerIndex() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int e = world.create();
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = 5;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        world.process();
+
+        Assert.assertFalse(engine.api().spatial().isLayerEnabled(5));
+
+        engine.api().spatial().setLayerEnabled(5, true);
+        Assert.assertTrue(layer.spatialEnabled);
+        Assert.assertTrue(engine.api().spatial().isLayerEnabled(5));
+
+        engine.api().spatial().setLayerEnabled(5, false);
+        Assert.assertFalse(layer.spatialEnabled);
+        Assert.assertFalse(engine.api().spatial().isLayerEnabled(5));
+    }
+
+    @Test
+    public void tiledSpatialFacadeControlsDefaultsAndTileOverrides() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int e = createTiledLayer(engine, 3, "new layer");
+        World world = engine.getWorld();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(e);
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(e);
+        TiledLayerRef ref = engine.api().tiled().layer(3);
+
+        Assert.assertFalse(ref.spatial().enabled());
+        ref.spatial().setEnabled(true).setDefaultVolume(2f, 5f);
+
+        Assert.assertTrue(ref.spatial().enabled());
+        Assert.assertTrue(layer.spatialEnabled);
+        Assert.assertTrue(tiled.spatialEnabled);
+        Assert.assertTrue(tiled.data.spatialEnabled);
+        Assert.assertEquals(2f, ref.spatial().defaultAltitude(), 0.0001f);
+        Assert.assertEquals(5f, ref.spatial().defaultHeight(), 0.0001f);
+        Assert.assertEquals(2f, ref.spatial().tileAltitude(1, 1), 0.0001f);
+        Assert.assertEquals(5f, ref.spatial().tileHeight(1, 1), 0.0001f);
+        Assert.assertFalse(ref.spatial().hasTileOverride(1, 1));
+
+        ref.spatial().setTileVolume(1, 1, 9f, 4f);
+        Assert.assertTrue(ref.spatial().hasTileOverride(1, 1));
+        Assert.assertEquals(9f, ref.spatial().tileAltitude(1, 1), 0.0001f);
+        Assert.assertEquals(4f, ref.spatial().tileHeight(1, 1), 0.0001f);
+
+        ref.spatial().clearTileOverride(1, 1);
+        Assert.assertFalse(ref.spatial().hasTileOverride(1, 1));
+        Assert.assertEquals(2f, ref.spatial().tileAltitude(1, 1), 0.0001f);
+        Assert.assertEquals(5f, ref.spatial().tileHeight(1, 1), 0.0001f);
     }
 
     @Test

@@ -47,6 +47,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
+    private final SpatialAPI spatial;
     private final PrefabsAPI prefabs;
     private final AssetsAPI assets;
     private final SpritesAPI sprites;
@@ -58,6 +59,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.ecs = new EcsApiImpl(engine);
         this.entities = new EntitiesApiImpl(engine, ecs);
         this.tiled = new TiledApiImpl(engine, ecs, entities);
+        this.spatial = new SpatialApiImpl(engine);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
@@ -73,6 +75,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     @Override
     public TiledAPI tiled() {
         return tiled;
+    }
+
+    @Override
+    public SpatialAPI spatial() {
+        return spatial;
     }
 
     @Override
@@ -519,6 +526,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private ParticleFacade particles;
         private ShaderFacade shader;
         private LightFacade light;
+        private SpatialEntityFacade spatial;
 
         EntityRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
             this.engine = engine;
@@ -576,6 +584,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public LightFacade light() {
             if (light == null) light = new LightFacadeImpl(engine, entityId);
             return light;
+        }
+
+        @Override
+        public SpatialEntityFacade spatial() {
+            if (spatial == null) spatial = new SpatialEntityFacadeImpl(engine, entityId);
+            return spatial;
         }
 
         @Override
@@ -755,6 +769,125 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private void markGeometry(int subMask) {
             DirtyTrackerSystem dirty = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
             if (dirty != null) dirty.geometry(entityId, subMask);
+        }
+    }
+
+    static final class SpatialApiImpl implements SpatialAPI {
+        private final PixscapeEngine engine;
+
+        SpatialApiImpl(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        @Override
+        public boolean isLayerEnabled(int layerIndex) {
+            World world = engine.getWorld();
+            if (world == null) return false;
+            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
+            IntBag entities = world.getAspectSubscriptionManager()
+                    .get(Aspect.all(LayerComponent.class))
+                    .getEntities();
+            int[] data = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                LayerComponent layer = mapper.get(data[i]);
+                if (layer.layerIndex == layerIndex && layer.spatialEnabled) return true;
+            }
+            return false;
+        }
+
+        @Override
+        public SpatialAPI setLayerEnabled(int layerIndex, boolean enabled) {
+            World world = engine.getWorld();
+            if (world == null) return this;
+            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
+            IntBag entities = world.getAspectSubscriptionManager()
+                    .get(Aspect.all(LayerComponent.class))
+                    .getEntities();
+            int[] data = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                LayerComponent layer = mapper.get(data[i]);
+                if (layer.layerIndex == layerIndex) layer.spatialEnabled = enabled;
+            }
+            return this;
+        }
+    }
+
+    static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
+        private final PixscapeEngine engine;
+        private final int entityId;
+
+        SpatialEntityFacadeImpl(PixscapeEngine engine, int entityId) {
+            this.engine = engine;
+            this.entityId = entityId;
+        }
+
+        @Override
+        public boolean enabled() {
+            return comp(false) != null;
+        }
+
+        @Override
+        public SpatialEntityFacade enable() {
+            comp(true);
+            return this;
+        }
+
+        @Override
+        public SpatialEntityFacade disable() {
+            World world = engine.getWorld();
+            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return this;
+            ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
+            if (mapper.has(entityId)) mapper.remove(entityId);
+            return this;
+        }
+
+        @Override
+        public float altitude() {
+            SpatialHeightComponent c = comp(false);
+            return c != null ? c.altitude : 0f;
+        }
+
+        @Override
+        public float height() {
+            SpatialHeightComponent c = comp(false);
+            return c != null ? c.height : 0f;
+        }
+
+        @Override
+        public SpatialEntityFacade setAltitude(float altitude) {
+            SpatialHeightComponent c = comp(true);
+            if (c != null) c.altitude = altitude;
+            return this;
+        }
+
+        @Override
+        public SpatialEntityFacade setHeight(float height) {
+            SpatialHeightComponent c = comp(true);
+            if (c != null) c.height = Math.max(0f, height);
+            return this;
+        }
+
+        @Override
+        public SpatialEntityFacade setVolume(float altitude, float height) {
+            SpatialHeightComponent c = comp(true);
+            if (c != null) {
+                c.altitude = altitude;
+                c.height = Math.max(0f, height);
+            }
+            return this;
+        }
+
+        @Override
+        public boolean participatesInRenderOrder() {
+            SpatialHeightComponent c = comp(false);
+            return c != null && c.height > 0f;
+        }
+
+        private SpatialHeightComponent comp(boolean create) {
+            World world = engine.getWorld();
+            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
+            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
         }
     }
 
@@ -1923,6 +2056,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final int entityId;
         private final TiledMapFacade map;
         private final TileEditFacade tiles;
+        private final TiledSpatialFacade spatial;
         private final TileAnimationControlFacade tileAnimations;
 
         TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
@@ -1931,6 +2065,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             this.entityId = entityId;
             this.map = new TiledMapFacadeImpl(engine, entityId);
             this.tiles = new TileEditFacadeImpl(engine, entityId);
+            this.spatial = new TiledSpatialFacadeImpl(engine, entityId);
             this.tileAnimations = new TileAnimationControlFacadeImpl(engine, entityId);
         }
 
@@ -1960,6 +2095,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TileEditFacade tiles() {
             return tiles;
+        }
+
+        @Override
+        public TiledSpatialFacade spatial() {
+            return spatial;
         }
 
         @Override
@@ -2143,6 +2283,115 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = engine.getWorld();
             if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
             ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
+            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        }
+
+        private TiledMapLayerData data() {
+            TiledLayerComponent c = comp(false);
+            return c != null ? c.data : null;
+        }
+    }
+
+    static final class TiledSpatialFacadeImpl implements TiledSpatialFacade {
+        private final PixscapeEngine engine;
+        private final int entityId;
+
+        TiledSpatialFacadeImpl(PixscapeEngine engine, int entityId) {
+            this.engine = engine;
+            this.entityId = entityId;
+        }
+
+        @Override
+        public boolean enabled() {
+            TiledLayerComponent c = comp(false);
+            TiledMapLayerData d = c != null ? c.data : null;
+            return (c != null && c.spatialEnabled) || (d != null && d.spatialEnabled);
+        }
+
+        @Override
+        public TiledSpatialFacade setEnabled(boolean enabled) {
+            TiledLayerComponent c = comp(false);
+            if (c != null) c.spatialEnabled = enabled;
+            TiledMapLayerData d = c != null ? c.data : null;
+            if (d != null) d.spatialEnabled = enabled;
+            LayerComponent layer = layer(false);
+            if (layer != null) layer.spatialEnabled = enabled;
+            return this;
+        }
+
+        @Override
+        public float defaultAltitude() {
+            TiledLayerComponent c = comp(false);
+            TiledMapLayerData d = c != null ? c.data : null;
+            return d != null ? d.defaultTileAltitude : (c != null ? c.defaultTileAltitude : 0f);
+        }
+
+        @Override
+        public float defaultHeight() {
+            TiledLayerComponent c = comp(false);
+            TiledMapLayerData d = c != null ? c.data : null;
+            return d != null ? d.defaultTileHeight : (c != null ? c.defaultTileHeight : 0f);
+        }
+
+        @Override
+        public TiledSpatialFacade setDefaultVolume(float altitude, float height) {
+            float sanitizedHeight = Math.max(0f, height);
+            TiledLayerComponent c = comp(false);
+            if (c != null) {
+                c.defaultTileAltitude = altitude;
+                c.defaultTileHeight = sanitizedHeight;
+                if (c.data != null) {
+                    c.data.defaultTileAltitude = altitude;
+                    c.data.defaultTileHeight = sanitizedHeight;
+                    c.data.markAllChunksContentDirty();
+                }
+            }
+            return this;
+        }
+
+        @Override
+        public boolean hasTileOverride(int x, int y) {
+            TiledMapLayerData d = data();
+            return d != null && d.hasTileSpatialOverride(x, y);
+        }
+
+        @Override
+        public float tileAltitude(int x, int y) {
+            TiledMapLayerData d = data();
+            return d != null ? d.getTileAltitude(x, y) : 0f;
+        }
+
+        @Override
+        public float tileHeight(int x, int y) {
+            TiledMapLayerData d = data();
+            return d != null ? d.getTileHeight(x, y) : 0f;
+        }
+
+        @Override
+        public TiledSpatialFacade setTileVolume(int x, int y, float altitude, float height) {
+            TiledMapLayerData d = data();
+            if (d != null) d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
+            return this;
+        }
+
+        @Override
+        public TiledSpatialFacade clearTileOverride(int x, int y) {
+            TiledMapLayerData d = data();
+            if (d != null) d.clearTileSpatialOverride(x, y);
+            return this;
+        }
+
+        private TiledLayerComponent comp(boolean create) {
+            World world = engine.getWorld();
+            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
+            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        }
+
+        private LayerComponent layer(boolean create) {
+            World world = engine.getWorld();
+            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
             return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
         }
 

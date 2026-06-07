@@ -177,6 +177,23 @@ public final class TileChunk {
         setSpatialInternal(localX, localY, altitude, height, flags, true);
     }
 
+    public void clearSpatialOverride(int localX, int localY) {
+        if (localX < 0 || localY < 0 ||
+                localX >= chunkWidth || localY >= chunkHeight ||
+                spatialOverrides == null) {
+            return;
+        }
+
+        int index = localY * chunkWidth + localX;
+        if (!spatialOverrides[index]) return;
+
+        spatialOverrides[index] = false;
+        if (altitudes != null) altitudes[index] = 0f;
+        if (heights != null) heights[index] = 0f;
+        if (spatialFlags != null) spatialFlags[index] = 0;
+        collisionDirty = true;
+    }
+
     private void setSpatialInternal(int localX,
                                     int localY,
                                     float altitude,
