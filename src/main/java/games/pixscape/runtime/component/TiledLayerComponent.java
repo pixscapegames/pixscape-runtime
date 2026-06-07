@@ -81,13 +81,7 @@ public final class TiledLayerComponent extends PooledComponent {
         if (tileSpatialOverrides != null && index < tileSpatialOverrides.size) {
             return tileSpatialOverrides.get(index) != 0;
         }
-
-        // Migration path for scenes saved before explicit sparse override tracking:
-        // non-default authored values still count as overrides, but allocated zero
-        // arrays no longer suppress layer defaults.
-        return sparseTileAltitude(index) != 0f
-                || sparseTileHeight(index) != 0f
-                || sparseTileSpatialFlags(index) != 0;
+        return false;
     }
 
     public void ensureSparseSpatialStorage() {

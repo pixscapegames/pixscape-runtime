@@ -60,10 +60,6 @@ public class SpatialHeightPhase1SerializationTest {
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(entity);
         spatial.altitude = 8.5f;
         spatial.height = 24.25f;
-        spatial.footprintOffsetX = 1.5f;
-        spatial.footprintOffsetY = -2.5f;
-        spatial.footprintWidth = 40f;
-        spatial.footprintDepth = 12f;
         world.process();
 
         World loadedWorld = serializationWorld();
@@ -74,10 +70,6 @@ public class SpatialHeightPhase1SerializationTest {
                 loadedWorld.getMapper(SpatialHeightComponent.class).get(loadedEntity);
         Assert.assertEquals(8.5f, loadedSpatial.altitude, 0.0001f);
         Assert.assertEquals(24.25f, loadedSpatial.height, 0.0001f);
-        Assert.assertEquals(1.5f, loadedSpatial.footprintOffsetX, 0.0001f);
-        Assert.assertEquals(-2.5f, loadedSpatial.footprintOffsetY, 0.0001f);
-        Assert.assertEquals(40f, loadedSpatial.footprintWidth, 0.0001f);
-        Assert.assertEquals(12f, loadedSpatial.footprintDepth, 0.0001f);
     }
 
     @Test
@@ -179,6 +171,21 @@ public class SpatialHeightPhase1SerializationTest {
         tiled.tileAssetIds.add(44);
         tiled.ensureSparseTileStorageConsistency();
         tiled.ensureSparseSpatialStorage();
+
+        Assert.assertFalse(tiled.hasSparseSpatialOverride(0));
+    }
+
+    @Test
+    public void sparseSpatialValuesWithoutExplicitOverrideDoNotCountAsAuthoredOverride() {
+        TiledLayerComponent tiled = new TiledLayerComponent();
+        tiled.tileXs.add(1);
+        tiled.tileYs.add(2);
+        tiled.tileAssetIds.add(44);
+        tiled.ensureSparseTileStorageConsistency();
+        tiled.tileAltitudes = new float[]{7f};
+        tiled.tileHeights = new float[]{13f};
+        tiled.tileSpatialFlags = new com.badlogic.gdx.utils.IntArray();
+        tiled.tileSpatialFlags.add(5);
 
         Assert.assertFalse(tiled.hasSparseSpatialOverride(0));
     }

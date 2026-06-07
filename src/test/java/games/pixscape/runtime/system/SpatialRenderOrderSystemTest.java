@@ -31,12 +31,12 @@ public class SpatialRenderOrderSystemTest {
     public void sameLayerSpatialActorsSortByFootYAfterLegacySort() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
-        int back = fixture.createActor(10f, 40f, 0, 0, true);
-        int front = fixture.createActor(10f, 20f, 0, 0, true);
+        int lower = fixture.createActor(10f, 40f, 0, 0, true);
+        int higher = fixture.createActor(10f, 20f, 0, 0, true);
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{back, front}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{lower, higher}, fixture.drawOrder());
     }
 
     @Test
@@ -53,6 +53,20 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
 
         Assert.assertArrayEquals(new int[]{mover, fixed}, fixture.drawOrder());
+    }
+
+    @Test
+    public void sameLayerSpatialActorsSortByCircleCenterNotBottom() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(0, true);
+        int largeHigherCenter = fixture.createActor(10f, 10f, 0, 0, true);
+        fixture.setActorCircleFootprint(largeHigherCenter, 20f);
+        int smallLowerCenter = fixture.createActor(10f, 20f, 0, 0, true);
+        fixture.setActorCircleFootprint(smallLowerCenter, 2f);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{smallLowerCenter, largeHigherCenter}, fixture.drawOrder());
     }
 
     @Test
@@ -157,15 +171,15 @@ public class SpatialRenderOrderSystemTest {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
         int tileA = fixture.createTiledSlot(300, 0, 10);
-        int back = fixture.createActor(10f, 40f, 0, 0, true);
-        fixture.setSortOrder(back, 0, 0, 20);
-        int front = fixture.createActor(10f, 20f, 0, 0, true);
-        fixture.setSortOrder(front, 0, 0, 30);
+        int lower = fixture.createActor(10f, 40f, 0, 0, true);
+        fixture.setSortOrder(lower, 0, 0, 20);
+        int higher = fixture.createActor(10f, 20f, 0, 0, true);
+        fixture.setSortOrder(higher, 0, 0, 30);
         int tileB = fixture.createTiledSlot(301, 0, 40);
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{tileA, back, front, tileB}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{tileA, lower, higher, tileB}, fixture.drawOrder());
     }
 
     @Test
@@ -197,13 +211,13 @@ public class SpatialRenderOrderSystemTest {
     public void submitReceivesActorSortedDrawList() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(0, true);
-        int back = fixture.createActor(10f, 40f, 0, 0, true);
-        int front = fixture.createActor(10f, 20f, 0, 0, true);
+        int lower = fixture.createActor(10f, 40f, 0, 0, true);
+        int higher = fixture.createActor(10f, 20f, 0, 0, true);
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{back, front}, fixture.beforeSpatialOrder);
-        Assert.assertArrayEquals(new int[]{back, front}, fixture.beforeSubmitOrder);
+        Assert.assertArrayEquals(new int[]{lower, higher}, fixture.beforeSpatialOrder);
+        Assert.assertArrayEquals(new int[]{lower, higher}, fixture.beforeSubmitOrder);
     }
 
     @Test
@@ -270,17 +284,14 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void actorFootprintFindsBlockWhenFootPointMisses() {
+    public void actorCircleFootprintFindsBlockWhenFootPointMisses() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 1f, 1f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 1, 1, 101, 1, 20);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
-        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
-        height.footprintOffsetX = 16f;
-        height.footprintWidth = 18f;
-        height.footprintDepth = 10f;
+        fixture.setActorCircleFootprint(actor, 9f, 16f, 0f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -290,16 +301,14 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void actorFootprintMissDoesNotCreateBlockIntent() {
+    public void actorCircleFootprintMissDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 2f, 2f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 2, 2, 101, 1, 10);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
-        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
-        height.footprintWidth = 8f;
-        height.footprintDepth = 8f;
+        fixture.setActorCircleFootprint(actor, 4f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -309,16 +318,14 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void invalidActorFootprintFallsBackToFootPoint() {
+    public void actorWithoutCircleFootprintDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
-        height.footprintWidth = 0f;
-        height.footprintDepth = 0f;
+        fixture.clearActorPhysicsFootprint(actor);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -338,7 +345,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -362,7 +369,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -387,7 +394,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(64f, 8f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -408,7 +415,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -440,7 +447,7 @@ public class SpatialRenderOrderSystemTest {
         int firstTile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int lastTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
         int actor = fixture.createActor(8f, 40f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -474,7 +481,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 2, 101, 1, 20);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -501,7 +508,7 @@ public class SpatialRenderOrderSystemTest {
         int backTile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int frontTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -523,7 +530,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -549,7 +556,7 @@ public class SpatialRenderOrderSystemTest {
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 0f;
         height.height = 20f;
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -575,7 +582,7 @@ public class SpatialRenderOrderSystemTest {
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 12f;
         height.height = 1f;
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -604,7 +611,7 @@ public class SpatialRenderOrderSystemTest {
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 170f;
         height.height = 1f;
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -624,7 +631,7 @@ public class SpatialRenderOrderSystemTest {
         block.addLinkedTileRef(0, 0, 101);
         fixture.createBlockTiledLayer(1, map, block);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
 
         fixture.process();
 
@@ -642,7 +649,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -660,7 +667,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -678,7 +685,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(40f, 40f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -696,7 +703,7 @@ public class SpatialRenderOrderSystemTest {
         map.setTile(0, 0, 101);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -714,7 +721,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -739,7 +746,7 @@ public class SpatialRenderOrderSystemTest {
         int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int authoredTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -765,7 +772,7 @@ public class SpatialRenderOrderSystemTest {
         int directTile = fixture.createTiledSlot(directMap.slotForTile(0, 0), 3, 30);
 
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -785,7 +792,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -809,7 +816,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.createBlockTiledLayer(1, map, higherId, lowerId);
         int authoredTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -840,7 +847,7 @@ public class SpatialRenderOrderSystemTest {
         int upperTile = fixture.createLinkedTile(upperMap, 0, 1, 202, 3, 30);
 
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
         fixture.process();
@@ -873,7 +880,7 @@ public class SpatialRenderOrderSystemTest {
         int layer4Tile = fixture.createLinkedTile(layer4Map, 1, 0, 202, 4, 30);
 
         int actor = fixture.createActor(24f, 8f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -896,7 +903,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -915,7 +922,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -933,7 +940,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -951,7 +958,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -969,7 +976,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(0f, map.tileToWorldY(1f, 0f) - 2f, 0, 2, true);
-        fixture.setActorFootprint(actor, 12f, 4f);
+        fixture.setActorCircleFootprint(actor, 6f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -987,7 +994,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(1.25f, 0.25f), map.tileToWorldY(1.25f, 0.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -1005,7 +1012,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 1.25f), map.tileToWorldY(0.25f, 1.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
@@ -1023,7 +1030,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
         fixture.process();
@@ -1045,7 +1052,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 3, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 1, true);
-        fixture.setActorFootprint(actor, 4f, 4f);
+        fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 1, 0, 10);
 
         fixture.process();
@@ -1167,6 +1174,24 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
 
         Assert.assertArrayEquals(new int[]{tile, back, fartherBack}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void blockOrderingDoesNotMoveActorAcrossSpatialActorWithHigherFootY() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int lower = fixture.createActor(24f, 18f, 0, 2, true);
+        fixture.setSortOrder(lower, 2, 0, 10);
+        int higher = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setSortOrder(higher, 2, 0, 30);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tile, lower, higher}, fixture.drawOrder());
         fixture.assertDrawListIntegrity();
     }
 
@@ -1359,22 +1384,19 @@ public class SpatialRenderOrderSystemTest {
             return createTiledSlot(map.slotForTile(gx, gy), layerIndex, runtimeOrder);
         }
 
-        void setActorFootprint(int actor, float width, float depth) {
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(actor);
-            height.footprintWidth = width;
-            height.footprintDepth = depth;
-            setActorCircleFootprint(actor, Math.max(width, depth) * 0.5f);
+        void setActorCircleFootprint(int actor, float radiusPx) {
+            setActorCircleFootprint(actor, radiusPx, 0f, 0f);
         }
 
-        void setActorCircleFootprint(int actor, float radiusPx) {
+        void setActorCircleFootprint(int actor, float radiusPx, float offsetXPx, float offsetYPx) {
             PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).get(actor);
             if (fixtures == null) return;
             fixtures.fixtures.clear();
             FixtureDefData fixture = new FixtureDefData();
             fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
             fixture.radius = radiusPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixture.offsetX = 0f;
-            fixture.offsetY = 0f;
+            fixture.offsetX = offsetXPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
+            fixture.offsetY = offsetYPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
             fixtures.fixtures.add(fixture);
         }
 

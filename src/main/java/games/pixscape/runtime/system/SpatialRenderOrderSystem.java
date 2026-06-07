@@ -926,6 +926,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         }
         if (targetIndex < 0) targetIndex = 0;
         if (targetIndex >= size) targetIndex = size - 1;
+        targetIndex = clampTargetIndexToActorOrder(data, size, actorSlot, currentIndex, targetIndex);
 
         if (currentIndex < targetIndex) {
             for (int i = currentIndex; i < targetIndex; i++) {
@@ -938,6 +939,33 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
             }
             data[targetIndex] = actorSlot;
         }
+    }
+
+    private int clampTargetIndexToActorOrder(int[] data, int size, int actorSlot, int currentIndex, int targetIndex) {
+        if (data == null || currentIndex < 0 || currentIndex >= size || targetIndex == currentIndex) return targetIndex;
+
+        int actorEntity = state.entityId[actorSlot];
+        float movingFootY = actorFootY(actorEntity);
+        if (currentIndex > targetIndex) {
+            for (int i = currentIndex - 1; i >= targetIndex; i--) {
+                int otherSlot = data[i];
+                if (!isSpatialActorSlot(otherSlot)) continue;
+                float otherFootY = actorFootY(state.entityId[otherSlot]);
+                if (Float.compare(otherFootY, movingFootY) >= 0) {
+                    return i + 1;
+                }
+            }
+        } else {
+            for (int i = currentIndex + 1; i <= targetIndex; i++) {
+                int otherSlot = data[i];
+                if (!isSpatialActorSlot(otherSlot)) continue;
+                float otherFootY = actorFootY(state.entityId[otherSlot]);
+                if (Float.compare(otherFootY, movingFootY) <= 0) {
+                    return i - 1;
+                }
+            }
+        }
+        return targetIndex;
     }
 
     private int currentLinkedRefInsertionIndex(int[] data, int size, int intent) {
