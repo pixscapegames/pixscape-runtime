@@ -164,6 +164,21 @@ public class SpatialBlockLinkedTilesTest {
     }
 
     @Test
+    public void sameTileAssetIdCanAppearInMultipleCells() {
+        TiledMapLayerData map = orthoMap(3, 3);
+        map.setTile(0, 0, 101);
+        map.setTile(1, 0, 101);
+        SpatialBlockData block = block(0f, 0f, 2f, 1f);
+
+        SpatialBlockLinkedTiles.compute(block, map, refs);
+
+        assertRefs(refs, 0, 0, 1, 0);
+        Assert.assertEquals(101, refs.tileAssetId(0));
+        Assert.assertEquals(101, refs.tileAssetId(1));
+        Assert.assertNotEquals(refs.slot(0), refs.slot(1));
+    }
+
+    @Test
     public void authoredRefsUseExplicitCellsWithoutIntersectionFallback() {
         TiledMapLayerData map = orthoMap(4, 4);
         map.setTile(0, 0, 101);
@@ -175,7 +190,22 @@ public class SpatialBlockLinkedTilesTest {
         SpatialBlockLinkedTiles.compute(block, map, refs);
 
         assertRefs(refs, 2, 2);
-        Assert.assertEquals(202, refs.tileId(0));
+        Assert.assertEquals(202, refs.tileAssetId(0));
+    }
+
+    @Test
+    public void authoredRefUsesOwningCellWhenAuthoredTileAssetIdDiffersFromCurrentTile() {
+        TiledMapLayerData map = orthoMap(3, 3);
+        map.setTile(1, 1, 303);
+        SpatialBlockData block = block(0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(1, 1, 202);
+
+        SpatialBlockLinkedTiles.compute(block, map, refs);
+
+        assertRefs(refs, 1, 1);
+        Assert.assertEquals(303, refs.tileAssetId(0));
+        Assert.assertEquals(map.slotForTile(1, 1), refs.slot(0));
     }
 
     @Test

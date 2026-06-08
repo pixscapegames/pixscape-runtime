@@ -37,7 +37,7 @@ public final class SpatialBlockLinkedTiles {
         for (int gy = range.minGy; gy < range.maxGyExclusive; gy++) {
             for (int gx = range.minGx; gx < range.maxGxExclusive; gx++) {
                 boolean inside = map.isInside(gx, gy);
-                int tileId = inside ? map.getTile(gx, gy) : 0;
+                int tileAssetId = inside ? map.getTile(gx, gy) : 0;
                 int slot = inside ? map.slotForTile(gx, gy) : -1;
                 if (inside) {
                     writeTileCellFootprint(map, gx, gy, out.tmpTileFootprint);
@@ -49,7 +49,7 @@ public final class SpatialBlockLinkedTiles {
                 if (!inside) {
                     continue;
                 }
-                if (tileId <= 0) {
+                if (tileAssetId <= 0) {
                     continue;
                 }
                 if (slot < 0) {
@@ -59,7 +59,7 @@ public final class SpatialBlockLinkedTiles {
                 if (!intersects) {
                     continue;
                 }
-                out.add(gx, gy, slot, tileId, out.tmpSegment);
+                out.add(gx, gy, slot, tileAssetId, out.tmpSegment);
             }
         }
         return out;
@@ -79,13 +79,13 @@ public final class SpatialBlockLinkedTiles {
             int gx = ref.gx;
             int gy = ref.gy;
             boolean inside = map.isInside(gx, gy);
-            int tileId = inside ? map.getTile(gx, gy) : 0;
+            int tileAssetId = inside ? map.getTile(gx, gy) : 0;
             int slot = inside ? map.slotForTile(gx, gy) : -1;
 
             if (!inside) {
                 continue;
             }
-            if (tileId <= 0) {
+            if (tileAssetId <= 0) {
                 continue;
             }
             if (slot < 0) {
@@ -93,7 +93,7 @@ public final class SpatialBlockLinkedTiles {
             }
 
             writeTileBaseSegment(map, gx, gy, out.tmpSegment);
-            out.add(gx, gy, slot, tileId, out.tmpSegment);
+            out.add(gx, gy, slot, tileAssetId, out.tmpSegment);
         }
 
         return out;
@@ -210,7 +210,7 @@ public final class SpatialBlockLinkedTiles {
         public int[] gx = new int[0];
         public int[] gy = new int[0];
         public int[] slot = new int[0];
-        public int[] tileId = new int[0];
+        public int[] tileAssetId = new int[0];
         public float[] base = new float[0];
         public boolean sourceAuthored;
         public int authoredRefCount;
@@ -238,8 +238,8 @@ public final class SpatialBlockLinkedTiles {
             return slot[index];
         }
 
-        public int tileId(int index) {
-            return tileId[index];
+        public int tileAssetId(int index) {
+            return tileAssetId[index];
         }
 
         public void baseSegment(int index, float[] out4) {
@@ -251,12 +251,12 @@ public final class SpatialBlockLinkedTiles {
             out4[3] = base[offset + 3];
         }
 
-        private void add(int gx, int gy, int slot, int tileId, float[] baseSegment) {
+        private void add(int gx, int gy, int slot, int tileAssetId, float[] baseSegment) {
             ensureCapacity(count + 1);
             this.gx[count] = gx;
             this.gy[count] = gy;
             this.slot[count] = slot;
-            this.tileId[count] = tileId;
+            this.tileAssetId[count] = tileAssetId;
             int offset = count * 4;
             base[offset] = baseSegment[0];
             base[offset + 1] = baseSegment[1];
@@ -272,7 +272,7 @@ public final class SpatialBlockLinkedTiles {
             gx = grow(gx, next);
             gy = grow(gy, next);
             slot = grow(slot, next);
-            tileId = grow(tileId, next);
+            tileAssetId = grow(tileAssetId, next);
             base = grow(base, next * 4);
         }
 

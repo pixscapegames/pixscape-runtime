@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 
 public class SpatialBlocksComponentTest {
 
@@ -179,6 +181,78 @@ public class SpatialBlocksComponentTest {
         Assert.assertFalse(world.getMapper(PhysicsRuntimeBodyComponent.class).has(entity));
     }
 
+    @Test
+    public void v1AuthoredTileRefsAcceptStraightContinuousSegments() {
+        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(0, 2, 3, 2));
+        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(4, 0, 4, 3));
+        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(7, 8, 7, 8));
+
+        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(0, 2), ref(1, 2), ref(2, 2))));
+        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(4, 0), ref(4, 1), ref(4, 2))));
+        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(7, 8))));
+    }
+
+    @Test
+    public void v1AuthoredTileRefsRejectDiagonalDisconnectedAndTwoDimensionalSelections() {
+        Assert.assertFalse(SpatialBlockV1Rules.isStraightSegment(0, 0, 1, 1));
+
+        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(0, 0), ref(1, 1))));
+        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(0, 0), ref(2, 0))));
+        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1))));
+        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
+                authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1), ref(1, 1))));
+    }
+
+    @Test
+    public void rectangularSpatialFootprintDoesNotMakeRectangularTileRefsValid() {
+        SpatialBlockData block = authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1), ref(1, 1));
+        block.x = 0f;
+        block.y = 0f;
+        block.width = 2f;
+        block.depth = 2f;
+
+        Assert.assertEquals(2f, block.width, 0.0001f);
+        Assert.assertEquals(2f, block.depth, 0.0001f);
+        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(block));
+    }
+
+    @Test
+    public void authoredLinkedTileRefsAreLayerLocalCellsWithoutLayerIdentity() {
+        assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "layer");
+        assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "layerIndex");
+        assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "layerId");
+        assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "owner");
+
+        SpatialBlockData.LinkedTileRef ref = new SpatialBlockData.LinkedTileRef();
+        ref.gx = 1;
+        ref.gy = 2;
+        ref.tileAssetId = 101;
+        Assert.assertEquals(1, ref.gx);
+        Assert.assertEquals(2, ref.gy);
+        Assert.assertEquals(101, ref.tileAssetId);
+    }
+
+    @Test
+    public void authoredSpatialBlockDataDoesNotContainRuntimeDrawResolutionFields() {
+        assertNoRuntimeDrawFields(SpatialBlockData.class);
+        assertNoRuntimeDrawFields(SpatialBlockData.LinkedTileRef.class);
+
+        SpatialBlockData block = authoredRefs(ref(1, 2));
+        byte[] bytes = saveBlocks(block);
+        String json = new String(bytes, StandardCharsets.UTF_8);
+        Assert.assertFalse(json.contains("drawSlot"));
+        Assert.assertFalse(json.contains("drawIndex"));
+        Assert.assertFalse(json.contains("anchorDraw"));
+        Assert.assertFalse(json.contains("resolvedAnchor"));
+        Assert.assertFalse(json.contains("insertionTarget"));
+    }
+
     private static SpatialBlocksComponent roundTripBlocks(SpatialBlockData... blocks) {
         World world = serializationWorld();
         int entity = world.create();
@@ -191,6 +265,17 @@ public class SpatialBlocksComponentTest {
         World loadedWorld = serializationWorld();
         SaveFileFormat loaded = load(loadedWorld, saveEntity(world, entity));
         return loadedWorld.getMapper(SpatialBlocksComponent.class).get(loaded.entities.get(0));
+    }
+
+    private static byte[] saveBlocks(SpatialBlockData... blocks) {
+        World world = serializationWorld();
+        int entity = world.create();
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(entity);
+        for (SpatialBlockData block : blocks) {
+            component.blocks.add(block);
+        }
+        world.process();
+        return saveEntity(world, entity);
     }
 
     private static int createTiledLayerWithSpatialBlock(World world) {
@@ -237,7 +322,45 @@ public class SpatialBlocksComponentTest {
             SpatialBlockData.LinkedTileRef ar = actual.linkedTileRefs.get(i);
             Assert.assertEquals(er.gx, ar.gx);
             Assert.assertEquals(er.gy, ar.gy);
-            Assert.assertEquals(er.tileId, ar.tileId);
+            Assert.assertEquals(er.tileAssetId, ar.tileAssetId);
+        }
+    }
+
+    private static SpatialBlockData authoredRefs(int... gxGyPairs) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.beginAuthoredLinkedTileRefs();
+        for (int i = 0; i < gxGyPairs.length; i += 2) {
+            block.addLinkedTileRef(gxGyPairs[i], gxGyPairs[i + 1], 100 + i);
+        }
+        return block;
+    }
+
+    private static int[] ref(int gx, int gy) {
+        return new int[]{gx, gy};
+    }
+
+    private static SpatialBlockData authoredRefs(int[]... refs) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.beginAuthoredLinkedTileRefs();
+        for (int i = 0; i < refs.length; i++) {
+            block.addLinkedTileRef(refs[i][0], refs[i][1], 100 + i);
+        }
+        return block;
+    }
+
+    private static void assertNoRuntimeDrawFields(Class<?> type) {
+        assertNoFieldNamed(type, "drawSlot");
+        assertNoFieldNamed(type, "drawIndex");
+        assertNoFieldNamed(type, "anchorDrawSlot");
+        assertNoFieldNamed(type, "anchorDrawIndex");
+        assertNoFieldNamed(type, "resolvedAnchorIndex");
+        assertNoFieldNamed(type, "insertionTarget");
+    }
+
+    private static void assertNoFieldNamed(Class<?> type, String name) {
+        Field[] fields = type.getDeclaredFields();
+        for (int i = 0; i < fields.length; i++) {
+            Assert.assertNotEquals(name, fields[i].getName());
         }
     }
 

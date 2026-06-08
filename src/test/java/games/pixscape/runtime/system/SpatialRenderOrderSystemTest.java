@@ -47,7 +47,7 @@ public class SpatialRenderOrderSystemTest {
         int fixed = fixture.createActor(10f, 20f, 0, 0, true);
 
         fixture.process();
-        Assert.assertArrayEquals(new int[]{fixed, mover}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{mover, fixed}, fixture.drawOrder());
 
         fixture.setActorPosition(mover, 10f, 30f);
         fixture.process();
@@ -66,7 +66,7 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{smallLowerCenter, largeHigherCenter}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{largeHigherCenter, smallLowerCenter}, fixture.drawOrder());
     }
 
     @Test
@@ -144,7 +144,7 @@ public class SpatialRenderOrderSystemTest {
         int actorB = fixture.createActorInRenderSlot(10f, 20f, 0, 0, 51);
 
         fixture.process();
-        Assert.assertArrayEquals(new int[]{51, 50}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{50, 51}, fixture.drawOrder());
 
         fixture.setActorPosition(actorA, 10f, 30f);
         fixture.process();
@@ -555,10 +555,12 @@ public class SpatialRenderOrderSystemTest {
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{frontTile, actor, backTile}, fixture.drawOrder());
-        fixture.assertDrawListIntegrity();
+        try {
+            fixture.process();
+            Assert.fail("Expected conflicting actor/block insertion constraints to fail.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Conflicting spatial insertion constraints"));
+        }
     }
 
     @Test
@@ -886,7 +888,7 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{upperTile, actor, lowerTile}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{lowerTile, upperTile, actor}, fixture.drawOrder());
         fixture.assertDrawListIntegrity();
     }
 
@@ -934,10 +936,12 @@ public class SpatialRenderOrderSystemTest {
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{directTile, actor}, fixture.drawOrder());
-        fixture.assertDrawListIntegrity();
+        try {
+            fixture.process();
+            Assert.fail("Expected invalid authored anchor to fail.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("not present in draw list"));
+        }
     }
 
     @Test
@@ -1159,7 +1163,10 @@ public class SpatialRenderOrderSystemTest {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
-        fixture.createBlockTiledLayer(1, map, block(10, 0.75f, 0f, 0.75f, 1f));
+        SpatialBlockData block = block(10, 0.75f, 0f, 0.75f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(1, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 1, 0, 101, 1, 10);
         int actor = fixture.createActor(20f, 8f, 0, 2, true);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -1180,10 +1187,12 @@ public class SpatialRenderOrderSystemTest {
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
         fixture.setSortOrder(actor, 2, 0, 20);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
-        fixture.assertDrawListIntegrity();
+        try {
+            fixture.process();
+            Assert.fail("Expected unresolved authored anchor to fail.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("not present in draw list"));
+        }
     }
 
     @Test
@@ -1235,7 +1244,165 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{tile, tileB, actor}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{tile, actor, tileB}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void spatialBlockKeepsInternalLinkedTileDrawOrder() {
+        Fixture fixture = new Fixture(512);
+        TiledMapLayerData map = fixture.createBlockMap(
+                5, 2, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 4f, 1f));
+        int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 40);
+        int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 30);
+        int tile2 = fixture.createLinkedTile(map, 2, 0, 101, 1, 20);
+        int tile3 = fixture.createLinkedTile(map, 3, 0, 101, 1, 10);
+        int adjacent = fixture.createLinkedTile(map, 4, 0, 101, 1, 0);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{adjacent, tile3, tile2, tile1, tile0}, fixture.drawOrder());
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void spatialSortNeverChangesTiledSlotRelativeOrder() {
+        Fixture fixture = new Fixture(512, true);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(
+                5, 2, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 4f, 1f));
+        int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 40);
+        int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 30);
+        int tile2 = fixture.createLinkedTile(map, 2, 0, 101, 1, 20);
+        int tile3 = fixture.createLinkedTile(map, 3, 0, 101, 1, 10);
+        int adjacent = fixture.createLinkedTile(map, 4, 0, 101, 1, 0);
+        int actor = fixture.createActor(
+                map.tileToWorldX(0.25f, 0.25f),
+                map.tileToWorldY(0.25f, 0.25f),
+                0,
+                2,
+                true);
+        fixture.setActorCircleFootprint(actor, 2f);
+        fixture.setSortOrder(actor, 2, 0, 5);
+
+        fixture.process();
+
+        assertSameTiledSubsequence(
+                fixture.beforeSpatialOrder,
+                fixture.drawOrder(),
+                adjacent, tile3, tile2, tile1, tile0);
+        fixture.assertDrawListIntegrity();
+    }
+
+    @Test
+    public void spatialDisabledBaselineKeepsFinalDrawOrderIdenticalToPreSpatialOrder() {
+        Fixture fixture = new Fixture(512, true);
+        fixture.createLayer(2, false);
+        TiledMapLayerData map = fixture.createBlockMap(
+                4, 2, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createTiledLayerWithMap(1, map, false);
+        int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 30);
+        int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 20);
+        int tile2 = fixture.createLinkedTile(map, 2, 0, 101, 1, 10);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setSortOrder(actor, 2, 0, 5);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(fixture.beforeSpatialOrder, fixture.drawOrder());
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile2, tile1, tile0);
+    }
+
+    @Test
+    public void actorCrossingWallKeepsTileSubsequenceInEveryFrame() {
+        Fixture fixture = new Fixture(512, true);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(
+                4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        SpatialBlockData block = block(10, 0f, 0f, 2f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(0, 0, 101);
+        block.addLinkedTileRef(1, 0, 101);
+        fixture.createBlockTiledLayer(1, map, block);
+        int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 10);
+        int actor = fixture.createActor(
+                map.tileToWorldX(0.25f, 0.25f),
+                map.tileToWorldY(0.25f, 0.25f),
+                0,
+                2,
+                true);
+        fixture.setActorCircleFootprint(actor, 2f);
+
+        fixture.setSortOrder(actor, 2, 0, 30);
+        fixture.process();
+        int[] first = fixture.drawOrder();
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, first, tile1, tile0);
+
+        fixture.setActorPosition(actor, map.tileToWorldX(1.75f, 1.75f), map.tileToWorldY(1.75f, 1.75f));
+        fixture.setSortOrder(actor, 2, 0, 5);
+        fixture.process();
+
+        Assert.assertFalse("Actor movement should affect spatial ordering in this scenario.",
+                arraysEqual(first, fixture.drawOrder()));
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile1, tile0);
+    }
+
+    @Test
+    public void equalTieSpatialInputsStayDeterministicAndKeepTileOrder() {
+        Fixture fixture = new Fixture(512, true);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 1f));
+        int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
+        int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 10);
+        int actorA = fixture.createActor(8f, 8f, 0, 2, true);
+        int actorB = fixture.createActor(8f, 8f, 0, 2, true);
+        fixture.setActorCircleFootprint(actorA, 2f);
+        fixture.setActorCircleFootprint(actorB, 2f);
+        fixture.setSortOrder(actorA, 2, 0, 20);
+        fixture.setSortOrder(actorB, 2, 0, 20);
+
+        fixture.process();
+        int[] first = fixture.drawOrder();
+        fixture.process();
+        Assert.assertArrayEquals(first, fixture.drawOrder());
+        fixture.process();
+        Assert.assertArrayEquals(first, fixture.drawOrder());
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile0, tile1);
+    }
+
+    @Test
+    public void multiLayerSpatialSortKeepsEachTiledLayerDomainOrder() {
+        Fixture fixture = new Fixture(1024, true);
+        fixture.createLayer(2, true);
+        fixture.createLayer(4, true);
+
+        TiledMapLayerData lowerMap = fixture.createBlockMap(
+                4, 2, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createBlockTiledLayer(1, lowerMap, block(10, 0f, 0f, 2f, 1f));
+        int lower0 = fixture.createLinkedTile(lowerMap, 0, 0, 101, 1, 30);
+        int lower1 = fixture.createLinkedTile(lowerMap, 1, 0, 101, 1, 20);
+        int lower2 = fixture.createLinkedTile(lowerMap, 2, 0, 101, 1, 10);
+
+        TiledMapLayerData upperMap = fixture.createBlockMap(
+                4, 2, 90, 30, 400, SceneMetaRuntime.TiledProjection.ISO);
+        fixture.createBlockTiledLayer(3, upperMap, block(20, 0f, 0f, 2f, 1f));
+        int upper0 = fixture.createLinkedTile(upperMap, 0, 0, 202, 3, 30);
+        int upper1 = fixture.createLinkedTile(upperMap, 1, 0, 202, 3, 20);
+        int upper2 = fixture.createLinkedTile(upperMap, 2, 0, 202, 3, 10);
+
+        int actorA = fixture.createActor(8f, 8f, 0, 2, true);
+        int actorB = fixture.createActor(8f, 24f, 0, 4, true);
+        fixture.setActorCircleFootprint(actorA, 2f);
+        fixture.setActorCircleFootprint(actorB, 2f);
+
+        fixture.process();
+
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), lower2, lower1, lower0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), upper2, upper1, upper0);
         fixture.assertDrawListIntegrity();
     }
 
@@ -1251,9 +1418,12 @@ public class SpatialRenderOrderSystemTest {
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
         fixture.setSortOrder(actor, 2, 0, 20);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
+        try {
+            fixture.process();
+            Assert.fail("Expected unsupported spatial block orientation to fail.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("not valid for relation solving"));
+        }
     }
 
     @Test
@@ -1380,6 +1550,7 @@ public class SpatialRenderOrderSystemTest {
 
             SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(entity);
             for (SpatialBlockData block : blocks) {
+                ensureV1LinkedRefs(block, map);
                 component.blocks.add(block);
             }
             return entity;
@@ -1397,6 +1568,22 @@ public class SpatialRenderOrderSystemTest {
             tiled.data = map;
             if (tiled.data != null) {
                 tiled.data.spatialEnabled = true;
+            }
+            return entity;
+        }
+
+        int createTiledLayerWithMap(int layerIndex, TiledMapLayerData map, boolean spatialEnabled) {
+            int entity = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            layer.layerIndex = layerIndex;
+            layer.type = LayerComponent.TYPE_TILED;
+            layer.spatialEnabled = spatialEnabled;
+
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
+            tiled.spatialEnabled = spatialEnabled;
+            tiled.data = map;
+            if (tiled.data != null) {
+                tiled.data.spatialEnabled = spatialEnabled;
             }
             return entity;
         }
@@ -1584,7 +1771,105 @@ public class SpatialRenderOrderSystemTest {
         block.width = width;
         block.depth = depth;
         block.height = 10f;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef((int) Math.floor(x), (int) Math.floor(y), 1);
         return block;
+    }
+
+    private static void ensureV1LinkedRefs(SpatialBlockData block, TiledMapLayerData map) {
+        if (block == null || map == null || block.linkedTileRefs.size > 0) return;
+
+        int minGx = (int) Math.floor(block.x);
+        int minGy = (int) Math.floor(block.y);
+        int maxGxExclusive = (int) Math.ceil(block.x + block.width);
+        int maxGyExclusive = (int) Math.ceil(block.y + block.depth);
+        if (maxGxExclusive <= minGx || maxGyExclusive <= minGy) return;
+
+        block.beginAuthoredLinkedTileRefs();
+        if ((maxGxExclusive - minGx) >= (maxGyExclusive - minGy)) {
+            int gy = firstOccupiedRow(map, minGx, maxGxExclusive, minGy, maxGyExclusive);
+            if (gy < 0) return;
+            for (int gx = minGx; gx < maxGxExclusive; gx++) {
+                int tileAssetId = map.getTile(gx, gy);
+                if (tileAssetId > 0) {
+                    block.addLinkedTileRef(gx, gy, tileAssetId);
+                }
+            }
+        } else {
+            int gx = firstOccupiedColumn(map, minGx, maxGxExclusive, minGy, maxGyExclusive);
+            if (gx < 0) return;
+            for (int gy = minGy; gy < maxGyExclusive; gy++) {
+                int tileAssetId = map.getTile(gx, gy);
+                if (tileAssetId > 0) {
+                    block.addLinkedTileRef(gx, gy, tileAssetId);
+                }
+            }
+        }
+    }
+
+    private static int firstOccupiedRow(TiledMapLayerData map,
+                                        int minGx,
+                                        int maxGxExclusive,
+                                        int minGy,
+                                        int maxGyExclusive) {
+        for (int gy = minGy; gy < maxGyExclusive; gy++) {
+            for (int gx = minGx; gx < maxGxExclusive; gx++) {
+                if (map.getTile(gx, gy) > 0) return gy;
+            }
+        }
+        return -1;
+    }
+
+    private static int firstOccupiedColumn(TiledMapLayerData map,
+                                           int minGx,
+                                           int maxGxExclusive,
+                                           int minGy,
+                                           int maxGyExclusive) {
+        for (int gx = minGx; gx < maxGxExclusive; gx++) {
+            for (int gy = minGy; gy < maxGyExclusive; gy++) {
+                if (map.getTile(gx, gy) > 0) return gx;
+            }
+        }
+        return -1;
+    }
+
+    private static void assertSameTiledSubsequence(int[] expectedOrder, int[] actualOrder, int... tiledSlots) {
+        Assert.assertArrayEquals(
+                filterSlots(expectedOrder, tiledSlots),
+                filterSlots(actualOrder, tiledSlots));
+    }
+
+    private static int[] filterSlots(int[] order, int[] slots) {
+        int count = 0;
+        for (int slot : order) {
+            if (containsSlot(slots, slot)) count++;
+        }
+
+        int[] filtered = new int[count];
+        int out = 0;
+        for (int slot : order) {
+            if (containsSlot(slots, slot)) {
+                filtered[out++] = slot;
+            }
+        }
+        return filtered;
+    }
+
+    private static boolean containsSlot(int[] slots, int slot) {
+        for (int candidate : slots) {
+            if (candidate == slot) return true;
+        }
+        return false;
+    }
+
+    private static boolean arraysEqual(int[] left, int[] right) {
+        if (left == right) return true;
+        if (left == null || right == null) return false;
+        if (left.length != right.length) return false;
+        for (int i = 0; i < left.length; i++) {
+            if (left[i] != right[i]) return false;
+        }
+        return true;
     }
 
     private interface OrderSink {

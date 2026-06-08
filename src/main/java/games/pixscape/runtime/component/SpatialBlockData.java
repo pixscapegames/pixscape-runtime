@@ -74,7 +74,7 @@ public final class SpatialBlockData {
         linkedTileRefsAuthored = true;
     }
 
-    public void addLinkedTileRef(int gx, int gy, int tileId) {
+    public void addLinkedTileRef(int gx, int gy, int tileAssetId) {
         if (linkedTileRefs == null) {
             linkedTileRefs = new Array<>(LinkedTileRef[]::new);
         }
@@ -82,7 +82,7 @@ public final class SpatialBlockData {
         LinkedTileRef ref = new LinkedTileRef();
         ref.gx = gx;
         ref.gy = gy;
-        ref.tileId = tileId;
+        ref.tileAssetId = tileAssetId;
         linkedTileRefs.add(ref);
     }
 
@@ -97,7 +97,7 @@ public final class SpatialBlockData {
             LinkedTileRef copy = new LinkedTileRef();
             copy.gx = ref.gx;
             copy.gy = ref.gy;
-            copy.tileId = ref.tileId;
+            copy.tileAssetId = ref.tileAssetId;
             linkedTileRefs.add(copy);
         }
     }
@@ -105,6 +105,6 @@ public final class SpatialBlockData {
     public static final class LinkedTileRef {
         public int gx = 0;
         public int gy = 0;
-        public int tileId = 0;
+        public int tileAssetId = 0;
     }
 }
