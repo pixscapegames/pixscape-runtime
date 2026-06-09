@@ -184,25 +184,21 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void invalidNonStraightV1BlockFailsVisibly() {
+    public void rectangularAuthoredRefsDoNotFailValidation() {
         TiledMapLayerData map = orthoMap();
-        SpatialBlockData invalid = block(0, 1, 2, 1);
-        invalid.linkedTileRefs.clear();
-        invalid.addLinkedTileRef(0, 1, 101);
-        invalid.addLinkedTileRef(1, 2, 102);
-        SpatialBlocksComponent blocks = blocks(invalid);
-        SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
-        int cached = cache.addBlock(2);
-        cache.setAnchor(cached, 0, 300, 0);
-        cache.setAnchor(cached, 1, 301, 1);
-        cache.finalizeRanges();
+        SpatialBlockData block = blockWithRefs(0f, 1f, 2f, 2f,
+                0, 1, 101,
+                1, 1, 102,
+                0, 2, 103,
+                1, 2, 104);
+        SpatialBlocksComponent blocks = blocks(block);
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
 
-        try {
-            solver.solve(actors(actor(16f, 40f, 2f, 0f, 2f)), cache, blocks, map);
-            Assert.fail("Expected invalid V1 block refs to fail.");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("straight continuous"));
-        }
+        solver.solve(actors(actor(16f, 48f, 2f, 0f, 2f)), cache, blocks, map);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(4, cache.blockAnchorCount[0]);
+        Assert.assertTrue(cache.hasResolvedBlock(0));
     }
 
     @Test

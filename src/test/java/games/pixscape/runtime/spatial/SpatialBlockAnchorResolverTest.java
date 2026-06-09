@@ -81,20 +81,54 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
-    public void rejectsInvalidNonStraightSegment() {
+    public void resolvesRectangularAnchors() {
         TiledMapLayerData map = map(8, 8, 300);
         map.setTile(1, 1, 101);
-        map.setTile(2, 2, 102);
+        map.setTile(2, 1, 102);
+        map.setTile(1, 2, 103);
+        map.setTile(2, 2, 104);
+        int slot0 = map.slotForTile(1, 1);
+        int slot1 = map.slotForTile(2, 1);
+        int slot2 = map.slotForTile(1, 2);
+        int slot3 = map.slotForTile(2, 2);
 
-        try {
-            resolver.resolve(blocks(block(1, 1, 101, 2, 2, 102)),
-                    map,
-                    slotToDrawIndex(512, map.slotForTile(1, 1), 1, map.slotForTile(2, 2), 2),
-                    cache);
-            Assert.fail("Expected invalid non-straight segment to fail.");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("straight continuous"));
-        }
+        resolver.resolve(blocks(block(1, 1, 101, 2, 1, 102, 1, 2, 103, 2, 2, 104)),
+                map,
+                slotToDrawIndex(512, slot0, 1, slot1, 2, slot2, 3, slot3, 4),
+                cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(4, cache.anchorCount);
+        Assert.assertEquals(4, cache.blockAnchorCount[0]);
+        Assert.assertEquals(slot0, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(slot1, cache.anchorDrawSlot[1]);
+        Assert.assertEquals(slot2, cache.anchorDrawSlot[2]);
+        Assert.assertEquals(slot3, cache.anchorDrawSlot[3]);
+        Assert.assertEquals(1, cache.blockAnchorStartDrawIndex[0]);
+        Assert.assertEquals(4, cache.blockAnchorEndDrawIndex[0]);
+    }
+
+    @Test
+    public void unresolvedCellsInsideRectangularAnchorsAreSkippedForCurrentFrame() {
+        TiledMapLayerData map = map(8, 8, 300);
+        map.setTile(1, 1, 101);
+        map.setTile(2, 2, 104);
+        int slot0 = map.slotForTile(1, 1);
+        int slot3 = map.slotForTile(2, 2);
+
+        resolver.resolve(blocks(block(1, 1, 101, 2, 1, 102, 1, 2, 103, 2, 2, 104)),
+                map,
+                slotToDrawIndex(512, slot0, 1, slot3, 4),
+                cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(4, cache.anchorCount);
+        Assert.assertEquals(slot0, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(-1, cache.anchorDrawSlot[1]);
+        Assert.assertEquals(-1, cache.anchorDrawSlot[2]);
+        Assert.assertEquals(slot3, cache.anchorDrawSlot[3]);
+        Assert.assertEquals(1, cache.blockAnchorStartDrawIndex[0]);
+        Assert.assertEquals(4, cache.blockAnchorEndDrawIndex[0]);
     }
 
     @Test

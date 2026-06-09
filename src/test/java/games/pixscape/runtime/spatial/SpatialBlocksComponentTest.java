@@ -182,44 +182,28 @@ public class SpatialBlocksComponentTest {
     }
 
     @Test
-    public void v1AuthoredTileRefsAcceptStraightContinuousSegments() {
-        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(0, 2, 3, 2));
-        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(4, 0, 4, 3));
-        Assert.assertTrue(SpatialBlockV1Rules.isStraightSegment(7, 8, 7, 8));
-
-        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(0, 2), ref(1, 2), ref(2, 2))));
-        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(4, 0), ref(4, 1), ref(4, 2))));
-        Assert.assertTrue(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(7, 8))));
+    public void v2AuthoredTileRefsAcceptLinesRectanglesAndHoles() {
+        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
+                authoredRefs(0, 2, 1, 2, 2, 2)));
+        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
+                authoredRefs(4, 0, 4, 1, 4, 2)));
+        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
+                authoredRefs(0, 0, 1, 0, 0, 1, 1, 1)));
+        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
+                authoredRefs(0, 0, 2, 0, 0, 2, 2, 2)));
     }
 
     @Test
-    public void v1AuthoredTileRefsRejectDiagonalDisconnectedAndTwoDimensionalSelections() {
-        Assert.assertFalse(SpatialBlockV1Rules.isStraightSegment(0, 0, 1, 1));
+    public void v2AuthoredTileRefsRejectMissingNullAndDuplicateRefs() {
+        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(null));
+        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(new SpatialBlockData()));
 
-        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(0, 0), ref(1, 1))));
-        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(0, 0), ref(2, 0))));
-        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1))));
-        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(
-                authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1), ref(1, 1))));
-    }
+        SpatialBlockData withNull = authoredRefs(0, 0);
+        withNull.linkedTileRefs.add(null);
+        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(withNull));
 
-    @Test
-    public void rectangularSpatialFootprintDoesNotMakeRectangularTileRefsValid() {
-        SpatialBlockData block = authoredRefs(ref(0, 0), ref(1, 0), ref(0, 1), ref(1, 1));
-        block.x = 0f;
-        block.y = 0f;
-        block.width = 2f;
-        block.depth = 2f;
-
-        Assert.assertEquals(2f, block.width, 0.0001f);
-        Assert.assertEquals(2f, block.depth, 0.0001f);
-        Assert.assertFalse(SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(block));
+        SpatialBlockData duplicate = authoredRefs(0, 0, 0, 0);
+        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(duplicate));
     }
 
     @Test
@@ -243,7 +227,7 @@ public class SpatialBlocksComponentTest {
         assertNoRuntimeDrawFields(SpatialBlockData.class);
         assertNoRuntimeDrawFields(SpatialBlockData.LinkedTileRef.class);
 
-        SpatialBlockData block = authoredRefs(ref(1, 2));
+        SpatialBlockData block = authoredRefs(1, 2);
         byte[] bytes = saveBlocks(block);
         String json = new String(bytes, StandardCharsets.UTF_8);
         Assert.assertFalse(json.contains("drawSlot"));
@@ -331,19 +315,6 @@ public class SpatialBlocksComponentTest {
         block.beginAuthoredLinkedTileRefs();
         for (int i = 0; i < gxGyPairs.length; i += 2) {
             block.addLinkedTileRef(gxGyPairs[i], gxGyPairs[i + 1], 100 + i);
-        }
-        return block;
-    }
-
-    private static int[] ref(int gx, int gy) {
-        return new int[]{gx, gy};
-    }
-
-    private static SpatialBlockData authoredRefs(int[]... refs) {
-        SpatialBlockData block = new SpatialBlockData();
-        block.beginAuthoredLinkedTileRefs();
-        for (int i = 0; i < refs.length; i++) {
-            block.addLinkedTileRef(refs[i][0], refs[i][1], 100 + i);
         }
         return block;
     }

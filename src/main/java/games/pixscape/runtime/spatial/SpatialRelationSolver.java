@@ -85,8 +85,8 @@ public final class SpatialRelationSolver {
                                        int authoredBlock,
                                        int cacheBlock,
                                        SpatialBlocksRuntimeCache blockCache) {
-        if (!SpatialBlockV1Rules.hasStraightContinuousAuthoredTileRefs(block)) {
-            throw new IllegalStateException("Spatial block V1 anchors must be a straight continuous segment: blockIndex="
+        if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
+            throw new IllegalStateException("Spatial block V2 anchors require valid authored linked tile refs: blockIndex="
                     + authoredBlock);
         }
         if (cacheBlock < 0 || cacheBlock >= blockCache.blockCount) {
@@ -221,4 +221,5 @@ public final class SpatialRelationSolver {
         System.arraycopy(source, 0, expanded, 0, source.length);
         return expanded;
     }
+
 }

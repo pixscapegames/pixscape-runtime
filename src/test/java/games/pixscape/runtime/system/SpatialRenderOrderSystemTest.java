@@ -1742,7 +1742,7 @@ public class SpatialRenderOrderSystemTest {
 
             SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(entity);
             for (SpatialBlockData block : blocks) {
-                ensureV1LinkedRefs(block, map);
+                ensureV2LinkedRefs(block, map);
                 component.blocks.add(block);
             }
             return entity;
@@ -1968,7 +1968,7 @@ public class SpatialRenderOrderSystemTest {
         return block;
     }
 
-    private static void ensureV1LinkedRefs(SpatialBlockData block, TiledMapLayerData map) {
+    private static void ensureV2LinkedRefs(SpatialBlockData block, TiledMapLayerData map) {
         if (block == null || map == null || block.linkedTileRefs.size > 0) return;
 
         int minGx = (int) Math.floor(block.x);
@@ -1978,51 +1978,14 @@ public class SpatialRenderOrderSystemTest {
         if (maxGxExclusive <= minGx || maxGyExclusive <= minGy) return;
 
         block.beginAuthoredLinkedTileRefs();
-        if ((maxGxExclusive - minGx) >= (maxGyExclusive - minGy)) {
-            int gy = firstOccupiedRow(map, minGx, maxGxExclusive, minGy, maxGyExclusive);
-            if (gy < 0) return;
-            for (int gx = minGx; gx < maxGxExclusive; gx++) {
-                int tileAssetId = map.getTile(gx, gy);
-                if (tileAssetId > 0) {
-                    block.addLinkedTileRef(gx, gy, tileAssetId);
-                }
-            }
-        } else {
-            int gx = firstOccupiedColumn(map, minGx, maxGxExclusive, minGy, maxGyExclusive);
-            if (gx < 0) return;
-            for (int gy = minGy; gy < maxGyExclusive; gy++) {
-                int tileAssetId = map.getTile(gx, gy);
-                if (tileAssetId > 0) {
-                    block.addLinkedTileRef(gx, gy, tileAssetId);
-                }
-            }
-        }
-    }
-
-    private static int firstOccupiedRow(TiledMapLayerData map,
-                                        int minGx,
-                                        int maxGxExclusive,
-                                        int minGy,
-                                        int maxGyExclusive) {
         for (int gy = minGy; gy < maxGyExclusive; gy++) {
             for (int gx = minGx; gx < maxGxExclusive; gx++) {
-                if (map.getTile(gx, gy) > 0) return gy;
+                int tileAssetId = map.getTile(gx, gy);
+                if (tileAssetId > 0) {
+                    block.addLinkedTileRef(gx, gy, tileAssetId);
+                }
             }
         }
-        return -1;
-    }
-
-    private static int firstOccupiedColumn(TiledMapLayerData map,
-                                           int minGx,
-                                           int maxGxExclusive,
-                                           int minGy,
-                                           int maxGyExclusive) {
-        for (int gx = minGx; gx < maxGxExclusive; gx++) {
-            for (int gy = minGy; gy < maxGyExclusive; gy++) {
-                if (map.getTile(gx, gy) > 0) return gx;
-            }
-        }
-        return -1;
     }
 
     private static void assertSameTiledSubsequence(int[] expectedOrder, int[] actualOrder, int... tiledSlots) {
