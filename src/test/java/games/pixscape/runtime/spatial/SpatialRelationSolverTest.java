@@ -84,7 +84,7 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void isoTopSegmentProducesRelation() {
+    public void ascendingWallUsesLowerBaseSegments() {
         TiledMapLayerData map = isoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 0, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
@@ -92,28 +92,35 @@ public class SpatialRelationSolverTest {
 
         solver.solve(actors, cache, blocks, map);
 
-        Assert.assertEquals(1, solver.relationCount());
-        Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[0]);
+        assertSingleRelation(SpatialRelationSolver.ACTOR_BEHIND_BLOCK);
     }
 
     @Test
-    public void isoTopSegmentUsesSameLineSideForDepthAxis() {
+    public void descendingWallUsesLowerBaseSegments() {
         TiledMapLayerData map = isoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 0, 1, 2));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
-        SpatialActorCollector actors = actors(
-                actor(0f, 10f, 2f, 0f, 2f),
-                actor(0f, 20f, 2f, 0f, 2f));
+        SpatialActorCollector actors = actors(actor(45f, 40f, 2f, 0f, 2f));
 
         solver.solve(actors, cache, blocks, map);
 
-        Assert.assertEquals(2, solver.relationCount());
-        Assert.assertEquals(SpatialRelationSolver.ACTOR_IN_FRONT_OF_BLOCK, solver.relationType[0]);
-        Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[1]);
+        assertSingleRelation(SpatialRelationSolver.ACTOR_BEHIND_BLOCK);
     }
 
     @Test
-    public void orthoTopSegmentProducesRelation() {
+    public void actorOnWallThicknessSliceUsesSecondLowerSegment() {
+        TiledMapLayerData map = isoMap();
+        SpatialBlocksComponent blocks = blocks(block(0, 0, 1, 2));
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(actor(45f, 20f, 2f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        assertSingleRelation(SpatialRelationSolver.ACTOR_IN_FRONT_OF_BLOCK);
+    }
+
+    @Test
+    public void squareRectangularVolumeBaseUsesLowerBaseSegment() {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
@@ -121,8 +128,19 @@ public class SpatialRelationSolverTest {
 
         solver.solve(actors, cache, blocks, map);
 
-        Assert.assertEquals(1, solver.relationCount());
-        Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[0]);
+        assertSingleRelation(SpatialRelationSolver.ACTOR_BEHIND_BLOCK);
+    }
+
+    @Test
+    public void actorNearQuadrilateralCornerUsesSemiOpenLowerSegmentSeam() {
+        TiledMapLayerData map = isoMap();
+        SpatialBlocksComponent blocks = blocks(block(0, 0, 2, 1));
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(actor(90f, 44f, 2f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        assertSingleRelation(SpatialRelationSolver.ACTOR_IN_FRONT_OF_BLOCK);
     }
 
     @Test
@@ -146,7 +164,7 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void actorCenterOutsideRelationSegmentProducesNoRelation() {
+    public void actorCenterOutsideBothLowerSegmentRangesProducesNoRelation() {
         TiledMapLayerData map = orthoMap();
         SpatialBlockData left = blockWithRefs(0f, 1f, 2.4f, 1f,
                 0, 1, 101,
@@ -294,6 +312,13 @@ public class SpatialRelationSolverTest {
 
     private static Actor actor(float x, float y, float radius, float altitude, float height) {
         return new Actor(x, y, radius, altitude, height);
+    }
+
+    private void assertSingleRelation(int relationType) {
+        Assert.assertEquals(1, solver.relationCount());
+        Assert.assertEquals(relationType, solver.relationType[0]);
+        Assert.assertEquals(0, solver.relationActorIndex[0]);
+        Assert.assertEquals(0, solver.relationBlockIndex[0]);
     }
 
     private static SpatialActorCollector actors(Actor... specs) {

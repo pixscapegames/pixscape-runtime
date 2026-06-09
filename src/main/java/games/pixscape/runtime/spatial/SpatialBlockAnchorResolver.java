@@ -46,21 +46,12 @@ public final class SpatialBlockAnchorResolver {
         int cacheBlock = cache.addBlock(anchorCount);
         for (int anchor = 0; anchor < anchorCount; anchor++) {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(anchor);
+            if (ref == null) continue;
             int slot = tiledLayer.slotForTile(ref.gx, ref.gy);
-            if (slot < 0) {
-                throw new IllegalStateException("Spatial block anchor has no draw slot: blockIndex="
-                        + authoredBlockIndex + " gx=" + ref.gx + " gy=" + ref.gy);
-            }
-            if (slot >= slotToDrawIndex.length) {
-                throw new IllegalStateException("Spatial block anchor slot has no draw-index entry: blockIndex="
-                        + authoredBlockIndex + " slot=" + slot);
-            }
+            if (slot < 0 || slot >= slotToDrawIndex.length) continue;
 
             int drawIndex = slotToDrawIndex[slot];
-            if (drawIndex < 0) {
-                throw new IllegalStateException("Spatial block anchor is not present in draw list: blockIndex="
-                        + authoredBlockIndex + " slot=" + slot);
-            }
+            if (drawIndex < 0) continue;
 
             cache.setAnchor(cacheBlock, anchor, slot, drawIndex);
         }

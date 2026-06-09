@@ -165,16 +165,53 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
-    public void missingDrawIndexFailsVisibly() {
+    public void missingDrawIndexSkipsAnchorForCurrentFrame() {
         TiledMapLayerData map = map(4, 4, 300);
         map.setTile(0, 0, 101);
+        SpatialBlocksComponent blocks = blocks(block(0, 0, 101));
 
-        try {
-            resolver.resolve(blocks(block(0, 0, 101)), map, slotToDrawIndex(512), cache);
-            Assert.fail("Expected missing draw index to fail.");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("not present"));
-        }
+        resolver.resolve(blocks, map, slotToDrawIndex(512), cache);
+
+        Assert.assertEquals(1, blocks.blocks.get(0).linkedTileRefs.size);
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(1, cache.anchorCount);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(-1, cache.blockAnchorStartDrawIndex[0]);
+        Assert.assertEquals(-1, cache.blockAnchorEndDrawIndex[0]);
+    }
+
+    @Test
+    public void repaintingSameCellReactivatesExistingLinkedRef() {
+        TiledMapLayerData map = map(4, 4, 300);
+        SpatialBlocksComponent blocks = blocks(block(0, 0, 101));
+
+        map.setTile(0, 0, 0);
+        resolver.resolve(blocks, map, slotToDrawIndex(512), cache);
+        Assert.assertEquals(1, blocks.blocks.get(0).linkedTileRefs.size);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+
+        map.setTile(0, 0, 202);
+        int slot = map.slotForTile(0, 0);
+        resolver.resolve(blocks, map, slotToDrawIndex(512, slot, 7), cache);
+
+        Assert.assertEquals(1, blocks.blocks.get(0).linkedTileRefs.size);
+        Assert.assertEquals(101, blocks.blocks.get(0).linkedTileRefs.get(0).tileAssetId);
+        Assert.assertTrue(cache.hasResolvedBlock(0));
+        Assert.assertEquals(slot, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(7, cache.anchorDrawIndex[0]);
+    }
+
+    @Test
+    public void staleTileAssetIdDoesNotPreventCellResolution() {
+        TiledMapLayerData map = map(4, 4, 300);
+        map.setTile(0, 0, 202);
+        int slot = map.slotForTile(0, 0);
+
+        resolver.resolve(blocks(block(0, 0, 101)), map, slotToDrawIndex(512, slot, 7), cache);
+
+        Assert.assertTrue(cache.hasResolvedBlock(0));
+        Assert.assertEquals(slot, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(7, cache.anchorDrawIndex[0]);
     }
 
     @Test

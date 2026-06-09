@@ -74,16 +74,19 @@ public final class SpatialBlocksRuntimeCache {
 
         for (int i = 0; i < count; i++) {
             int anchor = offset + i;
-            if (anchorDrawSlot[anchor] < 0 || anchorDrawIndex[anchor] < 0) {
-                throw new IllegalStateException("Spatial block anchor is unresolved: block=" + block + " anchor=" + i);
-            }
+            if (anchorDrawSlot[anchor] < 0 || anchorDrawIndex[anchor] < 0) continue;
             int drawIndex = anchorDrawIndex[anchor];
             if (drawIndex < minDrawIndex) minDrawIndex = drawIndex;
             if (drawIndex > maxDrawIndex) maxDrawIndex = drawIndex;
         }
 
-        blockAnchorStartDrawIndex[block] = minDrawIndex;
-        blockAnchorEndDrawIndex[block] = maxDrawIndex;
+        if (minDrawIndex == Integer.MAX_VALUE) {
+            blockAnchorStartDrawIndex[block] = -1;
+            blockAnchorEndDrawIndex[block] = -1;
+        } else {
+            blockAnchorStartDrawIndex[block] = minDrawIndex;
+            blockAnchorEndDrawIndex[block] = maxDrawIndex;
+        }
     }
 
     void finalizeRanges() {
@@ -101,6 +104,7 @@ public final class SpatialBlocksRuntimeCache {
         for (int block = 0; block < blockCount; block++) {
             int startDrawIndex = blockAnchorStartDrawIndex[block];
             int endDrawIndex = blockAnchorEndDrawIndex[block];
+            if (startDrawIndex < 0 || endDrawIndex < 0) continue;
             if (startDrawIndex < 0
                     || startDrawIndex >= drawListSize
                     || endDrawIndex < 0
@@ -116,6 +120,13 @@ public final class SpatialBlocksRuntimeCache {
             blockAnchorStartDrawIndex[block] = startBucket;
             blockAnchorEndDrawIndex[block] = endBucketInclusive;
         }
+    }
+
+    public boolean hasResolvedBlock(int block) {
+        return block >= 0
+                && block < blockCount
+                && blockAnchorStartDrawIndex[block] >= 0
+                && blockAnchorEndDrawIndex[block] >= 0;
     }
 
     private void ensureBlockCapacity(int required) {

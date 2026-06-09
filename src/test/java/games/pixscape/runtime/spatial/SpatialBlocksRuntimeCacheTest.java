@@ -76,17 +76,28 @@ public class SpatialBlocksRuntimeCacheTest {
     }
 
     @Test
-    public void unresolvedAnchorFailsVisibly() {
+    public void unresolvedAnchorsLeaveBlockFrameUnresolved() {
         SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
         int block = cache.addBlock(2);
         cache.setAnchor(block, 0, 300, 10);
 
-        try {
-            cache.finalizeBlockRange(block);
-            Assert.fail("Expected unresolved anchor to fail.");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("unresolved"));
-        }
+        cache.finalizeBlockRange(block);
+
+        Assert.assertTrue(cache.hasResolvedBlock(block));
+        Assert.assertEquals(10, cache.blockAnchorStartDrawIndex[block]);
+        Assert.assertEquals(10, cache.blockAnchorEndDrawIndex[block]);
+    }
+
+    @Test
+    public void fullyUnresolvedBlockIsKeptButInactive() {
+        SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
+        int block = cache.addBlock(2);
+
+        cache.finalizeBlockRange(block);
+
+        Assert.assertFalse(cache.hasResolvedBlock(block));
+        Assert.assertEquals(-1, cache.blockAnchorStartDrawIndex[block]);
+        Assert.assertEquals(-1, cache.blockAnchorEndDrawIndex[block]);
     }
 
     @Test
@@ -123,4 +134,3 @@ public class SpatialBlocksRuntimeCacheTest {
         Assert.assertNotEquals(map.slotForTile(0, 0), map.slotForTile(1, 0));
     }
 }
-

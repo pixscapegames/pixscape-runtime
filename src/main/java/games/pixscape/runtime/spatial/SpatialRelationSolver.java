@@ -15,7 +15,7 @@ public final class SpatialRelationSolver {
     int[] relationType = new int[0];
 
     private final SpatialRelationKernel relationKernel = new SpatialRelationKernel();
-    private final float[] tmpBlockRelationSegment = new float[4];
+    private final float[] tmpBlockRelationSegments = new float[8];
     private final float[] tmpBlockFootprint = new float[8];
 
     public void clear() {
@@ -48,7 +48,7 @@ public final class SpatialRelationSolver {
             for (int authoredBlock = 0, blockCount = blocks.blocks.size; authoredBlock < blockCount; authoredBlock++) {
                 SpatialBlockData block = blocks.blocks.get(authoredBlock);
                 if (!block.enabled) continue;
-                if (block.actorOccluder) {
+                if (block.actorOccluder && blockCache.hasResolvedBlock(cacheBlock)) {
                     solveActorBlock(actor, block, cacheBlock, map);
                 }
                 cacheBlock++;
@@ -92,9 +92,7 @@ public final class SpatialRelationSolver {
         if (cacheBlock < 0 || cacheBlock >= blockCache.blockCount) {
             throw new IllegalStateException("Spatial block is missing from runtime cache: blockIndex=" + authoredBlock);
         }
-        if (blockCache.blockAnchorCount[cacheBlock] <= 0
-                || blockCache.blockAnchorStartDrawIndex[cacheBlock] < 0
-                || blockCache.blockAnchorEndDrawIndex[cacheBlock] < 0) {
+        if (blockCache.blockAnchorCount[cacheBlock] <= 0) {
             throw new IllegalStateException("Spatial block cache entry is unresolved: blockIndex=" + authoredBlock);
         }
     }
@@ -104,18 +102,22 @@ public final class SpatialRelationSolver {
                 SpatialBlockGeometry.bottom(block), SpatialBlockGeometry.top(block))) {
             return;
         }
-        if (!writeBlockTopSegment(map, block, tmpBlockRelationSegment)) {
-            throw new IllegalStateException("Spatial block relation segment could not be resolved: block=" + cacheBlock);
+        if (!writeBlockLowerRelationSegments(map, block, tmpBlockRelationSegments)) {
+            throw new IllegalStateException("Spatial block relation segments could not be resolved: block=" + cacheBlock);
         }
 
-        int relation = relationKernel.relation(currentActorCenterX(actor),
-                currentActorCenterY(actor),
-                tmpBlockRelationSegment[0],
-                tmpBlockRelationSegment[1],
-                tmpBlockRelationSegment[2],
-                tmpBlockRelationSegment[3]);
-        if (relation == ACTOR_BEHIND_BLOCK || relation == ACTOR_IN_FRONT_OF_BLOCK) {
-            addRelation(actor, cacheBlock, relation);
+        for (int segment = 0; segment < 2; segment++) {
+            int offset = segment * 4;
+            int relation = relationKernel.relation(currentActorCenterX(actor),
+                    currentActorCenterY(actor),
+                    tmpBlockRelationSegments[offset],
+                    tmpBlockRelationSegments[offset + 1],
+                    tmpBlockRelationSegments[offset + 2],
+                    tmpBlockRelationSegments[offset + 3]);
+            if (relation == ACTOR_BEHIND_BLOCK || relation == ACTOR_IN_FRONT_OF_BLOCK) {
+                addRelation(actor, cacheBlock, relation);
+                return;
+            }
         }
     }
 
@@ -127,21 +129,57 @@ public final class SpatialRelationSolver {
         relationCount++;
     }
 
-    private boolean writeBlockTopSegment(TiledMapLayerData map, SpatialBlockData block, float[] out4) {
-        if (out4 == null || out4.length < 4) return false;
+    private boolean writeBlockLowerRelationSegments(TiledMapLayerData map, SpatialBlockData block, float[] out8) {
+        if (out8 == null || out8.length < 8) return false;
         if (!SpatialBlockGeometry.writeTileCellFootprint(block, map, tmpBlockFootprint)) return false;
-        if (block.width >= block.depth) {
-            out4[0] = tmpBlockFootprint[0];
-            out4[1] = tmpBlockFootprint[1];
-            out4[2] = tmpBlockFootprint[2];
-            out4[3] = tmpBlockFootprint[3];
-        } else {
-            out4[0] = tmpBlockFootprint[0];
-            out4[1] = tmpBlockFootprint[1];
-            out4[2] = tmpBlockFootprint[6];
-            out4[3] = tmpBlockFootprint[7];
-        }
+
+        int lowerVertex = lowerBaseVertex(tmpBlockFootprint);
+        int previous = (lowerVertex + 3) & 3;
+        int next = (lowerVertex + 1) & 3;
+        writeSegmentLeftToRight(tmpBlockFootprint, previous, lowerVertex, out8, 0);
+        writeSegmentLeftToRight(tmpBlockFootprint, lowerVertex, next, out8, 4);
         return true;
+    }
+
+    private static int lowerBaseVertex(float[] footprint) {
+        int lowerVertex = 0;
+        float lowerY = footprint[1];
+        float lowerX = footprint[0];
+        for (int vertex = 1; vertex < 4; vertex++) {
+            int offset = vertex * 2;
+            float y = footprint[offset + 1];
+            float x = footprint[offset];
+            if (y > lowerY || (y == lowerY && x > lowerX)) {
+                lowerVertex = vertex;
+                lowerY = y;
+                lowerX = x;
+            }
+        }
+        return lowerVertex;
+    }
+
+    private static void writeSegmentLeftToRight(float[] footprint,
+                                                int a,
+                                                int b,
+                                                float[] out,
+                                                int outOffset) {
+        int ao = a * 2;
+        int bo = b * 2;
+        float ax = footprint[ao];
+        float ay = footprint[ao + 1];
+        float bx = footprint[bo];
+        float by = footprint[bo + 1];
+        if (ax <= bx) {
+            out[outOffset] = ax;
+            out[outOffset + 1] = ay;
+            out[outOffset + 2] = bx;
+            out[outOffset + 3] = by;
+        } else {
+            out[outOffset] = bx;
+            out[outOffset + 1] = by;
+            out[outOffset + 2] = ax;
+            out[outOffset + 3] = ay;
+        }
     }
 
     private static boolean verticalOverlaps(float actorBottom,
