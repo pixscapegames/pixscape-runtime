@@ -92,6 +92,32 @@ public final class SpatialBlocksRuntimeCache {
         }
     }
 
+    public void convertDrawIndexRangesToBuckets(int[] drawIndexToBucketBefore,
+                                                int[] drawIndexToBucketAfter,
+                                                int drawListSize) {
+        if (drawIndexToBucketBefore == null || drawIndexToBucketAfter == null) {
+            throw new IllegalArgumentException("Stable draw-index bucket maps are required.");
+        }
+        for (int block = 0; block < blockCount; block++) {
+            int startDrawIndex = blockAnchorStartDrawIndex[block];
+            int endDrawIndex = blockAnchorEndDrawIndex[block];
+            if (startDrawIndex < 0
+                    || startDrawIndex >= drawListSize
+                    || endDrawIndex < 0
+                    || endDrawIndex >= drawListSize
+                    || startDrawIndex >= drawIndexToBucketBefore.length
+                    || endDrawIndex >= drawIndexToBucketAfter.length) {
+                throw new IllegalStateException("Spatial block anchor draw range is outside stable snapshot: block=" + block);
+            }
+
+            int startBucket = drawIndexToBucketBefore[startDrawIndex];
+            int endBucketInclusive = drawIndexToBucketAfter[endDrawIndex] - 1;
+            if (endBucketInclusive < startBucket) endBucketInclusive = startBucket;
+            blockAnchorStartDrawIndex[block] = startBucket;
+            blockAnchorEndDrawIndex[block] = endBucketInclusive;
+        }
+    }
+
     private void ensureBlockCapacity(int required) {
         if (required <= blockAnchorOffset.length) return;
         int next = Math.max(4, blockAnchorOffset.length);

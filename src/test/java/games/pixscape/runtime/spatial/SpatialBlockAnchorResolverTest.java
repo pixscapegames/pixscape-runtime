@@ -132,6 +132,39 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
+    public void distinctBlocksMayShareVisualAnchorCells() {
+        TiledMapLayerData map = map(6, 4, 300);
+        map.setTile(0, 1, 101);
+        map.setTile(1, 1, 102);
+        map.setTile(2, 1, 103);
+        map.setTile(3, 1, 104);
+        map.setTile(4, 1, 105);
+        int slot0 = map.slotForTile(0, 1);
+        int slot1 = map.slotForTile(1, 1);
+        int sharedSlot = map.slotForTile(2, 1);
+        int slot3 = map.slotForTile(3, 1);
+        int slot4 = map.slotForTile(4, 1);
+
+        resolver.resolve(blocks(
+                        block(0, 1, 101, 1, 1, 102, 2, 1, 103),
+                        block(2, 1, 103, 3, 1, 104, 4, 1, 105)),
+                map,
+                slotToDrawIndex(512, slot0, 10, slot1, 11, sharedSlot, 12, slot3, 13, slot4, 14),
+                cache);
+
+        Assert.assertEquals(2, cache.blockCount);
+        Assert.assertEquals(6, cache.anchorCount);
+        Assert.assertEquals(3, cache.blockAnchorCount[0]);
+        Assert.assertEquals(3, cache.blockAnchorCount[1]);
+        Assert.assertEquals(sharedSlot, cache.anchorDrawSlot[2]);
+        Assert.assertEquals(sharedSlot, cache.anchorDrawSlot[3]);
+        Assert.assertEquals(10, cache.blockAnchorStartDrawIndex[0]);
+        Assert.assertEquals(12, cache.blockAnchorEndDrawIndex[0]);
+        Assert.assertEquals(12, cache.blockAnchorStartDrawIndex[1]);
+        Assert.assertEquals(14, cache.blockAnchorEndDrawIndex[1]);
+    }
+
+    @Test
     public void missingDrawIndexFailsVisibly() {
         TiledMapLayerData map = map(4, 4, 300);
         map.setTile(0, 0, 101);

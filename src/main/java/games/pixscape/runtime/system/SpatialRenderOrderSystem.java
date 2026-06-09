@@ -13,8 +13,8 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
 import games.pixscape.runtime.spatial.SpatialBlockAnchorResolver;
 import games.pixscape.runtime.spatial.SpatialBlocksRuntimeCache;
-import games.pixscape.runtime.spatial.SpatialDrawListComposer;
-import games.pixscape.runtime.spatial.SpatialInsertionPlanner;
+import games.pixscape.runtime.spatial.SpatialFrameSnapshotBuilder;
+import games.pixscape.runtime.spatial.SpatialOrderingKernel;
 import games.pixscape.runtime.spatial.SpatialRelationSolver;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
@@ -46,12 +46,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     private final SpatialBlocksRuntimeCache blockCache = new SpatialBlocksRuntimeCache();
     private final SpatialActorCollector actorCollector = new SpatialActorCollector();
     private final SpatialRelationSolver relationSolver = new SpatialRelationSolver();
-    private final SpatialInsertionPlanner insertionPlanner = new SpatialInsertionPlanner();
-    private final SpatialDrawListComposer drawListComposer = new SpatialDrawListComposer();
+    private final SpatialFrameSnapshotBuilder snapshotBuilder = new SpatialFrameSnapshotBuilder();
+    private final SpatialOrderingKernel orderingKernel = new SpatialOrderingKernel();
 
     private int[] slotToDrawIndex = new int[0];
-    private int[] tiledSubsequenceBefore = new int[0];
-    private int[] tiledSubsequenceAfter = new int[0];
+    private int[] nonActorSubsequenceAfter = new int[0];
 
     private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
 
@@ -77,34 +76,38 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         if (state == null || drawList == null || drawList.size <= 1) return;
 
         rebuildSpatialLayers();
-        rebuildSpatialBlockLayers();
-        if (blockLayerCount == 0) return;
-
         collectSpatialActors();
         if (actorCollector.actorCount() == 0) return;
 
-        captureTiledSubsequence(tiledSubsequenceBefore);
+        snapshotBuilder.build(drawList.data(), drawList.size, state.getCapacity(), actorCollector);
+        rebuildSpatialBlockLayers();
+        orderingKernel.begin(actorCollector, snapshotBuilder);
+        if (blockLayerCount == 0) {
+            orderingKernel.finish(drawList.data(), drawList.size, actorCollector, snapshotBuilder);
+            applyComposedDrawList();
+            assertNonActorSubsequencePreserved();
+            return;
+        }
+
+        buildSlotToDrawIndex();
         for (int layer = 0; layer < blockLayerCount; layer++) {
             int owner = blockLayerEntities[layer];
             TiledLayerComponent tiled = mTiled.getSafe(owner, null);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
             if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
 
-            buildSlotToDrawIndex();
             blockAnchorResolver.resolve(blocks, tiled.data, slotToDrawIndex, blockCache);
             if (blockCache.blockCount() == 0) continue;
+            convertBlockAnchorsToStableBuckets();
 
             relationSolver.solve(actorCollector, blockCache, blocks, tiled.data);
             if (relationSolver.relationCount() == 0) continue;
-
-            insertionPlanner.plan(actorCollector, blockCache, relationSolver);
-            if (insertionPlanner.planCount() == 0) continue;
-
-            drawListComposer.compose(drawList.data(), drawList.size, insertionPlanner, this::isSpatialActorSlot);
-            applyComposedDrawList();
-            collectSpatialActors();
+            orderingKernel.addRelations(actorCollector, blockCache, relationSolver);
         }
-        assertTiledSubsequencePreserved();
+
+        orderingKernel.finish(drawList.data(), drawList.size, actorCollector, snapshotBuilder);
+        applyComposedDrawList();
+        assertNonActorSubsequencePreserved();
     }
 
     private void rebuildSpatialBlockLayers() {
@@ -154,48 +157,38 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     }
 
     private void applyComposedDrawList() {
-        if (drawListComposer.composedSize != drawList.size) {
-            throw new IllegalStateException("Spatial draw-list composer changed draw-list size.");
+        if (orderingKernel.orderedSize() != drawList.size) {
+            throw new IllegalStateException("Spatial bucket composer changed draw-list size.");
         }
-        System.arraycopy(drawListComposer.composedSlots, 0, drawList.data(), 0, drawList.size);
+        System.arraycopy(orderingKernel.orderedSlots(), 0, drawList.data(), 0, drawList.size);
     }
 
-    private void captureTiledSubsequence(int[] ignored) {
+    private void convertBlockAnchorsToStableBuckets() {
+        blockCache.convertDrawIndexRangesToBuckets(snapshotBuilder.drawIndexToBucketBefore,
+                snapshotBuilder.drawIndexToBucketAfter,
+                drawList.size);
+    }
+
+    private void assertNonActorSubsequencePreserved() {
         int count = 0;
         int[] data = drawList.data();
         for (int i = 0; i < drawList.size; i++) {
-            if (isSpatialTiledSlot(data[i])) count++;
+            if (!snapshotBuilder.isActorSlot(data[i])) count++;
         }
-        if (tiledSubsequenceBefore.length < count) {
-            tiledSubsequenceBefore = new int[count];
+        if (nonActorSubsequenceAfter.length < count) {
+            nonActorSubsequenceAfter = new int[count];
         }
         int out = 0;
         for (int i = 0; i < drawList.size; i++) {
             int slot = data[i];
-            if (isSpatialTiledSlot(slot)) tiledSubsequenceBefore[out++] = slot;
+            if (!snapshotBuilder.isActorSlot(slot)) nonActorSubsequenceAfter[out++] = slot;
         }
-    }
-
-    private void assertTiledSubsequencePreserved() {
-        int count = 0;
-        int[] data = drawList.data();
-        for (int i = 0; i < drawList.size; i++) {
-            if (isSpatialTiledSlot(data[i])) count++;
-        }
-        if (tiledSubsequenceAfter.length < count) {
-            tiledSubsequenceAfter = new int[count];
-        }
-        int out = 0;
-        for (int i = 0; i < drawList.size; i++) {
-            int slot = data[i];
-            if (isSpatialTiledSlot(slot)) tiledSubsequenceAfter[out++] = slot;
-        }
-        if (count > tiledSubsequenceBefore.length) {
-            throw new IllegalStateException("Spatial tiled subsequence changed length.");
+        if (count != snapshotBuilder.nonActorCount) {
+            throw new IllegalStateException("Spatial non-actor subsequence changed length.");
         }
         for (int i = 0; i < count; i++) {
-            if (tiledSubsequenceBefore[i] != tiledSubsequenceAfter[i]) {
-                throw new IllegalStateException("Spatial tiled subsequence changed during actor-only composition.");
+            if (snapshotBuilder.nonActorSlots[i] != nonActorSubsequenceAfter[i]) {
+                throw new IllegalStateException("Spatial non-actor subsequence changed during bucket composition.");
             }
         }
     }
@@ -220,49 +213,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
         }
     }
 
-    private boolean isSpatialTiledSlot(int slot) {
-        if (!isRenderableSlot(slot)) return false;
-        for (int i = 0; i < blockLayerCount; i++) {
-            int owner = blockLayerEntities[i];
-            TiledLayerComponent tiled = mTiled.getSafe(owner, null);
-            if (tiled == null || tiled.data == null) continue;
-            if (slot >= tiled.data.layerTiledStart && slot < tiled.data.layerTiledEnd) return true;
-        }
-        return false;
-    }
-
-    private boolean isSpatialActorSlot(int slot) {
-        if (!isRenderableSlot(slot)) return false;
-
-        return actorCollector.isEligibleActorSlot(slot,
-                state,
-                spatialLayers,
-                world.getEntityManager(),
-                mEntityIndex,
-                mTransform,
-                mSpatialHeight,
-                mPhysicsBody,
-                mPhysicsFixtures,
-                pixelsPerMeter);
-    }
-
-    private boolean isRenderableSlot(int slot) {
-        return slot >= 0
-                && slot < state.getCapacity()
-                && state.kind[slot] == RenderStateSOA.KIND_SPRITE
-                && state.enabled[slot]
-                && state.visible[slot]
-                && state.textureHandle[slot] != 0;
-    }
-
     private boolean isSpatialTiledLayer(LayerComponent layer, TiledLayerComponent tiled) {
         return (layer != null && layer.spatialEnabled)
                 || (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
-    }
-
-    private boolean isSpatialLayer(int layerIndex) {
-        return layerIndex >= 0 && layerIndex < spatialLayers.length && spatialLayers[layerIndex];
     }
 
     private void ensureSpatialLayerCapacity(int required) {
@@ -300,7 +254,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     int getActorWorkArrayCapacity() {
         return blockLayerEntities.length
                 + slotToDrawIndex.length
-                + tiledSubsequenceBefore.length
-                + tiledSubsequenceAfter.length;
+                + snapshotBuilder.drawIndexToBucketBefore.length
+                + snapshotBuilder.drawIndexToBucketAfter.length
+                + snapshotBuilder.actorOriginalBucket.length
+                + snapshotBuilder.actorSlotMask.length
+                + snapshotBuilder.nonActorSlots.length
+                + nonActorSubsequenceAfter.length;
     }
 }

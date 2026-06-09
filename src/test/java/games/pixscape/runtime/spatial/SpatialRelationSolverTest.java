@@ -32,7 +32,7 @@ public class SpatialRelationSolverTest {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
-        SpatialActorCollector actors = actors(actor(16f, 24f, 2f, 0f, 2f));
+        SpatialActorCollector actors = actors(actor(16f, 8f, 2f, 0f, 2f));
 
         solver.solve(actors, cache, blocks, map);
 
@@ -41,7 +41,7 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void actorOutsideBlockInfluenceProducesNoRelation() {
+    public void actorOutsideRelationSegmentProducesNoRelation() {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
@@ -50,7 +50,6 @@ public class SpatialRelationSolverTest {
         solver.solve(actors, cache, blocks, map);
 
         Assert.assertEquals(0, solver.relationCount());
-        Assert.assertEquals(SpatialRelationSolver.NO_RELATION, solver.relationForActorAndBlock(0, 0));
     }
 
     @Test
@@ -70,7 +69,7 @@ public class SpatialRelationSolverTest {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
-        SpatialActorCollector actors = actors(actor(16f, 32f, 2f, 0f, 2f));
+        SpatialActorCollector actors = actors(actor(16f, 16f, 2f, 0f, 2f));
 
         solver.solve(actors, cache, blocks, map);
         int firstCount = solver.relationCount();
@@ -85,7 +84,7 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void isoProjectionBottomSegmentProducesRelation() {
+    public void isoTopSegmentProducesRelation() {
         TiledMapLayerData map = isoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 0, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
@@ -98,7 +97,23 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
-    public void orthoProjectionBottomSegmentProducesRelation() {
+    public void isoTopSegmentUsesSameLineSideForDepthAxis() {
+        TiledMapLayerData map = isoMap();
+        SpatialBlocksComponent blocks = blocks(block(0, 0, 1, 2));
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(
+                actor(0f, 10f, 2f, 0f, 2f),
+                actor(0f, 20f, 2f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        Assert.assertEquals(2, solver.relationCount());
+        Assert.assertEquals(SpatialRelationSolver.ACTOR_IN_FRONT_OF_BLOCK, solver.relationType[0]);
+        Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[1]);
+    }
+
+    @Test
+    public void orthoTopSegmentProducesRelation() {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
         SpatialBlocksRuntimeCache cache = resolve(map, blocks);
@@ -128,6 +143,26 @@ public class SpatialRelationSolverTest {
         Assert.assertEquals(1, solver.relationBlockIndex[1]);
         Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[0]);
         Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[1]);
+    }
+
+    @Test
+    public void actorCenterOutsideRelationSegmentProducesNoRelation() {
+        TiledMapLayerData map = orthoMap();
+        SpatialBlockData left = blockWithRefs(0f, 1f, 2.4f, 1f,
+                0, 1, 101,
+                1, 1, 102,
+                2, 1, 103);
+        SpatialBlockData right = blockWithRefs(2.7f, 1f, 2.3f, 1f,
+                2, 1, 103,
+                3, 1, 104,
+                4, 1, 105);
+        SpatialBlocksComponent blocks = blocks(left, right);
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(actor(39.5f, 40f, 3f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        Assert.assertEquals(0, solver.relationCount());
     }
 
     @Test
@@ -211,6 +246,30 @@ public class SpatialRelationSolverTest {
             for (int gy = y; gy < y + depth; gy++) {
                 block.addLinkedTileRef(x, gy, 100 + gy);
             }
+        }
+        return block;
+    }
+
+    private static SpatialBlockData blockWithRefs(float x,
+                                                  float y,
+                                                  float width,
+                                                  float depth,
+                                                  int... gxGyTileAssetIdTriples) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = (int) (x * 31f + y * 17f + 10f);
+        block.enabled = true;
+        block.actorOccluder = true;
+        block.x = x;
+        block.y = y;
+        block.width = width;
+        block.depth = depth;
+        block.altitude = 0f;
+        block.height = 10f;
+        block.beginAuthoredLinkedTileRefs();
+        for (int i = 0; i < gxGyTileAssetIdTriples.length; i += 3) {
+            block.addLinkedTileRef(gxGyTileAssetIdTriples[i],
+                    gxGyTileAssetIdTriples[i + 1],
+                    gxGyTileAssetIdTriples[i + 2]);
         }
         return block;
     }
