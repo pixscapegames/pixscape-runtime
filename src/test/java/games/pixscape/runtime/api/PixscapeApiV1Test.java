@@ -15,6 +15,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.TiledAnimationSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
@@ -394,6 +395,145 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void tiledAnimationPlayOnceHoldsLastFrameAndCanReplay() throws Exception {
+        PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
+        createTiledLayer(engine, 3, "doors");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(
+                100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
+        ));
+
+        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        layer.tiles().set(1, 0, "door_open_anim");
+
+        layer.tileAnimations().playOnce(1, 0);
+        Assert.assertTrue(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(0, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(0, layer.tileAnimations().elapsedMs(1, 0));
+
+        engine.getWorld().setDelta(0.299f);
+        engine.getWorld().process();
+
+        Assert.assertTrue(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(2, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(99, layer.tileAnimations().elapsedMs(1, 0));
+
+        engine.getWorld().setDelta(0.002f);
+        engine.getWorld().process();
+
+        Assert.assertFalse(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertTrue(layer.tileAnimations().isPaused(1, 0));
+        Assert.assertTrue(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(2, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(0, layer.tileAnimations().elapsedMs(1, 0));
+
+        layer.tileAnimations().restart(1, 0);
+        Assert.assertTrue(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(0, layer.tileAnimations().currentFrame(1, 0));
+
+        engine.getWorld().setDelta(0.301f);
+        engine.getWorld().process();
+
+        Assert.assertTrue(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(2, layer.tileAnimations().currentFrame(1, 0));
+    }
+
+    @Test
+    public void tiledAnimationPlayOnceWithoutHoldUsesStopVisualButKeepsFinishedQuery() throws Exception {
+        PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
+        createTiledLayer(engine, 3, "doors");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(
+                100, "door_open_anim", new int[]{101, 102}, new int[]{100, 100}
+        ));
+
+        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        layer.tiles().set(1, 0, "door_open_anim");
+        layer.tileAnimations().playOnce(1, 0, false);
+
+        engine.getWorld().setDelta(0.201f);
+        engine.getWorld().process();
+
+        Assert.assertFalse(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isPaused(1, 0));
+        Assert.assertTrue(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals("Non-holding one-shots return to the same visual frame as stop().",
+                0, layer.tileAnimations().currentFrame(1, 0));
+    }
+
+    @Test
+    public void tiledAnimationLoopingCellsStillLoopByDefault() throws Exception {
+        PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
+        createTiledLayer(engine, 3, "water");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(
+                100, "water_loop", new int[]{101, 102}, new int[]{100, 100}
+        ));
+
+        TiledLayerRef layer = engine.api().tiled().layer("water");
+        layer.tiles().set(1, 0, "water_loop");
+
+        engine.getWorld().setDelta(0.25f);
+        engine.getWorld().process();
+
+        Assert.assertTrue(layer.tileAnimations().isPlaying(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(0, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(50, layer.tileAnimations().elapsedMs(1, 0));
+    }
+
+    @Test
+    public void tiledAnimationPauseAndSetFrameKeepWorkingWithOneShotMode() throws Exception {
+        PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
+        createTiledLayer(engine, 3, "doors");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(
+                100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
+        ));
+
+        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        layer.tiles().set(1, 0, "door_open_anim");
+        layer.tileAnimations().playOnce(1, 0).setFrame(1, 0, 1).setElapsedMs(1, 0, 25).pause(1, 0);
+
+        Assert.assertTrue(layer.tileAnimations().isPaused(1, 0));
+        Assert.assertFalse(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(1, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(25, layer.tileAnimations().elapsedMs(1, 0));
+
+        engine.getWorld().setDelta(0.5f);
+        engine.getWorld().process();
+
+        Assert.assertEquals("Paused cells should not advance.",
+                1, layer.tileAnimations().currentFrame(1, 0));
+        Assert.assertEquals(25, layer.tileAnimations().elapsedMs(1, 0));
+    }
+
+    @Test
+    public void tiledAnimationCellsUsingSameAssetHaveIndependentPlaybackState() throws Exception {
+        PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
+        createTiledLayer(engine, 3, "doors");
+        engine.getAnimatedTileRegistry().put(tileAnimationData(
+                100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
+        ));
+
+        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        layer.tiles().set(1, 0, "door_open_anim");
+        layer.tiles().set(2, 0, "door_open_anim");
+
+        layer.tileAnimations().playOnce(1, 0, true);
+        layer.tileAnimations().pause(2, 0).setFrame(2, 0, 1);
+
+        engine.getWorld().setDelta(0.301f);
+        engine.getWorld().process();
+
+        Assert.assertTrue(layer.tileAnimations().isFinished(1, 0));
+        Assert.assertEquals(2, layer.tileAnimations().currentFrame(1, 0));
+
+        Assert.assertFalse(layer.tileAnimations().isFinished(2, 0));
+        Assert.assertTrue(layer.tileAnimations().isPaused(2, 0));
+        Assert.assertEquals(1, layer.tileAnimations().currentFrame(2, 0));
+    }
+
+    @Test
     public void ecsExpertAccessAndLightFacade() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -675,6 +815,20 @@ public class PixscapeApiV1Test {
 
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
+    }
+
+    private static PixscapeEngine setupEngineWithTiledAnimationSystem() throws Exception {
+        PixscapeEngine engine = new PixscapeEngine();
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
+        TiledAnimationSystem tiledAnimationSystem = new TiledAnimationSystem(engine.getAnimatedTileRegistry());
+        tiledAnimationSystem.setAdvanceOnlyVisibleChunks(false);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(dirty, tiledAnimationSystem)
+                .build());
+        setField(engine, "world", world);
+        engine.getIdentityRegistry().bind(world);
+        engine.getTagRegistry().bind(world);
+        return engine;
     }
 
     private static int createTiledLayer(PixscapeEngine engine, int layerIndex, String name) {

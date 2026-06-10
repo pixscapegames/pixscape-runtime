@@ -49,6 +49,21 @@ public final class TileChunk {
     public int[] animFrameElapsedMs;
 
     /**
+     * LOOPING / PLAY_ONCE. Null while no cell in this chunk uses animation state.
+     */
+    public byte[] animPlaybackMode;
+
+    /**
+     * True for one-shot cells that reached their terminal state.
+     */
+    public boolean[] animFinished;
+
+    /**
+     * One-shot terminal behavior: hold final frame or return to normal stop semantics.
+     */
+    public boolean[] animHoldLastFrame;
+
+    /**
      * Local indices of this chunk's animated cells.
      * Avoids scanning the whole chunk in the future TiledAnimationSystem.
      */
@@ -283,6 +298,27 @@ public final class TileChunk {
         return animFrameElapsedMs[localIndex];
     }
 
+    public byte getAnimPlaybackMode(int localIndex) {
+        if (animPlaybackMode == null || localIndex < 0 || localIndex >= soaCount) {
+            return TileAnimationPlayback.MODE_LOOPING;
+        }
+        return sanitizePlaybackMode(animPlaybackMode[localIndex]);
+    }
+
+    public boolean isAnimFinished(int localIndex) {
+        return animFinished != null
+                && localIndex >= 0
+                && localIndex < soaCount
+                && animFinished[localIndex];
+    }
+
+    public boolean isAnimHoldLastFrame(int localIndex) {
+        return animHoldLastFrame != null
+                && localIndex >= 0
+                && localIndex < soaCount
+                && animHoldLastFrame[localIndex];
+    }
+
     /**
      * Initializes or updates a cell's animation state.
      * Does not automatically mark the cell dirty.
@@ -306,12 +342,49 @@ public final class TileChunk {
         ensureAnimationStorage();
 
         animPlaybackState[localIndex] = safePlayback;
+        animPlaybackMode[localIndex] = TileAnimationPlayback.MODE_LOOPING;
         animFrameIndex[localIndex] = (short) Math.max(0, frameIndex);
         animFrameElapsedMs[localIndex] = Math.max(0, frameElapsedMs);
+        animFinished[localIndex] = false;
+        animHoldLastFrame[localIndex] = false;
 
         if (!animatedMembership[localIndex]) {
             animatedMembership[localIndex] = true;
             animatedLocalIndices.add(localIndex);
+        }
+    }
+
+    public void setAnimationState(int localIndex,
+                                  byte playbackState,
+                                  byte playbackMode,
+                                  boolean finished,
+                                  boolean holdLastFrame,
+                                  int frameIndex,
+                                  int frameElapsedMs) {
+        if (localIndex < 0 || localIndex >= soaCount) {
+            return;
+        }
+
+        ensureAnimationStorage();
+
+        byte safePlayback = sanitizePlaybackState(playbackState);
+        byte safeMode = sanitizePlaybackMode(playbackMode);
+
+        animPlaybackState[localIndex] = safePlayback;
+        animPlaybackMode[localIndex] = safeMode;
+        animFrameIndex[localIndex] = (short) Math.max(0, frameIndex);
+        animFrameElapsedMs[localIndex] = Math.max(0, frameElapsedMs);
+        animFinished[localIndex] = finished;
+        animHoldLastFrame[localIndex] = safeMode == TileAnimationPlayback.MODE_PLAY_ONCE && holdLastFrame;
+
+        if (safePlayback == TileAnimationPlayback.PLAYING) {
+            ensureAnimatedMembership(localIndex);
+        } else if (safePlayback == TileAnimationPlayback.PAUSED && !finished) {
+            ensureAnimatedMembership(localIndex);
+        } else if (safePlayback == TileAnimationPlayback.PAUSED && animHoldLastFrame[localIndex]) {
+            ensureAnimatedMembership(localIndex);
+        } else {
+            removeAnimatedMembership(localIndex);
         }
     }
 
@@ -337,11 +410,21 @@ public final class TileChunk {
         ensureAnimationStorage();
 
         animPlaybackState[localIndex] = safePlayback;
+        animFinished[localIndex] = false;
 
-        if (!animatedMembership[localIndex]) {
-            animatedMembership[localIndex] = true;
-            animatedLocalIndices.add(localIndex);
+        ensureAnimatedMembership(localIndex);
+    }
+
+    public void setAnimationPlaybackMode(int localIndex, byte playbackMode, boolean holdLastFrame) {
+        if (localIndex < 0 || localIndex >= soaCount) {
+            return;
         }
+
+        ensureAnimationStorage();
+        byte safeMode = sanitizePlaybackMode(playbackMode);
+        animPlaybackMode[localIndex] = safeMode;
+        animHoldLastFrame[localIndex] = safeMode == TileAnimationPlayback.MODE_PLAY_ONCE && holdLastFrame;
+        animFinished[localIndex] = false;
     }
 
     public void setAnimationFrameIndex(int localIndex, int frameIndex) {
@@ -352,10 +435,7 @@ public final class TileChunk {
         ensureAnimationStorage();
         animFrameIndex[localIndex] = (short) Math.max(0, frameIndex);
 
-        if (!animatedMembership[localIndex]) {
-            animatedMembership[localIndex] = true;
-            animatedLocalIndices.add(localIndex);
-        }
+        ensureAnimatedMembership(localIndex);
     }
 
     public void setAnimationFrameElapsedMs(int localIndex, int frameElapsedMs) {
@@ -366,10 +446,7 @@ public final class TileChunk {
         ensureAnimationStorage();
         animFrameElapsedMs[localIndex] = Math.max(0, frameElapsedMs);
 
-        if (!animatedMembership[localIndex]) {
-            animatedMembership[localIndex] = true;
-            animatedLocalIndices.add(localIndex);
-        }
+        ensureAnimatedMembership(localIndex);
     }
 
     public void advanceAnimationElapsedMs(int localIndex, int deltaMs) {
@@ -380,14 +457,39 @@ public final class TileChunk {
     }
 
     private void ensureAnimationStorage() {
-        if (animPlaybackState != null) {
+        if (animPlaybackState == null) {
+            animPlaybackState = new byte[soaCount];
+        }
+        if (animFrameIndex == null) {
+            animFrameIndex = new short[soaCount];
+        }
+        if (animFrameElapsedMs == null) {
+            animFrameElapsedMs = new int[soaCount];
+        }
+        if (animPlaybackMode == null) {
+            animPlaybackMode = new byte[soaCount];
+        }
+        if (animFinished == null) {
+            animFinished = new boolean[soaCount];
+        }
+        if (animHoldLastFrame == null) {
+            animHoldLastFrame = new boolean[soaCount];
+        }
+        if (animatedMembership == null) {
+            animatedMembership = new boolean[soaCount];
+            if (animatedLocalIndices != null) {
+                for (int i = 0; i < animatedLocalIndices.size; i++) {
+                    int index = animatedLocalIndices.get(i);
+                    if (index >= 0 && index < soaCount) {
+                        animatedMembership[index] = true;
+                    }
+                }
+            }
+        }
+        if (animatedLocalIndices != null) {
             return;
         }
 
-        animPlaybackState = new byte[soaCount];
-        animFrameIndex = new short[soaCount];
-        animFrameElapsedMs = new int[soaCount];
-        animatedMembership = new boolean[soaCount];
         animatedLocalIndices = new IntArray(false, 8);
     }
 
@@ -406,19 +508,36 @@ public final class TileChunk {
         if (animPlaybackState == null || localIndex < 0 || localIndex >= soaCount) {
             return;
         }
+        ensureAnimationStorage();
 
         animPlaybackState[localIndex] = TileAnimationPlayback.NONE;
+        animPlaybackMode[localIndex] = TileAnimationPlayback.MODE_LOOPING;
         animFrameIndex[localIndex] = 0;
         animFrameElapsedMs[localIndex] = 0;
+        animFinished[localIndex] = false;
+        animHoldLastFrame[localIndex] = false;
 
-        if (animatedMembership[localIndex]) {
-            animatedMembership[localIndex] = false;
+        removeAnimatedMembership(localIndex);
+    }
 
-            for (int i = 0; i < animatedLocalIndices.size; i++) {
-                if (animatedLocalIndices.get(i) == localIndex) {
-                    animatedLocalIndices.removeIndex(i);
-                    break;
-                }
+    private void ensureAnimatedMembership(int localIndex) {
+        if (!animatedMembership[localIndex]) {
+            animatedMembership[localIndex] = true;
+            animatedLocalIndices.add(localIndex);
+        }
+    }
+
+    private void removeAnimatedMembership(int localIndex) {
+        if (animatedMembership == null || animatedLocalIndices == null || !animatedMembership[localIndex]) {
+            return;
+        }
+
+        animatedMembership[localIndex] = false;
+
+        for (int i = 0; i < animatedLocalIndices.size; i++) {
+            if (animatedLocalIndices.get(i) == localIndex) {
+                animatedLocalIndices.removeIndex(i);
+                break;
             }
         }
     }
@@ -431,6 +550,15 @@ public final class TileChunk {
                 return TileAnimationPlayback.PAUSED;
             default:
                 return TileAnimationPlayback.NONE;
+        }
+    }
+
+    private static byte sanitizePlaybackMode(byte playbackMode) {
+        switch (playbackMode) {
+            case TileAnimationPlayback.MODE_PLAY_ONCE:
+                return TileAnimationPlayback.MODE_PLAY_ONCE;
+            default:
+                return TileAnimationPlayback.MODE_LOOPING;
         }
     }
 }

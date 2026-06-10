@@ -2651,15 +2651,61 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean isFinished(int x, int y) {
+            return resolveAnimatedCell(x, y) && cellChunk.isAnimFinished(cellLocalIndex);
+        }
+
+        @Override
+        public int currentFrame(int x, int y) {
+            if (!resolveAnimatedCell(x, y)) return 0;
+            int count = TileAnimationResolver.frameCount(cellAssetId, engine.getAnimatedTileRegistry());
+            return TileAnimationResolver.clampFrameIndex(cellChunk.getAnimFrameIndex(cellLocalIndex), count);
+        }
+
+        @Override
+        public int elapsedMs(int x, int y) {
+            return resolveAnimatedCell(x, y) ? cellChunk.getAnimFrameElapsedMs(cellLocalIndex) : 0;
+        }
+
+        @Override
         public TileAnimationControlFacade play(int x, int y) {
             if (!resolveAnimatedCell(x, y)) return this;
+            cellChunk.setAnimationPlaybackMode(cellLocalIndex, TileAnimationPlayback.MODE_LOOPING, false);
             cellChunk.setAnimationPlaybackState(cellLocalIndex, TileAnimationPlayback.PLAYING);
+            return this;
+        }
+
+        @Override
+        public TileAnimationControlFacade playOnce(int x, int y) {
+            return playOnce(x, y, true);
+        }
+
+        @Override
+        public TileAnimationControlFacade playOnce(int x, int y, boolean holdLastFrame) {
+            if (!resolveAnimatedCell(x, y)) return this;
+            int before = TileAnimationResolver.resolveVisualAssetId(
+                    cellAssetId,
+                    cellChunk.getAnimFrameIndex(cellLocalIndex),
+                    engine.getAnimatedTileRegistry()
+            );
+            cellChunk.setAnimationState(
+                    cellLocalIndex,
+                    TileAnimationPlayback.PLAYING,
+                    TileAnimationPlayback.MODE_PLAY_ONCE,
+                    false,
+                    holdLastFrame,
+                    0,
+                    0
+            );
+            int after = TileAnimationResolver.resolveVisualAssetId(cellAssetId, 0, engine.getAnimatedTileRegistry());
+            if (before != after) cellChunk.markLocalDirty(cellLocalIndex);
             return this;
         }
 
         @Override
         public TileAnimationControlFacade pause(int x, int y) {
             if (!resolveAnimatedCell(x, y)) return this;
+            if (cellChunk.isAnimFinished(cellLocalIndex)) return this;
             cellChunk.setAnimationPlaybackState(cellLocalIndex, TileAnimationPlayback.PAUSED);
             return this;
         }
@@ -2690,7 +2736,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                     cellChunk.getAnimFrameIndex(cellLocalIndex),
                     engine.getAnimatedTileRegistry()
             );
-            cellChunk.setAnimationState(cellLocalIndex, TileAnimationPlayback.PLAYING, 0, 0);
+            cellChunk.setAnimationState(
+                    cellLocalIndex,
+                    TileAnimationPlayback.PLAYING,
+                    cellChunk.getAnimPlaybackMode(cellLocalIndex),
+                    false,
+                    cellChunk.isAnimHoldLastFrame(cellLocalIndex),
+                    0,
+                    0
+            );
             int after = TileAnimationResolver.resolveVisualAssetId(cellAssetId, 0, engine.getAnimatedTileRegistry());
             if (before != after) cellChunk.markLocalDirty(cellLocalIndex);
             return this;

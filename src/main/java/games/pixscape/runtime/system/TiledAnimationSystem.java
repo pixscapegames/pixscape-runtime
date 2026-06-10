@@ -126,6 +126,7 @@ public final class TiledAnimationSystem extends IteratingSystem {
         }
 
         int frameCount = def.frameCount();
+        byte playbackMode = chunk.getAnimPlaybackMode(localIndex);
 
         int currentFrameIndex = TileAnimationResolver.clampFrameIndex(
                 chunk.getAnimFrameIndex(localIndex),
@@ -164,6 +165,7 @@ public final class TiledAnimationSystem extends IteratingSystem {
 
         int elapsedMs = chunk.getAnimFrameElapsedMs(localIndex) + frameDeltaMs;
         int newFrameIndex = currentFrameIndex;
+        boolean finished = false;
 
         while (true) {
             int frameDurationMs = def.frameDurationMs(newFrameIndex);
@@ -172,7 +174,43 @@ public final class TiledAnimationSystem extends IteratingSystem {
             }
 
             elapsedMs -= frameDurationMs;
-            newFrameIndex = TileAnimationResolver.nextFrameIndex(newFrameIndex, frameCount);
+
+            if (playbackMode == TileAnimationPlayback.MODE_PLAY_ONCE) {
+                if (newFrameIndex >= frameCount - 1) {
+                    newFrameIndex = frameCount - 1;
+                    elapsedMs = 0;
+                    finished = true;
+                    break;
+                }
+                newFrameIndex++;
+            } else {
+                newFrameIndex = TileAnimationResolver.nextFrameIndex(newFrameIndex, frameCount);
+            }
+        }
+
+        if (finished) {
+            boolean holdLastFrame = chunk.isAnimHoldLastFrame(localIndex);
+            int terminalFrameIndex = holdLastFrame ? frameCount - 1 : 0;
+            int terminalVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
+                    assetId,
+                    terminalFrameIndex,
+                    tileAnimationLookup
+            );
+
+            chunk.setAnimationState(
+                    localIndex,
+                    holdLastFrame ? TileAnimationPlayback.PAUSED : TileAnimationPlayback.NONE,
+                    TileAnimationPlayback.MODE_PLAY_ONCE,
+                    true,
+                    holdLastFrame,
+                    terminalFrameIndex,
+                    0
+            );
+
+            if (terminalVisualAssetId != currentVisualAssetId) {
+                chunk.markLocalDirty(localIndex);
+            }
+            return;
         }
 
         if (newFrameIndex != currentFrameIndex) {
