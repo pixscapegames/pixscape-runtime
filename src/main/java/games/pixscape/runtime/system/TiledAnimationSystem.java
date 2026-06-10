@@ -6,6 +6,10 @@ import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
@@ -14,7 +18,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
-public final class TiledAnimationSystem extends IteratingSystem {
+public final class TiledAnimationSystem extends IteratingSystem implements ProfiledSystem {
 
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
@@ -36,6 +40,9 @@ public final class TiledAnimationSystem extends IteratingSystem {
      * Whole milliseconds to advance during the current world step.
      */
     private int frameDeltaMs = 0;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private boolean profiling;
+    private long profileStartNs;
 
     public TiledAnimationSystem() {
         this(null);
@@ -59,6 +66,10 @@ public final class TiledAnimationSystem extends IteratingSystem {
 
     @Override
     protected void begin() {
+        profiling = profiler.enabled();
+        if (profiling) {
+            profileStartNs = profiler.begin(SystemProfilePhases.TILED_ANIMATION);
+        }
         float deltaMs = world.getDelta() * 1000f + deltaRemainderMs;
         frameDeltaMs = (int) deltaMs;
         deltaRemainderMs = deltaMs - frameDeltaMs;
@@ -227,5 +238,17 @@ public final class TiledAnimationSystem extends IteratingSystem {
 
         chunk.animFrameIndex[localIndex] = (short) newFrameIndex;
         chunk.animFrameElapsedMs[localIndex] = elapsedMs;
+    }
+
+    @Override
+    protected void end() {
+        if (profiling) {
+            profiler.end(SystemProfilePhases.TILED_ANIMATION, profileStartNs);
+            profiling = false;
+        }
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

@@ -7,6 +7,10 @@ import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.GeometryDirty;
 
@@ -17,7 +21,7 @@ import games.pixscape.runtime.render.GeometryDirty;
  * - Reads GeometryDirty submask (pos/origin/rot/scale/size) to avoid unnecessary trig recomputation.
  * - Does not consume/remove: DirtyFlushSystem flushes at end of frame.
  */
-public final class UpdateWorldGeometrySystem extends BaseSystem {
+public final class UpdateWorldGeometrySystem extends BaseSystem implements ProfiledSystem {
 
     private DirtyTrackerSystem dirty;
 
@@ -27,9 +31,24 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
     private ComponentMapper<AABBComponent> mA;
 
     private final float[] tmpCorners = new float[8];
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.UPDATE_WORLD_GEOMETRY);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.UPDATE_WORLD_GEOMETRY, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         if (dirty == null) return;
 
         final IntArray list = dirty.geometryEntities();
@@ -116,5 +135,10 @@ public final class UpdateWorldGeometrySystem extends BaseSystem {
             // 3) Consume geometry logic (submask)
             dirty.clearAllGeomSub(e);
         }
+    }
+
+    @Override
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

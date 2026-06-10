@@ -11,6 +11,10 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
@@ -19,7 +23,7 @@ import games.pixscape.runtime.service.TextureRegistry;
  * Updates animated sprite UVs using atlas frame groups (atlas.findRegions(animation)).
  * Resolution is cached (binding cache), never looked up in draw loop.
  */
-public final class AnimationSystem extends IteratingSystem {
+public final class AnimationSystem extends IteratingSystem implements ProfiledSystem {
 
     private ComponentMapper<AnimationComponent> mAnim;
     private ComponentMapper<TextureRegionComponent> mTR;
@@ -35,6 +39,9 @@ public final class AnimationSystem extends IteratingSystem {
     }
 
     private final ObjectMap<String, AnimationBinding> bindingCache = new ObjectMap<>();
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private boolean profiling;
+    private long profileStartNs;
 
     public AnimationSystem(AtlasRuntimeService atlasRuntimeService) {
         super(Aspect.all(AnimationComponent.class,
@@ -43,6 +50,14 @@ public final class AnimationSystem extends IteratingSystem {
                 AssetRefComponent.class));
 
         this.atlasRuntimeService = atlasRuntimeService;
+    }
+
+    @Override
+    protected void begin() {
+        profiling = profiler.enabled();
+        if (profiling) {
+            profileStartNs = profiler.begin(SystemProfilePhases.ANIMATION);
+        }
     }
 
     @Override
@@ -149,5 +164,17 @@ public final class AnimationSystem extends IteratingSystem {
 
     public void clearBindingCache() {
         bindingCache.clear();
+    }
+
+    @Override
+    protected void end() {
+        if (profiling) {
+            profiler.end(SystemProfilePhases.ANIMATION, profileStartNs);
+            profiling = false;
+        }
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

@@ -5,8 +5,12 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 
-public final class RenderBuildDrawListSystem extends BaseSystem {
+public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
     private final DrawList drawList;
@@ -15,6 +19,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
     private final int ecsEndExclusive;
     private final int vfxStartInclusive;
     private final int vfxEndExclusive;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
                                      LayerStateSOA layerState,
@@ -40,6 +45,20 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.RENDER_BUILD_DRAW_LIST);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.RENDER_BUILD_DRAW_LIST, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         int maxId = state.maxEntityId();
 
         if (maxId >= 0) {
@@ -118,5 +137,9 @@ public final class RenderBuildDrawListSystem extends BaseSystem {
 
     public RenderStateSOA getRenderState() {
         return state;
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

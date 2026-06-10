@@ -10,6 +10,10 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.helper.ParallaxHelper;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
 
@@ -22,7 +26,7 @@ import games.pixscape.runtime.render.RenderStateSOA;
  * - {@code ParallaxDisplaySystem} fills {@code RenderStateSOA.offsetX/offsetY}
  * - Culling / Gizmo / Picking / RenderSubmit use {@code xN + offsetX}, {@code yN + offsetY}
  */
-public final class ParallaxDisplaySystem extends BaseSystem {
+public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA renderState;
     private final LayerStateSOA layerState;
@@ -30,6 +34,7 @@ public final class ParallaxDisplaySystem extends BaseSystem {
     private EntitySubscription spriteSubscription;
 
     private final Vector2 tmpOffset = new Vector2();
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public ParallaxDisplaySystem(RenderStateSOA renderState,
                                  LayerStateSOA layerState,
@@ -72,6 +77,20 @@ public final class ParallaxDisplaySystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.PARALLAX_DISPLAY);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.PARALLAX_DISPLAY, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         if (renderState == null || layerState == null) return;
 
         final float camX = worldCam.position.x;
@@ -116,5 +135,10 @@ public final class ParallaxDisplaySystem extends BaseSystem {
             renderState.offsetX[e] = tmpOffset.x;
             renderState.offsetY[e] = tmpOffset.y;
         }
+    }
+
+    @Override
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

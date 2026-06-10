@@ -10,6 +10,10 @@ import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
@@ -19,7 +23,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 
-public final class RenderSubmitSystem extends BaseSystem {
+public final class RenderSubmitSystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
@@ -34,6 +38,7 @@ public final class RenderSubmitSystem extends BaseSystem {
     private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
     private float time = 0f;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
@@ -85,7 +90,16 @@ public final class RenderSubmitSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
-        render();
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.RENDER_SUBMIT);
+            try {
+                render();
+            } finally {
+                profiler.end(SystemProfilePhases.RENDER_SUBMIT, startNs);
+            }
+        } else {
+            render();
+        }
     }
 
     @Override
@@ -342,5 +356,9 @@ public final class RenderSubmitSystem extends BaseSystem {
         if (location < 0) return;
 
         shader.setUniformf(location, v0, v1, v2);
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

@@ -20,6 +20,8 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.BatchFactory;
 import games.pixscape.runtime.render.batch.GLCaps;
@@ -68,6 +70,7 @@ public final class PixscapeEngine {
 
     private RenderStats stats;
     private RenderStatsSink statsSink;
+    private SystemProfiler systemProfiler = SystemProfilers.DISABLED;
 
     private AtlasRuntimeService atlasRuntimeService;
     private String defaultShaderName;
@@ -94,6 +97,15 @@ public final class PixscapeEngine {
     public PixscapeEngine setConfigurationCustomizer(Consumer<WorldConfigurationBuilder> customizer) {
         this.configurationCustomizer = customizer;
         return this;
+    }
+
+    public PixscapeEngine setSystemProfiler(SystemProfiler profiler) {
+        this.systemProfiler = SystemProfilers.orDisabled(profiler);
+        return this;
+    }
+
+    public SystemProfiler getSystemProfiler() {
+        return systemProfiler;
     }
 
     /**
@@ -306,6 +318,8 @@ public final class PixscapeEngine {
                         meta,
                         tiledBudget,
                         animatedTileRegistry,
+                        systemProfiler,
+                        null,
                         configurationCustomizer
                 );
 
@@ -335,7 +349,7 @@ public final class PixscapeEngine {
      */
     public void render() {
         if (world == null) return;
-        world.process();
+        processWorld();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
         }
@@ -639,6 +653,8 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        systemProfiler,
+                        null,
                         configurationCustomizer
                 );
 
@@ -715,6 +731,8 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        systemProfiler,
+                        null,
                         configurationCustomizer
                 );
 
@@ -772,6 +790,8 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        systemProfiler,
+                        null,
                         configurationCustomizer
                 );
 
@@ -814,7 +834,7 @@ public final class PixscapeEngine {
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
         SceneLoader.loadScene(world, sceneFile, false);
-        world.process();
+        processWorld();
 
         rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
@@ -1185,6 +1205,13 @@ public final class PixscapeEngine {
     private void bindRuntimeRegistries() {
         identityRegistry.bind(world);
         tagRegistry.bind(world);
+    }
+
+    private void processWorld() {
+        if (systemProfiler.enabled()) {
+            systemProfiler.beginFrame();
+        }
+        world.process();
     }
 
     private void rebuildRuntimeRegistries() {

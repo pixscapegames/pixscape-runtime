@@ -10,6 +10,8 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.*;
@@ -61,6 +63,7 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
+                null,
                 null,
                 customizer
         );
@@ -128,6 +131,42 @@ public final class WorldConfigFactory {
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
+        return buildWorld(
+                camera,
+                renderState,
+                layerState,
+                drawList,
+                stats,
+                defaultShaderIdx,
+                atlasRuntimeService,
+                effectsRoot,
+                submitSupplier,
+                meta,
+                tiledBudget,
+                animatedTileRegistry,
+                null,
+                preRenderCustomizer,
+                postRenderCustomizer
+        );
+    }
+
+    public static WorldBootstrapResult buildWorld(
+            OrthographicCamera camera,
+            RenderStateSOA renderState,
+            LayerStateSOA layerState,
+            DrawList drawList,
+            RenderStats stats,
+            int defaultShaderIdx,
+            AtlasRuntimeService atlasRuntimeService,
+            FileHandle effectsRoot,
+            Supplier<BaseSystem> submitSupplier,
+            SceneMetaRuntime meta,
+            int tiledBudget,
+            TileAnimationRegistry animatedTileRegistry,
+            SystemProfiler systemProfiler,
+            Consumer<WorldConfigurationBuilder> preRenderCustomizer,
+            Consumer<WorldConfigurationBuilder> postRenderCustomizer
+    ) {
 
         int ecsStart = 0;
         int ecsEnd = ECS_WATERMARK;
@@ -161,7 +200,8 @@ public final class WorldConfigFactory {
                 tiledEnd,
                 vfxStart,
                 totalCapacity,
-                effectiveAnimatedTileRegistry
+                effectiveAnimatedTileRegistry,
+                systemProfiler
         );
 
         if (preRenderCustomizer != null) {
@@ -178,10 +218,11 @@ public final class WorldConfigFactory {
                 vfxStart,
                 totalCapacity,
                 meta,
-                submitSupplier
+                submitSupplier,
+                systemProfiler
         );
 
-        builder.with(new DirtyFlushSystem());
+        builder.with(profiled(new DirtyFlushSystem(), systemProfiler));
 
         if (postRenderCustomizer != null) {
             postRenderCustomizer.accept(builder);
@@ -216,20 +257,21 @@ public final class WorldConfigFactory {
             int tiledEnd,
             int vfxStartIndex,
             int vfxEndIndex,
-            TileAnimationRegistry animatedTileRegistry
+            TileAnimationRegistry animatedTileRegistry,
+            SystemProfiler systemProfiler
     ) {
         builder.with(
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
-                new Box2dSyncSystem(null),
-                new UpdateWorldGeometrySystem(),
-                new AnimationSystem(atlasRuntimeService),
-                new LayerStateBuildSystem(layerState, meta),
-                new RenderSpriteSyncSystem(renderState),
-                new ParallaxDisplaySystem(renderState, layerState, worldCamera),
-                new CullingSystem(worldCamera, renderState),
-                new TiledAnimationSystem(animatedTileRegistry),
-                new RenderTiledSyncSystem(
+                profiled(new Box2dSyncSystem(null), systemProfiler),
+                profiled(new UpdateWorldGeometrySystem(), systemProfiler),
+                profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
+                profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
+                profiled(new RenderSpriteSyncSystem(renderState), systemProfiler),
+                profiled(new ParallaxDisplaySystem(renderState, layerState, worldCamera), systemProfiler),
+                profiled(new CullingSystem(worldCamera, renderState), systemProfiler),
+                profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),
+                profiled(new RenderTiledSyncSystem(
                         worldCamera,
                         renderState,
                         atlasRuntimeService,
@@ -237,8 +279,8 @@ public final class WorldConfigFactory {
                         tiledStart,
                         tiledEnd,
                         animatedTileRegistry
-                ),
-                new RenderParticleSyncSystem(
+                ), systemProfiler),
+                profiled(new RenderParticleSyncSystem(
                         renderState,
                         worldCamera,
                         vfxStartIndex,
@@ -246,7 +288,7 @@ public final class WorldConfigFactory {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot
-                )
+                ), systemProfiler)
         );
     }
 
@@ -260,10 +302,11 @@ public final class WorldConfigFactory {
             int vfxStartIndex,
             int vfxEndIndex,
             SceneMetaRuntime meta,
-            Supplier<BaseSystem> submitSupplier
+            Supplier<BaseSystem> submitSupplier,
+            SystemProfiler systemProfiler
     ) {
         builder.with(
-                new RenderBuildDrawListSystem(
+                profiled(new RenderBuildDrawListSystem(
                         renderState,
                         layerState,
                         drawList,
@@ -271,19 +314,26 @@ public final class WorldConfigFactory {
                         entityCapacityHint,
                         vfxStartIndex,
                         vfxEndIndex
-                ),
-                new RenderSortSystem(renderState, drawList),
-                new SpatialRenderOrderSystem(
+                ), systemProfiler),
+                profiled(new RenderSortSystem(renderState, drawList), systemProfiler),
+                profiled(new SpatialRenderOrderSystem(
                         renderState,
                         drawList,
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
                                 : DEFAULT_PIXELS_PER_METER
-                )
+                ), systemProfiler)
         );
 
         if (submitSupplier != null) {
-            builder.with(submitSupplier.get());
+            builder.with(profiled(submitSupplier.get(), systemProfiler));
         }
+    }
+
+    private static <T extends BaseSystem> T profiled(T system, SystemProfiler profiler) {
+        if (system instanceof ProfiledSystem) {
+            ((ProfiledSystem) system).setSystemProfiler(profiler);
+        }
+        return system;
     }
 }

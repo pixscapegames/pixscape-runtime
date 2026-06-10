@@ -9,6 +9,10 @@ import com.badlogic.gdx.math.Rectangle;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
@@ -21,7 +25,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 
 @All({LayerComponent.class, TiledLayerComponent.class})
-public final class RenderTiledSyncSystem extends IteratingSystem {
+public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
 
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
@@ -41,6 +45,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
     private int hiddenChunkCount;
     private int dirtyFullChunkCount;
     private int dirtyPartialChunkCount;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private boolean profiling;
+    private long profileStartNs;
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
@@ -76,6 +83,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
 
     @Override
     protected void begin() {
+        profiling = profiler.enabled();
+        if (profiling) {
+            profileStartNs = profiler.begin(SystemProfilePhases.RENDER_TILED_SYNC);
+        }
         computeViewBounds();
         state.clearTiledVisibleSlots();
         testedChunkCount = 0;
@@ -502,5 +513,17 @@ public final class RenderTiledSyncSystem extends IteratingSystem {
 
     public void setAnimatedTileLookup(TileAnimationLookup tileAnimationLookup) {
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
+    }
+
+    @Override
+    protected void end() {
+        if (profiling) {
+            profiler.end(SystemProfilePhases.RENDER_TILED_SYNC, profileStartNs);
+            profiling = false;
+        }
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

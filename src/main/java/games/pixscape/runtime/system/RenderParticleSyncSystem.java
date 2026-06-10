@@ -24,6 +24,10 @@ import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.particle.ParticleEmitter.Particle;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
@@ -35,7 +39,7 @@ import games.pixscape.runtime.service.TextureRegistry;
  * injects each active particle Sprite into RenderStateSOA.
  */
 @All({ParticleEmitterComponent.class, TransformComponent.class})
-public final class RenderParticleSyncSystem extends BaseSystem {
+public final class RenderParticleSyncSystem extends BaseSystem implements ProfiledSystem {
 
     private final OrthographicCamera camera;
     private final RenderStateSOA state;
@@ -70,6 +74,7 @@ public final class RenderParticleSyncSystem extends BaseSystem {
     private final int defaultShaderIdx;
     private final AtlasRuntimeService atlasRuntimeService;
     private FileHandle effectsRoot;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderParticleSyncSystem(RenderStateSOA state,
                                     OrthographicCamera camera,
@@ -127,6 +132,20 @@ public final class RenderParticleSyncSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.RENDER_PARTICLE_SYNC);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.RENDER_PARTICLE_SYNC, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         float dt = world.getDelta();
 
         // 1) clean VFX slots from previous frame
@@ -506,5 +525,10 @@ public final class RenderParticleSyncSystem extends BaseSystem {
             boolean visible = (vis == null) || vis.isVisible();
             layerVisibility.put(li.layerIndex, visible ? 1 : 0);
         }
+    }
+
+    @Override
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

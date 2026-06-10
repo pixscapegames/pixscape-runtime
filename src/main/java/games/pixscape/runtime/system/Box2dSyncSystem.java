@@ -10,6 +10,10 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
@@ -17,7 +21,7 @@ import games.pixscape.runtime.service.Box2dWorldService;
 
 import java.util.Arrays;
 
-public final class Box2dSyncSystem extends BaseSystem {
+public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem {
 
     private Box2dWorldService box2d;
     private SceneMetaRuntime sceneMeta;
@@ -67,6 +71,7 @@ public final class Box2dSyncSystem extends BaseSystem {
     private int jointsByJointCap = 0;
 
     private final Array<Body> bodyScratch = new Array<>(false, 64);
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public Box2dSyncSystem(Box2dWorldService box2d) {
         this.box2d = box2d;
@@ -177,6 +182,20 @@ public final class Box2dSyncSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.BOX2D_SYNC);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.BOX2D_SYNC, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         if (box2d == null || box2d.world == null) return;
 
         // 1) Gravity
@@ -1450,5 +1469,9 @@ public final class Box2dSyncSystem extends BaseSystem {
 
     public boolean isStepEnabled() {
         return stepEnabled;
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

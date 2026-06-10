@@ -8,6 +8,10 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.LayerStateSOA;
 
 /**
@@ -20,7 +24,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
  * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
  */
 @All(LayerComponent.class)
-public final class LayerStateBuildSystem extends IteratingSystem {
+public final class LayerStateBuildSystem extends IteratingSystem implements ProfiledSystem {
 
     private static final String TAG = "LayerStateBuild";
 
@@ -30,6 +34,9 @@ public final class LayerStateBuildSystem extends IteratingSystem {
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<LayerParallaxComponent> mParallax;
     private ComponentMapper<VisibilityComponent> mVis;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private boolean profiling;
+    private long profileStartNs;
 
     public LayerStateBuildSystem(LayerStateSOA layerState, SceneMetaRuntime sceneMeta) {
         this.layerState = layerState;
@@ -38,6 +45,10 @@ public final class LayerStateBuildSystem extends IteratingSystem {
 
     @Override
     protected void begin() {
+        profiling = profiler.enabled();
+        if (profiling) {
+            profileStartNs = profiler.begin(SystemProfilePhases.LAYER_STATE_BUILD);
+        }
         layerState.clear(); // resets parallax to NaN, enabled=false, etc.
         if (sceneMeta != null) {
             layerState.physicsParallaxX = sceneMeta.physicsParallaxX;
@@ -126,5 +137,18 @@ public final class LayerStateBuildSystem extends IteratingSystem {
                 break;
             }
         }
+    }
+
+    @Override
+    protected void end() {
+        if (profiling) {
+            profiler.end(SystemProfilePhases.LAYER_STATE_BUILD, profileStartNs);
+            profiling = false;
+        }
+    }
+
+    @Override
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

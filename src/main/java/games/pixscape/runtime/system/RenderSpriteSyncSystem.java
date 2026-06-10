@@ -12,6 +12,10 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.helper.ColorHelper;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
 
 /**
@@ -21,7 +25,7 @@ import games.pixscape.runtime.render.*;
  * - Partial update according to coarse mask.
  * - Aucun consume/remove: DirtyFlushSystem flush en fin de frame.
  */
-public final class RenderSpriteSyncSystem extends BaseSystem {
+public final class RenderSpriteSyncSystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA state;
 
@@ -45,6 +49,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
     private final float[] tmpCorners = new float[8];
     private final float[] tmpColor = new float[4];
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderSpriteSyncSystem(RenderStateSOA state) {
         this.state = state;
@@ -121,6 +126,20 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.RENDER_SPRITE_SYNC);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.RENDER_SPRITE_SYNC, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         if (dirty == null) return;
         if (work.size == 0) return;
 
@@ -305,5 +324,10 @@ public final class RenderSpriteSyncSystem extends BaseSystem {
                 }
             }
         }
+    }
+
+    @Override
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

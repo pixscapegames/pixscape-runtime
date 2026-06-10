@@ -1,6 +1,10 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
 
@@ -12,7 +16,7 @@ import games.pixscape.runtime.render.RenderStateSOA;
  * - STABLE sort (LSD radix) => preserves relative order for equal keys
  * (useful for tie/runtimeOrder).
  */
-public final class RenderSortSystem extends BaseSystem {
+public final class RenderSortSystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA state;
     private final DrawList drawList;
@@ -20,6 +24,7 @@ public final class RenderSortSystem extends BaseSystem {
     // scratch buffers (reused)
     private int[] tmp = new int[0];
     private final int[] count = new int[256]; // 8 bits
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderSortSystem(RenderStateSOA state, DrawList drawList) {
         this.state = state;
@@ -28,6 +33,20 @@ public final class RenderSortSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.RENDER_SORT);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.RENDER_SORT, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         final int n = drawList.size;
         if (n <= 1) return;
 
@@ -74,5 +93,9 @@ public final class RenderSortSystem extends BaseSystem {
         if (tmp.length < n) {
             tmp = new int[Math.max(n, tmp.length * 2 + 16)];
         }
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

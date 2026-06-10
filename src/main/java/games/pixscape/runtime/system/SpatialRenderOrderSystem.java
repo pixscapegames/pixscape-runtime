@@ -8,6 +8,10 @@ import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
@@ -20,7 +24,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 import java.util.Arrays;
 
-public final class SpatialRenderOrderSystem extends BaseSystem {
+public final class SpatialRenderOrderSystem extends BaseSystem implements ProfiledSystem {
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
     private final RenderStateSOA state;
@@ -53,6 +57,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
     private int[] nonActorSubsequenceAfter = new int[0];
 
     private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList) {
         this.state = state;
@@ -73,6 +78,20 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (profiler.enabled()) {
+            long startNs = profiler.begin(SystemProfilePhases.SPATIAL_RENDER_ORDER);
+            try {
+                processSystemInternal();
+            } finally {
+                profiler.end(SystemProfilePhases.SPATIAL_RENDER_ORDER, startNs);
+            }
+            return;
+        }
+
+        processSystemInternal();
+    }
+
+    private void processSystemInternal() {
         if (state == null || drawList == null || drawList.size <= 1) return;
 
         rebuildSpatialLayers();
@@ -260,5 +279,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem {
                 + snapshotBuilder.actorSlotMask.length
                 + snapshotBuilder.nonActorSlots.length
                 + nonActorSubsequenceAfter.length;
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }

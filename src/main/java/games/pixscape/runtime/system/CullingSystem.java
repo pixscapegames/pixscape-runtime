@@ -7,9 +7,13 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.helper.RenderSpaceMapper;
+import games.pixscape.runtime.profiling.SystemProfilePhases;
+import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.RenderStateSOA;
 
-public final class CullingSystem extends IteratingSystem {
+public final class CullingSystem extends IteratingSystem implements ProfiledSystem {
 
     private final OrthographicCamera cam;
     private final RenderStateSOA renderState;
@@ -23,6 +27,9 @@ public final class CullingSystem extends IteratingSystem {
     private float frMaxY;
 
     private boolean cullingEnabled = true;
+    private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private boolean profiling;
+    private long profileStartNs;
 
     public CullingSystem(OrthographicCamera worldCamera, RenderStateSOA renderState) {
         super(Aspect.all(AABBComponent.class, VisibilityComponent.class));
@@ -32,6 +39,10 @@ public final class CullingSystem extends IteratingSystem {
 
     @Override
     protected void begin() {
+        profiling = profiler.enabled();
+        if (profiling) {
+            profileStartNs = profiler.begin(SystemProfilePhases.CULLING);
+        }
         cam.update(false);
 
         float halfW = cam.viewportWidth * 0.5f * cam.zoom;
@@ -93,6 +104,18 @@ public final class CullingSystem extends IteratingSystem {
 
         // SOA visible = logical + frustum
         renderState.visible[e] = overlap;
+    }
+
+    @Override
+    protected void end() {
+        if (profiling) {
+            profiler.end(SystemProfilePhases.CULLING, profileStartNs);
+            profiling = false;
+        }
+    }
+
+    public void setSystemProfiler(SystemProfiler profiler) {
+        this.profiler = SystemProfilers.orDisabled(profiler);
     }
 }
 
