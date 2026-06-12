@@ -1,13 +1,28 @@
 # Changelog
 
 ## [0.1.6]
+
 ### Added
-- Added default spatial tiled ordering for spatial-enabled isometric tiled layers.
-- Shared spatial block anchors are now treated as junction anchors and no longer disable spatial tiled ordering.
+
+* Added Runtime Profiler for lightweight frame, update, render, and system timing diagnostics.
+* Added one-shot tiled animation playback API for triggering tiled animations from runtime code.
+* Added new SOA-based spatial system foundation for deterministic 2.5D actor/block ordering.
+* Added spatial rule support for authored spatial blocks and actor/tile occlusion behavior.
+* Added default spatial tiled ordering for spatial-enabled isometric tiled layers.
+* Added `pixscape.tiled.spatialSortVerify=true` compact verification logging for spatial tiled ordering.
 
 ### Changed
-- Spatial tiled ordering now preserves ISO depth while grouping exclusive block anchors inside the same ISO diagonal.
-- Added `pixscape.tiled.spatialSort=false` debug opt-out and `pixscape.tiled.spatialSortVerify=true` compact verification logging.
+
+* Spatial-enabled isometric tiled layers now use spatial tiled ordering by default.
+* Spatial tiled ordering now preserves ISO depth while grouping exclusive block anchors inside the same ISO diagonal.
+* Shared spatial block anchors are now treated as junction anchors and no longer disable spatial tiled ordering.
+* Improved spatial ordering stability by keeping tiled anchors compatible with the actor/block interval planner.
+* Added `pixscape.tiled.spatialSort=false` debug opt-out to restore default ISO tiled ordering when needed.
+
+### Fixed
+
+* Fixed spatial tiled anchor interleaving that could make actors render on the wrong side of isometric walls.
+* Fixed false spatial ordering conflicts caused by shared corner/junction tiles expanding block anchor intervals.
 
 
 ## [0.1.5]
