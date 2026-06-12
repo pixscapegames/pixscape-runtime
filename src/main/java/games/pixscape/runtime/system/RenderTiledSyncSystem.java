@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -17,6 +18,7 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.spatial.SpatialTiledSort;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -29,6 +31,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
+    private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
 
     private final OrthographicCamera camera;
     private final RenderStateSOA state;
@@ -107,6 +110,11 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         TiledMapLayerData map = tiled.data;
         if (!map.visible) return;
+        SpatialTiledSort.Context spatialSort = SpatialTiledSort.contextForLayer(
+                e,
+                layer,
+                tiled,
+                mSpatialBlocks.getSafe(e, null));
         computeChunkWindow(map, tmpWindow);
         int currentMinCx = tmpWindow[0];
         int currentMaxCx = tmpWindow[1];
@@ -146,10 +154,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
                 if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
                     dirtyFullChunkCount++;
-                    rebuildChunk(chunk, map, e, tiled.atlasTag);
+                    rebuildChunk(chunk, map, e, tiled.atlasTag, spatialSort);
                 } else if (chunk.dirtyState == TileChunk.DirtyState.PARTIAL) {
                     dirtyPartialChunkCount++;
-                    updatePartialChunk(chunk, map, e, tiled.atlasTag);
+                    updatePartialChunk(chunk, map, e, tiled.atlasTag, spatialSort);
                 }
 
                 chunk.dirtyState = TileChunk.DirtyState.CLEAN;
@@ -191,7 +199,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private void updatePartialChunk(TileChunk chunk,
                                     TiledMapLayerData map,
                                     int entityId,
-                                    String atlasTag) {
+                                    String atlasTag,
+                                    SpatialTiledSort.Context spatialSort) {
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 
@@ -216,7 +225,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     chunk.transformFlags[localIndex],
                     map,
                     atlasTag,
-                    layerIndex
+                    layerIndex,
+                    spatialSort
             );
         }
 
@@ -372,7 +382,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private void rebuildChunk(TileChunk chunk,
                               TiledMapLayerData map,
                               int entityId,
-                              String atlasTag) {
+                              String atlasTag,
+                              SpatialTiledSort.Context spatialSort) {
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 
@@ -400,7 +411,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                         chunk.transformFlags[localIndex],
                         map,
                         atlasTag,
-                        layerIndex
+                        layerIndex,
+                        spatialSort
                 );
             }
         }
@@ -417,7 +429,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                byte transformFlags,
                                TiledMapLayerData map,
                                String atlasTag,
-                               int layerIndex) {
+                               int layerIndex,
+                               SpatialTiledSort.Context spatialSort) {
 
         if (assetId <= 0) {
             state.disable(slot);
@@ -486,6 +499,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
             z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
+            tie = SpatialTiledSort.encodeTie(spatialSort, gx, gy, tie);
         }
 
         state.sortKey[slot] = SortKey64.packForBlend(

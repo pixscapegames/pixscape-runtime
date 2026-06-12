@@ -13,6 +13,9 @@ public final class SpatialRelationSolver {
     int[] relationActorIndex = new int[0];
     int[] relationBlockIndex = new int[0];
     int[] relationType = new int[0];
+    int[] relationAuthoredBlockIndex = new int[0];
+    int[] relationBlockId = new int[0];
+    String[] relationBlockName = new String[0];
 
     private final SpatialRelationKernel relationKernel = new SpatialRelationKernel();
     private final float[] tmpBlockRelationSegments = new float[8];
@@ -49,7 +52,7 @@ public final class SpatialRelationSolver {
                 SpatialBlockData block = blocks.blocks.get(authoredBlock);
                 if (!block.enabled) continue;
                 if (block.actorOccluder && blockCache.hasResolvedBlock(cacheBlock)) {
-                    solveActorBlock(actor, block, cacheBlock, map);
+                    solveActorBlock(actor, block, authoredBlock, cacheBlock, blockCache, map);
                 }
                 cacheBlock++;
             }
@@ -97,9 +100,15 @@ public final class SpatialRelationSolver {
         }
     }
 
-    private void solveActorBlock(int actor, SpatialBlockData block, int cacheBlock, TiledMapLayerData map) {
-        if (!verticalOverlaps(currentActorBottom(actor), currentActorTop(actor),
-                SpatialBlockGeometry.bottom(block), SpatialBlockGeometry.top(block))) {
+    private void solveActorBlock(int actor,
+                                 SpatialBlockData block,
+                                 int authoredBlock,
+                                 int cacheBlock,
+                                 SpatialBlocksRuntimeCache blockCache,
+                                 TiledMapLayerData map) {
+        boolean verticalOverlap = verticalOverlaps(currentActorBottom(actor), currentActorTop(actor),
+                SpatialBlockGeometry.bottom(block), SpatialBlockGeometry.top(block));
+        if (!verticalOverlap) {
             return;
         }
         if (!writeBlockLowerRelationSegments(map, block, tmpBlockRelationSegments)) {
@@ -115,16 +124,19 @@ public final class SpatialRelationSolver {
                     tmpBlockRelationSegments[offset + 2],
                     tmpBlockRelationSegments[offset + 3]);
             if (relation == ACTOR_BEHIND_BLOCK || relation == ACTOR_IN_FRONT_OF_BLOCK) {
-                addRelation(actor, cacheBlock, relation);
+                addRelation(actor, cacheBlock, authoredBlock, block, relation);
                 return;
             }
         }
     }
 
-    private void addRelation(int actor, int block, int relation) {
+    private void addRelation(int actor, int block, int authoredBlock, SpatialBlockData data, int relation) {
         ensureRelationCapacity(relationCount + 1);
         relationActorIndex[relationCount] = actor;
         relationBlockIndex[relationCount] = block;
+        relationAuthoredBlockIndex[relationCount] = authoredBlock;
+        relationBlockId[relationCount] = data != null ? data.id : 0;
+        relationBlockName[relationCount] = data != null ? data.name : null;
         relationType[relationCount] = relation;
         relationCount++;
     }
@@ -214,6 +226,11 @@ public final class SpatialRelationSolver {
         relationActorIndex = grow(relationActorIndex, next);
         relationBlockIndex = grow(relationBlockIndex, next);
         relationType = grow(relationType, next);
+        relationAuthoredBlockIndex = grow(relationAuthoredBlockIndex, next);
+        relationBlockId = grow(relationBlockId, next);
+        String[] expandedNames = new String[next];
+        System.arraycopy(relationBlockName, 0, expandedNames, 0, relationBlockName.length);
+        relationBlockName = expandedNames;
     }
 
     private static int[] grow(int[] source, int next) {

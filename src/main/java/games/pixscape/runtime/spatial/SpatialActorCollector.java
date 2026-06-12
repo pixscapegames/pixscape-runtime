@@ -3,6 +3,7 @@ package games.pixscape.runtime.spatial;
 import com.artemis.ComponentMapper;
 import com.artemis.EntityManager;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.SpatialHeightComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
@@ -23,6 +24,7 @@ public final class SpatialActorCollector {
     int[] actorDrawIndex = new int[0];
     int[] actorLayerIndex = new int[0];
     int[] actorStableOrder = new int[0];
+    String[] actorName = new String[0];
 
     float[] actorFootX = new float[0];
     float[] actorFootY = new float[0];
@@ -50,6 +52,30 @@ public final class SpatialActorCollector {
                         ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
                         ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
                         float pixelsPerMeter) {
+        collect(drawList,
+                state,
+                spatialLayers,
+                entityManager,
+                entityIndexMapper,
+                transformMapper,
+                spatialHeightMapper,
+                physicsBodyMapper,
+                physicsFixturesMapper,
+                null,
+                pixelsPerMeter);
+    }
+
+    public void collect(DrawList drawList,
+                        RenderStateSOA state,
+                        boolean[] spatialLayers,
+                        EntityManager entityManager,
+                        ComponentMapper<EntityIndexComponent> entityIndexMapper,
+                        ComponentMapper<TransformComponent> transformMapper,
+                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
+                        ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
+                        ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                        ComponentMapper<PixscapeIdentityComponent> identityMapper,
+                        float pixelsPerMeter) {
         clear();
         if (drawList == null || state == null || drawList.size <= 0) return;
 
@@ -66,6 +92,7 @@ public final class SpatialActorCollector {
                     spatialHeightMapper,
                     physicsBodyMapper,
                     physicsFixturesMapper,
+                    identityMapper,
                     pixelsPerMeter);
         }
     }
@@ -84,6 +111,7 @@ public final class SpatialActorCollector {
                         ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
                         ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
                         ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                        ComponentMapper<PixscapeIdentityComponent> identityMapper,
                         float pixelsPerMeter) {
         if (!isEligibleActorSlot(slot,
                 state,
@@ -118,6 +146,10 @@ public final class SpatialActorCollector {
         actorDrawIndex[actor] = drawIndex;
         actorLayerIndex[actor] = state.layerIndex[slot];
         actorStableOrder[actor] = stableActorId(slot, state);
+        PixscapeIdentityComponent identity = identityMapper != null
+                ? identityMapper.getSafe(entity, null)
+                : null;
+        actorName[actor] = identity != null ? identity.name : null;
         actorFootX[actor] = tmpFootprint.footX;
         actorFootY[actor] = tmpFootprint.footY;
         actorAltitude[actor] = tmpFootprint.bottom;
@@ -259,6 +291,9 @@ public final class SpatialActorCollector {
         actorDrawIndex = grow(actorDrawIndex, next);
         actorLayerIndex = grow(actorLayerIndex, next);
         actorStableOrder = grow(actorStableOrder, next);
+        String[] expandedNames = new String[next];
+        System.arraycopy(actorName, 0, expandedNames, 0, actorName.length);
+        actorName = expandedNames;
         actorFootX = grow(actorFootX, next);
         actorFootY = grow(actorFootY, next);
         actorAltitude = grow(actorAltitude, next);

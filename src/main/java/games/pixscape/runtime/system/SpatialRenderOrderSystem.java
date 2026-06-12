@@ -20,6 +20,7 @@ import games.pixscape.runtime.spatial.SpatialBlocksRuntimeCache;
 import games.pixscape.runtime.spatial.SpatialFrameSnapshotBuilder;
 import games.pixscape.runtime.spatial.SpatialOrderingKernel;
 import games.pixscape.runtime.spatial.SpatialRelationSolver;
+import games.pixscape.runtime.spatial.SpatialTiledSort;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 import java.util.Arrays;
@@ -33,6 +34,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
@@ -115,11 +117,25 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
             if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
 
-            blockAnchorResolver.resolve(blocks, tiled.data, slotToDrawIndex, blockCache);
+            SpatialTiledSort.Context spatialSort = SpatialTiledSort.contextForLayer(owner,
+                    mLayer.get(owner),
+                    tiled,
+                    blocks);
+            blockAnchorResolver.resolve(blocks, tiled.data, slotToDrawIndex, blockCache, spatialSort);
             if (blockCache.blockCount() == 0) continue;
             convertBlockAnchorsToStableBuckets();
 
             relationSolver.solve(actorCollector, blockCache, blocks, tiled.data);
+            SpatialTiledSort.verifyLayer(owner,
+                    mLayer.get(owner),
+                    tiled,
+                    blocks,
+                    state,
+                    slotToDrawIndex,
+                    tiledLayerEntityCount(),
+                    spatialSort,
+                    actorCollector,
+                    relationSolver);
             if (relationSolver.relationCount() == 0) continue;
             orderingKernel.addRelations(actorCollector, blockCache, relationSolver);
         }
@@ -160,6 +176,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mSpatialHeight,
                 mPhysicsBody,
                 mPhysicsFixtures,
+                mIdentity,
                 pixelsPerMeter);
     }
 
@@ -236,6 +253,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         return (layer != null && layer.spatialEnabled)
                 || (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
+    }
+
+    private int tiledLayerEntityCount() {
+        return blockLayersSub != null ? blockLayersSub.getEntities().size() : 0;
     }
 
     private void ensureSpatialLayerCapacity(int required) {

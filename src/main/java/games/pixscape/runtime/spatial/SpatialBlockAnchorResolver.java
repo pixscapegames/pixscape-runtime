@@ -9,6 +9,14 @@ public final class SpatialBlockAnchorResolver {
                         TiledMapLayerData tiledLayer,
                         int[] slotToDrawIndex,
                         SpatialBlocksRuntimeCache cache) {
+        resolve(blocks, tiledLayer, slotToDrawIndex, cache, null);
+    }
+
+    public void resolve(SpatialBlocksComponent blocks,
+                        TiledMapLayerData tiledLayer,
+                        int[] slotToDrawIndex,
+                        SpatialBlocksRuntimeCache cache,
+                        SpatialTiledSort.Context spatialSort) {
         if (cache == null) {
             throw new IllegalArgumentException("Spatial block runtime cache is required.");
         }
@@ -28,7 +36,7 @@ public final class SpatialBlockAnchorResolver {
                 throw new IllegalStateException("Spatial block is null at index " + blockIndex);
             }
             if (!block.enabled) continue;
-            resolveBlock(block, blockIndex, tiledLayer, slotToDrawIndex, cache);
+            resolveBlock(block, blockIndex, tiledLayer, slotToDrawIndex, cache, spatialSort);
         }
     }
 
@@ -36,7 +44,8 @@ public final class SpatialBlockAnchorResolver {
                               int authoredBlockIndex,
                               TiledMapLayerData tiledLayer,
                               int[] slotToDrawIndex,
-                              SpatialBlocksRuntimeCache cache) {
+                              SpatialBlocksRuntimeCache cache,
+                              SpatialTiledSort.Context spatialSort) {
         if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
             throw new IllegalStateException("Spatial block V2 anchors require valid authored linked tile refs: blockIndex="
                     + authoredBlockIndex);
@@ -47,6 +56,9 @@ public final class SpatialBlockAnchorResolver {
         for (int anchor = 0; anchor < anchorCount; anchor++) {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(anchor);
             if (ref == null) continue;
+            if (spatialSort != null && spatialSort.applies() && spatialSort.isShared(ref.gx, ref.gy)) {
+                continue;
+            }
             int slot = tiledLayer.slotForTile(ref.gx, ref.gy);
             if (slot < 0 || slot >= slotToDrawIndex.length) continue;
 

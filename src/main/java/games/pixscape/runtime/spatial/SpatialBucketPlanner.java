@@ -5,8 +5,16 @@ public final class SpatialBucketPlanner {
     public int bucketCount;
     public int[] actorBucket = new int[0];
 
-    private int[] actorLowerBound = new int[0];
-    private int[] actorUpperBound = new int[0];
+    int[] actorOriginalBucket = new int[0];
+    int[] actorLowerBound = new int[0];
+    int[] actorUpperBound = new int[0];
+    int[] actorLowerSourceBlockIndex = new int[0];
+    int[] actorLowerSourceBlockId = new int[0];
+    String[] actorLowerSourceBlockName = new String[0];
+    int[] actorUpperSourceBlockIndex = new int[0];
+    int[] actorUpperSourceBlockId = new int[0];
+    String[] actorUpperSourceBlockName = new String[0];
+    int[] finalActorDrawIndex = new int[0];
     private boolean[] actorHasRelation = new boolean[0];
     private int[] bucketActorCount = new int[0];
     private int[] bucketActorOffset = new int[0];
@@ -31,8 +39,16 @@ public final class SpatialBucketPlanner {
         for (int actor = 0; actor < actorCount; actor++) {
             int bucket = clampBucket(actorOriginalBucket[actor], bucketCount);
             actorBucket[actor] = bucket;
+            this.actorOriginalBucket[actor] = bucket;
             actorLowerBound[actor] = Integer.MIN_VALUE;
             actorUpperBound[actor] = Integer.MAX_VALUE;
+            actorLowerSourceBlockIndex[actor] = -1;
+            actorLowerSourceBlockId[actor] = 0;
+            actorLowerSourceBlockName[actor] = null;
+            actorUpperSourceBlockIndex[actor] = -1;
+            actorUpperSourceBlockId[actor] = 0;
+            actorUpperSourceBlockName[actor] = null;
+            finalActorDrawIndex[actor] = -1;
             actorHasRelation[actor] = false;
         }
     }
@@ -57,10 +73,20 @@ public final class SpatialBucketPlanner {
             actorHasRelation[actor] = true;
             if (type == SpatialRelationSolver.ACTOR_IN_FRONT_OF_BLOCK) {
                 int lower = blockCache.blockAnchorEndDrawIndex[block] + 1;
-                if (lower > actorLowerBound[actor]) actorLowerBound[actor] = lower;
+                if (lower > actorLowerBound[actor]) {
+                    actorLowerBound[actor] = lower;
+                    actorLowerSourceBlockIndex[actor] = relationAuthoredBlockIndex(relations, relation);
+                    actorLowerSourceBlockId[actor] = relationBlockId(relations, relation);
+                    actorLowerSourceBlockName[actor] = relationBlockName(relations, relation);
+                }
             } else {
                 int upper = blockCache.blockAnchorStartDrawIndex[block];
-                if (upper < actorUpperBound[actor]) actorUpperBound[actor] = upper;
+                if (upper < actorUpperBound[actor]) {
+                    actorUpperBound[actor] = upper;
+                    actorUpperSourceBlockIndex[actor] = relationAuthoredBlockIndex(relations, relation);
+                    actorUpperSourceBlockId[actor] = relationBlockId(relations, relation);
+                    actorUpperSourceBlockName[actor] = relationBlockName(relations, relation);
+                }
             }
         }
     }
@@ -156,13 +182,39 @@ public final class SpatialBucketPlanner {
         return bucket;
     }
 
+    private static int relationAuthoredBlockIndex(SpatialRelationSolver relations, int relation) {
+        return relations.relationAuthoredBlockIndex != null && relation < relations.relationAuthoredBlockIndex.length
+                ? relations.relationAuthoredBlockIndex[relation]
+                : -1;
+    }
+
+    private static int relationBlockId(SpatialRelationSolver relations, int relation) {
+        return relations.relationBlockId != null && relation < relations.relationBlockId.length
+                ? relations.relationBlockId[relation]
+                : 0;
+    }
+
+    private static String relationBlockName(SpatialRelationSolver relations, int relation) {
+        return relations.relationBlockName != null && relation < relations.relationBlockName.length
+                ? relations.relationBlockName[relation]
+                : null;
+    }
+
     private void ensureActorCapacity(int required) {
         if (required <= actorBucket.length) return;
         int next = Math.max(8, actorBucket.length);
         while (required > next) next <<= 1;
         actorBucket = grow(actorBucket, next);
+        actorOriginalBucket = grow(actorOriginalBucket, next);
         actorLowerBound = grow(actorLowerBound, next);
         actorUpperBound = grow(actorUpperBound, next);
+        actorLowerSourceBlockIndex = grow(actorLowerSourceBlockIndex, next);
+        actorLowerSourceBlockId = grow(actorLowerSourceBlockId, next);
+        actorLowerSourceBlockName = grow(actorLowerSourceBlockName, next);
+        actorUpperSourceBlockIndex = grow(actorUpperSourceBlockIndex, next);
+        actorUpperSourceBlockId = grow(actorUpperSourceBlockId, next);
+        actorUpperSourceBlockName = grow(actorUpperSourceBlockName, next);
+        finalActorDrawIndex = grow(finalActorDrawIndex, next);
         boolean[] expanded = new boolean[next];
         System.arraycopy(actorHasRelation, 0, expanded, 0, actorHasRelation.length);
         actorHasRelation = expanded;
@@ -186,6 +238,12 @@ public final class SpatialBucketPlanner {
 
     private static int[] grow(int[] source, int next) {
         int[] expanded = new int[next];
+        System.arraycopy(source, 0, expanded, 0, source.length);
+        return expanded;
+    }
+
+    private static String[] grow(String[] source, int next) {
+        String[] expanded = new String[next];
         System.arraycopy(source, 0, expanded, 0, source.length);
         return expanded;
     }

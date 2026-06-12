@@ -55,6 +55,7 @@ public final class SpatialBucketDrawListComposer {
         int count = planner.bucketActorCount(bucket);
         for (int i = 0; i < count; i++) {
             int actor = planner.sortedActorIndex[start + i];
+            planner.finalActorDrawIndex[actor] = write;
             composedSlots[write++] = actors.actorSlot[actor];
         }
         return write;

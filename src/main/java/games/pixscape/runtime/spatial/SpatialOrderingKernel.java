@@ -30,7 +30,10 @@ public final class SpatialOrderingKernel {
                       SpatialActorCollector actors,
                       SpatialFrameSnapshotBuilder snapshot) {
         planner.finish(actors);
-        return composer.compose(sourceSlots, sourceSize, actors, planner, snapshot::isActorSlot);
+        int composedSize = composer.compose(sourceSlots, sourceSize, actors, planner, snapshot::isActorSlot);
+        SpatialTiledSort.verifyToto3(actors, planner);
+        SpatialTiledSort.verifyToto3Signoff(actors, planner, composer.composedSlots, composedSize);
+        return composedSize;
     }
 
 }

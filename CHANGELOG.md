@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.6]
+### Added
+- Added default spatial tiled ordering for spatial-enabled isometric tiled layers.
+- Shared spatial block anchors are now treated as junction anchors and no longer disable spatial tiled ordering.
+
+### Changed
+- Spatial tiled ordering now preserves ISO depth while grouping exclusive block anchors inside the same ISO diagonal.
+- Added `pixscape.tiled.spatialSort=false` debug opt-out and `pixscape.tiled.spatialSortVerify=true` compact verification logging.
+
+
 ## [0.1.5]
 
 ### Added
