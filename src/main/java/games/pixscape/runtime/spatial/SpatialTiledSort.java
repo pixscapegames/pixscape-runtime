@@ -30,7 +30,7 @@ public final class SpatialTiledSort {
     public static final String VERIFY_PROPERTY = "pixscape.tiled.spatialSortVerify";
 
     private static final boolean ENABLED = !"false".equalsIgnoreCase(System.getProperty(PROPERTY));
-    private static final boolean VERIFY = Boolean.getBoolean(VERIFY_PROPERTY);
+    private static final boolean VERIFY = "true".equalsIgnoreCase(System.getProperty(VERIFY_PROPERTY));
 
     private static final HashSet<String> refusalLogs = new HashSet<>();
     private static boolean verifyLayerLogged;
