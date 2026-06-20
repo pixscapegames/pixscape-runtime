@@ -3,7 +3,7 @@
 <h1>Pixscape Runtime</h1>
 
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.1.5-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.1.7-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -44,7 +44,7 @@ This runtime repository is also available separately for developers who want dir
 
 ## 2.5D Spatial System
 
-Pixscape Runtime `0.1.5` introduces the first version of the new **2.5D Spatial System**.
+Pixscape Runtime includes a **2.5D Spatial System** for deterministic front/behind ordering in orthographic and isometric scenes.
 
 This system allows actors, tiled structures, walls, columns, and elevated environment elements to render in a coherent front/behind order without relying on expensive real-time raytracing.
 
@@ -106,6 +106,10 @@ Pixscape Runtime targets:
 - Android
 - HTML5 / WebGL2
 
+Pixscape Runtime is built with JDK 21 tooling and published as Java 8-compatible bytecode for maximum LibGDX ecosystem portability. Pixscape Studio requires Java 21.
+
+iOS/RoboVM is not currently listed as an officially tested target.
+
 ## Installation
 
 Pixscape Runtime is available from Maven Central.
@@ -114,7 +118,7 @@ Pixscape Runtime is available from Maven Central.
 
 ```gradle
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.1.5"
+    implementation "games.pixscape:pixscape-runtime:0.1.7"
 }
 ```
 
@@ -124,7 +128,7 @@ dependencies {
 <dependency>
     <groupId>games.pixscape</groupId>
     <artifactId>pixscape-runtime</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.7</version>
 </dependency>
 ```
 

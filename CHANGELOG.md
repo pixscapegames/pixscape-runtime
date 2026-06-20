@@ -1,5 +1,13 @@
 # Changelog
 
+
+## [0.1.7]
+
+### Changed
+
+* Runtime artifacts now target Java 8-compatible bytecode while continuing to build with JDK 21.
+
+
 ## [0.1.6]
 
 ### Added

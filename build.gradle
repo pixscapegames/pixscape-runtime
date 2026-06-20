@@ -7,10 +7,14 @@ plugins {
 group = 'games.pixscape'
 version = appVersion
 
+def runtimeJavaRelease = 8
+
 java {
   toolchain {
     languageVersion = JavaLanguageVersion.of(javaVersion as int)
   }
+  sourceCompatibility = JavaVersion.toVersion(runtimeJavaRelease)
+  targetCompatibility = JavaVersion.toVersion(runtimeJavaRelease)
   withSourcesJar()
   withJavadocJar()
 }
@@ -42,6 +46,14 @@ tasks.named('test', Test).configure {
   useJUnit()
 }
 
+tasks.named('compileJava', JavaCompile).configure {
+  options.release = runtimeJavaRelease
+}
+
+tasks.named('compileTestJava', JavaCompile).configure {
+  options.release = project.property('javaVersion') as int
+}
+
 tasks.named('javadoc', Javadoc).configure {
   failOnError = false
   options.addStringOption('Xdoclint:none', '-quiet')
@@ -59,6 +71,9 @@ publishing {
         name = "pixscape-runtime"
         description = "Pixscape runtime library"
         url = "https://github.com/pixscapegames/pixscape-runtime"
+        properties = [
+                'maven.compiler.release': runtimeJavaRelease.toString()
+        ]
 
         licenses {
           license {
