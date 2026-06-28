@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
@@ -228,15 +229,15 @@ public final class PhysicsService {
         TransformComponent t = mT.getSafe(bodyEid, null);
         if (t == null) return false;
 
-        float fixtureAngle = (float) Math.toRadians(fixture.angleDeg);
-        float fcos = (float) Math.cos(fixtureAngle);
-        float fsin = (float) Math.sin(fixtureAngle);
+        float fixtureAngle = fixture.angleDeg * MathUtils.degreesToRadians;
+        float fcos = MathUtils.cos(fixtureAngle);
+        float fsin = MathUtils.sin(fixtureAngle);
 
         float fx = fixture.offsetX;
         float fy = fixture.offsetY;
 
-        float bcos = (float) Math.cos(t.rotationRad);
-        float bsin = (float) Math.sin(t.rotationRad);
+        float bcos = MathUtils.cos(t.rotationRad);
+        float bsin = MathUtils.sin(t.rotationRad);
         float bx = fx * bcos - fy * bsin;
         float by = fx * bsin + fy * bcos;
 
@@ -254,14 +255,14 @@ public final class PhysicsService {
         TransformComponent t = mT.getSafe(bodyEid, null);
         if (t == null) return false;
 
-        float fixtureAngle = (float) Math.toRadians(fixture.angleDeg);
-        float fcos = (float) Math.cos(fixtureAngle);
-        float fsin = (float) Math.sin(fixtureAngle);
+        float fixtureAngle = fixture.angleDeg * MathUtils.degreesToRadians;
+        float fcos = MathUtils.cos(fixtureAngle);
+        float fsin = MathUtils.sin(fixtureAngle);
         float fx = localX_m * fcos - localY_m * fsin + fixture.offsetX;
         float fy = localX_m * fsin + localY_m * fcos + fixture.offsetY;
 
-        float bcos = (float) Math.cos(t.rotationRad);
-        float bsin = (float) Math.sin(t.rotationRad);
+        float bcos = MathUtils.cos(t.rotationRad);
+        float bsin = MathUtils.sin(t.rotationRad);
         float bx = fx * bcos - fy * bsin;
         float by = fx * bsin + fy * bcos;
 
@@ -729,8 +730,8 @@ public final class PhysicsService {
         TransformComponent t = mT.getSafe(bodyEid, null);
         if (t == null) return false;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float rx_m = localAx_m * cos - localAy_m * sin;
         float ry_m = localAx_m * sin + localAy_m * cos;
@@ -867,8 +868,8 @@ public final class PhysicsService {
             axisY /= len;
         }
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
         float worldAxisX = axisX * cos - axisY * sin;
         float worldAxisY = axisX * sin + axisY * cos;
 
@@ -900,8 +901,8 @@ public final class PhysicsService {
         float dxM = box2d.pxToM(dxWu);
         float dyM = box2d.pxToM(dyWu);
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float localAx = dxM * cos + dyM * sin;
         float localAy = -dxM * sin + dyM * cos;

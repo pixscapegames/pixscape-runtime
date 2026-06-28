@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.artemis.ComponentMapper;
 import com.artemis.EntityManager;
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.SpatialHeightComponent;
@@ -229,8 +230,8 @@ public final class SpatialActorCollector {
 
             float localX = fixture.offsetX * ppm;
             float localY = fixture.offsetY * ppm;
-            float cos = (float) Math.cos(transform.rotationRad);
-            float sin = (float) Math.sin(transform.rotationRad);
+            float cos = MathUtils.cos(transform.rotationRad);
+            float sin = MathUtils.sin(transform.rotationRad);
             float cx = transform.x + localX * cos - localY * sin;
             float cy = transform.y + localX * sin + localY * cos;
             float radius = fixture.radius * ppm;

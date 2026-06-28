@@ -2,6 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
@@ -80,8 +81,8 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
             // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
                 float rad = t.rotationRad;
-                float cos = (float) Math.cos(rad);
-                float sin = (float) Math.sin(rad);
+                float cos = MathUtils.cos(rad);
+                float sin = MathUtils.sin(rad);
 
                 b.ux = cos;
                 b.uy = sin;
