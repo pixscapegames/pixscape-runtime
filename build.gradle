@@ -29,7 +29,6 @@ dependencies {
   api "net.onedaybeard.artemis:artemis-odb:${artemisOdbVersion}"
   api "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}"
   api "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
-  api "it.unimi.dsi:fastutil:${fastutilVersion}"
 
   if (useVendoredTestLibs) {
     testImplementation files(vendoredJunit, vendoredHamcrest)
