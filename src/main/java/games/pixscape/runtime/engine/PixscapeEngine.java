@@ -37,6 +37,7 @@ import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 
@@ -79,6 +80,7 @@ public final class PixscapeEngine {
     private final TagRegistry tagRegistry = new TagRegistry();
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
+    private RuntimeTilesetProfiles tilesetProfiles = RuntimeTilesetProfiles.empty();
     private PixscapeAPI publicApi;
 
 
@@ -160,6 +162,7 @@ public final class PixscapeEngine {
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
         RuntimeProjectIO.loadAnimations(runtimeProjectDir, animationRegistry);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
+        tilesetProfiles = RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir);
 
         if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
@@ -318,6 +321,7 @@ public final class PixscapeEngine {
                         meta,
                         tiledBudget,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
@@ -417,6 +421,10 @@ public final class PixscapeEngine {
 
     public AnimationRegistry getAnimationRegistry() {
         return animationRegistry;
+    }
+
+    public RuntimeTilesetProfiles getTilesetProfiles() {
+        return tilesetProfiles;
     }
 
     /**
@@ -653,6 +661,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
@@ -731,6 +740,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
@@ -790,6 +800,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer

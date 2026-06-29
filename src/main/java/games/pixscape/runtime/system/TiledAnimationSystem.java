@@ -98,42 +98,46 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
                 continue;
             }
 
-            advanceChunkAnimations(chunk);
+            if (advanceChunkAnimations(chunk)) {
+                map.markVisualBoundsDirty();
+            }
         }
     }
 
-    private void advanceChunkAnimations(TileChunk chunk) {
+    private boolean advanceChunkAnimations(TileChunk chunk) {
         if (chunk.animatedLocalIndices == null || chunk.animatedLocalIndices.size == 0) {
-            return;
+            return false;
         }
 
         /*
          * Iterate backwards because a tile may be removed from animatedLocalIndices
          * while processing.
          */
+        boolean visualAssetChanged = false;
         for (int i = chunk.animatedLocalIndices.size - 1; i >= 0; i--) {
             int localIndex = chunk.animatedLocalIndices.get(i);
-            advanceTileAnimation(chunk, localIndex);
+            visualAssetChanged |= advanceTileAnimation(chunk, localIndex);
         }
+        return visualAssetChanged;
     }
 
-    private void advanceTileAnimation(TileChunk chunk, int localIndex) {
+    private boolean advanceTileAnimation(TileChunk chunk, int localIndex) {
         int assetId = chunk.assetIds[localIndex];
         if (assetId <= 0) {
             chunk.clearAnimationState(localIndex);
-            return;
+            return false;
         }
 
         TileAnimationDef def = tileAnimationLookup.get(assetId);
         if (def == null || def.frameCount() <= 1) {
             chunk.clearAnimationState(localIndex);
-            return;
+            return false;
         }
 
         byte playbackState = chunk.getAnimPlaybackState(localIndex);
         if (playbackState == TileAnimationPlayback.NONE) {
             chunk.clearAnimationState(localIndex);
-            return;
+            return false;
         }
 
         int frameCount = def.frameCount();
@@ -165,13 +169,14 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
                 );
                 if (normalizedVisualAssetId != currentVisualAssetId) {
                     chunk.markLocalDirty(localIndex);
+                    return true;
                 }
             }
-            return;
+            return false;
         }
 
         if (playbackState != TileAnimationPlayback.PLAYING) {
-            return;
+            return false;
         }
 
         int elapsedMs = chunk.getAnimFrameElapsedMs(localIndex) + frameDeltaMs;
@@ -220,10 +225,12 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
 
             if (terminalVisualAssetId != currentVisualAssetId) {
                 chunk.markLocalDirty(localIndex);
+                return true;
             }
-            return;
+            return false;
         }
 
+        boolean visualAssetChanged = false;
         if (newFrameIndex != currentFrameIndex) {
             int newVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                     assetId,
@@ -233,11 +240,13 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
 
             if (newVisualAssetId != currentVisualAssetId) {
                 chunk.markLocalDirty(localIndex);
+                visualAssetChanged = true;
             }
         }
 
         chunk.animFrameIndex[localIndex] = (short) newFrameIndex;
         chunk.animFrameElapsedMs[localIndex] = elapsedMs;
+        return visualAssetChanged;
     }
 
     @Override

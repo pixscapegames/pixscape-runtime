@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.8]
+
+### Added
+
+* Added runtime loading for exported `tileset-profiles.json` metadata.
+* Added runtime tileset profile lookup by tile asset ID.
+* Added profile-aware tiled sprite placement support for native-size tiles.
+* Added support for tileset anchors, cell size, projection, offsets and native render size in tiled placement.
+* Added profile-aware placement tests for tall isometric tiles, offsets and anchor behavior.
+
+### Changed
+
+* Tiled runtime rendering now uses tileset profile placement when profile metadata is available.
+* Tiled transform flags are still applied after base profile placement.
+* Runtime project loading now carries tileset profile metadata into tiled rendering systems.
+
+### Fixed
+
+* Fixed runtime placement support for tiles whose native image size differs from their logical tiled cell size.
+* Fixed tall/isometric tiles requiring explicit placement metadata instead of relying on implicit tile-size assumptions.
+* Fixed missing tileset profiles being reported as diagnostics instead of silently falling back to legacy placement.
+
+### Tests
+
+* Added runtime tileset profile manifest loading tests.
+* Added tiled profile placement helper tests.
+* Added tiled render synchronization coverage for profile-aware placement and transform flags.
+
 
 ## [0.1.7]
 

@@ -56,6 +56,11 @@ public final class TiledMapLayerData {
     public int previousChunkMaxX = -1;
     public int previousChunkMinY = 0;
     public int previousChunkMaxY = -1;
+    public boolean visualBoundsDirty = true;
+    public float visualPaddingLeft = 0f;
+    public float visualPaddingRight = 0f;
+    public float visualPaddingTop = 0f;
+    public float visualPaddingBottom = 0f;
 
     public TiledMapLayerData(int mapWidth,
                              int mapHeight,
@@ -151,6 +156,7 @@ public final class TiledMapLayerData {
         previousChunkMaxX = -1;
         previousChunkMinY = 0;
         previousChunkMaxY = -1;
+        markVisualBoundsDirty();
     }
 
     public void updateChunkBounds(TileChunk chunk) {
@@ -223,6 +229,7 @@ public final class TiledMapLayerData {
         int ly = gy - (cy * chunkSize);
 
         chunk.set(lx, ly, assetId, flags);
+        markVisualBoundsDirty();
     }
 
     public float getTileAltitude(int gx, int gy) {
@@ -326,6 +333,20 @@ public final class TiledMapLayerData {
             chunk.collisionDirty = true;
             chunk.visibleLastFrame = false;
         }
+        markVisualBoundsDirty();
+    }
+
+    public void markVisualBoundsDirty() {
+        visualBoundsDirty = true;
+        hasPreviousChunkWindow = false;
+    }
+
+    public void setVisualPadding(float left, float right, float top, float bottom) {
+        visualPaddingLeft = Math.max(0f, left);
+        visualPaddingRight = Math.max(0f, right);
+        visualPaddingTop = Math.max(0f, top);
+        visualPaddingBottom = Math.max(0f, bottom);
+        visualBoundsDirty = false;
     }
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {

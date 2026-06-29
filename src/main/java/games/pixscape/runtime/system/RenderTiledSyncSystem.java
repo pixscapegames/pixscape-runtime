@@ -3,9 +3,11 @@ package games.pixscape.runtime.system;
 import com.artemis.ComponentMapper;
 import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -24,6 +26,9 @@ import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 
 
 @All({LayerComponent.class, TiledLayerComponent.class})
@@ -37,11 +42,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private final RenderStateSOA state;
     private final AtlasRuntimeService atlasRuntimeService;
     private final int defaultShaderIdx;
+    private final RuntimeTilesetProfiles tilesetProfiles;
     private TileAnimationLookup tileAnimationLookup;
 
     private final Rectangle viewBounds = new Rectangle();
     private final float[] tmpQuad = new float[8];
+    private final float[] tmpSpriteBounds = new float[4];
     private final int[] tmpWindow = new int[4];
+    private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
     private int testedChunkCount;
     private int visibleChunkCount;
     private int shownChunkCount;
@@ -65,6 +73,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 defaultShaderIdx,
                 tiledStart,
                 tiledEnd,
+                null,
                 null
         );
     }
@@ -76,12 +85,33 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                  int tiledStart,
                                  int tiledEnd,
                                  TileAnimationLookup tileAnimationLookup) {
+        this(
+                camera,
+                state,
+                atlasRuntimeService,
+                defaultShaderIdx,
+                tiledStart,
+                tiledEnd,
+                tileAnimationLookup,
+                null
+        );
+    }
+
+    public RenderTiledSyncSystem(OrthographicCamera camera,
+                                 RenderStateSOA state,
+                                 AtlasRuntimeService atlasRuntimeService,
+                                 int defaultShaderIdx,
+                                 int tiledStart,
+                                 int tiledEnd,
+                                 TileAnimationLookup tileAnimationLookup,
+                                 RuntimeTilesetProfiles tilesetProfiles) {
 
         this.camera = camera;
         this.state = state;
         this.atlasRuntimeService = atlasRuntimeService;
         this.defaultShaderIdx = defaultShaderIdx;
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
+        this.tilesetProfiles = tilesetProfiles != null ? tilesetProfiles : RuntimeTilesetProfiles.empty();
     }
 
     @Override
@@ -115,6 +145,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 layer,
                 tiled,
                 mSpatialBlocks.getSafe(e, null));
+        refreshVisualPaddingIfDirty(map, tiled.atlasTag);
         computeChunkWindow(map, tmpWindow);
         int currentMinCx = tmpWindow[0];
         int currentMaxCx = tmpWindow[1];
@@ -282,29 +313,34 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         int minTy = Integer.MAX_VALUE;
         int maxTy = Integer.MIN_VALUE;
 
-        int tx = map.worldToTileX(viewBounds.x, viewBounds.y);
-        int ty = map.worldToTileY(viewBounds.x, viewBounds.y);
+        float queryMinX = viewBounds.x - map.visualPaddingRight;
+        float queryMaxX = viewBounds.x + viewBounds.width + map.visualPaddingLeft;
+        float queryMinY = viewBounds.y - map.visualPaddingTop;
+        float queryMaxY = viewBounds.y + viewBounds.height + map.visualPaddingBottom;
+
+        int tx = map.worldToTileX(queryMinX, queryMinY);
+        int ty = map.worldToTileY(queryMinX, queryMinY);
         minTx = Math.min(minTx, tx);
         maxTx = Math.max(maxTx, tx);
         minTy = Math.min(minTy, ty);
         maxTy = Math.max(maxTy, ty);
 
-        tx = map.worldToTileX(viewBounds.x + viewBounds.width, viewBounds.y);
-        ty = map.worldToTileY(viewBounds.x + viewBounds.width, viewBounds.y);
+        tx = map.worldToTileX(queryMaxX, queryMinY);
+        ty = map.worldToTileY(queryMaxX, queryMinY);
         minTx = Math.min(minTx, tx);
         maxTx = Math.max(maxTx, tx);
         minTy = Math.min(minTy, ty);
         maxTy = Math.max(maxTy, ty);
 
-        tx = map.worldToTileX(viewBounds.x, viewBounds.y + viewBounds.height);
-        ty = map.worldToTileY(viewBounds.x, viewBounds.y + viewBounds.height);
+        tx = map.worldToTileX(queryMinX, queryMaxY);
+        ty = map.worldToTileY(queryMinX, queryMaxY);
         minTx = Math.min(minTx, tx);
         maxTx = Math.max(maxTx, tx);
         minTy = Math.min(minTy, ty);
         maxTy = Math.max(maxTy, ty);
 
-        tx = map.worldToTileX(viewBounds.x + viewBounds.width, viewBounds.y + viewBounds.height);
-        ty = map.worldToTileY(viewBounds.x + viewBounds.width, viewBounds.y + viewBounds.height);
+        tx = map.worldToTileX(queryMaxX, queryMaxY);
+        ty = map.worldToTileY(queryMaxX, queryMaxY);
         minTx = Math.min(minTx, tx);
         maxTx = Math.max(maxTx, tx);
         minTy = Math.min(minTy, ty);
@@ -348,16 +384,90 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     private boolean chunkOverlapsView(TiledMapLayerData map, TileChunk chunk) {
         if (map.projection != SceneMetaRuntime.TiledProjection.ISO) {
-            return viewBounds.overlaps(chunk.bounds);
+            return viewBounds.x < chunk.bounds.x + chunk.bounds.width + map.visualPaddingRight
+                    && viewBounds.x + viewBounds.width > chunk.bounds.x - map.visualPaddingLeft
+                    && viewBounds.y < chunk.bounds.y + chunk.bounds.height + map.visualPaddingTop
+                    && viewBounds.y + viewBounds.height > chunk.bounds.y - map.visualPaddingBottom;
         }
 
-        float padX = Math.max(map.tileWidth, 0);
+        float padX = Math.max(map.tileWidth, Math.max(map.visualPaddingLeft, map.visualPaddingRight));
         float padY = Math.max(map.tileHeight * map.chunkSize, map.tileHeight);
+        float padLeft = Math.max(padX, map.visualPaddingLeft);
+        float padRight = Math.max(padX, map.visualPaddingRight);
+        float padTop = Math.max(padY, map.visualPaddingTop);
+        float padBottom = Math.max(padY, map.visualPaddingBottom);
 
-        return viewBounds.x < chunk.bounds.x + chunk.bounds.width + padX
-                && viewBounds.x + viewBounds.width > chunk.bounds.x - padX
-                && viewBounds.y < chunk.bounds.y + chunk.bounds.height + padY
-                && viewBounds.y + viewBounds.height > chunk.bounds.y - padY;
+        return viewBounds.x < chunk.bounds.x + chunk.bounds.width + padRight
+                && viewBounds.x + viewBounds.width > chunk.bounds.x - padLeft
+                && viewBounds.y < chunk.bounds.y + chunk.bounds.height + padTop
+                && viewBounds.y + viewBounds.height > chunk.bounds.y - padBottom;
+    }
+
+    private void refreshVisualPaddingIfDirty(TiledMapLayerData map, String atlasTag) {
+        if (!map.visualBoundsDirty) return;
+
+        float left = 0f;
+        float right = 0f;
+        float top = 0f;
+        float bottom = 0f;
+
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+
+                for (int ly = 0; ly < chunk.chunkHeight; ly++) {
+                    for (int lx = 0; lx < chunk.chunkWidth; lx++) {
+                        int localIndex = ly * chunk.chunkWidth + lx;
+                        int assetId = chunk.assetIds[localIndex];
+                        if (assetId <= 0) continue;
+
+                        int frameIndex = chunk.getAnimFrameIndex(localIndex);
+                        int visualAssetId = TileAnimationResolver.resolveVisualAssetId(
+                                assetId,
+                                frameIndex,
+                                tileAnimationLookup
+                        );
+
+                        AtlasRuntimeService.CachedRegion cr =
+                                atlasRuntimeService.resolveCached(visualAssetId, atlasTag);
+                        if (cr == null) continue;
+
+                        int gx = chunk.chunkX * map.chunkSize + lx;
+                        int gy = chunk.chunkY * map.chunkSize + ly;
+                        RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(visualAssetId);
+                        if (profile == null) {
+                            reportMissingProfileOnce(visualAssetId, assetId, atlasTag);
+                            continue;
+                        }
+
+                        TileQuadTransforms.buildSpriteQuad(
+                                map,
+                                gx,
+                                gy,
+                                cr.pixW,
+                                cr.pixH,
+                                profile,
+                                chunk.transformFlags[localIndex],
+                                tmpQuad
+                        );
+                        TileProfilePlacement.computeSpriteBounds(tmpQuad, tmpSpriteBounds);
+
+                        float cellX = map.tileToWorldX(gx, gy);
+                        float cellY = map.tileToWorldY(gx, gy);
+                        float cellRight = cellX + map.tileWidth;
+                        float cellTop = cellY + map.tileHeight;
+
+                        left = Math.max(left, cellX - tmpSpriteBounds[0]);
+                        right = Math.max(right, tmpSpriteBounds[2] - cellRight);
+                        bottom = Math.max(bottom, cellY - tmpSpriteBounds[1]);
+                        top = Math.max(top, tmpSpriteBounds[3] - cellTop);
+                    }
+                }
+            }
+        }
+
+        map.setVisualPadding(left, right, top, bottom);
     }
 
     private void hideChunkSlots(TileChunk chunk) {
@@ -453,12 +563,20 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             return;
         }
 
+        RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(visualAssetId);
+        if (profile == null) {
+            reportMissingProfileOnce(visualAssetId, assetId, atlasTag);
+            state.disable(slot);
+            return;
+        }
+
         TileQuadTransforms.buildSpriteQuad(
                 map,
                 gx,
                 gy,
                 cr.pixW,
                 cr.pixH,
+                profile,
                 transformFlags,
                 tmpQuad
         );
@@ -512,6 +630,22 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         );
 
         state.entityId[slot] = -1;
+    }
+
+    private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {
+        if (visualAssetId <= 0 || reportedMissingProfileTileAssetIds.contains(visualAssetId)) {
+            return;
+        }
+        reportedMissingProfileTileAssetIds.add(visualAssetId);
+
+        String message = "Missing tileset profile for tile asset " + visualAssetId
+                + " (logical tile asset " + logicalAssetId
+                + ", atlasTag " + (atlasTag != null ? atlasTag : "<none>") + ")";
+        if (Gdx.app != null) {
+            Gdx.app.error("RenderTiledSyncSystem", message);
+        } else {
+            System.err.println("[RenderTiledSyncSystem] " + message);
+        }
     }
 
     private static int clampSortZ(int value) {

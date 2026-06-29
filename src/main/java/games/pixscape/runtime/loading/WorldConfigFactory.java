@@ -15,6 +15,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.*;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -167,6 +168,44 @@ public final class WorldConfigFactory {
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
+        return buildWorld(
+                camera,
+                renderState,
+                layerState,
+                drawList,
+                stats,
+                defaultShaderIdx,
+                atlasRuntimeService,
+                effectsRoot,
+                submitSupplier,
+                meta,
+                tiledBudget,
+                animatedTileRegistry,
+                null,
+                systemProfiler,
+                preRenderCustomizer,
+                postRenderCustomizer
+        );
+    }
+
+    public static WorldBootstrapResult buildWorld(
+            OrthographicCamera camera,
+            RenderStateSOA renderState,
+            LayerStateSOA layerState,
+            DrawList drawList,
+            RenderStats stats,
+            int defaultShaderIdx,
+            AtlasRuntimeService atlasRuntimeService,
+            FileHandle effectsRoot,
+            Supplier<BaseSystem> submitSupplier,
+            SceneMetaRuntime meta,
+            int tiledBudget,
+            TileAnimationRegistry animatedTileRegistry,
+            RuntimeTilesetProfiles tilesetProfiles,
+            SystemProfiler systemProfiler,
+            Consumer<WorldConfigurationBuilder> preRenderCustomizer,
+            Consumer<WorldConfigurationBuilder> postRenderCustomizer
+    ) {
 
         int ecsStart = 0;
         int ecsEnd = ECS_WATERMARK;
@@ -201,6 +240,7 @@ public final class WorldConfigFactory {
                 vfxStart,
                 totalCapacity,
                 effectiveAnimatedTileRegistry,
+                tilesetProfiles,
                 systemProfiler
         );
 
@@ -258,6 +298,7 @@ public final class WorldConfigFactory {
             int vfxStartIndex,
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
+            RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler
     ) {
         builder.with(
@@ -278,7 +319,8 @@ public final class WorldConfigFactory {
                         defaultShaderIdx,
                         tiledStart,
                         tiledEnd,
-                        animatedTileRegistry
+                        animatedTileRegistry,
+                        tilesetProfiles
                 ), systemProfiler),
                 profiled(new RenderParticleSyncSystem(
                         renderState,

@@ -14,7 +14,13 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,7 +38,7 @@ public class RenderTiledSyncSystemTest {
 
         // Initial frame in view => FULL build.
         fixture.world.process();
-        Assert.assertEquals("Initial build should resolve only non-empty tiles", 3, fixture.atlas.resolveCalls);
+        Assert.assertEquals("Initial build should resolve non-empty tiles for padding and slot build", 6, fixture.atlas.resolveCalls);
         Assert.assertEquals(2, fixture.drawList.size);
         Assert.assertEquals("Visible chunk slots should be published for draw-list extraction", 4, fixture.state.tiledVisibleSlotCount);
 
@@ -318,7 +324,22 @@ public class RenderTiledSyncSystemTest {
         DrawList drawList = new DrawList(512);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                512,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1,
+                        2
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))                .build());
@@ -362,6 +383,245 @@ public class RenderTiledSyncSystemTest {
         Assert.assertTrue("Layer B chunk should now be visible", bChunk.visibleLastFrame);
     }
 
+    @Test
+    public void missingProfileDisablesTileWithoutCrash() {
+        Fixture fixture = createProfilePlacementFixture(
+                RuntimeTilesetProfiles.empty(),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                64,
+                32,
+                64,
+                32,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        Assert.assertFalse(fixture.state.enabled[96]);
+        Assert.assertFalse(fixture.state.visible[96]);
+    }
+
+    @Test
+    public void topCenterProfileMatchesDefaultAnchorPlacementInRenderSync() {
+        RuntimeTilesetProfiles profiles = profilesWith(profile(
+                1,
+                RuntimeTilesetAnchor.TOP_CENTER,
+                64,
+                32,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO
+        ));
+        Fixture fixture = createProfilePlacementFixture(
+                profiles,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                64,
+                32,
+                64,
+                32,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        float[] expected = new float[8];
+        TileProfilePlacement.buildTopCenterDefaultSpriteQuad(100f, 200f, 64, 32, 64, 32, expected);
+        assertSlotQuad(fixture.state, 96, expected);
+    }
+
+    @Test
+    public void tallIsometricTopCenterProfileUsesProfilePlacement() {
+        RuntimeTilesetProfile profile = profile(
+                1,
+                RuntimeTilesetAnchor.TOP_CENTER,
+                256,
+                128,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(profile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
+        assertSlotQuad(fixture.state, 96, expected);
+        assertVisualPadding(fixture.map, 0f, 0f, 0f, 384f);
+    }
+
+    @Test
+    public void bottomCenterProfileChangesRenderedPlacement() {
+        RuntimeTilesetProfile profile = profile(
+                1,
+                RuntimeTilesetAnchor.BOTTOM_CENTER,
+                256,
+                128,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(profile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        float[] topCenterDefault = new float[8];
+        TileProfilePlacement.buildTopCenterDefaultSpriteQuad(100f, 200f, 256, 128, 256, 512, topCenterDefault);
+        float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
+
+        assertSlotQuad(fixture.state, 96, expected);
+        Assert.assertNotEquals("bottom-center should move the sprite away from top-center default", topCenterDefault[1], expected[1], 0.0001f);
+        assertVisualPadding(fixture.map, 0f, 0f, 384f, 0f);
+    }
+
+    @Test
+    public void profileOffsetAffectsRenderedQuad() {
+        RuntimeTilesetProfile profile = profile(
+                1,
+                RuntimeTilesetAnchor.BOTTOM_CENTER,
+                256,
+                128,
+                10,
+                -20,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(profile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
+        assertSlotQuad(fixture.state, 96, expected);
+        assertVisualPadding(fixture.map, 0f, 10f, 364f, 20f);
+    }
+
+    @Test
+    public void missingProfileDoesNotContributeVisualPadding() {
+        RuntimeTilesetProfile unrelatedProfile = profile(
+                2,
+                RuntimeTilesetAnchor.BOTTOM_CENTER,
+                256,
+                128,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(unrelatedProfile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.NONE
+        );
+
+        fixture.world.process();
+
+        Assert.assertFalse(fixture.state.enabled[96]);
+        Assert.assertFalse(fixture.state.visible[96]);
+        assertVisualPadding(fixture.map, 0f, 0f, 0f, 0f);
+    }
+
+    @Test
+    public void profileVisualPaddingKeepsChunkVisibleWhenViewOnlyOverlapsSprite() {
+        RuntimeTilesetProfile profile = profile(
+                1,
+                RuntimeTilesetAnchor.TOP_CENTER,
+                256,
+                128,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(profile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.NONE,
+                32f,
+                32f,
+                228f,
+                -100f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals("View overlapping only the sprite should still render the tile", 1, fixture.drawList.size);
+        Assert.assertTrue("Profile-expanded overlap should keep the owning chunk visible", fixture.tiledSync.getVisibleChunkCount() >= 1);
+        assertVisualPadding(fixture.map, 0f, 0f, 0f, 384f);
+    }
+
+    @Test
+    public void transformFlagsStillApplyAfterProfilePlacement() {
+        RuntimeTilesetProfile profile = profile(
+                1,
+                RuntimeTilesetAnchor.BOTTOM_CENTER,
+                256,
+                128,
+                0,
+                0,
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+        );
+        Fixture fixture = createProfilePlacementFixture(
+                profilesWith(profile),
+                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                256,
+                128,
+                256,
+                512,
+                1,
+                TileTransformFlags.FLIP_H
+        );
+
+        fixture.world.process();
+
+        float[] expected = new float[8];
+        games.pixscape.runtime.tiled.TileQuadTransforms.buildSpriteQuad(
+                fixture.map,
+                0,
+                0,
+                256,
+                512,
+                profile,
+                TileTransformFlags.FLIP_H,
+                expected
+        );
+        assertSlotQuad(fixture.state, 96, expected);
+    }
+
     private static Fixture createSingleChunkFixture() {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
@@ -375,7 +635,23 @@ public class RenderTiledSyncSystemTest {
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 256);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                256,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1,
+                        2,
+                        3
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
@@ -416,7 +692,22 @@ public class RenderTiledSyncSystemTest {
 
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
 
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 256);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                256,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1,
+                        2
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
@@ -459,7 +750,22 @@ public class RenderTiledSyncSystemTest {
         DrawList drawList = new DrawList(4096);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 4096);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                4096,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1,
+                        2
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
@@ -493,7 +799,21 @@ public class RenderTiledSyncSystemTest {
         DrawList drawList = new DrawList(512);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                512,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        1
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
@@ -530,7 +850,21 @@ public class RenderTiledSyncSystemTest {
         DrawList drawList = new DrawList(20000);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new TallCountingAtlasRuntimeService();
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 20000);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                state,
+                atlas,
+                7,
+                64,
+                20000,
+                null,
+                topCenterProfiles(
+                        64,
+                        32,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        1
+                )
+        );
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
@@ -552,6 +886,76 @@ public class RenderTiledSyncSystemTest {
         return new Fixture(world, camera, state, drawList, atlas, map, tiledSync);
     }
 
+    private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
+                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         int cellWidth,
+                                                         int cellHeight,
+                                                         int spriteWidth,
+                                                         int spriteHeight,
+                                                         int tileId,
+                                                         byte transformFlags) {
+        return createProfilePlacementFixture(
+                profiles,
+                projection,
+                cellWidth,
+                cellHeight,
+                spriteWidth,
+                spriteHeight,
+                tileId,
+                transformFlags,
+                1024f,
+                1024f,
+                228f,
+                264f
+        );
+    }
+
+    private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
+                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         int cellWidth,
+                                                         int cellHeight,
+                                                         int spriteWidth,
+                                                         int spriteHeight,
+                                                         int tileId,
+                                                         byte transformFlags,
+                                                         float viewportWidth,
+                                                         float viewportHeight,
+                                                         float cameraX,
+                                                         float cameraY) {
+        OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
+        camera.position.set(cameraX, cameraY, 0f);
+
+        RenderStateSOA state = new RenderStateSOA(512);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+
+        DrawList drawList = new DrawList(512);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new SizedCountingAtlasRuntimeService(spriteWidth, spriteHeight);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, atlas, 7, 64, 512, null, profiles);
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(tiledSync, new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
+                .build());
+
+        Entity layerEntity = world.createEntity();
+        LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.layerIndex = 0;
+
+        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+
+        TiledMapLayerData map = new TiledMapLayerData(1, 1, cellWidth, cellHeight, 1, projection);
+        map.originX = 100f;
+        map.originY = 200f;
+        map.initSlotRange(96, 128);
+        map.setTile(0, 0, tileId, transformFlags);
+        tiled.data = map;
+
+        return new Fixture(world, camera, state, drawList, atlas, map, tiledSync);
+    }
+
     private static TileChunk findChunk(TiledMapLayerData map, int cx, int cy) {
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
@@ -561,6 +965,94 @@ public class RenderTiledSyncSystemTest {
             }
         }
         throw new AssertionError("Chunk not found: (" + cx + "," + cy + ")");
+    }
+
+    private static RuntimeTilesetProfile profile(int tileAssetId,
+                                                 RuntimeTilesetAnchor anchor,
+                                                 int referenceCellWidth,
+                                                 int referenceCellHeight,
+                                                 int offsetX,
+                                                 int offsetY,
+                                                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
+        RuntimeTilesetProfile profile = new RuntimeTilesetProfile();
+        profile.tilesetId = 1;
+        profile.referenceCellWidth = referenceCellWidth;
+        profile.referenceCellHeight = referenceCellHeight;
+        profile.projection = projection;
+        profile.anchor = anchor;
+        profile.offsetX = offsetX;
+        profile.offsetY = offsetY;
+        profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
+        profile.tileAssetIds = new int[]{tileAssetId};
+        return profile;
+    }
+
+    private static RuntimeTilesetProfiles profilesWith(RuntimeTilesetProfile profile) {
+        RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
+        profiles.add(profile);
+        return profiles;
+    }
+
+    private static RuntimeTilesetProfiles topCenterProfiles(int referenceCellWidth,
+                                                            int referenceCellHeight,
+                                                            games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                            int... tileAssetIds) {
+        RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
+        for (int tileAssetId : tileAssetIds) {
+            profiles.add(profile(
+                    tileAssetId,
+                    RuntimeTilesetAnchor.TOP_CENTER,
+                    referenceCellWidth,
+                    referenceCellHeight,
+                    0,
+                    0,
+                    projection
+            ));
+        }
+        return profiles;
+    }
+
+    private static float[] expectedProfileQuad(TiledMapLayerData map,
+                                               RuntimeTilesetProfile profile,
+                                               int spriteWidth,
+                                               int spriteHeight) {
+        float[] expected = new float[8];
+        TileProfilePlacement.buildSpriteQuad(
+                map.tileToWorldX(0, 0),
+                map.tileToWorldY(0, 0),
+                map.tileWidth,
+                map.tileHeight,
+                spriteWidth,
+                spriteHeight,
+                profile,
+                expected
+        );
+        return expected;
+    }
+
+    private static void assertSlotQuad(RenderStateSOA state, int slot, float[] expected) {
+        Assert.assertTrue("slot should be enabled", state.enabled[slot]);
+        Assert.assertTrue("slot should be visible", state.visible[slot]);
+        Assert.assertEquals(expected[0], state.x1[slot], 0.0001f);
+        Assert.assertEquals(expected[1], state.y1[slot], 0.0001f);
+        Assert.assertEquals(expected[2], state.x2[slot], 0.0001f);
+        Assert.assertEquals(expected[3], state.y2[slot], 0.0001f);
+        Assert.assertEquals(expected[4], state.x3[slot], 0.0001f);
+        Assert.assertEquals(expected[5], state.y3[slot], 0.0001f);
+        Assert.assertEquals(expected[6], state.x4[slot], 0.0001f);
+        Assert.assertEquals(expected[7], state.y4[slot], 0.0001f);
+    }
+
+    private static void assertVisualPadding(TiledMapLayerData map,
+                                            float left,
+                                            float right,
+                                            float top,
+                                            float bottom) {
+        Assert.assertEquals(left, map.visualPaddingLeft, 0.0001f);
+        Assert.assertEquals(right, map.visualPaddingRight, 0.0001f);
+        Assert.assertEquals(top, map.visualPaddingTop, 0.0001f);
+        Assert.assertEquals(bottom, map.visualPaddingBottom, 0.0001f);
+        Assert.assertFalse("visual padding should be cached after processing", map.visualBoundsDirty);
     }
 
     private static final class Fixture {
@@ -625,6 +1117,34 @@ public class RenderTiledSyncSystemTest {
                         301,
                         64,
                         128
+                );
+            }
+            return null;
+        }
+    }
+
+    private static final class SizedCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
+        private final int spriteWidth;
+        private final int spriteHeight;
+
+        private SizedCountingAtlasRuntimeService(int spriteWidth, int spriteHeight) {
+            this.spriteWidth = spriteWidth;
+            this.spriteHeight = spriteHeight;
+        }
+
+        @Override
+        public CachedRegion resolveCached(int assetId, String tag) {
+            resolveCalls++;
+            if (assetId == 1) {
+                return new CachedRegion(
+                        "tile-" + assetId,
+                        0f,
+                        0f,
+                        1f,
+                        1f,
+                        400 + assetId,
+                        spriteWidth,
+                        spriteHeight
                 );
             }
             return null;
