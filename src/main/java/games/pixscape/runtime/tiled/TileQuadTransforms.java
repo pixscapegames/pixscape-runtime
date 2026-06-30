@@ -112,23 +112,23 @@ public final class TileQuadTransforms {
                 break;
             }
             case TileTransformFlags.FLIP_D: {
-                tx = ly;
-                ty = lx;
+                tx = -ly;
+                ty = -lx;
                 break;
             }
             case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H: {
-                tx = -ly;
-                ty = lx;
-                break;
-            }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = ly;
                 ty = -lx;
                 break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = -ly;
-                ty = -lx;
+                ty = lx;
+                break;
+            }
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
+                tx = ly;
+                ty = lx;
                 break;
             }
             default: {
