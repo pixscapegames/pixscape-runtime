@@ -24,6 +24,8 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 
 public final class RenderSubmitSystem extends BaseSystem implements ProfiledSystem {
+    private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
+    private static final float AXIS_EPSILON = 0.0001f;
 
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
@@ -39,6 +41,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final ShaderMode fallbackShaderMode;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private final int[] repeatRange = new int[4];
 
     // --- ECS : params de shader par entity ---
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
@@ -255,21 +258,131 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             float ox = state.offsetX[slot];
             float oy = state.offsetY[slot];
 
-            metricsBatch.draw(
-                    texHandle,
-                    state.x1[slot] + ox, state.y1[slot] + oy,
-                    state.x2[slot] + ox, state.y2[slot] + oy,
-                    state.x3[slot] + ox, state.y3[slot] + oy,
-                    state.x4[slot] + ox, state.y4[slot] + oy,
-                    state.u1[slot], state.v1[slot],
-                    state.u2[slot], state.v2[slot],
-                    stats
-            );
-
-            stats.drawnQuads++;
+            byte repeat = state.repeatFlags[slot];
+            if ((repeat & RenderRepeatFlags.ANY) == 0) {
+                drawNormalSlot(slot, texHandle, ox, oy);
+            } else {
+                drawRepeatedSlot(slot, texHandle, ox, oy, repeat);
+            }
         }
 
         metricsBatch.end(stats);
+    }
+
+    private void drawNormalSlot(int slot, int texHandle, float ox, float oy) {
+        metricsBatch.draw(
+                texHandle,
+                state.x1[slot] + ox, state.y1[slot] + oy,
+                state.x2[slot] + ox, state.y2[slot] + oy,
+                state.x3[slot] + ox, state.y3[slot] + oy,
+                state.x4[slot] + ox, state.y4[slot] + oy,
+                state.u1[slot], state.v1[slot],
+                state.u2[slot], state.v2[slot],
+                stats
+        );
+
+        stats.drawnQuads++;
+    }
+
+    private void drawRepeatedSlot(int slot, int texHandle, float ox, float oy, byte repeat) {
+        float x1 = state.x1[slot];
+        float y1 = state.y1[slot];
+        float x2 = state.x2[slot];
+        float y2 = state.y2[slot];
+        float x3 = state.x3[slot];
+        float y3 = state.y3[slot];
+        float x4 = state.x4[slot];
+        float y4 = state.y4[slot];
+
+        // V1 repeat is axis-aligned only. Rotated quads can be added here later
+        // once repeat ranges are computed from oriented bounds.
+        if (!isAxisAligned(x1, y1, x2, y2, x3, y3, x4, y4)) {
+            drawNormalSlot(slot, texHandle, ox, oy);
+            return;
+        }
+
+        float baseMinX = min4(x1, x2, x3, x4) + ox;
+        float baseMaxX = max4(x1, x2, x3, x4) + ox;
+        float baseMinY = min4(y1, y2, y3, y4) + oy;
+        float baseMaxY = max4(y1, y2, y3, y4) + oy;
+
+        float stepX = baseMaxX - baseMinX;
+        float stepY = baseMaxY - baseMinY;
+
+        if (((repeat & RenderRepeatFlags.REPEAT_X) != 0 && stepX <= 0f)
+                || ((repeat & RenderRepeatFlags.REPEAT_Y) != 0 && stepY <= 0f)) {
+            drawNormalSlot(slot, texHandle, ox, oy);
+            return;
+        }
+
+        float viewportW = cam.viewportWidth * cam.zoom;
+        float viewportH = cam.viewportHeight * cam.zoom;
+        float viewportMinX = cam.position.x - viewportW * 0.5f;
+        float viewportMaxX = cam.position.x + viewportW * 0.5f;
+        float viewportMinY = cam.position.y - viewportH * 0.5f;
+        float viewportMaxY = cam.position.y + viewportH * 0.5f;
+
+        boolean hasVisibleCopies = RenderRepeatMath.calculateVisibleRange(
+                viewportMinX,
+                viewportMaxX,
+                viewportMinY,
+                viewportMaxY,
+                baseMinX,
+                baseMaxX,
+                baseMinY,
+                baseMaxY,
+                repeat,
+                MAX_REPEAT_DRAWS_PER_SLOT,
+                repeatRange
+        );
+
+        if (!hasVisibleCopies) {
+            return;
+        }
+
+        for (int iy = repeatRange[2]; iy <= repeatRange[3]; iy++) {
+            float dy = iy * stepY;
+
+            for (int ix = repeatRange[0]; ix <= repeatRange[1]; ix++) {
+                float dx = ix * stepX;
+
+                metricsBatch.draw(
+                        texHandle,
+                        x1 + ox + dx, y1 + oy + dy,
+                        x2 + ox + dx, y2 + oy + dy,
+                        x3 + ox + dx, y3 + oy + dy,
+                        x4 + ox + dx, y4 + oy + dy,
+                        state.u1[slot], state.v1[slot],
+                        state.u2[slot], state.v2[slot],
+                        stats
+                );
+
+                stats.drawnQuads++;
+            }
+        }
+    }
+
+    private static boolean isAxisAligned(
+            float x1, float y1,
+            float x2, float y2,
+            float x3, float y3,
+            float x4, float y4) {
+        return nearlyEqual(x1, x2)
+                && nearlyEqual(x3, x4)
+                && nearlyEqual(y1, y4)
+                && nearlyEqual(y2, y3);
+    }
+
+    private static boolean nearlyEqual(float a, float b) {
+        return Math.abs(a - b) <= AXIS_EPSILON;
+    }
+
+    private static float min4(float a, float b, float c, float d) {
+        return Math.min(Math.min(a, b), Math.min(c, d));
+    }
+
+    private static float max4(float a, float b, float c, float d) {
+        return Math.max(Math.max(a, b), Math.max(c, d));
     }
 
     private static int hashShaderParams(Array<ShaderFloatParam> floats) {

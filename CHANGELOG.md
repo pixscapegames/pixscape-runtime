@@ -9,6 +9,7 @@
 * Added profile-aware tiled sprite placement support for native-size tiles.
 * Added support for tileset anchors, cell size, projection, offsets and native render size in tiled placement.
 * Added profile-aware placement tests for tall isometric tiles, offsets and anchor behavior.
+* Added efficient repeated renderables for backgrounds and parallax-style layers. Repeated images are expanded at render-submit time while preserving atlas and batch compatibility.
 
 ### Changed
 
@@ -21,6 +22,7 @@
 * Fixed runtime placement support for tiles whose native image size differs from their logical tiled cell size.
 * Fixed tall/isometric tiles requiring explicit placement metadata instead of relying on implicit tile-size assumptions.
 * Fixed missing tileset profiles being reported as diagnostics instead of silently falling back to legacy placement.
+* Fixed diagonal tiled transform mappings so all 8 Tiled flip/diagonal combinations match Tiled's expected rendering behavior.
 
 ### Tests
 

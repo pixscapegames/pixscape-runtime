@@ -11,6 +11,7 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.RenderStateSOA;
 
 public final class CullingSystem extends IteratingSystem implements ProfiledSystem {
@@ -97,7 +98,13 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
         minY += oy;
         maxY += oy;
 
-        boolean overlap = !(maxX < frMinX || minX > frMaxX || maxY < frMinY || minY > frMaxY);
+        byte repeatFlags = renderState.repeatFlags[e];
+        boolean repeatX = (repeatFlags & RenderRepeatFlags.REPEAT_X) != 0;
+        boolean repeatY = (repeatFlags & RenderRepeatFlags.REPEAT_Y) != 0;
+
+        boolean overlapX = repeatX || !(maxX < frMinX || minX > frMaxX);
+        boolean overlapY = repeatY || !(maxY < frMinY || minY > frMaxY);
+        boolean overlap = overlapX && overlapY;
 
         v.inView = overlap;
         v.culledByFrustum = !overlap;

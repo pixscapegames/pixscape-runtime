@@ -44,6 +44,7 @@ public final class RenderStateSOA {
     public int[] z;
     public int[] paramsId;
     public int[] customParamsId;
+    public byte[] repeatFlags;
 
     /**
      * Runtime-specific internal order (Talos, Spine, Pixscape...).
@@ -108,6 +109,7 @@ public final class RenderStateSOA {
         z = new int[capacity];
         paramsId = new int[capacity];
         customParamsId = new int[capacity];
+        repeatFlags = new byte[capacity];
 
         runtimeOrder = new int[capacity];
 
@@ -135,6 +137,7 @@ public final class RenderStateSOA {
         kind[entity] = KIND_NONE;
         sortKey[entity] = 0L;
         textureHandle[entity] = 0;
+        repeatFlags[entity] = RenderRepeatFlags.NONE;
 
         offsetX[entity] = 0f;
         offsetY[entity] = 0f;
@@ -194,6 +197,7 @@ public final class RenderStateSOA {
             entityId[i] = 0;
             offsetX[i] = 0f;
             offsetY[i] = 0f;
+            repeatFlags[i] = RenderRepeatFlags.NONE;
             runtimeOrder[i] = 0;
         }
         maxEntityId = -1;

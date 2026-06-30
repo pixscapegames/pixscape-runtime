@@ -36,11 +36,13 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
     private ComponentMapper<RenderMaterialComponent> mMat;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TintComponent> mTint;
+    private ComponentMapper<RenderRepeatComponent> mRepeat;
 
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
+    private ComponentMapper<AnimationComponent> mAnimation;
 
     private EntitySubscription spriteSub;
 
@@ -192,6 +194,16 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                 state.enabled[e] = true;
                 state.visible[e] = true;
             }
+
+            byte repeatFlags = RenderRepeatFlags.NONE;
+            if (!isLight && !mAnimation.has(e)) {
+                RenderRepeatComponent repeat = mRepeat.getSafe(e, null);
+                if (repeat != null) {
+                    if (repeat.repeatX) repeatFlags |= RenderRepeatFlags.REPEAT_X;
+                    if (repeat.repeatY) repeatFlags |= RenderRepeatFlags.REPEAT_Y;
+                }
+            }
+            state.repeatFlags[e] = RenderRepeatFlags.sanitize(repeatFlags);
 
             // --- GEOMETRY: corners ---
             if ((mask & DirtyBits.GEOMETRY) != 0) {
