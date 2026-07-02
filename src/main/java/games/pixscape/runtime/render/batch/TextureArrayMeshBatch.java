@@ -119,6 +119,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.projDirty = true;  // projection potentially different at each begin()
         this.arrayBound = false; // restart "clean" at each begin/end
         this.regionResolveCache.clear();
+        this.regionResolveCache.clearStats();
+        syncRegionResolveCacheStats(stats);
 
         // Prepare shader + uniforms + TA bind once, not every flush
         prepareDrawState(stats);
@@ -195,7 +197,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         if (!hasBundle() || shader == null) return;
 
-        int layer = resolveLayer(textureHandle);
+        int layer = resolveLayer(textureHandle, stats);
         if (layer < 0) return;
 
         drawTextureArrayQuad(textureHandle, layer,
@@ -208,6 +210,9 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     public void flush(RenderStats s) {
         if (quadCount == 0 || shader == null || !hasBundle()) return;
 
+        int flushedQuadCount = quadCount;
+        int flushedVertexCount = vertCount;
+
         // Upload vertices
         mesh.setVertices(verts, 0, vertCount * VERT_STRIDE);
 
@@ -219,6 +224,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         if (s != null) {
             s.flushes++;
             s.drawCalls++;
+            s.flushedQuads += flushedQuadCount;
+            s.flushedVertices += flushedVertexCount;
         }
 
         vertCount = 0;
@@ -254,11 +261,19 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     }
 
     public boolean hasTextureHandle(int textureHandle) {
-        return hasBundle() && resolveLayer(textureHandle) >= 0;
+        return hasBundle() && resolveLayer(textureHandle, stats) >= 0;
     }
 
-    private int resolveLayer(int textureHandle) {
-        return regionResolveCache.resolveLayer(textureHandle, handle2layer);
+    private int resolveLayer(int textureHandle, RenderStats stats) {
+        int layer = regionResolveCache.resolveLayer(textureHandle, handle2layer);
+        syncRegionResolveCacheStats(stats);
+        return layer;
+    }
+
+    private void syncRegionResolveCacheStats(RenderStats stats) {
+        if (stats == null) return;
+        stats.regionResolveCacheHits = regionResolveCache.hitCount();
+        stats.regionResolveCacheMisses = regionResolveCache.missCount();
     }
 
     // --------------------------------------------------------------------
@@ -279,6 +294,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         if (shader == null || !hasBundle()) return;
 
         shader.bind();
+        if (stats != null) stats.shaderBinds++;
 
         if (uProjTransLoc < 0 || uArrayLoc < 0) {
             // if setShader was called before shader.getUniformLocation was available (rare),
@@ -290,6 +306,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         if (projDirty && uProjTransLoc >= 0) {
             shader.setUniformMatrix(uProjTransLoc, combined);
             projDirty = false;
+            if (stats != null) stats.projectionUploads++;
         }
 
         // TextureArray bind + uniform u_array:
@@ -303,6 +320,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
             // keep TU0 active to stay clean
             Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        } else if (stats != null) {
+            stats.textureArrayBindSkips++;
         }
     }
 
@@ -313,7 +332,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                                       float u, float v, float u2, float v2,
                                       RenderStats stats) {
 
-        if (quadCount >= maxQuads) flush(stats);
+        if (quadCount >= maxQuads) {
+            if (stats != null) stats.flushCapacity++;
+            flush(stats);
+        }
 
         float fl = (float) layer;
 
@@ -355,6 +377,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         vertCount += 4;
         quadCount += 1;
+        if (stats != null) stats.submittedQuads++;
     }
 
     public AtlasRuntimeService.TextureArrayBundle getBundle() {

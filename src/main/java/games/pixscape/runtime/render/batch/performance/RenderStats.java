@@ -16,10 +16,17 @@ public final class RenderStats {
     public int shaderSwitches;
     public int shaderBinds;
     public int textureBinds;
+    public int textureArrayBindSkips;
+    public int projectionUploads;
+    public int submittedQuads;
+    public int flushedQuads;
+    public int flushedVertices;
     public int framebufferBinds;
-    public int framebufferSwitchs;
+    public int framebufferSwitches;
     public int blendModeSwitches;
     public int blendSwitches;
+    public long regionResolveCacheHits;
+    public long regionResolveCacheMisses;
 
     // Organisation
     public int batchesOpaque;
@@ -30,7 +37,9 @@ public final class RenderStats {
     public void reset() {
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
         drawCalls = flushes = flushStateChanges = flushCapacity = flushEnd = shaderSwitches = shaderBinds = textureBinds = 0;
-        framebufferBinds = blendModeSwitches = framebufferSwitchs = blendSwitches = 0;
+        textureArrayBindSkips = projectionUploads = submittedQuads = flushedQuads = flushedVertices = 0;
+        framebufferBinds = blendModeSwitches = framebufferSwitches = blendSwitches = 0;
+        regionResolveCacheHits = regionResolveCacheMisses = 0L;
         batchesOpaque = batchesAlpha = 0;
         buildDrawListScannedEcsSlots = 0;
         buildDrawListScannedTiledSlots = 0;
@@ -47,10 +56,17 @@ public final class RenderStats {
         shaderSwitches += other.shaderSwitches;
         shaderBinds += other.shaderBinds;
         textureBinds += other.textureBinds;
+        textureArrayBindSkips += other.textureArrayBindSkips;
+        projectionUploads += other.projectionUploads;
+        submittedQuads += other.submittedQuads;
+        flushedQuads += other.flushedQuads;
+        flushedVertices += other.flushedVertices;
         framebufferBinds += other.framebufferBinds;
-        framebufferSwitchs += other.framebufferSwitchs;
+        framebufferSwitches += other.framebufferSwitches;
         blendModeSwitches += other.blendModeSwitches;
         blendSwitches += other.blendSwitches;
+        regionResolveCacheHits += other.regionResolveCacheHits;
+        regionResolveCacheMisses += other.regionResolveCacheMisses;
         batchesOpaque += other.batchesOpaque;
         batchesAlpha += other.batchesAlpha;
         flushStateChanges += other.flushStateChanges;
