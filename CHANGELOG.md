@@ -10,12 +10,25 @@
 * Added support for tileset anchors, cell size, projection, offsets and native render size in tiled placement.
 * Added profile-aware placement tests for tall isometric tiles, offsets and anchor behavior.
 * Added efficient repeated renderables for backgrounds and parallax-style layers. Repeated images are expanded at render-submit time while preserving atlas and batch compatibility.
+* Added render statistics for TextureArray batch diagnostics:
+  * texture binds
+  * texture array bind skips
+  * shader binds
+  * projection uploads
+  * submitted quads
+  * flushed quads
+  * flushed vertices
+  * capacity-triggered flushes
+  * region resolve cache hits and misses
 
 ### Changed
 
 * Tiled runtime rendering now uses tileset profile placement when profile metadata is available.
 * Tiled transform flags are still applied after base profile placement.
 * Runtime project loading now carries tileset profile metadata into tiled rendering systems.
+* Optimized TextureArrayMeshBatch region resolution with a small RegionResolveCache.
+* Reduced redundant TextureArray state changes across batch flushes. 
+* Improved TextureArray batch state tracking for projection uploads, shader uniforms and texture array binding.
 
 ### Fixed
 
@@ -23,6 +36,7 @@
 * Fixed tall/isometric tiles requiring explicit placement metadata instead of relying on implicit tile-size assumptions.
 * Fixed missing tileset profiles being reported as diagnostics instead of silently falling back to legacy placement.
 * Fixed diagonal tiled transform mappings so all 8 Tiled flip/diagonal combinations match Tiled's expected rendering behavior.
+* Avoided unnecessary TextureArray rebinds during repeated batch flushes when the active bundle has not changed.
 
 ### Tests
 
