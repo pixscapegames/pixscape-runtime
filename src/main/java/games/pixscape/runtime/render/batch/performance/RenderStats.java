@@ -36,6 +36,9 @@ public final class RenderStats {
     public int frameQueueQuads;
     public int frameQueuePeakCapacity;
     public int frameQueueGrowthCount;
+    public int vfxActiveParticles;
+    public int vfxPeakCapacity;
+    public int vfxGrowthCount;
 
     public void reset() {
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
@@ -49,6 +52,9 @@ public final class RenderStats {
         frameQueueQuads = 0;
         frameQueuePeakCapacity = 0;
         frameQueueGrowthCount = 0;
+        vfxActiveParticles = 0;
+        vfxPeakCapacity = 0;
+        vfxGrowthCount = 0;
 
     }
 
@@ -83,5 +89,8 @@ public final class RenderStats {
         frameQueueQuads += other.frameQueueQuads;
         frameQueuePeakCapacity = Math.max(frameQueuePeakCapacity, other.frameQueuePeakCapacity);
         frameQueueGrowthCount += other.frameQueueGrowthCount;
+        vfxActiveParticles += other.vfxActiveParticles;
+        vfxPeakCapacity = Math.max(vfxPeakCapacity, other.vfxPeakCapacity);
+        vfxGrowthCount += other.vfxGrowthCount;
     }
 }

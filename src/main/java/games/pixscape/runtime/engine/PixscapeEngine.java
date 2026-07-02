@@ -65,6 +65,7 @@ public final class PixscapeEngine {
     private LayerStateSOA layerState;
     private DrawList drawList;
     private FrameRenderQueue frameQueue;
+    private VfxRenderState vfxState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
     private float ambientMulG = 1f;
@@ -290,9 +291,10 @@ public final class PixscapeEngine {
         renderState = new RenderStateSOA();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
 
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -305,6 +307,7 @@ public final class PixscapeEngine {
                         layerState,
                         drawList,
                         frameQueue,
+                        vfxState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -537,6 +540,10 @@ public final class PixscapeEngine {
         return frameQueue;
     }
 
+    public VfxRenderState getVfxState() {
+        return vfxState;
+    }
+
     public MetricsBatch getMetricsBatch() {
         return metricsBatch;
     }
@@ -599,6 +606,7 @@ public final class PixscapeEngine {
         layerState = null;
         drawList = null;
         frameQueue = null;
+        vfxState = null;
         runtimeTiledStart = 0;
         runtimeTiledEnd = 0;
         stats = null;
@@ -626,6 +634,7 @@ public final class PixscapeEngine {
         layerState = new LayerStateSOA();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -636,7 +645,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -652,6 +661,7 @@ public final class PixscapeEngine {
                         layerState,
                         drawList,
                         frameQueue,
+                        vfxState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -710,6 +720,7 @@ public final class PixscapeEngine {
         layerState = new LayerStateSOA();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -720,7 +731,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         applyAmbientFromMeta(null);
@@ -733,6 +744,7 @@ public final class PixscapeEngine {
                         layerState,
                         drawList,
                         frameQueue,
+                        vfxState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -777,7 +789,7 @@ public final class PixscapeEngine {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
-        if (renderState == null || layerState == null || drawList == null || frameQueue == null
+        if (renderState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
                 || metricsBatch == null || stats == null || statsSink == null) {
             initRuntime(config, projectDir);
             return;
@@ -795,6 +807,7 @@ public final class PixscapeEngine {
                         layerState,
                         drawList,
                         frameQueue,
+                        vfxState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,

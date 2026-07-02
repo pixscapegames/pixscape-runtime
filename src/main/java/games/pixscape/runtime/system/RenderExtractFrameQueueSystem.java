@@ -8,6 +8,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /**
@@ -15,6 +16,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
  */
 public final class RenderExtractFrameQueueSystem extends BaseSystem implements ProfiledSystem {
     private final RenderStateSOA state;
+    private final VfxRenderState vfxState;
     private final DrawList drawList;
     private final FrameRenderQueue frameQueue;
     private final RenderStats stats;
@@ -31,7 +33,19 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                                          int ecsEndExclusive,
                                          int vfxStartInclusive,
                                          int vfxEndExclusive) {
+        this(state, null, drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+    }
+
+    public RenderExtractFrameQueueSystem(RenderStateSOA state,
+                                         VfxRenderState vfxState,
+                                         DrawList drawList,
+                                         FrameRenderQueue frameQueue,
+                                         RenderStats stats,
+                                         int ecsEndExclusive,
+                                         int vfxStartInclusive,
+                                         int vfxEndExclusive) {
         this.state = state;
+        this.vfxState = vfxState;
         this.drawList = drawList;
         this.frameQueue = frameQueue;
         this.stats = stats;
@@ -62,6 +76,12 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         int[] slots = drawList.data();
         for (int i = 0; i < drawList.size; i++) {
             int slot = slots[i];
+            int vfxIndex = vfxIndex(slot);
+            if (vfxIndex >= 0) {
+                addVfxQuad(slot, vfxIndex);
+                continue;
+            }
+
             if (slot < 0 || slot >= state.getCapacity()) {
                 continue;
             }
@@ -106,8 +126,37 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         }
     }
 
+    private void addVfxQuad(int sourceSlot, int index) {
+        frameQueue.addQuad(
+                vfxState.textureHandle[index],
+                vfxState.shader[index],
+                vfxState.blend[index],
+                vfxState.layerIndex[index],
+                vfxState.paramsId[index],
+                vfxState.customParamsId[index],
+                vfxState.sortKey[index],
+                vfxState.x1[index],
+                vfxState.y1[index],
+                vfxState.x2[index],
+                vfxState.y2[index],
+                vfxState.x3[index],
+                vfxState.y3[index],
+                vfxState.x4[index],
+                vfxState.y4[index],
+                vfxState.u1[index],
+                vfxState.v1[index],
+                vfxState.u2[index],
+                vfxState.v2[index],
+                vfxState.colorPacked[index],
+                vfxState.repeatFlags[index],
+                FrameRenderQueue.SOURCE_VFX,
+                sourceSlot,
+                -1
+        );
+    }
+
     private byte sourceDomain(int slot, int sourceEntity) {
-        if (isVfxSlot(slot)) {
+        if (vfxState != null && isVfxSlot(slot)) {
             return FrameRenderQueue.SOURCE_VFX;
         }
         if (slot >= 0 && slot < ecsEndExclusive) {
@@ -123,6 +172,15 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         return vfxStartInclusive >= 0
                 && slot >= vfxStartInclusive
                 && slot < vfxEndExclusive;
+    }
+
+    private int vfxIndex(int slot) {
+        if (vfxState == null || !isVfxSlot(slot)) {
+            return -1;
+        }
+
+        int index = slot - vfxStartInclusive;
+        return index >= 0 && index < vfxState.activeCount ? index : -1;
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

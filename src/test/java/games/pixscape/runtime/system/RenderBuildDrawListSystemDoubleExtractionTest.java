@@ -4,7 +4,9 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
 import org.junit.Test;
@@ -91,14 +93,15 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
     public void reservedVfxRangeIsExtractedOutsideEcsBound() {
         Fixture fixture = new Fixture(2_000, 64, 1_500, 2_000);
 
-        fixture.enableSprite(1_700, 0, 12L);
+        fixture.addVfx(12L);
 
         fixture.world.process();
 
         Assert.assertEquals(1, fixture.drawList.size);
-        Assert.assertEquals(1_700, fixture.drawList.get(0));
-        Assert.assertEquals(64, fixture.stats.buildDrawListScannedEcsSlots);
+        Assert.assertEquals(1_500, fixture.drawList.get(0));
+        Assert.assertEquals(0, fixture.stats.buildDrawListScannedEcsSlots);
         Assert.assertEquals(0, fixture.stats.buildDrawListScannedTiledSlots);
+        Assert.assertEquals(1, fixture.stats.vfxActiveParticles);
     }
 
     @Test
@@ -108,13 +111,13 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(10, 0, 40L);     // ECS
         fixture.enableSprite(900, 0, 30L);    // tiled
         fixture.enableSprite(901, 0, 20L);    // tiled
-        fixture.enableSprite(1_700, 0, 10L);  // VFX/reserved
+        fixture.addVfx(10L);
         fixture.state.appendTiledVisibleRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{1700, 901, 900, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{1500, 901, 900, 10}, snapshot(fixture.drawList));
     }
 
     private static int[] snapshot(DrawList drawList) {
@@ -125,6 +128,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
     private static final class Fixture {
         final RenderStateSOA state;
+        final VfxRenderState vfxState;
         final LayerStateSOA layerState;
         final DrawList drawList;
         final RenderStats stats;
@@ -136,6 +140,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         Fixture(int capacity, int ecsEndExclusive, int reservedStartInclusive, int reservedEndExclusive) {
             this.state = new RenderStateSOA(capacity);
+            this.vfxState = new VfxRenderState(16);
             this.layerState = new LayerStateSOA(4);
             this.layerState.enabled[0] = true;
             this.layerState.enabled[1] = true;
@@ -145,6 +150,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                     .with(
                             new RenderBuildDrawListSystem(
                                     state,
+                                    vfxState,
                                     layerState,
                                     drawList,
                                     stats,
@@ -152,7 +158,13 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                                     reservedStartInclusive,
                                     reservedEndExclusive
                             ),
-                            new RenderSortSystem(state, drawList)
+                            new RenderSortSystem(
+                                    state,
+                                    vfxState,
+                                    drawList,
+                                    reservedStartInclusive,
+                                    reservedEndExclusive
+                            )
                     )
                     .build());
         }
@@ -164,6 +176,34 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             state.layerIndex[slot] = layerIdx;
             state.sortKey[slot] = sortKey;
             state.touch(slot);
+        }
+
+        void addVfx(long sortKey) {
+            vfxState.addParticleQuad(
+                    1,
+                    2,
+                    3,
+                    0,
+                    0,
+                    0,
+                    0,
+                    sortKey,
+                    0f,
+                    0f,
+                    1f,
+                    0f,
+                    1f,
+                    1f,
+                    0f,
+                    1f,
+                    0f,
+                    0f,
+                    1f,
+                    1f,
+                    1f,
+                    RenderRepeatFlags.NONE,
+                    -1
+            );
         }
     }
 }

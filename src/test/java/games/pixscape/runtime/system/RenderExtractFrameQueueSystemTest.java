@@ -6,6 +6,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,21 +16,23 @@ public class RenderExtractFrameQueueSystemTest {
     @Test
     public void extractsDrawListOrderAndCopiesDrawReadyFields() {
         RenderStateSOA state = new RenderStateSOA(256);
+        VfxRenderState vfxState = new VfxRenderState(16);
         DrawList drawList = new DrawList(16);
         FrameRenderQueue queue = new FrameRenderQueue(1);
         RenderStats stats = new RenderStats();
 
-        writeSlot(state, 120, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
-        writeSlot(state, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
-        writeSlot(state, 180, -1, 30, 5f, 6f, FrameRenderQueue.SOURCE_VFX);
+        writeSlot(state, 120, -1, 10, 1f, 2f);
+        writeSlot(state, 4, 4, 20, 3f, 4f);
+        writeVfx(vfxState, 30);
 
         drawList.add(120);
         drawList.add(4);
-        drawList.add(180);
+        drawList.add(160);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(new RenderExtractFrameQueueSystem(
                         state,
+                        vfxState,
                         drawList,
                         queue,
                         stats,
@@ -44,10 +47,15 @@ public class RenderExtractFrameQueueSystemTest {
         Assert.assertEquals(drawList.size, queue.size);
         assertQueueEntry(queue, 0, 120, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
         assertQueueEntry(queue, 1, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
-        assertQueueEntry(queue, 2, 180, -1, 30, 5f, 6f, FrameRenderQueue.SOURCE_VFX);
+        assertQueueEntry(queue, 2, 160, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);
         Assert.assertTrue(stats.frameQueuePeakCapacity >= 3);
         Assert.assertTrue(stats.frameQueueGrowthCount > 0);
+
+        vfxState.textureHandle[0] = 999;
+        vfxState.x1[0] = 999f;
+        Assert.assertEquals(31, queue.textureHandle[2]);
+        Assert.assertEquals(30.1f, queue.x1[2], 0f);
     }
 
     private static void writeSlot(RenderStateSOA state,
@@ -55,8 +63,7 @@ public class RenderExtractFrameQueueSystemTest {
                                   int entityId,
                                   int base,
                                   float offsetX,
-                                  float offsetY,
-                                  byte expectedDomain) {
+                                  float offsetY) {
         state.textureHandle[slot] = base + 1;
         state.shader[slot] = base + 2;
         state.blend[slot] = base + 3;
@@ -81,6 +88,34 @@ public class RenderExtractFrameQueueSystemTest {
         state.colorPacked[slot] = base + 1.4f;
         state.repeatFlags[slot] = RenderRepeatFlags.REPEAT_X;
         state.entityId[slot] = entityId;
+    }
+
+    private static void writeVfx(VfxRenderState state, int base) {
+        state.addParticleQuad(
+                base + 1,
+                base + 2,
+                base + 3,
+                base + 4,
+                base + 6,
+                base + 5,
+                base + 6,
+                base + 7L,
+                base + 0.1f,
+                base + 0.2f,
+                base + 0.3f,
+                base + 0.4f,
+                base + 0.5f,
+                base + 0.6f,
+                base + 0.7f,
+                base + 0.8f,
+                base + 0.9f,
+                base + 1.1f,
+                base + 1.2f,
+                base + 1.3f,
+                base + 1.4f,
+                RenderRepeatFlags.REPEAT_X,
+                99
+        );
     }
 
     private static void assertQueueEntry(FrameRenderQueue queue,

@@ -18,6 +18,9 @@ public class RenderStatsTest {
         stats.frameQueueQuads = 8;
         stats.frameQueuePeakCapacity = 9;
         stats.frameQueueGrowthCount = 10;
+        stats.vfxActiveParticles = 11;
+        stats.vfxPeakCapacity = 12;
+        stats.vfxGrowthCount = 13;
 
         stats.reset();
 
@@ -31,6 +34,9 @@ public class RenderStatsTest {
         Assert.assertEquals(0, stats.frameQueueQuads);
         Assert.assertEquals(0, stats.frameQueuePeakCapacity);
         Assert.assertEquals(0, stats.frameQueueGrowthCount);
+        Assert.assertEquals(0, stats.vfxActiveParticles);
+        Assert.assertEquals(0, stats.vfxPeakCapacity);
+        Assert.assertEquals(0, stats.vfxGrowthCount);
     }
 
     @Test
@@ -46,6 +52,9 @@ public class RenderStatsTest {
         total.frameQueueQuads = 8;
         total.frameQueuePeakCapacity = 9;
         total.frameQueueGrowthCount = 10;
+        total.vfxActiveParticles = 11;
+        total.vfxPeakCapacity = 12;
+        total.vfxGrowthCount = 13;
 
         RenderStats frame = new RenderStats();
         frame.textureArrayBindSkips = 10;
@@ -58,6 +67,9 @@ public class RenderStatsTest {
         frame.frameQueueQuads = 80;
         frame.frameQueuePeakCapacity = 90;
         frame.frameQueueGrowthCount = 100;
+        frame.vfxActiveParticles = 110;
+        frame.vfxPeakCapacity = 120;
+        frame.vfxGrowthCount = 130;
 
         total.add(frame);
 
@@ -71,5 +83,8 @@ public class RenderStatsTest {
         Assert.assertEquals(88, total.frameQueueQuads);
         Assert.assertEquals(90, total.frameQueuePeakCapacity);
         Assert.assertEquals(110, total.frameQueueGrowthCount);
+        Assert.assertEquals(121, total.vfxActiveParticles);
+        Assert.assertEquals(120, total.vfxPeakCapacity);
+        Assert.assertEquals(143, total.vfxGrowthCount);
     }
 }

@@ -4,6 +4,7 @@ import com.artemis.BaseSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -12,6 +13,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 
 public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
     private final RenderStateSOA state;
+    private final VfxRenderState vfxState;
     private final LayerStateSOA layerState;
     private final DrawList drawList;
     private final RenderStats stats;
@@ -19,6 +21,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private final int ecsEndExclusive;
     private final int vfxStartInclusive;
     private final int vfxEndExclusive;
+    private int vfxPeakCapacity;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
@@ -28,7 +31,19 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                                      int ecsEndExclusive,
                                      int vfxStartInclusive,
                                      int vfxEndExclusive) {
+        this(state, null, layerState, drawList, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+    }
+
+    public RenderBuildDrawListSystem(RenderStateSOA state,
+                                     VfxRenderState vfxState,
+                                     LayerStateSOA layerState,
+                                     DrawList drawList,
+                                     RenderStats stats,
+                                     int ecsEndExclusive,
+                                     int vfxStartInclusive,
+                                     int vfxEndExclusive) {
         this.state = state;
+        this.vfxState = vfxState;
         this.layerState = layerState;
         this.drawList = drawList;
         this.stats = stats;
@@ -93,20 +108,24 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             }
         }
 
-        if (vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
-            int start = Math.max(vfxStartInclusive, 0);
-            int end = Math.min(vfxEndExclusive, state.enabled.length);
+        if (vfxState != null && vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
+            int count = Math.min(vfxState.activeCount, vfxEndExclusive - vfxStartInclusive);
 
-            for (int slot = start; slot < end; slot++) {
-                boolean renderable = isRenderableSlot(slot);
-                if (renderable) {
-                    drawList.add(slot);
+            for (int i = 0; i < count; i++) {
+                if (isRenderableVfxIndex(i)) {
+                    drawList.add(vfxStartInclusive + i);
                 }
             }
         }
 
         stats.buildDrawListScannedTiledSlots = state.tiledVisibleSlotCount;
         stats.extractedQuads = drawList.size;
+        if (vfxState != null) {
+            vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());
+            stats.vfxActiveParticles = vfxState.activeCount;
+            stats.vfxPeakCapacity = vfxPeakCapacity;
+            stats.vfxGrowthCount = vfxState.getGrowthCount();
+        }
     }
 
     private boolean isVfxSlot(int slot) {
@@ -133,6 +152,25 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         return state.kind[slot] == RenderStateSOA.KIND_SPRITE;
+    }
+
+    private boolean isRenderableVfxIndex(int index) {
+        if (vfxState == null || index < 0 || index >= vfxState.activeCount) return false;
+        if (vfxState.textureHandle[index] == 0) return false;
+
+        if (layerState != null) {
+            int layerIdx = vfxState.layerIndex[index];
+
+            if (layerIdx < 0 || layerIdx >= layerState.enabled.length) {
+                return false;
+            }
+
+            if (!layerState.enabled[layerIdx]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public RenderStateSOA getRenderState() {

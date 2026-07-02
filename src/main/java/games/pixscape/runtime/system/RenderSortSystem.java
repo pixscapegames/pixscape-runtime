@@ -7,6 +7,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 
 /**
  * Trie drawList (indices SOA) par state.sortKey[slot].
@@ -19,7 +20,10 @@ import games.pixscape.runtime.render.RenderStateSOA;
 public final class RenderSortSystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA state;
+    private final VfxRenderState vfxState;
     private final DrawList drawList;
+    private final int vfxStartInclusive;
+    private final int vfxEndExclusive;
 
     // scratch buffers (reused)
     private int[] tmp = new int[0];
@@ -27,8 +31,19 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderSortSystem(RenderStateSOA state, DrawList drawList) {
+        this(state, null, drawList, -1, -1);
+    }
+
+    public RenderSortSystem(RenderStateSOA state,
+                            VfxRenderState vfxState,
+                            DrawList drawList,
+                            int vfxStartInclusive,
+                            int vfxEndExclusive) {
         this.state = state;
+        this.vfxState = vfxState;
         this.drawList = drawList;
+        this.vfxStartInclusive = vfxStartInclusive;
+        this.vfxEndExclusive = vfxEndExclusive;
     }
 
     @Override
@@ -63,7 +78,7 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
 
             // histogram
             for (int i = 0; i < n; i++) {
-                long key = state.sortKey[data[i]];
+                long key = sortKeyForSlot(data[i]);
                 int bucket = (int) ((key >>> shift) & 0xFFL);
                 count[bucket]++;
             }
@@ -79,7 +94,7 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             // stable scatter into tmp
             for (int i = 0; i < n; i++) {
                 int slot = data[i];
-                long key = state.sortKey[slot];
+                long key = sortKeyForSlot(slot);
                 int bucket = (int) ((key >>> shift) & 0xFFL);
                 tmp[count[bucket]++] = slot;
             }
@@ -87,6 +102,26 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             // copy back
             System.arraycopy(tmp, 0, data, 0, n);
         }
+    }
+
+    private long sortKeyForSlot(int slot) {
+        int vfxIndex = vfxIndex(slot);
+        if (vfxIndex >= 0) {
+            return vfxState.sortKey[vfxIndex];
+        }
+        return state.sortKey[slot];
+    }
+
+    private int vfxIndex(int slot) {
+        if (vfxState == null
+                || vfxStartInclusive < 0
+                || slot < vfxStartInclusive
+                || slot >= vfxEndExclusive) {
+            return -1;
+        }
+
+        int index = slot - vfxStartInclusive;
+        return index >= 0 && index < vfxState.activeCount ? index : -1;
     }
 
     private void ensureTmpCapacity(int n) {
