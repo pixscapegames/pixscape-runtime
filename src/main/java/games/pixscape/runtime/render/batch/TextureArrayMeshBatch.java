@@ -18,13 +18,14 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * 2: a_color     (vec4)  -> PACKED RGBA8888
  * 3: a_layer     (float) -> float
  * <p>
- * Format CPU (float[]) :
+ * CPU format (float[]):
  * pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
  */
 public final class TextureArrayMeshBatch implements MetricsBatch {
 
     // pos2 + uv2 + colorPacked1 + layer1 = 6 floats
     private static final int VERT_STRIDE = 6;
+    private static final int REGION_RESOLVE_CACHE_CAPACITY = 64;
 
     private final Mesh mesh;
     private final float[] verts;
@@ -57,6 +58,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     private TextureArray textureArray;
     private AtlasRuntimeService.TextureArrayBundle bundle;
     private IntIntMap handle2layer;
+    private final RegionResolveCache regionResolveCache =
+            new RegionResolveCache(REGION_RESOLVE_CACHE_CAPACITY);
 
     public TextureArrayMeshBatch(int maxQuads) {
         this.maxQuads = Math.max(64, maxQuads);
@@ -68,7 +71,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                         ? Mesh.VertexDataType.VertexBufferObjectWithVAO
                         : Mesh.VertexDataType.VertexBufferObject;
 
-        // Mesh : a_position (2), a_texCoord0 (2), a_color (packed), a_layer (1)
+        // Mesh: a_position (2), a_texCoord0 (2), a_color (packed), a_layer (1)
         this.mesh = new Mesh(
                 vertexDataType,
                 false,
@@ -80,7 +83,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                 new VertexAttribute(Usage.Generic, 1, "a_layer")
         );
 
-        // indices (quads -> 2 triangles)
+        // Indices (quads -> 2 triangles)
         short[] idx = new short[maxIndices];
         int id = 0, v = 0;
         for (int q = 0; q < this.maxQuads; q++) {
@@ -115,6 +118,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.combined.set(combined);
         this.projDirty = true;  // projection potentially different at each begin()
         this.arrayBound = false; // restart "clean" at each begin/end
+        this.regionResolveCache.clear();
 
         // Prepare shader + uniforms + TA bind once, not every flush
         prepareDrawState(stats);
@@ -149,10 +153,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         // Cache uniform locations (not required, but useful and clean)
         cacheUniformLocations(shader);
 
-        // Nouveau shader => il faut renvoyer u_projTrans et u_array
+        // New shader: send u_projTrans and u_array again.
         projDirty = true;
 
-        // Si on est en plein begin/end, on rebinde/configure tout de suite
+        // If begin/end is active, rebind/configure immediately.
         if (drawing) {
             // Texture bind remains global, but u_array is per-program => set again
             arrayBound = false;
@@ -191,7 +195,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         if (!hasBundle() || shader == null) return;
 
-        int layer = handle2layer.get(textureHandle, -1);
+        int layer = resolveLayer(textureHandle);
         if (layer < 0) return;
 
         drawTextureArrayQuad(textureHandle, layer,
@@ -224,13 +228,14 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     @Override
     public void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
         // Safety: if bundle changes mid-batch, flush
-        // (uses “current” stats if begin() has been called)
+        // (uses current stats if begin() has been called)
         if (drawing && quadCount > 0) flush(this.stats);
 
         if (bundle == null) {
             this.bundle = null;
             this.textureArray = null;
             this.handle2layer = null;
+            this.regionResolveCache.clear();
 
             this.arrayBound = false;
             return;
@@ -238,6 +243,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.bundle = bundle;
         this.textureArray = bundle.textureArray;
         this.handle2layer = bundle.handle2layer;
+        this.regionResolveCache.clear();
 
         // New texture array => force bind at next draw/flush
         this.arrayBound = false;
@@ -247,8 +253,16 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         return textureArray != null && handle2layer != null;
     }
 
+    public boolean hasTextureHandle(int textureHandle) {
+        return hasBundle() && resolveLayer(textureHandle) >= 0;
+    }
+
+    private int resolveLayer(int textureHandle) {
+        return regionResolveCache.resolveLayer(textureHandle, handle2layer);
+    }
+
     // --------------------------------------------------------------------
-    // Internes : state + path TextureArray
+    // Internals: state + TextureArray path
     // --------------------------------------------------------------------
 
     private void cacheUniformLocations(ShaderProgram sh) {
@@ -268,17 +282,17 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         if (uProjTransLoc < 0 || uArrayLoc < 0) {
             // if setShader was called before shader.getUniformLocation was available (rare),
-            // on recache ici
+            // refresh the cached locations here
             cacheUniformLocations(shader);
         }
 
-        // u_projTrans : only when dirty (not every flush)
+        // u_projTrans: only when dirty (not every flush)
         if (projDirty && uProjTransLoc >= 0) {
             shader.setUniformMatrix(uProjTransLoc, combined);
             projDirty = false;
         }
 
-        // TextureArray bind + uniform u_array :
+        // TextureArray bind + uniform u_array:
         // do it once per begin/end (and after setShader / bundle change)
         if (!arrayBound) {
             textureArray.bind(0);
@@ -345,5 +359,17 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
     public AtlasRuntimeService.TextureArrayBundle getBundle() {
         return bundle;
+    }
+
+    public long getRegionResolveCacheHits() {
+        return regionResolveCache.hitCount();
+    }
+
+    public long getRegionResolveCacheMisses() {
+        return regionResolveCache.missCount();
+    }
+
+    public void resetRegionResolveCacheStats() {
+        regionResolveCache.clearStats();
     }
 }

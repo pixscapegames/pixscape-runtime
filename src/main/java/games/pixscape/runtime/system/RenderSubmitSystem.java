@@ -20,7 +20,6 @@ import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
 import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
-import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 
 public final class RenderSubmitSystem extends BaseSystem implements ProfiledSystem {
@@ -116,10 +115,12 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
         cam.update();
 
-        AtlasRuntimeService.TextureArrayBundle activeBundle = null;
+        TextureArrayMeshBatch activeTextureArrayBatch = null;
         if (metricsBatch instanceof TextureArrayMeshBatch) {
             TextureArrayMeshBatch taBatch = (TextureArrayMeshBatch) metricsBatch;
-            activeBundle = taBatch.getBundle();
+            if (taBatch.getBundle() != null) {
+                activeTextureArrayBatch = taBatch;
+            }
         }
 
         metricsBatch.begin(cam.combined, stats);
@@ -145,7 +146,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             final int texHandle = state.textureHandle[slot];
             if (texHandle == 0) continue;
 
-            if (activeBundle != null && !activeBundle.handle2layer.containsKey(texHandle)) {
+            if (activeTextureArrayBatch != null && !activeTextureArrayBatch.hasTextureHandle(texHandle)) {
                 continue;
             }
 
