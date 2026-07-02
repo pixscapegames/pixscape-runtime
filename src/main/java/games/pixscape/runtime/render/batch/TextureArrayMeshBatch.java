@@ -23,7 +23,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  */
 public final class TextureArrayMeshBatch implements MetricsBatch {
 
-    // pos2 + uv2 + colorPacked1 + layer1 = 6 floats
+    // pos2 + colorPacked1 + uv2 + layer1 = 6 floats
     private static final int VERT_STRIDE = 6;
     private static final int REGION_RESOLVE_CACHE_CAPACITY = 64;
 
@@ -50,9 +50,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
     private RenderStats stats;
     private boolean drawing = false;
 
-    // Flags to avoid unnecessary resets
-    private boolean projDirty = true;      // u_projTrans must be resent?
-    private boolean arrayBound = false;    // texture array already bound on TU0 for this begin/end?
+    // Flags to avoid unnecessary state changes
+    private boolean projDirty = true;           // u_projTrans must be resent?
+    private boolean textureArrayBound = false;  // texture array already bound on TU0 for this begin/end?
+    private boolean arrayUniformDirty = true;   // u_array must be resent for the current shader?
 
     // --- TextureArray + mapping handle(TextureRegistry) -> layer ---
     private TextureArray textureArray;
@@ -117,7 +118,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         this.combined.set(combined);
         this.projDirty = true;  // projection potentially different at each begin()
-        this.arrayBound = false; // restart "clean" at each begin/end
+        this.textureArrayBound = false; // GL state can be changed between passes.
+        this.arrayUniformDirty = true;
         this.regionResolveCache.clear();
         this.regionResolveCache.clearStats();
         syncRegionResolveCacheStats(stats);
@@ -133,7 +135,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.drawing = false;
 
         // We no longer rely on GL state after end()
-        this.arrayBound = false;
+        this.textureArrayBound = false;
+        this.arrayUniformDirty = true;
         this.projDirty = true;
         Gdx.gl.glDepthMask(true);
         Gdx.gl.glDisable(GL20.GL_BLEND);
@@ -157,11 +160,11 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         // New shader: send u_projTrans and u_array again.
         projDirty = true;
+        arrayUniformDirty = true;
 
         // If begin/end is active, rebind/configure immediately.
         if (drawing) {
-            // Texture bind remains global, but u_array is per-program => set again
-            arrayBound = false;
+            // Texture bind remains global, but u_array is per-program.
             prepareDrawState(stats);
         }
 
@@ -234,6 +237,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
     @Override
     public void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {
+        if (bundle == this.bundle) {
+            return;
+        }
+
         // Safety: if bundle changes mid-batch, flush
         // (uses current stats if begin() has been called)
         if (drawing && quadCount > 0) flush(this.stats);
@@ -244,7 +251,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
             this.handle2layer = null;
             this.regionResolveCache.clear();
 
-            this.arrayBound = false;
+            this.textureArrayBound = false;
+            this.arrayUniformDirty = true;
             return;
         }
         this.bundle = bundle;
@@ -253,7 +261,8 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         this.regionResolveCache.clear();
 
         // New texture array => force bind at next draw/flush
-        this.arrayBound = false;
+        this.textureArrayBound = false;
+        this.arrayUniformDirty = true;
     }
 
     private boolean hasBundle() {
@@ -309,12 +318,10 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
             if (stats != null) stats.projectionUploads++;
         }
 
-        // TextureArray bind + uniform u_array:
-        // do it once per begin/end (and after setShader / bundle change)
-        if (!arrayBound) {
+        // TextureArray bind: do it once per begin/end unless the bundle changes.
+        if (!textureArrayBound) {
             textureArray.bind(0);
-            if (uArrayLoc >= 0) shader.setUniformi(uArrayLoc, 0);
-            arrayBound = true;
+            textureArrayBound = true;
 
             if (stats != null) stats.textureBinds++;
 
@@ -322,6 +329,12 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
             Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
         } else if (stats != null) {
             stats.textureArrayBindSkips++;
+        }
+
+        // u_array is per shader program; changing shader does not require rebinding the texture array.
+        if (arrayUniformDirty) {
+            if (uArrayLoc >= 0) shader.setUniformi(uArrayLoc, 0);
+            arrayUniformDirty = false;
         }
     }
 
