@@ -17,6 +17,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -182,14 +183,11 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
                 visibleChunkCount++;
 
+                ensureChunkRenderRefs(chunk);
                 if (!chunk.visibleLastFrame) {
                     shownChunkCount++;
-                    if (chunk.dirtyState != TileChunk.DirtyState.FULL) {
-                        reactivateChunkSlots(chunk);
-                    }
                 }
                 chunk.visibleLastFrame = true;
-                ensureChunkRenderRefs(chunk);
                 for (int i = 0; i < chunk.soaCount; i++) {
                     tiledState.addVisibleRef(chunk.renderRefStartIndex + i);
                 }
@@ -250,6 +248,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
             int localIndex = chunk.dirtyLocalIndices.get(i);
             int slot = chunk.soaStartIndex + localIndex;
+            int tiledRenderRef = chunk.renderRefStartIndex + localIndex;
 
             int lx = localIndex % chunk.chunkWidth;
             int ly = localIndex / chunk.chunkWidth;
@@ -260,6 +259,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             writeTileSlot(
                     chunk,
                     localIndex,
+                    tiledRenderRef,
                     slot,
                     gx,
                     gy,
@@ -494,22 +494,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void hideChunkSlots(TileChunk chunk) {
-        for (int i = 0; i < chunk.soaCount; i++) {
-            int slot = chunk.soaStartIndex + i;
-            state.enabled[slot] = false;
-            state.visible[slot] = false;
-        }
-    }
-
-    private void reactivateChunkSlots(TileChunk chunk) {
-        for (int i = 0; i < chunk.soaCount; i++) {
-            int slot = chunk.soaStartIndex + i;
-            boolean renderable =
-                    state.kind[slot] == RenderStateSOA.KIND_SPRITE &&
-                            state.textureHandle[slot] != 0;
-            state.enabled[slot] = renderable;
-            state.visible[slot] = renderable;
-        }
+        // Visibility is frame-local through TiledMapRenderState.visibleRefs.
+        // Keep persistent ref render data intact so clean chunks can reappear
+        // without a rebuild.
     }
 
     private void rebuildChunk(TileChunk chunk,
@@ -530,6 +517,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
                 int localIndex = ly * chunk.chunkWidth + lx;
                 int slot = chunk.soaStartIndex + localIndex;
+                int tiledRenderRef = chunk.renderRefStartIndex + localIndex;
 
                 int gx = chunk.chunkX * map.chunkSize + lx;
                 int gy = chunk.chunkY * map.chunkSize + ly;
@@ -537,6 +525,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 writeTileSlot(
                         chunk,
                         localIndex,
+                        tiledRenderRef,
                         slot,
                         gx,
                         gy,
@@ -555,6 +544,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     private void writeTileSlot(TileChunk chunk,
                                int localIndex,
+                               int tiledRenderRef,
                                int slot,
                                int gx,
                                int gy,
@@ -566,7 +556,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                SpatialTiledSort.Context spatialSort) {
 
         if (assetId <= 0) {
-            state.disable(slot);
+            tiledState.disableRef(tiledRenderRef);
             return;
         }
 
@@ -582,14 +572,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 atlasRuntimeService.resolveCached(visualAssetId, atlasTag);
 
         if (cr == null) {
-            state.disable(slot);
+            tiledState.disableRef(tiledRenderRef);
             return;
         }
 
         RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(visualAssetId);
         if (profile == null) {
             reportMissingProfileOnce(visualAssetId, assetId, atlasTag);
-            state.disable(slot);
+            tiledState.disableRef(tiledRenderRef);
             return;
         }
 
@@ -604,34 +594,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 tmpQuad
         );
 
-        state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-        state.enabled[slot] = true;
-        state.visible[slot] = true;
-
-        state.x1[slot] = tmpQuad[0];
-        state.y1[slot] = tmpQuad[1];
-        state.x2[slot] = tmpQuad[2];
-        state.y2[slot] = tmpQuad[3];
-        state.x3[slot] = tmpQuad[4];
-        state.y3[slot] = tmpQuad[5];
-        state.x4[slot] = tmpQuad[6];
-        state.y4[slot] = tmpQuad[7];
-
-        state.u1[slot] = cr.u1;
-        state.v1[slot] = cr.v1;
-        state.u2[slot] = cr.u2;
-        state.v2[slot] = cr.v2;
-
-        state.textureHandle[slot] = cr.textureHandle;
-        state.shader[slot] = defaultShaderIdx;
-        state.blend[slot] = BlendMode.ALPHA.id;
-        state.layerIndex[slot] = layerIndex;
-
-        state.colorPacked[slot] = Color.WHITE.toFloatBits();
-        state.a[slot] = 1f;
-
-        state.touch(slot);
-
         int z = 0;
         int tie = 0;
 
@@ -643,16 +605,41 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             tie = SpatialTiledSort.encodeTie(spatialSort, gx, gy, tie);
         }
 
-        state.sortKey[slot] = SortKey64.packForBlend(
-                state.shader[slot],
-                state.blend[slot],
-                state.textureHandle[slot],
-                state.layerIndex[slot],
+        long sortKey = SortKey64.packForBlend(
+                defaultShaderIdx,
+                BlendMode.ALPHA.id,
+                cr.textureHandle,
+                layerIndex,
                 z,
                 tie
         );
 
-        state.entityId[slot] = -1;
+        tiledState.setLegacySlotForRef(tiledRenderRef, slot);
+        tiledState.setRenderDataForRef(
+                tiledRenderRef,
+                cr.textureHandle,
+                defaultShaderIdx,
+                BlendMode.ALPHA.id,
+                layerIndex,
+                0,
+                0,
+                sortKey,
+                tmpQuad[0],
+                tmpQuad[1],
+                tmpQuad[2],
+                tmpQuad[3],
+                tmpQuad[4],
+                tmpQuad[5],
+                tmpQuad[6],
+                tmpQuad[7],
+                cr.u1,
+                cr.v1,
+                cr.u2,
+                cr.v2,
+                Color.WHITE.toFloatBits(),
+                1f,
+                RenderRepeatFlags.NONE
+        );
     }
 
     private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {

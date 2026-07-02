@@ -23,10 +23,11 @@ public class RenderExtractFrameQueueSystemTest {
         FrameRenderQueue queue = new FrameRenderQueue(1);
         RenderStats stats = new RenderStats();
 
-        writeSlot(state, 120, -1, 10, 1f, 2f);
         writeSlot(state, 4, 4, 20, 3f, 4f);
         writeVfx(vfxState, 30);
         int tiledRef = tiledState.registerLegacySlot(120);
+        writeTiled(tiledState, tiledRef, 10);
+        writeSlot(state, 120, -1, 90, 9f, 9f);
 
         drawList.addTiledSlot(tiledRef);
         drawList.addEcsSlot(4);
@@ -49,7 +50,7 @@ public class RenderExtractFrameQueueSystemTest {
         world.process();
 
         Assert.assertEquals(drawList.size, queue.size);
-        assertQueueEntry(queue, 0, tiledRef, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
+        assertQueueEntry(queue, 0, tiledRef, -1, 10, 0f, 0f, FrameRenderQueue.SOURCE_TILED);
         assertQueueEntry(queue, 1, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
         assertQueueEntry(queue, 2, 0, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);
@@ -60,6 +61,11 @@ public class RenderExtractFrameQueueSystemTest {
         vfxState.x1[0] = 999f;
         Assert.assertEquals(31, queue.textureHandle[2]);
         Assert.assertEquals(30.1f, queue.x1[2], 0f);
+
+        state.textureHandle[120] = 999;
+        state.x1[120] = 999f;
+        Assert.assertEquals(11, queue.textureHandle[0]);
+        Assert.assertEquals(10.1f, queue.x1[0], 0f);
     }
 
     private static void writeSlot(RenderStateSOA state,
@@ -119,6 +125,34 @@ public class RenderExtractFrameQueueSystemTest {
                 base + 1.4f,
                 RenderRepeatFlags.REPEAT_X,
                 99
+        );
+    }
+
+    private static void writeTiled(TiledMapRenderState state, int ref, int base) {
+        state.setRenderDataForRef(
+                ref,
+                base + 1,
+                base + 2,
+                base + 3,
+                base + 4,
+                base + 5,
+                base + 6,
+                base + 7L,
+                base + 0.1f,
+                base + 0.2f,
+                base + 0.3f,
+                base + 0.4f,
+                base + 0.5f,
+                base + 0.6f,
+                base + 0.7f,
+                base + 0.8f,
+                base + 0.9f,
+                base + 1.1f,
+                base + 1.2f,
+                base + 1.3f,
+                base + 1.4f,
+                1f,
+                RenderRepeatFlags.REPEAT_X
         );
     }
 

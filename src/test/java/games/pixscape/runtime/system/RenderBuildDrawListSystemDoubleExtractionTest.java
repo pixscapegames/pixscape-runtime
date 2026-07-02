@@ -54,8 +54,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(900, 0, 100L);
         fixture.enableSprite(901, 0, 120L);
-        fixture.state.visible[901] = false;
         int refStart = fixture.addVisibleTiledRange(900, 2);
+        fixture.tiledState.visible[refStart + 1] = false;
 
         fixture.world.process();
 
@@ -202,6 +202,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         int addVisibleTiledSlot(int legacySlot) {
             int ref = tiledState.registerLegacySlot(legacySlot);
+            writeTiledRenderData(ref, legacySlot);
             tiledState.addVisibleRef(ref);
             return ref;
         }
@@ -209,9 +210,17 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         int addVisibleTiledRange(int startInclusive, int count) {
             int refStart = tiledState.registerLegacyRange(startInclusive, count);
             for (int i = 0; i < count; i++) {
+                writeTiledRenderData(refStart + i, startInclusive + i);
                 tiledState.addVisibleRef(refStart + i);
             }
             return refStart;
+        }
+
+        void writeTiledRenderData(int ref, int legacySlot) {
+            tiledState.setRenderDataForRef(ref, 1, 2, 3, state.layerIndex[legacySlot], 0, 0,
+                    state.sortKey[legacySlot],
+                    0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
+                    0f, 0f, 1f, 1f, 1f, 1f, RenderRepeatFlags.NONE);
         }
 
         void enableSprite(int slot, int layerIdx, long sortKey) {

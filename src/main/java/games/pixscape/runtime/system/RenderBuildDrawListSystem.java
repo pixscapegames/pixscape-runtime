@@ -100,17 +100,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         int[] tiledVisibleRefs = tiledState.getVisibleRefs();
         for (int i = 0; i < tiledVisibleRefCount; i++) {
             int tiledRenderRef = tiledVisibleRefs[i];
-            int slot = tiledState.legacySlotForRef(tiledRenderRef);
 
-            if (slot < ecsEndExclusive) {
-                continue;
-            }
-
-            if (isVfxSlot(slot)) {
-                continue;
-            }
-
-            boolean renderable = isRenderableSlot(slot);
+            boolean renderable = isRenderableTiledRef(tiledRenderRef);
             if (renderable) {
                 drawList.addTiledSlot(tiledRenderRef);
             }
@@ -136,12 +127,6 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
     }
 
-    private boolean isVfxSlot(int slot) {
-        return vfxStartInclusive >= 0
-                && slot >= vfxStartInclusive
-                && slot < vfxEndExclusive;
-    }
-
     private boolean isRenderableSlot(int slot) {
         if (slot < 0 || slot >= state.enabled.length) return false;
         if (!state.enabled[slot]) return false;
@@ -160,6 +145,24 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         return state.kind[slot] == RenderStateSOA.KIND_SPRITE;
+    }
+
+    private boolean isRenderableTiledRef(int tiledRenderRef) {
+        if (!tiledState.isRenderableRef(tiledRenderRef)) return false;
+
+        if (layerState != null) {
+            int layerIdx = tiledState.layerIndex[tiledRenderRef];
+
+            if (layerIdx < 0 || layerIdx >= layerState.enabled.length) {
+                return false;
+            }
+
+            if (!layerState.enabled[layerIdx]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private boolean isRenderableVfxIndex(int index) {

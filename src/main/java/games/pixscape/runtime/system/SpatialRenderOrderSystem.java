@@ -146,7 +146,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                     mLayer.get(owner),
                     tiled,
                     blocks,
-                    state,
+                    tiledState,
                     slotToDrawIndex,
                     tiledLayerEntityCount(),
                     spatialSort,

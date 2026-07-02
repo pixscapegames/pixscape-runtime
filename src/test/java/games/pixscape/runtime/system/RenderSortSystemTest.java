@@ -21,7 +21,10 @@ public class RenderSortSystemTest {
         int tiledRef = tiledState.registerLegacySlot(120);
 
         state.sortKey[5] = 30L;
-        state.sortKey[120] = 10L;
+        tiledState.setRenderDataForRef(tiledRef, 1, 1, 1, 0, 0, 0, 10L,
+                0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
+                0f, 0f, 1f, 1f, 1f, 1f, (byte) 0);
+        state.sortKey[120] = 999L;
         vfxState.addParticleQuad(1, 1, 1, 0, 0, 0, 0, 20L,
                 0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
                 0f, 0f, 1f, 1f, 1f, (byte) 0, -1);

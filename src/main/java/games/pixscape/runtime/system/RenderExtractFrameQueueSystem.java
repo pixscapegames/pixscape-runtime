@@ -89,8 +89,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
             }
 
             if (domain == RenderSourceDomain.SOURCE_TILED) {
-                int legacySlot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
-                addLegacyStateQuad(domain, slot, legacySlot);
+                addTiledQuad(slot);
             }
         }
 
@@ -138,6 +137,39 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 sourceDomain,
                 sourceSlot,
                 sourceEntity
+        );
+    }
+
+    private void addTiledQuad(int tiledRenderRef) {
+        if (tiledState == null || !tiledState.isRenderableRef(tiledRenderRef)) {
+            return;
+        }
+
+        frameQueue.addQuad(
+                tiledState.textureHandle[tiledRenderRef],
+                tiledState.shader[tiledRenderRef],
+                tiledState.blend[tiledRenderRef],
+                tiledState.layerIndex[tiledRenderRef],
+                tiledState.paramsId[tiledRenderRef],
+                tiledState.customParamsId[tiledRenderRef],
+                tiledState.sortKey[tiledRenderRef],
+                tiledState.x1[tiledRenderRef],
+                tiledState.y1[tiledRenderRef],
+                tiledState.x2[tiledRenderRef],
+                tiledState.y2[tiledRenderRef],
+                tiledState.x3[tiledRenderRef],
+                tiledState.y3[tiledRenderRef],
+                tiledState.x4[tiledRenderRef],
+                tiledState.y4[tiledRenderRef],
+                tiledState.u1[tiledRenderRef],
+                tiledState.v1[tiledRenderRef],
+                tiledState.u2[tiledRenderRef],
+                tiledState.v2[tiledRenderRef],
+                tiledState.colorPacked[tiledRenderRef],
+                tiledState.repeatFlags[tiledRenderRef],
+                RenderSourceDomain.SOURCE_TILED,
+                tiledRenderRef,
+                -1
         );
     }
 

@@ -5,8 +5,8 @@ import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.TiledMapRenderState;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -161,7 +161,7 @@ public final class SpatialTiledSort {
                                    LayerComponent layer,
                                    TiledLayerComponent tiled,
                                    SpatialBlocksComponent blocks,
-                                   RenderStateSOA state,
+                                   TiledMapRenderState tiledState,
                                    int[] slotToDrawIndex,
                                    int tiledLayerCount,
                                    Context context,
@@ -207,7 +207,7 @@ public final class SpatialTiledSort {
             verifyLayerLogged = true;
         }
 
-        if (!verifyBlocksLogged && logVerifyBlocks(layerEntity, context, tiled, blocks, state, slotToDrawIndex,
+        if (!verifyBlocksLogged && logVerifyBlocks(layerEntity, context, tiled, blocks, tiledState, slotToDrawIndex,
                 relatedBlocks)) {
             verifyBlocksLogged = true;
         }
@@ -439,17 +439,17 @@ public final class SpatialTiledSort {
                                            Context context,
                                            TiledLayerComponent tiled,
                                            SpatialBlocksComponent blocks,
-                                           RenderStateSOA state,
+                                           TiledMapRenderState tiledState,
                                            int[] slotToDrawIndex,
                                            boolean[] included) {
-        if (blocks == null || blocks.blocks == null || state == null || slotToDrawIndex == null) return false;
+        if (blocks == null || blocks.blocks == null || tiledState == null || slotToDrawIndex == null) return false;
         boolean wrote = false;
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
             if (block == null || block.linkedTileRefs == null) continue;
             if (hasAnyIncludedBlock(included) && !included[blockIndex]) continue;
             if (!hasAnyIncludedBlock(included) && block.id != 3 && block.id != 4) continue;
-            logVerifyBlock(layerEntity, context, tiled, block, blockIndex, state, slotToDrawIndex);
+            logVerifyBlock(layerEntity, context, tiled, block, blockIndex, tiledState, slotToDrawIndex);
             wrote = true;
         }
         return wrote;
@@ -460,7 +460,7 @@ public final class SpatialTiledSort {
                                        TiledLayerComponent tiled,
                                        SpatialBlockData block,
                                        int blockIndex,
-                                       RenderStateSOA state,
+                                       TiledMapRenderState tiledState,
                                        int[] slotToDrawIndex) {
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
@@ -473,7 +473,10 @@ public final class SpatialTiledSort {
             if (ref == null) continue;
             int slot = tiled.data.slotForTile(ref.gx, ref.gy);
             int drawIndex = slot >= 0 && slot < slotToDrawIndex.length ? slotToDrawIndex[slot] : -1;
-            long key = slot >= 0 && slot < state.getCapacity() ? state.sortKey[slot] : 0L;
+            int tiledRenderRef = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
+            long key = tiledRenderRef >= 0 && tiledRenderRef < tiledState.getRefCount()
+                    ? tiledState.sortKey[tiledRenderRef]
+                    : 0L;
             if (context != null && context.isShared(ref.gx, ref.gy)) {
                 if (sharedCount++ > 0) sharedAnchors.append(';');
                 TileOwnership ownership = context.ownership(ref.gx, ref.gy);

@@ -28,13 +28,12 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
 
         int tiledSlot = 128;
         layerState.enabled[0] = true;
-
-        state.kind[tiledSlot] = RenderStateSOA.KIND_SPRITE;
-        state.enabled[tiledSlot] = true;
-        state.visible[tiledSlot] = true;
-        state.layerIndex[tiledSlot] = 0;
         state.touch(tiledSlot);
+
         int tiledRenderRef = tiledState.registerLegacySlot(tiledSlot);
+        tiledState.setRenderDataForRef(tiledRenderRef, 1, 1, 1, 0, 0, 0, 10L,
+                0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
+                0f, 0f, 1f, 1f, 1f, 1f, (byte) 0);
         tiledState.addVisibleRef(tiledRenderRef);
 
         // Act

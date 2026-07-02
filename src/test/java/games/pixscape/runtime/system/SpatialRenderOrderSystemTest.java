@@ -1352,13 +1352,15 @@ public class SpatialRenderOrderSystemTest {
         Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
 
         map.setTile(0, 0, 0);
-        fixture.state.visible[fixture.legacySlotForRef(tile)] = false;
+        fixture.tiledState.visible[tile] = false;
+        fixture.tiledState.enabled[tile] = false;
         fixture.process();
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertArrayEquals(new int[]{actor}, fixture.drawOrder());
 
         map.setTile(0, 0, 202);
-        fixture.state.visible[fixture.legacySlotForRef(tile)] = true;
+        fixture.tiledState.visible[tile] = true;
+        fixture.tiledState.enabled[tile] = true;
         fixture.process();
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertEquals(101, block.linkedTileRefs.get(0).tileAssetId);
@@ -1912,6 +1914,7 @@ public class SpatialRenderOrderSystemTest {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
             int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
         }
@@ -1920,12 +1923,41 @@ public class SpatialRenderOrderSystemTest {
             enableSlot(slot, layerIndex, z, runtimeOrder);
             state.entityId[slot] = -1;
             int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
         }
 
         int legacySlotForRef(int tiledRenderRef) {
             return tiledState.legacySlotForRef(tiledRenderRef);
+        }
+
+        void writeTiledRenderData(int tiledRenderRef, int legacySlot) {
+            tiledState.setRenderDataForRef(
+                    tiledRenderRef,
+                    state.textureHandle[legacySlot],
+                    state.shader[legacySlot],
+                    state.blend[legacySlot],
+                    state.layerIndex[legacySlot],
+                    state.paramsId[legacySlot],
+                    state.customParamsId[legacySlot],
+                    state.sortKey[legacySlot],
+                    state.x1[legacySlot],
+                    state.y1[legacySlot],
+                    state.x2[legacySlot],
+                    state.y2[legacySlot],
+                    state.x3[legacySlot],
+                    state.y3[legacySlot],
+                    state.x4[legacySlot],
+                    state.y4[legacySlot],
+                    state.u1[legacySlot],
+                    state.v1[legacySlot],
+                    state.u2[legacySlot],
+                    state.v2[legacySlot],
+                    state.colorPacked[legacySlot],
+                    state.a[legacySlot],
+                    state.repeatFlags[legacySlot]
+            );
         }
 
         void enableSlot(int slot, int layerIndex, int z, int runtimeOrder) {
@@ -1938,6 +1970,14 @@ public class SpatialRenderOrderSystemTest {
             state.layerIndex[slot] = layerIndex;
             state.z[slot] = z;
             state.runtimeOrder[slot] = runtimeOrder;
+            state.x2[slot] = 1f;
+            state.x3[slot] = 1f;
+            state.y3[slot] = 1f;
+            state.y4[slot] = 1f;
+            state.u2[slot] = 1f;
+            state.v2[slot] = 1f;
+            state.colorPacked[slot] = 1f;
+            state.a[slot] = 1f;
             state.entityId[slot] = -1;
             state.sortKey[slot] = SortKey64.packForBlend(
                     state.shader[slot],

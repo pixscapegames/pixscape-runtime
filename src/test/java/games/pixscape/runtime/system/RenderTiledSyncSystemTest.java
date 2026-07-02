@@ -44,25 +44,23 @@ public class RenderTiledSyncSystemTest {
         Assert.assertEquals("Visible chunk refs should be published for draw-list extraction", 4, fixture.tiledState.getVisibleRefCount());
 
         TileChunk chunk = findChunk(fixture.map, 0, 0);
-        int slotValidA = chunk.slotFor(0, 0);
-        int slotEmpty = chunk.slotFor(1, 0);
-        int slotInvalidAtlas = chunk.slotFor(0, 1);
-        int slotValidB = chunk.slotFor(1, 1);
+        int refValidA = refFor(fixture.map, 0, 0);
+        int refEmpty = refFor(fixture.map, 1, 0);
+        int refInvalidAtlas = refFor(fixture.map, 0, 1);
+        int refValidB = refFor(fixture.map, 1, 1);
 
-        Assert.assertTrue(fixture.state.visible[slotValidA]);
-        Assert.assertTrue(fixture.state.visible[slotValidB]);
-        Assert.assertFalse(fixture.state.visible[slotEmpty]);
-        Assert.assertFalse(fixture.state.visible[slotInvalidAtlas]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidA]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidB]);
+        Assert.assertFalse(fixture.tiledState.visible[refEmpty]);
+        Assert.assertFalse(fixture.tiledState.visible[refInvalidAtlas]);
 
-        long sortKeyBeforeHide = fixture.state.sortKey[slotValidA];
-        int textureBeforeHide = fixture.state.textureHandle[slotValidA];
+        long sortKeyBeforeHide = fixture.tiledState.sortKey[refValidA];
+        int textureBeforeHide = fixture.tiledState.textureHandle[refValidA];
 
         // Move camera out of chunk view => hide only.
         fixture.camera.position.set(96f, 16f, 0f);
         fixture.world.process();
 
-        Assert.assertFalse(fixture.state.visible[slotValidA]);
-        Assert.assertFalse(fixture.state.visible[slotValidB]);
         Assert.assertEquals("Out-of-view chunk should publish zero tiled candidates", 0, fixture.tiledState.getVisibleRefCount());
         Assert.assertEquals("Hidden tiled slots must not be extracted", 0, fixture.drawList.size);
 
@@ -78,13 +76,13 @@ public class RenderTiledSyncSystemTest {
         );
         Assert.assertEquals("Only valid slots should be rendered after show", 2, fixture.drawList.size);
 
-        Assert.assertTrue(fixture.state.visible[slotValidA]);
-        Assert.assertTrue(fixture.state.visible[slotValidB]);
-        Assert.assertFalse("Empty tile must stay hidden", fixture.state.visible[slotEmpty]);
-        Assert.assertFalse("Invalid atlas tile must stay hidden", fixture.state.visible[slotInvalidAtlas]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidA]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidB]);
+        Assert.assertFalse("Empty tile must stay hidden", fixture.tiledState.visible[refEmpty]);
+        Assert.assertFalse("Invalid atlas tile must stay hidden", fixture.tiledState.visible[refInvalidAtlas]);
 
-        Assert.assertEquals("Sort key should be preserved across hide/show", sortKeyBeforeHide, fixture.state.sortKey[slotValidA]);
-        Assert.assertEquals("Texture handle should be preserved across hide/show", textureBeforeHide, fixture.state.textureHandle[slotValidA]);
+        Assert.assertEquals("Sort key should be preserved across hide/show", sortKeyBeforeHide, fixture.tiledState.sortKey[refValidA]);
+        Assert.assertEquals("Texture handle should be preserved across hide/show", textureBeforeHide, fixture.tiledState.textureHandle[refValidA]);
     }
 
     @Test
@@ -111,7 +109,7 @@ public class RenderTiledSyncSystemTest {
         Assert.assertEquals(
                 "Changed tile must be visible after partial refresh",
                 203,
-                fixture.state.textureHandle[chunk.slotFor(0, 0)]
+                fixture.tiledState.textureHandle[refFor(fixture.map, 0, 0)]
         );
 
         // Hide again.
@@ -183,11 +181,11 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
 
         TileChunk chunk = findChunk(fixture.map, 0, 0);
-        int slotValidA = chunk.slotFor(0, 0);
-        int slotValidB = chunk.slotFor(1, 1);
+        int refValidA = refFor(fixture.map, 0, 0);
+        int refValidB = refFor(fixture.map, 1, 1);
 
-        Assert.assertTrue(fixture.state.visible[slotValidA]);
-        Assert.assertTrue(fixture.state.visible[slotValidB]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidA]);
+        Assert.assertTrue(fixture.tiledState.visible[refValidB]);
         Assert.assertEquals(2, fixture.drawList.size);
 
         // Hide the chunk.
@@ -203,10 +201,10 @@ public class RenderTiledSyncSystemTest {
         fixture.camera.position.set(16f, 16f, 0f);
         fixture.world.process();
 
-        Assert.assertFalse("Slot changed to empty must remain hidden", fixture.state.visible[slotValidA]);
-        Assert.assertFalse("Slot changed to invalid atlas must remain hidden", fixture.state.visible[slotValidB]);
-        Assert.assertFalse("Slot changed to empty must be disabled", fixture.state.enabled[slotValidA]);
-        Assert.assertFalse("Slot changed to invalid atlas must be disabled", fixture.state.enabled[slotValidB]);
+        Assert.assertFalse("Tile changed to empty must remain hidden", fixture.tiledState.visible[refValidA]);
+        Assert.assertFalse("Tile changed to invalid atlas must remain hidden", fixture.tiledState.visible[refValidB]);
+        Assert.assertFalse("Tile changed to empty must be disabled", fixture.tiledState.enabled[refValidA]);
+        Assert.assertFalse("Tile changed to invalid atlas must be disabled", fixture.tiledState.enabled[refValidB]);
         Assert.assertEquals("No stale tiled slot must be extracted", 0, fixture.drawList.size);
         Assert.assertEquals(TileChunk.DirtyState.CLEAN, chunk.dirtyState);
     }
@@ -234,13 +232,14 @@ public class RenderTiledSyncSystemTest {
     public void chunkInsideConservativeWindowButFailingFinalOverlapIsHiddenImmediately() {
         Fixture fixture = createTwoChunksFixture();
         TileChunk right = findChunk(fixture.map, 1, 0);
-        int rightSlot = right.slotFor(0, 0);
+        int rightRef;
 
         // Frame N: right chunk is truly visible.
         fixture.camera.position.set(48f, 16f, 0f);
         fixture.world.process();
+        rightRef = refFor(fixture.map, 2, 0);
         Assert.assertTrue(right.visibleLastFrame);
-        Assert.assertTrue(fixture.state.visible[rightSlot]);
+        Assert.assertTrue(fixture.tiledState.visible[rightRef]);
         Assert.assertEquals(1, fixture.drawList.size);
 
         // Frame N+1: right chunk remains in conservative window (due expansion),
@@ -249,8 +248,7 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
 
         Assert.assertFalse("Chunk must be hidden when final overlap fails", right.visibleLastFrame);
-        Assert.assertFalse("No stale visible slot should remain", fixture.state.visible[rightSlot]);
-        Assert.assertFalse("No stale enabled slot should remain", fixture.state.enabled[rightSlot]);
+        Assert.assertFalse("No stale right chunk ref should be published", containsVisibleRef(fixture.tiledState, rightRef));
         Assert.assertTrue("Hidden counter should include this case", fixture.tiledSync.getHiddenChunkCount() > 0);
         Assert.assertEquals("Draw list must not include stale right chunk tile", 1, fixture.drawList.size);
     }
@@ -401,8 +399,9 @@ public class RenderTiledSyncSystemTest {
 
         fixture.world.process();
 
-        Assert.assertFalse(fixture.state.enabled[96]);
-        Assert.assertFalse(fixture.state.visible[96]);
+        int ref = refFor(fixture.map, 0, 0);
+        Assert.assertFalse(fixture.tiledState.enabled[ref]);
+        Assert.assertFalse(fixture.tiledState.visible[ref]);
     }
 
     @Test
@@ -431,7 +430,7 @@ public class RenderTiledSyncSystemTest {
 
         float[] expected = new float[8];
         TileProfilePlacement.buildTopCenterDefaultSpriteQuad(100f, 200f, 64, 32, 64, 32, expected);
-        assertSlotQuad(fixture.state, 96, expected);
+        assertRefQuad(fixture.tiledState, refFor(fixture.map, 0, 0), expected);
     }
 
     @Test
@@ -459,7 +458,7 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
 
         float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
-        assertSlotQuad(fixture.state, 96, expected);
+        assertRefQuad(fixture.tiledState, refFor(fixture.map, 0, 0), expected);
         assertVisualPadding(fixture.map, 0f, 0f, 0f, 384f);
     }
 
@@ -491,7 +490,7 @@ public class RenderTiledSyncSystemTest {
         TileProfilePlacement.buildTopCenterDefaultSpriteQuad(100f, 200f, 256, 128, 256, 512, topCenterDefault);
         float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
 
-        assertSlotQuad(fixture.state, 96, expected);
+        assertRefQuad(fixture.tiledState, refFor(fixture.map, 0, 0), expected);
         Assert.assertNotEquals("bottom-center should move the sprite away from top-center default", topCenterDefault[1], expected[1], 0.0001f);
         assertVisualPadding(fixture.map, 0f, 0f, 384f, 0f);
     }
@@ -521,7 +520,7 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
 
         float[] expected = expectedProfileQuad(fixture.map, profile, 256, 512);
-        assertSlotQuad(fixture.state, 96, expected);
+        assertRefQuad(fixture.tiledState, refFor(fixture.map, 0, 0), expected);
         assertVisualPadding(fixture.map, 0f, 10f, 364f, 20f);
     }
 
@@ -549,8 +548,9 @@ public class RenderTiledSyncSystemTest {
 
         fixture.world.process();
 
-        Assert.assertFalse(fixture.state.enabled[96]);
-        Assert.assertFalse(fixture.state.visible[96]);
+        int ref = refFor(fixture.map, 0, 0);
+        Assert.assertFalse(fixture.tiledState.enabled[ref]);
+        Assert.assertFalse(fixture.tiledState.visible[ref]);
         assertVisualPadding(fixture.map, 0f, 0f, 0f, 0f);
     }
 
@@ -622,7 +622,7 @@ public class RenderTiledSyncSystemTest {
                 TileTransformFlags.FLIP_H,
                 expected
         );
-        assertSlotQuad(fixture.state, 96, expected);
+        assertRefQuad(fixture.tiledState, refFor(fixture.map, 0, 0), expected);
     }
 
     private static Fixture createSingleChunkFixture() {
@@ -1044,17 +1044,31 @@ public class RenderTiledSyncSystemTest {
         return expected;
     }
 
-    private static void assertSlotQuad(RenderStateSOA state, int slot, float[] expected) {
-        Assert.assertTrue("slot should be enabled", state.enabled[slot]);
-        Assert.assertTrue("slot should be visible", state.visible[slot]);
-        Assert.assertEquals(expected[0], state.x1[slot], 0.0001f);
-        Assert.assertEquals(expected[1], state.y1[slot], 0.0001f);
-        Assert.assertEquals(expected[2], state.x2[slot], 0.0001f);
-        Assert.assertEquals(expected[3], state.y2[slot], 0.0001f);
-        Assert.assertEquals(expected[4], state.x3[slot], 0.0001f);
-        Assert.assertEquals(expected[5], state.y3[slot], 0.0001f);
-        Assert.assertEquals(expected[6], state.x4[slot], 0.0001f);
-        Assert.assertEquals(expected[7], state.y4[slot], 0.0001f);
+    private static int refFor(TiledMapLayerData map, int gx, int gy) {
+        int ref = map.tiledRenderRefForTile(gx, gy);
+        Assert.assertTrue("tile should have a render ref", ref >= 0);
+        return ref;
+    }
+
+    private static boolean containsVisibleRef(TiledMapRenderState state, int ref) {
+        int[] refs = state.getVisibleRefs();
+        for (int i = 0; i < state.getVisibleRefCount(); i++) {
+            if (refs[i] == ref) return true;
+        }
+        return false;
+    }
+
+    private static void assertRefQuad(TiledMapRenderState state, int ref, float[] expected) {
+        Assert.assertTrue("ref should be enabled", state.enabled[ref]);
+        Assert.assertTrue("ref should be visible", state.visible[ref]);
+        Assert.assertEquals(expected[0], state.x1[ref], 0.0001f);
+        Assert.assertEquals(expected[1], state.y1[ref], 0.0001f);
+        Assert.assertEquals(expected[2], state.x2[ref], 0.0001f);
+        Assert.assertEquals(expected[3], state.y2[ref], 0.0001f);
+        Assert.assertEquals(expected[4], state.x3[ref], 0.0001f);
+        Assert.assertEquals(expected[5], state.y3[ref], 0.0001f);
+        Assert.assertEquals(expected[6], state.x4[ref], 0.0001f);
+        Assert.assertEquals(expected[7], state.y4[ref], 0.0001f);
     }
 
     private static void assertVisualPadding(TiledMapLayerData map,

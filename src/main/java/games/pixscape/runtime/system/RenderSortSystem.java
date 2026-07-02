@@ -124,9 +124,8 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                     : 0L;
         }
         if (domain == RenderSourceDomain.SOURCE_TILED) {
-            int legacySlot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
-            return legacySlot >= 0 && legacySlot < state.getCapacity()
-                    ? state.sortKey[legacySlot]
+            return tiledState != null && slot >= 0 && slot < tiledState.getRefCount()
+                    ? tiledState.sortKey[slot]
                     : 0L;
         }
         if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < state.getCapacity()) {
