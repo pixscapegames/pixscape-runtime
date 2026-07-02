@@ -5,7 +5,6 @@ import com.badlogic.gdx.utils.ByteArray;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.TiledSoaAllocator;
 
 import java.util.Arrays;
 
@@ -13,12 +12,8 @@ public final class TiledLayerComponent extends PooledComponent {
 
     // Runtime dense structure (NON serialized)
     public transient TiledMapLayerData data;
-    public transient TiledSoaAllocator.Range range;
 
     public String atlasTag = "main";
-
-    public int tiledStart = 0;
-    public int tiledEnd = 0;
 
     public int mapWidthCells = 100;
     public int mapHeightCells = 100;
@@ -108,10 +103,7 @@ public final class TiledLayerComponent extends PooledComponent {
     @Override
     protected void reset() {
         data = null;
-        range = null;
         atlasTag = "main";
-        tiledStart = 0;
-        tiledEnd = 0;
         tileXs.clear();
         tileYs.clear();
         tileAssetIds.clear();

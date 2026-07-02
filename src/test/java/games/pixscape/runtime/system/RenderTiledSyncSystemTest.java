@@ -326,12 +326,9 @@ public class RenderTiledSyncSystemTest {
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                512,
                 null,
                 topCenterProfiles(
                         16,
@@ -352,7 +349,6 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiledA = layerA.edit().create(TiledLayerComponent.class);
         tiledA.atlasTag = "main";
         tiledA.data = new TiledMapLayerData(4, 2, 16, 16, 2);
-        tiledA.data.initSlotRange(96, 160);
         tiledA.data.setTile(0, 0, 1);
 
         Entity layerB = world.createEntity();
@@ -363,7 +359,6 @@ public class RenderTiledSyncSystemTest {
         tiledB.atlasTag = "main";
         tiledB.data = new TiledMapLayerData(4, 2, 16, 16, 2);
         tiledB.data.originX = 128f;
-        tiledB.data.initSlotRange(192, 256);
         tiledB.data.setTile(2, 0, 2);
 
         // First camera position: layer A visible, layer B offscreen
@@ -641,12 +636,9 @@ public class RenderTiledSyncSystemTest {
 
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                256,
                 null,
                 topCenterProfiles(
                         16,
@@ -674,7 +666,6 @@ public class RenderTiledSyncSystemTest {
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
-        map.initSlotRange(96, 112);
         map.setTile(0, 0, 1);
         map.setTile(1, 0, 0);
         map.setTile(0, 1, 99);
@@ -700,12 +691,9 @@ public class RenderTiledSyncSystemTest {
 
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                256,
                 null,
                 topCenterProfiles(
                         16,
@@ -732,7 +720,6 @@ public class RenderTiledSyncSystemTest {
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 2, 16, 16, 2);
-        map.initSlotRange(96, 128);
 
         // Left chunk has a single valid tile.
         map.setTile(0, 0, 1);
@@ -760,12 +747,9 @@ public class RenderTiledSyncSystemTest {
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                4096,
                 null,
                 topCenterProfiles(
                         16,
@@ -789,7 +773,6 @@ public class RenderTiledSyncSystemTest {
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(10, 10, 16, 16, 2);
-        map.initSlotRange(96, 4096);
         map.setTile(0, 0, 1);
         map.setTile(9, 9, 2);
         tiled.data = map;
@@ -811,12 +794,9 @@ public class RenderTiledSyncSystemTest {
         CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                512,
                 null,
                 topCenterProfiles(
                         16,
@@ -838,7 +818,6 @@ public class RenderTiledSyncSystemTest {
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2,
                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
-        map.initSlotRange(96, 512);
         map.setTile(1, 1, 1);
         tiled.data = map;
 
@@ -864,12 +843,9 @@ public class RenderTiledSyncSystemTest {
         CountingAtlasRuntimeService atlas = new TallCountingAtlasRuntimeService();
         RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
                 camera,
-                state,
                 tiledState,
                 atlas,
                 7,
-                64,
-                20000,
                 null,
                 topCenterProfiles(
                         64,
@@ -892,7 +868,6 @@ public class RenderTiledSyncSystemTest {
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
-        map.initSlotRange(96, 20000);
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
 
@@ -946,7 +921,13 @@ public class RenderTiledSyncSystemTest {
         DrawList drawList = new DrawList(512);
         RenderStats stats = new RenderStats();
         CountingAtlasRuntimeService atlas = new SizedCountingAtlasRuntimeService(spriteWidth, spriteHeight);
-        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(camera, state, tiledState, atlas, 7, 64, 512, null, profiles);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                tiledState,
+                atlas,
+                7,
+                null,
+                profiles);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
@@ -963,7 +944,6 @@ public class RenderTiledSyncSystemTest {
         TiledMapLayerData map = new TiledMapLayerData(1, 1, cellWidth, cellHeight, 1, projection);
         map.originX = 100f;
         map.originY = 200f;
-        map.initSlotRange(96, 128);
         map.setTile(0, 0, tileId, transformFlags);
         tiled.data = map;
 

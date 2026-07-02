@@ -472,7 +472,6 @@ public final class SpatialTiledSort {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
             if (ref == null) continue;
             int tiledRenderRef = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
-            int legacySlot = tiled.data.slotForTile(ref.gx, ref.gy);
             int drawIndex = tiledRenderRef >= 0 && tiledRenderRef < tiledRefToDrawIndex.length
                     ? tiledRefToDrawIndex[tiledRenderRef]
                     : -1;
@@ -485,7 +484,6 @@ public final class SpatialTiledSort {
                 sharedAnchors.append(ref.gx).append(',')
                         .append(ref.gy).append(',')
                         .append(tiledRenderRef).append(',')
-                        .append(legacySlot).append(',')
                         .append(ownersText(ownership));
                 continue;
             }
@@ -493,7 +491,6 @@ public final class SpatialTiledSort {
             exclusiveAnchors.append(ref.gx).append(',')
                     .append(ref.gy).append(',')
                     .append(tiledRenderRef).append(',')
-                    .append(legacySlot).append(',')
                     .append(drawIndex).append(',')
                     .append(SortKey64.unpackZOrdered(key)).append(',')
                     .append(ref.gx).append(',')

@@ -30,7 +30,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         layerState.enabled[0] = true;
         state.touch(tiledSlot);
 
-        int tiledRenderRef = tiledState.registerLegacySlot(tiledSlot);
+        int tiledRenderRef = tiledState.registerRef();
         tiledState.setRenderDataForRef(tiledRenderRef, 1, 1, 1, 0, 0, 0, 10L,
                 0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
                 0f, 0f, 1f, 1f, 1f, 1f, (byte) 0);

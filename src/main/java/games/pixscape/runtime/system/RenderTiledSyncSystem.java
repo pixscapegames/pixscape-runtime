@@ -18,7 +18,6 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -41,7 +40,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
 
     private final OrthographicCamera camera;
-    private final RenderStateSOA state;
     private final TiledMapRenderState tiledState;
     private final AtlasRuntimeService atlasRuntimeService;
     private final int defaultShaderIdx;
@@ -64,58 +62,42 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private long profileStartNs;
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 RenderStateSOA state,
                                  TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
-                                 int defaultShaderIdx,
-                                 int tiledStart,
-                                 int tiledEnd) {
+                                 int defaultShaderIdx) {
         this(
                 camera,
-                state,
                 tiledState,
                 atlasRuntimeService,
                 defaultShaderIdx,
-                tiledStart,
-                tiledEnd,
                 null,
                 null
         );
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 RenderStateSOA state,
                                  TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
-                                 int tiledStart,
-                                 int tiledEnd,
                                  TileAnimationLookup tileAnimationLookup) {
         this(
                 camera,
-                state,
                 tiledState,
                 atlasRuntimeService,
                 defaultShaderIdx,
-                tiledStart,
-                tiledEnd,
                 tileAnimationLookup,
                 null
         );
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 RenderStateSOA state,
                                  TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
-                                 int tiledStart,
-                                 int tiledEnd,
                                  TileAnimationLookup tileAnimationLookup,
                                  RuntimeTilesetProfiles tilesetProfiles) {
 
         this.camera = camera;
-        this.state = state;
         this.tiledState = tiledState;
         this.atlasRuntimeService = atlasRuntimeService;
         this.defaultShaderIdx = defaultShaderIdx;
@@ -188,7 +170,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     shownChunkCount++;
                 }
                 chunk.visibleLastFrame = true;
-                for (int i = 0; i < chunk.soaCount; i++) {
+                for (int i = 0; i < chunk.cellCount(); i++) {
                     tiledState.addVisibleRef(chunk.renderRefStartIndex + i);
                 }
 
@@ -247,7 +229,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         for (int i = 0; i < chunk.dirtyLocalIndices.size; i++) {
 
             int localIndex = chunk.dirtyLocalIndices.get(i);
-            int slot = chunk.soaStartIndex + localIndex;
             int tiledRenderRef = chunk.renderRefStartIndex + localIndex;
 
             int lx = localIndex % chunk.chunkWidth;
@@ -260,7 +241,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     chunk,
                     localIndex,
                     tiledRenderRef,
-                    slot,
                     gx,
                     gy,
                     chunk.assetIds[localIndex],
@@ -278,14 +258,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void ensureChunkRenderRefs(TileChunk chunk) {
-        if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != chunk.soaCount) {
-            chunk.renderRefStartIndex = tiledState.registerLegacyRange(chunk.soaStartIndex, chunk.soaCount);
-            chunk.renderRefCount = chunk.soaCount;
-            return;
-        }
-
-        for (int i = 0; i < chunk.soaCount; i++) {
-            tiledState.setLegacySlotForRef(chunk.renderRefStartIndex + i, chunk.soaStartIndex + i);
+        int cellCount = chunk.cellCount();
+        if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != cellCount) {
+            chunk.renderRefStartIndex = tiledState.registerRefs(cellCount);
+            chunk.renderRefCount = cellCount;
         }
     }
 
@@ -429,6 +405,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private void refreshVisualPaddingIfDirty(TiledMapLayerData map, String atlasTag) {
         if (!map.visualBoundsDirty) return;
 
+        map.updateAllChunkBounds();
+
         float left = 0f;
         float right = 0f;
         float top = 0f;
@@ -516,7 +494,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
                 int localIndex = ly * chunk.chunkWidth + lx;
-                int slot = chunk.soaStartIndex + localIndex;
                 int tiledRenderRef = chunk.renderRefStartIndex + localIndex;
 
                 int gx = chunk.chunkX * map.chunkSize + lx;
@@ -526,7 +503,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                         chunk,
                         localIndex,
                         tiledRenderRef,
-                        slot,
                         gx,
                         gy,
                         chunk.assetIds[localIndex],
@@ -545,7 +521,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private void writeTileSlot(TileChunk chunk,
                                int localIndex,
                                int tiledRenderRef,
-                               int slot,
                                int gx,
                                int gy,
                                int assetId,
@@ -614,7 +589,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 tie
         );
 
-        tiledState.setLegacySlotForRef(tiledRenderRef, slot);
         tiledState.setRenderDataForRef(
                 tiledRenderRef,
                 cr.textureHandle,

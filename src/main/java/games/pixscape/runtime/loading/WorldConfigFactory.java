@@ -26,12 +26,10 @@ import java.util.function.Supplier;
 public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;
-    public static final int DEFAULT_TILED_BUDGET = 200_000;
+    public static final int DEFAULT_ECS_RENDER_CAPACITY = 150_000;
     public static final int DEFAULT_FRAME_QUEUE_CAPACITY = 4096;
     public static final int DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY = 4096;
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
-
-    private static final int ECS_WATERMARK = 150_000;
 
     private WorldConfigFactory() {
     }
@@ -234,17 +232,11 @@ public final class WorldConfigFactory {
     ) {
 
         int ecsStart = 0;
-        int ecsEnd = ECS_WATERMARK;
-
-        int effectiveTiledBudget = tiledBudget;
-
-        int tiledStart = ecsEnd;
-        int tiledEnd = tiledStart + effectiveTiledBudget;
-
-        int vfxStart = tiledEnd;
+        int ecsEnd = DEFAULT_ECS_RENDER_CAPACITY;
+        int vfxStart = 0;
         int vfxEnd = vfxStart + DEFAULT_VFX_BUDGET;
 
-        configureRenderStorageCapacities(renderState, drawList, frameQueue, vfxState, tiledState, tiledEnd, vfxEnd);
+        configureRenderStorageCapacities(renderState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
@@ -262,8 +254,6 @@ public final class WorldConfigFactory {
                 atlasRuntimeService,
                 defaultShaderIdx,
                 effectsRoot,
-                tiledStart,
-                tiledEnd,
                 vfxStart,
                 vfxEnd,
                 effectiveAnimatedTileRegistry,
@@ -304,11 +294,9 @@ public final class WorldConfigFactory {
                 world,
                 ecsStart,
                 ecsEnd,
-                tiledStart,
-                tiledEnd,
                 vfxStart,
                 vfxEnd,
-                vfxEnd,
+                ecsEnd,
                 effectiveAnimatedTileRegistry
         );
     }
@@ -325,8 +313,6 @@ public final class WorldConfigFactory {
             AtlasRuntimeService atlasRuntimeService,
             int defaultShaderIdx,
             FileHandle effectsRoot,
-            int tiledStart,
-            int tiledEnd,
             int vfxStartIndex,
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
@@ -346,12 +332,9 @@ public final class WorldConfigFactory {
                 profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),
                 profiled(new RenderTiledSyncSystem(
                         worldCamera,
-                        renderState,
                         tiledState,
                         atlasRuntimeService,
                         defaultShaderIdx,
-                        tiledStart,
-                        tiledEnd,
                         animatedTileRegistry,
                         tilesetProfiles
                 ), systemProfiler),
@@ -370,10 +353,9 @@ public final class WorldConfigFactory {
                                                  FrameRenderQueue frameQueue,
                                                  VfxRenderState vfxState,
                                                  TiledMapRenderState tiledState,
-                                                 int tiledEnd,
-                                                 int vfxEnd) {
-        renderState.setCapacity(tiledEnd);
-        drawList.setCapacity(vfxEnd);
+                                                 int ecsCapacity) {
+        renderState.setCapacity(ecsCapacity);
+        drawList.setCapacity(ecsCapacity);
         frameQueue.setCapacity(DEFAULT_FRAME_QUEUE_CAPACITY);
         vfxState.setCapacity(DEFAULT_VFX_BUDGET);
         tiledState.setCapacity(DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY);

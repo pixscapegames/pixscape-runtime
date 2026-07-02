@@ -179,9 +179,9 @@ public class SpatialTiledSortTest {
                 fixture.blocks,
                 true);
         SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
-        int sharedSlot = fixture.tiled.data.slotForTile(2, 3);
-        int block3Slot = fixture.tiled.data.slotForTile(3, 3);
-        int block4Slot = fixture.tiled.data.slotForTile(4, 3);
+        int sharedSlot = fixture.tiled.data.tiledRenderRefForTile(2, 3);
+        int block3Slot = fixture.tiled.data.tiledRenderRefForTile(3, 3);
+        int block4Slot = fixture.tiled.data.tiledRenderRefForTile(4, 3);
         int[] slotToDrawIndex = new int[8192];
         for (int i = 0; i < slotToDrawIndex.length; i++) slotToDrawIndex[i] = -1;
         slotToDrawIndex[sharedSlot] = 50;
@@ -217,8 +217,8 @@ public class SpatialTiledSortTest {
                 fixture.blocks,
                 true);
         SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
-        int sharedSlot = fixture.tiled.data.slotForTile(2, 3);
-        int block4Slot = fixture.tiled.data.slotForTile(4, 3);
+        int sharedSlot = fixture.tiled.data.tiledRenderRefForTile(2, 3);
+        int block4Slot = fixture.tiled.data.tiledRenderRefForTile(4, 3);
         int[] slotToDrawIndex = new int[8192];
         for (int i = 0; i < slotToDrawIndex.length; i++) slotToDrawIndex[i] = -1;
         slotToDrawIndex[sharedSlot] = 50;
@@ -306,7 +306,6 @@ public class SpatialTiledSortTest {
         TiledLayerComponent tiled = new TiledLayerComponent();
         tiled.spatialEnabled = spatialEnabled;
         tiled.data = new TiledMapLayerData(mapWidth, 16, 16, 16, 4, projection);
-        tiled.data.initSlotRange(0, mapWidth * 16);
         assignRenderRefs(tiled.data, 0);
         tiled.data.spatialEnabled = spatialEnabled;
 
@@ -340,8 +339,8 @@ public class SpatialTiledSortTest {
                 TileChunk chunk = map.getChunk(cx, cy);
                 if (chunk == null) continue;
                 chunk.renderRefStartIndex = nextRef;
-                chunk.renderRefCount = chunk.soaCount;
-                nextRef += chunk.soaCount;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
             }
         }
     }

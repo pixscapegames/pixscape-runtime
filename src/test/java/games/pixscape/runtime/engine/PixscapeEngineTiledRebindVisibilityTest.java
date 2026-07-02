@@ -9,6 +9,7 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderBuildDrawListSystem;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -19,7 +20,7 @@ import java.lang.reflect.Method;
 public class PixscapeEngineTiledRebindVisibilityTest {
 
     @Test
-    public void rebindMasksStaleTiledSlotsBeforeDirtyMarkSoOffscreenSlotsDoNotLeakToDrawList() throws Exception {
+    public void rebindMarksTiledChunksDirtyWithoutTouchingRenderStateSlots() throws Exception {
         RenderStateSOA state = new RenderStateSOA(64);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(2);
@@ -31,7 +32,8 @@ public class PixscapeEngineTiledRebindVisibilityTest {
         int tiledEntity = world.create();
         TiledLayerComponent tiled = world.edit(tiledEntity).create(TiledLayerComponent.class);
         tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
-        tiled.data.initSlotRange(10, 11);
+        TileChunk chunk = tiled.data.getChunk(0, 0);
+        chunk.dirtyState = TileChunk.DirtyState.CLEAN;
 
         int tiledSlot = 10;
         state.kind[tiledSlot] = RenderStateSOA.KIND_SPRITE;
@@ -46,7 +48,10 @@ public class PixscapeEngineTiledRebindVisibilityTest {
 
         invokeMarkAllTiledChunksContentDirty(engine);
 
-        Assert.assertFalse("Rebind must immediately hide old tiled slot visibility cache.", state.visible[tiledSlot]);
+        Assert.assertTrue("Rebind should dirty tiled chunk content for the next tiled sync.",
+                chunk.dirtyState == TileChunk.DirtyState.FULL);
+        Assert.assertTrue("Tiled rebind no longer owns RenderStateSOA visibility.",
+                state.visible[tiledSlot]);
 
         World drawWorld = new World(new WorldConfigurationBuilder()
                 .with(new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
@@ -55,7 +60,8 @@ public class PixscapeEngineTiledRebindVisibilityTest {
         // Camera can move before next tiled sync; stale slot must still not leak in draw list.
         drawWorld.process();
 
-        Assert.assertEquals("No stale offscreen tiled slot should leak into draw list after atlas rebind.", 0, drawList.size);
+        Assert.assertEquals("Draw list should only see RenderStateSOA data that still belongs to ECS.",
+                1, drawList.size);
     }
 
     private static void invokeMarkAllTiledChunksContentDirty(PixscapeEngine engine) throws Exception {

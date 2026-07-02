@@ -30,13 +30,6 @@ public final class TiledMapLayerData {
             SceneMetaRuntime.TiledProjection.ORTHO;
 
     // =========================
-    // SOA RANGE (injected by allocator)
-    // =========================
-
-    public int layerTiledStart;
-    public int layerTiledEnd;
-
-    // =========================
     // CHUNK GRID
     // =========================
 
@@ -86,26 +79,15 @@ public final class TiledMapLayerData {
         this.projection = projection != null
                 ? projection
                 : SceneMetaRuntime.TiledProjection.ORTHO;
+        initializeChunks();
     }
 
     public TiledMapLayerData() {
     }
 
-    // ============================================================
-    // INITIALISATION RANGE
-    // ============================================================
-
-    public void initSlotRange(int layerStart, int layerEnd) {
-        this.layerTiledStart = layerStart;
-        this.layerTiledEnd = layerEnd;
-        allocateChunksStrict();
-    }
-
-    private void allocateChunksStrict() {
+    public void initializeChunks() {
 
         chunks.clear();
-
-        int cursor = layerTiledStart;
 
         chunksX = Math.max(1, (mapWidth + chunkSize - 1) / chunkSize);
         chunksY = Math.max(1, (mapHeight + chunkSize - 1) / chunkSize);
@@ -121,34 +103,17 @@ public final class TiledMapLayerData {
 
                 if (chunkWidth <= 0 || chunkHeight <= 0) continue;
 
-                int requiredSlots = chunkWidth * chunkHeight;
-
-                if (cursor + requiredSlots > layerTiledEnd) {
-                    throw new IllegalStateException(
-                            "TILED range overflow. Required=" +
-                                    (cursor + requiredSlots) +
-                                    " end=" + layerTiledEnd
-                    );
-                }
-
                 TileChunk chunk = new TileChunk(
                         cx,
                         cy,
                         chunkWidth,
-                        chunkHeight,
-                        cursor
+                        chunkHeight
                 );
 
                 updateChunkBounds(chunk);
 
                 chunks.put(packChunk(cx, cy), chunk);
-
-                cursor += requiredSlots;
             }
-        }
-
-        if (cursor > layerTiledEnd) {
-            throw new IllegalStateException("Tiled allocation overflow");
         }
 
         hasPreviousChunkWindow = false;
@@ -190,6 +155,12 @@ public final class TiledMapLayerData {
         float maxY = originY + (gx1 + gy1) * halfH + tileHeight;
 
         chunk.bounds.set(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    public void updateAllChunkBounds() {
+        for (IntMap.Values<TileChunk> values = chunks.values(); values.hasNext(); ) {
+            updateChunkBounds(values.next());
+        }
     }
 
     // ============================================================
@@ -408,7 +379,7 @@ public final class TiledMapLayerData {
         this.mapWidth = newWidth;
         this.mapHeight = newHeight;
 
-        allocateChunksStrict();
+        initializeChunks();
 
         IntMap.Keys xs = saved.keys();
         while (xs.hasNext) {
@@ -723,17 +694,6 @@ public final class TiledMapLayerData {
         int ly = gy - (gy / chunkSize) * chunkSize;
 
         return chunk.getTransformFlags(lx, ly);
-    }
-
-    public int slotForTile(int gx, int gy) {
-        if (!isInside(gx, gy)) return -1;
-
-        TileChunk chunk = chunkForTile(gx, gy);
-        if (chunk == null) return -1;
-
-        int lx = gx - (gx / chunkSize) * chunkSize;
-        int ly = gy - (gy / chunkSize) * chunkSize;
-        return chunk.slotFor(lx, ly);
     }
 
     public int tiledRenderRefForTile(int gx, int gy) {

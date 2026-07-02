@@ -35,13 +35,11 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.TiledSoaAllocator;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 
-import static games.pixscape.runtime.loading.WorldConfigFactory.DEFAULT_TILED_BUDGET;
 
 public final class PixscapeEngine {
 
@@ -92,8 +90,6 @@ public final class PixscapeEngine {
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
-    private int runtimeTiledStart;
-    private int runtimeTiledEnd;
 
 
     public PixscapeEngine() {
@@ -193,15 +189,7 @@ public final class PixscapeEngine {
                 .child(cfg.scenesDir)
                 .child(RuntimeFs.withExt(RuntimeConfig.sceneDirName(meta), RuntimeFs.EXT_JSON));
 
-        int tiledLayerCount = SceneLoader.countTiledLayers(sceneFile);
-
-        int tiledBudget = DEFAULT_TILED_BUDGET * tiledLayerCount;
-
-        if (!meta.tiledEnabled) {
-            tiledBudget = 0;
-        }
-
-        rebuildWorldWithBudget(cfg, runtimeProjectDir, meta, tiledBudget);
+        rebuildWorld(cfg, runtimeProjectDir, meta);
 
         loadSceneInternal(resolved);
 
@@ -263,10 +251,9 @@ public final class PixscapeEngine {
         return spawnPrefabFragment(fragment, offsetX, offsetY);
     }
 
-    private void rebuildWorldWithBudget(RuntimeConfig config,
-                                        FileHandle projectDir,
-                                        SceneMetaRuntime meta,
-                                        int tiledBudget) {
+    private void rebuildWorld(RuntimeConfig config,
+                              FileHandle projectDir,
+                              SceneMetaRuntime meta) {
 
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -328,7 +315,7 @@ public final class PixscapeEngine {
                                 statsSink
                         ),
                         meta,
-                        tiledBudget,
+                        0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
@@ -337,8 +324,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -610,8 +595,6 @@ public final class PixscapeEngine {
         drawList = null;
         frameQueue = null;
         vfxState = null;
-        runtimeTiledStart = 0;
-        runtimeTiledEnd = 0;
         stats = null;
         statsSink = null;
         defaultShaderName = null;
@@ -693,8 +676,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -778,8 +759,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -843,8 +822,6 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -897,8 +874,6 @@ public final class PixscapeEngine {
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
-        TiledSoaAllocator allocator = new TiledSoaAllocator(runtimeTiledStart, runtimeTiledEnd);
-
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
         ComponentMapper<LayerComponent> mLayer =
@@ -931,12 +906,6 @@ public final class PixscapeEngine {
             tiled.data.spatialEnabled = tiled.spatialEnabled || (layer != null && layer.spatialEnabled);
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
-
-            int required = tiled.mapWidthCells * tiled.mapHeightCells;
-            TiledSoaAllocator.Range r = allocator.allocate(required);
-            tiled.tiledStart = r.start;
-            tiled.tiledEnd = r.end;
-            tiled.data.initSlotRange(r.start, r.end);
 
             for (int t = 0; t < tiled.tileXs.size; t++) {
                 int gx = tiled.tileXs.get(t);
@@ -1037,23 +1006,7 @@ public final class PixscapeEngine {
         for (int i = 0, n = tiledBag.size(); i < n; i++) {
             TiledLayerComponent tiled = mTiled.get(data[i]);
             if (tiled == null || tiled.data == null) continue;
-            maskTiledSlotsInvisible(tiled.data);
             tiled.data.markAllChunksContentDirty();
-        }
-    }
-
-    private void maskTiledSlotsInvisible(TiledMapLayerData tiledData) {
-        if (renderState == null || tiledData == null) return;
-
-        for (IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext(); ) {
-            TileChunk chunk = chunks.next();
-            if (chunk == null || chunk.soaCount <= 0) continue;
-
-            int slotStart = Math.max(0, chunk.soaStartIndex);
-            int slotEnd = Math.min(renderState.visible.length, slotStart + chunk.soaCount);
-            for (int slot = slotStart; slot < slotEnd; slot++) {
-                renderState.visible[slot] = false;
-            }
         }
     }
 

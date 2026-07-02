@@ -1,5 +1,6 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -121,16 +122,29 @@ public class SpatialBlocksRuntimeCacheTest {
     }
 
     @Test
-    public void slotForTileResolvesDistinctCellsWithSameTileAssetId() {
+    public void tiledRenderRefResolvesDistinctCellsWithSameTileAssetId() {
         TiledMapLayerData map = new TiledMapLayerData(3, 3, 16, 16, 3);
-        map.initSlotRange(300, 309);
+        assignRenderRefs(map, 300);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 101);
 
         Assert.assertEquals(101, map.getTile(0, 0));
         Assert.assertEquals(101, map.getTile(1, 0));
-        Assert.assertEquals(300, map.slotForTile(0, 0));
-        Assert.assertEquals(301, map.slotForTile(1, 0));
-        Assert.assertNotEquals(map.slotForTile(0, 0), map.slotForTile(1, 0));
+        Assert.assertEquals(300, map.tiledRenderRefForTile(0, 0));
+        Assert.assertEquals(301, map.tiledRenderRefForTile(1, 0));
+        Assert.assertNotEquals(map.tiledRenderRefForTile(0, 0), map.tiledRenderRefForTile(1, 0));
+    }
+
+    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+        int nextRef = startRef;
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
+            }
+        }
     }
 }

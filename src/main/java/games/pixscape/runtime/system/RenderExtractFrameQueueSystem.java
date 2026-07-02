@@ -84,7 +84,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
             }
 
             if (domain == RenderSourceDomain.SOURCE_ECS) {
-                addLegacyStateQuad(domain, slot, slot);
+                addStateQuad(domain, slot, slot);
                 continue;
             }
 
@@ -101,39 +101,39 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         }
     }
 
-    private void addLegacyStateQuad(byte sourceDomain, int sourceSlot, int legacySlot) {
-        if (legacySlot < 0 || legacySlot >= state.getCapacity()) {
+    private void addStateQuad(byte sourceDomain, int sourceSlot, int stateSlot) {
+        if (stateSlot < 0 || stateSlot >= state.getCapacity()) {
             return;
         }
 
-        float ox = state.offsetX[legacySlot];
-        float oy = state.offsetY[legacySlot];
+        float ox = state.offsetX[stateSlot];
+        float oy = state.offsetY[stateSlot];
         int sourceEntity = sourceDomain == RenderSourceDomain.SOURCE_ECS
-                ? state.entityId[legacySlot]
+                ? state.entityId[stateSlot]
                 : -1;
 
         frameQueue.addQuad(
-                state.textureHandle[legacySlot],
-                state.shader[legacySlot],
-                state.blend[legacySlot],
-                state.layerIndex[legacySlot],
-                state.paramsId[legacySlot],
-                state.customParamsId[legacySlot],
-                state.sortKey[legacySlot],
-                state.x1[legacySlot] + ox,
-                state.y1[legacySlot] + oy,
-                state.x2[legacySlot] + ox,
-                state.y2[legacySlot] + oy,
-                state.x3[legacySlot] + ox,
-                state.y3[legacySlot] + oy,
-                state.x4[legacySlot] + ox,
-                state.y4[legacySlot] + oy,
-                state.u1[legacySlot],
-                state.v1[legacySlot],
-                state.u2[legacySlot],
-                state.v2[legacySlot],
-                state.colorPacked[legacySlot],
-                state.repeatFlags[legacySlot],
+                state.textureHandle[stateSlot],
+                state.shader[stateSlot],
+                state.blend[stateSlot],
+                state.layerIndex[stateSlot],
+                state.paramsId[stateSlot],
+                state.customParamsId[stateSlot],
+                state.sortKey[stateSlot],
+                state.x1[stateSlot] + ox,
+                state.y1[stateSlot] + oy,
+                state.x2[stateSlot] + ox,
+                state.y2[stateSlot] + oy,
+                state.x3[stateSlot] + ox,
+                state.y3[stateSlot] + oy,
+                state.x4[stateSlot] + ox,
+                state.y4[stateSlot] + oy,
+                state.u1[stateSlot],
+                state.v1[stateSlot],
+                state.u2[stateSlot],
+                state.v2[stateSlot],
+                state.colorPacked[stateSlot],
+                state.repeatFlags[stateSlot],
                 sourceDomain,
                 sourceSlot,
                 sourceEntity

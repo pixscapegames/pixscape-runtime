@@ -170,22 +170,21 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void tiledDrawIndexMappingUsesRenderRefNotLegacySlot() {
+    public void tiledDrawIndexMappingUsesMapRenderRef() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
-        int legacySlot = map.slotForTile(0, 0);
+        int mapRenderRef = map.tiledRenderRefForTile(0, 0);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
 
         fixture.process();
 
-        Assert.assertNotEquals(legacySlot, tile);
+        Assert.assertEquals(mapRenderRef, tile);
         Assert.assertEquals(indexOf(fixture.beforeSpatialOrder, tile), fixture.spatial.tiledDrawIndexForRef(tile));
-        Assert.assertEquals(-1, fixture.spatial.tiledDrawIndexForRef(legacySlot));
     }
 
     @Test
@@ -807,7 +806,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -825,7 +824,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -843,7 +842,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(40f, 40f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -861,7 +860,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         map.setTile(0, 0, 101);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -879,7 +878,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(8f, 4f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -903,7 +902,7 @@ public class SpatialRenderOrderSystemTest {
         block.addLinkedTileRef(0, 1, 202);
         fixture.createBlockTiledLayer(1, map, block);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int directTile = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int authoredTile = fixture.createLinkedTile(map, 0, 1, 202, 1, 30);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
@@ -929,7 +928,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData directMap = fixture.createBlockMap(3, 3, 16, 16, 400);
         fixture.createSpatialTiledLayerWithMap(3, directMap);
         fixture.setSpatialTile(directMap, 0, 0, 101, 0f, 12f);
-        int directTile = fixture.createTiledSlot(directMap.slotForTile(0, 0), 3, 30);
+        int directTile = fixture.createTiledSlot(directMap.tiledRenderRefForTile(0, 0), 3, 30);
 
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
@@ -948,7 +947,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -1090,7 +1089,7 @@ public class SpatialRenderOrderSystemTest {
         block.addLinkedTileRef(0, 1, 202);
         fixture.createBlockTiledLayer(1, map, block);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int directTile = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int directTile = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -1109,7 +1108,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -1127,7 +1126,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -1145,7 +1144,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -1163,7 +1162,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(0f, map.tileToWorldY(1f, 0f) - 2f, 0, 2, true);
         fixture.setActorCircleFootprint(actor, 6f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -1181,7 +1180,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(1.25f, 0.25f), map.tileToWorldY(1.25f, 0.25f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -1199,7 +1198,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 1.25f), map.tileToWorldY(0.25f, 1.25f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 10);
@@ -1217,7 +1216,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 1, 10);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
         int actor = fixture.createActor(map.tileToWorldX(0.25f, 0.25f), map.tileToWorldY(0.25f, 0.25f), 0, 2, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
@@ -1239,7 +1238,7 @@ public class SpatialRenderOrderSystemTest {
         TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, SceneMetaRuntime.TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(3, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
-        int anchor = fixture.createTiledSlot(map.slotForTile(0, 0), 3, 20);
+        int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 3, 20);
         int actor = fixture.createActor(map.tileToWorldX(0.8f, 0.8f), map.tileToWorldY(0.8f, 0.8f), 0, 1, true);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 1, 0, 10);
@@ -1768,7 +1767,6 @@ public class SpatialRenderOrderSystemTest {
             tiled.data.spatialEnabled = true;
             tiled.data.defaultTileAltitude = 0f;
             tiled.data.defaultTileHeight = 10f;
-            tiled.data.initSlotRange(300, 301);
         }
 
         int createBlockTiledLayer(int layerIndex, TiledMapLayerData map, SpatialBlockData... blocks) {
@@ -1836,11 +1834,10 @@ public class SpatialRenderOrderSystemTest {
         int createLinkedTile(TiledMapLayerData map, int gx, int gy, int assetId, int layerIndex, int runtimeOrder) {
             map.setTile(gx, gy, assetId);
             ensureMapRenderRefs(map);
-            int slot = map.slotForTile(gx, gy);
             int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);
+            int slot = tiledRenderRef;
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
-            tiledState.setLegacySlotForRef(tiledRenderRef, slot);
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
@@ -1886,8 +1883,7 @@ public class SpatialRenderOrderSystemTest {
                                          int startSlot,
                                          SceneMetaRuntime.TiledProjection projection) {
             TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
-            map.initSlotRange(startSlot, startSlot + width * height);
-            ensureMapRenderRefs(map);
+            ensureMapRenderRefs(map, startSlot);
             return map;
         }
 
@@ -1945,10 +1941,8 @@ public class SpatialRenderOrderSystemTest {
         int createTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
-            int tiledRenderRef = tiledRefForLegacySlot(slot);
-            if (tiledRenderRef < 0) {
-                tiledRenderRef = tiledState.registerLegacySlot(slot);
-            }
+            ensureTiledRefsRegistered(slot + 1);
+            int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
@@ -1957,71 +1951,66 @@ public class SpatialRenderOrderSystemTest {
         int createRenderOnlySlot(int slot, int layerIndex, int z, int runtimeOrder) {
             enableSlot(slot, layerIndex, z, runtimeOrder);
             state.entityId[slot] = -1;
-            int tiledRenderRef = tiledRefForLegacySlot(slot);
-            if (tiledRenderRef < 0) {
-                tiledRenderRef = tiledState.registerLegacySlot(slot);
-            }
+            ensureTiledRefsRegistered(slot + 1);
+            int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
         }
 
-        int legacySlotForRef(int tiledRenderRef) {
-            return tiledState.legacySlotForRef(tiledRenderRef);
-        }
-
-        int tiledRefForLegacySlot(int legacySlot) {
-            for (int ref = 0; ref < tiledState.getRefCount(); ref++) {
-                if (tiledState.legacySlotForRef(ref) == legacySlot) {
-                    return ref;
-                }
-            }
-            return -1;
-        }
-
         void ensureMapRenderRefs(TiledMapLayerData map) {
+            ensureMapRenderRefs(map, tiledState.getRefCount());
+        }
+
+        void ensureMapRenderRefs(TiledMapLayerData map, int startRef) {
             if (map == null) return;
+            int nextRef = startRef;
             for (int cy = 0; cy < map.getChunksY(); cy++) {
                 for (int cx = 0; cx < map.getChunksX(); cx++) {
                     TileChunk chunk = map.getChunk(cx, cy);
                     if (chunk == null) continue;
-                    if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != chunk.soaCount) {
-                        chunk.renderRefStartIndex = tiledState.registerLegacyRange(chunk.soaStartIndex, chunk.soaCount);
-                        chunk.renderRefCount = chunk.soaCount;
-                    } else {
-                        for (int i = 0; i < chunk.soaCount; i++) {
-                            tiledState.setLegacySlotForRef(chunk.renderRefStartIndex + i, chunk.soaStartIndex + i);
-                        }
+                    if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != chunk.cellCount()) {
+                        chunk.renderRefStartIndex = nextRef;
+                        chunk.renderRefCount = chunk.cellCount();
+                        nextRef += chunk.cellCount();
                     }
                 }
             }
+            ensureTiledRefsRegistered(nextRef);
         }
 
-        void writeTiledRenderData(int tiledRenderRef, int legacySlot) {
+        void ensureTiledRefsRegistered(int requiredExclusive) {
+            int missing = requiredExclusive - tiledState.getRefCount();
+            if (missing > 0) {
+                tiledState.registerRefs(missing);
+            }
+        }
+
+        void writeTiledRenderData(int tiledRenderRef, int sourceSlot) {
             tiledState.setRenderDataForRef(
                     tiledRenderRef,
-                    state.textureHandle[legacySlot],
-                    state.shader[legacySlot],
-                    state.blend[legacySlot],
-                    state.layerIndex[legacySlot],
-                    state.paramsId[legacySlot],
-                    state.customParamsId[legacySlot],
-                    state.sortKey[legacySlot],
-                    state.x1[legacySlot],
-                    state.y1[legacySlot],
-                    state.x2[legacySlot],
-                    state.y2[legacySlot],
-                    state.x3[legacySlot],
-                    state.y3[legacySlot],
-                    state.x4[legacySlot],
-                    state.y4[legacySlot],
-                    state.u1[legacySlot],
-                    state.v1[legacySlot],
-                    state.u2[legacySlot],
-                    state.v2[legacySlot],
-                    state.colorPacked[legacySlot],
-                    state.a[legacySlot],
-                    state.repeatFlags[legacySlot]
+                    state.textureHandle[sourceSlot],
+                    state.shader[sourceSlot],
+                    state.blend[sourceSlot],
+                    state.layerIndex[sourceSlot],
+                    state.paramsId[sourceSlot],
+                    state.customParamsId[sourceSlot],
+                    state.sortKey[sourceSlot],
+                    state.x1[sourceSlot],
+                    state.y1[sourceSlot],
+                    state.x2[sourceSlot],
+                    state.y2[sourceSlot],
+                    state.x3[sourceSlot],
+                    state.y3[sourceSlot],
+                    state.x4[sourceSlot],
+                    state.y4[sourceSlot],
+                    state.u1[sourceSlot],
+                    state.v1[sourceSlot],
+                    state.u2[sourceSlot],
+                    state.v2[sourceSlot],
+                    state.colorPacked[sourceSlot],
+                    state.a[sourceSlot],
+                    state.repeatFlags[sourceSlot]
             );
         }
 

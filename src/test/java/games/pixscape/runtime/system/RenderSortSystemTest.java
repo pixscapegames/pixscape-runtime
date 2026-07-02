@@ -18,7 +18,7 @@ public class RenderSortSystemTest {
         TiledMapRenderState tiledState = new TiledMapRenderState(4);
         VfxRenderState vfxState = new VfxRenderState(4);
         DrawList drawList = new DrawList(4);
-        int tiledRef = tiledState.registerLegacySlot(120);
+        int tiledRef = tiledState.registerRef();
 
         state.sortKey[5] = 30L;
         tiledState.setRenderDataForRef(tiledRef, 1, 1, 1, 0, 0, 0, 10L,

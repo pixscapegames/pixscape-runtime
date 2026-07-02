@@ -200,15 +200,15 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                     .build());
         }
 
-        int addVisibleTiledSlot(int legacySlot) {
-            int ref = tiledState.registerLegacySlot(legacySlot);
-            writeTiledRenderData(ref, legacySlot);
+        int addVisibleTiledSlot(int sourceSlot) {
+            int ref = tiledState.registerRef();
+            writeTiledRenderData(ref, sourceSlot);
             tiledState.addVisibleRef(ref);
             return ref;
         }
 
         int addVisibleTiledRange(int startInclusive, int count) {
-            int refStart = tiledState.registerLegacyRange(startInclusive, count);
+            int refStart = tiledState.registerRefs(count);
             for (int i = 0; i < count; i++) {
                 writeTiledRenderData(refStart + i, startInclusive + i);
                 tiledState.addVisibleRef(refStart + i);
@@ -216,9 +216,9 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             return refStart;
         }
 
-        void writeTiledRenderData(int ref, int legacySlot) {
-            tiledState.setRenderDataForRef(ref, 1, 2, 3, state.layerIndex[legacySlot], 0, 0,
-                    state.sortKey[legacySlot],
+        void writeTiledRenderData(int ref, int sourceSlot) {
+            tiledState.setRenderDataForRef(ref, 1, 2, 3, state.layerIndex[sourceSlot], 0, 0,
+                    state.sortKey[sourceSlot],
                     0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
                     0f, 0f, 1f, 1f, 1f, 1f, RenderRepeatFlags.NONE);
         }

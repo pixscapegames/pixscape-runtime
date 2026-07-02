@@ -3,8 +3,7 @@ package games.pixscape.runtime.render;
 /**
  * Frame-local tiled render state.
  * <p>
- * Owns stable logical tiled refs and draw-ready tiled quad data. Legacy render
- * slots are kept only as a transition bridge for spatial anchors.
+ * Owns stable logical tiled refs and draw-ready tiled quad data.
  */
 public final class TiledMapRenderState {
 
@@ -16,7 +15,6 @@ public final class TiledMapRenderState {
     private int[] visibleRefs;
     private int visibleRefCount;
 
-    private int[] refToLegacySlot;
     private int refCount;
 
     public boolean[] enabled;
@@ -52,7 +50,6 @@ public final class TiledMapRenderState {
         visibleRefCount = 0;
         refCount = 0;
         growthCount = 0;
-        clearLegacySlots(refToLegacySlot, 0, refToLegacySlot.length);
     }
 
     public void ensureCapacity(int required) {
@@ -85,41 +82,21 @@ public final class TiledMapRenderState {
         visibleRefs[visibleRefCount++] = tiledRenderRef;
     }
 
-    public int registerLegacySlot(int legacySlot) {
+    public int registerRef() {
         int ref = refCount;
-        setLegacySlotForRef(ref, legacySlot);
+        ensureCapacity(ref + 1);
+        refCount = ref + 1;
         return ref;
     }
 
-    public int registerLegacyRange(int legacyStart, int count) {
+    public int registerRefs(int count) {
         if (count <= 0) {
             return -1;
         }
         int refStart = refCount;
         ensureCapacity(refStart + count);
-        for (int i = 0; i < count; i++) {
-            refToLegacySlot[refStart + i] = legacyStart + i;
-        }
         refCount += count;
         return refStart;
-    }
-
-    public void setLegacySlotForRef(int tiledRenderRef, int legacySlot) {
-        if (tiledRenderRef < 0) {
-            throw new IllegalArgumentException("tiledRenderRef must be >= 0");
-        }
-        ensureCapacity(tiledRenderRef + 1);
-        refToLegacySlot[tiledRenderRef] = legacySlot;
-        if (tiledRenderRef >= refCount) {
-            refCount = tiledRenderRef + 1;
-        }
-    }
-
-    public int legacySlotForRef(int tiledRenderRef) {
-        if (tiledRenderRef < 0 || tiledRenderRef >= refCount || tiledRenderRef >= refToLegacySlot.length) {
-            return -1;
-        }
-        return refToLegacySlot[tiledRenderRef];
     }
 
     public void setRenderDataForRef(int tiledRenderRef,
@@ -204,10 +181,6 @@ public final class TiledMapRenderState {
         return visibleRefCount;
     }
 
-    public int[] getRefToLegacySlots() {
-        return refToLegacySlot;
-    }
-
     public int getRefCount() {
         return refCount;
     }
@@ -222,8 +195,6 @@ public final class TiledMapRenderState {
 
     private void allocate(int newCapacity, boolean copyExisting) {
         int[] oldVisibleRefs = visibleRefs;
-        int[] oldRefToLegacySlot = refToLegacySlot;
-
         boolean[] oldEnabled = enabled;
         boolean[] oldVisible = visible;
         int[] oldTextureHandle = textureHandle;
@@ -251,9 +222,6 @@ public final class TiledMapRenderState {
         byte[] oldRepeatFlags = repeatFlags;
 
         visibleRefs = new int[newCapacity];
-        refToLegacySlot = new int[newCapacity];
-        clearLegacySlots(refToLegacySlot, 0, refToLegacySlot.length);
-
         enabled = new boolean[newCapacity];
         visible = new boolean[newCapacity];
         textureHandle = new int[newCapacity];
@@ -282,7 +250,6 @@ public final class TiledMapRenderState {
 
         if (copyExisting && capacity > 0) {
             copy(oldVisibleRefs, visibleRefs, visibleRefCount);
-            copy(oldRefToLegacySlot, refToLegacySlot, refCount);
 
             copy(oldEnabled, enabled, refCount);
             copy(oldVisible, visible, refCount);
@@ -312,12 +279,6 @@ public final class TiledMapRenderState {
         }
 
         capacity = newCapacity;
-    }
-
-    private static void clearLegacySlots(int[] slots, int start, int end) {
-        for (int i = start; i < end; i++) {
-            slots[i] = -1;
-        }
     }
 
     private static void copy(int[] source, int[] target, int count) {

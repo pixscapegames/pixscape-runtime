@@ -38,7 +38,7 @@ public final class SpatialBlockLinkedTiles {
             for (int gx = range.minGx; gx < range.maxGxExclusive; gx++) {
                 boolean inside = map.isInside(gx, gy);
                 int tileAssetId = inside ? map.getTile(gx, gy) : 0;
-                int slot = inside ? map.slotForTile(gx, gy) : -1;
+                int tiledRenderRef = inside ? map.tiledRenderRefForTile(gx, gy) : -1;
                 if (inside) {
                     writeTileCellFootprint(map, gx, gy, out.tmpTileFootprint);
                     writeTileBaseSegment(map, gx, gy, out.tmpSegment);
@@ -52,14 +52,14 @@ public final class SpatialBlockLinkedTiles {
                 if (tileAssetId <= 0) {
                     continue;
                 }
-                if (slot < 0) {
+                if (tiledRenderRef < 0) {
                     continue;
                 }
                 boolean intersects = tileCellFootprintIntersectsBlock(block, gx, gy);
                 if (!intersects) {
                     continue;
                 }
-                out.add(gx, gy, slot, tileAssetId, out.tmpSegment);
+                out.add(gx, gy, tiledRenderRef, tileAssetId, out.tmpSegment);
             }
         }
         return out;
@@ -80,7 +80,7 @@ public final class SpatialBlockLinkedTiles {
             int gy = ref.gy;
             boolean inside = map.isInside(gx, gy);
             int tileAssetId = inside ? map.getTile(gx, gy) : 0;
-            int slot = inside ? map.slotForTile(gx, gy) : -1;
+            int tiledRenderRef = inside ? map.tiledRenderRefForTile(gx, gy) : -1;
 
             if (!inside) {
                 continue;
@@ -88,12 +88,12 @@ public final class SpatialBlockLinkedTiles {
             if (tileAssetId <= 0) {
                 continue;
             }
-            if (slot < 0) {
+            if (tiledRenderRef < 0) {
                 continue;
             }
 
             writeTileBaseSegment(map, gx, gy, out.tmpSegment);
-            out.add(gx, gy, slot, tileAssetId, out.tmpSegment);
+            out.add(gx, gy, tiledRenderRef, tileAssetId, out.tmpSegment);
         }
 
         return out;
@@ -125,10 +125,6 @@ public final class SpatialBlockLinkedTiles {
         out4[1] = map.tileToWorldY(gx, gy + 1);
         out4[2] = map.tileToWorldX(gx + 1, gy + 1);
         out4[3] = map.tileToWorldY(gx + 1, gy + 1);
-    }
-
-    private static boolean isTileCandidate(TiledMapLayerData map, int gx, int gy) {
-        return map.isInside(gx, gy) && map.getTile(gx, gy) > 0 && map.slotForTile(gx, gy) >= 0;
     }
 
     private static void expand(SpatialBlockGeometry.CellRange range, int cells) {
@@ -209,7 +205,7 @@ public final class SpatialBlockLinkedTiles {
         public int count;
         public int[] gx = new int[0];
         public int[] gy = new int[0];
-        public int[] slot = new int[0];
+        public int[] tiledRenderRef = new int[0];
         public int[] tileAssetId = new int[0];
         public float[] base = new float[0];
         public boolean sourceAuthored;
@@ -234,8 +230,8 @@ public final class SpatialBlockLinkedTiles {
             return gy[index];
         }
 
-        public int slot(int index) {
-            return slot[index];
+        public int tiledRenderRef(int index) {
+            return tiledRenderRef[index];
         }
 
         public int tileAssetId(int index) {
@@ -251,11 +247,11 @@ public final class SpatialBlockLinkedTiles {
             out4[3] = base[offset + 3];
         }
 
-        private void add(int gx, int gy, int slot, int tileAssetId, float[] baseSegment) {
+        private void add(int gx, int gy, int tiledRenderRef, int tileAssetId, float[] baseSegment) {
             ensureCapacity(count + 1);
             this.gx[count] = gx;
             this.gy[count] = gy;
-            this.slot[count] = slot;
+            this.tiledRenderRef[count] = tiledRenderRef;
             this.tileAssetId[count] = tileAssetId;
             int offset = count * 4;
             base[offset] = baseSegment[0];
@@ -271,7 +267,7 @@ public final class SpatialBlockLinkedTiles {
             while (required > next) next <<= 1;
             gx = grow(gx, next);
             gy = grow(gy, next);
-            slot = grow(slot, next);
+            tiledRenderRef = grow(tiledRenderRef, next);
             tileAssetId = grow(tileAssetId, next);
             base = grow(base, next * 4);
         }

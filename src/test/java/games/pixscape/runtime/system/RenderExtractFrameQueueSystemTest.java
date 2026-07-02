@@ -25,7 +25,7 @@ public class RenderExtractFrameQueueSystemTest {
 
         writeSlot(state, 4, 4, 20, 3f, 4f);
         writeVfx(vfxState, 30);
-        int tiledRef = tiledState.registerLegacySlot(120);
+        int tiledRef = tiledState.registerRef();
         writeTiled(tiledState, tiledRef, 10);
         writeSlot(state, 120, -1, 90, 9f, 9f);
 

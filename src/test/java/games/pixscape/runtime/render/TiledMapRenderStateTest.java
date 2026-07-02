@@ -8,43 +8,38 @@ import org.junit.Test;
 public class TiledMapRenderStateTest {
 
     @Test
-    public void initialCapacityAllocatesVisibleRefsAndMapping() {
+    public void initialCapacityAllocatesVisibleRefsAndColumns() {
         TiledMapRenderState state = new TiledMapRenderState(4);
 
         Assert.assertEquals(4, state.getCapacity());
         Assert.assertEquals(0, state.getVisibleRefCount());
         Assert.assertEquals(0, state.getRefCount());
         Assert.assertNotNull(state.getVisibleRefs());
-        Assert.assertNotNull(state.getRefToLegacySlots());
         Assert.assertNotNull(state.textureHandle);
         Assert.assertNotNull(state.sortKey);
         Assert.assertNotNull(state.x1);
         Assert.assertNotNull(state.repeatFlags);
         Assert.assertEquals(4, state.getVisibleRefs().length);
-        Assert.assertEquals(4, state.getRefToLegacySlots().length);
         Assert.assertEquals(4, state.textureHandle.length);
         Assert.assertEquals(4, state.sortKey.length);
     }
 
     @Test
-    public void clearVisibleRefsKeepsExistingArraysAndMapping() {
+    public void clearVisibleRefsKeepsExistingArrays() {
         TiledMapRenderState state = new TiledMapRenderState(4);
-        int refA = state.registerLegacySlot(120);
-        int refB = state.registerLegacySlot(121);
+        int refA = state.registerRef();
+        int refB = state.registerRef();
         state.addVisibleRef(refA);
         state.addVisibleRef(refB);
         int[] visibleBefore = state.getVisibleRefs();
-        int[] mappingBefore = state.getRefToLegacySlots();
         int[] textureBefore = state.textureHandle;
 
         state.clearVisibleRefs();
 
         Assert.assertSame(visibleBefore, state.getVisibleRefs());
-        Assert.assertSame(mappingBefore, state.getRefToLegacySlots());
         Assert.assertSame(textureBefore, state.textureHandle);
         Assert.assertEquals(0, state.getVisibleRefCount());
-        Assert.assertEquals(120, state.legacySlotForRef(refA));
-        Assert.assertEquals(121, state.legacySlotForRef(refB));
+        Assert.assertEquals(2, state.getRefCount());
     }
 
     @Test
@@ -62,10 +57,10 @@ public class TiledMapRenderStateTest {
     }
 
     @Test
-    public void ensureCapacityPreservesVisibleRefsAndLegacyMapping() {
+    public void ensureCapacityPreservesVisibleRefsAndRenderData() {
         TiledMapRenderState state = new TiledMapRenderState(2);
-        int refA = state.registerLegacySlot(300);
-        int refB = state.registerLegacySlot(301);
+        int refA = state.registerRef();
+        int refB = state.registerRef();
         state.addVisibleRef(refA);
         state.addVisibleRef(refB);
         writeRenderData(state, refA, 10);
@@ -77,8 +72,7 @@ public class TiledMapRenderStateTest {
         Assert.assertEquals(2, state.getVisibleRefCount());
         Assert.assertEquals(refA, state.getVisibleRefs()[0]);
         Assert.assertEquals(refB, state.getVisibleRefs()[1]);
-        Assert.assertEquals(300, state.legacySlotForRef(refA));
-        Assert.assertEquals(301, state.legacySlotForRef(refB));
+        Assert.assertEquals(2, state.getRefCount());
         assertRenderData(state, refA, 10);
         assertRenderData(state, refB, 20);
     }
@@ -86,7 +80,7 @@ public class TiledMapRenderStateTest {
     @Test
     public void setRenderDataForRefWritesAllDrawReadyFields() {
         TiledMapRenderState state = new TiledMapRenderState(2);
-        int ref = state.registerLegacySlot(300);
+        int ref = state.registerRef();
 
         writeRenderData(state, ref, 40);
 
@@ -97,7 +91,7 @@ public class TiledMapRenderStateTest {
     @Test
     public void clearVisibleRefsDoesNotWipeRenderData() {
         TiledMapRenderState state = new TiledMapRenderState(2);
-        int ref = state.registerLegacySlot(300);
+        int ref = state.registerRef();
         state.addVisibleRef(ref);
         writeRenderData(state, ref, 50);
 
@@ -109,32 +103,28 @@ public class TiledMapRenderStateTest {
     }
 
     @Test
-    public void registerLegacyRangeCreatesDenseStableRefs() {
+    public void registerRefsCreatesDenseStableRefs() {
         TiledMapRenderState state = new TiledMapRenderState(2);
 
-        int refStart = state.registerLegacyRange(900, 3);
+        int refStart = state.registerRefs(3);
 
         Assert.assertEquals(0, refStart);
         Assert.assertEquals(3, state.getRefCount());
-        Assert.assertEquals(900, state.legacySlotForRef(refStart));
-        Assert.assertEquals(901, state.legacySlotForRef(refStart + 1));
-        Assert.assertEquals(902, state.legacySlotForRef(refStart + 2));
+        Assert.assertTrue(state.getCapacity() >= 3);
     }
 
     @Test
-    public void tiledMapResolvesTileToRenderRefAndLegacySlot() {
+    public void tiledMapResolvesTileToRenderRef() {
         TiledMapRenderState state = new TiledMapRenderState(2);
         TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
-        map.initSlotRange(100, 104);
         TileChunk chunk = map.getChunk(0, 0);
-        int refStart = state.registerLegacyRange(chunk.soaStartIndex, chunk.soaCount);
+        int refStart = state.registerRefs(chunk.cellCount());
         chunk.renderRefStartIndex = refStart;
-        chunk.renderRefCount = chunk.soaCount;
+        chunk.renderRefCount = chunk.cellCount();
 
         int tiledRenderRef = map.tiledRenderRefForTile(1, 1);
 
         Assert.assertEquals(refStart + 3, tiledRenderRef);
-        Assert.assertEquals(map.slotForTile(1, 1), state.legacySlotForRef(tiledRenderRef));
     }
 
     @Test(expected = IllegalArgumentException.class)

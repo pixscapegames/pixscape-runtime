@@ -19,9 +19,9 @@ public class SpatialBlockAnchorResolverTest {
         map.setTile(1, 2, 101);
         map.setTile(2, 2, 102);
         map.setTile(3, 2, 103);
-        int slot0 = map.slotForTile(1, 2);
-        int slot1 = map.slotForTile(2, 2);
-        int slot2 = map.slotForTile(3, 2);
+        int slot0 = map.tiledRenderRefForTile(1, 2);
+        int slot1 = map.tiledRenderRefForTile(2, 2);
+        int slot2 = map.tiledRenderRefForTile(3, 2);
 
         resolver.resolve(blocks(block(1, 2, 101, 2, 2, 102, 3, 2, 103)),
                 map,
@@ -47,9 +47,9 @@ public class SpatialBlockAnchorResolverTest {
         map.setTile(4, 1, 201);
         map.setTile(4, 2, 202);
         map.setTile(4, 3, 203);
-        int slot0 = map.slotForTile(4, 1);
-        int slot1 = map.slotForTile(4, 2);
-        int slot2 = map.slotForTile(4, 3);
+        int slot0 = map.tiledRenderRefForTile(4, 1);
+        int slot1 = map.tiledRenderRefForTile(4, 2);
+        int slot2 = map.tiledRenderRefForTile(4, 3);
 
         resolver.resolve(blocks(block(4, 1, 201, 4, 2, 202, 4, 3, 203)),
                 map,
@@ -69,7 +69,7 @@ public class SpatialBlockAnchorResolverTest {
     public void resolvesSingleCellSegmentAnchor() {
         TiledMapLayerData map = map(8, 8, 300);
         map.setTile(5, 5, 301);
-        int slot = map.slotForTile(5, 5);
+        int slot = map.tiledRenderRefForTile(5, 5);
 
         resolver.resolve(blocks(block(5, 5, 301)), map, slotToDrawIndex(512, slot, 7), cache);
 
@@ -82,37 +82,34 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
-    public void resolvesAnchorThroughTiledRenderRefNotLegacySlot() {
+    public void resolvesAnchorThroughTiledRenderRef() {
         TiledMapLayerData map = map(4, 4, 300);
         assignRenderRefs(map, 20);
         map.setTile(1, 1, 301);
-        int legacySlot = map.slotForTile(1, 1);
         int tiledRenderRef = map.tiledRenderRefForTile(1, 1);
 
         resolver.resolve(blocks(block(1, 1, 301)), map,
                 refToDrawIndex(tiledRenderRef + 1, tiledRenderRef, 7), cache);
 
-        Assert.assertNotEquals(legacySlot, tiledRenderRef);
         Assert.assertTrue(cache.hasResolvedBlock(0));
         Assert.assertEquals(tiledRenderRef, cache.anchorDrawSlot[0]);
         Assert.assertEquals(7, cache.anchorDrawIndex[0]);
     }
 
     @Test
-    public void legacySlotMutationDoesNotAffectTiledRefAnchorResolution() {
+    public void unrelatedDrawIndexMutationDoesNotAffectTiledRefAnchorResolution() {
         TiledMapLayerData map = map(4, 4, 300);
         assignRenderRefs(map, 40);
         map.setTile(2, 1, 301);
-        int legacySlot = map.slotForTile(2, 1);
         int tiledRenderRef = map.tiledRenderRefForTile(2, 1);
         int[] tiledRefToDrawIndex = refToDrawIndex(tiledRenderRef + 1, tiledRenderRef, 9);
-        if (legacySlot < tiledRefToDrawIndex.length) {
-            tiledRefToDrawIndex[legacySlot] = -1;
+        int unrelatedRef = tiledRenderRef - 1;
+        if (unrelatedRef >= 0) {
+            tiledRefToDrawIndex[unrelatedRef] = -1;
         }
 
         resolver.resolve(blocks(block(2, 1, 301)), map, tiledRefToDrawIndex, cache);
 
-        Assert.assertNotEquals(legacySlot, tiledRenderRef);
         Assert.assertTrue(cache.hasResolvedBlock(0));
         Assert.assertEquals(tiledRenderRef, cache.anchorDrawSlot[0]);
         Assert.assertEquals(9, cache.anchorDrawIndex[0]);
@@ -125,10 +122,10 @@ public class SpatialBlockAnchorResolverTest {
         map.setTile(2, 1, 102);
         map.setTile(1, 2, 103);
         map.setTile(2, 2, 104);
-        int slot0 = map.slotForTile(1, 1);
-        int slot1 = map.slotForTile(2, 1);
-        int slot2 = map.slotForTile(1, 2);
-        int slot3 = map.slotForTile(2, 2);
+        int slot0 = map.tiledRenderRefForTile(1, 1);
+        int slot1 = map.tiledRenderRefForTile(2, 1);
+        int slot2 = map.tiledRenderRefForTile(1, 2);
+        int slot3 = map.tiledRenderRefForTile(2, 2);
 
         resolver.resolve(blocks(block(1, 1, 101, 2, 1, 102, 1, 2, 103, 2, 2, 104)),
                 map,
@@ -151,8 +148,8 @@ public class SpatialBlockAnchorResolverTest {
         TiledMapLayerData map = map(8, 8, 300);
         map.setTile(1, 1, 101);
         map.setTile(2, 2, 104);
-        int slot0 = map.slotForTile(1, 1);
-        int slot3 = map.slotForTile(2, 2);
+        int slot0 = map.tiledRenderRefForTile(1, 1);
+        int slot3 = map.tiledRenderRefForTile(2, 2);
 
         resolver.resolve(blocks(block(1, 1, 101, 2, 1, 102, 1, 2, 103, 2, 2, 104)),
                 map,
@@ -175,8 +172,8 @@ public class SpatialBlockAnchorResolverTest {
         TiledMapLayerData otherMap = map(4, 4, 600);
         owningMap.setTile(1, 1, 101);
         otherMap.setTile(1, 1, 101);
-        int owningSlot = owningMap.slotForTile(1, 1);
-        int otherSlot = otherMap.slotForTile(1, 1);
+        int owningSlot = owningMap.tiledRenderRefForTile(1, 1);
+        int otherSlot = otherMap.tiledRenderRefForTile(1, 1);
 
         resolver.resolve(blocks(block(1, 1, 101)), owningMap, slotToDrawIndex(700, owningSlot, 5), cache);
 
@@ -189,8 +186,8 @@ public class SpatialBlockAnchorResolverTest {
         TiledMapLayerData map = map(4, 4, 300);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 101);
-        int slot0 = map.slotForTile(0, 0);
-        int slot1 = map.slotForTile(1, 0);
+        int slot0 = map.tiledRenderRefForTile(0, 0);
+        int slot1 = map.tiledRenderRefForTile(1, 0);
 
         resolver.resolve(blocks(block(0, 0, 101, 1, 0, 101)),
                 map,
@@ -211,11 +208,11 @@ public class SpatialBlockAnchorResolverTest {
         map.setTile(2, 1, 103);
         map.setTile(3, 1, 104);
         map.setTile(4, 1, 105);
-        int slot0 = map.slotForTile(0, 1);
-        int slot1 = map.slotForTile(1, 1);
-        int sharedSlot = map.slotForTile(2, 1);
-        int slot3 = map.slotForTile(3, 1);
-        int slot4 = map.slotForTile(4, 1);
+        int slot0 = map.tiledRenderRefForTile(0, 1);
+        int slot1 = map.tiledRenderRefForTile(1, 1);
+        int sharedSlot = map.tiledRenderRefForTile(2, 1);
+        int slot3 = map.tiledRenderRefForTile(3, 1);
+        int slot4 = map.tiledRenderRefForTile(4, 1);
 
         resolver.resolve(blocks(
                         block(0, 1, 101, 1, 1, 102, 2, 1, 103),
@@ -263,7 +260,7 @@ public class SpatialBlockAnchorResolverTest {
         Assert.assertFalse(cache.hasResolvedBlock(0));
 
         map.setTile(0, 0, 202);
-        int slot = map.slotForTile(0, 0);
+        int slot = map.tiledRenderRefForTile(0, 0);
         resolver.resolve(blocks, map, slotToDrawIndex(512, slot, 7), cache);
 
         Assert.assertEquals(1, blocks.blocks.get(0).linkedTileRefs.size);
@@ -277,7 +274,7 @@ public class SpatialBlockAnchorResolverTest {
     public void staleTileAssetIdDoesNotPreventCellResolution() {
         TiledMapLayerData map = map(4, 4, 300);
         map.setTile(0, 0, 202);
-        int slot = map.slotForTile(0, 0);
+        int slot = map.tiledRenderRefForTile(0, 0);
 
         resolver.resolve(blocks(block(0, 0, 101)), map, slotToDrawIndex(512, slot, 7), cache);
 
@@ -292,9 +289,9 @@ public class SpatialBlockAnchorResolverTest {
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 102);
         map.setTile(2, 0, 103);
-        int slot0 = map.slotForTile(0, 0);
-        int slot1 = map.slotForTile(1, 0);
-        int slot2 = map.slotForTile(2, 0);
+        int slot0 = map.tiledRenderRefForTile(0, 0);
+        int slot1 = map.tiledRenderRefForTile(1, 0);
+        int slot2 = map.tiledRenderRefForTile(2, 0);
 
         resolver.resolve(blocks(block(0, 0, 101, 1, 0, 102)),
                 map,
@@ -312,7 +309,6 @@ public class SpatialBlockAnchorResolverTest {
 
     private static TiledMapLayerData map(int width, int height, int startSlot) {
         TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, Math.max(width, height));
-        map.initSlotRange(startSlot, startSlot + width * height);
         assignRenderRefs(map, startSlot);
         return map;
     }
@@ -324,8 +320,8 @@ public class SpatialBlockAnchorResolverTest {
                 TileChunk chunk = map.getChunk(cx, cy);
                 if (chunk == null) continue;
                 chunk.renderRefStartIndex = nextRef;
-                chunk.renderRefCount = chunk.soaCount;
-                nextRef += chunk.soaCount;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
             }
         }
     }

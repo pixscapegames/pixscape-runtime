@@ -17,9 +17,8 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
         FrameRenderQueue frameQueue = new FrameRenderQueue();
         VfxRenderState vfxState = new VfxRenderState();
         TiledMapRenderState tiledState = new TiledMapRenderState();
-        int tiledBudget = 600_000;
-        int tiledEnd = 150_000 + tiledBudget;
-        int vfxEnd = tiledEnd + WorldConfigFactory.DEFAULT_VFX_BUDGET;
+        int ecsCapacity = WorldConfigFactory.DEFAULT_ECS_RENDER_CAPACITY;
+        int legacyGlobalCapacity = ecsCapacity + 600_000 + WorldConfigFactory.DEFAULT_VFX_BUDGET;
 
         WorldConfigFactory.configureRenderStorageCapacities(
                 renderState,
@@ -27,13 +26,12 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
                 frameQueue,
                 vfxState,
                 tiledState,
-                tiledEnd,
-                vfxEnd
+                ecsCapacity
         );
 
-        Assert.assertTrue(vfxEnd > WorldConfigFactory.DEFAULT_FRAME_QUEUE_CAPACITY);
-        Assert.assertEquals(tiledEnd, renderState.getCapacity());
-        Assert.assertEquals(vfxEnd, drawList.data().length);
+        Assert.assertTrue(legacyGlobalCapacity > WorldConfigFactory.DEFAULT_FRAME_QUEUE_CAPACITY);
+        Assert.assertEquals(ecsCapacity, renderState.getCapacity());
+        Assert.assertEquals(ecsCapacity, drawList.data().length);
         Assert.assertEquals(WorldConfigFactory.DEFAULT_VFX_BUDGET, vfxState.getCapacity());
         Assert.assertEquals(WorldConfigFactory.DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY, tiledState.getCapacity());
         Assert.assertEquals(WorldConfigFactory.DEFAULT_FRAME_QUEUE_CAPACITY, frameQueue.getCapacity());

@@ -37,7 +37,7 @@ public final class TileAnimationStateSupport {
             return;
         }
 
-        if (localIndex < 0 || localIndex >= chunk.soaCount) {
+        if (localIndex < 0 || localIndex >= chunk.cellCount()) {
             return;
         }
 
@@ -84,7 +84,7 @@ public final class TileAnimationStateSupport {
             return;
         }
 
-        for (int localIndex = 0; localIndex < chunk.soaCount; localIndex++) {
+        for (int localIndex = 0, n = chunk.cellCount(); localIndex < n; localIndex++) {
             syncCell(chunk, localIndex, chunk.assetIds[localIndex], lookup);
         }
     }

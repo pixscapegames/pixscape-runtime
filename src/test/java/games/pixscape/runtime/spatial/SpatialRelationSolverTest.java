@@ -223,14 +223,12 @@ public class SpatialRelationSolverTest {
 
     private static TiledMapLayerData orthoMap() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 16, 8);
-        map.initSlotRange(300, 364);
         assignRenderRefs(map, 300);
         return map;
     }
 
     private static TiledMapLayerData isoMap() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 90, 30, 8, SceneMetaRuntime.TiledProjection.ISO);
-        map.initSlotRange(300, 364);
         assignRenderRefs(map, 300);
         return map;
     }
@@ -316,8 +314,8 @@ public class SpatialRelationSolverTest {
                 TileChunk chunk = map.getChunk(cx, cy);
                 if (chunk == null) continue;
                 chunk.renderRefStartIndex = nextRef;
-                chunk.renderRefCount = chunk.soaCount;
-                nextRef += chunk.soaCount;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
             }
         }
     }
