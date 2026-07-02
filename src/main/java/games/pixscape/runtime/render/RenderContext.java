@@ -12,6 +12,7 @@ public final class RenderContext {
     public final RenderStateSOA renderState;
     public final LayerStateSOA layerState;
     public final DrawList drawList;
+    public final FrameRenderQueue frameQueue;
 
     public final MetricsBatch batch; // or interface plus abstraite
     public final GLCaps glCaps;
@@ -19,11 +20,13 @@ public final class RenderContext {
     public RenderContext(RenderStateSOA renderState,
                          LayerStateSOA layerState,
                          DrawList drawList,
+                         FrameRenderQueue frameQueue,
                          MetricsBatch batch,
                          GLCaps glCaps) {
         this.renderState = renderState;
         this.layerState = layerState;
         this.drawList = drawList;
+        this.frameQueue = frameQueue;
         this.batch = batch;
         this.glCaps = glCaps;
     }

@@ -33,6 +33,9 @@ public final class RenderStats {
     public int batchesAlpha;
     public int buildDrawListScannedEcsSlots;
     public int buildDrawListScannedTiledSlots;
+    public int frameQueueQuads;
+    public int frameQueuePeakCapacity;
+    public int frameQueueGrowthCount;
 
     public void reset() {
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
@@ -43,6 +46,9 @@ public final class RenderStats {
         batchesOpaque = batchesAlpha = 0;
         buildDrawListScannedEcsSlots = 0;
         buildDrawListScannedTiledSlots = 0;
+        frameQueueQuads = 0;
+        frameQueuePeakCapacity = 0;
+        frameQueueGrowthCount = 0;
 
     }
 
@@ -74,5 +80,8 @@ public final class RenderStats {
         flushEnd += other.flushEnd;
         buildDrawListScannedEcsSlots += other.buildDrawListScannedEcsSlots;
         buildDrawListScannedTiledSlots += other.buildDrawListScannedTiledSlots;
+        frameQueueQuads += other.frameQueueQuads;
+        frameQueuePeakCapacity = Math.max(frameQueuePeakCapacity, other.frameQueuePeakCapacity);
+        frameQueueGrowthCount += other.frameQueueGrowthCount;
     }
 }

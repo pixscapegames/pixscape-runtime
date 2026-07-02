@@ -16,6 +16,7 @@ public final class FrameRenderQueue {
     private static final int MIN_CAPACITY = 16;
 
     private int capacity;
+    private int growthCount;
     public int size;
 
     public int[] textureHandle;
@@ -54,12 +55,17 @@ public final class FrameRenderQueue {
         return capacity;
     }
 
+    public int getGrowthCount() {
+        return growthCount;
+    }
+
     public void setCapacity(int newCapacity) {
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("FrameRenderQueue capacity must be > 0");
         }
         allocate(newCapacity, false);
         size = 0;
+        growthCount = 0;
     }
 
     public void ensureCapacity(int required) {
@@ -72,6 +78,7 @@ public final class FrameRenderQueue {
             next <<= 1;
         }
         allocate(next, true);
+        growthCount++;
     }
 
     public void addQuad(

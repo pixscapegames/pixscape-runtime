@@ -64,6 +64,7 @@ public final class PixscapeEngine {
     private RenderStateSOA renderState;
     private LayerStateSOA layerState;
     private DrawList drawList;
+    private FrameRenderQueue frameQueue;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
     private float ambientMulG = 1f;
@@ -288,9 +289,10 @@ public final class PixscapeEngine {
 
         renderState = new RenderStateSOA();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
 
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -302,6 +304,7 @@ public final class PixscapeEngine {
                         renderState,
                         layerState,
                         drawList,
+                        frameQueue,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -309,7 +312,7 @@ public final class PixscapeEngine {
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -530,6 +533,10 @@ public final class PixscapeEngine {
         return drawList;
     }
 
+    public FrameRenderQueue getFrameQueue() {
+        return frameQueue;
+    }
+
     public MetricsBatch getMetricsBatch() {
         return metricsBatch;
     }
@@ -591,6 +598,7 @@ public final class PixscapeEngine {
         renderState = null;
         layerState = null;
         drawList = null;
+        frameQueue = null;
         runtimeTiledStart = 0;
         runtimeTiledEnd = 0;
         stats = null;
@@ -617,6 +625,7 @@ public final class PixscapeEngine {
         renderState = new RenderStateSOA();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -627,7 +636,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -642,6 +651,7 @@ public final class PixscapeEngine {
                         renderState,
                         layerState,
                         drawList,
+                        frameQueue,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -649,7 +659,7 @@ public final class PixscapeEngine {
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -699,6 +709,7 @@ public final class PixscapeEngine {
         renderState = new RenderStateSOA();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -709,7 +720,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
 
         layerState.setCapacity(32);
         applyAmbientFromMeta(null);
@@ -721,6 +732,7 @@ public final class PixscapeEngine {
                         renderState,
                         layerState,
                         drawList,
+                        frameQueue,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -728,7 +740,7 @@ public final class PixscapeEngine {
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -765,7 +777,8 @@ public final class PixscapeEngine {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
-        if (renderState == null || layerState == null || drawList == null || metricsBatch == null || stats == null || statsSink == null) {
+        if (renderState == null || layerState == null || drawList == null || frameQueue == null
+                || metricsBatch == null || stats == null || statsSink == null) {
             initRuntime(config, projectDir);
             return;
         }
@@ -781,6 +794,7 @@ public final class PixscapeEngine {
                         renderState,
                         layerState,
                         drawList,
+                        frameQueue,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -788,7 +802,7 @@ public final class PixscapeEngine {
                         () -> new RenderSubmitSystem(
                                 renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,

@@ -28,7 +28,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
-    private final DrawList drawList;
+    private final FrameRenderQueue frameQueue;
     private final OrthographicCamera cam;
     private final float ambientMulR;
     private final float ambientMulG;
@@ -49,7 +49,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
     public RenderSubmitSystem(RenderStateSOA state,
                               LayerStateSOA layerState,
-                              DrawList drawList,
+                              FrameRenderQueue frameQueue,
                               OrthographicCamera cam,
                               float ambientMulR,
                               float ambientMulG,
@@ -59,7 +59,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               RenderStatsSink statsSink) {
         this.state = state;
         this.layerState = layerState;
-        this.drawList = drawList;
+        this.frameQueue = frameQueue;
         this.cam = cam;
         this.ambientMulR = ambientMulR;
         this.ambientMulG = ambientMulG;
@@ -109,7 +109,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    private void render() {
+    void render() {
 
         final boolean hasShaderParamsMapper = mShaderParams != null;
 
@@ -135,22 +135,19 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
         int lastParamsHash = 0;
 
-        int[] slots = drawList.data();
-        int size = drawList.size;
+        int size = frameQueue.size;
 
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
 
         for (int i = 0; i < size; i++) {
-            final int slot = slots[i];
-
-            final int texHandle = state.textureHandle[slot];
+            final int texHandle = frameQueue.textureHandle[i];
             if (texHandle == 0) continue;
 
             if (activeTextureArrayBatch != null && !activeTextureArrayBatch.hasTextureHandle(texHandle)) {
                 continue;
             }
 
-            int layerIdx = state.layerIndex[slot];
+            int layerIdx = frameQueue.layerIndex[i];
 
             if (hasLayerMeta) {
                 if (layerIdx < 0 || layerIdx >= layerState.enabled.length) continue;
@@ -158,7 +155,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             }
 
             // Shader switch
-            final int shaderIdx = state.shader[slot];
+            final int shaderIdx = frameQueue.shader[i];
 
             if (shaderIdx != curShaderIdx) {
                 curShaderIdx = shaderIdx;
@@ -185,7 +182,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             }
 
             // Blend switch
-            final int blendId = state.blend[slot];
+            final int blendId = frameQueue.blend[i];
 
             if (blendId != curBlendId) {
                 metricsBatch.flush(stats);
@@ -226,7 +223,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             }
 
             // Color change
-            float packedColor = state.colorPacked[slot];
+            float packedColor = frameQueue.colorPacked[i];
 
             if (packedColor != curPackedColor) {
                 metricsBatch.setPackedColor(packedColor);
@@ -235,7 +232,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
             // Per-entity uniforms
             if (curShader != null && hasShaderParamsMapper) {
-                final int entityId = state.entityId[slot];
+                final int entityId = frameQueue.sourceEntity[i];
 
                 if (entityId >= 0 && mShaderParams.has(entityId)) {
                     ShaderParamsComponent params = mShaderParams.get(entityId);
@@ -256,63 +253,60 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                 }
             }
 
-            float ox = state.offsetX[slot];
-            float oy = state.offsetY[slot];
-
-            byte repeat = state.repeatFlags[slot];
+            byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {
-                drawNormalSlot(slot, texHandle, ox, oy);
+                drawNormalEntry(i, texHandle);
             } else {
-                drawRepeatedSlot(slot, texHandle, ox, oy, repeat);
+                drawRepeatedEntry(i, texHandle, repeat);
             }
         }
 
         metricsBatch.end(stats);
     }
 
-    private void drawNormalSlot(int slot, int texHandle, float ox, float oy) {
+    private void drawNormalEntry(int index, int texHandle) {
         metricsBatch.draw(
                 texHandle,
-                state.x1[slot] + ox, state.y1[slot] + oy,
-                state.x2[slot] + ox, state.y2[slot] + oy,
-                state.x3[slot] + ox, state.y3[slot] + oy,
-                state.x4[slot] + ox, state.y4[slot] + oy,
-                state.u1[slot], state.v1[slot],
-                state.u2[slot], state.v2[slot],
+                frameQueue.x1[index], frameQueue.y1[index],
+                frameQueue.x2[index], frameQueue.y2[index],
+                frameQueue.x3[index], frameQueue.y3[index],
+                frameQueue.x4[index], frameQueue.y4[index],
+                frameQueue.u1[index], frameQueue.v1[index],
+                frameQueue.u2[index], frameQueue.v2[index],
                 stats
         );
 
         stats.drawnQuads++;
     }
 
-    private void drawRepeatedSlot(int slot, int texHandle, float ox, float oy, byte repeat) {
-        float x1 = state.x1[slot];
-        float y1 = state.y1[slot];
-        float x2 = state.x2[slot];
-        float y2 = state.y2[slot];
-        float x3 = state.x3[slot];
-        float y3 = state.y3[slot];
-        float x4 = state.x4[slot];
-        float y4 = state.y4[slot];
+    private void drawRepeatedEntry(int index, int texHandle, byte repeat) {
+        float x1 = frameQueue.x1[index];
+        float y1 = frameQueue.y1[index];
+        float x2 = frameQueue.x2[index];
+        float y2 = frameQueue.y2[index];
+        float x3 = frameQueue.x3[index];
+        float y3 = frameQueue.y3[index];
+        float x4 = frameQueue.x4[index];
+        float y4 = frameQueue.y4[index];
 
         // V1 repeat is axis-aligned only. Rotated quads can be added here later
         // once repeat ranges are computed from oriented bounds.
         if (!isAxisAligned(x1, y1, x2, y2, x3, y3, x4, y4)) {
-            drawNormalSlot(slot, texHandle, ox, oy);
+            drawNormalEntry(index, texHandle);
             return;
         }
 
-        float baseMinX = min4(x1, x2, x3, x4) + ox;
-        float baseMaxX = max4(x1, x2, x3, x4) + ox;
-        float baseMinY = min4(y1, y2, y3, y4) + oy;
-        float baseMaxY = max4(y1, y2, y3, y4) + oy;
+        float baseMinX = min4(x1, x2, x3, x4);
+        float baseMaxX = max4(x1, x2, x3, x4);
+        float baseMinY = min4(y1, y2, y3, y4);
+        float baseMaxY = max4(y1, y2, y3, y4);
 
         float stepX = baseMaxX - baseMinX;
         float stepY = baseMaxY - baseMinY;
 
         if (((repeat & RenderRepeatFlags.REPEAT_X) != 0 && stepX <= 0f)
                 || ((repeat & RenderRepeatFlags.REPEAT_Y) != 0 && stepY <= 0f)) {
-            drawNormalSlot(slot, texHandle, ox, oy);
+            drawNormalEntry(index, texHandle);
             return;
         }
 
@@ -349,12 +343,12 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
                 metricsBatch.draw(
                         texHandle,
-                        x1 + ox + dx, y1 + oy + dy,
-                        x2 + ox + dx, y2 + oy + dy,
-                        x3 + ox + dx, y3 + oy + dy,
-                        x4 + ox + dx, y4 + oy + dy,
-                        state.u1[slot], state.v1[slot],
-                        state.u2[slot], state.v2[slot],
+                        x1 + dx, y1 + dy,
+                        x2 + dx, y2 + dy,
+                        x3 + dx, y3 + dy,
+                        x4 + dx, y4 + dy,
+                        frameQueue.u1[index], frameQueue.v1[index],
+                        frameQueue.u2[index], frameQueue.v2[index],
                         stats
                 );
 

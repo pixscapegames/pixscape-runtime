@@ -7,6 +7,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -41,6 +42,7 @@ public final class WorldConfigFactory {
             RenderStateSOA renderState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -56,6 +58,7 @@ public final class WorldConfigFactory {
                 renderState,
                 layerState,
                 drawList,
+                frameQueue,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -121,6 +124,7 @@ public final class WorldConfigFactory {
             RenderStateSOA renderState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -137,6 +141,7 @@ public final class WorldConfigFactory {
                 renderState,
                 layerState,
                 drawList,
+                frameQueue,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -156,6 +161,7 @@ public final class WorldConfigFactory {
             RenderStateSOA renderState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -173,6 +179,7 @@ public final class WorldConfigFactory {
                 renderState,
                 layerState,
                 drawList,
+                frameQueue,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -193,6 +200,7 @@ public final class WorldConfigFactory {
             RenderStateSOA renderState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -220,6 +228,7 @@ public final class WorldConfigFactory {
 
         renderState.setCapacity(totalCapacity);
         drawList.setCapacity(totalCapacity);
+        frameQueue.setCapacity(totalCapacity);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
@@ -253,6 +262,7 @@ public final class WorldConfigFactory {
                 renderState,
                 layerState,
                 drawList,
+                frameQueue,
                 stats,
                 ecsEnd,
                 vfxStart,
@@ -339,6 +349,7 @@ public final class WorldConfigFactory {
             RenderStateSOA renderState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int entityCapacityHint,
             int vfxStartIndex,
@@ -364,6 +375,15 @@ public final class WorldConfigFactory {
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
                                 : DEFAULT_PIXELS_PER_METER
+                ), systemProfiler),
+                profiled(new RenderExtractFrameQueueSystem(
+                        renderState,
+                        drawList,
+                        frameQueue,
+                        stats,
+                        entityCapacityHint,
+                        vfxStartIndex,
+                        vfxEndIndex
                 ), systemProfiler)
         );
 
