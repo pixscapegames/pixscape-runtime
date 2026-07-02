@@ -9,8 +9,8 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -315,7 +315,6 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(512);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -340,7 +339,7 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))                .build());
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))                .build());
 
         Entity layerA = world.createEntity();
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
@@ -624,7 +623,6 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(256);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -653,7 +651,7 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1)
                 )
                 .build());
 
@@ -672,14 +670,13 @@ public class RenderTiledSyncSystemTest {
         map.setTile(1, 1, 2);
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static Fixture createTwoChunksFixture() {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(256);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -707,7 +704,7 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1,-1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1)
                 )
                 .build());
 
@@ -730,14 +727,13 @@ public class RenderTiledSyncSystemTest {
 
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static Fixture createLargeMapFixture() {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(4096);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -761,7 +757,7 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -777,14 +773,13 @@ public class RenderTiledSyncSystemTest {
         map.setTile(9, 9, 2);
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static Fixture createIsometricFixture() {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(512);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -807,7 +802,7 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -821,7 +816,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(1, 1, 1);
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static Fixture createTallIsometricFixture(float viewportWidth,
@@ -833,7 +828,6 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
         camera.position.set(cameraX, cameraY, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(20000);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -856,7 +850,7 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -871,7 +865,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
@@ -913,7 +907,6 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
         camera.position.set(cameraX, cameraY, 0f);
 
-        RenderStateSOA state = new RenderStateSOA(512);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -930,7 +923,7 @@ public class RenderTiledSyncSystemTest {
                 profiles);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -947,7 +940,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(0, 0, tileId, transformFlags);
         tiled.data = map;
 
-        return new Fixture(world, camera, state, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
     }
 
     private static TileChunk findChunk(TiledMapLayerData map, int cx, int cy) {
@@ -1066,7 +1059,6 @@ public class RenderTiledSyncSystemTest {
     private static final class Fixture {
         final World world;
         final OrthographicCamera camera;
-        final RenderStateSOA state;
         final TiledMapRenderState tiledState;
         final DrawList drawList;
         final CountingAtlasRuntimeService atlas;
@@ -1075,7 +1067,6 @@ public class RenderTiledSyncSystemTest {
 
         Fixture(World world,
                 OrthographicCamera camera,
-                RenderStateSOA state,
                 TiledMapRenderState tiledState,
                 DrawList drawList,
                 CountingAtlasRuntimeService atlas,
@@ -1083,7 +1074,6 @@ public class RenderTiledSyncSystemTest {
                 RenderTiledSyncSystem tiledSync) {
             this.world = world;
             this.camera = camera;
-            this.state = state;
             this.tiledState = tiledState;
             this.drawList = drawList;
             this.atlas = atlas;

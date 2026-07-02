@@ -6,18 +6,18 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /**
- * Copies the finalized legacy draw-list slots into draw-ready frame queue data.
+ * Copies finalized draw-list source slots into draw-ready frame queue data.
  */
 public final class RenderExtractFrameQueueSystem extends BaseSystem implements ProfiledSystem {
-    private final RenderStateSOA state;
+    private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
@@ -26,7 +26,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
     private int frameQueuePeakCapacity;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public RenderExtractFrameQueueSystem(RenderStateSOA state,
+    public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
                                          TiledMapRenderState tiledState,
                                          DrawList drawList,
                                          FrameRenderQueue frameQueue,
@@ -34,10 +34,10 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                                          int ecsEndExclusive,
                                          int vfxStartInclusive,
                                          int vfxEndExclusive) {
-        this(state, tiledState, null, drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+        this(ecsState, tiledState, null, drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
     }
 
-    public RenderExtractFrameQueueSystem(RenderStateSOA state,
+    public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
                                          TiledMapRenderState tiledState,
                                          VfxRenderState vfxState,
                                          DrawList drawList,
@@ -46,7 +46,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                                          int ecsEndExclusive,
                                          int vfxStartInclusive,
                                          int vfxEndExclusive) {
-        this.state = state;
+        this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.drawList = drawList;
@@ -84,7 +84,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
             }
 
             if (domain == RenderSourceDomain.SOURCE_ECS) {
-                addStateQuad(domain, slot, slot);
+                addEcsQuad(slot);
                 continue;
             }
 
@@ -101,41 +101,39 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         }
     }
 
-    private void addStateQuad(byte sourceDomain, int sourceSlot, int stateSlot) {
-        if (stateSlot < 0 || stateSlot >= state.getCapacity()) {
+    private void addEcsQuad(int renderSlot) {
+        if (ecsState == null || renderSlot < 0 || renderSlot >= ecsState.activeCount) {
             return;
         }
 
-        float ox = state.offsetX[stateSlot];
-        float oy = state.offsetY[stateSlot];
-        int sourceEntity = sourceDomain == RenderSourceDomain.SOURCE_ECS
-                ? state.entityId[stateSlot]
-                : -1;
+        float ox = ecsState.offsetX[renderSlot];
+        float oy = ecsState.offsetY[renderSlot];
+        int sourceEntity = ecsState.renderSlotToEntityId[renderSlot];
 
         frameQueue.addQuad(
-                state.textureHandle[stateSlot],
-                state.shader[stateSlot],
-                state.blend[stateSlot],
-                state.layerIndex[stateSlot],
-                state.paramsId[stateSlot],
-                state.customParamsId[stateSlot],
-                state.sortKey[stateSlot],
-                state.x1[stateSlot] + ox,
-                state.y1[stateSlot] + oy,
-                state.x2[stateSlot] + ox,
-                state.y2[stateSlot] + oy,
-                state.x3[stateSlot] + ox,
-                state.y3[stateSlot] + oy,
-                state.x4[stateSlot] + ox,
-                state.y4[stateSlot] + oy,
-                state.u1[stateSlot],
-                state.v1[stateSlot],
-                state.u2[stateSlot],
-                state.v2[stateSlot],
-                state.colorPacked[stateSlot],
-                state.repeatFlags[stateSlot],
-                sourceDomain,
-                sourceSlot,
+                ecsState.textureHandle[renderSlot],
+                ecsState.shader[renderSlot],
+                ecsState.blend[renderSlot],
+                ecsState.layerIndex[renderSlot],
+                ecsState.paramsId[renderSlot],
+                ecsState.customParamsId[renderSlot],
+                ecsState.sortKey[renderSlot],
+                ecsState.x1[renderSlot] + ox,
+                ecsState.y1[renderSlot] + oy,
+                ecsState.x2[renderSlot] + ox,
+                ecsState.y2[renderSlot] + oy,
+                ecsState.x3[renderSlot] + ox,
+                ecsState.y3[renderSlot] + oy,
+                ecsState.x4[renderSlot] + ox,
+                ecsState.y4[renderSlot] + oy,
+                ecsState.u1[renderSlot],
+                ecsState.v1[renderSlot],
+                ecsState.u2[renderSlot],
+                ecsState.v2[renderSlot],
+                ecsState.colorPacked[renderSlot],
+                ecsState.repeatFlags[renderSlot],
+                RenderSourceDomain.SOURCE_ECS,
+                renderSlot,
                 sourceEntity
         );
     }

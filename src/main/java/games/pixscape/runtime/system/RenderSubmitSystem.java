@@ -26,7 +26,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
     private static final float AXIS_EPSILON = 0.0001f;
 
-    private final RenderStateSOA state;
     private final LayerStateSOA layerState;
     private final FrameRenderQueue frameQueue;
     private final OrthographicCamera cam;
@@ -47,8 +46,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
     private final ObjectMap<ShaderProgram, ObjectIntMap<String>> uniformLocationCache = new ObjectMap<>();
 
-    public RenderSubmitSystem(RenderStateSOA state,
-                              LayerStateSOA layerState,
+    public RenderSubmitSystem(LayerStateSOA layerState,
                               FrameRenderQueue frameQueue,
                               OrthographicCamera cam,
                               float ambientMulR,
@@ -57,7 +55,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
-        this.state = state;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -78,10 +75,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         } else {
             return ShaderMode.TEXTURE_2D;
         }
-    }
-
-    public RenderStateSOA getState() {
-        return state;
     }
 
     @Override

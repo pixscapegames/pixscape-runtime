@@ -6,7 +6,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
@@ -21,7 +21,7 @@ import games.pixscape.runtime.render.VfxRenderState;
  */
 public final class RenderSortSystem extends BaseSystem implements ProfiledSystem {
 
-    private final RenderStateSOA state;
+    private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
@@ -32,23 +32,23 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private final int[] count = new int[256]; // 8 bits
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public RenderSortSystem(RenderStateSOA state, DrawList drawList) {
-        this(state, null, null, drawList, -1, -1);
+    public RenderSortSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
+        this(ecsState, null, null, drawList, -1, -1);
     }
 
-    public RenderSortSystem(RenderStateSOA state,
+    public RenderSortSystem(DynamicEntityRenderState ecsState,
                             TiledMapRenderState tiledState,
                             DrawList drawList) {
-        this(state, tiledState, null, drawList, -1, -1);
+        this(ecsState, tiledState, null, drawList, -1, -1);
     }
 
-    public RenderSortSystem(RenderStateSOA state,
+    public RenderSortSystem(DynamicEntityRenderState ecsState,
                             TiledMapRenderState tiledState,
                             VfxRenderState vfxState,
                             DrawList drawList,
                             int vfxStartInclusive,
                             int vfxEndExclusive) {
-        this.state = state;
+        this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.drawList = drawList;
@@ -128,8 +128,8 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                     ? tiledState.sortKey[slot]
                     : 0L;
         }
-        if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < state.getCapacity()) {
-            return state.sortKey[slot];
+        if (domain == RenderSourceDomain.SOURCE_ECS && ecsState != null && slot >= 0 && slot < ecsState.activeCount) {
+            return ecsState.sortKey[slot];
         }
         return 0L;
     }

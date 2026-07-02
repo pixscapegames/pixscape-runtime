@@ -1,23 +1,21 @@
 package games.pixscape.runtime.system;
 
-import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.systems.IteratingSystem;
+import com.artemis.BaseSystem;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
-import games.pixscape.runtime.helper.RenderSpaceMapper;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderStateSOA;
 
-public final class CullingSystem extends IteratingSystem implements ProfiledSystem {
+public final class CullingSystem extends BaseSystem implements ProfiledSystem {
 
     private final OrthographicCamera cam;
-    private final RenderStateSOA renderState;
+    private final DynamicEntityRenderState renderState;
 
     private ComponentMapper<AABBComponent> mAABB;
     private ComponentMapper<VisibilityComponent> mVis;
@@ -32,8 +30,7 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
     private boolean profiling;
     private long profileStartNs;
 
-    public CullingSystem(OrthographicCamera worldCamera, RenderStateSOA renderState) {
-        super(Aspect.all(AABBComponent.class, VisibilityComponent.class));
+    public CullingSystem(OrthographicCamera worldCamera, DynamicEntityRenderState renderState) {
         this.cam = worldCamera;
         this.renderState = renderState;
     }
@@ -56,20 +53,30 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
     }
 
     @Override
-    protected void process(int e) {
-        // If the SOA entry is not active, keep visible=false for safety.
-        if (e < 0 || e >= renderState.enabled.length || !renderState.enabled[e]) {
-            if (e >= 0 && e < renderState.visible.length) renderState.visible[e] = false;
+    protected void processSystem() {
+        for (int renderSlot = 0; renderSlot < renderState.activeCount; renderSlot++) {
+            processRenderSlot(renderSlot);
+        }
+    }
+
+    private void processRenderSlot(int renderSlot) {
+        int e = renderState.renderSlotToEntityId[renderSlot];
+        if (e < 0 || !renderState.enabled[renderSlot]) {
+            renderState.visible[renderSlot] = false;
             return;
         }
 
-        VisibilityComponent v = mVis.get(e);
+        VisibilityComponent v = mVis.getSafe(e, null);
+        if (v == null) {
+            renderState.visible[renderSlot] = false;
+            return;
+        }
 
         // Logic mask
         if (!v.visible) {
             v.inView = false;
             v.culledByFrustum = true;
-            renderState.visible[e] = false;
+            renderState.visible[renderSlot] = false;
             return;
         }
 
@@ -77,11 +84,15 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
         if (!cullingEnabled) {
             v.inView = true;
             v.culledByFrustum = false;
-            renderState.visible[e] = true;
+            renderState.visible[renderSlot] = true;
             return;
         }
 
-        AABBComponent a = mAABB.get(e);
+        AABBComponent a = mAABB.getSafe(e, null);
+        if (a == null) {
+            renderState.visible[renderSlot] = false;
+            return;
+        }
 
         float pad = v.padding;
         float minX = a.minX - pad;
@@ -90,15 +101,15 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
         float maxY = a.maxY + pad;
 
         // offset display
-        float ox = RenderSpaceMapper.offsetX(renderState, e);
-        float oy = RenderSpaceMapper.offsetY(renderState, e);
+        float ox = renderState.offsetX[renderSlot];
+        float oy = renderState.offsetY[renderSlot];
 
         minX += ox;
         maxX += ox;
         minY += oy;
         maxY += oy;
 
-        byte repeatFlags = renderState.repeatFlags[e];
+        byte repeatFlags = renderState.repeatFlags[renderSlot];
         boolean repeatX = (repeatFlags & RenderRepeatFlags.REPEAT_X) != 0;
         boolean repeatY = (repeatFlags & RenderRepeatFlags.REPEAT_Y) != 0;
 
@@ -110,7 +121,7 @@ public final class CullingSystem extends IteratingSystem implements ProfiledSyst
         v.culledByFrustum = !overlap;
 
         // SOA visible = logical + frustum
-        renderState.visible[e] = overlap;
+        renderState.visible[renderSlot] = overlap;
     }
 
     @Override

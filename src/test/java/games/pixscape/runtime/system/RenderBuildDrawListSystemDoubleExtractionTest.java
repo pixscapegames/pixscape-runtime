@@ -3,10 +3,11 @@ package games.pixscape.runtime.system;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.VfxRenderState;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -19,24 +20,25 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
     public void ecsScanIsBoundedWhenMaxEntityIdIsHigh() {
         Fixture fixture = new Fixture(400_000, 64);
 
-        fixture.enableSprite(12, 0, 120L);
         fixture.enableSprite(320_000, 0, 200L);
+        fixture.setTiledSource(320_000, 0, 100L);
         fixture.addVisibleTiledSlot(320_000);
 
         fixture.world.process();
 
-        Assert.assertEquals("Only ECS low id + tiled visible candidate should be extracted", 2, fixture.drawList.size);
-        Assert.assertEquals(64, fixture.stats.buildDrawListScannedEcsSlots);
+        Assert.assertEquals("High entity id ECS sprite plus tiled visible candidate should be extracted", 2, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.stats.buildDrawListScannedEcsSlots);
         Assert.assertEquals(1, fixture.stats.buildDrawListScannedTiledSlots);
+        Assert.assertEquals(fixture.renderSlotFor(320_000), fixture.drawList.get(1));
     }
 
     @Test
     public void tiledPhaseExtractsOnlyVisibleChunkSlots() {
         Fixture fixture = new Fixture(2_000, 64);
 
-        fixture.enableSprite(900, 0, 100L);
-        fixture.enableSprite(901, 0, 50L);
-        fixture.enableSprite(950, 0, 5L);
+        fixture.setTiledSource(900, 0, 100L);
+        fixture.setTiledSource(901, 0, 50L);
+        fixture.setTiledSource(950, 0, 5L);
         int refStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
@@ -52,8 +54,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
     public void tiledMaskedOrOutOfViewSlotsAreNotExtracted() {
         Fixture fixture = new Fixture(2_000, 64);
 
-        fixture.enableSprite(900, 0, 100L);
-        fixture.enableSprite(901, 0, 120L);
+        fixture.setTiledSource(900, 0, 100L);
+        fixture.setTiledSource(901, 0, 120L);
         int refStart = fixture.addVisibleTiledRange(900, 2);
         fixture.tiledState.visible[refStart + 1] = false;
 
@@ -69,14 +71,14 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(10, 0, 40L);
         fixture.enableSprite(11, 0, 10L);
-        fixture.enableSprite(900, 0, 30L);
-        fixture.enableSprite(901, 0, 20L);
+        fixture.setTiledSource(900, 0, 30L);
+        fixture.setTiledSource(901, 0, 20L);
         int tiledRefStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{11, tiledRefStart + 1, tiledRefStart, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{fixture.renderSlotFor(11), tiledRefStart + 1, tiledRefStart, fixture.renderSlotFor(10)}, snapshot(fixture.drawList));
         Assert.assertArrayEquals(
                 new byte[]{
                         RenderSourceDomain.SOURCE_ECS,
@@ -93,7 +95,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.layerState.enabled[1] = false;
 
         fixture.enableSprite(5, 1, 10L);
-        fixture.enableSprite(900, 1, 20L);
+        fixture.setTiledSource(900, 1, 20L);
         fixture.addVisibleTiledSlot(900);
 
         fixture.world.process();
@@ -122,15 +124,15 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         Fixture fixture = new Fixture(3_000, 64, 1_500, 2_000);
 
         fixture.enableSprite(10, 0, 40L);     // ECS
-        fixture.enableSprite(900, 0, 30L);    // tiled
-        fixture.enableSprite(901, 0, 20L);    // tiled
+        fixture.setTiledSource(900, 0, 30L);  // tiled
+        fixture.setTiledSource(901, 0, 20L);  // tiled
         fixture.addVfx(10L);
         int tiledRefStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{0, tiledRefStart + 1, tiledRefStart, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{0, tiledRefStart + 1, tiledRefStart, fixture.renderSlotFor(10)}, snapshot(fixture.drawList));
         Assert.assertArrayEquals(
                 new byte[]{
                         RenderSourceDomain.SOURCE_VFX,
@@ -154,7 +156,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
     }
 
     private static final class Fixture {
-        final RenderStateSOA state;
+        final RenderDataScratch state;
+        final DynamicEntityRenderState ecsState;
         final TiledMapRenderState tiledState;
         final VfxRenderState vfxState;
         final LayerStateSOA layerState;
@@ -167,7 +170,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         }
 
         Fixture(int capacity, int ecsEndExclusive, int reservedStartInclusive, int reservedEndExclusive) {
-            this.state = new RenderStateSOA(capacity);
+            this.state = new RenderDataScratch(capacity);
+            this.ecsState = new DynamicEntityRenderState(16);
             this.tiledState = new TiledMapRenderState(16);
             this.vfxState = new VfxRenderState(16);
             this.layerState = new LayerStateSOA(4);
@@ -178,7 +182,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             this.world = new World(new WorldConfigurationBuilder()
                     .with(
                             new RenderBuildDrawListSystem(
-                                    state,
+                                    ecsState,
                                     tiledState,
                                     vfxState,
                                     layerState,
@@ -189,7 +193,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                                     reservedEndExclusive
                             ),
                             new RenderSortSystem(
-                                    state,
+                                    ecsState,
                                     tiledState,
                                     vfxState,
                                     drawList,
@@ -224,12 +228,21 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         }
 
         void enableSprite(int slot, int layerIdx, long sortKey) {
-            state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-            state.enabled[slot] = true;
-            state.visible[slot] = true;
+            int renderSlot = ecsState.acquireSlotForEntity(slot);
+            ecsState.kind[renderSlot] = RenderKind.SPRITE;
+            ecsState.enabled[renderSlot] = true;
+            ecsState.visible[renderSlot] = true;
+            ecsState.layerIndex[renderSlot] = layerIdx;
+            ecsState.sortKey[renderSlot] = sortKey;
+        }
+
+        void setTiledSource(int slot, int layerIdx, long sortKey) {
             state.layerIndex[slot] = layerIdx;
             state.sortKey[slot] = sortKey;
-            state.touch(slot);
+        }
+
+        int renderSlotFor(int entity) {
+            return ecsState.renderSlotForEntity(entity);
         }
 
         void addVfx(long sortKey) {

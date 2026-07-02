@@ -9,7 +9,6 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
@@ -39,8 +38,7 @@ public class RenderSubmitSystemFrameQueueTest {
     }
 
     @Test
-    public void submitDrawsFromFrameQueueAfterSourceStateIsMutated() {
-        RenderStateSOA state = new RenderStateSOA(4);
+    public void submitDrawsFromFrameQueueOnly() {
         LayerStateSOA layerState = new LayerStateSOA(1);
         FrameRenderQueue queue = new FrameRenderQueue(1);
         RenderStats stats = new RenderStats();
@@ -73,13 +71,7 @@ public class RenderSubmitSystemFrameQueueTest {
                 2
         );
 
-        state.textureHandle[2] = 99;
-        state.x1[2] = 99f;
-        state.u1[2] = 99f;
-        state.colorPacked[2] = 99f;
-
         RenderSubmitSystem submit = new RenderSubmitSystem(
-                state,
                 layerState,
                 queue,
                 new TestCamera(),

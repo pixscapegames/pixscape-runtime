@@ -2,8 +2,9 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -13,7 +14,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 
 public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
-    private final RenderStateSOA state;
+    private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final LayerStateSOA layerState;
@@ -26,7 +27,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private int vfxPeakCapacity;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public RenderBuildDrawListSystem(RenderStateSOA state,
+    public RenderBuildDrawListSystem(DynamicEntityRenderState ecsState,
                                      TiledMapRenderState tiledState,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
@@ -34,10 +35,10 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                                      int ecsEndExclusive,
                                      int vfxStartInclusive,
                                      int vfxEndExclusive) {
-        this(state, tiledState, null, layerState, drawList, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+        this(ecsState, tiledState, null, layerState, drawList, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
     }
 
-    public RenderBuildDrawListSystem(RenderStateSOA state,
+    public RenderBuildDrawListSystem(DynamicEntityRenderState ecsState,
                                      TiledMapRenderState tiledState,
                                      VfxRenderState vfxState,
                                      LayerStateSOA layerState,
@@ -46,7 +47,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                                      int ecsEndExclusive,
                                      int vfxStartInclusive,
                                      int vfxEndExclusive) {
-        this.state = state;
+        this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.layerState = layerState;
@@ -79,21 +80,18 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     private void processSystemInternal() {
-        int maxId = state.maxEntityId();
-
-        if (maxId >= 0) {
-            final int ecsUpper = Math.min(maxId, ecsEndExclusive - 1);
-
-            for (int slot = 0; slot <= ecsUpper; slot++) {
-                boolean renderable = isRenderableSlot(slot);
-                if (renderable) {
-                    drawList.addEcsSlot(slot);
-                }
+        int activeEcsSlots = ecsState != null ? ecsState.activeCount : 0;
+        for (int slot = 0; slot < activeEcsSlots; slot++) {
+            boolean renderable = isRenderableSlot(slot);
+            if (renderable) {
+                drawList.addEcsSlot(slot);
             }
-
-            stats.buildDrawListScannedEcsSlots = Math.max(0, ecsUpper + 1);
-        } else {
-            stats.buildDrawListScannedEcsSlots = 0;
+        }
+        stats.buildDrawListScannedEcsSlots = activeEcsSlots;
+        if (ecsState != null) {
+            stats.ecsActiveRenderSlots = ecsState.activeCount;
+            stats.ecsRenderCapacity = ecsState.getRenderCapacity();
+            stats.ecsEntityMappingCapacity = ecsState.getEntityMappingCapacity();
         }
 
         int tiledVisibleRefCount = tiledState.getVisibleRefCount();
@@ -128,12 +126,12 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     private boolean isRenderableSlot(int slot) {
-        if (slot < 0 || slot >= state.enabled.length) return false;
-        if (!state.enabled[slot]) return false;
-        if (!state.visible[slot]) return false;
+        if (ecsState == null || slot < 0 || slot >= ecsState.activeCount) return false;
+        if (!ecsState.enabled[slot]) return false;
+        if (!ecsState.visible[slot]) return false;
 
         if (layerState != null) {
-            int layerIdx = state.layerIndex[slot];
+            int layerIdx = ecsState.layerIndex[slot];
 
             if (layerIdx < 0 || layerIdx >= layerState.enabled.length) {
                 return false;
@@ -144,7 +142,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             }
         }
 
-        return state.kind[slot] == RenderStateSOA.KIND_SPRITE;
+        return ecsState.kind[slot] == RenderKind.SPRITE;
     }
 
     private boolean isRenderableTiledRef(int tiledRenderRef) {
@@ -184,8 +182,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         return true;
     }
 
-    public RenderStateSOA getRenderState() {
-        return state;
+    public DynamicEntityRenderState getDynamicEntityRenderState() {
+        return ecsState;
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

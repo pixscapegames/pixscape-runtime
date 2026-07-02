@@ -3,9 +3,9 @@ package games.pixscape.runtime.system;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -16,26 +16,26 @@ public class RenderExtractFrameQueueSystemTest {
 
     @Test
     public void extractsDrawListOrderAndCopiesDrawReadyFields() {
-        RenderStateSOA state = new RenderStateSOA(256);
+        DynamicEntityRenderState ecsState = new DynamicEntityRenderState(4);
         TiledMapRenderState tiledState = new TiledMapRenderState(16);
         VfxRenderState vfxState = new VfxRenderState(16);
         DrawList drawList = new DrawList(16);
         FrameRenderQueue queue = new FrameRenderQueue(1);
         RenderStats stats = new RenderStats();
 
-        writeSlot(state, 4, 4, 20, 3f, 4f);
+        int ecsSlot = ecsState.acquireSlotForEntity(120);
+        writeSlot(ecsState, ecsSlot, 20, 3f, 4f);
         writeVfx(vfxState, 30);
         int tiledRef = tiledState.registerRef();
         writeTiled(tiledState, tiledRef, 10);
-        writeSlot(state, 120, -1, 90, 9f, 9f);
 
         drawList.addTiledSlot(tiledRef);
-        drawList.addEcsSlot(4);
+        drawList.addEcsSlot(ecsSlot);
         drawList.addVfxSlot(0);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(new RenderExtractFrameQueueSystem(
-                        state,
+                        ecsState,
                         tiledState,
                         vfxState,
                         drawList,
@@ -51,7 +51,7 @@ public class RenderExtractFrameQueueSystemTest {
 
         Assert.assertEquals(drawList.size, queue.size);
         assertQueueEntry(queue, 0, tiledRef, -1, 10, 0f, 0f, FrameRenderQueue.SOURCE_TILED);
-        assertQueueEntry(queue, 1, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
+        assertQueueEntry(queue, 1, ecsSlot, 120, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
         assertQueueEntry(queue, 2, 0, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);
         Assert.assertTrue(stats.frameQueuePeakCapacity >= 3);
@@ -62,15 +62,16 @@ public class RenderExtractFrameQueueSystemTest {
         Assert.assertEquals(31, queue.textureHandle[2]);
         Assert.assertEquals(30.1f, queue.x1[2], 0f);
 
-        state.textureHandle[120] = 999;
-        state.x1[120] = 999f;
+        ecsState.textureHandle[ecsSlot] = 999;
+        ecsState.x1[ecsSlot] = 999f;
         Assert.assertEquals(11, queue.textureHandle[0]);
         Assert.assertEquals(10.1f, queue.x1[0], 0f);
+        Assert.assertEquals(21, queue.textureHandle[1]);
+        Assert.assertEquals(23.1f, queue.x1[1], 0f);
     }
 
-    private static void writeSlot(RenderStateSOA state,
+    private static void writeSlot(DynamicEntityRenderState state,
                                   int slot,
-                                  int entityId,
                                   int base,
                                   float offsetX,
                                   float offsetY) {
@@ -97,7 +98,6 @@ public class RenderExtractFrameQueueSystemTest {
         state.v2[slot] = base + 1.3f;
         state.colorPacked[slot] = base + 1.4f;
         state.repeatFlags[slot] = RenderRepeatFlags.REPEAT_X;
-        state.entityId[slot] = entityId;
     }
 
     private static void writeVfx(VfxRenderState state, int base) {

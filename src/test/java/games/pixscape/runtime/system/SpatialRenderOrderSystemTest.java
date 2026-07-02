@@ -17,9 +17,10 @@ import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -162,7 +163,6 @@ public class SpatialRenderOrderSystemTest {
         fixture.createLayer(0, true);
         int renderSlot = 300;
         int renderRef = fixture.createRenderOnlySlot(renderSlot, 0, 0, renderSlot);
-        fixture.state.entityId[renderSlot] = -1;
 
         fixture.process();
 
@@ -1691,7 +1691,8 @@ public class SpatialRenderOrderSystemTest {
     private static final class Fixture {
         static final float PIXELS_PER_METER = 100f;
 
-        final RenderStateSOA state;
+        final RenderDataScratch state;
+        final DynamicEntityRenderState ecsState;
         final TiledMapRenderState tiledState;
         final LayerStateSOA layerState;
         final DrawList drawList;
@@ -1709,7 +1710,8 @@ public class SpatialRenderOrderSystemTest {
         }
 
         Fixture(int capacity, boolean captureOrder) {
-            state = new RenderStateSOA(capacity);
+            state = new RenderDataScratch(capacity);
+            ecsState = new DynamicEntityRenderState(capacity);
             tiledState = new TiledMapRenderState(16);
             layerState = new LayerStateSOA(16);
             for (int i = 0; i < layerState.enabled.length; i++) {
@@ -1717,12 +1719,12 @@ public class SpatialRenderOrderSystemTest {
             }
             drawList = new DrawList(capacity);
             stats = new RenderStats();
-            spatial = new SpatialRenderOrderSystem(state, tiledState, drawList);
+            spatial = new SpatialRenderOrderSystem(ecsState, tiledState, drawList);
 
             WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
                     .with(
-                            new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 128, -1, -1),
-                            new RenderSortSystem(state, tiledState, drawList)
+                            new RenderBuildDrawListSystem(ecsState, tiledState, layerState, drawList, stats, 128, -1, -1),
+                            new RenderSortSystem(ecsState, tiledState, drawList)
                     );
             if (captureOrder) {
                 builder.with(new BeforeSpatialCaptureSystem(drawList, (order, domains) -> {
@@ -1837,7 +1839,6 @@ public class SpatialRenderOrderSystemTest {
             int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);
             int slot = tiledRenderRef;
             enableSlot(slot, layerIndex, 0, runtimeOrder);
-            state.entityId[slot] = -1;
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
@@ -1908,8 +1909,7 @@ public class SpatialRenderOrderSystemTest {
                 addPhysicsCircleFootprint(entity, 1f);
             }
 
-            enableSlot(entity, layerIndex, z, entity);
-            state.entityId[entity] = entity;
+            enableActorSlot(entity, entity, layerIndex, z, entity);
             return entity;
         }
 
@@ -1927,8 +1927,7 @@ public class SpatialRenderOrderSystemTest {
             height.height = 2f;
             addPhysicsCircleFootprint(entity, 1f);
 
-            enableSlot(slot, layerIndex, z, slot);
-            state.entityId[slot] = entity;
+            enableActorSlot(entity, slot, layerIndex, z, slot);
             return entity;
         }
 
@@ -1940,7 +1939,6 @@ public class SpatialRenderOrderSystemTest {
 
         int createTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
-            state.entityId[slot] = -1;
             ensureTiledRefsRegistered(slot + 1);
             int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
@@ -1950,7 +1948,6 @@ public class SpatialRenderOrderSystemTest {
 
         int createRenderOnlySlot(int slot, int layerIndex, int z, int runtimeOrder) {
             enableSlot(slot, layerIndex, z, runtimeOrder);
-            state.entityId[slot] = -1;
             ensureTiledRefsRegistered(slot + 1);
             int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
@@ -2015,33 +2012,53 @@ public class SpatialRenderOrderSystemTest {
         }
 
         void enableSlot(int slot, int layerIndex, int z, int runtimeOrder) {
-            state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-            state.enabled[slot] = true;
-            state.visible[slot] = true;
-            state.textureHandle[slot] = 1;
-            state.shader[slot] = 1;
-            state.blend[slot] = BlendMode.ALPHA.id;
-            state.layerIndex[slot] = layerIndex;
-            state.z[slot] = z;
-            state.runtimeOrder[slot] = runtimeOrder;
-            state.x2[slot] = 1f;
-            state.x3[slot] = 1f;
-            state.y3[slot] = 1f;
-            state.y4[slot] = 1f;
-            state.u2[slot] = 1f;
-            state.v2[slot] = 1f;
-            state.colorPacked[slot] = 1f;
-            state.a[slot] = 1f;
-            state.entityId[slot] = -1;
-            state.sortKey[slot] = SortKey64.packForBlend(
-                    state.shader[slot],
-                    state.blend[slot],
-                    state.textureHandle[slot],
+            state.enableSprite(slot, layerIndex, z, runtimeOrder);
+        }
+
+        void enableActorSlot(int entity, int desiredRenderSlot, int layerIndex, int z, int runtimeOrder) {
+            while (ecsState.activeCount < desiredRenderSlot) {
+                ecsState.acquireSlotForEntity(1_000_000 + ecsState.activeCount);
+            }
+            int renderSlot;
+            if (desiredRenderSlot < ecsState.activeCount) {
+                Assert.assertFalse(ecsState.enabled[desiredRenderSlot]);
+                int replacedEntity = ecsState.renderSlotToEntityId[desiredRenderSlot];
+                if (replacedEntity >= 0 && replacedEntity < ecsState.entityIdToRenderSlot.length) {
+                    ecsState.entityIdToRenderSlot[replacedEntity] = DynamicEntityRenderState.NO_SLOT;
+                }
+                ecsState.ensureEntityCapacity(entity);
+                ecsState.entityIdToRenderSlot[entity] = desiredRenderSlot;
+                ecsState.renderSlotToEntityId[desiredRenderSlot] = entity;
+                renderSlot = desiredRenderSlot;
+            } else {
+                renderSlot = ecsState.acquireSlotForEntity(entity);
+            }
+            Assert.assertEquals(desiredRenderSlot, renderSlot);
+            ecsState.kind[renderSlot] = RenderKind.SPRITE;
+            ecsState.enabled[renderSlot] = true;
+            ecsState.visible[renderSlot] = true;
+            ecsState.textureHandle[renderSlot] = 1;
+            ecsState.shader[renderSlot] = 1;
+            ecsState.blend[renderSlot] = BlendMode.ALPHA.id;
+            ecsState.layerIndex[renderSlot] = layerIndex;
+            ecsState.z[renderSlot] = z;
+            ecsState.runtimeOrder[renderSlot] = runtimeOrder;
+            ecsState.x2[renderSlot] = 1f;
+            ecsState.x3[renderSlot] = 1f;
+            ecsState.y3[renderSlot] = 1f;
+            ecsState.y4[renderSlot] = 1f;
+            ecsState.u2[renderSlot] = 1f;
+            ecsState.v2[renderSlot] = 1f;
+            ecsState.colorPacked[renderSlot] = 1f;
+            ecsState.a[renderSlot] = 1f;
+            ecsState.sortKey[renderSlot] = SortKey64.packForBlend(
+                    ecsState.shader[renderSlot],
+                    ecsState.blend[renderSlot],
+                    ecsState.textureHandle[renderSlot],
                     layerIndex,
                     z,
                     runtimeOrder
             );
-            state.touch(slot);
         }
 
         void setSortOrder(int slot, int layerIndex, int z, int runtimeOrder) {
@@ -2056,6 +2073,21 @@ public class SpatialRenderOrderSystemTest {
                     z,
                     runtimeOrder
             );
+            if (slot >= 0
+                    && slot < ecsState.activeCount
+                    && ecsState.renderSlotToEntityId[slot] != DynamicEntityRenderState.NO_SLOT) {
+                ecsState.layerIndex[slot] = layerIndex;
+                ecsState.z[slot] = z;
+                ecsState.runtimeOrder[slot] = runtimeOrder;
+                ecsState.sortKey[slot] = SortKey64.packForBlend(
+                        ecsState.shader[slot],
+                        ecsState.blend[slot],
+                        ecsState.textureHandle[slot],
+                        layerIndex,
+                        z,
+                        runtimeOrder
+                );
+            }
         }
 
         void process() {

@@ -7,9 +7,9 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -26,7 +26,8 @@ import java.util.function.Supplier;
 public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;
-    public static final int DEFAULT_ECS_RENDER_CAPACITY = 150_000;
+    public static final int DEFAULT_ECS_ENTITY_CAPACITY_HINT = 150_000;
+    public static final int DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY = 4096;
     public static final int DEFAULT_FRAME_QUEUE_CAPACITY = 4096;
     public static final int DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY = 4096;
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
@@ -35,13 +36,13 @@ public final class WorldConfigFactory {
     }
 
     /**
-     * Backward-compatible overload.
+     * Single-hook overload.
      * <p>
      * The customizer is treated as post-render, matching the previous behavior.
      */
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
             FrameRenderQueue frameQueue,
@@ -59,7 +60,7 @@ public final class WorldConfigFactory {
     ) {
         return buildWorld(
                 camera,
-                renderState,
+                dynamicEntityState,
                 layerState,
                 drawList,
                 frameQueue,
@@ -95,7 +96,7 @@ public final class WorldConfigFactory {
      *     <li>the submit/render system supplied by {@code submitSupplier}</li>
      * </ul>
      *
-     * <p>Use this hook only for systems that write into {@link RenderStateSOA} and must be
+     * <p>Use this hook only for systems that write into frame render source state and must be
      * visible in the current frame draw list.</p>
      *
      * <p>Examples:</p>
@@ -121,13 +122,13 @@ public final class WorldConfigFactory {
      *     <li>Gizmos</li>
      * </ul>
      *
-     * <p>If unsure: systems that mutate {@link RenderStateSOA} for rendering belong in
+     * <p>If unsure: systems that mutate frame render source state for rendering belong in
      * {@code preRenderCustomizer}; systems that inspect input/UI or draw editor overlays
      * belong in {@code postRenderCustomizer}.</p>
      */
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
             FrameRenderQueue frameQueue,
@@ -146,7 +147,7 @@ public final class WorldConfigFactory {
     ) {
         return buildWorld(
                 camera,
-                renderState,
+                dynamicEntityState,
                 layerState,
                 drawList,
                 frameQueue,
@@ -168,7 +169,7 @@ public final class WorldConfigFactory {
 
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
             FrameRenderQueue frameQueue,
@@ -188,7 +189,7 @@ public final class WorldConfigFactory {
     ) {
         return buildWorld(
                 camera,
-                renderState,
+                dynamicEntityState,
                 layerState,
                 drawList,
                 frameQueue,
@@ -211,7 +212,7 @@ public final class WorldConfigFactory {
 
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
             FrameRenderQueue frameQueue,
@@ -232,11 +233,12 @@ public final class WorldConfigFactory {
     ) {
 
         int ecsStart = 0;
-        int ecsEnd = DEFAULT_ECS_RENDER_CAPACITY;
+        int ecsEnd = DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY;
+        int entityCapacityHint = DEFAULT_ECS_ENTITY_CAPACITY_HINT;
         int vfxStart = 0;
         int vfxEnd = vfxStart + DEFAULT_VFX_BUDGET;
 
-        configureRenderStorageCapacities(renderState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
+        configureRenderStorageCapacities(dynamicEntityState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
@@ -245,11 +247,11 @@ public final class WorldConfigFactory {
         addCoreSyncSystems(
                 builder,
                 camera,
-                renderState,
+                dynamicEntityState,
                 vfxState,
                 tiledState,
                 layerState,
-                ecsEnd,
+                entityCapacityHint,
                 meta,
                 atlasRuntimeService,
                 defaultShaderIdx,
@@ -267,7 +269,7 @@ public final class WorldConfigFactory {
 
         addRenderPipelineSystems(
                 builder,
-                renderState,
+                dynamicEntityState,
                 vfxState,
                 tiledState,
                 layerState,
@@ -304,7 +306,7 @@ public final class WorldConfigFactory {
     private static void addCoreSyncSystems(
             WorldConfigurationBuilder builder,
             OrthographicCamera worldCamera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             VfxRenderState vfxState,
             TiledMapRenderState tiledState,
             LayerStateSOA layerState,
@@ -326,9 +328,9 @@ public final class WorldConfigFactory {
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
-                profiled(new RenderSpriteSyncSystem(renderState), systemProfiler),
-                profiled(new ParallaxDisplaySystem(renderState, layerState, worldCamera), systemProfiler),
-                profiled(new CullingSystem(worldCamera, renderState), systemProfiler),
+                profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
+                profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),
+                profiled(new CullingSystem(worldCamera, dynamicEntityState), systemProfiler),
                 profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),
                 profiled(new RenderTiledSyncSystem(
                         worldCamera,
@@ -348,13 +350,14 @@ public final class WorldConfigFactory {
         );
     }
 
-    static void configureRenderStorageCapacities(RenderStateSOA renderState,
+    static void configureRenderStorageCapacities(DynamicEntityRenderState dynamicEntityState,
                                                  DrawList drawList,
                                                  FrameRenderQueue frameQueue,
                                                  VfxRenderState vfxState,
                                                  TiledMapRenderState tiledState,
                                                  int ecsCapacity) {
-        renderState.setCapacity(ecsCapacity);
+        dynamicEntityState.setRenderCapacity(ecsCapacity);
+        dynamicEntityState.setEntityCapacity(Math.min(DEFAULT_ECS_ENTITY_CAPACITY_HINT, Math.max(1024, ecsCapacity)));
         drawList.setCapacity(ecsCapacity);
         frameQueue.setCapacity(DEFAULT_FRAME_QUEUE_CAPACITY);
         vfxState.setCapacity(DEFAULT_VFX_BUDGET);
@@ -363,7 +366,7 @@ public final class WorldConfigFactory {
 
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             VfxRenderState vfxState,
             TiledMapRenderState tiledState,
             LayerStateSOA layerState,
@@ -379,7 +382,7 @@ public final class WorldConfigFactory {
     ) {
         builder.with(
                 profiled(new RenderBuildDrawListSystem(
-                        renderState,
+                        dynamicEntityState,
                         tiledState,
                         vfxState,
                         layerState,
@@ -390,7 +393,7 @@ public final class WorldConfigFactory {
                         vfxEndIndex
                 ), systemProfiler),
                 profiled(new RenderSortSystem(
-                        renderState,
+                        dynamicEntityState,
                         tiledState,
                         vfxState,
                         drawList,
@@ -398,7 +401,7 @@ public final class WorldConfigFactory {
                         vfxEndIndex
                 ), systemProfiler),
                 profiled(new SpatialRenderOrderSystem(
-                        renderState,
+                        dynamicEntityState,
                         tiledState,
                         drawList,
                         meta != null && meta.pixelsPerMeter > 0f
@@ -406,7 +409,7 @@ public final class WorldConfigFactory {
                                 : DEFAULT_PIXELS_PER_METER
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(
-                        renderState,
+                        dynamicEntityState,
                         tiledState,
                         vfxState,
                         drawList,

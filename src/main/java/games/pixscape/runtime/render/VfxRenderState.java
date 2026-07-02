@@ -3,9 +3,8 @@ package games.pixscape.runtime.render;
 /**
  * Frame-local SOA for particle/VFX draw data.
  * <p>
- * The state owns an independent capacity from {@link RenderStateSOA}. Clearing
- * a frame only resets the active count; arrays are reused until capacity needs
- * to grow.
+ * The state owns VFX render data independently. Clearing a frame only resets
+ * the active count; arrays are reused until capacity needs to grow.
  */
 public final class VfxRenderState {
     private static final int MIN_CAPACITY = 16;

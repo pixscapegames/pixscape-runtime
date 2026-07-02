@@ -10,7 +10,8 @@ import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.RenderKind;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -24,24 +25,22 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
         fixture.addCircle(actor, 3f, 0f, 0f);
-        fixture.drawList.addEcsSlot(actor);
+        fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
-        Assert.assertEquals(actor, fixture.collector.actorSlot[0]);
+        Assert.assertEquals(fixture.renderSlotFor(actor), fixture.collector.actorSlot[0]);
         Assert.assertEquals(actor, fixture.collector.actorEntityId[0]);
         Assert.assertEquals(2, fixture.collector.actorLayerIndex[0]);
-        Assert.assertEquals(actor, fixture.collector.actorStableOrder[0]);
+        Assert.assertEquals(fixture.renderSlotFor(actor), fixture.collector.actorStableOrder[0]);
     }
 
     @Test
     public void excludesTiledSlots() {
         Fixture fixture = new Fixture();
         int tiledSlot = 30;
-        fixture.enableSlot(tiledSlot, 2);
-        fixture.state.entityId[tiledSlot] = -1;
         fixture.drawList.addTiledSlot(tiledSlot);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
@@ -55,7 +54,7 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
         fixture.addCircle(actor, 3f, 0f, 0f);
-        fixture.drawList.addVfxSlot(actor);
+        fixture.drawList.addVfxSlot(fixture.renderSlotFor(actor));
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -68,7 +67,7 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 4, false);
         fixture.addCircle(actor, 3f, 0f, 0f);
-        fixture.drawList.addEcsSlot(actor);
+        fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -84,8 +83,8 @@ public class SpatialActorCollectorTest {
         int zero = fixture.createActor(30f, 40f, 2, true);
         fixture.height.get(zero).height = 0f;
         fixture.addCircle(zero, 3f, 0f, 0f);
-        fixture.drawList.addEcsSlot(missing);
-        fixture.drawList.addEcsSlot(zero);
+        fixture.addActorDrawSlot(missing);
+        fixture.addActorDrawSlot(zero);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -103,9 +102,9 @@ public class SpatialActorCollectorTest {
         int noCircle = fixture.createActor(50f, 60f, 2, true);
         fixture.body.create(noCircle);
         fixture.fixtures.create(noCircle).fixtures.add(boxFixture());
-        fixture.drawList.addEcsSlot(missingBody);
-        fixture.drawList.addEcsSlot(disabledBody);
-        fixture.drawList.addEcsSlot(noCircle);
+        fixture.addActorDrawSlot(missingBody);
+        fixture.addActorDrawSlot(disabledBody);
+        fixture.addActorDrawSlot(noCircle);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -121,7 +120,7 @@ public class SpatialActorCollectorTest {
         fixture.height.get(actor).height = 7f;
         fixture.transform.get(actor).rotationRad = (float) (Math.PI * 0.5);
         fixture.addCircle(actor, 4f, 5f, 1f);
-        fixture.drawList.addEcsSlot(actor);
+        fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -147,8 +146,8 @@ public class SpatialActorCollectorTest {
         int actorB = fixture.createActor(30f, 40f, 2, true);
         fixture.addCircle(actorA, 3f, 0f, 0f);
         fixture.addCircle(actorB, 3f, 0f, 0f);
-        fixture.drawList.addEcsSlot(actorA);
-        fixture.drawList.addEcsSlot(actorB);
+        fixture.addActorDrawSlot(actorA);
+        fixture.addActorDrawSlot(actorB);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
@@ -166,10 +165,9 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
         fixture.addCircle(actor, 3f, 0f, 0f);
-        fixture.drawList.addEcsSlot(actor);
-        fixture.drawList.addEcsSlot(40);
-        fixture.enableSlot(40, 2);
-        fixture.state.entityId[40] = -1;
+        fixture.addActorDrawSlot(actor);
+        int nonActorSlot = fixture.createNonActorRenderSlot(2);
+        fixture.drawList.addEcsSlot(nonActorSlot);
         int[] before = Arrays.copyOf(fixture.drawList.data(), fixture.drawList.size);
         byte[] domainsBefore = Arrays.copyOf(fixture.drawList.domainData(), fixture.drawList.size);
 
@@ -190,7 +188,7 @@ public class SpatialActorCollectorTest {
 
     private static final class Fixture {
         final World world = new World(new WorldConfigurationBuilder().build());
-        final RenderStateSOA state = new RenderStateSOA(128);
+        final DynamicEntityRenderState state = new DynamicEntityRenderState(128);
         final DrawList drawList = new DrawList(128);
         final SpatialActorCollector collector = new SpatialActorCollector();
         final boolean[] spatialLayers = new boolean[8];
@@ -224,8 +222,7 @@ public class SpatialActorCollectorTest {
             t.y = y;
             EntityIndexComponent index = entityIndex.create(actor);
             index.layerIndex = layerIndex;
-            enableSlot(actor, layerIndex);
-            state.entityId[actor] = actor;
+            enableEntitySlot(actor, layerIndex);
             return actor;
         }
 
@@ -241,14 +238,32 @@ public class SpatialActorCollectorTest {
             f.fixtures.add(fixture);
         }
 
-        void enableSlot(int slot, int layerIndex) {
-            state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-            state.enabled[slot] = true;
-            state.visible[slot] = true;
-            state.textureHandle[slot] = 1;
-            state.layerIndex[slot] = layerIndex;
-            state.entityId[slot] = -1;
-            state.touch(slot);
+        int renderSlotFor(int actor) {
+            return state.renderSlotForEntity(actor);
+        }
+
+        void addActorDrawSlot(int actor) {
+            drawList.addEcsSlot(renderSlotFor(actor));
+        }
+
+        int createNonActorRenderSlot(int layerIndex) {
+            int entity = world.create();
+            int renderSlot = state.acquireSlotForEntity(entity);
+            enableSlot(renderSlot, layerIndex);
+            return renderSlot;
+        }
+
+        void enableEntitySlot(int entity, int layerIndex) {
+            int renderSlot = state.acquireSlotForEntity(entity);
+            enableSlot(renderSlot, layerIndex);
+        }
+
+        void enableSlot(int renderSlot, int layerIndex) {
+            state.kind[renderSlot] = RenderKind.SPRITE;
+            state.enabled[renderSlot] = true;
+            state.visible[renderSlot] = true;
+            state.textureHandle[renderSlot] = 1;
+            state.layerIndex[renderSlot] = layerIndex;
         }
     }
 }

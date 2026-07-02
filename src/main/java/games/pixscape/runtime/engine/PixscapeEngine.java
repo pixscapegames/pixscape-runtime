@@ -59,7 +59,7 @@ public final class PixscapeEngine {
     private World world;
     private OrthographicCamera worldCamera;
 
-    private RenderStateSOA renderState;
+    private DynamicEntityRenderState dynamicEntityState;
     private LayerStateSOA layerState;
     private DrawList drawList;
     private FrameRenderQueue frameQueue;
@@ -276,14 +276,14 @@ public final class PixscapeEngine {
             box2dWorldService = null;
         }
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -292,7 +292,7 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
                         frameQueue,
@@ -303,7 +303,6 @@ public final class PixscapeEngine {
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
                                 frameQueue,
                                 worldCamera,
@@ -512,8 +511,8 @@ public final class PixscapeEngine {
         return worldCamera;
     }
 
-    public RenderStateSOA getRenderState() {
-        return renderState;
+    public DynamicEntityRenderState getDynamicEntityRenderState() {
+        return dynamicEntityState;
     }
 
     public LayerStateSOA getLayerState() {
@@ -590,7 +589,7 @@ public final class PixscapeEngine {
             atlasRuntimeService = null;
         }
 
-        renderState = null;
+        dynamicEntityState = null;
         layerState = null;
         drawList = null;
         frameQueue = null;
@@ -616,7 +615,7 @@ public final class PixscapeEngine {
 
         ShaderRegistry.initDefaults(projectDir, config.shadersDir);
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
@@ -632,7 +631,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -644,7 +643,7 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
                         frameQueue,
@@ -655,7 +654,6 @@ public final class PixscapeEngine {
                         atlasRuntimeService,
                         null,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
                                 frameQueue,
                                 worldCamera,
@@ -702,7 +700,7 @@ public final class PixscapeEngine {
             worldCamera = new OrthographicCamera();
         }
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
@@ -718,7 +716,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         applyAmbientFromMeta(null);
@@ -727,7 +725,7 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
                         frameQueue,
@@ -738,7 +736,6 @@ public final class PixscapeEngine {
                         atlasRuntimeService,
                         null,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
                                 frameQueue,
                                 worldCamera,
@@ -775,7 +772,7 @@ public final class PixscapeEngine {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
-        if (renderState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
+        if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
                 || tiledState == null
                 || metricsBatch == null || stats == null || statsSink == null) {
             initRuntime(config, projectDir);
@@ -790,7 +787,7 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
                         frameQueue,
@@ -801,7 +798,6 @@ public final class PixscapeEngine {
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
                                 frameQueue,
                                 worldCamera,

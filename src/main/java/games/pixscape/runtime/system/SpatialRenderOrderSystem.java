@@ -13,7 +13,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
@@ -30,7 +30,7 @@ import java.util.Arrays;
 public final class SpatialRenderOrderSystem extends BaseSystem implements ProfiledSystem {
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
-    private final RenderStateSOA state;
+    private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final DrawList drawList;
 
@@ -66,25 +66,25 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList) {
-        this(state, null, drawList);
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
+        this(ecsState, null, drawList);
     }
 
-    public SpatialRenderOrderSystem(RenderStateSOA state, TiledMapRenderState tiledState, DrawList drawList) {
-        this.state = state;
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, TiledMapRenderState tiledState, DrawList drawList) {
+        this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.drawList = drawList;
     }
 
-    public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList, float pixelsPerMeter) {
-        this(state, null, drawList, pixelsPerMeter);
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList, float pixelsPerMeter) {
+        this(ecsState, null, drawList, pixelsPerMeter);
     }
 
-    public SpatialRenderOrderSystem(RenderStateSOA state,
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
                                     TiledMapRenderState tiledState,
                                     DrawList drawList,
                                     float pixelsPerMeter) {
-        this(state, tiledState, drawList);
+        this(ecsState, tiledState, drawList);
         this.pixelsPerMeter = pixelsPerMeter > 0f ? pixelsPerMeter : DEFAULT_PIXELS_PER_METER;
     }
 
@@ -111,13 +111,13 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void processSystemInternal() {
-        if (state == null || drawList == null || drawList.size <= 1) return;
+        if (ecsState == null || drawList == null || drawList.size <= 1) return;
 
         rebuildSpatialLayers();
         collectSpatialActors();
         if (actorCollector.actorCount() == 0) return;
 
-        snapshotBuilder.build(drawList, state.getCapacity(), actorCollector);
+        snapshotBuilder.build(drawList, ecsState.getRenderCapacity(), actorCollector);
         rebuildSpatialBlockLayers();
         orderingKernel.begin(actorCollector, snapshotBuilder);
         if (blockLayerCount == 0) {
@@ -185,7 +185,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private void collectSpatialActors() {
         actorCollector.collect(drawList,
-                state,
+                ecsState,
                 spatialLayers,
                 world.getEntityManager(),
                 mEntityIndex,
@@ -198,8 +198,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void buildDrawIndexMaps() {
-        ensureSlotToDrawIndexCapacity(state.getCapacity());
-        Arrays.fill(slotToDrawIndex, 0, state.getCapacity(), -1);
+        int ecsRenderCapacity = ecsState.getRenderCapacity();
+        ensureSlotToDrawIndexCapacity(ecsRenderCapacity);
+        Arrays.fill(slotToDrawIndex, 0, ecsRenderCapacity, -1);
         int tiledRefCapacity = tiledState != null ? tiledState.getCapacity() : 0;
         ensureTiledRefToDrawIndexCapacity(tiledRefCapacity);
         if (tiledRefCapacity > 0) {
@@ -210,7 +211,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
             int slot = data[drawIndex];
             byte domain = domains[drawIndex];
-            if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < state.getCapacity()) {
+            if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < ecsRenderCapacity) {
                 slotToDrawIndex[slot] = drawIndex;
             } else if (domain == RenderSourceDomain.SOURCE_TILED
                     && slot >= 0

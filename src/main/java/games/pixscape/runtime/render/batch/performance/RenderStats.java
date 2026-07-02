@@ -32,6 +32,9 @@ public final class RenderStats {
     public int batchesOpaque;
     public int batchesAlpha;
     public int buildDrawListScannedEcsSlots;
+    public int ecsActiveRenderSlots;
+    public int ecsRenderCapacity;
+    public int ecsEntityMappingCapacity;
     public int buildDrawListScannedTiledSlots;
     public int frameQueueQuads;
     public int frameQueuePeakCapacity;
@@ -48,6 +51,9 @@ public final class RenderStats {
         regionResolveCacheHits = regionResolveCacheMisses = 0L;
         batchesOpaque = batchesAlpha = 0;
         buildDrawListScannedEcsSlots = 0;
+        ecsActiveRenderSlots = 0;
+        ecsRenderCapacity = 0;
+        ecsEntityMappingCapacity = 0;
         buildDrawListScannedTiledSlots = 0;
         frameQueueQuads = 0;
         frameQueuePeakCapacity = 0;
@@ -85,6 +91,9 @@ public final class RenderStats {
         flushCapacity += other.flushCapacity;
         flushEnd += other.flushEnd;
         buildDrawListScannedEcsSlots += other.buildDrawListScannedEcsSlots;
+        ecsActiveRenderSlots += other.ecsActiveRenderSlots;
+        ecsRenderCapacity = Math.max(ecsRenderCapacity, other.ecsRenderCapacity);
+        ecsEntityMappingCapacity = Math.max(ecsEntityMappingCapacity, other.ecsEntityMappingCapacity);
         buildDrawListScannedTiledSlots += other.buildDrawListScannedTiledSlots;
         frameQueueQuads += other.frameQueueQuads;
         frameQueuePeakCapacity = Math.max(frameQueuePeakCapacity, other.frameQueuePeakCapacity);

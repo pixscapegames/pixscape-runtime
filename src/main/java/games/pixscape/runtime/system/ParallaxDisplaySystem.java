@@ -14,21 +14,21 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderStateSOA;
 
 /**
  * Computes display-space {@code offsetX/offsetY} for each renderable entity,
  * based on editor camera position and layer parallax.
  * <p>
  * Pipeline:
- * - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill {@code RenderStateSOA} &amp; {@code LayerStateSOA}
- * - {@code ParallaxDisplaySystem} fills {@code RenderStateSOA.offsetX/offsetY}
+ * - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill dynamic ECS render state &amp; {@code LayerStateSOA}
+ * - {@code ParallaxDisplaySystem} fills dynamic ECS {@code offsetX/offsetY}
  * - Culling / Gizmo / Picking / RenderSubmit use {@code xN + offsetX}, {@code yN + offsetY}
  */
 public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledSystem {
 
-    private final RenderStateSOA renderState;
+    private final DynamicEntityRenderState renderState;
     private final LayerStateSOA layerState;
     private final OrthographicCamera worldCam;
     private EntitySubscription spriteSubscription;
@@ -36,7 +36,7 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     private final Vector2 tmpOffset = new Vector2();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public ParallaxDisplaySystem(RenderStateSOA renderState,
+    public ParallaxDisplaySystem(DynamicEntityRenderState renderState,
                                  LayerStateSOA layerState,
                                  OrthographicCamera worldCam) {
         this.renderState = renderState;
@@ -68,8 +68,11 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];
-                    renderState.offsetX[e] = 0f;
-                    renderState.offsetY[e] = 0f;
+                    int renderSlot = renderState.renderSlotForEntity(e);
+                    if (renderSlot != DynamicEntityRenderState.NO_SLOT) {
+                        renderState.offsetX[renderSlot] = 0f;
+                        renderState.offsetY[renderSlot] = 0f;
+                    }
                 }
             }
         });
@@ -98,32 +101,28 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
 
         final int layerCapacity = layerState.parallaxX.length; // or layerState.capacity()
 
-        IntBag bag = spriteSubscription.getEntities();
-        int[] data = bag.getData();
-
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int e = data[i];
-            if (!renderState.enabled[e]) {
+        for (int renderSlot = 0, n = renderState.activeCount; renderSlot < n; renderSlot++) {
+            if (!renderState.enabled[renderSlot]) {
                 // par safety on reset offset to zero,
                 // useful if the entity is recycled
-                renderState.offsetX[e] = 0f;
-                renderState.offsetY[e] = 0f;
+                renderState.offsetX[renderSlot] = 0f;
+                renderState.offsetY[renderSlot] = 0f;
                 continue;
             }
 
-            int layerIdx = renderState.layerIndex[e];
+            int layerIdx = renderState.layerIndex[renderSlot];
 
             // invalid layer -> no parallax
             if (layerIdx < 0 || layerIdx >= layerCapacity || !layerState.enabled[layerIdx]) {
-                renderState.offsetX[e] = 0f;
-                renderState.offsetY[e] = 0f;
+                renderState.offsetX[renderSlot] = 0f;
+                renderState.offsetY[renderSlot] = 0f;
                 continue;
             }
 
             // parallax disabled on this layer?
             if (!layerState.hasParallax(layerIdx)) {
-                renderState.offsetX[e] = 0f;
-                renderState.offsetY[e] = 0f;
+                renderState.offsetX[renderSlot] = 0f;
+                renderState.offsetY[renderSlot] = 0f;
                 continue;
             }
 
@@ -132,8 +131,8 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
 
             ParallaxHelper.computeParallaxOffset(camX, camY, px, py, tmpOffset);
 
-            renderState.offsetX[e] = tmpOffset.x;
-            renderState.offsetY[e] = tmpOffset.y;
+            renderState.offsetX[renderSlot] = tmpOffset.x;
+            renderState.offsetY[renderSlot] = tmpOffset.y;
         }
     }
 
