@@ -25,9 +25,9 @@ public class RenderExtractFrameQueueSystemTest {
         writeSlot(state, 4, 4, 20, 3f, 4f);
         writeVfx(vfxState, 30);
 
-        drawList.add(120);
-        drawList.add(4);
-        drawList.add(160);
+        drawList.addTiledSlot(120);
+        drawList.addEcsSlot(4);
+        drawList.addVfxSlot(0);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(new RenderExtractFrameQueueSystem(
@@ -47,7 +47,7 @@ public class RenderExtractFrameQueueSystemTest {
         Assert.assertEquals(drawList.size, queue.size);
         assertQueueEntry(queue, 0, 120, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
         assertQueueEntry(queue, 1, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
-        assertQueueEntry(queue, 2, 160, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
+        assertQueueEntry(queue, 2, 0, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);
         Assert.assertTrue(stats.frameQueuePeakCapacity >= 3);
         Assert.assertTrue(stats.frameQueueGrowthCount > 0);

@@ -87,7 +87,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             for (int slot = 0; slot <= ecsUpper; slot++) {
                 boolean renderable = isRenderableSlot(slot);
                 if (renderable) {
-                    drawList.add(slot);
+                    drawList.addEcsSlot(slot);
                 }
             }
 
@@ -111,7 +111,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
 
             boolean renderable = isRenderableSlot(slot);
             if (renderable) {
-                drawList.add(slot);
+                drawList.addTiledSlot(slot);
             }
         }
 
@@ -120,7 +120,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
 
             for (int i = 0; i < count; i++) {
                 if (isRenderableVfxIndex(i)) {
-                    drawList.add(vfxStartInclusive + i);
+                    drawList.addVfxSlot(i);
                 }
             }
         }

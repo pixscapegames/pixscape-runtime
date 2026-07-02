@@ -1,5 +1,6 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.render.DrawList;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -11,11 +12,12 @@ public class SpatialOrderingKernelTest {
     @Test
     public void nonActorOrderIsFullyPreserved() {
         int[] input = {100, 1, 101, 2, 102};
+        DrawList drawList = drawList(input);
         SpatialActorCollector actors = actors(actor(1, 0, 20f), actor(2, 1, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(input, actors);
+        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
 
         kernel.begin(actors, snapshot);
-        kernel.finish(input, input.length, actors, snapshot);
+        kernel.finish(drawList, actors, snapshot);
 
         Assert.assertArrayEquals(new int[]{100, 101, 102}, nonActors(kernel.orderedSlots(), kernel.orderedSize()));
     }
@@ -23,8 +25,9 @@ public class SpatialOrderingKernelTest {
     @Test
     public void originalBucketComesFromStableSourceDrawList() {
         int[] input = {100, 1, 101, 102, 2};
+        DrawList drawList = drawList(input);
         SpatialActorCollector actors = actors(actor(1, 0, 20f), actor(2, 1, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(input, actors);
+        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
 
         Assert.assertEquals(1, snapshot.actorOriginalBucket[0]);
         Assert.assertEquals(3, snapshot.actorOriginalBucket[1]);
@@ -72,8 +75,9 @@ public class SpatialOrderingKernelTest {
     @Test
     public void actorsSortOnlyInsideTheirBuckets() {
         int[] input = {100, 1, 101, 2, 3, 102};
+        DrawList drawList = drawList(input);
         SpatialActorCollector actors = actors(actor(1, 0, 50f), actor(2, 1, 10f), actor(3, 2, 40f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(input, actors);
+        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
         SpatialRelationSolver relations = relations(
                 relation(0, 0, SpatialRelationKernel.ACTOR_BEHIND_BLOCK),
                 relation(1, 1, SpatialRelationKernel.ACTOR_IN_FRONT_OF_BLOCK),
@@ -82,7 +86,7 @@ public class SpatialOrderingKernelTest {
 
         kernel.begin(actors, snapshot);
         kernel.addRelations(actors, cache, relations);
-        kernel.finish(input, input.length, actors, snapshot);
+        kernel.finish(drawList, actors, snapshot);
 
         Assert.assertArrayEquals(new int[]{1, 100, 101, 3, 2, 102},
                 Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize()));
@@ -91,23 +95,36 @@ public class SpatialOrderingKernelTest {
     @Test
     public void equalCenterYOrderingIsDeterministicAcrossFrames() {
         int[] input = {100, 2, 1, 101};
+        DrawList drawList = drawList(input);
         SpatialActorCollector actors = actors(actor(1, 10, 10f), actor(2, 5, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(input, actors);
+        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
 
         kernel.begin(actors, snapshot);
-        kernel.finish(input, input.length, actors, snapshot);
+        kernel.finish(drawList, actors, snapshot);
         int[] first = Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize());
         kernel.begin(actors, snapshot);
-        kernel.finish(input, input.length, actors, snapshot);
+        kernel.finish(drawList, actors, snapshot);
 
         Assert.assertArrayEquals(first, Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize()));
         Assert.assertArrayEquals(new int[]{100, 1, 2, 101}, first);
     }
 
-    private static SpatialFrameSnapshotBuilder snapshot(int[] input, SpatialActorCollector actors) {
+    private static SpatialFrameSnapshotBuilder snapshot(DrawList drawList, SpatialActorCollector actors) {
         SpatialFrameSnapshotBuilder snapshot = new SpatialFrameSnapshotBuilder();
-        snapshot.build(input, input.length, 200, actors);
+        snapshot.build(drawList, 200, actors);
         return snapshot;
+    }
+
+    private static DrawList drawList(int[] slots) {
+        DrawList drawList = new DrawList(slots.length);
+        for (int i = 0; i < slots.length; i++) {
+            if (slots[i] >= 100) {
+                drawList.addTiledSlot(slots[i]);
+            } else {
+                drawList.addEcsSlot(slots[i]);
+            }
+        }
+        return drawList;
     }
 
     private static int[] nonActors(int[] slots, int size) {

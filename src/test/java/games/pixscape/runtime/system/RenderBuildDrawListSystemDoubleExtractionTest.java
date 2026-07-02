@@ -7,6 +7,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
@@ -99,7 +100,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.world.process();
 
         Assert.assertEquals(1, fixture.drawList.size);
-        Assert.assertEquals(1_500, fixture.drawList.get(0));
+        Assert.assertEquals(RenderSourceDomain.SOURCE_VFX, fixture.drawList.getDomain(0));
+        Assert.assertEquals(0, fixture.drawList.get(0));
         Assert.assertEquals(0, fixture.stats.buildDrawListScannedEcsSlots);
         Assert.assertEquals(0, fixture.stats.buildDrawListScannedTiledSlots);
         Assert.assertEquals(1, fixture.stats.vfxActiveParticles);
@@ -118,12 +120,26 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{1500, 901, 900, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{0, 901, 900, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(
+                new byte[]{
+                        RenderSourceDomain.SOURCE_VFX,
+                        RenderSourceDomain.SOURCE_TILED,
+                        RenderSourceDomain.SOURCE_TILED,
+                        RenderSourceDomain.SOURCE_ECS
+                },
+                domainSnapshot(fixture.drawList));
     }
 
     private static int[] snapshot(DrawList drawList) {
         int[] out = new int[drawList.size];
         System.arraycopy(drawList.data(), 0, out, 0, drawList.size);
+        return out;
+    }
+
+    private static byte[] domainSnapshot(DrawList drawList) {
+        byte[] out = new byte[drawList.size];
+        System.arraycopy(drawList.domainData(), 0, out, 0, drawList.size);
         return out;
     }
 

@@ -7,13 +7,14 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.VfxRenderState;
 
 /**
- * Trie drawList (indices SOA) par state.sortKey[slot].
+ * Trie drawList par sortKey de chaque source render.
  * <p>
  * Important:
- * - drawList contains "slots" RenderStateSOA, not entityId ECS.
+ * - drawList entries carry a source domain and a source slot/index.
  * - STABLE sort (LSD radix) => preserves relative order for equal keys
  * (useful for tie/runtimeOrder).
  */
@@ -22,11 +23,10 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private final RenderStateSOA state;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
-    private final int vfxStartInclusive;
-    private final int vfxEndExclusive;
 
     // scratch buffers (reused)
-    private int[] tmp = new int[0];
+    private int[] tmpSlots = new int[0];
+    private byte[] tmpDomains = new byte[0];
     private final int[] count = new int[256]; // 8 bits
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
@@ -42,8 +42,6 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         this.state = state;
         this.vfxState = vfxState;
         this.drawList = drawList;
-        this.vfxStartInclusive = vfxStartInclusive;
-        this.vfxEndExclusive = vfxEndExclusive;
     }
 
     @Override
@@ -65,7 +63,8 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         final int n = drawList.size;
         if (n <= 1) return;
 
-        final int[] data = drawList.data();
+        final int[] slots = drawList.data();
+        final byte[] domains = drawList.domainData();
         ensureTmpCapacity(n);
 
         // LSD radix: 8 passes * 8 bits = 64 bits
@@ -78,7 +77,7 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
 
             // histogram
             for (int i = 0; i < n; i++) {
-                long key = sortKeyForSlot(data[i]);
+                long key = sortKeyForEntry(domains[i], slots[i]);
                 int bucket = (int) ((key >>> shift) & 0xFFL);
                 count[bucket]++;
             }
@@ -93,40 +92,40 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
 
             // stable scatter into tmp
             for (int i = 0; i < n; i++) {
-                int slot = data[i];
-                long key = sortKeyForSlot(slot);
+                int slot = slots[i];
+                byte domain = domains[i];
+                long key = sortKeyForEntry(domain, slot);
                 int bucket = (int) ((key >>> shift) & 0xFFL);
-                tmp[count[bucket]++] = slot;
+                int target = count[bucket]++;
+                tmpSlots[target] = slot;
+                tmpDomains[target] = domain;
             }
 
             // copy back
-            System.arraycopy(tmp, 0, data, 0, n);
+            System.arraycopy(tmpSlots, 0, slots, 0, n);
+            System.arraycopy(tmpDomains, 0, domains, 0, n);
         }
     }
 
-    private long sortKeyForSlot(int slot) {
-        int vfxIndex = vfxIndex(slot);
-        if (vfxIndex >= 0) {
-            return vfxState.sortKey[vfxIndex];
+    private long sortKeyForEntry(byte domain, int slot) {
+        if (domain == RenderSourceDomain.SOURCE_VFX) {
+            return vfxState != null && slot >= 0 && slot < vfxState.activeCount
+                    ? vfxState.sortKey[slot]
+                    : 0L;
         }
-        return state.sortKey[slot];
-    }
-
-    private int vfxIndex(int slot) {
-        if (vfxState == null
-                || vfxStartInclusive < 0
-                || slot < vfxStartInclusive
-                || slot >= vfxEndExclusive) {
-            return -1;
+        if ((domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED)
+                && slot >= 0
+                && slot < state.getCapacity()) {
+            return state.sortKey[slot];
         }
-
-        int index = slot - vfxStartInclusive;
-        return index >= 0 && index < vfxState.activeCount ? index : -1;
+        return 0L;
     }
 
     private void ensureTmpCapacity(int n) {
-        if (tmp.length < n) {
-            tmp = new int[Math.max(n, tmp.length * 2 + 16)];
+        if (tmpSlots.length < n) {
+            int next = Math.max(n, tmpSlots.length * 2 + 16);
+            tmpSlots = new int[next];
+            tmpDomains = new byte[next];
         }
     }
 

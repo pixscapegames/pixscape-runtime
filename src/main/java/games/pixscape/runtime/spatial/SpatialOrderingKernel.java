@@ -1,11 +1,17 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.render.DrawList;
+
 public final class SpatialOrderingKernel {
     private final SpatialBucketPlanner planner = new SpatialBucketPlanner();
     private final SpatialBucketDrawListComposer composer = new SpatialBucketDrawListComposer();
 
     public int[] orderedSlots() {
         return composer.composedSlots;
+    }
+
+    public byte[] orderedDomains() {
+        return composer.composedDomains;
     }
 
     public int orderedSize() {
@@ -25,12 +31,11 @@ public final class SpatialOrderingKernel {
         planner.addRelations(actors, blockCache, relations);
     }
 
-    public int finish(int[] sourceSlots,
-                      int sourceSize,
+    public int finish(DrawList drawList,
                       SpatialActorCollector actors,
                       SpatialFrameSnapshotBuilder snapshot) {
         planner.finish(actors);
-        int composedSize = composer.compose(sourceSlots, sourceSize, actors, planner, snapshot::isActorSlot);
+        int composedSize = composer.compose(drawList, actors, planner, snapshot);
         SpatialTiledSort.verifyToto3(actors, planner);
         SpatialTiledSort.verifyToto3Signoff(actors, planner, composer.composedSlots, composedSize);
         return composedSize;

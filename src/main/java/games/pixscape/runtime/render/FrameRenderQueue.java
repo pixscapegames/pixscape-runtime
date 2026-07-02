@@ -8,10 +8,10 @@ package games.pixscape.runtime.render;
  * reading domain-specific source state.
  */
 public final class FrameRenderQueue {
-    public static final byte SOURCE_NONE = 0;
-    public static final byte SOURCE_ECS = 1;
-    public static final byte SOURCE_TILED = 2;
-    public static final byte SOURCE_VFX = 3;
+    public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
+    public static final byte SOURCE_ECS = RenderSourceDomain.SOURCE_ECS;
+    public static final byte SOURCE_TILED = RenderSourceDomain.SOURCE_TILED;
+    public static final byte SOURCE_VFX = RenderSourceDomain.SOURCE_VFX;
 
     private static final int MIN_CAPACITY = 16;
 

@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderSourceDomain;
 
 public final class SpatialActorCollector {
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
@@ -81,7 +82,11 @@ public final class SpatialActorCollector {
         if (drawList == null || state == null || drawList.size <= 0) return;
 
         int[] data = drawList.data();
+        byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
+            if (domains[drawIndex] != RenderSourceDomain.SOURCE_ECS) {
+                continue;
+            }
             int slot = data[drawIndex];
             collectSlot(slot,
                     drawIndex,

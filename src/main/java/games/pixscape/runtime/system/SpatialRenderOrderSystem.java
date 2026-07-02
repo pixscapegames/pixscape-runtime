@@ -14,6 +14,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
 import games.pixscape.runtime.spatial.SpatialBlockAnchorResolver;
 import games.pixscape.runtime.spatial.SpatialBlocksRuntimeCache;
@@ -57,6 +58,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private int[] slotToDrawIndex = new int[0];
     private int[] nonActorSubsequenceAfter = new int[0];
+    private byte[] nonActorDomainAfter = new byte[0];
 
     private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -100,11 +102,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         collectSpatialActors();
         if (actorCollector.actorCount() == 0) return;
 
-        snapshotBuilder.build(drawList.data(), drawList.size, state.getCapacity(), actorCollector);
+        snapshotBuilder.build(drawList, state.getCapacity(), actorCollector);
         rebuildSpatialBlockLayers();
         orderingKernel.begin(actorCollector, snapshotBuilder);
         if (blockLayerCount == 0) {
-            orderingKernel.finish(drawList.data(), drawList.size, actorCollector, snapshotBuilder);
+            orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
             applyComposedDrawList();
             assertNonActorSubsequencePreserved();
             return;
@@ -140,7 +142,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             orderingKernel.addRelations(actorCollector, blockCache, relationSolver);
         }
 
-        orderingKernel.finish(drawList.data(), drawList.size, actorCollector, snapshotBuilder);
+        orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
         applyComposedDrawList();
         assertNonActorSubsequencePreserved();
     }
@@ -184,9 +186,13 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         ensureSlotToDrawIndexCapacity(state.getCapacity());
         Arrays.fill(slotToDrawIndex, 0, state.getCapacity(), -1);
         int[] data = drawList.data();
+        byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
             int slot = data[drawIndex];
-            if (slot >= 0 && slot < state.getCapacity()) {
+            byte domain = domains[drawIndex];
+            if ((domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED)
+                    && slot >= 0
+                    && slot < state.getCapacity()) {
                 slotToDrawIndex[slot] = drawIndex;
             }
         }
@@ -197,6 +203,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             throw new IllegalStateException("Spatial bucket composer changed draw-list size.");
         }
         System.arraycopy(orderingKernel.orderedSlots(), 0, drawList.data(), 0, drawList.size);
+        System.arraycopy(orderingKernel.orderedDomains(), 0, drawList.domainData(), 0, drawList.size);
     }
 
     private void convertBlockAnchorsToStableBuckets() {
@@ -208,22 +215,31 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private void assertNonActorSubsequencePreserved() {
         int count = 0;
         int[] data = drawList.data();
+        byte[] domains = drawList.domainData();
         for (int i = 0; i < drawList.size; i++) {
-            if (!snapshotBuilder.isActorSlot(data[i])) count++;
+            if (!snapshotBuilder.isActorEntry(domains[i], data[i])) count++;
         }
         if (nonActorSubsequenceAfter.length < count) {
             nonActorSubsequenceAfter = new int[count];
         }
+        if (nonActorDomainAfter.length < count) {
+            nonActorDomainAfter = new byte[count];
+        }
         int out = 0;
         for (int i = 0; i < drawList.size; i++) {
             int slot = data[i];
-            if (!snapshotBuilder.isActorSlot(slot)) nonActorSubsequenceAfter[out++] = slot;
+            byte domain = domains[i];
+            if (!snapshotBuilder.isActorEntry(domain, slot)) {
+                nonActorDomainAfter[out] = domain;
+                nonActorSubsequenceAfter[out++] = slot;
+            }
         }
         if (count != snapshotBuilder.nonActorCount) {
             throw new IllegalStateException("Spatial non-actor subsequence changed length.");
         }
         for (int i = 0; i < count; i++) {
-            if (snapshotBuilder.nonActorSlots[i] != nonActorSubsequenceAfter[i]) {
+            if (snapshotBuilder.nonActorDomains[i] != nonActorDomainAfter[i]
+                    || snapshotBuilder.nonActorSlots[i] != nonActorSubsequenceAfter[i]) {
                 throw new IllegalStateException("Spatial non-actor subsequence changed during bucket composition.");
             }
         }
@@ -299,6 +315,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 + snapshotBuilder.actorOriginalBucket.length
                 + snapshotBuilder.actorSlotMask.length
                 + snapshotBuilder.nonActorSlots.length
+                + snapshotBuilder.nonActorDomains.length
+                + nonActorDomainAfter.length
                 + nonActorSubsequenceAfter.length;
     }
 
