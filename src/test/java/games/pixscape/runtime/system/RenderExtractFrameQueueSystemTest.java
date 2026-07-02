@@ -6,6 +6,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
@@ -16,6 +17,7 @@ public class RenderExtractFrameQueueSystemTest {
     @Test
     public void extractsDrawListOrderAndCopiesDrawReadyFields() {
         RenderStateSOA state = new RenderStateSOA(256);
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
         VfxRenderState vfxState = new VfxRenderState(16);
         DrawList drawList = new DrawList(16);
         FrameRenderQueue queue = new FrameRenderQueue(1);
@@ -24,14 +26,16 @@ public class RenderExtractFrameQueueSystemTest {
         writeSlot(state, 120, -1, 10, 1f, 2f);
         writeSlot(state, 4, 4, 20, 3f, 4f);
         writeVfx(vfxState, 30);
+        int tiledRef = tiledState.registerLegacySlot(120);
 
-        drawList.addTiledSlot(120);
+        drawList.addTiledSlot(tiledRef);
         drawList.addEcsSlot(4);
         drawList.addVfxSlot(0);
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(new RenderExtractFrameQueueSystem(
                         state,
+                        tiledState,
                         vfxState,
                         drawList,
                         queue,
@@ -45,7 +49,7 @@ public class RenderExtractFrameQueueSystemTest {
         world.process();
 
         Assert.assertEquals(drawList.size, queue.size);
-        assertQueueEntry(queue, 0, 120, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
+        assertQueueEntry(queue, 0, tiledRef, -1, 10, 1f, 2f, FrameRenderQueue.SOURCE_TILED);
         assertQueueEntry(queue, 1, 4, 4, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
         assertQueueEntry(queue, 2, 0, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);

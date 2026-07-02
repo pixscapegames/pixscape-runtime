@@ -21,7 +21,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(12, 0, 120L);
         fixture.enableSprite(320_000, 0, 200L);
-        fixture.tiledState.addVisibleSlot(320_000);
+        fixture.addVisibleTiledSlot(320_000);
 
         fixture.world.process();
 
@@ -37,13 +37,15 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 100L);
         fixture.enableSprite(901, 0, 50L);
         fixture.enableSprite(950, 0, 5L);
-        fixture.addVisibleTiledRange(900, 2);
+        int refStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(2, fixture.drawList.size);
-        Assert.assertEquals(901, fixture.drawList.get(0));
-        Assert.assertEquals(900, fixture.drawList.get(1));
+        Assert.assertEquals(refStart + 1, fixture.drawList.get(0));
+        Assert.assertEquals(refStart, fixture.drawList.get(1));
+        Assert.assertArrayEquals(new byte[]{RenderSourceDomain.SOURCE_TILED, RenderSourceDomain.SOURCE_TILED},
+                domainSnapshot(fixture.drawList));
     }
 
     @Test
@@ -53,12 +55,12 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 100L);
         fixture.enableSprite(901, 0, 120L);
         fixture.state.visible[901] = false;
-        fixture.addVisibleTiledRange(900, 2);
+        int refStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(1, fixture.drawList.size);
-        Assert.assertEquals(900, fixture.drawList.get(0));
+        Assert.assertEquals(refStart, fixture.drawList.get(0));
     }
 
     @Test
@@ -69,12 +71,20 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(11, 0, 10L);
         fixture.enableSprite(900, 0, 30L);
         fixture.enableSprite(901, 0, 20L);
-        fixture.addVisibleTiledRange(900, 2);
+        int tiledRefStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{11, 901, 900, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{11, tiledRefStart + 1, tiledRefStart, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(
+                new byte[]{
+                        RenderSourceDomain.SOURCE_ECS,
+                        RenderSourceDomain.SOURCE_TILED,
+                        RenderSourceDomain.SOURCE_TILED,
+                        RenderSourceDomain.SOURCE_ECS
+                },
+                domainSnapshot(fixture.drawList));
     }
 
     @Test
@@ -84,7 +94,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(5, 1, 10L);
         fixture.enableSprite(900, 1, 20L);
-        fixture.tiledState.addVisibleSlot(900);
+        fixture.addVisibleTiledSlot(900);
 
         fixture.world.process();
 
@@ -115,12 +125,12 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 30L);    // tiled
         fixture.enableSprite(901, 0, 20L);    // tiled
         fixture.addVfx(10L);
-        fixture.addVisibleTiledRange(900, 2);
+        int tiledRefStart = fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
         Assert.assertEquals(4, fixture.drawList.size);
-        Assert.assertArrayEquals(new int[]{0, 901, 900, 10}, snapshot(fixture.drawList));
+        Assert.assertArrayEquals(new int[]{0, tiledRefStart + 1, tiledRefStart, 10}, snapshot(fixture.drawList));
         Assert.assertArrayEquals(
                 new byte[]{
                         RenderSourceDomain.SOURCE_VFX,
@@ -180,6 +190,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                             ),
                             new RenderSortSystem(
                                     state,
+                                    tiledState,
                                     vfxState,
                                     drawList,
                                     reservedStartInclusive,
@@ -189,10 +200,18 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                     .build());
         }
 
-        void addVisibleTiledRange(int startInclusive, int count) {
+        int addVisibleTiledSlot(int legacySlot) {
+            int ref = tiledState.registerLegacySlot(legacySlot);
+            tiledState.addVisibleRef(ref);
+            return ref;
+        }
+
+        int addVisibleTiledRange(int startInclusive, int count) {
+            int refStart = tiledState.registerLegacyRange(startInclusive, count);
             for (int i = 0; i < count; i++) {
-                tiledState.addVisibleSlot(startInclusive + i);
+                tiledState.addVisibleRef(refStart + i);
             }
+            return refStart;
         }
 
         void enableSprite(int slot, int layerIdx, long sortKey) {

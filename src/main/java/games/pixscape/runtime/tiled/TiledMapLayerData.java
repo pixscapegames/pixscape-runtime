@@ -736,6 +736,17 @@ public final class TiledMapLayerData {
         return chunk.slotFor(lx, ly);
     }
 
+    public int tiledRenderRefForTile(int gx, int gy) {
+        if (!isInside(gx, gy)) return -1;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return -1;
+
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        return chunk.renderRefFor(lx, ly);
+    }
+
     private TileChunk chunkForTile(int gx, int gy) {
         int cx = gx / chunkSize;
         int cy = gy / chunkSize;

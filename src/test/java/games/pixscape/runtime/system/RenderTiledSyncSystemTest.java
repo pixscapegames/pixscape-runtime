@@ -41,7 +41,7 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
         Assert.assertEquals("Initial build should resolve non-empty tiles for padding and slot build", 6, fixture.atlas.resolveCalls);
         Assert.assertEquals(2, fixture.drawList.size);
-        Assert.assertEquals("Visible chunk slots should be published for draw-list extraction", 4, fixture.tiledState.getVisibleSlotCount());
+        Assert.assertEquals("Visible chunk refs should be published for draw-list extraction", 4, fixture.tiledState.getVisibleRefCount());
 
         TileChunk chunk = findChunk(fixture.map, 0, 0);
         int slotValidA = chunk.slotFor(0, 0);
@@ -63,7 +63,7 @@ public class RenderTiledSyncSystemTest {
 
         Assert.assertFalse(fixture.state.visible[slotValidA]);
         Assert.assertFalse(fixture.state.visible[slotValidB]);
-        Assert.assertEquals("Out-of-view chunk should publish zero tiled candidates", 0, fixture.tiledState.getVisibleSlotCount());
+        Assert.assertEquals("Out-of-view chunk should publish zero tiled candidates", 0, fixture.tiledState.getVisibleRefCount());
         Assert.assertEquals("Hidden tiled slots must not be extracted", 0, fixture.drawList.size);
 
         // Move camera back => re-activate without FULL rebuild.

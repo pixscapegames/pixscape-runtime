@@ -76,6 +76,8 @@ public final class TileChunk {
 
     public int soaStartIndex;
     public int soaCount;
+    public int renderRefStartIndex = -1;
+    public int renderRefCount;
 
     public boolean contentDirty = true;
     public boolean collisionDirty = true;
@@ -246,6 +248,14 @@ public final class TileChunk {
 
     public int slotFor(int localX, int localY) {
         return soaStartIndex + (localY * chunkWidth + localX);
+    }
+
+    public int renderRefFor(int localX, int localY) {
+        int localIndex = localY * chunkWidth + localX;
+        if (renderRefStartIndex < 0 || localIndex < 0 || localIndex >= renderRefCount) {
+            return -1;
+        }
+        return renderRefStartIndex + localIndex;
     }
 
     public int localIndexFor(int localX, int localY) {

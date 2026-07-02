@@ -96,10 +96,11 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             stats.buildDrawListScannedEcsSlots = 0;
         }
 
-        int tiledVisibleSlotCount = tiledState.getVisibleSlotCount();
-        int[] tiledVisibleSlots = tiledState.getVisibleSlots();
-        for (int i = 0; i < tiledVisibleSlotCount; i++) {
-            int slot = tiledVisibleSlots[i];
+        int tiledVisibleRefCount = tiledState.getVisibleRefCount();
+        int[] tiledVisibleRefs = tiledState.getVisibleRefs();
+        for (int i = 0; i < tiledVisibleRefCount; i++) {
+            int tiledRenderRef = tiledVisibleRefs[i];
+            int slot = tiledState.legacySlotForRef(tiledRenderRef);
 
             if (slot < ecsEndExclusive) {
                 continue;
@@ -111,7 +112,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
 
             boolean renderable = isRenderableSlot(slot);
             if (renderable) {
-                drawList.addTiledSlot(slot);
+                drawList.addTiledSlot(tiledRenderRef);
             }
         }
 
@@ -125,7 +126,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             }
         }
 
-        stats.buildDrawListScannedTiledSlots = tiledVisibleSlotCount;
+        stats.buildDrawListScannedTiledSlots = tiledVisibleRefCount;
         stats.extractedQuads = drawList.size;
         if (vfxState != null) {
             vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());

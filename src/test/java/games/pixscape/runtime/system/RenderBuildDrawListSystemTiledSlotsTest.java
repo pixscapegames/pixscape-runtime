@@ -5,6 +5,7 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
@@ -33,14 +34,17 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         state.visible[tiledSlot] = true;
         state.layerIndex[tiledSlot] = 0;
         state.touch(tiledSlot);
-        tiledState.addVisibleSlot(tiledSlot);
+        int tiledRenderRef = tiledState.registerLegacySlot(tiledSlot);
+        tiledState.addVisibleRef(tiledRenderRef);
 
         // Act
         world.process();
 
         // Assert
         Assert.assertEquals("One high reserved slot should be extracted", 1, drawList.size);
-        Assert.assertEquals("Draw list must keep the reserved slot index", tiledSlot, drawList.get(0));
+        Assert.assertEquals(RenderSourceDomain.SOURCE_TILED, drawList.getDomain(0));
+        Assert.assertEquals("Draw list must carry the tiled render ref", tiledRenderRef, drawList.get(0));
+        Assert.assertNotEquals("Draw list SOURCE_TILED must not carry the legacy slot", tiledSlot, drawList.get(0));
         Assert.assertEquals("ECS scan should remain bounded", 64, stats.buildDrawListScannedEcsSlots);
         Assert.assertEquals("Only tiled candidates should be scanned in tiled phase", 1, stats.buildDrawListScannedTiledSlots);
     }

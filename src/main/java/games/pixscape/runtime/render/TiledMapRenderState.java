@@ -3,15 +3,18 @@ package games.pixscape.runtime.render;
 /**
  * Frame-local tiled render state.
  * <p>
- * Phase 4A keeps tiled quads in {@link RenderStateSOA}; this state owns only
- * the visible legacy tiled slots published by chunk visibility.
+ * Phase 4C keeps tiled quads in {@link RenderStateSOA}; this state owns stable
+ * logical tiled refs and resolves them to temporary legacy render slots.
  */
 public final class TiledMapRenderState {
 
     private int capacity;
 
-    private int[] visibleSlots;
-    private int visibleSlotCount;
+    private int[] visibleRefs;
+    private int visibleRefCount;
+
+    private int[] refToLegacySlot;
+    private int refCount;
 
     public TiledMapRenderState() {
     }
@@ -26,8 +29,11 @@ public final class TiledMapRenderState {
         }
 
         capacity = newCapacity;
-        visibleSlots = new int[capacity];
-        visibleSlotCount = 0;
+        visibleRefs = new int[capacity];
+        refToLegacySlot = new int[capacity];
+        visibleRefCount = 0;
+        refCount = 0;
+        clearLegacySlots(refToLegacySlot, 0, refToLegacySlot.length);
     }
 
     public void ensureCapacity(int required) {
@@ -40,32 +46,96 @@ public final class TiledMapRenderState {
             next *= 2;
         }
 
-        int[] oldVisibleSlots = visibleSlots;
-        visibleSlots = new int[next];
-        if (oldVisibleSlots != null && visibleSlotCount > 0) {
-            System.arraycopy(oldVisibleSlots, 0, visibleSlots, 0, visibleSlotCount);
+        int[] oldVisibleRefs = visibleRefs;
+        int[] oldRefToLegacySlot = refToLegacySlot;
+        visibleRefs = new int[next];
+        refToLegacySlot = new int[next];
+        clearLegacySlots(refToLegacySlot, 0, refToLegacySlot.length);
+        if (oldVisibleRefs != null && visibleRefCount > 0) {
+            System.arraycopy(oldVisibleRefs, 0, visibleRefs, 0, visibleRefCount);
+        }
+        if (oldRefToLegacySlot != null && refCount > 0) {
+            System.arraycopy(oldRefToLegacySlot, 0, refToLegacySlot, 0, refCount);
         }
         capacity = next;
     }
 
     public void clearVisibleSlots() {
-        visibleSlotCount = 0;
+        clearVisibleRefs();
     }
 
-    public void addVisibleSlot(int slot) {
-        ensureCapacity(visibleSlotCount + 1);
-        visibleSlots[visibleSlotCount++] = slot;
+    public void clearVisibleRefs() {
+        visibleRefCount = 0;
     }
 
-    public int[] getVisibleSlots() {
-        return visibleSlots;
+    public void addVisibleRef(int tiledRenderRef) {
+        if (tiledRenderRef < 0) {
+            return;
+        }
+        ensureCapacity(visibleRefCount + 1);
+        visibleRefs[visibleRefCount++] = tiledRenderRef;
     }
 
-    public int getVisibleSlotCount() {
-        return visibleSlotCount;
+    public int registerLegacySlot(int legacySlot) {
+        int ref = refCount;
+        setLegacySlotForRef(ref, legacySlot);
+        return ref;
+    }
+
+    public int registerLegacyRange(int legacyStart, int count) {
+        if (count <= 0) {
+            return -1;
+        }
+        int refStart = refCount;
+        ensureCapacity(refStart + count);
+        for (int i = 0; i < count; i++) {
+            refToLegacySlot[refStart + i] = legacyStart + i;
+        }
+        refCount += count;
+        return refStart;
+    }
+
+    public void setLegacySlotForRef(int tiledRenderRef, int legacySlot) {
+        if (tiledRenderRef < 0) {
+            throw new IllegalArgumentException("tiledRenderRef must be >= 0");
+        }
+        ensureCapacity(tiledRenderRef + 1);
+        refToLegacySlot[tiledRenderRef] = legacySlot;
+        if (tiledRenderRef >= refCount) {
+            refCount = tiledRenderRef + 1;
+        }
+    }
+
+    public int legacySlotForRef(int tiledRenderRef) {
+        if (tiledRenderRef < 0 || tiledRenderRef >= refCount || tiledRenderRef >= refToLegacySlot.length) {
+            return -1;
+        }
+        return refToLegacySlot[tiledRenderRef];
+    }
+
+    public int[] getVisibleRefs() {
+        return visibleRefs;
+    }
+
+    public int getVisibleRefCount() {
+        return visibleRefCount;
+    }
+
+    public int[] getRefToLegacySlots() {
+        return refToLegacySlot;
+    }
+
+    public int getRefCount() {
+        return refCount;
     }
 
     public int getCapacity() {
         return capacity;
+    }
+
+    private static void clearLegacySlots(int[] slots, int start, int end) {
+        for (int i = start; i < end; i++) {
+            slots[i] = -1;
+        }
     }
 }

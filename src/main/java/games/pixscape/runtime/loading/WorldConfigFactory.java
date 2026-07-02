@@ -409,6 +409,7 @@ public final class WorldConfigFactory {
                 ), systemProfiler),
                 profiled(new RenderSortSystem(
                         renderState,
+                        tiledState,
                         vfxState,
                         drawList,
                         vfxStartIndex,
@@ -416,6 +417,7 @@ public final class WorldConfigFactory {
                 ), systemProfiler),
                 profiled(new SpatialRenderOrderSystem(
                         renderState,
+                        tiledState,
                         drawList,
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
@@ -423,6 +425,7 @@ public final class WorldConfigFactory {
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(
                         renderState,
+                        tiledState,
                         vfxState,
                         drawList,
                         frameQueue,

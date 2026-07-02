@@ -9,6 +9,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
@@ -17,6 +18,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
  */
 public final class RenderExtractFrameQueueSystem extends BaseSystem implements ProfiledSystem {
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
     private final FrameRenderQueue frameQueue;
@@ -25,16 +27,18 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderExtractFrameQueueSystem(RenderStateSOA state,
+                                         TiledMapRenderState tiledState,
                                          DrawList drawList,
                                          FrameRenderQueue frameQueue,
                                          RenderStats stats,
                                          int ecsEndExclusive,
                                          int vfxStartInclusive,
                                          int vfxEndExclusive) {
-        this(state, null, drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+        this(state, tiledState, null, drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
     }
 
     public RenderExtractFrameQueueSystem(RenderStateSOA state,
+                                         TiledMapRenderState tiledState,
                                          VfxRenderState vfxState,
                                          DrawList drawList,
                                          FrameRenderQueue frameQueue,
@@ -43,6 +47,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                                          int vfxStartInclusive,
                                          int vfxEndExclusive) {
         this.state = state;
+        this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.drawList = drawList;
         this.frameQueue = frameQueue;
@@ -78,8 +83,14 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 continue;
             }
 
-            if (domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED) {
-                addLegacyStateQuad(domain, slot);
+            if (domain == RenderSourceDomain.SOURCE_ECS) {
+                addLegacyStateQuad(domain, slot, slot);
+                continue;
+            }
+
+            if (domain == RenderSourceDomain.SOURCE_TILED) {
+                int legacySlot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
+                addLegacyStateQuad(domain, slot, legacySlot);
             }
         }
 
@@ -91,41 +102,41 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         }
     }
 
-    private void addLegacyStateQuad(byte sourceDomain, int slot) {
-        if (slot < 0 || slot >= state.getCapacity()) {
+    private void addLegacyStateQuad(byte sourceDomain, int sourceSlot, int legacySlot) {
+        if (legacySlot < 0 || legacySlot >= state.getCapacity()) {
             return;
         }
 
-        float ox = state.offsetX[slot];
-        float oy = state.offsetY[slot];
+        float ox = state.offsetX[legacySlot];
+        float oy = state.offsetY[legacySlot];
         int sourceEntity = sourceDomain == RenderSourceDomain.SOURCE_ECS
-                ? state.entityId[slot]
+                ? state.entityId[legacySlot]
                 : -1;
 
         frameQueue.addQuad(
-                state.textureHandle[slot],
-                state.shader[slot],
-                state.blend[slot],
-                state.layerIndex[slot],
-                state.paramsId[slot],
-                state.customParamsId[slot],
-                state.sortKey[slot],
-                state.x1[slot] + ox,
-                state.y1[slot] + oy,
-                state.x2[slot] + ox,
-                state.y2[slot] + oy,
-                state.x3[slot] + ox,
-                state.y3[slot] + oy,
-                state.x4[slot] + ox,
-                state.y4[slot] + oy,
-                state.u1[slot],
-                state.v1[slot],
-                state.u2[slot],
-                state.v2[slot],
-                state.colorPacked[slot],
-                state.repeatFlags[slot],
+                state.textureHandle[legacySlot],
+                state.shader[legacySlot],
+                state.blend[legacySlot],
+                state.layerIndex[legacySlot],
+                state.paramsId[legacySlot],
+                state.customParamsId[legacySlot],
+                state.sortKey[legacySlot],
+                state.x1[legacySlot] + ox,
+                state.y1[legacySlot] + oy,
+                state.x2[legacySlot] + ox,
+                state.y2[legacySlot] + oy,
+                state.x3[legacySlot] + ox,
+                state.y3[legacySlot] + oy,
+                state.x4[legacySlot] + ox,
+                state.y4[legacySlot] + oy,
+                state.u1[legacySlot],
+                state.v1[legacySlot],
+                state.u2[legacySlot],
+                state.v2[legacySlot],
+                state.colorPacked[legacySlot],
+                state.repeatFlags[legacySlot],
                 sourceDomain,
-                slot,
+                sourceSlot,
                 sourceEntity
         );
     }

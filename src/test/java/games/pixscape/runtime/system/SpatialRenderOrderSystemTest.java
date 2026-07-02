@@ -18,6 +18,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -159,12 +160,12 @@ public class SpatialRenderOrderSystemTest {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
         int renderSlot = 300;
-        fixture.createRenderOnlySlot(renderSlot, 0, 0, renderSlot);
+        int renderRef = fixture.createRenderOnlySlot(renderSlot, 0, 0, renderSlot);
         fixture.state.entityId[renderSlot] = -1;
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{renderSlot}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{renderRef}, fixture.drawOrder());
     }
 
     @Test
@@ -293,8 +294,9 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), renderA, tile, renderB);
-        Assert.assertEquals(1, countSlot(fixture.drawOrder(), actor));
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), renderA, tile, renderB);
+        Assert.assertEquals(1, fixture.countDrawEntry(RenderSourceDomain.SOURCE_ECS, actor));
     }
 
     @Test
@@ -992,9 +994,11 @@ public class SpatialRenderOrderSystemTest {
 
         Assert.assertArrayEquals(new int[]{tile0, tile1, sharedTile, tile3, tile4, actor}, fixture.drawOrder());
         assertSameTiledSubsequence(fixture.beforeSpatialOrder,
+                fixture.beforeSpatialDomains,
                 fixture.drawOrder(),
+                fixture.drawDomains(),
                 tile0, tile1, sharedTile, tile3, tile4);
-        Assert.assertEquals(1, countSlot(fixture.drawOrder(), actor));
+        Assert.assertEquals(1, fixture.countDrawEntry(RenderSourceDomain.SOURCE_ECS, actor));
         fixture.assertDrawListIntegrity();
     }
 
@@ -1348,13 +1352,13 @@ public class SpatialRenderOrderSystemTest {
         Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
 
         map.setTile(0, 0, 0);
-        fixture.state.visible[tile] = false;
+        fixture.state.visible[fixture.legacySlotForRef(tile)] = false;
         fixture.process();
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertArrayEquals(new int[]{actor}, fixture.drawOrder());
 
         map.setTile(0, 0, 202);
-        fixture.state.visible[tile] = true;
+        fixture.state.visible[fixture.legacySlotForRef(tile)] = true;
         fixture.process();
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertEquals(101, block.linkedTileRefs.get(0).tileAssetId);
@@ -1484,7 +1488,9 @@ public class SpatialRenderOrderSystemTest {
 
         assertSameTiledSubsequence(
                 fixture.beforeSpatialOrder,
+                fixture.beforeSpatialDomains,
                 fixture.drawOrder(),
+                fixture.drawDomains(),
                 adjacent, tile3, tile2, tile1, tile0);
         fixture.assertDrawListIntegrity();
     }
@@ -1505,7 +1511,8 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
 
         Assert.assertArrayEquals(fixture.beforeSpatialOrder, fixture.drawOrder());
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile2, tile1, tile0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), tile2, tile1, tile0);
     }
 
     @Test
@@ -1533,14 +1540,16 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
         int[] first = fixture.drawOrder();
         Assert.assertArrayEquals(new int[]{tile1, tile0, actor}, first);
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, first, tile1, tile0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                first, fixture.beforeSubmitDomains, tile1, tile0);
 
         fixture.setActorPosition(actor, map.tileToWorldX(1.75f, 1.75f), map.tileToWorldY(1.75f, 1.75f));
         fixture.setSortOrder(actor, 2, 0, 5);
         fixture.process();
 
         Assert.assertArrayEquals(new int[]{actor, tile1, tile0}, fixture.drawOrder());
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile1, tile0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), tile1, tile0);
     }
 
     @Test
@@ -1564,7 +1573,8 @@ public class SpatialRenderOrderSystemTest {
         Assert.assertArrayEquals(first, fixture.drawOrder());
         fixture.process();
         Assert.assertArrayEquals(first, fixture.drawOrder());
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tile0, tile1);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), tile0, tile1);
     }
 
     @Test
@@ -1594,8 +1604,10 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), lower2, lower1, lower0);
-        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), upper2, upper1, upper0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), lower2, lower1, lower0);
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
+                fixture.drawOrder(), fixture.drawDomains(), upper2, upper1, upper0);
         fixture.assertDrawListIntegrity();
     }
 
@@ -1667,7 +1679,9 @@ public class SpatialRenderOrderSystemTest {
         final SpatialRenderOrderSystem spatial;
 
         int[] beforeSpatialOrder;
+        byte[] beforeSpatialDomains;
         int[] beforeSubmitOrder;
+        byte[] beforeSubmitDomains;
 
         Fixture(int capacity) {
             this(capacity, false);
@@ -1682,19 +1696,25 @@ public class SpatialRenderOrderSystemTest {
             }
             drawList = new DrawList(capacity);
             stats = new RenderStats();
-            spatial = new SpatialRenderOrderSystem(state, drawList);
+            spatial = new SpatialRenderOrderSystem(state, tiledState, drawList);
 
             WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
                     .with(
                             new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 128, -1, -1),
-                            new RenderSortSystem(state, drawList)
+                            new RenderSortSystem(state, tiledState, drawList)
                     );
             if (captureOrder) {
-                builder.with(new BeforeSpatialCaptureSystem(drawList, order -> beforeSpatialOrder = order));
+                builder.with(new BeforeSpatialCaptureSystem(drawList, (order, domains) -> {
+                    beforeSpatialOrder = order;
+                    beforeSpatialDomains = domains;
+                }));
             }
             builder.with(spatial);
             if (captureOrder) {
-                builder.with(new BeforeSubmitCaptureSystem(drawList, order -> beforeSubmitOrder = order));
+                builder.with(new BeforeSubmitCaptureSystem(drawList, (order, domains) -> {
+                    beforeSubmitOrder = order;
+                    beforeSubmitDomains = domains;
+                }));
             }
             world = new World(builder.build());
         }
@@ -1891,15 +1911,21 @@ public class SpatialRenderOrderSystemTest {
         int createTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
-            tiledState.addVisibleSlot(slot);
-            return slot;
+            int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            tiledState.addVisibleRef(tiledRenderRef);
+            return tiledRenderRef;
         }
 
         int createRenderOnlySlot(int slot, int layerIndex, int z, int runtimeOrder) {
             enableSlot(slot, layerIndex, z, runtimeOrder);
             state.entityId[slot] = -1;
-            tiledState.addVisibleSlot(slot);
-            return slot;
+            int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            tiledState.addVisibleRef(tiledRenderRef);
+            return tiledRenderRef;
+        }
+
+        int legacySlotForRef(int tiledRenderRef) {
+            return tiledState.legacySlotForRef(tiledRenderRef);
         }
 
         void enableSlot(int slot, int layerIndex, int z, int runtimeOrder) {
@@ -1948,11 +1974,28 @@ public class SpatialRenderOrderSystemTest {
             return out;
         }
 
+        byte[] drawDomains() {
+            byte[] out = new byte[drawList.size];
+            System.arraycopy(drawList.domainData(), 0, out, 0, drawList.size);
+            return out;
+        }
+
+        int countDrawEntry(byte domain, int slot) {
+            int count = 0;
+            for (int i = 0; i < drawList.size; i++) {
+                if (drawList.getDomain(i) == domain && drawList.get(i) == slot) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
         void assertDrawListIntegrity() {
-            int[] order = drawOrder();
-            for (int i = 0; i < order.length; i++) {
-                for (int j = i + 1; j < order.length; j++) {
-                    Assert.assertNotEquals("Duplicate draw slot", order[i], order[j]);
+            for (int i = 0; i < drawList.size; i++) {
+                for (int j = i + 1; j < drawList.size; j++) {
+                    if (drawList.getDomain(i) == drawList.getDomain(j)) {
+                        Assert.assertNotEquals("Duplicate draw entry", drawList.get(i), drawList.get(j));
+                    }
                 }
             }
         }
@@ -1997,6 +2040,16 @@ public class SpatialRenderOrderSystemTest {
                 filterSlots(actualOrder, tiledSlots));
     }
 
+    private static void assertSameTiledSubsequence(int[] expectedOrder,
+                                                   byte[] expectedDomains,
+                                                   int[] actualOrder,
+                                                   byte[] actualDomains,
+                                                   int... tiledSlots) {
+        Assert.assertArrayEquals(
+                filterSlots(expectedOrder, expectedDomains, tiledSlots),
+                filterSlots(actualOrder, actualDomains, tiledSlots));
+    }
+
     private static int[] filterSlots(int[] order, int[] slots) {
         int count = 0;
         for (int slot : order) {
@@ -2008,6 +2061,22 @@ public class SpatialRenderOrderSystemTest {
         for (int slot : order) {
             if (containsSlot(slots, slot)) {
                 filtered[out++] = slot;
+            }
+        }
+        return filtered;
+    }
+
+    private static int[] filterSlots(int[] order, byte[] domains, int[] slots) {
+        int count = 0;
+        for (int i = 0; i < order.length; i++) {
+            if (domains[i] == RenderSourceDomain.SOURCE_TILED && containsSlot(slots, order[i])) count++;
+        }
+
+        int[] filtered = new int[count];
+        int out = 0;
+        for (int i = 0; i < order.length; i++) {
+            if (domains[i] == RenderSourceDomain.SOURCE_TILED && containsSlot(slots, order[i])) {
+                filtered[out++] = order[i];
             }
         }
         return filtered;
@@ -2039,7 +2108,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     private interface OrderSink {
-        void accept(int[] order);
+        void accept(int[] order, byte[] domains);
     }
 
     private abstract static class CaptureDrawListSystem extends BaseSystem {
@@ -2054,8 +2123,10 @@ public class SpatialRenderOrderSystemTest {
         @Override
         protected void processSystem() {
             int[] out = new int[drawList.size];
+            byte[] domains = new byte[drawList.size];
             System.arraycopy(drawList.data(), 0, out, 0, drawList.size);
-            sink.accept(out);
+            System.arraycopy(drawList.domainData(), 0, domains, 0, drawList.size);
+            sink.accept(out, domains);
         }
     }
 

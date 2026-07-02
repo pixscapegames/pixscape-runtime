@@ -8,6 +8,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 
 /**
@@ -21,6 +22,7 @@ import games.pixscape.runtime.render.VfxRenderState;
 public final class RenderSortSystem extends BaseSystem implements ProfiledSystem {
 
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
 
@@ -31,15 +33,23 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderSortSystem(RenderStateSOA state, DrawList drawList) {
-        this(state, null, drawList, -1, -1);
+        this(state, null, null, drawList, -1, -1);
     }
 
     public RenderSortSystem(RenderStateSOA state,
+                            TiledMapRenderState tiledState,
+                            DrawList drawList) {
+        this(state, tiledState, null, drawList, -1, -1);
+    }
+
+    public RenderSortSystem(RenderStateSOA state,
+                            TiledMapRenderState tiledState,
                             VfxRenderState vfxState,
                             DrawList drawList,
                             int vfxStartInclusive,
                             int vfxEndExclusive) {
         this.state = state;
+        this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.drawList = drawList;
     }
@@ -113,9 +123,13 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                     ? vfxState.sortKey[slot]
                     : 0L;
         }
-        if ((domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED)
-                && slot >= 0
-                && slot < state.getCapacity()) {
+        if (domain == RenderSourceDomain.SOURCE_TILED) {
+            int legacySlot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
+            return legacySlot >= 0 && legacySlot < state.getCapacity()
+                    ? state.sortKey[legacySlot]
+                    : 0L;
+        }
+        if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < state.getCapacity()) {
             return state.sortKey[slot];
         }
         return 0L;

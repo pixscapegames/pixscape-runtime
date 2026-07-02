@@ -189,8 +189,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     }
                 }
                 chunk.visibleLastFrame = true;
+                ensureChunkRenderRefs(chunk);
                 for (int i = 0; i < chunk.soaCount; i++) {
-                    tiledState.addVisibleSlot(chunk.soaStartIndex + i);
+                    tiledState.addVisibleRef(chunk.renderRefStartIndex + i);
                 }
 
                 if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
@@ -274,6 +275,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         chunk.dirtyLocalIndices.clear();
         chunk.dirtyState = TileChunk.DirtyState.CLEAN;
         chunk.contentDirty = false;
+    }
+
+    private void ensureChunkRenderRefs(TileChunk chunk) {
+        if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != chunk.soaCount) {
+            chunk.renderRefStartIndex = tiledState.registerLegacyRange(chunk.soaStartIndex, chunk.soaCount);
+            chunk.renderRefCount = chunk.soaCount;
+            return;
+        }
+
+        for (int i = 0; i < chunk.soaCount; i++) {
+            tiledState.setLegacySlotForRef(chunk.renderRefStartIndex + i, chunk.soaStartIndex + i);
+        }
     }
 
     private void computeViewBounds() {

@@ -15,6 +15,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
 import games.pixscape.runtime.spatial.SpatialBlockAnchorResolver;
 import games.pixscape.runtime.spatial.SpatialBlocksRuntimeCache;
@@ -30,6 +31,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final DrawList drawList;
 
     private ComponentMapper<LayerComponent> mLayer;
@@ -64,12 +66,24 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList) {
+        this(state, null, drawList);
+    }
+
+    public SpatialRenderOrderSystem(RenderStateSOA state, TiledMapRenderState tiledState, DrawList drawList) {
         this.state = state;
+        this.tiledState = tiledState;
         this.drawList = drawList;
     }
 
     public SpatialRenderOrderSystem(RenderStateSOA state, DrawList drawList, float pixelsPerMeter) {
-        this(state, drawList);
+        this(state, null, drawList, pixelsPerMeter);
+    }
+
+    public SpatialRenderOrderSystem(RenderStateSOA state,
+                                    TiledMapRenderState tiledState,
+                                    DrawList drawList,
+                                    float pixelsPerMeter) {
+        this(state, tiledState, drawList);
         this.pixelsPerMeter = pixelsPerMeter > 0f ? pixelsPerMeter : DEFAULT_PIXELS_PER_METER;
     }
 
@@ -190,6 +204,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
             int slot = data[drawIndex];
             byte domain = domains[drawIndex];
+            if (domain == RenderSourceDomain.SOURCE_TILED) {
+                slot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
+            }
             if ((domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED)
                     && slot >= 0
                     && slot < state.getCapacity()) {
