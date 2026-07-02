@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -78,6 +79,43 @@ public class SpatialBlockAnchorResolverTest {
         Assert.assertEquals(7, cache.anchorDrawIndex[0]);
         Assert.assertEquals(7, cache.blockAnchorStartDrawIndex[0]);
         Assert.assertEquals(7, cache.blockAnchorEndDrawIndex[0]);
+    }
+
+    @Test
+    public void resolvesAnchorThroughTiledRenderRefNotLegacySlot() {
+        TiledMapLayerData map = map(4, 4, 300);
+        assignRenderRefs(map, 20);
+        map.setTile(1, 1, 301);
+        int legacySlot = map.slotForTile(1, 1);
+        int tiledRenderRef = map.tiledRenderRefForTile(1, 1);
+
+        resolver.resolve(blocks(block(1, 1, 301)), map,
+                refToDrawIndex(tiledRenderRef + 1, tiledRenderRef, 7), cache);
+
+        Assert.assertNotEquals(legacySlot, tiledRenderRef);
+        Assert.assertTrue(cache.hasResolvedBlock(0));
+        Assert.assertEquals(tiledRenderRef, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(7, cache.anchorDrawIndex[0]);
+    }
+
+    @Test
+    public void legacySlotMutationDoesNotAffectTiledRefAnchorResolution() {
+        TiledMapLayerData map = map(4, 4, 300);
+        assignRenderRefs(map, 40);
+        map.setTile(2, 1, 301);
+        int legacySlot = map.slotForTile(2, 1);
+        int tiledRenderRef = map.tiledRenderRefForTile(2, 1);
+        int[] tiledRefToDrawIndex = refToDrawIndex(tiledRenderRef + 1, tiledRenderRef, 9);
+        if (legacySlot < tiledRefToDrawIndex.length) {
+            tiledRefToDrawIndex[legacySlot] = -1;
+        }
+
+        resolver.resolve(blocks(block(2, 1, 301)), map, tiledRefToDrawIndex, cache);
+
+        Assert.assertNotEquals(legacySlot, tiledRenderRef);
+        Assert.assertTrue(cache.hasResolvedBlock(0));
+        Assert.assertEquals(tiledRenderRef, cache.anchorDrawSlot[0]);
+        Assert.assertEquals(9, cache.anchorDrawIndex[0]);
     }
 
     @Test
@@ -275,7 +313,21 @@ public class SpatialBlockAnchorResolverTest {
     private static TiledMapLayerData map(int width, int height, int startSlot) {
         TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, Math.max(width, height));
         map.initSlotRange(startSlot, startSlot + width * height);
+        assignRenderRefs(map, startSlot);
         return map;
+    }
+
+    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+        int nextRef = startRef;
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.soaCount;
+                nextRef += chunk.soaCount;
+            }
+        }
     }
 
     private static SpatialBlocksComponent blocks(SpatialBlockData... blocks) {
@@ -306,5 +358,9 @@ public class SpatialBlockAnchorResolverTest {
             slotToDrawIndex[slotDrawPairs[i]] = slotDrawPairs[i + 1];
         }
         return slotToDrawIndex;
+    }
+
+    private static int[] refToDrawIndex(int size, int... refDrawPairs) {
+        return slotToDrawIndex(size, refDrawPairs);
     }
 }

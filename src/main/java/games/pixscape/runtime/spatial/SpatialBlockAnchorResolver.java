@@ -7,14 +7,14 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 public final class SpatialBlockAnchorResolver {
     public void resolve(SpatialBlocksComponent blocks,
                         TiledMapLayerData tiledLayer,
-                        int[] slotToDrawIndex,
+                        int[] tiledRefToDrawIndex,
                         SpatialBlocksRuntimeCache cache) {
-        resolve(blocks, tiledLayer, slotToDrawIndex, cache, null);
+        resolve(blocks, tiledLayer, tiledRefToDrawIndex, cache, null);
     }
 
     public void resolve(SpatialBlocksComponent blocks,
                         TiledMapLayerData tiledLayer,
-                        int[] slotToDrawIndex,
+                        int[] tiledRefToDrawIndex,
                         SpatialBlocksRuntimeCache cache,
                         SpatialTiledSort.Context spatialSort) {
         if (cache == null) {
@@ -26,8 +26,8 @@ public final class SpatialBlockAnchorResolver {
         if (tiledLayer == null) {
             throw new IllegalArgumentException("Owning tiled layer runtime data is required.");
         }
-        if (slotToDrawIndex == null) {
-            throw new IllegalArgumentException("slotToDrawIndex is required.");
+        if (tiledRefToDrawIndex == null) {
+            throw new IllegalArgumentException("tiledRefToDrawIndex is required.");
         }
 
         for (int blockIndex = 0, n = blocks.blocks.size; blockIndex < n; blockIndex++) {
@@ -36,14 +36,14 @@ public final class SpatialBlockAnchorResolver {
                 throw new IllegalStateException("Spatial block is null at index " + blockIndex);
             }
             if (!block.enabled) continue;
-            resolveBlock(block, blockIndex, tiledLayer, slotToDrawIndex, cache, spatialSort);
+            resolveBlock(block, blockIndex, tiledLayer, tiledRefToDrawIndex, cache, spatialSort);
         }
     }
 
     private void resolveBlock(SpatialBlockData block,
                               int authoredBlockIndex,
                               TiledMapLayerData tiledLayer,
-                              int[] slotToDrawIndex,
+                              int[] tiledRefToDrawIndex,
                               SpatialBlocksRuntimeCache cache,
                               SpatialTiledSort.Context spatialSort) {
         if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
@@ -59,13 +59,13 @@ public final class SpatialBlockAnchorResolver {
             if (spatialSort != null && spatialSort.applies() && spatialSort.isShared(ref.gx, ref.gy)) {
                 continue;
             }
-            int slot = tiledLayer.slotForTile(ref.gx, ref.gy);
-            if (slot < 0 || slot >= slotToDrawIndex.length) continue;
+            int tiledRenderRef = tiledLayer.tiledRenderRefForTile(ref.gx, ref.gy);
+            if (tiledRenderRef < 0 || tiledRenderRef >= tiledRefToDrawIndex.length) continue;
 
-            int drawIndex = slotToDrawIndex[slot];
+            int drawIndex = tiledRefToDrawIndex[tiledRenderRef];
             if (drawIndex < 0) continue;
 
-            cache.setAnchor(cacheBlock, anchor, slot, drawIndex);
+            cache.setAnchor(cacheBlock, anchor, tiledRenderRef, drawIndex);
         }
         cache.finalizeBlockRange(cacheBlock);
     }

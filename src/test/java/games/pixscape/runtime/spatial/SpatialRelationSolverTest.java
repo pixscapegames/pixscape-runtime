@@ -3,6 +3,7 @@ package games.pixscape.runtime.spatial;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -223,12 +224,14 @@ public class SpatialRelationSolverTest {
     private static TiledMapLayerData orthoMap() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 16, 8);
         map.initSlotRange(300, 364);
+        assignRenderRefs(map, 300);
         return map;
     }
 
     private static TiledMapLayerData isoMap() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 90, 30, 8, SceneMetaRuntime.TiledProjection.ISO);
         map.initSlotRange(300, 364);
+        assignRenderRefs(map, 300);
         return map;
     }
 
@@ -289,21 +292,34 @@ public class SpatialRelationSolverTest {
     }
 
     private static SpatialBlocksRuntimeCache resolve(TiledMapLayerData map, SpatialBlocksComponent blocks) {
-        int[] slotToDrawIndex = new int[512];
-        Arrays.fill(slotToDrawIndex, -1);
+        int[] tiledRefToDrawIndex = new int[512];
+        Arrays.fill(tiledRefToDrawIndex, -1);
         int drawIndex = 0;
         for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData block = blocks.blocks.get(i);
             for (int ref = 0; ref < block.linkedTileRefs.size; ref++) {
                 SpatialBlockData.LinkedTileRef linked = block.linkedTileRefs.get(ref);
                 map.setTile(linked.gx, linked.gy, linked.tileAssetId);
-                int slot = map.slotForTile(linked.gx, linked.gy);
-                slotToDrawIndex[slot] = drawIndex++;
+                int tiledRenderRef = map.tiledRenderRefForTile(linked.gx, linked.gy);
+                tiledRefToDrawIndex[tiledRenderRef] = drawIndex++;
             }
         }
         SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
-        new SpatialBlockAnchorResolver().resolve(blocks, map, slotToDrawIndex, cache);
+        new SpatialBlockAnchorResolver().resolve(blocks, map, tiledRefToDrawIndex, cache);
         return cache;
+    }
+
+    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+        int nextRef = startRef;
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.soaCount;
+                nextRef += chunk.soaCount;
+            }
+        }
     }
 
     private static Actor actor(float x, float y, float radius, float altitude, float height) {

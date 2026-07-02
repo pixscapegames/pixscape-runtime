@@ -59,6 +59,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private final SpatialOrderingKernel orderingKernel = new SpatialOrderingKernel();
 
     private int[] slotToDrawIndex = new int[0];
+    private int[] tiledRefToDrawIndex = new int[0];
     private int[] nonActorSubsequenceAfter = new int[0];
     private byte[] nonActorDomainAfter = new byte[0];
 
@@ -126,7 +127,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             return;
         }
 
-        buildSlotToDrawIndex();
+        buildDrawIndexMaps();
         for (int layer = 0; layer < blockLayerCount; layer++) {
             int owner = blockLayerEntities[layer];
             TiledLayerComponent tiled = mTiled.getSafe(owner, null);
@@ -137,7 +138,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                     mLayer.get(owner),
                     tiled,
                     blocks);
-            blockAnchorResolver.resolve(blocks, tiled.data, slotToDrawIndex, blockCache, spatialSort);
+            blockAnchorResolver.resolve(blocks, tiled.data, tiledRefToDrawIndex, blockCache, spatialSort);
             if (blockCache.blockCount() == 0) continue;
             convertBlockAnchorsToStableBuckets();
 
@@ -147,7 +148,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                     tiled,
                     blocks,
                     tiledState,
-                    slotToDrawIndex,
+                    tiledRefToDrawIndex,
                     tiledLayerEntityCount(),
                     spatialSort,
                     actorCollector,
@@ -196,21 +197,25 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 pixelsPerMeter);
     }
 
-    private void buildSlotToDrawIndex() {
+    private void buildDrawIndexMaps() {
         ensureSlotToDrawIndexCapacity(state.getCapacity());
         Arrays.fill(slotToDrawIndex, 0, state.getCapacity(), -1);
+        int tiledRefCapacity = tiledState != null ? tiledState.getCapacity() : 0;
+        ensureTiledRefToDrawIndexCapacity(tiledRefCapacity);
+        if (tiledRefCapacity > 0) {
+            Arrays.fill(tiledRefToDrawIndex, 0, tiledRefCapacity, -1);
+        }
         int[] data = drawList.data();
         byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
             int slot = data[drawIndex];
             byte domain = domains[drawIndex];
-            if (domain == RenderSourceDomain.SOURCE_TILED) {
-                slot = tiledState != null ? tiledState.legacySlotForRef(slot) : -1;
-            }
-            if ((domain == RenderSourceDomain.SOURCE_ECS || domain == RenderSourceDomain.SOURCE_TILED)
-                    && slot >= 0
-                    && slot < state.getCapacity()) {
+            if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < state.getCapacity()) {
                 slotToDrawIndex[slot] = drawIndex;
+            } else if (domain == RenderSourceDomain.SOURCE_TILED
+                    && slot >= 0
+                    && slot < tiledRefToDrawIndex.length) {
+                tiledRefToDrawIndex[slot] = drawIndex;
             }
         }
     }
@@ -318,6 +323,13 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         slotToDrawIndex = grow(slotToDrawIndex, next);
     }
 
+    private void ensureTiledRefToDrawIndexCapacity(int required) {
+        if (required <= tiledRefToDrawIndex.length) return;
+        int next = Math.max(8, tiledRefToDrawIndex.length);
+        while (required > next) next <<= 1;
+        tiledRefToDrawIndex = grow(tiledRefToDrawIndex, next);
+    }
+
     private static int[] grow(int[] source, int next) {
         int[] expanded = new int[next];
         System.arraycopy(source, 0, expanded, 0, source.length);
@@ -327,6 +339,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     int getActorWorkArrayCapacity() {
         return blockLayerEntities.length
                 + slotToDrawIndex.length
+                + tiledRefToDrawIndex.length
                 + snapshotBuilder.drawIndexToBucketBefore.length
                 + snapshotBuilder.drawIndexToBucketAfter.length
                 + snapshotBuilder.actorOriginalBucket.length
@@ -335,6 +348,12 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 + snapshotBuilder.nonActorDomains.length
                 + nonActorDomainAfter.length
                 + nonActorSubsequenceAfter.length;
+    }
+
+    int tiledDrawIndexForRef(int tiledRenderRef) {
+        return tiledRenderRef >= 0 && tiledRenderRef < tiledRefToDrawIndex.length
+                ? tiledRefToDrawIndex[tiledRenderRef]
+                : -1;
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

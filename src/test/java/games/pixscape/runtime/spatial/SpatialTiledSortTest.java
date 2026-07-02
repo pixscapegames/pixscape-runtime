@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -306,6 +307,7 @@ public class SpatialTiledSortTest {
         tiled.spatialEnabled = spatialEnabled;
         tiled.data = new TiledMapLayerData(mapWidth, 16, 16, 16, 4, projection);
         tiled.data.initSlotRange(0, mapWidth * 16);
+        assignRenderRefs(tiled.data, 0);
         tiled.data.spatialEnabled = spatialEnabled;
 
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
@@ -329,6 +331,19 @@ public class SpatialTiledSortTest {
         ref.gx = gx;
         ref.gy = gy;
         return ref;
+    }
+
+    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+        int nextRef = startRef;
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.soaCount;
+                nextRef += chunk.soaCount;
+            }
+        }
     }
 
     private static final class Fixture {

@@ -162,7 +162,7 @@ public final class SpatialTiledSort {
                                    TiledLayerComponent tiled,
                                    SpatialBlocksComponent blocks,
                                    TiledMapRenderState tiledState,
-                                   int[] slotToDrawIndex,
+                                   int[] tiledRefToDrawIndex,
                                    int tiledLayerCount,
                                    Context context,
                                    SpatialActorCollector actors,
@@ -207,7 +207,7 @@ public final class SpatialTiledSort {
             verifyLayerLogged = true;
         }
 
-        if (!verifyBlocksLogged && logVerifyBlocks(layerEntity, context, tiled, blocks, tiledState, slotToDrawIndex,
+        if (!verifyBlocksLogged && logVerifyBlocks(layerEntity, context, tiled, blocks, tiledState, tiledRefToDrawIndex,
                 relatedBlocks)) {
             verifyBlocksLogged = true;
         }
@@ -351,7 +351,7 @@ public final class SpatialTiledSort {
                 SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
                 if (ref == null) continue;
                 if (context != null && context.isShared(ref.gx, ref.gy)) continue;
-                snapshot.anchorSlots[snapshot.anchorCount++] = tiled.data.slotForTile(ref.gx, ref.gy);
+                snapshot.anchorSlots[snapshot.anchorCount++] = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
             }
             signoffBlockCount++;
         }
@@ -440,16 +440,16 @@ public final class SpatialTiledSort {
                                            TiledLayerComponent tiled,
                                            SpatialBlocksComponent blocks,
                                            TiledMapRenderState tiledState,
-                                           int[] slotToDrawIndex,
+                                           int[] tiledRefToDrawIndex,
                                            boolean[] included) {
-        if (blocks == null || blocks.blocks == null || tiledState == null || slotToDrawIndex == null) return false;
+        if (blocks == null || blocks.blocks == null || tiledState == null || tiledRefToDrawIndex == null) return false;
         boolean wrote = false;
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
             if (block == null || block.linkedTileRefs == null) continue;
             if (hasAnyIncludedBlock(included) && !included[blockIndex]) continue;
             if (!hasAnyIncludedBlock(included) && block.id != 3 && block.id != 4) continue;
-            logVerifyBlock(layerEntity, context, tiled, block, blockIndex, tiledState, slotToDrawIndex);
+            logVerifyBlock(layerEntity, context, tiled, block, blockIndex, tiledState, tiledRefToDrawIndex);
             wrote = true;
         }
         return wrote;
@@ -461,7 +461,7 @@ public final class SpatialTiledSort {
                                        SpatialBlockData block,
                                        int blockIndex,
                                        TiledMapRenderState tiledState,
-                                       int[] slotToDrawIndex) {
+                                       int[] tiledRefToDrawIndex) {
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
         StringBuilder exclusiveAnchors = new StringBuilder("[");
@@ -471,9 +471,11 @@ public final class SpatialTiledSort {
         for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
             if (ref == null) continue;
-            int slot = tiled.data.slotForTile(ref.gx, ref.gy);
-            int drawIndex = slot >= 0 && slot < slotToDrawIndex.length ? slotToDrawIndex[slot] : -1;
             int tiledRenderRef = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
+            int legacySlot = tiled.data.slotForTile(ref.gx, ref.gy);
+            int drawIndex = tiledRenderRef >= 0 && tiledRenderRef < tiledRefToDrawIndex.length
+                    ? tiledRefToDrawIndex[tiledRenderRef]
+                    : -1;
             long key = tiledRenderRef >= 0 && tiledRenderRef < tiledState.getRefCount()
                     ? tiledState.sortKey[tiledRenderRef]
                     : 0L;
@@ -482,14 +484,16 @@ public final class SpatialTiledSort {
                 TileOwnership ownership = context.ownership(ref.gx, ref.gy);
                 sharedAnchors.append(ref.gx).append(',')
                         .append(ref.gy).append(',')
-                        .append(slot).append(',')
+                        .append(tiledRenderRef).append(',')
+                        .append(legacySlot).append(',')
                         .append(ownersText(ownership));
                 continue;
             }
             if (exclusiveCount++ > 0) exclusiveAnchors.append(';');
             exclusiveAnchors.append(ref.gx).append(',')
                     .append(ref.gy).append(',')
-                    .append(slot).append(',')
+                    .append(tiledRenderRef).append(',')
+                    .append(legacySlot).append(',')
                     .append(drawIndex).append(',')
                     .append(SortKey64.unpackZOrdered(key)).append(',')
                     .append(ref.gx).append(',')

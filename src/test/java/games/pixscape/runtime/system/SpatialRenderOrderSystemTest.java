@@ -23,6 +23,7 @@ import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -166,6 +167,25 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
 
         Assert.assertArrayEquals(new int[]{renderRef}, fixture.drawOrder());
+    }
+
+    @Test
+    public void tiledDrawIndexMappingUsesRenderRefNotLegacySlot() {
+        Fixture fixture = new Fixture(512, true);
+        fixture.createLayer(2, true);
+        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
+        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
+        int legacySlot = map.slotForTile(0, 0);
+        int actor = fixture.createActor(8f, 24f, 0, 2, true);
+        fixture.setActorCircleFootprint(actor, 2f);
+        fixture.setSortOrder(actor, 2, 0, 10);
+
+        fixture.process();
+
+        Assert.assertNotEquals(legacySlot, tile);
+        Assert.assertEquals(indexOf(fixture.beforeSpatialOrder, tile), fixture.spatial.tiledDrawIndexForRef(tile));
+        Assert.assertEquals(-1, fixture.spatial.tiledDrawIndexForRef(legacySlot));
     }
 
     @Test
@@ -1752,6 +1772,7 @@ public class SpatialRenderOrderSystemTest {
         }
 
         int createBlockTiledLayer(int layerIndex, TiledMapLayerData map, SpatialBlockData... blocks) {
+            ensureMapRenderRefs(map);
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = layerIndex;
@@ -1774,6 +1795,7 @@ public class SpatialRenderOrderSystemTest {
         }
 
         int createSpatialTiledLayerWithMap(int layerIndex, TiledMapLayerData map) {
+            ensureMapRenderRefs(map);
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = layerIndex;
@@ -1790,6 +1812,7 @@ public class SpatialRenderOrderSystemTest {
         }
 
         int createTiledLayerWithMap(int layerIndex, TiledMapLayerData map, boolean spatialEnabled) {
+            ensureMapRenderRefs(map);
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = layerIndex;
@@ -1812,7 +1835,15 @@ public class SpatialRenderOrderSystemTest {
 
         int createLinkedTile(TiledMapLayerData map, int gx, int gy, int assetId, int layerIndex, int runtimeOrder) {
             map.setTile(gx, gy, assetId);
-            return createTiledSlot(map.slotForTile(gx, gy), layerIndex, runtimeOrder);
+            ensureMapRenderRefs(map);
+            int slot = map.slotForTile(gx, gy);
+            int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);
+            enableSlot(slot, layerIndex, 0, runtimeOrder);
+            state.entityId[slot] = -1;
+            tiledState.setLegacySlotForRef(tiledRenderRef, slot);
+            writeTiledRenderData(tiledRenderRef, slot);
+            tiledState.addVisibleRef(tiledRenderRef);
+            return tiledRenderRef;
         }
 
         void setActorCircleFootprint(int actor, float radiusPx) {
@@ -1856,6 +1887,7 @@ public class SpatialRenderOrderSystemTest {
                                          SceneMetaRuntime.TiledProjection projection) {
             TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
             map.initSlotRange(startSlot, startSlot + width * height);
+            ensureMapRenderRefs(map);
             return map;
         }
 
@@ -1913,7 +1945,10 @@ public class SpatialRenderOrderSystemTest {
         int createTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
-            int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            int tiledRenderRef = tiledRefForLegacySlot(slot);
+            if (tiledRenderRef < 0) {
+                tiledRenderRef = tiledState.registerLegacySlot(slot);
+            }
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
@@ -1922,7 +1957,10 @@ public class SpatialRenderOrderSystemTest {
         int createRenderOnlySlot(int slot, int layerIndex, int z, int runtimeOrder) {
             enableSlot(slot, layerIndex, z, runtimeOrder);
             state.entityId[slot] = -1;
-            int tiledRenderRef = tiledState.registerLegacySlot(slot);
+            int tiledRenderRef = tiledRefForLegacySlot(slot);
+            if (tiledRenderRef < 0) {
+                tiledRenderRef = tiledState.registerLegacySlot(slot);
+            }
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
             return tiledRenderRef;
@@ -1930,6 +1968,33 @@ public class SpatialRenderOrderSystemTest {
 
         int legacySlotForRef(int tiledRenderRef) {
             return tiledState.legacySlotForRef(tiledRenderRef);
+        }
+
+        int tiledRefForLegacySlot(int legacySlot) {
+            for (int ref = 0; ref < tiledState.getRefCount(); ref++) {
+                if (tiledState.legacySlotForRef(ref) == legacySlot) {
+                    return ref;
+                }
+            }
+            return -1;
+        }
+
+        void ensureMapRenderRefs(TiledMapLayerData map) {
+            if (map == null) return;
+            for (int cy = 0; cy < map.getChunksY(); cy++) {
+                for (int cx = 0; cx < map.getChunksX(); cx++) {
+                    TileChunk chunk = map.getChunk(cx, cy);
+                    if (chunk == null) continue;
+                    if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != chunk.soaCount) {
+                        chunk.renderRefStartIndex = tiledState.registerLegacyRange(chunk.soaStartIndex, chunk.soaCount);
+                        chunk.renderRefCount = chunk.soaCount;
+                    } else {
+                        for (int i = 0; i < chunk.soaCount; i++) {
+                            tiledState.setLegacySlotForRef(chunk.renderRefStartIndex + i, chunk.soaStartIndex + i);
+                        }
+                    }
+                }
+            }
         }
 
         void writeTiledRenderData(int tiledRenderRef, int legacySlot) {
@@ -2135,6 +2200,14 @@ public class SpatialRenderOrderSystemTest {
             if (candidate == slot) count++;
         }
         return count;
+    }
+
+    private static int indexOf(int[] order, int slot) {
+        if (order == null) return -1;
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == slot) return i;
+        }
+        return -1;
     }
 
     private static boolean arraysEqual(int[] left, int[] right) {
