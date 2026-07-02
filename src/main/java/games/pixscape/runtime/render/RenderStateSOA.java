@@ -57,11 +57,6 @@ public final class RenderStateSOA {
      * Mapping direct entityId -> entityId...
      */
     public int[] entityId;
-    /**
-     * Frame-local list of tiled slots belonging to currently visible chunks.
-     */
-    public int[] tiledVisibleSlots;
-    public int tiledVisibleSlotCount;
 
     public RenderStateSOA() {
     }
@@ -115,8 +110,6 @@ public final class RenderStateSOA {
 
         sortKey = new long[capacity];
         entityId = new int[capacity];
-        tiledVisibleSlots = new int[capacity];
-        tiledVisibleSlotCount = 0;
 
         clearAll();
     }
@@ -147,25 +140,6 @@ public final class RenderStateSOA {
 
     public int maxEntityId() {
         return maxEntityId;
-    }
-
-    public void clearTiledVisibleSlots() {
-        tiledVisibleSlotCount = 0;
-    }
-
-    public void appendTiledVisibleRange(int startInclusive, int count) {
-        if (count <= 0) return;
-        ensureCapacity(startInclusive + count);
-        int writeEnd = tiledVisibleSlotCount + count;
-        if (writeEnd > tiledVisibleSlots.length) {
-            throw new IllegalStateException(
-                    "RenderStateSOA tiled visible list overflow: required=" + writeEnd
-                            + ", capacity=" + tiledVisibleSlots.length
-            );
-        }
-        for (int i = 0; i < count; i++) {
-            tiledVisibleSlots[tiledVisibleSlotCount++] = startInclusive + i;
-        }
     }
 
     private void ensureCapacity(int required) {
@@ -201,6 +175,5 @@ public final class RenderStateSOA {
             runtimeOrder[i] = 0;
         }
         maxEntityId = -1;
-        tiledVisibleSlotCount = 0;
     }
 }

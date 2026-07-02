@@ -3,6 +3,7 @@ package games.pixscape.runtime.loading;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,6 +16,7 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
         DrawList drawList = new DrawList();
         FrameRenderQueue frameQueue = new FrameRenderQueue();
         VfxRenderState vfxState = new VfxRenderState();
+        TiledMapRenderState tiledState = new TiledMapRenderState();
         int tiledBudget = 600_000;
         int tiledEnd = 150_000 + tiledBudget;
         int vfxEnd = tiledEnd + WorldConfigFactory.DEFAULT_VFX_BUDGET;
@@ -24,6 +26,7 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
                 drawList,
                 frameQueue,
                 vfxState,
+                tiledState,
                 tiledEnd,
                 vfxEnd
         );
@@ -32,6 +35,7 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
         Assert.assertEquals(tiledEnd, renderState.getCapacity());
         Assert.assertEquals(vfxEnd, drawList.data().length);
         Assert.assertEquals(WorldConfigFactory.DEFAULT_VFX_BUDGET, vfxState.getCapacity());
+        Assert.assertEquals(WorldConfigFactory.DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY, tiledState.getCapacity());
         Assert.assertEquals(WorldConfigFactory.DEFAULT_FRAME_QUEUE_CAPACITY, frameQueue.getCapacity());
         Assert.assertEquals(0, frameQueue.getGrowthCount());
     }

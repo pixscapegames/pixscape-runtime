@@ -6,6 +6,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderBuildDrawListSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -20,6 +21,7 @@ public class PixscapeEngineTiledRebindVisibilityTest {
     @Test
     public void rebindMasksStaleTiledSlotsBeforeDirtyMarkSoOffscreenSlotsDoNotLeakToDrawList() throws Exception {
         RenderStateSOA state = new RenderStateSOA(64);
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(2);
         DrawList drawList = new DrawList(64);
         RenderStats stats = new RenderStats();
@@ -47,7 +49,7 @@ public class PixscapeEngineTiledRebindVisibilityTest {
         Assert.assertFalse("Rebind must immediately hide old tiled slot visibility cache.", state.visible[tiledSlot]);
 
         World drawWorld = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
+                .with(new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         // Camera can move before next tiled sync; stale slot must still not leak in draw list.

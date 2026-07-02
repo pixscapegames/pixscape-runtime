@@ -4,6 +4,7 @@ import com.artemis.BaseSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -13,6 +14,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 
 public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
     private final LayerStateSOA layerState;
     private final DrawList drawList;
@@ -25,16 +27,18 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
+                                     TiledMapRenderState tiledState,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
                                      RenderStats stats,
                                      int ecsEndExclusive,
                                      int vfxStartInclusive,
                                      int vfxEndExclusive) {
-        this(state, null, layerState, drawList, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+        this(state, tiledState, null, layerState, drawList, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
     }
 
     public RenderBuildDrawListSystem(RenderStateSOA state,
+                                     TiledMapRenderState tiledState,
                                      VfxRenderState vfxState,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
@@ -43,6 +47,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                                      int vfxStartInclusive,
                                      int vfxEndExclusive) {
         this.state = state;
+        this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.layerState = layerState;
         this.drawList = drawList;
@@ -91,8 +96,10 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             stats.buildDrawListScannedEcsSlots = 0;
         }
 
-        for (int i = 0; i < state.tiledVisibleSlotCount; i++) {
-            int slot = state.tiledVisibleSlots[i];
+        int tiledVisibleSlotCount = tiledState.getVisibleSlotCount();
+        int[] tiledVisibleSlots = tiledState.getVisibleSlots();
+        for (int i = 0; i < tiledVisibleSlotCount; i++) {
+            int slot = tiledVisibleSlots[i];
 
             if (slot < ecsEndExclusive) {
                 continue;
@@ -118,7 +125,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             }
         }
 
-        stats.buildDrawListScannedTiledSlots = state.tiledVisibleSlotCount;
+        stats.buildDrawListScannedTiledSlots = tiledVisibleSlotCount;
         stats.extractedQuads = drawList.size;
         if (vfxState != null) {
             vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());

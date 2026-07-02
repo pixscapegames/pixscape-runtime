@@ -10,6 +10,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.profiling.ProfiledSystem;
@@ -27,6 +28,7 @@ public final class WorldConfigFactory {
     public static final int DEFAULT_VFX_BUDGET = 16384;
     public static final int DEFAULT_TILED_BUDGET = 200_000;
     public static final int DEFAULT_FRAME_QUEUE_CAPACITY = 4096;
+    public static final int DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY = 4096;
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
 
     private static final int ECS_WATERMARK = 150_000;
@@ -46,6 +48,7 @@ public final class WorldConfigFactory {
             DrawList drawList,
             FrameRenderQueue frameQueue,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -63,6 +66,7 @@ public final class WorldConfigFactory {
                 drawList,
                 frameQueue,
                 vfxState,
+                tiledState,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -130,6 +134,7 @@ public final class WorldConfigFactory {
             DrawList drawList,
             FrameRenderQueue frameQueue,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -148,6 +153,7 @@ public final class WorldConfigFactory {
                 drawList,
                 frameQueue,
                 vfxState,
+                tiledState,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -169,6 +175,7 @@ public final class WorldConfigFactory {
             DrawList drawList,
             FrameRenderQueue frameQueue,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -188,6 +195,7 @@ public final class WorldConfigFactory {
                 drawList,
                 frameQueue,
                 vfxState,
+                tiledState,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -210,6 +218,7 @@ public final class WorldConfigFactory {
             DrawList drawList,
             FrameRenderQueue frameQueue,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -235,7 +244,7 @@ public final class WorldConfigFactory {
         int vfxStart = tiledEnd;
         int vfxEnd = vfxStart + DEFAULT_VFX_BUDGET;
 
-        configureRenderStorageCapacities(renderState, drawList, frameQueue, vfxState, tiledEnd, vfxEnd);
+        configureRenderStorageCapacities(renderState, drawList, frameQueue, vfxState, tiledState, tiledEnd, vfxEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
@@ -246,6 +255,7 @@ public final class WorldConfigFactory {
                 camera,
                 renderState,
                 vfxState,
+                tiledState,
                 layerState,
                 ecsEnd,
                 meta,
@@ -269,6 +279,7 @@ public final class WorldConfigFactory {
                 builder,
                 renderState,
                 vfxState,
+                tiledState,
                 layerState,
                 drawList,
                 frameQueue,
@@ -307,6 +318,7 @@ public final class WorldConfigFactory {
             OrthographicCamera worldCamera,
             RenderStateSOA renderState,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             LayerStateSOA layerState,
             int entityCapacityHint,
             SceneMetaRuntime meta,
@@ -335,6 +347,7 @@ public final class WorldConfigFactory {
                 profiled(new RenderTiledSyncSystem(
                         worldCamera,
                         renderState,
+                        tiledState,
                         atlasRuntimeService,
                         defaultShaderIdx,
                         tiledStart,
@@ -356,18 +369,21 @@ public final class WorldConfigFactory {
                                                  DrawList drawList,
                                                  FrameRenderQueue frameQueue,
                                                  VfxRenderState vfxState,
+                                                 TiledMapRenderState tiledState,
                                                  int tiledEnd,
                                                  int vfxEnd) {
         renderState.setCapacity(tiledEnd);
         drawList.setCapacity(vfxEnd);
         frameQueue.setCapacity(DEFAULT_FRAME_QUEUE_CAPACITY);
         vfxState.setCapacity(DEFAULT_VFX_BUDGET);
+        tiledState.setCapacity(DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY);
     }
 
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
             RenderStateSOA renderState,
             VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             LayerStateSOA layerState,
             DrawList drawList,
             FrameRenderQueue frameQueue,
@@ -382,6 +398,7 @@ public final class WorldConfigFactory {
         builder.with(
                 profiled(new RenderBuildDrawListSystem(
                         renderState,
+                        tiledState,
                         vfxState,
                         layerState,
                         drawList,

@@ -19,6 +19,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.spatial.SpatialTiledSort;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -40,6 +41,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     private final OrthographicCamera camera;
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final AtlasRuntimeService atlasRuntimeService;
     private final int defaultShaderIdx;
     private final RuntimeTilesetProfiles tilesetProfiles;
@@ -62,6 +64,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
+                                 TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  int tiledStart,
@@ -69,6 +72,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         this(
                 camera,
                 state,
+                tiledState,
                 atlasRuntimeService,
                 defaultShaderIdx,
                 tiledStart,
@@ -80,6 +84,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
+                                 TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  int tiledStart,
@@ -88,6 +93,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         this(
                 camera,
                 state,
+                tiledState,
                 atlasRuntimeService,
                 defaultShaderIdx,
                 tiledStart,
@@ -99,6 +105,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
                                  RenderStateSOA state,
+                                 TiledMapRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  int tiledStart,
@@ -108,6 +115,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         this.camera = camera;
         this.state = state;
+        this.tiledState = tiledState;
         this.atlasRuntimeService = atlasRuntimeService;
         this.defaultShaderIdx = defaultShaderIdx;
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
@@ -121,7 +129,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             profileStartNs = profiler.begin(SystemProfilePhases.RENDER_TILED_SYNC);
         }
         computeViewBounds();
-        state.clearTiledVisibleSlots();
+        tiledState.clearVisibleSlots();
         testedChunkCount = 0;
         visibleChunkCount = 0;
         shownChunkCount = 0;
@@ -181,7 +189,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     }
                 }
                 chunk.visibleLastFrame = true;
-                state.appendTiledVisibleRange(chunk.soaStartIndex, chunk.soaCount);
+                for (int i = 0; i < chunk.soaCount; i++) {
+                    tiledState.addVisibleSlot(chunk.soaStartIndex + i);
+                }
 
                 if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
                     dirtyFullChunkCount++;

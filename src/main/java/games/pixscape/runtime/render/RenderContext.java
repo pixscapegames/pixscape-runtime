@@ -14,6 +14,7 @@ public final class RenderContext {
     public final DrawList drawList;
     public final FrameRenderQueue frameQueue;
     public final VfxRenderState vfxState;
+    public final TiledMapRenderState tiledState;
 
     public final MetricsBatch batch; // or interface plus abstraite
     public final GLCaps glCaps;
@@ -23,6 +24,7 @@ public final class RenderContext {
                          DrawList drawList,
                          FrameRenderQueue frameQueue,
                          VfxRenderState vfxState,
+                         TiledMapRenderState tiledState,
                          MetricsBatch batch,
                          GLCaps glCaps) {
         this.renderState = renderState;
@@ -30,6 +32,7 @@ public final class RenderContext {
         this.drawList = drawList;
         this.frameQueue = frameQueue;
         this.vfxState = vfxState;
+        this.tiledState = tiledState;
         this.batch = batch;
         this.glCaps = glCaps;
     }

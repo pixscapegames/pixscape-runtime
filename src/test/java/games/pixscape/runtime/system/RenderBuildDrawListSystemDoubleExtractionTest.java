@@ -7,6 +7,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
 import org.junit.Test;
@@ -19,7 +20,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(12, 0, 120L);
         fixture.enableSprite(320_000, 0, 200L);
-        fixture.state.appendTiledVisibleRange(320_000, 1);
+        fixture.tiledState.addVisibleSlot(320_000);
 
         fixture.world.process();
 
@@ -35,7 +36,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 100L);
         fixture.enableSprite(901, 0, 50L);
         fixture.enableSprite(950, 0, 5L);
-        fixture.state.appendTiledVisibleRange(900, 2);
+        fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
@@ -51,7 +52,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 100L);
         fixture.enableSprite(901, 0, 120L);
         fixture.state.visible[901] = false;
-        fixture.state.appendTiledVisibleRange(900, 2);
+        fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
@@ -67,7 +68,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(11, 0, 10L);
         fixture.enableSprite(900, 0, 30L);
         fixture.enableSprite(901, 0, 20L);
-        fixture.state.appendTiledVisibleRange(900, 2);
+        fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
@@ -82,7 +83,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         fixture.enableSprite(5, 1, 10L);
         fixture.enableSprite(900, 1, 20L);
-        fixture.state.appendTiledVisibleRange(900, 1);
+        fixture.tiledState.addVisibleSlot(900);
 
         fixture.world.process();
 
@@ -112,7 +113,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.enableSprite(900, 0, 30L);    // tiled
         fixture.enableSprite(901, 0, 20L);    // tiled
         fixture.addVfx(10L);
-        fixture.state.appendTiledVisibleRange(900, 2);
+        fixture.addVisibleTiledRange(900, 2);
 
         fixture.world.process();
 
@@ -128,6 +129,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
     private static final class Fixture {
         final RenderStateSOA state;
+        final TiledMapRenderState tiledState;
         final VfxRenderState vfxState;
         final LayerStateSOA layerState;
         final DrawList drawList;
@@ -140,6 +142,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
 
         Fixture(int capacity, int ecsEndExclusive, int reservedStartInclusive, int reservedEndExclusive) {
             this.state = new RenderStateSOA(capacity);
+            this.tiledState = new TiledMapRenderState(16);
             this.vfxState = new VfxRenderState(16);
             this.layerState = new LayerStateSOA(4);
             this.layerState.enabled[0] = true;
@@ -150,6 +153,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                     .with(
                             new RenderBuildDrawListSystem(
                                     state,
+                                    tiledState,
                                     vfxState,
                                     layerState,
                                     drawList,
@@ -167,6 +171,12 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
                             )
                     )
                     .build());
+        }
+
+        void addVisibleTiledRange(int startInclusive, int count) {
+            for (int i = 0; i < count; i++) {
+                tiledState.addVisibleSlot(startInclusive + i);
+            }
         }
 
         void enableSprite(int slot, int layerIdx, long sortKey) {

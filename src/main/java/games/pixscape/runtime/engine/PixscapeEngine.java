@@ -66,6 +66,7 @@ public final class PixscapeEngine {
     private DrawList drawList;
     private FrameRenderQueue frameQueue;
     private VfxRenderState vfxState;
+    private TiledMapRenderState tiledState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
     private float ambientMulG = 1f;
@@ -292,9 +293,10 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
         vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -308,6 +310,7 @@ public final class PixscapeEngine {
                         drawList,
                         frameQueue,
                         vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -635,6 +638,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
         vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -645,7 +649,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -662,6 +666,7 @@ public final class PixscapeEngine {
                         drawList,
                         frameQueue,
                         vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -721,6 +726,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue();
         vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -731,7 +737,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         applyAmbientFromMeta(null);
@@ -745,6 +751,7 @@ public final class PixscapeEngine {
                         drawList,
                         frameQueue,
                         vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
@@ -790,6 +797,7 @@ public final class PixscapeEngine {
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
         if (renderState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
+                || tiledState == null
                 || metricsBatch == null || stats == null || statsSink == null) {
             initRuntime(config, projectDir);
             return;
@@ -808,6 +816,7 @@ public final class PixscapeEngine {
                         drawList,
                         frameQueue,
                         vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,

@@ -20,6 +20,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -1658,6 +1659,7 @@ public class SpatialRenderOrderSystemTest {
         static final float PIXELS_PER_METER = 100f;
 
         final RenderStateSOA state;
+        final TiledMapRenderState tiledState;
         final LayerStateSOA layerState;
         final DrawList drawList;
         final RenderStats stats;
@@ -1673,6 +1675,7 @@ public class SpatialRenderOrderSystemTest {
 
         Fixture(int capacity, boolean captureOrder) {
             state = new RenderStateSOA(capacity);
+            tiledState = new TiledMapRenderState(16);
             layerState = new LayerStateSOA(16);
             for (int i = 0; i < layerState.enabled.length; i++) {
                 layerState.enabled[i] = true;
@@ -1683,7 +1686,7 @@ public class SpatialRenderOrderSystemTest {
 
             WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
                     .with(
-                            new RenderBuildDrawListSystem(state, layerState, drawList, stats, 128, -1, -1),
+                            new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 128, -1, -1),
                             new RenderSortSystem(state, drawList)
                     );
             if (captureOrder) {
@@ -1888,14 +1891,14 @@ public class SpatialRenderOrderSystemTest {
         int createTiledSlot(int slot, int layerIndex, int runtimeOrder) {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             state.entityId[slot] = -1;
-            state.appendTiledVisibleRange(slot, 1);
+            tiledState.addVisibleSlot(slot);
             return slot;
         }
 
         int createRenderOnlySlot(int slot, int layerIndex, int z, int runtimeOrder) {
             enableSlot(slot, layerIndex, z, runtimeOrder);
             state.entityId[slot] = -1;
-            state.appendTiledVisibleRange(slot, 1);
+            tiledState.addVisibleSlot(slot);
             return slot;
         }
 

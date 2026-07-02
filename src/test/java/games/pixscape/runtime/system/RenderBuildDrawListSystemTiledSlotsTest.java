@@ -5,6 +5,7 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,12 +16,13 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
     public void highReservedSlotIsExtractedWhenTouched() {
         // Arrange
         RenderStateSOA state = new RenderStateSOA(256);
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(8);
         DrawList drawList = new DrawList(256);
         RenderStats stats = new RenderStats();
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(state, layerState, drawList, stats, 64, -1, -1))
+                .with(new RenderBuildDrawListSystem(state, tiledState, layerState, drawList, stats, 64, -1, -1))
                 .build());
 
         int tiledSlot = 128;
@@ -31,7 +33,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         state.visible[tiledSlot] = true;
         state.layerIndex[tiledSlot] = 0;
         state.touch(tiledSlot);
-        state.appendTiledVisibleRange(tiledSlot, 1);
+        tiledState.addVisibleSlot(tiledSlot);
 
         // Act
         world.process();
