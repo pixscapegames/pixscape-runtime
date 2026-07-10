@@ -241,6 +241,26 @@ public class SpatialTiledSortTest {
     }
 
     @Test
+    public void duplicateAuthoredRefsDoNotParticipateInSpatialTiledSort() {
+        Fixture fixture = fixture(
+                true,
+                block(3, ref(2, 3), ref(2, 3)),
+                block(4, ref(4, 3)));
+        SpatialTiledSort.Context context = SpatialTiledSort.contextForLayer(
+                1,
+                fixture.layer,
+                fixture.tiled,
+                fixture.blocks,
+                true);
+
+        Assert.assertTrue(context.applies());
+        Assert.assertNull(context.ownership(2, 3));
+        Assert.assertEquals(2, SpatialTiledSort.encodeTie(context, 2, 3, 2));
+        Assert.assertNotEquals(4, SpatialTiledSort.encodeTie(context, 4, 3, 4));
+        Assert.assertEquals(0, context.sharedJunctionCount);
+    }
+
+    @Test
     public void tieOverflowStillDisablesSpatialTiledSortClearly() {
         Fixture fixture = fixtureWithMapWidth(true, 8193, block(3, ref(3, 2)));
         SpatialTiledSort.Context context = SpatialTiledSort.contextForLayer(

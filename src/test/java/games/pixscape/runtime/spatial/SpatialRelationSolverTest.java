@@ -203,6 +203,59 @@ public class SpatialRelationSolverTest {
     }
 
     @Test
+    public void blockWithNoAuthoredRefsCreatesNoRelation() {
+        TiledMapLayerData map = orthoMap();
+        SpatialBlocksComponent blocks = blocks(unlinkedBlock(0f, 1f, 2f, 1f));
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(actor(16f, 40f, 2f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(0, solver.relationCount());
+    }
+
+    @Test
+    public void blockWithNullAuthoredRefEntryCreatesNoRelation() {
+        TiledMapLayerData map = orthoMap();
+        SpatialBlockData block = blockWithRefs(0f, 1f, 2f, 1f, 0, 1, 101);
+        block.linkedTileRefs.add(null);
+        SpatialBlocksComponent blocks = blocks(block);
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+
+        solver.solve(actors(actor(16f, 40f, 2f, 0f, 2f)), cache, blocks, map);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(0, solver.relationCount());
+    }
+
+    @Test
+    public void validBlockAfterInvalidBlockStillProducesRelationAtAlignedCacheIndex() {
+        TiledMapLayerData map = orthoMap();
+        SpatialBlockData invalid = blockWithRefs(3f, 1f, 2f, 1f,
+                3, 1, 301,
+                3, 1, 301);
+        SpatialBlockData valid = block(0, 1, 2, 1);
+        SpatialBlocksComponent blocks = blocks(invalid, valid);
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        SpatialActorCollector actors = actors(actor(16f, 40f, 2f, 0f, 2f));
+
+        solver.solve(actors, cache, blocks, map);
+
+        Assert.assertEquals(2, cache.blockCount);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertTrue(cache.hasResolvedBlock(1));
+        Assert.assertEquals(1, solver.relationCount());
+        Assert.assertEquals(1, solver.relationBlockIndex[0]);
+        Assert.assertEquals(1, solver.relationAuthoredBlockIndex[0]);
+        Assert.assertEquals(SpatialRelationSolver.ACTOR_BEHIND_BLOCK, solver.relationType[0]);
+    }
+
+    @Test
     public void solverDoesNotMutateInputs() {
         TiledMapLayerData map = orthoMap();
         SpatialBlocksComponent blocks = blocks(block(0, 1, 2, 1));
@@ -219,6 +272,28 @@ public class SpatialRelationSolverTest {
         Assert.assertArrayEquals(actorFootY, Arrays.copyOf(actors.actorFootY, actors.actorCount), 0.0001f);
         Assert.assertArrayEquals(cacheAnchorSlots, Arrays.copyOf(cache.anchorDrawSlot, cache.anchorCount));
         Assert.assertArrayEquals(cacheAnchorIndices, Arrays.copyOf(cache.anchorDrawIndex, cache.anchorCount));
+    }
+
+    @Test
+    public void invalidAuthoredRefsAreNotMutatedByResolverOrSolver() {
+        TiledMapLayerData map = orthoMap();
+        SpatialBlockData block = blockWithRefs(0f, 1f, 2f, 1f,
+                0, 1, 101,
+                0, 1, 101);
+        SpatialBlockData.LinkedTileRef first = block.linkedTileRefs.get(0);
+        SpatialBlockData.LinkedTileRef second = block.linkedTileRefs.get(1);
+        SpatialBlocksComponent blocks = blocks(block);
+
+        SpatialBlocksRuntimeCache cache = resolve(map, blocks);
+        solver.solve(actors(actor(16f, 40f, 2f, 0f, 2f)), cache, blocks, map);
+
+        Assert.assertEquals(2, block.linkedTileRefs.size);
+        Assert.assertSame(first, block.linkedTileRefs.get(0));
+        Assert.assertSame(second, block.linkedTileRefs.get(1));
+        Assert.assertEquals(0, block.linkedTileRefs.get(0).gx);
+        Assert.assertEquals(1, block.linkedTileRefs.get(0).gy);
+        Assert.assertEquals(0, block.linkedTileRefs.get(1).gx);
+        Assert.assertEquals(1, block.linkedTileRefs.get(1).gy);
     }
 
     private static TiledMapLayerData orthoMap() {
@@ -289,6 +364,20 @@ public class SpatialRelationSolverTest {
         return block;
     }
 
+    private static SpatialBlockData unlinkedBlock(float x, float y, float width, float depth) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = (int) (x * 31f + y * 17f + 10f);
+        block.enabled = true;
+        block.actorOccluder = true;
+        block.x = x;
+        block.y = y;
+        block.width = width;
+        block.depth = depth;
+        block.altitude = 0f;
+        block.height = 10f;
+        return block;
+    }
+
     private static SpatialBlocksRuntimeCache resolve(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int[] tiledRefToDrawIndex = new int[512];
         Arrays.fill(tiledRefToDrawIndex, -1);
@@ -297,6 +386,7 @@ public class SpatialRelationSolverTest {
             SpatialBlockData block = blocks.blocks.get(i);
             for (int ref = 0; ref < block.linkedTileRefs.size; ref++) {
                 SpatialBlockData.LinkedTileRef linked = block.linkedTileRefs.get(ref);
+                if (linked == null) continue;
                 map.setTile(linked.gx, linked.gy, linked.tileAssetId);
                 int tiledRenderRef = map.tiledRenderRefForTile(linked.gx, linked.gy);
                 tiledRefToDrawIndex[tiledRenderRef] = drawIndex++;

@@ -144,6 +144,107 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
+    public void missingAuthoredRefsCreateUnresolvedCacheBlock() {
+        TiledMapLayerData map = map(4, 4, 300);
+        map.setTile(0, 0, 101);
+        SpatialBlockData block = unlinkedBlock(10, 0f, 0f, 1f, 1f);
+        SpatialBlocksComponent blocks = blocks(block);
+
+        resolver.resolve(blocks, map, slotToDrawIndex(512), cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.anchorCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(0, block.linkedTileRefs.size);
+        Assert.assertFalse(block.linkedTileRefsAuthored);
+    }
+
+    @Test
+    public void emptyAuthoredRefsCreateUnresolvedCacheBlock() {
+        TiledMapLayerData map = map(4, 4, 300);
+        SpatialBlockData block = unlinkedBlock(10, 0f, 0f, 1f, 1f);
+        block.beginAuthoredLinkedTileRefs();
+
+        resolver.resolve(blocks(block), map, slotToDrawIndex(512), cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.anchorCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(0, block.linkedTileRefs.size);
+        Assert.assertTrue(block.linkedTileRefsAuthored);
+    }
+
+    @Test
+    public void nullAuthoredRefEntryCreatesUnresolvedCacheBlockWithoutMutation() {
+        TiledMapLayerData map = map(4, 4, 300);
+        SpatialBlockData block = block(0, 0, 101);
+        SpatialBlockData.LinkedTileRef firstRef = block.linkedTileRefs.get(0);
+        block.linkedTileRefs.add(null);
+
+        resolver.resolve(blocks(block), map, slotToDrawIndex(512), cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.anchorCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(2, block.linkedTileRefs.size);
+        Assert.assertSame(firstRef, block.linkedTileRefs.get(0));
+        Assert.assertNull(block.linkedTileRefs.get(1));
+    }
+
+    @Test
+    public void duplicateAuthoredRefsCreateUnresolvedCacheBlockWithoutMutation() {
+        TiledMapLayerData map = map(4, 4, 300);
+        map.setTile(0, 0, 101);
+        int slot = map.tiledRenderRefForTile(0, 0);
+        SpatialBlockData block = block(0, 0, 101, 0, 0, 101);
+        SpatialBlockData.LinkedTileRef firstRef = block.linkedTileRefs.get(0);
+        SpatialBlockData.LinkedTileRef secondRef = block.linkedTileRefs.get(1);
+
+        resolver.resolve(blocks(block), map, slotToDrawIndex(512, slot, 7), cache);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.anchorCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[0]);
+        Assert.assertFalse(cache.hasResolvedBlock(0));
+        Assert.assertEquals(2, block.linkedTileRefs.size);
+        Assert.assertSame(firstRef, block.linkedTileRefs.get(0));
+        Assert.assertSame(secondRef, block.linkedTileRefs.get(1));
+    }
+
+    @Test
+    public void validMalformedUnresolvedAndDisabledBlocksKeepCacheIndexAlignment() {
+        TiledMapLayerData map = map(5, 5, 300);
+        map.setTile(0, 0, 101);
+        map.setTile(2, 0, 201);
+        map.setTile(4, 0, 401);
+        int validSlot = map.tiledRenderRefForTile(0, 0);
+        int trailingValidSlot = map.tiledRenderRefForTile(4, 0);
+        SpatialBlockData valid = block(0, 0, 101);
+        SpatialBlockData malformed = block(2, 0, 201, 2, 0, 201);
+        SpatialBlockData unresolved = block(3, 0, 301);
+        SpatialBlockData disabled = block(4, 0, 401);
+        disabled.enabled = false;
+
+        resolver.resolve(blocks(valid, malformed, unresolved, disabled),
+                map,
+                slotToDrawIndex(512, validSlot, 1, trailingValidSlot, 9),
+                cache);
+
+        Assert.assertEquals(3, cache.blockCount);
+        Assert.assertEquals(2, cache.anchorCount);
+        Assert.assertTrue(cache.hasResolvedBlock(0));
+        Assert.assertFalse(cache.hasResolvedBlock(1));
+        Assert.assertFalse(cache.hasResolvedBlock(2));
+        Assert.assertEquals(1, cache.blockAnchorCount[0]);
+        Assert.assertEquals(0, cache.blockAnchorCount[1]);
+        Assert.assertEquals(1, cache.blockAnchorCount[2]);
+        Assert.assertEquals(1, cache.blockAnchorStartDrawIndex[0]);
+    }
+
+    @Test
     public void unresolvedCellsInsideRectangularAnchorsAreSkippedForCurrentFrame() {
         TiledMapLayerData map = map(8, 8, 300);
         map.setTile(1, 1, 101);
@@ -344,6 +445,18 @@ public class SpatialBlockAnchorResolverTest {
                     gxGyTileAssetIdTriples[i + 1],
                     gxGyTileAssetIdTriples[i + 2]);
         }
+        return block;
+    }
+
+    private static SpatialBlockData unlinkedBlock(int id, float x, float y, float width, float depth) {
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = id;
+        block.enabled = true;
+        block.x = x;
+        block.y = y;
+        block.width = width;
+        block.depth = depth;
+        block.height = 10f;
         return block;
     }
 

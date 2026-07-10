@@ -47,8 +47,9 @@ public final class SpatialBlockAnchorResolver {
                               SpatialBlocksRuntimeCache cache,
                               SpatialTiledSort.Context spatialSort) {
         if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
-            throw new IllegalStateException("Spatial block V2 anchors require valid authored linked tile refs: blockIndex="
-                    + authoredBlockIndex);
+            int cacheBlock = cache.addBlock(0);
+            cache.finalizeBlockRange(cacheBlock);
+            return;
         }
 
         int anchorCount = block.linkedTileRefs.size;

@@ -22,8 +22,8 @@ public final class SpatialBlocksRuntimeCache {
     }
 
     int addBlock(int anchors) {
-        if (anchors <= 0) {
-            throw new IllegalArgumentException("Spatial block anchor count must be positive.");
+        if (anchors < 0) {
+            throw new IllegalArgumentException("Spatial block anchor count must be non-negative.");
         }
 
         ensureBlockCapacity(blockCount + 1);

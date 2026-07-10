@@ -67,9 +67,9 @@ public final class SpatialRelationSolver {
                 throw new IllegalStateException("Spatial block is null at index " + authoredBlock);
             }
             if (!block.enabled) continue;
-            validateResolvedBlock(block, authoredBlock, cacheBlock, blockCache);
+            validateCacheBlock(authoredBlock, cacheBlock, blockCache);
 
-            if (block.actorOccluder) {
+            if (block.actorOccluder && blockCache.hasResolvedBlock(cacheBlock)) {
                 if (!SpatialBlockGeometry.isIndexableActorOccluder(block)) {
                     throw new IllegalStateException("Spatial actor-occluder block is not valid for relation solving: blockIndex="
                             + authoredBlock);
@@ -84,19 +84,58 @@ public final class SpatialRelationSolver {
         return relationCount;
     }
 
-    private void validateResolvedBlock(SpatialBlockData block,
-                                       int authoredBlock,
-                                       int cacheBlock,
-                                       SpatialBlocksRuntimeCache blockCache) {
-        if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
-            throw new IllegalStateException("Spatial block V2 anchors require valid authored linked tile refs: blockIndex="
-                    + authoredBlock);
-        }
+    private void validateCacheBlock(int authoredBlock,
+                                    int cacheBlock,
+                                    SpatialBlocksRuntimeCache blockCache) {
         if (cacheBlock < 0 || cacheBlock >= blockCache.blockCount) {
             throw new IllegalStateException("Spatial block is missing from runtime cache: blockIndex=" + authoredBlock);
         }
-        if (blockCache.blockAnchorCount[cacheBlock] <= 0) {
-            throw new IllegalStateException("Spatial block cache entry is unresolved: blockIndex=" + authoredBlock);
+        if (blockCache.blockAnchorOffset == null
+                || blockCache.blockAnchorCount == null
+                || blockCache.blockAnchorStartDrawIndex == null
+                || blockCache.blockAnchorEndDrawIndex == null
+                || blockCache.anchorDrawSlot == null
+                || blockCache.anchorDrawIndex == null
+                || cacheBlock >= blockCache.blockAnchorOffset.length
+                || cacheBlock >= blockCache.blockAnchorCount.length
+                || cacheBlock >= blockCache.blockAnchorStartDrawIndex.length
+                || cacheBlock >= blockCache.blockAnchorEndDrawIndex.length) {
+            throw new IllegalStateException("Spatial block cache arrays are corrupted: blockIndex=" + authoredBlock);
+        }
+
+        int offset = blockCache.blockAnchorOffset[cacheBlock];
+        int count = blockCache.blockAnchorCount[cacheBlock];
+        int start = blockCache.blockAnchorStartDrawIndex[cacheBlock];
+        int end = blockCache.blockAnchorEndDrawIndex[cacheBlock];
+        if (blockCache.anchorCount < 0
+                || blockCache.anchorCount > blockCache.anchorDrawSlot.length
+                || blockCache.anchorCount > blockCache.anchorDrawIndex.length
+                || offset < 0
+                || count < 0
+                || offset + count > blockCache.anchorCount) {
+            throw new IllegalStateException("Spatial block cache entry has a corrupted anchor range: blockIndex="
+                    + authoredBlock);
+        }
+        if ((start < 0) != (end < 0)) {
+            throw new IllegalStateException("Spatial block cache entry has a partial resolved range: blockIndex="
+                    + authoredBlock);
+        }
+        if (start >= 0) {
+            if (end < start || count == 0) {
+                throw new IllegalStateException("Spatial block cache entry has an impossible resolved range: blockIndex="
+                        + authoredBlock);
+            }
+            boolean resolvedAnchor = false;
+            for (int anchor = offset, n = offset + count; anchor < n; anchor++) {
+                if (blockCache.anchorDrawSlot[anchor] >= 0 && blockCache.anchorDrawIndex[anchor] >= 0) {
+                    resolvedAnchor = true;
+                    break;
+                }
+            }
+            if (!resolvedAnchor) {
+                throw new IllegalStateException("Spatial block cache entry is marked resolved without anchors: blockIndex="
+                        + authoredBlock);
+            }
         }
     }
 

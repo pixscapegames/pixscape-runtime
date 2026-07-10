@@ -91,13 +91,11 @@ public final class SpatialTiledSort {
 
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
-            if (block == null || !block.enabled || block.linkedTileRefs == null
-                    || block.linkedTileRefs.size == 0) {
+            if (block == null || !block.enabled || !SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
                 continue;
             }
             for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
                 SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
-                if (ref == null) continue;
                 if (ref.gx < 0 || ref.gx >= context.tieRange) {
                     refuse(context, DisabledReason.TIE_OVERFLOW, "linkedRefOutsideTieRange", layer, tiled, block);
                     return context;
@@ -110,8 +108,7 @@ public final class SpatialTiledSort {
 
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
-            if (block == null || !block.enabled || block.linkedTileRefs == null
-                    || block.linkedTileRefs.size == 0) {
+            if (block == null || !block.enabled || !SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
                 continue;
             }
             BlockOrder order = new BlockOrder();
@@ -122,7 +119,7 @@ public final class SpatialTiledSort {
             order.minTie = Integer.MAX_VALUE;
             for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
                 SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
-                if (ref == null || !context.isExclusiveOwner(ref.gx, ref.gy, blockIndex)) continue;
+                if (!context.isExclusiveOwner(ref.gx, ref.gy, blockIndex)) continue;
                 int sortZ = -(ref.gx + ref.gy);
                 int tie = ref.gx;
                 if (sortZ < order.minSortZ || (sortZ == order.minSortZ && tie < order.minTie)) {
@@ -337,7 +334,7 @@ public final class SpatialTiledSort {
         ensureVerifyBlockCapacity(blocks.blocks.size);
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
-            if (block == null || block.linkedTileRefs == null) continue;
+            if (block == null || !SpatialV2Rule.hasValidAuthoredTileRefs(block)) continue;
             VerifyBlock snapshot = signoffBlocks[signoffBlockCount];
             if (snapshot == null) {
                 snapshot = new VerifyBlock();
@@ -349,7 +346,6 @@ public final class SpatialTiledSort {
             snapshot.ensureCapacity(block.linkedTileRefs.size);
             for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
                 SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
-                if (ref == null) continue;
                 if (context != null && context.isShared(ref.gx, ref.gy)) continue;
                 snapshot.anchorSlots[snapshot.anchorCount++] = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
             }
@@ -400,8 +396,7 @@ public final class SpatialTiledSort {
         if (context == null || blocks == null || blocks.blocks == null) return;
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
-            if (block == null || !block.enabled || block.linkedTileRefs == null
-                    || block.linkedTileRefs.size == 0) {
+            if (block == null || !block.enabled || !SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
                 continue;
             }
             int exclusiveCount = 0;
@@ -409,7 +404,6 @@ public final class SpatialTiledSort {
             int sharedCount = 0;
             for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
                 SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
-                if (ref == null) continue;
                 if (context.isExclusiveOwner(ref.gx, ref.gy, blockIndex)) {
                     exclusiveCount++;
                 } else if (context.isShared(ref.gx, ref.gy)) {
@@ -446,7 +440,7 @@ public final class SpatialTiledSort {
         boolean wrote = false;
         for (int blockIndex = 0; blockIndex < blocks.blocks.size; blockIndex++) {
             SpatialBlockData block = blocks.blocks.get(blockIndex);
-            if (block == null || block.linkedTileRefs == null) continue;
+            if (block == null || !SpatialV2Rule.hasValidAuthoredTileRefs(block)) continue;
             if (hasAnyIncludedBlock(included) && !included[blockIndex]) continue;
             if (!hasAnyIncludedBlock(included) && block.id != 3 && block.id != 4) continue;
             logVerifyBlock(layerEntity, context, tiled, block, blockIndex, tiledState, tiledRefToDrawIndex);
@@ -470,7 +464,6 @@ public final class SpatialTiledSort {
         int sharedCount = 0;
         for (int refIndex = 0; refIndex < block.linkedTileRefs.size; refIndex++) {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(refIndex);
-            if (ref == null) continue;
             int tiledRenderRef = tiled.data.tiledRenderRefForTile(ref.gx, ref.gy);
             int drawIndex = tiledRenderRef >= 0 && tiledRenderRef < tiledRefToDrawIndex.length
                     ? tiledRefToDrawIndex[tiledRenderRef]

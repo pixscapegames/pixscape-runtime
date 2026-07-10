@@ -102,6 +102,21 @@ public class SpatialBlocksRuntimeCacheTest {
     }
 
     @Test
+    public void zeroAnchorBlockIsKeptButInactive() {
+        SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
+        int block = cache.addBlock(0);
+
+        cache.finalizeBlockRange(block);
+
+        Assert.assertEquals(1, cache.blockCount);
+        Assert.assertEquals(0, cache.anchorCount);
+        Assert.assertEquals(0, cache.blockAnchorCount[block]);
+        Assert.assertFalse(cache.hasResolvedBlock(block));
+        Assert.assertEquals(-1, cache.blockAnchorStartDrawIndex[block]);
+        Assert.assertEquals(-1, cache.blockAnchorEndDrawIndex[block]);
+    }
+
+    @Test
     public void invalidDrawSlotOrIndexFailsVisibly() {
         SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
         int block = cache.addBlock(1);
