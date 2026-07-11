@@ -41,7 +41,9 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
         Assert.assertEquals("Initial build should resolve non-empty tiles for padding and slot build", 6, fixture.atlas.resolveCalls);
         Assert.assertEquals(2, fixture.drawList.size);
-        Assert.assertEquals("Visible chunk refs should be published for draw-list extraction", 4, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals("Only renderable tiled refs should be published for draw-list extraction", 2, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(fixture.tiledState.getVisibleRefCount(), fixture.stats.tiledRenderableRefsVisible);
+        Assert.assertEquals(fixture.tiledState.getVisibleRefCount(), fixture.stats.buildDrawListScannedTiledSlots);
 
         TileChunk chunk = findChunk(fixture.map, 0, 0);
         int refValidA = refFor(fixture.map, 0, 0);
@@ -162,7 +164,7 @@ public class RenderTiledSyncSystemTest {
                 callsAfterRightBuild,
                 fixture.atlas.resolveCalls
         );
-        Assert.assertTrue("Initial right build should add resolves", callsAfterRightBuild > callsAfterLeftBuild);
+        Assert.assertTrue("Initial traversal should resolve at least the visible left tile", callsAfterLeftBuild > 0);
     }
 
     @Test
@@ -173,6 +175,77 @@ public class RenderTiledSyncSystemTest {
         Assert.assertTrue("Windowed traversal must avoid full-map scan", fixture.tiledSync.getTestedChunkCount() < 16);
         Assert.assertEquals("Only one visible tile should be extracted", 1, fixture.drawList.size);
         Assert.assertEquals(1, fixture.tiledSync.getVisibleChunkCount());
+    }
+
+    @Test
+    public void partialChunkPublishesOnlyOverlappingRenderableRefsAndExactStats() {
+        Fixture fixture = createWideSingleChunkFixture();
+
+        fixture.camera.position.set(8f, 8f, 0f);
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertTrue(containsVisibleRef(fixture.tiledState, refFor(fixture.map, 0, 0)));
+        Assert.assertFalse(containsVisibleRef(fixture.tiledState, refFor(fixture.map, 3, 0)));
+
+        Assert.assertEquals(1, fixture.stats.tiledChunksTested);
+        Assert.assertEquals(0, fixture.stats.tiledChunksOutside);
+        Assert.assertEquals(0, fixture.stats.tiledChunksFullyInside);
+        Assert.assertEquals(1, fixture.stats.tiledChunksPartial);
+        Assert.assertEquals(2, fixture.stats.tiledRenderableRefsConsidered);
+        Assert.assertEquals(1, fixture.stats.tiledRenderableRefsVisible);
+        Assert.assertEquals(1, fixture.stats.tiledRenderableRefsCulled);
+        Assert.assertEquals(fixture.tiledState.getVisibleRefCount(), fixture.stats.buildDrawListScannedTiledSlots);
+    }
+
+    @Test
+    public void emptyChunkHasNoVisualBoundsAndCountsAsOutside() {
+        Fixture fixture = createEmptySingleChunkFixture();
+
+        fixture.world.process();
+
+        TileChunk chunk = findChunk(fixture.map, 0, 0);
+        Assert.assertFalse(chunk.hasVisualBounds);
+        Assert.assertEquals(0, chunk.getRenderableRefCount());
+        Assert.assertEquals(0, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(0, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.stats.tiledChunksOutside);
+    }
+
+    @Test
+    public void removingExtremeTileShrinksRenderableCacheAndVisualBounds() {
+        Fixture fixture = createWideSingleChunkFixture();
+
+        fixture.camera.position.set(32f, 8f, 0f);
+        fixture.world.process();
+
+        TileChunk chunk = findChunk(fixture.map, 0, 0);
+        Assert.assertEquals(2, chunk.getRenderableRefCount());
+        Assert.assertEquals(0f, chunk.visualMinX, 0.0001f);
+        Assert.assertEquals(64f, chunk.visualMaxX, 0.0001f);
+
+        fixture.map.setTile(3, 0, 0);
+        fixture.world.process();
+
+        Assert.assertEquals(1, chunk.getRenderableRefCount());
+        Assert.assertEquals(0f, chunk.visualMinX, 0.0001f);
+        Assert.assertEquals(16f, chunk.visualMaxX, 0.0001f);
+    }
+
+    @Test
+    public void repeatedPartialDirtyDoesNotDuplicateRenderableLocalIndices() {
+        Fixture fixture = createWideSingleChunkFixture();
+        fixture.world.process();
+
+        TileChunk chunk = findChunk(fixture.map, 0, 0);
+        chunk.markLocalDirty(0);
+        chunk.markLocalDirty(0);
+        fixture.world.process();
+
+        Assert.assertEquals(2, chunk.getRenderableRefCount());
+        Assert.assertEquals(0, chunk.renderableLocalIndices.get(0));
+        Assert.assertEquals(3, chunk.renderableLocalIndices.get(1));
     }
 
     @Test
@@ -670,7 +743,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(1, 1, 2);
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
     private static Fixture createTwoChunksFixture() {
@@ -727,7 +800,7 @@ public class RenderTiledSyncSystemTest {
 
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
     private static Fixture createLargeMapFixture() {
@@ -773,7 +846,94 @@ public class RenderTiledSyncSystemTest {
         map.setTile(9, 9, 2);
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
+    }
+
+    private static Fixture createWideSingleChunkFixture() {
+        OrthographicCamera camera = new OrthographicCamera(16f, 16f);
+        camera.position.set(8f, 8f, 0f);
+
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+
+        DrawList drawList = new DrawList(256);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                tiledState,
+                atlas,
+                7,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1,
+                        2
+                )
+        );
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .build());
+
+        Entity layerEntity = world.createEntity();
+        LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.layerIndex = 0;
+
+        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+
+        TiledMapLayerData map = new TiledMapLayerData(4, 1, 16, 16, 4);
+        map.setTile(0, 0, 1);
+        map.setTile(3, 0, 2);
+        tiled.data = map;
+
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
+    }
+
+    private static Fixture createEmptySingleChunkFixture() {
+        OrthographicCamera camera = new OrthographicCamera(16f, 16f);
+        camera.position.set(8f, 8f, 0f);
+
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+
+        DrawList drawList = new DrawList(256);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                tiledState,
+                atlas,
+                7,
+                null,
+                topCenterProfiles(
+                        16,
+                        16,
+                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        1
+                )
+        );
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .build());
+
+        Entity layerEntity = world.createEntity();
+        LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.layerIndex = 0;
+
+        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+        tiled.data = new TiledMapLayerData(2, 2, 16, 16, 2);
+
+        return new Fixture(world, camera, tiledState, drawList, atlas, tiled.data, tiledSync, stats);
     }
 
     private static Fixture createIsometricFixture() {
@@ -816,7 +976,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(1, 1, 1);
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
     private static Fixture createTallIsometricFixture(float viewportWidth,
@@ -865,7 +1025,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
@@ -940,7 +1100,7 @@ public class RenderTiledSyncSystemTest {
         map.setTile(0, 0, tileId, transformFlags);
         tiled.data = map;
 
-        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync);
+        return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
     private static TileChunk findChunk(TiledMapLayerData map, int cx, int cy) {
@@ -1064,6 +1224,7 @@ public class RenderTiledSyncSystemTest {
         final CountingAtlasRuntimeService atlas;
         final TiledMapLayerData map;
         final RenderTiledSyncSystem tiledSync;
+        final RenderStats stats;
 
         Fixture(World world,
                 OrthographicCamera camera,
@@ -1071,7 +1232,8 @@ public class RenderTiledSyncSystemTest {
                 DrawList drawList,
                 CountingAtlasRuntimeService atlas,
                 TiledMapLayerData map,
-                RenderTiledSyncSystem tiledSync) {
+                RenderTiledSyncSystem tiledSync,
+                RenderStats stats) {
             this.world = world;
             this.camera = camera;
             this.tiledState = tiledState;
@@ -1079,6 +1241,7 @@ public class RenderTiledSyncSystemTest {
             this.atlas = atlas;
             this.map = map;
             this.tiledSync = tiledSync;
+            this.stats = stats;
         }
     }
 

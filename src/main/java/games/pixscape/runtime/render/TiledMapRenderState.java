@@ -17,6 +17,14 @@ public final class TiledMapRenderState {
 
     private int refCount;
 
+    public int cullingChunksTested;
+    public int cullingChunksOutside;
+    public int cullingChunksFullyInside;
+    public int cullingChunksPartial;
+    public int cullingRenderableRefsConsidered;
+    public int cullingRenderableRefsVisible;
+    public int cullingRenderableRefsCulled;
+
     public boolean[] enabled;
     public boolean[] visible;
 
@@ -68,6 +76,7 @@ public final class TiledMapRenderState {
 
     public void clearVisibleSlots() {
         clearVisibleRefs();
+        clearCullingStats();
     }
 
     public void clearVisibleRefs() {
@@ -191,6 +200,16 @@ public final class TiledMapRenderState {
 
     public int getGrowthCount() {
         return growthCount;
+    }
+
+    public void clearCullingStats() {
+        cullingChunksTested = 0;
+        cullingChunksOutside = 0;
+        cullingChunksFullyInside = 0;
+        cullingChunksPartial = 0;
+        cullingRenderableRefsConsidered = 0;
+        cullingRenderableRefsVisible = 0;
+        cullingRenderableRefsCulled = 0;
     }
 
     private void allocate(int newCapacity, boolean copyExisting) {

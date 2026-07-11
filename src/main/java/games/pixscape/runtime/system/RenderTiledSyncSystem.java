@@ -35,6 +35,10 @@ import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 @All({LayerComponent.class, TiledLayerComponent.class})
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
 
+    private static final int CHUNK_OUTSIDE = 0;
+    private static final int CHUNK_FULLY_INSIDE = 1;
+    private static final int CHUNK_PARTIAL = 2;
+
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
@@ -152,9 +156,24 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
                 testedChunkCount++;
 
-                // Final safety overlap check remains required (especially for ISO).
-                boolean inView = chunkOverlapsView(map, chunk);
-                if (!inView) {
+                ensureChunkRenderRefs(chunk);
+                if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
+                    dirtyFullChunkCount++;
+                    rebuildChunk(chunk, map, e, tiled.atlasTag, spatialSort);
+                } else if (chunk.dirtyState == TileChunk.DirtyState.PARTIAL) {
+                    dirtyPartialChunkCount++;
+                    updatePartialChunk(chunk, map, e, tiled.atlasTag, spatialSort);
+                }
+
+                if (chunk.renderMetadataDirty) {
+                    recomputeChunkVisualBounds(chunk);
+                }
+
+                int classification = classifyChunk(chunk);
+                tiledState.cullingChunksTested++;
+
+                if (classification == CHUNK_OUTSIDE) {
+                    tiledState.cullingChunksOutside++;
                     if (chunk.visibleLastFrame) {
                         hideChunkSlots(chunk);
                         chunk.visibleLastFrame = false;
@@ -164,26 +183,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 }
 
                 visibleChunkCount++;
-
-                ensureChunkRenderRefs(chunk);
                 if (!chunk.visibleLastFrame) {
                     shownChunkCount++;
                 }
                 chunk.visibleLastFrame = true;
-                for (int i = 0; i < chunk.cellCount(); i++) {
-                    tiledState.addVisibleRef(chunk.renderRefStartIndex + i);
-                }
 
-                if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
-                    dirtyFullChunkCount++;
-                    rebuildChunk(chunk, map, e, tiled.atlasTag, spatialSort);
-                } else if (chunk.dirtyState == TileChunk.DirtyState.PARTIAL) {
-                    dirtyPartialChunkCount++;
-                    updatePartialChunk(chunk, map, e, tiled.atlasTag, spatialSort);
+                if (classification == CHUNK_FULLY_INSIDE) {
+                    tiledState.cullingChunksFullyInside++;
+                    publishFullyInsideChunk(chunk);
+                } else {
+                    tiledState.cullingChunksPartial++;
+                    publishPartialChunk(chunk);
                 }
-
-                chunk.dirtyState = TileChunk.DirtyState.CLEAN;
-                chunk.dirtyLocalIndices.clear();
             }
         }
 
@@ -255,6 +266,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         chunk.dirtyLocalIndices.clear();
         chunk.dirtyState = TileChunk.DirtyState.CLEAN;
         chunk.contentDirty = false;
+        recomputeChunkVisualBounds(chunk);
     }
 
     private void ensureChunkRenderRefs(TileChunk chunk) {
@@ -346,9 +358,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         maxTy = Math.max(maxTy, ty);
 
         // Conservative expansion avoids edge misses; overlap test filters extras.
-        int tilePadding = map.projection == SceneMetaRuntime.TiledProjection.ISO
-                ? Math.max(1, map.chunkSize)
-                : 1;
+        int tilePadding = 1;
         minTx -= tilePadding;
         minTy -= tilePadding;
         maxTx += tilePadding;
@@ -379,27 +389,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         if (value < min) return min;
         if (value > max) return max;
         return value;
-    }
-
-    private boolean chunkOverlapsView(TiledMapLayerData map, TileChunk chunk) {
-        if (map.projection != SceneMetaRuntime.TiledProjection.ISO) {
-            return viewBounds.x < chunk.bounds.x + chunk.bounds.width + map.visualPaddingRight
-                    && viewBounds.x + viewBounds.width > chunk.bounds.x - map.visualPaddingLeft
-                    && viewBounds.y < chunk.bounds.y + chunk.bounds.height + map.visualPaddingTop
-                    && viewBounds.y + viewBounds.height > chunk.bounds.y - map.visualPaddingBottom;
-        }
-
-        float padX = Math.max(map.tileWidth, Math.max(map.visualPaddingLeft, map.visualPaddingRight));
-        float padY = Math.max(map.tileHeight * map.chunkSize, map.tileHeight);
-        float padLeft = Math.max(padX, map.visualPaddingLeft);
-        float padRight = Math.max(padX, map.visualPaddingRight);
-        float padTop = Math.max(padY, map.visualPaddingTop);
-        float padBottom = Math.max(padY, map.visualPaddingBottom);
-
-        return viewBounds.x < chunk.bounds.x + chunk.bounds.width + padRight
-                && viewBounds.x + viewBounds.width > chunk.bounds.x - padLeft
-                && viewBounds.y < chunk.bounds.y + chunk.bounds.height + padTop
-                && viewBounds.y + viewBounds.height > chunk.bounds.y - padBottom;
     }
 
     private void refreshVisualPaddingIfDirty(TiledMapLayerData map, String atlasTag) {
@@ -477,6 +466,130 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         // without a rebuild.
     }
 
+    private int classifyChunk(TileChunk chunk) {
+        if (chunk == null || !chunk.hasVisualBounds || chunk.getRenderableRefCount() == 0) {
+            return CHUNK_OUTSIDE;
+        }
+
+        float viewMinX = viewBounds.x;
+        float viewMinY = viewBounds.y;
+        float viewMaxX = viewBounds.x + viewBounds.width;
+        float viewMaxY = viewBounds.y + viewBounds.height;
+
+        if (!boundsOverlap(
+                chunk.visualMinX,
+                chunk.visualMinY,
+                chunk.visualMaxX,
+                chunk.visualMaxY,
+                viewMinX,
+                viewMinY,
+                viewMaxX,
+                viewMaxY)) {
+            return CHUNK_OUTSIDE;
+        }
+
+        if (viewMinX <= chunk.visualMinX
+                && viewMaxX >= chunk.visualMaxX
+                && viewMinY <= chunk.visualMinY
+                && viewMaxY >= chunk.visualMaxY) {
+            return CHUNK_FULLY_INSIDE;
+        }
+
+        return CHUNK_PARTIAL;
+    }
+
+    private void publishFullyInsideChunk(TileChunk chunk) {
+        int count = chunk.getRenderableRefCount();
+        tiledState.cullingRenderableRefsConsidered += count;
+        tiledState.cullingRenderableRefsVisible += count;
+
+        for (int i = 0; i < count; i++) {
+            tiledState.addVisibleRef(chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i));
+        }
+    }
+
+    private void publishPartialChunk(TileChunk chunk) {
+        int count = chunk.getRenderableRefCount();
+        tiledState.cullingRenderableRefsConsidered += count;
+
+        float viewMinX = viewBounds.x;
+        float viewMinY = viewBounds.y;
+        float viewMaxX = viewBounds.x + viewBounds.width;
+        float viewMaxY = viewBounds.y + viewBounds.height;
+
+        for (int i = 0; i < count; i++) {
+            int ref = chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i);
+            float minX = min4(tiledState.x1[ref], tiledState.x2[ref], tiledState.x3[ref], tiledState.x4[ref]);
+            float maxX = max4(tiledState.x1[ref], tiledState.x2[ref], tiledState.x3[ref], tiledState.x4[ref]);
+            float minY = min4(tiledState.y1[ref], tiledState.y2[ref], tiledState.y3[ref], tiledState.y4[ref]);
+            float maxY = max4(tiledState.y1[ref], tiledState.y2[ref], tiledState.y3[ref], tiledState.y4[ref]);
+
+            if (boundsOverlap(minX, minY, maxX, maxY, viewMinX, viewMinY, viewMaxX, viewMaxY)) {
+                tiledState.addVisibleRef(ref);
+                tiledState.cullingRenderableRefsVisible++;
+            } else {
+                tiledState.cullingRenderableRefsCulled++;
+            }
+        }
+    }
+
+    private void recomputeChunkVisualBounds(TileChunk chunk) {
+        int count = chunk.getRenderableRefCount();
+        if (count == 0 || chunk.renderRefStartIndex < 0) {
+            chunk.hasVisualBounds = false;
+            chunk.renderMetadataDirty = false;
+            return;
+        }
+
+        float minX = Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+
+        for (int i = 0; i < count; i++) {
+            int ref = chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i);
+
+            float refMinX = min4(tiledState.x1[ref], tiledState.x2[ref], tiledState.x3[ref], tiledState.x4[ref]);
+            float refMaxX = max4(tiledState.x1[ref], tiledState.x2[ref], tiledState.x3[ref], tiledState.x4[ref]);
+            float refMinY = min4(tiledState.y1[ref], tiledState.y2[ref], tiledState.y3[ref], tiledState.y4[ref]);
+            float refMaxY = max4(tiledState.y1[ref], tiledState.y2[ref], tiledState.y3[ref], tiledState.y4[ref]);
+
+            if (refMinX < minX) minX = refMinX;
+            if (refMaxX > maxX) maxX = refMaxX;
+            if (refMinY < minY) minY = refMinY;
+            if (refMaxY > maxY) maxY = refMaxY;
+        }
+
+        chunk.visualMinX = minX;
+        chunk.visualMinY = minY;
+        chunk.visualMaxX = maxX;
+        chunk.visualMaxY = maxY;
+        chunk.hasVisualBounds = true;
+        chunk.renderMetadataDirty = false;
+    }
+
+    private static boolean boundsOverlap(float minX,
+                                         float minY,
+                                         float maxX,
+                                         float maxY,
+                                         float otherMinX,
+                                         float otherMinY,
+                                         float otherMaxX,
+                                         float otherMaxY) {
+        return minX < otherMaxX
+                && maxX > otherMinX
+                && minY < otherMaxY
+                && maxY > otherMinY;
+    }
+
+    private static float min4(float a, float b, float c, float d) {
+        return Math.min(Math.min(a, b), Math.min(c, d));
+    }
+
+    private static float max4(float a, float b, float c, float d) {
+        return Math.max(Math.max(a, b), Math.max(c, d));
+    }
+
     private void rebuildChunk(TileChunk chunk,
                               TiledMapLayerData map,
                               int entityId,
@@ -485,6 +598,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 
+        chunk.clearRenderableRefs();
 
         // Slot storage remains row-major.
         // The final visual order is ensured by the sortKey:
@@ -516,6 +630,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
 
         chunk.contentDirty = false;
+        chunk.dirtyLocalIndices.clear();
+        chunk.dirtyState = TileChunk.DirtyState.CLEAN;
+        recomputeChunkVisualBounds(chunk);
     }
 
     private void writeTileSlot(TileChunk chunk,
@@ -532,6 +649,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         if (assetId <= 0) {
             tiledState.disableRef(tiledRenderRef);
+            chunk.setRenderableLocalIndex(localIndex, false);
             return;
         }
 
@@ -548,6 +666,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         if (cr == null) {
             tiledState.disableRef(tiledRenderRef);
+            chunk.setRenderableLocalIndex(localIndex, false);
             return;
         }
 
@@ -555,6 +674,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         if (profile == null) {
             reportMissingProfileOnce(visualAssetId, assetId, atlasTag);
             tiledState.disableRef(tiledRenderRef);
+            chunk.setRenderableLocalIndex(localIndex, false);
             return;
         }
 
@@ -614,6 +734,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 1f,
                 RenderRepeatFlags.NONE
         );
+        chunk.setRenderableLocalIndex(localIndex, true);
+        chunk.markRenderMetadataDirty();
     }
 
     private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {

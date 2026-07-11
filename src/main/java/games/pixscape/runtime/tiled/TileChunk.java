@@ -77,6 +77,15 @@ public final class TileChunk {
     public int renderRefStartIndex = -1;
     public int renderRefCount;
 
+    public transient IntArray renderableLocalIndices = new IntArray(false, 8);
+    private transient boolean[] renderableMembership;
+    public transient boolean renderMetadataDirty = true;
+    public transient boolean hasVisualBounds = false;
+    public transient float visualMinX;
+    public transient float visualMinY;
+    public transient float visualMaxX;
+    public transient float visualMaxY;
+
     public boolean contentDirty = true;
     public boolean collisionDirty = true;
     public transient boolean visibleLastFrame = false;
@@ -104,6 +113,66 @@ public final class TileChunk {
         this.transformFlags = new byte[cellCount];
 
         this.bounds = new Rectangle();
+    }
+
+    public int getRenderableRefCount() {
+        return renderableLocalIndices != null ? renderableLocalIndices.size : 0;
+    }
+
+    public void clearRenderableRefs() {
+        ensureRenderableStorage();
+        renderableLocalIndices.clear();
+        for (int i = 0; i < renderableMembership.length; i++) {
+            renderableMembership[i] = false;
+        }
+        renderMetadataDirty = true;
+    }
+
+    public void setRenderableLocalIndex(int localIndex, boolean renderable) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
+            return;
+        }
+
+        ensureRenderableStorage();
+        boolean wasRenderable = renderableMembership[localIndex];
+        if (renderable == wasRenderable) {
+            return;
+        }
+
+        if (renderable) {
+            renderableMembership[localIndex] = true;
+            renderableLocalIndices.add(localIndex);
+        } else {
+            renderableMembership[localIndex] = false;
+            for (int i = 0; i < renderableLocalIndices.size; i++) {
+                if (renderableLocalIndices.get(i) == localIndex) {
+                    renderableLocalIndices.removeIndex(i);
+                    break;
+                }
+            }
+        }
+
+        renderMetadataDirty = true;
+    }
+
+    public void markRenderMetadataDirty() {
+        renderMetadataDirty = true;
+    }
+
+    private void ensureRenderableStorage() {
+        int count = cellCount();
+        if (renderableLocalIndices == null) {
+            renderableLocalIndices = new IntArray(false, Math.min(Math.max(count, 1), 16));
+        }
+        if (renderableMembership == null || renderableMembership.length != count) {
+            renderableMembership = new boolean[count];
+            for (int i = 0; i < renderableLocalIndices.size; i++) {
+                int localIndex = renderableLocalIndices.get(i);
+                if (localIndex >= 0 && localIndex < count) {
+                    renderableMembership[localIndex] = true;
+                }
+            }
+        }
     }
 
     public int get(int localX, int localY) {

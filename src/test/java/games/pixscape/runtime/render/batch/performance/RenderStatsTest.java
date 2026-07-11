@@ -21,6 +21,13 @@ public class RenderStatsTest {
         stats.vfxActiveParticles = 11;
         stats.vfxPeakCapacity = 12;
         stats.vfxGrowthCount = 13;
+        stats.tiledChunksTested = 14;
+        stats.tiledChunksOutside = 15;
+        stats.tiledChunksFullyInside = 16;
+        stats.tiledChunksPartial = 17;
+        stats.tiledRenderableRefsConsidered = 18;
+        stats.tiledRenderableRefsVisible = 19;
+        stats.tiledRenderableRefsCulled = 20;
 
         stats.reset();
 
@@ -37,6 +44,13 @@ public class RenderStatsTest {
         Assert.assertEquals(0, stats.vfxActiveParticles);
         Assert.assertEquals(0, stats.vfxPeakCapacity);
         Assert.assertEquals(0, stats.vfxGrowthCount);
+        Assert.assertEquals(0, stats.tiledChunksTested);
+        Assert.assertEquals(0, stats.tiledChunksOutside);
+        Assert.assertEquals(0, stats.tiledChunksFullyInside);
+        Assert.assertEquals(0, stats.tiledChunksPartial);
+        Assert.assertEquals(0, stats.tiledRenderableRefsConsidered);
+        Assert.assertEquals(0, stats.tiledRenderableRefsVisible);
+        Assert.assertEquals(0, stats.tiledRenderableRefsCulled);
     }
 
     @Test
@@ -55,6 +69,13 @@ public class RenderStatsTest {
         total.vfxActiveParticles = 11;
         total.vfxPeakCapacity = 12;
         total.vfxGrowthCount = 13;
+        total.tiledChunksTested = 14;
+        total.tiledChunksOutside = 15;
+        total.tiledChunksFullyInside = 16;
+        total.tiledChunksPartial = 17;
+        total.tiledRenderableRefsConsidered = 18;
+        total.tiledRenderableRefsVisible = 19;
+        total.tiledRenderableRefsCulled = 20;
 
         RenderStats frame = new RenderStats();
         frame.textureArrayBindSkips = 10;
@@ -70,6 +91,13 @@ public class RenderStatsTest {
         frame.vfxActiveParticles = 110;
         frame.vfxPeakCapacity = 120;
         frame.vfxGrowthCount = 130;
+        frame.tiledChunksTested = 140;
+        frame.tiledChunksOutside = 150;
+        frame.tiledChunksFullyInside = 160;
+        frame.tiledChunksPartial = 170;
+        frame.tiledRenderableRefsConsidered = 180;
+        frame.tiledRenderableRefsVisible = 190;
+        frame.tiledRenderableRefsCulled = 200;
 
         total.add(frame);
 
@@ -86,5 +114,12 @@ public class RenderStatsTest {
         Assert.assertEquals(121, total.vfxActiveParticles);
         Assert.assertEquals(120, total.vfxPeakCapacity);
         Assert.assertEquals(143, total.vfxGrowthCount);
+        Assert.assertEquals(154, total.tiledChunksTested);
+        Assert.assertEquals(165, total.tiledChunksOutside);
+        Assert.assertEquals(176, total.tiledChunksFullyInside);
+        Assert.assertEquals(187, total.tiledChunksPartial);
+        Assert.assertEquals(198, total.tiledRenderableRefsConsidered);
+        Assert.assertEquals(209, total.tiledRenderableRefsVisible);
+        Assert.assertEquals(220, total.tiledRenderableRefsCulled);
     }
 }

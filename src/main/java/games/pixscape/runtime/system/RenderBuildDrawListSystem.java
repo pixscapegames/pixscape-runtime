@@ -116,6 +116,13 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         stats.buildDrawListScannedTiledSlots = tiledVisibleRefCount;
+        stats.tiledChunksTested = tiledState.cullingChunksTested;
+        stats.tiledChunksOutside = tiledState.cullingChunksOutside;
+        stats.tiledChunksFullyInside = tiledState.cullingChunksFullyInside;
+        stats.tiledChunksPartial = tiledState.cullingChunksPartial;
+        stats.tiledRenderableRefsConsidered = tiledState.cullingRenderableRefsConsidered;
+        stats.tiledRenderableRefsVisible = tiledState.cullingRenderableRefsVisible;
+        stats.tiledRenderableRefsCulled = tiledState.cullingRenderableRefsCulled;
         stats.extractedQuads = drawList.size;
         if (vfxState != null) {
             vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());
