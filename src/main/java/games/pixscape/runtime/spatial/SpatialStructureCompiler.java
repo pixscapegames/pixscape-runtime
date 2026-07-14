@@ -5,153 +5,225 @@ import games.pixscape.runtime.component.SpatialBlockData;
 
 import java.util.Arrays;
 
-/** Compiles authored rectangles into the deterministic exposed boundary of one structure. */
+/** Strict compiler for deterministic exposed faces of one authored Spatial V3 structure. */
 public final class SpatialStructureCompiler {
-    private static final byte HORIZONTAL = 0;
-    private static final byte VERTICAL = 1;
-
     private SpatialStructureCompiler() {
     }
 
     public static CompiledSpatialStructure compile(Array<SpatialBlockData> authoredWalls, int structureId) {
-        if (authoredWalls == null || structureId <= 0) return empty(structureId);
+        long started = System.nanoTime();
+        if (authoredWalls == null) throw failure(structureId, "authored wall collection is missing");
+        if (structureId <= 0) throw failure(structureId, "structure id must be positive");
 
-        int wallCount = 0;
+        int wallCount = countWalls(authoredWalls, structureId);
+        if (wallCount == 0) throw failure(structureId, "structure is empty");
+        WallInput input = collectAndValidate(authoredWalls, structureId, wallCount);
+        Coordinates coordinates = compressCoordinates(input, structureId);
+        FaceCompilation complete = compileFaces(input, coordinates, false);
+        FaceCompilation actor = compileFaces(input, coordinates, true);
+
+        CompiledSpatialStructure.Diagnostics diagnostics = new CompiledSpatialStructure.Diagnostics(
+                wallCount, coordinates.xCount, coordinates.yCount,
+                complete.coveredCellCount, complete.rawBoundaryCount, complete.faces.faceCount(),
+                actor.coveredCellCount, actor.rawBoundaryCount, actor.faces.faceCount(),
+                System.nanoTime() - started);
+        return new CompiledSpatialStructure(structureId,
+                coordinates.x[0], coordinates.y[0],
+                coordinates.x[coordinates.xCount - 1], coordinates.y[coordinates.yCount - 1],
+                input.altitude, input.height, complete.faces, actor.faces, diagnostics);
+    }
+
+    private static int countWalls(Array<SpatialBlockData> authoredWalls, int structureId) {
+        int count = 0;
         for (int i = 0; i < authoredWalls.size; i++) {
             SpatialBlockData wall = authoredWalls.get(i);
-            if (wall != null && wall.structureId == structureId) wallCount++;
+            if (wall != null && wall.structureId == structureId) count++;
         }
-        if (wallCount == 0) return empty(structureId);
+        return count;
+    }
 
-        float[] minX = new float[wallCount];
-        float[] maxX = new float[wallCount];
-        float[] minY = new float[wallCount];
-        float[] maxY = new float[wallCount];
-        SpatialBlockData[] walls = new SpatialBlockData[wallCount];
-        float[] xs = new float[wallCount * 2];
-        float[] ys = new float[wallCount * 2];
+    private static WallInput collectAndValidate(Array<SpatialBlockData> authoredWalls,
+                                                int structureId,
+                                                int wallCount) {
+        WallInput input = new WallInput(wallCount);
         SpatialWallGeometry.Bounds bounds = new SpatialWallGeometry.Bounds();
         int next = 0;
         for (int i = 0; i < authoredWalls.size; i++) {
             SpatialBlockData wall = authoredWalls.get(i);
             if (wall == null || wall.structureId != structureId) continue;
-            if (!SpatialWallGeometry.extractBounds(wall, bounds)) {
-                throw new IllegalArgumentException("Cannot compile malformed authored wall " + wall.id + ".");
+            if (wall.id <= 0) throw failure(structureId, "wall id must be positive");
+            for (int previous = 0; previous < next; previous++) {
+                if (input.id[previous] == wall.id) {
+                    throw failure(structureId, "duplicate wall id " + wall.id);
+                }
             }
-            walls[next] = wall;
-            minX[next] = bounds.minX;
-            maxX[next] = bounds.maxX;
-            minY[next] = bounds.minY;
-            maxY[next] = bounds.maxY;
-            xs[next * 2] = bounds.minX;
-            xs[next * 2 + 1] = bounds.maxX;
-            ys[next * 2] = bounds.minY;
-            ys[next * 2 + 1] = bounds.maxY;
+            if (!SpatialWallGeometry.extractBounds(wall, bounds)) {
+                throw failure(structureId, "wall " + wall.id + " has malformed footprint geometry");
+            }
+            if (!(bounds.maxX > bounds.minX + SpatialWallGeometry.GEOMETRY_EPSILON)
+                    || !(bounds.maxY > bounds.minY + SpatialWallGeometry.GEOMETRY_EPSILON)) {
+                throw failure(structureId, "wall " + wall.id + " is too thin for an exposed face");
+            }
+            if (!SpatialWallGeometry.isFinite(wall.altitude)
+                    || !SpatialWallGeometry.isFinite(wall.height)
+                    || wall.height < SpatialWallGeometry.GEOMETRY_EPSILON) {
+                throw failure(structureId, "wall " + wall.id + " has malformed altitude or height");
+            }
+            input.id[next] = wall.id;
+            input.minX[next] = bounds.minX;
+            input.maxX[next] = bounds.maxX;
+            input.minY[next] = bounds.minY;
+            input.maxY[next] = bounds.maxY;
+            input.actorOccluder[next] = wall.actorOccluder;
+            if (next == 0) {
+                input.altitude = wall.altitude;
+                input.height = wall.height;
+            } else if (Float.compare(input.altitude, wall.altitude) != 0) {
+                throw failure(structureId, "walls have mixed altitude");
+            } else if (Float.compare(input.height, wall.height) != 0) {
+                throw failure(structureId, "walls have mixed height");
+            }
             next++;
         }
-        float structureAltitude = walls[0].altitude;
-        float structureHeight = walls[0].height;
-        for (int i = 1; i < wallCount; i++) {
-            if (Float.compare(walls[i].altitude, structureAltitude) != 0
-                    || Float.compare(walls[i].height, structureHeight) != 0) {
-                throw new IllegalArgumentException(
-                        "Compiled structure walls must share altitude and height: structureId=" + structureId + ".");
+        validateTopology(input, structureId);
+        return input;
+    }
+
+    private static void validateTopology(WallInput input, int structureId) {
+        int count = input.id.length;
+        boolean[] connected = new boolean[count * count];
+        for (int first = 0; first < count; first++) {
+            for (int second = first + 1; second < count; second++) {
+                boolean xOverlap = overlap(input.minX[first], input.maxX[first],
+                        input.minX[second], input.maxX[second]);
+                boolean yOverlap = overlap(input.minY[first], input.maxY[first],
+                        input.minY[second], input.maxY[second]);
+                if (!xOverlap || !yOverlap) continue;
+                boolean duplicate = sameBounds(input, first, second);
+                boolean containment = contains(input, first, second) || contains(input, second, first);
+                if (duplicate || containment) {
+                    throw failure(structureId, duplicate
+                            ? "duplicate wall footprints are forbidden"
+                            : "contained wall footprints are forbidden");
+                }
+                connected[first * count + second] = true;
+                connected[second * count + first] = true;
             }
         }
-
-        int xCount = sortUnique(xs);
-        int yCount = sortUnique(ys);
-        if (xCount < 2 || yCount < 2) return empty(structureId);
-        int columns = xCount - 1;
-        int rows = yCount - 1;
-        int cellCount = columns * rows;
-        boolean[] occupied = new boolean[cellCount];
-        boolean[] actor = new boolean[cellCount];
-        boolean[] physics = new boolean[cellCount];
-        boolean[] light = new boolean[cellCount];
-        boolean[] shadow = new boolean[cellCount];
-        boolean[] particle = new boolean[cellCount];
-        int differenceSize = xCount * yCount;
-        int[] occupiedDifference = new int[differenceSize];
-        int[] actorDifference = new int[differenceSize];
-        int[] physicsDifference = new int[differenceSize];
-        int[] lightDifference = new int[differenceSize];
-        int[] shadowDifference = new int[differenceSize];
-        int[] particleDifference = new int[differenceSize];
-
-        for (int wallIndex = 0; wallIndex < wallCount; wallIndex++) {
-            int x0 = indexOf(xs, xCount, minX[wallIndex]);
-            int x1 = indexOf(xs, xCount, maxX[wallIndex]);
-            int y0 = indexOf(ys, yCount, minY[wallIndex]);
-            int y1 = indexOf(ys, yCount, maxY[wallIndex]);
-            SpatialBlockData wall = walls[wallIndex];
-            addRectangle(occupiedDifference, xCount, x0, y0, x1, y1);
-            if (wall.actorOccluder) addRectangle(actorDifference, xCount, x0, y0, x1, y1);
-            if (wall.physicsCollision) addRectangle(physicsDifference, xCount, x0, y0, x1, y1);
-            if (wall.lightOccluder) addRectangle(lightDifference, xCount, x0, y0, x1, y1);
-            if (wall.shadowCaster) addRectangle(shadowDifference, xCount, x0, y0, x1, y1);
-            if (wall.particleOccluder) addRectangle(particleDifference, xCount, x0, y0, x1, y1);
+        boolean[] visited = new boolean[count];
+        int[] queue = new int[count];
+        int read = 0;
+        int write = 1;
+        visited[0] = true;
+        while (read < write) {
+            int current = queue[read++];
+            for (int candidate = 0; candidate < count; candidate++) {
+                if (!visited[candidate] && connected[current * count + candidate]) {
+                    visited[candidate] = true;
+                    queue[write++] = candidate;
+                }
+            }
         }
-        materialize(occupiedDifference, xCount, yCount, columns, occupied);
-        materialize(actorDifference, xCount, yCount, columns, actor);
-        materialize(physicsDifference, xCount, yCount, columns, physics);
-        materialize(lightDifference, xCount, yCount, columns, light);
-        materialize(shadowDifference, xCount, yCount, columns, shadow);
-        materialize(particleDifference, xCount, yCount, columns, particle);
+        if (write != count) throw failure(structureId, "walls are disconnected");
+    }
 
-        BoundaryBuilder boundary = new BoundaryBuilder(Math.max(4, cellCount * 2));
+    private static Coordinates compressCoordinates(WallInput input, int structureId) {
+        int count = input.id.length;
+        float[] x = new float[count * 2];
+        float[] y = new float[count * 2];
+        for (int i = 0; i < count; i++) {
+            x[i * 2] = input.minX[i];
+            x[i * 2 + 1] = input.maxX[i];
+            y[i * 2] = input.minY[i];
+            y[i * 2 + 1] = input.maxY[i];
+        }
+        int xCount = sortAndCanonicalize(x);
+        int yCount = sortAndCanonicalize(y);
+        for (int i = 0; i < count; i++) {
+            input.minXi[i] = canonicalIndex(x, xCount, input.minX[i]);
+            input.maxXi[i] = canonicalIndex(x, xCount, input.maxX[i]);
+            input.minYi[i] = canonicalIndex(y, yCount, input.minY[i]);
+            input.maxYi[i] = canonicalIndex(y, yCount, input.maxY[i]);
+            if (input.minXi[i] >= input.maxXi[i] || input.minYi[i] >= input.maxYi[i]) {
+                throw failure(structureId, "epsilon canonicalization collapsed wall " + input.id[i]);
+            }
+        }
+        return new Coordinates(x, xCount, y, yCount);
+    }
+
+    private static FaceCompilation compileFaces(WallInput input,
+                                                Coordinates coordinates,
+                                                boolean actorOnly) {
+        int columns = coordinates.xCount - 1;
+        int rows = coordinates.yCount - 1;
+        boolean[] covered = new boolean[columns * rows];
+        int[] difference = new int[coordinates.xCount * coordinates.yCount];
+        int selectedWallCount = 0;
+        for (int wall = 0; wall < input.id.length; wall++) {
+            if (actorOnly && !input.actorOccluder[wall]) continue;
+            addRectangle(difference, coordinates.xCount,
+                    input.minXi[wall], input.minYi[wall], input.maxXi[wall], input.maxYi[wall]);
+            selectedWallCount++;
+        }
+        if (selectedWallCount == 0) {
+            return new FaceCompilation(emptyFaces(), 0, 0);
+        }
+        int coveredCellCount = materialize(difference, coordinates.xCount,
+                coordinates.yCount, columns, covered);
+        BoundaryBuilder boundary = new BoundaryBuilder(Math.max(4, coveredCellCount * 2));
         for (int y = 0; y < rows; y++) {
             for (int x = 0; x < columns; x++) {
                 int cell = y * columns + x;
-                if (!occupied[cell]) continue;
-                if (x == 0 || !occupied[cell - 1]) {
-                    boundary.add(VERTICAL, xs[x], ys[y], ys[y + 1], -1, 0,
-                            actor[cell], physics[cell], light[cell], shadow[cell], particle[cell]);
+                if (!covered[cell]) continue;
+                if (x == 0 || !covered[cell - 1]) {
+                    boundary.add(CompiledSpatialStructure.MIN_X,
+                            coordinates.x[x], coordinates.y[y], coordinates.y[y + 1]);
                 }
-                if (x == columns - 1 || !occupied[cell + 1]) {
-                    boundary.add(VERTICAL, xs[x + 1], ys[y], ys[y + 1], 1, 0,
-                            actor[cell], physics[cell], light[cell], shadow[cell], particle[cell]);
+                if (x == columns - 1 || !covered[cell + 1]) {
+                    boundary.add(CompiledSpatialStructure.MAX_X,
+                            coordinates.x[x + 1], coordinates.y[y], coordinates.y[y + 1]);
                 }
-                if (y == 0 || !occupied[cell - columns]) {
-                    boundary.add(HORIZONTAL, ys[y], xs[x], xs[x + 1], 0, -1,
-                            actor[cell], physics[cell], light[cell], shadow[cell], particle[cell]);
+                if (y == 0 || !covered[cell - columns]) {
+                    boundary.add(CompiledSpatialStructure.MIN_Y,
+                            coordinates.y[y], coordinates.x[x], coordinates.x[x + 1]);
                 }
-                if (y == rows - 1 || !occupied[cell + columns]) {
-                    boundary.add(HORIZONTAL, ys[y + 1], xs[x], xs[x + 1], 0, 1,
-                            actor[cell], physics[cell], light[cell], shadow[cell], particle[cell]);
+                if (y == rows - 1 || !covered[cell + columns]) {
+                    boundary.add(CompiledSpatialStructure.MAX_Y,
+                            coordinates.y[y + 1], coordinates.x[x], coordinates.x[x + 1]);
                 }
             }
         }
-
+        int rawBoundaryCount = boundary.size();
         boundary.sort();
         boundary.mergeCollinear();
-        float lower = structureAltitude;
-        float upper = lower + Math.max(0f, structureHeight);
-        return boundary.build(structureId, lower, upper);
+        return new FaceCompilation(boundary.build(), coveredCellCount, rawBoundaryCount);
     }
 
-    private static int sortUnique(float[] values) {
+    private static int sortAndCanonicalize(float[] values) {
         Arrays.sort(values);
         int unique = 0;
-        for (int i = 0; i < values.length; i++) {
-            if (unique == 0 || Float.compare(values[i], values[unique - 1]) != 0) {
-                values[unique++] = values[i];
-            }
+        int read = 0;
+        while (read < values.length) {
+            float canonical = values[read];
+            values[unique++] = canonical;
+            read++;
+            while (read < values.length
+                    && values[read] - canonical <= SpatialWallGeometry.GEOMETRY_EPSILON) read++;
         }
         return unique;
     }
 
-    private static int indexOf(float[] values, int count, float value) {
+    private static int canonicalIndex(float[] canonical, int count, float value) {
         int low = 0;
         int high = count - 1;
         while (low <= high) {
-            int mid = (low + high) >>> 1;
-            int compare = Float.compare(values[mid], value);
-            if (compare < 0) low = mid + 1;
-            else if (compare > 0) high = mid - 1;
-            else return mid;
+            int middle = (low + high) >>> 1;
+            float coordinate = canonical[middle];
+            if (value < coordinate) high = middle - 1;
+            else if (value - coordinate > SpatialWallGeometry.GEOMETRY_EPSILON) low = middle + 1;
+            else return middle;
         }
-        throw new IllegalStateException("Compressed structure coordinate is missing.");
+        throw new IllegalStateException("Canonical structure coordinate is missing.");
     }
 
     private static void addRectangle(int[] difference,
@@ -166,11 +238,12 @@ public final class SpatialStructureCompiler {
         difference[maxYExclusive * width + maxXExclusive]++;
     }
 
-    private static void materialize(int[] difference,
-                                    int width,
-                                    int height,
-                                    int cellColumns,
-                                    boolean[] output) {
+    private static int materialize(int[] difference,
+                                   int width,
+                                   int height,
+                                   int cellColumns,
+                                   boolean[] output) {
+        int covered = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int index = y * width + x;
@@ -179,16 +252,97 @@ public final class SpatialStructureCompiler {
                 if (y > 0) value += difference[index - width];
                 if (x > 0 && y > 0) value -= difference[index - width - 1];
                 difference[index] = value;
-                if (x < width - 1 && y < height - 1) output[y * cellColumns + x] = value > 0;
+                if (x < width - 1 && y < height - 1 && value > 0) {
+                    output[y * cellColumns + x] = true;
+                    covered++;
+                }
             }
+        }
+        return covered;
+    }
+
+    private static boolean overlap(float minA, float maxA, float minB, float maxB) {
+        return Math.min(maxA, maxB) - Math.max(minA, minB) > SpatialWallGeometry.GEOMETRY_EPSILON;
+    }
+
+    private static boolean sameBounds(WallInput input, int first, int second) {
+        return nearlyEqual(input.minX[first], input.minX[second])
+                && nearlyEqual(input.maxX[first], input.maxX[second])
+                && nearlyEqual(input.minY[first], input.minY[second])
+                && nearlyEqual(input.maxY[first], input.maxY[second]);
+    }
+
+    private static boolean contains(WallInput input, int outer, int inner) {
+        return input.minX[outer] <= input.minX[inner] + SpatialWallGeometry.GEOMETRY_EPSILON
+                && input.maxX[outer] + SpatialWallGeometry.GEOMETRY_EPSILON >= input.maxX[inner]
+                && input.minY[outer] <= input.minY[inner] + SpatialWallGeometry.GEOMETRY_EPSILON
+                && input.maxY[outer] + SpatialWallGeometry.GEOMETRY_EPSILON >= input.maxY[inner];
+    }
+
+    private static boolean nearlyEqual(float first, float second) {
+        return Math.abs(first - second) <= SpatialWallGeometry.GEOMETRY_EPSILON;
+    }
+
+    private static IllegalArgumentException failure(int structureId, String detail) {
+        return new IllegalArgumentException("Cannot compile Spatial V3 structure " + structureId + ": " + detail + ".");
+    }
+
+    private static CompiledSpatialStructure.FaceSet emptyFaces() {
+        return new CompiledSpatialStructure.FaceSet(new byte[0], new float[0], new float[0], new float[0]);
+    }
+
+    private static final class WallInput {
+        final int[] id;
+        final float[] minX;
+        final float[] maxX;
+        final float[] minY;
+        final float[] maxY;
+        final boolean[] actorOccluder;
+        final int[] minXi;
+        final int[] maxXi;
+        final int[] minYi;
+        final int[] maxYi;
+        float altitude;
+        float height;
+
+        WallInput(int count) {
+            id = new int[count];
+            minX = new float[count];
+            maxX = new float[count];
+            minY = new float[count];
+            maxY = new float[count];
+            actorOccluder = new boolean[count];
+            minXi = new int[count];
+            maxXi = new int[count];
+            minYi = new int[count];
+            maxYi = new int[count];
         }
     }
 
-    private static CompiledSpatialStructure empty(int structureId) {
-        return new CompiledSpatialStructure(structureId, 0f, 0f,
-                new float[0], new float[0], new float[0], new float[0],
-                new byte[0], new byte[0], new boolean[0], new boolean[0],
-                new boolean[0], new boolean[0], new boolean[0]);
+    private static final class Coordinates {
+        final float[] x;
+        final int xCount;
+        final float[] y;
+        final int yCount;
+
+        Coordinates(float[] x, int xCount, float[] y, int yCount) {
+            this.x = x;
+            this.xCount = xCount;
+            this.y = y;
+            this.yCount = yCount;
+        }
+    }
+
+    private static final class FaceCompilation {
+        final CompiledSpatialStructure.FaceSet faces;
+        final int coveredCellCount;
+        final int rawBoundaryCount;
+
+        FaceCompilation(CompiledSpatialStructure.FaceSet faces, int coveredCellCount, int rawBoundaryCount) {
+            this.faces = faces;
+            this.coveredCellCount = coveredCellCount;
+            this.rawBoundaryCount = rawBoundaryCount;
+        }
     }
 
     private static final class BoundaryBuilder {
@@ -197,65 +351,48 @@ public final class SpatialStructureCompiler {
         private float[] line;
         private float[] start;
         private float[] end;
-        private byte[] normalX;
-        private byte[] normalY;
-        private boolean[] actor;
-        private boolean[] physics;
-        private boolean[] light;
-        private boolean[] shadow;
-        private boolean[] particle;
 
         BoundaryBuilder(int capacity) {
             orientation = new byte[capacity];
             line = new float[capacity];
             start = new float[capacity];
             end = new float[capacity];
-            normalX = new byte[capacity];
-            normalY = new byte[capacity];
-            actor = new boolean[capacity];
-            physics = new boolean[capacity];
-            light = new boolean[capacity];
-            shadow = new boolean[capacity];
-            particle = new boolean[capacity];
         }
 
-        void add(byte segmentOrientation, float segmentLine, float segmentStart, float segmentEnd,
-                 int nx, int ny, boolean isActor, boolean isPhysics,
-                 boolean isLight, boolean isShadow, boolean isParticle) {
+        int size() { return size; }
+
+        void add(byte faceOrientation, float constant, float faceStart, float faceEnd) {
+            if (!(faceEnd > faceStart + SpatialWallGeometry.GEOMETRY_EPSILON)) return;
             ensureCapacity(size + 1);
-            orientation[size] = segmentOrientation;
-            line[size] = segmentLine;
-            start[size] = segmentStart;
-            end[size] = segmentEnd;
-            normalX[size] = (byte) nx;
-            normalY[size] = (byte) ny;
-            actor[size] = isActor;
-            physics[size] = isPhysics;
-            light[size] = isLight;
-            shadow[size] = isShadow;
-            particle[size] = isParticle;
+            orientation[size] = faceOrientation;
+            line[size] = constant;
+            start[size] = faceStart;
+            end[size] = faceEnd;
             size++;
         }
 
         void sort() {
             int[] order = new int[size];
-            int[] temp = new int[size];
+            int[] temporary = new int[size];
             for (int i = 0; i < size; i++) order[i] = i;
             for (int width = 1; width < size; width <<= 1) {
                 for (int left = 0; left < size; left += width << 1) {
                     int middle = Math.min(left + width, size);
                     int right = Math.min(left + (width << 1), size);
-                    int a = left;
-                    int b = middle;
-                    int out = left;
-                    while (a < middle || b < right) {
-                        if (b >= right || a < middle && compare(order[a], order[b]) <= 0) temp[out++] = order[a++];
-                        else temp[out++] = order[b++];
+                    int first = left;
+                    int second = middle;
+                    int output = left;
+                    while (first < middle || second < right) {
+                        if (second >= right || first < middle && compare(order[first], order[second]) <= 0) {
+                            temporary[output++] = order[first++];
+                        } else {
+                            temporary[output++] = order[second++];
+                        }
                     }
                 }
                 int[] swap = order;
-                order = temp;
-                temp = swap;
+                order = temporary;
+                temporary = swap;
             }
             reorder(order);
         }
@@ -263,7 +400,9 @@ public final class SpatialStructureCompiler {
         void mergeCollinear() {
             int write = 0;
             for (int read = 0; read < size; read++) {
-                if (write > 0 && compatible(write - 1, read)
+                if (write > 0
+                        && orientation[write - 1] == orientation[read]
+                        && Float.compare(line[write - 1], line[read]) == 0
                         && start[read] <= end[write - 1] + SpatialWallGeometry.GEOMETRY_EPSILON) {
                     if (end[read] > end[write - 1]) end[write - 1] = end[read];
                 } else {
@@ -274,24 +413,10 @@ public final class SpatialStructureCompiler {
             size = write;
         }
 
-        CompiledSpatialStructure build(int structureId, float lower, float upper) {
-            float[] sx = new float[size];
-            float[] sy = new float[size];
-            float[] ex = new float[size];
-            float[] ey = new float[size];
-            for (int i = 0; i < size; i++) {
-                if (orientation[i] == HORIZONTAL) {
-                    sx[i] = start[i]; sy[i] = line[i]; ex[i] = end[i]; ey[i] = line[i];
-                } else {
-                    sx[i] = line[i]; sy[i] = start[i]; ex[i] = line[i]; ey[i] = end[i];
-                }
-            }
-            return new CompiledSpatialStructure(structureId, lower, upper,
-                    sx, sy, ex, ey,
-                    Arrays.copyOf(normalX, size), Arrays.copyOf(normalY, size),
-                    Arrays.copyOf(actor, size),
-                    Arrays.copyOf(physics, size), Arrays.copyOf(light, size),
-                    Arrays.copyOf(shadow, size), Arrays.copyOf(particle, size));
+        CompiledSpatialStructure.FaceSet build() {
+            return new CompiledSpatialStructure.FaceSet(
+                    Arrays.copyOf(orientation, size), Arrays.copyOf(line, size),
+                    Arrays.copyOf(start, size), Arrays.copyOf(end, size));
         }
 
         private int compare(int first, int second) {
@@ -299,31 +424,8 @@ public final class SpatialStructureCompiler {
             if (result != 0) return result;
             result = Float.compare(line[first], line[second]);
             if (result != 0) return result;
-            result = normalX[first] - normalX[second];
-            if (result != 0) return result;
-            result = normalY[first] - normalY[second];
-            if (result != 0) return result;
-            result = compareProperties(first, second);
-            if (result != 0) return result;
             result = Float.compare(start[first], start[second]);
             return result != 0 ? result : Float.compare(end[first], end[second]);
-        }
-
-        private int compareProperties(int first, int second) {
-            int result = compareBoolean(actor[first], actor[second]);
-            if (result == 0) result = compareBoolean(physics[first], physics[second]);
-            if (result == 0) result = compareBoolean(light[first], light[second]);
-            if (result == 0) result = compareBoolean(shadow[first], shadow[second]);
-            if (result == 0) result = compareBoolean(particle[first], particle[second]);
-            return result;
-        }
-
-        private boolean compatible(int first, int second) {
-            return orientation[first] == orientation[second]
-                    && Float.compare(line[first], line[second]) == 0
-                    && normalX[first] == normalX[second]
-                    && normalY[first] == normalY[second]
-                    && compareProperties(first, second) == 0;
         }
 
         private void reorder(int[] order) {
@@ -331,57 +433,33 @@ public final class SpatialStructureCompiler {
             float[] oldLine = line;
             float[] oldStart = start;
             float[] oldEnd = end;
-            byte[] oldNormalX = normalX;
-            byte[] oldNormalY = normalY;
-            boolean[] oldActor = actor;
-            boolean[] oldPhysics = physics;
-            boolean[] oldLight = light;
-            boolean[] oldShadow = shadow;
-            boolean[] oldParticle = particle;
             orientation = new byte[oldOrientation.length];
             line = new float[oldLine.length];
             start = new float[oldStart.length];
             end = new float[oldEnd.length];
-            normalX = new byte[oldNormalX.length];
-            normalY = new byte[oldNormalY.length];
-            actor = new boolean[oldActor.length];
-            physics = new boolean[oldPhysics.length];
-            light = new boolean[oldLight.length];
-            shadow = new boolean[oldShadow.length];
-            particle = new boolean[oldParticle.length];
             for (int i = 0; i < size; i++) {
                 int source = order[i];
-                orientation[i] = oldOrientation[source]; line[i] = oldLine[source];
-                start[i] = oldStart[source]; end[i] = oldEnd[source];
-                normalX[i] = oldNormalX[source]; normalY[i] = oldNormalY[source];
-                actor[i] = oldActor[source];
-                physics[i] = oldPhysics[source]; light[i] = oldLight[source];
-                shadow[i] = oldShadow[source]; particle[i] = oldParticle[source];
+                orientation[i] = oldOrientation[source];
+                line[i] = oldLine[source];
+                start[i] = oldStart[source];
+                end[i] = oldEnd[source];
             }
         }
 
         private void copy(int source, int target) {
-            orientation[target] = orientation[source]; line[target] = line[source];
-            start[target] = start[source]; end[target] = end[source];
-            normalX[target] = normalX[source]; normalY[target] = normalY[source];
-            actor[target] = actor[source];
-            physics[target] = physics[source]; light[target] = light[source];
-            shadow[target] = shadow[source]; particle[target] = particle[source];
+            orientation[target] = orientation[source];
+            line[target] = line[source];
+            start[target] = start[source];
+            end[target] = end[source];
         }
 
         private void ensureCapacity(int required) {
             if (required <= orientation.length) return;
             int next = Math.max(required, orientation.length * 2);
-            orientation = Arrays.copyOf(orientation, next); line = Arrays.copyOf(line, next);
-            start = Arrays.copyOf(start, next); end = Arrays.copyOf(end, next);
-            normalX = Arrays.copyOf(normalX, next); normalY = Arrays.copyOf(normalY, next);
-            actor = Arrays.copyOf(actor, next);
-            physics = Arrays.copyOf(physics, next); light = Arrays.copyOf(light, next);
-            shadow = Arrays.copyOf(shadow, next); particle = Arrays.copyOf(particle, next);
-        }
-
-        private static int compareBoolean(boolean first, boolean second) {
-            return first == second ? 0 : first ? 1 : -1;
+            orientation = Arrays.copyOf(orientation, next);
+            line = Arrays.copyOf(line, next);
+            start = Arrays.copyOf(start, next);
+            end = Arrays.copyOf(end, next);
         }
     }
 }

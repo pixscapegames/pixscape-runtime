@@ -99,8 +99,8 @@ public class SpatialStructureCompilerTest {
         CompiledSpatialStructure compiled = compile(
                 wall(1, 7, 0f, 0f, 6f, 1f),
                 wall(2, 7, 0f, 5f, 6f, 1f),
-                wall(3, 7, 0f, 1f, 1f, 4f),
-                wall(4, 7, 5f, 1f, 1f, 4f));
+                wall(3, 7, 0f, 0f, 1f, 6f),
+                wall(4, 7, 5f, 0f, 1f, 6f));
 
         Assert.assertEquals(8, compiled.segmentCount());
         Assert.assertEquals(40f, perimeter(compiled), 0f);
@@ -118,16 +118,76 @@ public class SpatialStructureCompilerTest {
     }
 
     @Test
-    public void incompatibleBoundaryPropertiesPreventCollinearMerge() {
-        SpatialBlockData first = wall(1, 10, 0f, 0f, 2f, 1f);
-        SpatialBlockData second = wall(2, 10, 1f, 0f, 2f, 1f);
-        second.actorOccluder = false;
+    public void epsilonCanonicalizationUsesSmallestCoordinateAndIsOrderIndependent() {
+        SpatialBlockData first = wall(1, 10, 0f, 0f, 3f, 1f);
+        SpatialBlockData second = wall(2, 10, 2f, 0.00005f, 3f, 1f);
 
-        CompiledSpatialStructure compiled = compile(first, second);
+        CompiledSpatialStructure forward = compile(first, second);
+        CompiledSpatialStructure reverse = compile(second, first);
 
-        Assert.assertTrue(compiled.segmentCount() > 4);
-        Assert.assertTrue(hasSegment(compiled, 0f, 0f, 2f, 0f));
-        Assert.assertTrue(hasSegment(compiled, 2f, 0f, 3f, 0f));
+        Assert.assertEquals(4, forward.segmentCount());
+        assertSegment(forward, 0f, 0f, 5f, 0f, 0, -1);
+        assertSegment(forward, 0f, 1f, 5f, 1f, 0, 1);
+        assertSame(forward, reverse);
+    }
+
+    @Test
+    public void actorOccluderSubsetCompilesItsOwnExposedUnion() {
+        SpatialBlockData actor = wall(1, 11, 0f, 0f, 4f, 1f);
+        SpatialBlockData visualOnly = wall(2, 11, 3f, 0f, 4f, 1f);
+        actor.actorOccluder = true;
+        visualOnly.actorOccluder = false;
+
+        CompiledSpatialStructure compiled = compile(actor, visualOnly);
+
+        Assert.assertEquals(4, compiled.complete().faceCount());
+        Assert.assertEquals(4, compiled.actorOccluder().faceCount());
+        assertFace(compiled.complete(), CompiledSpatialStructure.MAX_X, 7f, 0f, 1f);
+        assertFace(compiled.actorOccluder(), CompiledSpatialStructure.MAX_X, 4f, 0f, 1f);
+    }
+
+    @Test
+    public void allNonActorWallsProduceEmptyActorGeometry() {
+        SpatialBlockData visualOnly = wall(1, 12, 0f, 0f, 2f, 1f);
+        visualOnly.actorOccluder = false;
+        CompiledSpatialStructure compiled = compile(visualOnly);
+
+        Assert.assertEquals(4, compiled.complete().faceCount());
+        Assert.assertEquals(0, compiled.actorOccluder().faceCount());
+    }
+
+    @Test
+    public void compilerRejectsMixedDuplicateContainedAndDisconnectedStructures() {
+        SpatialBlockData mixedA = wall(1, 13, 0f, 0f, 3f, 1f);
+        SpatialBlockData mixedB = wall(2, 13, 2f, 0f, 3f, 1f);
+        mixedB.height = 9f;
+        assertRejected("mixed height", mixedA, mixedB);
+
+        SpatialBlockData duplicateA = wall(1, 14, 0f, 0f, 3f, 1f);
+        SpatialBlockData duplicateB = wall(1, 14, 2f, 0f, 3f, 1f);
+        assertRejected("duplicate wall id", duplicateA, duplicateB);
+        assertRejected("contained",
+                wall(1, 15, 0f, 0f, 4f, 4f), wall(2, 15, 1f, 1f, 1f, 1f));
+        assertRejected("disconnected",
+                wall(1, 16, 0f, 0f, 1f, 1f), wall(2, 16, 3f, 0f, 1f, 1f));
+    }
+
+    @Test
+    public void compileDiagnosticsStayOutsideCanonicalFaceArrays() {
+        SpatialBlockData actor = wall(1, 17, 0f, 0f, 4f, 1f);
+        SpatialBlockData visualOnly = wall(2, 17, 3f, 0f, 3f, 1f);
+        actor.actorOccluder = true;
+        CompiledSpatialStructure compiled = compile(actor, visualOnly);
+        CompiledSpatialStructure.Diagnostics diagnostics = compiled.diagnostics();
+
+        Assert.assertEquals(2, diagnostics.inputWallCount());
+        Assert.assertEquals(1, diagnostics.structureCount());
+        Assert.assertEquals(4, diagnostics.canonicalXCoordinateCount());
+        Assert.assertEquals(2, diagnostics.canonicalYCoordinateCount());
+        Assert.assertTrue(diagnostics.coveredCellCount() > 0);
+        Assert.assertTrue(diagnostics.rawBoundaryIntervalCount() >= diagnostics.mergedFaceCount());
+        Assert.assertEquals(compiled.actorOccluder().faceCount(), diagnostics.actorMergedFaceCount());
+        Assert.assertTrue(diagnostics.compileDurationNanos() >= 0L);
     }
 
     private static CompiledSpatialStructure compile(SpatialBlockData... walls) {
@@ -180,6 +240,26 @@ public class SpatialStructureCompilerTest {
         return false;
     }
 
+    private static void assertFace(CompiledSpatialStructure.FaceSet faces,
+                                   byte orientation, float constant, float start, float end) {
+        for (int i = 0; i < faces.faceCount(); i++) {
+            if (faces.orientation(i) == orientation
+                    && Float.compare(faces.constantCoordinate(i), constant) == 0
+                    && Float.compare(faces.startCoordinate(i), start) == 0
+                    && Float.compare(faces.endCoordinate(i), end) == 0) return;
+        }
+        Assert.fail("Missing face " + orientation + "/" + constant + "/" + start + "-" + end);
+    }
+
+    private static void assertRejected(String message, SpatialBlockData... walls) {
+        try {
+            compile(walls);
+            Assert.fail("Expected compile failure containing: " + message);
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(message));
+        }
+    }
+
     private static void assertNoSegment(CompiledSpatialStructure compiled, float x0, float y0, float x1, float y1) {
         Assert.assertFalse(hasSegment(compiled, x0, y0, x1, y1));
     }
@@ -207,7 +287,16 @@ public class SpatialStructureCompilerTest {
             Assert.assertEquals(first.endY(i), second.endY(i), 0f);
             Assert.assertEquals(first.normalX(i), second.normalX(i));
             Assert.assertEquals(first.normalY(i), second.normalY(i));
-            Assert.assertEquals(first.actorOccluder(i), second.actorOccluder(i));
+        }
+        Assert.assertEquals(first.actorOccluder().faceCount(), second.actorOccluder().faceCount());
+        for (int i = 0; i < first.actorOccluder().faceCount(); i++) {
+            Assert.assertEquals(first.actorOccluder().orientation(i), second.actorOccluder().orientation(i));
+            Assert.assertEquals(first.actorOccluder().constantCoordinate(i),
+                    second.actorOccluder().constantCoordinate(i), 0f);
+            Assert.assertEquals(first.actorOccluder().startCoordinate(i),
+                    second.actorOccluder().startCoordinate(i), 0f);
+            Assert.assertEquals(first.actorOccluder().endCoordinate(i),
+                    second.actorOccluder().endCoordinate(i), 0f);
         }
     }
 }
