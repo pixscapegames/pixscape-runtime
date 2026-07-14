@@ -6,12 +6,12 @@ public final class SpatialBlockData {
     public static final float DEFAULT_HEIGHT = 128f;
 
     public int id = 0;
+    /** Positive identity of the connected authored-wall structure in the owning tiled layer. */
+    public int structureId = 0;
     public String name = null;
-    public boolean enabled = true;
 
     /**
-     * Layer/map-local footprint origin. Width and depth are measured in the
-     * same local units; orientation is resolved through the tiled layer later.
+     * Exclusive authored wall rectangle in integer tiled-cell coordinates.
      */
     public float x = 0f;
     public float y = 0f;
@@ -20,12 +20,15 @@ public final class SpatialBlockData {
 
     public float altitude = 0f;
     public float height = DEFAULT_HEIGHT;
-    public SpatialBlockOrientation orientation = SpatialBlockOrientation.TILE_CELL;
-
+    /** Participates in actor spatial ordering. */
     public boolean actorOccluder = true;
+    /** Participates in Studio collision fixtures and compiled spatial-collision metadata. */
     public boolean physicsCollision = false;
+    /** Compiled as light-occlusion metadata; the downstream light consumer is not implemented yet. */
     public boolean lightOccluder = false;
+    /** Compiled as shadow-geometry metadata; the downstream shadow consumer is not implemented yet. */
     public boolean shadowCaster = false;
+    /** Compiled as particle-occlusion metadata; the downstream particle consumer is not implemented yet. */
     public boolean particleOccluder = false;
     public boolean linkedTileRefsAuthored = false;
     public Array<LinkedTileRef> linkedTileRefs = new Array<>(LinkedTileRef[]::new);
@@ -33,15 +36,14 @@ public final class SpatialBlockData {
     public SpatialBlockData copy() {
         SpatialBlockData b = new SpatialBlockData();
         b.id = id;
+        b.structureId = structureId;
         b.name = name;
-        b.enabled = enabled;
         b.x = x;
         b.y = y;
         b.width = width;
         b.depth = depth;
         b.altitude = altitude;
         b.height = height;
-        b.orientation = orientation;
         b.actorOccluder = actorOccluder;
         b.physicsCollision = physicsCollision;
         b.lightOccluder = lightOccluder;

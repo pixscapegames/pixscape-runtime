@@ -50,7 +50,6 @@ public final class SpatialRelationSolver {
             int cacheBlock = 0;
             for (int authoredBlock = 0, blockCount = blocks.blocks.size; authoredBlock < blockCount; authoredBlock++) {
                 SpatialBlockData block = blocks.blocks.get(authoredBlock);
-                if (!block.enabled) continue;
                 if (block.actorOccluder && blockCache.hasResolvedBlock(cacheBlock)) {
                     solveActorBlock(actor, block, authoredBlock, cacheBlock, blockCache, map);
                 }
@@ -66,7 +65,6 @@ public final class SpatialRelationSolver {
             if (block == null) {
                 throw new IllegalStateException("Spatial block is null at index " + authoredBlock);
             }
-            if (!block.enabled) continue;
             validateCacheBlock(authoredBlock, cacheBlock, blockCache);
 
             if (block.actorOccluder && blockCache.hasResolvedBlock(cacheBlock)) {

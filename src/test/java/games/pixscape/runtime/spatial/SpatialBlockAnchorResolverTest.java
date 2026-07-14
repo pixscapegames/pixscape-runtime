@@ -215,7 +215,7 @@ public class SpatialBlockAnchorResolverTest {
     }
 
     @Test
-    public void validMalformedUnresolvedAndDisabledBlocksKeepCacheIndexAlignment() {
+    public void validMalformedAndUnresolvedBlocksKeepCacheIndexAlignment() {
         TiledMapLayerData map = map(5, 5, 300);
         map.setTile(0, 0, 101);
         map.setTile(2, 0, 201);
@@ -225,22 +225,23 @@ public class SpatialBlockAnchorResolverTest {
         SpatialBlockData valid = block(0, 0, 101);
         SpatialBlockData malformed = block(2, 0, 201, 2, 0, 201);
         SpatialBlockData unresolved = block(3, 0, 301);
-        SpatialBlockData disabled = block(4, 0, 401);
-        disabled.enabled = false;
+        SpatialBlockData trailingValid = block(4, 0, 401);
 
-        resolver.resolve(blocks(valid, malformed, unresolved, disabled),
+        resolver.resolve(blocks(valid, malformed, unresolved, trailingValid),
                 map,
                 slotToDrawIndex(512, validSlot, 1, trailingValidSlot, 9),
                 cache);
 
-        Assert.assertEquals(3, cache.blockCount);
-        Assert.assertEquals(2, cache.anchorCount);
+        Assert.assertEquals(4, cache.blockCount);
+        Assert.assertEquals(3, cache.anchorCount);
         Assert.assertTrue(cache.hasResolvedBlock(0));
         Assert.assertFalse(cache.hasResolvedBlock(1));
         Assert.assertFalse(cache.hasResolvedBlock(2));
+        Assert.assertTrue(cache.hasResolvedBlock(3));
         Assert.assertEquals(1, cache.blockAnchorCount[0]);
         Assert.assertEquals(0, cache.blockAnchorCount[1]);
         Assert.assertEquals(1, cache.blockAnchorCount[2]);
+        Assert.assertEquals(1, cache.blockAnchorCount[3]);
         Assert.assertEquals(1, cache.blockAnchorStartDrawIndex[0]);
     }
 
@@ -438,7 +439,6 @@ public class SpatialBlockAnchorResolverTest {
     private static SpatialBlockData block(int... gxGyTileAssetIdTriples) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 10;
-        block.enabled = true;
         block.beginAuthoredLinkedTileRefs();
         for (int i = 0; i < gxGyTileAssetIdTriples.length; i += 3) {
             block.addLinkedTileRef(gxGyTileAssetIdTriples[i],
@@ -451,7 +451,6 @@ public class SpatialBlockAnchorResolverTest {
     private static SpatialBlockData unlinkedBlock(int id, float x, float y, float width, float depth) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = id;
-        block.enabled = true;
         block.x = x;
         block.y = y;
         block.width = width;

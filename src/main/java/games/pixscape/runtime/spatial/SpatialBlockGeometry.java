@@ -1,7 +1,6 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
@@ -9,18 +8,12 @@ public final class SpatialBlockGeometry {
     private SpatialBlockGeometry() {
     }
 
-    public static boolean isSupportedOrientation(SpatialBlockData block) {
-        return block != null && block.orientation == SpatialBlockOrientation.TILE_CELL;
-    }
-
     public static boolean isIndexableActorOccluder(SpatialBlockData block) {
         return block != null
-                && block.enabled
                 && block.actorOccluder
                 && block.height > 0f
                 && block.width > 0f
-                && block.depth > 0f
-                && isSupportedOrientation(block);
+                && block.depth > 0f;
     }
 
     public static float bottom(SpatialBlockData block) {
@@ -35,7 +28,6 @@ public final class SpatialBlockGeometry {
                                                  TiledMapLayerData map,
                                                  float[] out8) {
         if (block == null || map == null || out8 == null || out8.length < 8) return false;
-        if (!isSupportedOrientation(block)) return false;
 
         float x0 = block.x;
         float y0 = block.y;
@@ -66,7 +58,7 @@ public final class SpatialBlockGeometry {
 
     public static boolean writeCoveredCellRange(SpatialBlockData block, CellRange out) {
         if (block == null || out == null) return false;
-        if (!isSupportedOrientation(block) || block.width <= 0f || block.depth <= 0f) return false;
+        if (block.width <= 0f || block.depth <= 0f) return false;
 
         int minGx = (int) Math.floor(block.x);
         int minGy = (int) Math.floor(block.y);
@@ -79,7 +71,7 @@ public final class SpatialBlockGeometry {
     }
 
     public static boolean containsTilePoint(SpatialBlockData block, float gx, float gy) {
-        if (block == null || !isSupportedOrientation(block)) return false;
+        if (block == null) return false;
         return gx >= block.x
                 && gx < block.x + block.width
                 && gy >= block.y

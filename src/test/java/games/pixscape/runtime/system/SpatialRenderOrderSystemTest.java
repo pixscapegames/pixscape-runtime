@@ -6,7 +6,6 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.SpatialHeightComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -1630,26 +1629,6 @@ public class SpatialRenderOrderSystemTest {
         assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.beforeSpatialDomains,
                 fixture.drawOrder(), fixture.drawDomains(), upper2, upper1, upper0);
         fixture.assertDrawListIntegrity();
-    }
-
-    @Test
-    public void unsupportedBlockOrientationIsSkippedWithoutMovingActor() {
-        Fixture fixture = new Fixture(512);
-        fixture.createLayer(2, true);
-        SpatialBlockData block = block(10, 0f, 0f, 2f, 2f);
-        block.orientation = SpatialBlockOrientation.TILE_AXIS_X;
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
-        fixture.createBlockTiledLayer(1, map, block);
-        int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
-        int actor = fixture.createActor(8f, 8f, 0, 2, true);
-        fixture.setSortOrder(actor, 2, 0, 20);
-
-        try {
-            fixture.process();
-            Assert.fail("Expected unsupported spatial block orientation to fail.");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("not valid for relation solving"));
-        }
     }
 
     @Test

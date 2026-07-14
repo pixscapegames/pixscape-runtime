@@ -35,7 +35,6 @@ public final class SpatialBlockAnchorResolver {
             if (block == null) {
                 throw new IllegalStateException("Spatial block is null at index " + blockIndex);
             }
-            if (!block.enabled) continue;
             resolveBlock(block, blockIndex, tiledLayer, tiledRefToDrawIndex, cache, spatialSort);
         }
     }
@@ -46,7 +45,7 @@ public final class SpatialBlockAnchorResolver {
                               int[] tiledRefToDrawIndex,
                               SpatialBlocksRuntimeCache cache,
                               SpatialTiledSort.Context spatialSort) {
-        if (!SpatialV2Rule.hasValidAuthoredTileRefs(block)) {
+        if (!SpatialWallGeometry.hasUniqueLinkedTileRefs(block)) {
             int cacheBlock = cache.addBlock(0);
             cache.finalizeBlockRange(cacheBlock);
             return;

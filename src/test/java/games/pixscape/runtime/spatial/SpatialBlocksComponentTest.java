@@ -9,7 +9,6 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -39,14 +38,12 @@ public class SpatialBlocksComponentTest {
 
         Assert.assertEquals(0, block.id);
         Assert.assertNull(block.name);
-        Assert.assertTrue(block.enabled);
         Assert.assertEquals(0f, block.x, 0.0001f);
         Assert.assertEquals(0f, block.y, 0.0001f);
         Assert.assertEquals(0f, block.width, 0.0001f);
         Assert.assertEquals(0f, block.depth, 0.0001f);
         Assert.assertEquals(0f, block.altitude, 0.0001f);
         Assert.assertEquals(SpatialBlockData.DEFAULT_HEIGHT, block.height, 0.0001f);
-        Assert.assertEquals(SpatialBlockOrientation.TILE_CELL, block.orientation);
         Assert.assertTrue(block.actorOccluder);
         Assert.assertFalse(block.physicsCollision);
         Assert.assertFalse(block.lightOccluder);
@@ -55,12 +52,9 @@ public class SpatialBlocksComponentTest {
     }
 
     @Test
-    public void orientationEnumUsesGridTerms() {
-        Assert.assertNotNull(SpatialBlockOrientation.valueOf("TILE_CELL"));
-        Assert.assertNotNull(SpatialBlockOrientation.valueOf("TILE_AXIS_X"));
-        Assert.assertNotNull(SpatialBlockOrientation.valueOf("TILE_AXIS_Y"));
-        Assert.assertNotNull(SpatialBlockOrientation.valueOf("FREE_AXIS"));
-        Assert.assertNotNull(SpatialBlockOrientation.valueOf("CUSTOM"));
+    public void authoredWallHasNoGlobalEnabledOrOrientationFields() {
+        assertNoFieldNamed(SpatialBlockData.class, "enabled");
+        assertNoFieldNamed(SpatialBlockData.class, "orientation");
     }
 
     @Test
@@ -84,15 +78,14 @@ public class SpatialBlocksComponentTest {
     public void oneBlockRoundTripsAllFieldsAndRoles() {
         SpatialBlockData source = new SpatialBlockData();
         source.id = 42;
+        source.structureId = 7;
         source.name = "north wall";
-        source.enabled = false;
-        source.x = 3.5f;
-        source.y = 4.5f;
-        source.width = 7f;
-        source.depth = 2f;
+        source.x = 3.1415927f;
+        source.y = 4.271828f;
+        source.width = 7.612345f;
+        source.depth = 0.198765f;
         source.altitude = 11f;
         source.height = 64f;
-        source.orientation = SpatialBlockOrientation.TILE_AXIS_Y;
         source.actorOccluder = false;
         source.physicsCollision = true;
         source.lightOccluder = true;
@@ -116,7 +109,6 @@ public class SpatialBlocksComponentTest {
         first.y = 2f;
         first.width = 3f;
         first.depth = 4f;
-        first.orientation = SpatialBlockOrientation.TILE_CELL;
 
         SpatialBlockData second = new SpatialBlockData();
         second.id = 2;
@@ -127,7 +119,6 @@ public class SpatialBlocksComponentTest {
         second.depth = 40f;
         second.altitude = 5f;
         second.height = 12f;
-        second.orientation = SpatialBlockOrientation.TILE_AXIS_X;
         second.actorOccluder = false;
         second.lightOccluder = true;
 
@@ -182,31 +173,6 @@ public class SpatialBlocksComponentTest {
     }
 
     @Test
-    public void v2AuthoredTileRefsAcceptLinesRectanglesAndHoles() {
-        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
-                authoredRefs(0, 2, 1, 2, 2, 2)));
-        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
-                authoredRefs(4, 0, 4, 1, 4, 2)));
-        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
-                authoredRefs(0, 0, 1, 0, 0, 1, 1, 1)));
-        Assert.assertTrue(SpatialV2Rule.hasValidAuthoredTileRefs(
-                authoredRefs(0, 0, 2, 0, 0, 2, 2, 2)));
-    }
-
-    @Test
-    public void v2AuthoredTileRefsRejectMissingNullAndDuplicateRefs() {
-        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(null));
-        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(new SpatialBlockData()));
-
-        SpatialBlockData withNull = authoredRefs(0, 0);
-        withNull.linkedTileRefs.add(null);
-        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(withNull));
-
-        SpatialBlockData duplicate = authoredRefs(0, 0, 0, 0);
-        Assert.assertFalse(SpatialV2Rule.hasValidAuthoredTileRefs(duplicate));
-    }
-
-    @Test
     public void authoredLinkedTileRefsAreLayerLocalCellsWithoutLayerIdentity() {
         assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "layer");
         assertNoFieldNamed(SpatialBlockData.LinkedTileRef.class, "layerIndex");
@@ -235,6 +201,8 @@ public class SpatialBlocksComponentTest {
         Assert.assertFalse(json.contains("anchorDraw"));
         Assert.assertFalse(json.contains("resolvedAnchor"));
         Assert.assertFalse(json.contains("insertionTarget"));
+        Assert.assertFalse(json.contains("\"enabled\""));
+        Assert.assertFalse(json.contains("\"orientation\""));
     }
 
     private static SpatialBlocksComponent roundTripBlocks(SpatialBlockData... blocks) {
@@ -283,15 +251,14 @@ public class SpatialBlocksComponentTest {
 
     private static void assertBlockEquals(SpatialBlockData expected, SpatialBlockData actual) {
         Assert.assertEquals(expected.id, actual.id);
+        Assert.assertEquals(expected.structureId, actual.structureId);
         Assert.assertEquals(expected.name, actual.name);
-        Assert.assertEquals(expected.enabled, actual.enabled);
-        Assert.assertEquals(expected.x, actual.x, 0.0001f);
-        Assert.assertEquals(expected.y, actual.y, 0.0001f);
-        Assert.assertEquals(expected.width, actual.width, 0.0001f);
-        Assert.assertEquals(expected.depth, actual.depth, 0.0001f);
+        Assert.assertEquals(Float.floatToIntBits(expected.x), Float.floatToIntBits(actual.x));
+        Assert.assertEquals(Float.floatToIntBits(expected.y), Float.floatToIntBits(actual.y));
+        Assert.assertEquals(Float.floatToIntBits(expected.width), Float.floatToIntBits(actual.width));
+        Assert.assertEquals(Float.floatToIntBits(expected.depth), Float.floatToIntBits(actual.depth));
         Assert.assertEquals(expected.altitude, actual.altitude, 0.0001f);
         Assert.assertEquals(expected.height, actual.height, 0.0001f);
-        Assert.assertEquals(expected.orientation, actual.orientation);
         Assert.assertEquals(expected.actorOccluder, actual.actorOccluder);
         Assert.assertEquals(expected.physicsCollision, actual.physicsCollision);
         Assert.assertEquals(expected.lightOccluder, actual.lightOccluder);

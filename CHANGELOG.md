@@ -20,6 +20,8 @@
   * flushed vertices
   * capacity-triggered flushes
   * region resolve cache hits and misses
+* Added the Spatial V3 wall and structure model.
+* Added deterministic wall junction, merge, and split handling.
 
 ### Changed
 

@@ -4,14 +4,16 @@ import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.Array;
 
 /**
- * Passive authored spatial volumes owned by a tiled layer entity.
+ * Passive authored rectangular walls owned by a tiled layer entity.
  *
- * <p>Blocks use layer/map-local x/y coordinates and width/depth dimensions.
+ * <p>Walls use integer tiled-cell x/y coordinates and positive width/depth dimensions.
  * Projection to screen space is intentionally deferred to future systems that
  * can read the owning {@link TiledLayerComponent} and tiled map projection.</p>
  */
 public final class SpatialBlocksComponent extends PooledComponent {
     public Array<SpatialBlockData> blocks = new Array<>(SpatialBlockData[]::new);
+    /** Non-serialized authored snapshot revision, incremented only after an atomic replacement. */
+    public transient int revision;
 
     @Override
     protected void reset() {
@@ -20,6 +22,7 @@ public final class SpatialBlocksComponent extends PooledComponent {
         } else {
             blocks.clear();
         }
+        revision = 0;
     }
 
     public boolean hasBlocks() {

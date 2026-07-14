@@ -319,7 +319,6 @@ public class SpatialRelationSolverTest {
     private static SpatialBlockData block(int x, int y, int width, int depth) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = x * 31 + y * 17 + 10;
-        block.enabled = true;
         block.actorOccluder = true;
         block.x = x;
         block.y = y;
@@ -347,7 +346,6 @@ public class SpatialRelationSolverTest {
                                                   int... gxGyTileAssetIdTriples) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = (int) (x * 31f + y * 17f + 10f);
-        block.enabled = true;
         block.actorOccluder = true;
         block.x = x;
         block.y = y;
@@ -367,7 +365,6 @@ public class SpatialRelationSolverTest {
     private static SpatialBlockData unlinkedBlock(float x, float y, float width, float depth) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = (int) (x * 31f + y * 17f + 10f);
-        block.enabled = true;
         block.actorOccluder = true;
         block.x = x;
         block.y = y;
