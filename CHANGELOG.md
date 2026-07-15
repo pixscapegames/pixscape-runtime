@@ -42,12 +42,16 @@
 * Avoided unnecessary TextureArray rebinds during repeated batch flushes when the active bundle has not changed.
 * Fixed spatial ordering issues in complex tiled wall layouts.
 * Fixed inconsistent rendering around wall corners, junctions, and enclosed tiled structures.
+* Fixed small spatial ordering artifacts near tiled wall seams and corners by using the full circular actor footprint instead of only the actor center.
+* Fixed missing actor/face relations when a circular footprint overlaps adjacent spatial slices at tiled junctions.
 
 ### Improved
 * Added ECS extraction diagnostics for emitted and skipped render slots, including skip reasons and component presence flags.
 * Added deterministic ordering rules for tiled spatial junctions.
 * Improved render extraction diagnostics for ECS slots, including emitted/skipped slot details and skip reasons.
 * Added regression coverage for sprite/body lifecycle rendering and spatial tiled ordering.
+* Improved dynamic actor ordering accuracy around complex 2.5D tiled structures.
+* Added regression tests for circle footprint spatial relations, including corners, seams, multi-slice coverage, large/small radii, deduplication, and flicker prevention.
 
 ### Tests
 

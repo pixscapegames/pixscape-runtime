@@ -17,6 +17,7 @@ public final class SpatialProjectedFaceCache {
     public float[] screenMaxX = new float[0];
     public float[] slope = new float[0];
     public float[] intercept = new float[0];
+    public float[] inverseNormalLength = new float[0];
     public int[] faceAnchorIndexStart = new int[0];
     public int[] faceAnchorIndexCount = new int[0];
     public int[] faceAnchorIndices = new int[0];
@@ -189,6 +190,7 @@ public final class SpatialProjectedFaceCache {
         screenMaxX[face] = x2;
         slope[face] = (y2 - y1) / (x2 - x1);
         intercept[face] = y1 - slope[face] * x1;
+        inverseNormalLength[face] = 1f / (float) Math.sqrt(slope[face] * slope[face] + 1f);
     }
 
     private static void sortPairs(int[] gx, int[] gy, int count) {
@@ -240,6 +242,7 @@ public final class SpatialProjectedFaceCache {
         screenMaxX = grow(screenMaxX, next);
         slope = grow(slope, next);
         intercept = grow(intercept, next);
+        inverseNormalLength = grow(inverseNormalLength, next);
         faceAnchorIndexStart = grow(faceAnchorIndexStart, next);
         faceAnchorIndexCount = grow(faceAnchorIndexCount, next);
     }

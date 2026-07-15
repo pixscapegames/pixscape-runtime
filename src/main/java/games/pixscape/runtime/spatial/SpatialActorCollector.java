@@ -108,6 +108,12 @@ public final class SpatialActorCollector {
         return actorCount;
     }
 
+    float circleRadius(int actor) {
+        if (actor < 0 || actor >= actorCount || actor >= actorCircleRadius.length) return 0f;
+        float radius = actorCircleRadius[actor];
+        return Float.isFinite(radius) && radius > 0f ? radius : 0f;
+    }
+
     boolean collectSlot(int slot,
                         int drawIndex,
                         DynamicEntityRenderState state,

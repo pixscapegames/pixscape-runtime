@@ -21,18 +21,24 @@ public final class SpatialFaceRelationSolver {
             actorRelationStart[actor] = relationStart;
             float x = actors.actorCircleX[actor];
             float y = actors.actorCircleY[actor];
+            float radius = actors.circleRadius(actor);
+            float circleMinX = x - radius;
+            float circleMaxX = x + radius;
             float bottom = actors.actorAltitude[actor];
             float top = bottom + actors.actorHeight[actor];
             for (int structure = 0; structure < faces.structureCount; structure++) {
-                if (x < faces.structureMinX[structure] || x >= faces.structureMaxX[structure]) continue;
+                if (!overlapsSemiOpen(circleMinX, circleMaxX,
+                        faces.structureMinX[structure], faces.structureMaxX[structure])) continue;
                 int start = faces.structureFaceStart[structure];
                 int end = start + faces.structureFaceCount[structure];
                 for (int face = start; face < end; face++) {
                     if (!(top > faces.faceAltitude[face]
                             && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
-                    if (x < faces.screenMinX[face] || x >= faces.screenMaxX[face]) continue;
+                    if (!overlapsSemiOpen(circleMinX, circleMaxX,
+                            faces.screenMinX[face], faces.screenMaxX[face])) continue;
                     float faceY = faces.slope[face] * x + faces.intercept[face];
-                    byte type = SpatialLineRelation.relation(faceY, y);
+                    byte type = SpatialLineRelation.circleRelation(faceY, y,
+                            inverseNormalLength(faces, face), radius);
                     add(face, type);
                 }
             }
@@ -41,6 +47,21 @@ public final class SpatialFaceRelationSolver {
     }
 
     public int relationCount() { return relationCount; }
+
+    private static boolean overlapsSemiOpen(float circleMinX,
+                                            float circleMaxX,
+                                            float intervalMinX,
+                                            float intervalMaxX) {
+        return circleMaxX >= intervalMinX && circleMinX < intervalMaxX;
+    }
+
+    private static float inverseNormalLength(SpatialProjectedFaceCache faces, int face) {
+        if (face < faces.inverseNormalLength.length && faces.inverseNormalLength[face] > 0f) {
+            return faces.inverseNormalLength[face];
+        }
+        float slope = faces.slope[face];
+        return 1f / (float) Math.sqrt(slope * slope + 1f);
+    }
 
     private void add(int face, byte type) {
         ensureRelationCapacity(relationCount + 1);

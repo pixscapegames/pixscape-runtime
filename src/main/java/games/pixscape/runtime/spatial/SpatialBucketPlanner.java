@@ -75,6 +75,9 @@ public final class SpatialBucketPlanner {
             int relationStart = relations.actorRelationStart[actor];
             int relationEnd = relationStart + relations.actorRelationCount[actor];
             float actorX = actors.actorCircleX[actor];
+            float radius = actors.circleRadius(actor);
+            float circleMinX = actorX - radius;
+            float circleMaxX = actorX + radius;
             for (int relation = relationStart; relation < relationEnd; relation++) {
                 int face = relations.relationFaceIndex[relation];
                 if (face < 0 || face >= faces.faceCount) continue;
@@ -84,8 +87,8 @@ public final class SpatialBucketPlanner {
                 int membershipEnd = membershipStart + faces.faceAnchorIndexCount[face];
                 for (int membership = membershipStart; membership < membershipEnd; membership++) {
                     testedMembershipCount++;
-                    if (actorX < faces.faceAnchorScreenMinX[membership]
-                            || actorX >= faces.faceAnchorScreenMaxX[membership]) {
+                    if (circleMaxX < faces.faceAnchorScreenMinX[membership]
+                            || circleMinX >= faces.faceAnchorScreenMaxX[membership]) {
                         rejectedNonlocalMembershipCount++;
                         continue;
                     }
