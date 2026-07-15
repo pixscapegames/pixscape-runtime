@@ -17,6 +17,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
@@ -244,6 +245,7 @@ public final class WorldConfigFactory {
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
+        SpatialLayerRuntimeRegistry spatialRuntimeRegistry = new SpatialLayerRuntimeRegistry();
         addCoreSyncSystems(
                 builder,
                 camera,
@@ -260,7 +262,8 @@ public final class WorldConfigFactory {
                 vfxEnd,
                 effectiveAnimatedTileRegistry,
                 tilesetProfiles,
-                systemProfiler
+                systemProfiler,
+                spatialRuntimeRegistry
         );
 
         if (preRenderCustomizer != null) {
@@ -281,7 +284,8 @@ public final class WorldConfigFactory {
                 vfxEnd,
                 meta,
                 submitSupplier,
-                systemProfiler
+                systemProfiler,
+                spatialRuntimeRegistry
         );
 
         builder.with(profiled(new DirtyFlushSystem(), systemProfiler));
@@ -319,7 +323,8 @@ public final class WorldConfigFactory {
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
-            SystemProfiler systemProfiler
+            SystemProfiler systemProfiler,
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
     ) {
         builder.with(
                 new WorldSerializationManager(),
@@ -338,7 +343,8 @@ public final class WorldConfigFactory {
                         atlasRuntimeService,
                         defaultShaderIdx,
                         animatedTileRegistry,
-                        tilesetProfiles
+                        tilesetProfiles,
+                        spatialRuntimeRegistry
                 ), systemProfiler),
                 profiled(new RenderParticleSyncSystem(
                         vfxState,
@@ -378,7 +384,8 @@ public final class WorldConfigFactory {
             int vfxEndIndex,
             SceneMetaRuntime meta,
             Supplier<BaseSystem> submitSupplier,
-            SystemProfiler systemProfiler
+            SystemProfiler systemProfiler,
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
     ) {
         builder.with(
                 profiled(new RenderBuildDrawListSystem(
@@ -406,7 +413,8 @@ public final class WorldConfigFactory {
                         drawList,
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
-                                : DEFAULT_PIXELS_PER_METER
+                                : DEFAULT_PIXELS_PER_METER,
+                        spatialRuntimeRegistry
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(
                         dynamicEntityState,

@@ -10,6 +10,8 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.helper.ColorHelper;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
@@ -45,6 +47,8 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
     private ComponentMapper<AnimationComponent> mAnimation;
 
     private EntitySubscription spriteSub;
+    private EntitySubscription physicsBodySub;
+    private EntitySubscription physicsFixturesSub;
 
     // Work list (union)
     private final IntArray work = new IntArray(false, 256);
@@ -78,21 +82,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
         spriteSub.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
             @Override
             public void inserted(IntBag entities) {
-                DirtyTrackerSystem tracker = dirty;
-                if (tracker == null) {
-                    tracker = world.getSystem(DirtyTrackerSystem.class);
-                }
-                if (tracker == null) return;
-
-                int[] data = entities.getData();
-                for (int i = 0, n = entities.size(); i < n; i++) {
-                    int e = data[i];
-                    tracker.geometry(e, GeometryDirty.ALL);
-                    tracker.material(e);
-                    tracker.color(e);
-                    tracker.order(e);
-                    tracker.layer(e);
-                }
+                markRenderRecordsDirty(entities);
             }
 
             @Override
@@ -103,6 +93,45 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                 }
             }
         });
+
+        physicsBodySub = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsBodyComponent.class)
+        );
+        physicsFixturesSub = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsFixturesComponent.class)
+        );
+        EntitySubscription.SubscriptionListener physicsCompositionListener =
+                new EntitySubscription.SubscriptionListener() {
+                    @Override
+                    public void inserted(IntBag entities) {
+                        markRenderRecordsDirty(entities);
+                    }
+
+                    @Override
+                    public void removed(IntBag entities) {
+                        markRenderRecordsDirty(entities);
+                    }
+                };
+        physicsBodySub.addSubscriptionListener(physicsCompositionListener);
+        physicsFixturesSub.addSubscriptionListener(physicsCompositionListener);
+    }
+
+    private void markRenderRecordsDirty(IntBag entities) {
+        DirtyTrackerSystem tracker = dirty;
+        if (tracker == null) {
+            tracker = world.getSystem(DirtyTrackerSystem.class);
+        }
+        if (tracker == null || entities == null) return;
+
+        int[] data = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            int e = data[i];
+            tracker.geometry(e, GeometryDirty.ALL);
+            tracker.material(e);
+            tracker.color(e);
+            tracker.order(e);
+            tracker.layer(e);
+        }
     }
 
     @Override

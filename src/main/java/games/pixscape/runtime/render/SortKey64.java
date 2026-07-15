@@ -1,6 +1,7 @@
 package games.pixscape.runtime.render;
 
 public final class SortKey64 {
+    public static final int MAX_ORDER_30 = (1 << 30) - 1;
     private SortKey64() {
     }
 
@@ -85,6 +86,23 @@ public final class SortKey64 {
         BlendMode mode = BlendMode.fromId(blendModeId);
         int passId = (mode != null ? mode.passId() : BlendMode.PASS_ORDERED);
 
+        if (passId == BlendMode.PASS_COMMUTATIVE || passId == BlendMode.PASS_OPAQUE) {
+            return packMaterialFirst(passId, shaderIdx, blendModeId, textureHandle, layer, z, tie);
+        }
+        return packOrdered(passId, shaderIdx, blendModeId, textureHandle, layer, z, tie);
+    }
+
+    /** Packs one unsigned 30-bit canonical order across ordered biased-Z and tie fields. */
+    public static long packForBlendOrder30(int shaderIdx, int blendModeId, int textureHandle,
+                                           int layer, int order30) {
+        if (order30 < 0 || order30 > MAX_ORDER_30) {
+            throw new IllegalArgumentException("Canonical tiled order must fit in 30 bits: " + order30);
+        }
+        int biasedZ = order30 >>> TIE_BITS;
+        int z = (int) (biasedZ - Z_BIAS);
+        int tie = order30 & (int) TIE_MASK;
+        BlendMode mode = BlendMode.fromId(blendModeId);
+        int passId = mode != null ? mode.passId() : BlendMode.PASS_ORDERED;
         if (passId == BlendMode.PASS_COMMUTATIVE || passId == BlendMode.PASS_OPAQUE) {
             return packMaterialFirst(passId, shaderIdx, blendModeId, textureHandle, layer, z, tie);
         }

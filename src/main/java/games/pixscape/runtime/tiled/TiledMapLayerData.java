@@ -8,6 +8,14 @@ public final class TiledMapLayerData {
 
     private static final float EPSILON = 0.0001f;
 
+    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and elevation. */
+    public void projectSpatialPoint(float gx, float gy, float elevation, float[] out, int offset) {
+        if (out == null || offset < 0 || offset + 1 >= out.length) return;
+        float cellOffsetX = projection == SceneMetaRuntime.TiledProjection.ISO ? tileWidth * 0.5f : 0f;
+        out[offset] = tileToWorldX(gx, gy) + cellOffsetX;
+        out[offset + 1] = tileToWorldY(gx, gy) + elevation;
+    }
+
     // =========================
     // CONFIG MAP
     // =========================
@@ -41,6 +49,10 @@ public final class TiledMapLayerData {
     // =========================
 
     private final IntMap<TileChunk> chunks = new IntMap<>();
+    private transient int contentRevision;
+    private transient int contentStateRevision;
+    private transient int contentMutationDepth;
+    private transient boolean contentMutationChanged;
 
     public boolean visible = true;
     public boolean collisionEnabled = true;
@@ -199,8 +211,49 @@ public final class TiledMapLayerData {
         int lx = gx - (cx * chunkSize);
         int ly = gy - (cy * chunkSize);
 
+        int previousAsset = chunk.get(lx, ly);
+        byte previousFlags = chunk.getTransformFlags(lx, ly);
         chunk.set(lx, ly, assetId, flags);
+        if (previousAsset != assetId || previousFlags != TileTransformFlags.sanitize(flags)) {
+            markContentChanged();
+        }
         markVisualBoundsDirty();
+    }
+
+    /** Begins a bulk map mutation whose static-order revision is published once at commit. */
+    public void beginContentMutation() {
+        contentMutationDepth++;
+    }
+
+    /** Commits one bulk map mutation. Nested mutations publish only at the outer boundary. */
+    public void endContentMutation() {
+        if (contentMutationDepth <= 0) {
+            throw new IllegalStateException("Tiled map content mutation was not started.");
+        }
+        contentMutationDepth--;
+        if (contentMutationDepth == 0 && contentMutationChanged) {
+            contentMutationChanged = false;
+            contentRevision++;
+        }
+    }
+
+    public int contentRevision() {
+        return contentRevision;
+    }
+
+    /**
+     * Revision of the immediately visible tile state, including edits inside an open bulk mutation.
+     * Derived preview caches must use this revision because chunks are rendered before Studio brush
+     * transactions are committed.
+     */
+    public int contentStateRevision() {
+        return contentStateRevision;
+    }
+
+    private void markContentChanged() {
+        contentStateRevision++;
+        if (contentMutationDepth > 0) contentMutationChanged = true;
+        else contentRevision++;
     }
 
     public float getTileAltitude(int gx, int gy) {
@@ -322,6 +375,9 @@ public final class TiledMapLayerData {
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {
 
+        beginContentMutation();
+        try {
+
         final class SavedTile {
             final int assetId;
             final byte flags;
@@ -401,6 +457,10 @@ public final class TiledMapLayerData {
         }
 
         markAllChunksContentDirty();
+        markContentChanged();
+        } finally {
+            endContentMutation();
+        }
     }
 
     // ============================================================

@@ -1,228 +1,134 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.render.DrawList;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Arrays;
-
 public class SpatialOrderingKernelTest {
-    private final SpatialOrderingKernel kernel = new SpatialOrderingKernel();
-
     @Test
-    public void nonActorOrderIsFullyPreserved() {
-        int[] input = {100, 1, 101, 2, 102};
-        DrawList drawList = drawList(input);
-        SpatialActorCollector actors = actors(actor(1, 0, 20f), actor(2, 1, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
-
-        kernel.begin(actors, snapshot);
-        kernel.finish(drawList, actors, snapshot);
-
-        Assert.assertArrayEquals(new int[]{100, 101, 102}, nonActors(kernel.orderedSlots(), kernel.orderedSize()));
+    public void sameAnchorBehindDominatesFrontIndependentOfRelationOrder() {
+        assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
+                SpatialFaceRelationSolver.ACTOR_BEHIND_FACE});
+        assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_BEHIND_FACE,
+                SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE});
     }
 
     @Test
-    public void originalBucketComesFromStableSourceDrawList() {
-        int[] input = {100, 1, 101, 102, 2};
-        DrawList drawList = drawList(input);
-        SpatialActorCollector actors = actors(actor(1, 0, 20f), actor(2, 1, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
+    public void frontUsesAfterBehindUsesBeforeAndDistinctAnchorsAggregate() {
+        SpatialActorCollector actors = actors(3);
+        SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
+        faces.anchorBeforeBucket[0] = 1; faces.anchorAfterBucket[0] = 2;
+        faces.anchorBeforeBucket[1] = 4; faces.anchorAfterBucket[1] = 5;
+        SpatialFaceRelationSolver relations = relations(3,
+                new int[][]{{0}, {1}, {0, 1}},
+                new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE},
+                        {SpatialFaceRelationSolver.ACTOR_BEHIND_FACE},
+                        {SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
+                                SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE}});
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        planner.begin(actors, new int[]{0, 6, 3}, 7);
+        planner.addRelations(actors, faces, relations);
+        planner.finish(actors);
 
-        Assert.assertEquals(1, snapshot.actorOriginalBucket[0]);
-        Assert.assertEquals(3, snapshot.actorOriginalBucket[1]);
+        Assert.assertEquals(2, planner.actorBucket[0]);
+        Assert.assertEquals(4, planner.actorBucket[1]);
+        Assert.assertEquals(5, planner.actorBucket[2]);
+        Assert.assertEquals(0, planner.unresolvedConstraintCount());
     }
 
     @Test
-    public void blockRangesUseStableNonActorOrdinals() {
-        SpatialBlocksRuntimeCache cache = cache(range(0, 2));
-        int[] before = {0, 1, 1, 2};
-        int[] after = {1, 1, 2, 2};
-
-        cache.convertDrawIndexRangesToBuckets(before, after, before.length);
-
-        Assert.assertEquals(0, cache.blockAnchorStartDrawIndex[0]);
-        Assert.assertEquals(1, cache.blockAnchorEndDrawIndex[0]);
-    }
-
-    @Test
-    public void relationUsesVerticalInterpolationNotClosestSegmentPoint() {
-        SpatialRelationKernel relation = new SpatialRelationKernel();
-
-        int result = relation.relation(70f, 0f, 0f, 0f, 100f, 100f);
-
-        Assert.assertEquals(SpatialRelationKernel.ACTOR_IN_FRONT_OF_BLOCK, result);
-    }
-
-    @Test
-    public void xRangeExclusionProducesNoRelation() {
-        SpatialRelationKernel relation = new SpatialRelationKernel();
-
-        Assert.assertEquals(SpatialRelationKernel.NO_RELATION,
-                relation.relation(120f, 0f, 0f, 0f, 100f, 100f));
-    }
-
-    @Test
-    public void adjacentSegmentsUseSemiOpenSeam() {
-        SpatialRelationKernel relation = new SpatialRelationKernel();
-
-        Assert.assertEquals(SpatialRelationKernel.NO_RELATION,
-                relation.relation(10f, 0f, 0f, 0f, 10f, 0f));
-        Assert.assertEquals(SpatialRelationKernel.ACTOR_BEHIND_BLOCK,
-                relation.relation(10f, 1f, 10f, 0f, 20f, 0f));
-    }
-
-    @Test
-    public void actorsSortOnlyInsideTheirBuckets() {
-        int[] input = {100, 1, 101, 2, 3, 102};
-        DrawList drawList = drawList(input);
-        SpatialActorCollector actors = actors(actor(1, 0, 50f), actor(2, 1, 10f), actor(3, 2, 40f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
-        SpatialRelationSolver relations = relations(
-                relation(0, 0, SpatialRelationKernel.ACTOR_BEHIND_BLOCK),
-                relation(1, 1, SpatialRelationKernel.ACTOR_IN_FRONT_OF_BLOCK),
-                relation(2, 1, SpatialRelationKernel.ACTOR_IN_FRONT_OF_BLOCK));
-        SpatialBlocksRuntimeCache cache = cache(range(0, 0), range(1, 1));
-
-        kernel.begin(actors, snapshot);
-        kernel.addRelations(actors, cache, relations);
-        kernel.finish(drawList, actors, snapshot);
-
-        Assert.assertArrayEquals(new int[]{1, 100, 101, 3, 2, 102},
-                Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize()));
-    }
-
-    @Test
-    public void equalCenterYOrderingIsDeterministicAcrossFrames() {
-        int[] input = {100, 2, 1, 101};
-        DrawList drawList = drawList(input);
-        SpatialActorCollector actors = actors(actor(1, 10, 10f), actor(2, 5, 10f));
-        SpatialFrameSnapshotBuilder snapshot = snapshot(drawList, actors);
-
-        kernel.begin(actors, snapshot);
-        kernel.finish(drawList, actors, snapshot);
-        int[] first = Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize());
-        kernel.begin(actors, snapshot);
-        kernel.finish(drawList, actors, snapshot);
-
-        Assert.assertArrayEquals(first, Arrays.copyOf(kernel.orderedSlots(), kernel.orderedSize()));
-        Assert.assertArrayEquals(new int[]{100, 1, 2, 101}, first);
-    }
-
-    private static SpatialFrameSnapshotBuilder snapshot(DrawList drawList, SpatialActorCollector actors) {
-        SpatialFrameSnapshotBuilder snapshot = new SpatialFrameSnapshotBuilder();
-        snapshot.build(drawList, 200, actors);
-        return snapshot;
-    }
-
-    private static DrawList drawList(int[] slots) {
-        DrawList drawList = new DrawList(slots.length);
-        for (int i = 0; i < slots.length; i++) {
-            if (slots[i] >= 100) {
-                drawList.addTiledSlot(slots[i]);
-            } else {
-                drawList.addEcsSlot(slots[i]);
-            }
+    public void residualDistinctAnchorContradictionsCountAllActorsThenThrowWithoutPublishingBuckets() {
+        SpatialActorCollector actors = actors(2);
+        SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
+        faces.anchorBeforeBucket[0] = 1; faces.anchorAfterBucket[0] = 2;
+        faces.anchorBeforeBucket[1] = 3; faces.anchorAfterBucket[1] = 4;
+        SpatialFaceRelationSolver relations = relations(2,
+                new int[][]{{1, 0}, {1, 0}},
+                new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
+                        SpatialFaceRelationSolver.ACTOR_BEHIND_FACE},
+                        {SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
+                                SpatialFaceRelationSolver.ACTOR_BEHIND_FACE}});
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        planner.begin(actors, new int[]{2, 3}, 6);
+        planner.addRelations(actors, faces, relations);
+        try {
+            planner.finish(actors);
+            Assert.fail("Expected exact-anchor invariant failure");
+        } catch (SpatialConstraintInvariantException expected) {
+            Assert.assertEquals(2, expected.unresolvedConstraintCount());
+            Assert.assertTrue(expected.getMessage().contains("anchor=(1,0)"));
+            Assert.assertTrue(expected.getMessage().contains("anchor=(0,0)"));
+            Assert.assertTrue(expected.getMessage().contains("face=1"));
+            Assert.assertTrue(expected.getMessage().contains("face=0"));
         }
-        return drawList;
+        Assert.assertEquals(2, planner.unresolvedConstraintCount());
+        Assert.assertArrayEquals(new int[]{2, 3}, new int[]{planner.actorBucket[0], planner.actorBucket[1]});
     }
 
-    private static int[] nonActors(int[] slots, int size) {
-        int[] out = new int[size];
-        int count = 0;
-        for (int i = 0; i < size; i++) {
-            if (slots[i] >= 100) out[count++] = slots[i];
-        }
-        return Arrays.copyOf(out, count);
+    private static void assertSameAnchorOpposition(byte[] types) {
+        SpatialActorCollector actors = actors(1);
+        SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {0}});
+        faces.anchorBeforeBucket[0] = 2;
+        faces.anchorAfterBucket[0] = 3;
+        SpatialFaceRelationSolver relations = relations(1, new int[][]{{0, 1}}, new byte[][]{types});
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        planner.begin(actors, new int[]{4}, 6);
+        planner.addRelations(actors, faces, relations);
+        planner.finish(actors);
+        Assert.assertEquals(2, planner.actorBucket[0]);
+        Assert.assertEquals(Integer.MIN_VALUE, planner.actorLowerBound[0]);
+        Assert.assertEquals(2, planner.actorUpperBound[0]);
+        Assert.assertEquals(0, planner.unresolvedConstraintCount());
     }
 
-    private static SpatialActorCollector actors(Actor... specs) {
+    private static SpatialActorCollector actors(int count) {
         SpatialActorCollector actors = new SpatialActorCollector();
-        actors.actorCount = specs.length;
-        actors.actorSlot = new int[specs.length];
-        actors.actorEntityId = new int[specs.length];
-        actors.actorDrawIndex = new int[specs.length];
-        actors.actorStableOrder = new int[specs.length];
-        actors.actorCircleY = new float[specs.length];
-        for (int i = 0; i < specs.length; i++) {
-            actors.actorSlot[i] = specs[i].slot;
-            actors.actorEntityId[i] = specs[i].slot;
-            actors.actorDrawIndex[i] = i;
-            actors.actorStableOrder[i] = specs[i].stableOrder;
-            actors.actorCircleY[i] = specs[i].centerY;
-        }
+        actors.actorCount = count;
+        actors.actorSlot = new int[count]; actors.actorEntityId = new int[count];
+        actors.actorStableOrder = new int[count]; actors.actorCircleX = new float[count];
+        actors.actorCircleY = new float[count]; actors.actorDrawIndex = new int[count];
+        for (int i = 0; i < count; i++) { actors.actorSlot[i] = i; actors.actorEntityId[i] = 100 + i; actors.actorStableOrder[i] = i; actors.actorDrawIndex[i] = i; }
         return actors;
     }
 
-    private static SpatialBlocksRuntimeCache cache(BlockRange... ranges) {
-        SpatialBlocksRuntimeCache cache = new SpatialBlocksRuntimeCache();
-        for (int i = 0; i < ranges.length; i++) {
-            int block = cache.addBlock(1);
-            cache.setAnchor(block, 0, 100 + i, ranges[i].start);
-            cache.finalizeBlockRange(block);
-            cache.blockAnchorStartDrawIndex[block] = ranges[i].start;
-            cache.blockAnchorEndDrawIndex[block] = ranges[i].end;
+    private static SpatialProjectedFaceCache faces(int[][] memberships) {
+        SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
+        faces.faceCount = memberships.length;
+        faces.faceCompiledIndex = new int[memberships.length]; faces.faceStructureId = new int[memberships.length];
+        faces.faceAnchorIndexStart = new int[memberships.length]; faces.faceAnchorIndexCount = new int[memberships.length];
+        int total = 0; int maximum = -1;
+        for (int[] membership : memberships) for (int anchor : membership) { total++; maximum = Math.max(maximum, anchor); }
+        faces.faceAnchorIndices = new int[total];
+        faces.faceAnchorScreenMinX = new float[total]; faces.faceAnchorScreenMaxX = new float[total];
+        int write = 0;
+        for (int face = 0; face < memberships.length; face++) {
+            faces.faceCompiledIndex[face] = face; faces.faceStructureId[face] = face + 10;
+            faces.faceAnchorIndexStart[face] = write; faces.faceAnchorIndexCount[face] = memberships[face].length;
+            for (int anchor : memberships[face]) {
+                faces.faceAnchorIndices[write] = anchor;
+                faces.faceAnchorScreenMinX[write] = -Float.MAX_VALUE;
+                faces.faceAnchorScreenMaxX[write] = Float.MAX_VALUE;
+                write++;
+            }
         }
-        return cache;
+        faces.anchorCount = maximum + 1; faces.anchorGx = new int[faces.anchorCount]; faces.anchorGy = new int[faces.anchorCount];
+        faces.anchorResolved = new boolean[faces.anchorCount]; faces.anchorBeforeBucket = new int[faces.anchorCount]; faces.anchorAfterBucket = new int[faces.anchorCount];
+        for (int anchor = 0; anchor < faces.anchorCount; anchor++) { faces.anchorGx[anchor] = anchor; faces.anchorResolved[anchor] = true; }
+        return faces;
     }
 
-    private static SpatialRelationSolver relations(Relation... specs) {
-        SpatialRelationSolver relations = new SpatialRelationSolver();
-        relations.relationCount = specs.length;
-        relations.relationActorIndex = new int[specs.length];
-        relations.relationBlockIndex = new int[specs.length];
-        relations.relationType = new int[specs.length];
-        for (int i = 0; i < specs.length; i++) {
-            relations.relationActorIndex[i] = specs[i].actor;
-            relations.relationBlockIndex[i] = specs[i].block;
-            relations.relationType[i] = specs[i].type;
+    private static SpatialFaceRelationSolver relations(int actorCount, int[][] faces, byte[][] types) {
+        SpatialFaceRelationSolver out = new SpatialFaceRelationSolver();
+        out.actorRelationStart = new int[actorCount]; out.actorRelationCount = new int[actorCount];
+        int total = 0; for (int[] actorFaces : faces) total += actorFaces.length;
+        out.relationFaceIndex = new int[total]; out.relationType = new byte[total];
+        int write = 0;
+        for (int actor = 0; actor < actorCount; actor++) {
+            out.actorRelationStart[actor] = write; out.actorRelationCount[actor] = faces[actor].length;
+            for (int relation = 0; relation < faces[actor].length; relation++) {
+                out.relationFaceIndex[write] = faces[actor][relation]; out.relationType[write] = types[actor][relation]; write++;
+            }
         }
-        return relations;
-    }
-
-    private static Actor actor(int slot, int stableOrder, float centerY) {
-        return new Actor(slot, stableOrder, centerY);
-    }
-
-    private static BlockRange range(int start, int end) {
-        return new BlockRange(start, end);
-    }
-
-    private static Relation relation(int actor, int block, int type) {
-        return new Relation(actor, block, type);
-    }
-
-    private static final class Actor {
-        final int slot;
-        final int stableOrder;
-        final float centerY;
-
-        Actor(int slot, int stableOrder, float centerY) {
-            this.slot = slot;
-            this.stableOrder = stableOrder;
-            this.centerY = centerY;
-        }
-    }
-
-    private static final class BlockRange {
-        final int start;
-        final int end;
-
-        BlockRange(int start, int end) {
-            this.start = start;
-            this.end = end;
-        }
-    }
-
-    private static final class Relation {
-        final int actor;
-        final int block;
-        final int type;
-
-        Relation(int actor, int block, int type) {
-            this.actor = actor;
-            this.block = block;
-            this.type = type;
-        }
+        out.relationCount = write;
+        return out;
     }
 }

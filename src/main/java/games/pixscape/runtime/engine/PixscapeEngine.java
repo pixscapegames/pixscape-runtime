@@ -903,6 +903,8 @@ public final class PixscapeEngine {
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 
+            tiled.data.beginContentMutation();
+            try {
             for (int t = 0; t < tiled.tileXs.size; t++) {
                 int gx = tiled.tileXs.get(t);
                 int gy = tiled.tileYs.get(t);
@@ -927,6 +929,9 @@ public final class PixscapeEngine {
                     int ly = gy - (cy * tiled.data.chunkSize);
                     TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, animatedTileRegistry);
                 }
+            }
+            } finally {
+                tiled.data.endContentMutation();
             }
 
             tiled.data.markAllChunksContentDirty();

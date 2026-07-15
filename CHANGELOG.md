@@ -40,6 +40,14 @@
 * Fixed missing tileset profiles being reported as diagnostics instead of silently falling back to legacy placement.
 * Fixed diagonal tiled transform mappings so all 8 Tiled flip/diagonal combinations match Tiled's expected rendering behavior.
 * Avoided unnecessary TextureArray rebinds during repeated batch flushes when the active bundle has not changed.
+* Fixed spatial ordering issues in complex tiled wall layouts.
+* Fixed inconsistent rendering around wall corners, junctions, and enclosed tiled structures.
+
+### Improved
+* Added ECS extraction diagnostics for emitted and skipped render slots, including skip reasons and component presence flags.
+* Added deterministic ordering rules for tiled spatial junctions.
+* Improved render extraction diagnostics for ECS slots, including emitted/skipped slot details and skip reasons.
+* Added regression coverage for sprite/body lifecycle rendering and spatial tiled ordering.
 
 ### Tests
 

@@ -21,6 +21,7 @@ public final class SpatialStructureCompiler {
         Coordinates coordinates = compressCoordinates(input, structureId);
         FaceCompilation complete = compileFaces(input, coordinates, false);
         FaceCompilation actor = compileFaces(input, coordinates, true);
+        actor = actor.withFaces(attachActorFaceAnchors(input, actor.faces));
 
         CompiledSpatialStructure.Diagnostics diagnostics = new CompiledSpatialStructure.Diagnostics(
                 wallCount, coordinates.xCount, coordinates.yCount,
@@ -75,6 +76,7 @@ public final class SpatialStructureCompiler {
             input.minY[next] = bounds.minY;
             input.maxY[next] = bounds.maxY;
             input.actorOccluder[next] = wall.actorOccluder;
+            input.wall[next] = wall;
             if (next == 0) {
                 input.altitude = wall.altitude;
                 input.height = wall.height;
@@ -291,6 +293,113 @@ public final class SpatialStructureCompiler {
         return new CompiledSpatialStructure.FaceSet(new byte[0], new float[0], new float[0], new float[0]);
     }
 
+    private static CompiledSpatialStructure.FaceSet attachActorFaceAnchors(
+            WallInput input,
+            CompiledSpatialStructure.FaceSet faces) {
+        int faceCount = faces.faceCount();
+        int[] starts = new int[faceCount];
+        int[] counts = new int[faceCount];
+        CellBuilder cells = new CellBuilder(8);
+        SpatialWallGeometry.LinkedCellBounds linked = new SpatialWallGeometry.LinkedCellBounds();
+        int[] wallOrder = sortedWallOrder(input);
+        for (int face = 0; face < faceCount; face++) {
+            starts[face] = cells.size;
+            byte orientation = faces.orientation(face);
+            float line = faces.constantCoordinate(face);
+            float start = faces.startCoordinate(face);
+            float end = faces.endCoordinate(face);
+            for (int ordered = 0; ordered < wallOrder.length; ordered++) {
+                int wallIndex = wallOrder[ordered];
+                if (!input.actorOccluder[wallIndex]
+                        || !supportsFace(input, wallIndex, orientation, line, start, end)) continue;
+                SpatialBlockData wall = input.wall[wallIndex];
+                if (!SpatialWallGeometry.extractLinkedCellBounds(wall, linked)) continue;
+                for (int refIndex = 0; refIndex < wall.linkedTileRefs.size; refIndex++) {
+                    SpatialBlockData.LinkedTileRef ref = wall.linkedTileRefs.get(refIndex);
+                    if (ref == null || !isBoundaryCell(ref, linked, orientation)) continue;
+                    float cellStart = orientation == CompiledSpatialStructure.MIN_X
+                            || orientation == CompiledSpatialStructure.MAX_X ? ref.gy : ref.gx;
+                    if (Math.min(end, cellStart + 1f) - Math.max(start, cellStart)
+                            <= SpatialWallGeometry.GEOMETRY_EPSILON) continue;
+                    cells.addUnique(ref.gx, ref.gy, starts[face]);
+                }
+            }
+            cells.sort(starts[face], cells.size);
+            counts[face] = cells.size - starts[face];
+        }
+        return new CompiledSpatialStructure.FaceSet(
+                copyOrientations(faces), copyConstants(faces), copyStarts(faces), copyEnds(faces),
+                starts, counts, Arrays.copyOf(cells.gx, cells.size), Arrays.copyOf(cells.gy, cells.size));
+    }
+
+    private static boolean supportsFace(WallInput input, int wall, byte orientation,
+                                        float line, float start, float end) {
+        float boundary;
+        float wallStart;
+        float wallEnd;
+        if (orientation == CompiledSpatialStructure.MIN_X) boundary = input.minX[wall];
+        else if (orientation == CompiledSpatialStructure.MAX_X) boundary = input.maxX[wall];
+        else if (orientation == CompiledSpatialStructure.MIN_Y) boundary = input.minY[wall];
+        else boundary = input.maxY[wall];
+        if (!nearlyEqual(boundary, line)) return false;
+        if (orientation == CompiledSpatialStructure.MIN_X || orientation == CompiledSpatialStructure.MAX_X) {
+            wallStart = input.minY[wall];
+            wallEnd = input.maxY[wall];
+        } else {
+            wallStart = input.minX[wall];
+            wallEnd = input.maxX[wall];
+        }
+        return overlap(wallStart, wallEnd, start, end);
+    }
+
+    private static boolean isBoundaryCell(SpatialBlockData.LinkedTileRef ref,
+                                          SpatialWallGeometry.LinkedCellBounds bounds,
+                                          byte orientation) {
+        if (orientation == CompiledSpatialStructure.MIN_X) return ref.gx == bounds.minGx;
+        if (orientation == CompiledSpatialStructure.MAX_X) return ref.gx == bounds.maxGxExclusive - 1;
+        if (orientation == CompiledSpatialStructure.MIN_Y) return ref.gy == bounds.minGy;
+        return ref.gy == bounds.maxGyExclusive - 1;
+    }
+
+    private static int[] sortedWallOrder(WallInput input) {
+        int[] order = new int[input.id.length];
+        for (int i = 0; i < order.length; i++) order[i] = i;
+        for (int i = 1; i < order.length; i++) {
+            int value = order[i];
+            int at = i;
+            while (at > 0 && input.id[order[at - 1]] > input.id[value]) {
+                order[at] = order[at - 1];
+                at--;
+            }
+            order[at] = value;
+        }
+        return order;
+    }
+
+    private static byte[] copyOrientations(CompiledSpatialStructure.FaceSet faces) {
+        byte[] out = new byte[faces.faceCount()];
+        for (int i = 0; i < out.length; i++) out[i] = faces.orientation(i);
+        return out;
+    }
+
+    private static float[] copyConstants(CompiledSpatialStructure.FaceSet faces) {
+        float[] out = new float[faces.faceCount()];
+        for (int i = 0; i < out.length; i++) out[i] = faces.constantCoordinate(i);
+        return out;
+    }
+
+    private static float[] copyStarts(CompiledSpatialStructure.FaceSet faces) {
+        float[] out = new float[faces.faceCount()];
+        for (int i = 0; i < out.length; i++) out[i] = faces.startCoordinate(i);
+        return out;
+    }
+
+    private static float[] copyEnds(CompiledSpatialStructure.FaceSet faces) {
+        float[] out = new float[faces.faceCount()];
+        for (int i = 0; i < out.length; i++) out[i] = faces.endCoordinate(i);
+        return out;
+    }
+
     private static final class WallInput {
         final int[] id;
         final float[] minX;
@@ -298,6 +407,7 @@ public final class SpatialStructureCompiler {
         final float[] minY;
         final float[] maxY;
         final boolean[] actorOccluder;
+        final SpatialBlockData[] wall;
         final int[] minXi;
         final int[] maxXi;
         final int[] minYi;
@@ -312,6 +422,7 @@ public final class SpatialStructureCompiler {
             minY = new float[count];
             maxY = new float[count];
             actorOccluder = new boolean[count];
+            wall = new SpatialBlockData[count];
             minXi = new int[count];
             maxXi = new int[count];
             minYi = new int[count];
@@ -342,6 +453,51 @@ public final class SpatialStructureCompiler {
             this.faces = faces;
             this.coveredCellCount = coveredCellCount;
             this.rawBoundaryCount = rawBoundaryCount;
+        }
+
+        FaceCompilation withFaces(CompiledSpatialStructure.FaceSet replacement) {
+            return new FaceCompilation(replacement, coveredCellCount, rawBoundaryCount);
+        }
+    }
+
+    private static final class CellBuilder {
+        int size;
+        int[] gx;
+        int[] gy;
+
+        CellBuilder(int capacity) {
+            gx = new int[capacity];
+            gy = new int[capacity];
+        }
+
+        void addUnique(int x, int y, int from) {
+            for (int i = from; i < size; i++) if (gx[i] == x && gy[i] == y) return;
+            ensure(size + 1);
+            gx[size] = x;
+            gy[size] = y;
+            size++;
+        }
+
+        void sort(int from, int to) {
+            for (int i = from + 1; i < to; i++) {
+                int x = gx[i];
+                int y = gy[i];
+                int at = i;
+                while (at > from && (gx[at - 1] > x || gx[at - 1] == x && gy[at - 1] > y)) {
+                    gx[at] = gx[at - 1];
+                    gy[at] = gy[at - 1];
+                    at--;
+                }
+                gx[at] = x;
+                gy[at] = y;
+            }
+        }
+
+        private void ensure(int required) {
+            if (required <= gx.length) return;
+            int next = Math.max(required, gx.length * 2);
+            gx = Arrays.copyOf(gx, next);
+            gy = Arrays.copyOf(gy, next);
         }
     }
 

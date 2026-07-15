@@ -17,12 +17,12 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.SpatialActorCollector;
-import games.pixscape.runtime.spatial.SpatialBlockAnchorResolver;
-import games.pixscape.runtime.spatial.SpatialBlocksRuntimeCache;
+import games.pixscape.runtime.spatial.SpatialFaceAnchorResolver;
+import games.pixscape.runtime.spatial.SpatialFaceRelationSolver;
 import games.pixscape.runtime.spatial.SpatialFrameSnapshotBuilder;
+import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
+import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialOrderingKernel;
-import games.pixscape.runtime.spatial.SpatialRelationSolver;
-import games.pixscape.runtime.spatial.SpatialTiledSort;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 import java.util.Arrays;
@@ -49,12 +49,12 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private boolean[] spatialLayers = new boolean[0];
 
-    private int[] blockLayerEntities = new int[0];
-    private int blockLayerCount;
-    private final SpatialBlockAnchorResolver blockAnchorResolver = new SpatialBlockAnchorResolver();
-    private final SpatialBlocksRuntimeCache blockCache = new SpatialBlocksRuntimeCache();
+    private int[] faceLayerEntities = new int[0];
+    private int faceLayerCount;
+    private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
+    private final SpatialFaceAnchorResolver faceAnchorResolver = new SpatialFaceAnchorResolver();
     private final SpatialActorCollector actorCollector = new SpatialActorCollector();
-    private final SpatialRelationSolver relationSolver = new SpatialRelationSolver();
+    private final SpatialFaceRelationSolver relationSolver = new SpatialFaceRelationSolver();
     private final SpatialFrameSnapshotBuilder snapshotBuilder = new SpatialFrameSnapshotBuilder();
     private final SpatialOrderingKernel orderingKernel = new SpatialOrderingKernel();
 
@@ -71,9 +71,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, TiledMapRenderState tiledState, DrawList drawList) {
-        this.ecsState = ecsState;
-        this.tiledState = tiledState;
-        this.drawList = drawList;
+        this(ecsState, tiledState, drawList, DEFAULT_PIXELS_PER_METER, null);
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList, float pixelsPerMeter) {
@@ -84,8 +82,20 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                                     TiledMapRenderState tiledState,
                                     DrawList drawList,
                                     float pixelsPerMeter) {
-        this(ecsState, tiledState, drawList);
+        this(ecsState, tiledState, drawList, pixelsPerMeter, null);
+    }
+
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
+                                    TiledMapRenderState tiledState,
+                                    DrawList drawList,
+                                    float pixelsPerMeter,
+                                    SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
+        this.ecsState = ecsState;
+        this.tiledState = tiledState;
+        this.drawList = drawList;
         this.pixelsPerMeter = pixelsPerMeter > 0f ? pixelsPerMeter : DEFAULT_PIXELS_PER_METER;
+        this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
+                ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
     }
 
     @Override
@@ -111,6 +121,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void processSystemInternal() {
+        orderingKernel.reset();
         if (ecsState == null || drawList == null || drawList.size <= 1) return;
 
         rebuildSpatialLayers();
@@ -120,7 +131,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         snapshotBuilder.build(drawList, ecsState.getRenderCapacity(), actorCollector);
         rebuildSpatialBlockLayers();
         orderingKernel.begin(actorCollector, snapshotBuilder);
-        if (blockLayerCount == 0) {
+        if (faceLayerCount == 0) {
             orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
             applyComposedDrawList();
             assertNonActorSubsequencePreserved();
@@ -128,33 +139,23 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
 
         buildDrawIndexMaps();
-        for (int layer = 0; layer < blockLayerCount; layer++) {
-            int owner = blockLayerEntities[layer];
+        for (int layer = 0; layer < faceLayerCount; layer++) {
+            int owner = faceLayerEntities[layer];
             TiledLayerComponent tiled = mTiled.getSafe(owner, null);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
             if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
 
-            SpatialTiledSort.Context spatialSort = SpatialTiledSort.contextForLayer(owner,
-                    mLayer.get(owner),
-                    tiled,
-                    blocks);
-            blockAnchorResolver.resolve(blocks, tiled.data, tiledRefToDrawIndex, blockCache, spatialSort);
-            if (blockCache.blockCount() == 0) continue;
-            convertBlockAnchorsToStableBuckets();
-
-            relationSolver.solve(actorCollector, blockCache, blocks, tiled.data);
-            SpatialTiledSort.verifyLayer(owner,
-                    mLayer.get(owner),
-                    tiled,
-                    blocks,
-                    tiledState,
-                    tiledRefToDrawIndex,
-                    tiledLayerEntityCount(),
-                    spatialSort,
-                    actorCollector,
-                    relationSolver);
+            SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(owner);
+            runtime.compiled.ensure(blocks);
+            runtime.projected.ensure(runtime.compiled, tiled.data);
+            runtime.tileOrder.ensure(owner, tiled.data, blocks, runtime.compiled);
+            if (runtime.projected.faceCount == 0) continue;
+            faceAnchorResolver.resolve(runtime.projected, tiledRefToDrawIndex,
+                    snapshotBuilder.drawIndexToBucketBefore, snapshotBuilder.drawIndexToBucketAfter,
+                    drawList.size);
+            relationSolver.solve(actorCollector, runtime.projected);
             if (relationSolver.relationCount() == 0) continue;
-            orderingKernel.addRelations(actorCollector, blockCache, relationSolver);
+            orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver);
         }
 
         orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
@@ -163,7 +164,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void rebuildSpatialBlockLayers() {
-        blockLayerCount = 0;
+        faceLayerCount = 0;
         if (blockLayersSub == null) return;
 
         IntBag layers = blockLayersSub.getEntities();
@@ -177,9 +178,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             if (tiled.data == null) continue;
             if (!isSpatialTiledLayer(layer, tiled)) continue;
 
-            ensureBlockLayerCapacity(blockLayerCount + 1);
-            blockLayerEntities[blockLayerCount] = entity;
-            blockLayerCount++;
+            ensureFaceLayerCapacity(faceLayerCount + 1);
+            faceLayerEntities[faceLayerCount] = entity;
+            faceLayerCount++;
         }
     }
 
@@ -227,12 +228,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
         System.arraycopy(orderingKernel.orderedSlots(), 0, drawList.data(), 0, drawList.size);
         System.arraycopy(orderingKernel.orderedDomains(), 0, drawList.domainData(), 0, drawList.size);
-    }
-
-    private void convertBlockAnchorsToStableBuckets() {
-        blockCache.convertDrawIndexRangesToBuckets(snapshotBuilder.drawIndexToBucketBefore,
-                snapshotBuilder.drawIndexToBucketAfter,
-                drawList.size);
     }
 
     private void assertNonActorSubsequencePreserved() {
@@ -307,14 +302,13 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         spatialLayers = expanded;
     }
 
-    private void ensureBlockLayerCapacity(int required) {
-        if (required <= blockLayerEntities.length) return;
-        int next = Math.max(4, blockLayerEntities.length);
+    private void ensureFaceLayerCapacity(int required) {
+        if (required <= faceLayerEntities.length) return;
+        int next = Math.max(4, faceLayerEntities.length);
         while (required > next) next <<= 1;
-
         int[] expandedEntities = new int[next];
-        System.arraycopy(blockLayerEntities, 0, expandedEntities, 0, blockLayerEntities.length);
-        blockLayerEntities = expandedEntities;
+        System.arraycopy(faceLayerEntities, 0, expandedEntities, 0, faceLayerEntities.length);
+        faceLayerEntities = expandedEntities;
     }
 
     private void ensureSlotToDrawIndexCapacity(int required) {
@@ -338,7 +332,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     int getActorWorkArrayCapacity() {
-        return blockLayerEntities.length
+        return faceLayerEntities.length
                 + slotToDrawIndex.length
                 + tiledRefToDrawIndex.length
                 + snapshotBuilder.drawIndexToBucketBefore.length
@@ -355,6 +349,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         return tiledRenderRef >= 0 && tiledRenderRef < tiledRefToDrawIndex.length
                 ? tiledRefToDrawIndex[tiledRenderRef]
                 : -1;
+    }
+
+    /** Number of actors whose exact-anchor interval was contradictory in the latest ordering pass. */
+    public int unresolvedConstraintCount() {
+        return orderingKernel.unresolvedConstraintCount();
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

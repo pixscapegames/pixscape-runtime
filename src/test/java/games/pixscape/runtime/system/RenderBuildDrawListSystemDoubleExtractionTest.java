@@ -101,6 +101,11 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         fixture.world.process();
 
         Assert.assertEquals(0, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.stats.ecsSkippedDisabledLayerSlots);
+        Assert.assertEquals(RenderStats.ECS_SKIP_DISABLED_LAYER, fixture.stats.ecsFirstSkippedReason);
+        Assert.assertEquals(5, fixture.stats.ecsFirstSkippedEntityId);
+        Assert.assertEquals(fixture.renderSlotFor(5), fixture.stats.ecsFirstSkippedRenderSlot);
+        Assert.assertEquals(fixture.renderSlotFor(5), fixture.stats.ecsFirstSkippedMappedSlot);
     }
 
     @Test

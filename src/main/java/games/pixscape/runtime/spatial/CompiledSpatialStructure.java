@@ -68,15 +68,35 @@ public final class CompiledSpatialStructure {
         private final float[] constantCoordinate;
         private final float[] startCoordinate;
         private final float[] endCoordinate;
+        private final int[] anchorCellStart;
+        private final int[] anchorCellCount;
+        private final int[] anchorGx;
+        private final int[] anchorGy;
 
         FaceSet(byte[] orientation,
                 float[] constantCoordinate,
                 float[] startCoordinate,
                 float[] endCoordinate) {
+            this(orientation, constantCoordinate, startCoordinate, endCoordinate,
+                    new int[orientation.length], new int[orientation.length], new int[0], new int[0]);
+        }
+
+        FaceSet(byte[] orientation,
+                float[] constantCoordinate,
+                float[] startCoordinate,
+                float[] endCoordinate,
+                int[] anchorCellStart,
+                int[] anchorCellCount,
+                int[] anchorGx,
+                int[] anchorGy) {
             this.orientation = orientation;
             this.constantCoordinate = constantCoordinate;
             this.startCoordinate = startCoordinate;
             this.endCoordinate = endCoordinate;
+            this.anchorCellStart = anchorCellStart;
+            this.anchorCellCount = anchorCellCount;
+            this.anchorGx = anchorGx;
+            this.anchorGy = anchorGy;
         }
 
         public int faceCount() { return orientation.length; }
@@ -84,6 +104,11 @@ public final class CompiledSpatialStructure {
         public float constantCoordinate(int face) { return constantCoordinate[face]; }
         public float startCoordinate(int face) { return startCoordinate[face]; }
         public float endCoordinate(int face) { return endCoordinate[face]; }
+        public int anchorCellStart(int face) { return anchorCellStart[face]; }
+        public int anchorCellCount(int face) { return anchorCellCount[face]; }
+        public int anchorCellTotal() { return anchorGx.length; }
+        public int anchorGx(int anchor) { return anchorGx[anchor]; }
+        public int anchorGy(int anchor) { return anchorGy[anchor]; }
 
         public float startX(int face) {
             return isVertical(orientation[face]) ? constantCoordinate[face] : startCoordinate[face];

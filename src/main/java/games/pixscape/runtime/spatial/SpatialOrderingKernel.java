@@ -18,6 +18,10 @@ public final class SpatialOrderingKernel {
         return composer.composedSize;
     }
 
+    public void reset() {
+        planner.clear();
+    }
+
     public void begin(SpatialActorCollector actors, SpatialFrameSnapshotBuilder snapshot) {
         if (snapshot == null) {
             throw new IllegalArgumentException("Spatial frame snapshot is required.");
@@ -26,9 +30,9 @@ public final class SpatialOrderingKernel {
     }
 
     public void addRelations(SpatialActorCollector actors,
-                             SpatialBlocksRuntimeCache blockCache,
-                             SpatialRelationSolver relations) {
-        planner.addRelations(actors, blockCache, relations);
+                             SpatialProjectedFaceCache faces,
+                             SpatialFaceRelationSolver relations) {
+        planner.addRelations(actors, faces, relations);
     }
 
     public int finish(DrawList drawList,
@@ -36,9 +40,9 @@ public final class SpatialOrderingKernel {
                       SpatialFrameSnapshotBuilder snapshot) {
         planner.finish(actors);
         int composedSize = composer.compose(drawList, actors, planner, snapshot);
-        SpatialTiledSort.verifyToto3(actors, planner);
-        SpatialTiledSort.verifyToto3Signoff(actors, planner, composer.composedSlots, composedSize);
         return composedSize;
     }
+
+    public int unresolvedConstraintCount() { return planner.unresolvedConstraintCount(); }
 
 }
