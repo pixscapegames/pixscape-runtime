@@ -2,6 +2,7 @@ package games.pixscape.runtime.tiled;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class TiledMapLayerData {
@@ -53,6 +54,13 @@ public final class TiledMapLayerData {
     private transient int contentStateRevision;
     private transient int contentMutationDepth;
     private transient boolean contentMutationChanged;
+    private transient boolean atomicMutationOpen;
+    private transient int atomicMutationCount;
+    private transient int[] atomicGx = new int[0];
+    private transient int[] atomicGy = new int[0];
+    private transient int[] atomicBeforeAsset = new int[0];
+    private transient byte[] atomicBeforeFlags = new byte[0];
+    private transient IntIntMap atomicIndexByCell = new IntIntMap();
 
     public boolean visible = true;
     public boolean collisionEnabled = true;
@@ -200,6 +208,9 @@ public final class TiledMapLayerData {
     }
 
     public void setTile(int gx, int gy, int assetId, byte flags) {
+        if (atomicMutationOpen) {
+            throw new IllegalStateException("Use setTileStaged while an atomic tiled map mutation is open.");
+        }
         if (!isInside(gx, gy)) return;
 
         int cx = gx / chunkSize;
@@ -218,6 +229,117 @@ public final class TiledMapLayerData {
             markContentChanged();
         }
         markVisualBoundsDirty();
+    }
+
+    /** Opens an isolated candidate mutation. Nested atomic mutations are not supported. */
+    public void beginAtomicMutation() {
+        if (atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation is already open.");
+        }
+        if (contentMutationDepth != 0) {
+            throw new IllegalStateException("An atomic tiled map mutation cannot start inside a bulk mutation.");
+        }
+        atomicMutationOpen = true;
+        atomicMutationCount = 0;
+        atomicIndexByCell.clear();
+    }
+
+    /** Writes candidate content without publishing revisions, dirty state, or render invalidation. */
+    public void setTileStaged(int gx, int gy, int assetId, byte flags) {
+        if (!atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation was not started.");
+        }
+        if (!isInside(gx, gy)) return;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return;
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        int localIndex = ly * chunk.chunkWidth + lx;
+        byte safeFlags = TileTransformFlags.sanitize(flags);
+        int key = packAtomicCell(gx, gy);
+        int mutationIndex = atomicIndexByCell.get(key, -1);
+        if (mutationIndex < 0) {
+            ensureAtomicCapacity(atomicMutationCount + 1);
+            mutationIndex = atomicMutationCount++;
+            atomicIndexByCell.put(key, mutationIndex);
+            atomicGx[mutationIndex] = gx;
+            atomicGy[mutationIndex] = gy;
+            atomicBeforeAsset[mutationIndex] = chunk.assetIds[localIndex];
+            atomicBeforeFlags[mutationIndex] = chunk.transformFlags[localIndex];
+        }
+        chunk.assetIds[localIndex] = assetId;
+        chunk.transformFlags[localIndex] = safeFlags;
+    }
+
+    /** Publishes the complete candidate as one coherent map content revision. */
+    public void commitAtomicMutation() {
+        requireAtomicMutation();
+        boolean changed = false;
+        for (int i = 0; i < atomicMutationCount; i++) {
+            int gx = atomicGx[i];
+            int gy = atomicGy[i];
+            TileChunk chunk = chunkForTile(gx, gy);
+            int lx = gx - (gx / chunkSize) * chunkSize;
+            int ly = gy - (gy / chunkSize) * chunkSize;
+            int localIndex = ly * chunk.chunkWidth + lx;
+            int afterAsset = chunk.assetIds[localIndex];
+            byte afterFlags = chunk.transformFlags[localIndex];
+            if (atomicBeforeAsset[i] == afterAsset && atomicBeforeFlags[i] == afterFlags) continue;
+            chunk.publishStagedCellChange(localIndex, atomicBeforeAsset[i] != afterAsset);
+            changed = true;
+        }
+        clearAtomicMutation();
+        if (changed) {
+            contentStateRevision++;
+            contentRevision++;
+            markVisualBoundsDirty();
+        }
+    }
+
+    /** Restores the exact cell content and publishes no state change. */
+    public void rollbackAtomicMutation() {
+        requireAtomicMutation();
+        for (int i = 0; i < atomicMutationCount; i++) {
+            int gx = atomicGx[i];
+            int gy = atomicGy[i];
+            TileChunk chunk = chunkForTile(gx, gy);
+            int lx = gx - (gx / chunkSize) * chunkSize;
+            int ly = gy - (gy / chunkSize) * chunkSize;
+            int localIndex = ly * chunk.chunkWidth + lx;
+            chunk.assetIds[localIndex] = atomicBeforeAsset[i];
+            chunk.transformFlags[localIndex] = atomicBeforeFlags[i];
+        }
+        clearAtomicMutation();
+    }
+
+    public boolean isAtomicMutationOpen() {
+        return atomicMutationOpen;
+    }
+
+    private void requireAtomicMutation() {
+        if (!atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation was not started.");
+        }
+    }
+
+    private void clearAtomicMutation() {
+        atomicMutationOpen = false;
+        atomicMutationCount = 0;
+        atomicIndexByCell.clear();
+    }
+
+    private void ensureAtomicCapacity(int required) {
+        if (atomicGx.length >= required) return;
+        int capacity = Math.max(required, Math.max(8, atomicGx.length * 2));
+        atomicGx = java.util.Arrays.copyOf(atomicGx, capacity);
+        atomicGy = java.util.Arrays.copyOf(atomicGy, capacity);
+        atomicBeforeAsset = java.util.Arrays.copyOf(atomicBeforeAsset, capacity);
+        atomicBeforeFlags = java.util.Arrays.copyOf(atomicBeforeFlags, capacity);
+    }
+
+    private static int packAtomicCell(int gx, int gy) {
+        return (gx << 16) ^ (gy & 0xFFFF);
     }
 
     /** Begins a bulk map mutation whose static-order revision is published once at commit. */

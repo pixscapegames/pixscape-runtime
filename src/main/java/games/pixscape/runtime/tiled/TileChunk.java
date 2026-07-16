@@ -338,6 +338,21 @@ public final class TileChunk {
         }
     }
 
+    void publishStagedCellChange(int localIndex, boolean assetChanged) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
+            return;
+        }
+        if (assetChanged) {
+            clearAnimationStateInternal(localIndex);
+        }
+        contentDirty = true;
+        if (dirtyState != DirtyState.FULL) {
+            dirtyState = DirtyState.PARTIAL;
+            dirtyLocalIndices.add(localIndex);
+        }
+        collisionDirty = true;
+    }
+
     // ============================================================
     // Animation state
     // ============================================================
