@@ -53,15 +53,6 @@ public final class SpatialTileOrderCache {
         return true;
     }
 
-    /** Forces a transactional rebuild after a required spatial rank lookup misses. */
-    public void forceRebuild(int layerEntity,
-                             TiledMapLayerData map,
-                             SpatialBlocksComponent blocks,
-                             SpatialCompiledLayerCache compiled) {
-        if (map == null || compiled == null) return;
-        rebuild(layerEntity, map, blocks, compiled);
-    }
-
     private void rebuild(int layerEntity,
                          TiledMapLayerData map,
                          SpatialBlocksComponent blocks,

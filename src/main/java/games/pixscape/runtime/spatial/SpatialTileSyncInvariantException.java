@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-/** Recoverable preview diagnostic for a spatially participating tile that remains unranked after repair. */
+/** Reports an occupied Spatial tiled-layer cell without its required canonical rank. */
 public final class SpatialTileSyncInvariantException extends RuntimeException {
     public SpatialTileSyncInvariantException(String message) {
         super(message);

@@ -55,10 +55,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private final RuntimeTilesetProfiles tilesetProfiles;
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
     private SpatialTileOrderCache currentTileOrder;
-    private SpatialBlocksComponent currentSpatialBlocks;
-    private SpatialLayerFaceRuntime currentSpatialRuntime;
     private int currentLayerEntity = -1;
-    private boolean refreshingTileKeys;
     private TileAnimationLookup tileAnimationLookup;
 
     private final Rectangle viewBounds = new Rectangle();
@@ -161,8 +158,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         TiledMapLayerData map = tiled.data;
         currentTileOrder = null;
-        currentSpatialBlocks = null;
-        currentSpatialRuntime = null;
         currentLayerEntity = e;
         if (map.projection == SceneMetaRuntime.TiledProjection.ISO
                 && (layer.spatialEnabled || tiled.spatialEnabled || map.spatialEnabled)) {
@@ -173,8 +168,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             runtime.projected.ensure(runtime.compiled, map);
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);
             currentTileOrder = runtime.tileOrder;
-            currentSpatialBlocks = blocks;
-            currentSpatialRuntime = runtime;
             if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, layer.layerIndex, currentTileOrder);
         }
         if (!map.visible) return;
@@ -735,16 +728,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         long sortKey;
         if (currentTileOrder != null) {
             int rank = currentTileOrder.rank(gx, gy);
-            if (rank < 0 && currentTileOrder.requiresCanonicalRank(map, gx, gy)) {
-                rank = recoverRequiredRank(map, gx, gy, assetId, layerIndex);
-            }
-            if (rank >= 0) {
-                sortKey = SortKey64.packForBlendOrder30(defaultShaderIdx, BlendMode.ALPHA.id,
-                        cr.textureHandle, layerIndex, rank);
-            } else {
-                sortKey = SortKey64.packForBlend(defaultShaderIdx, BlendMode.ALPHA.id,
-                        cr.textureHandle, layerIndex, z, tie);
-            }
+            if (rank < 0) throw missingRequiredRank(map, gx, gy, assetId, layerIndex,
+                    "missing-during-slot-write");
+            sortKey = SortKey64.packForBlendOrder30(defaultShaderIdx, BlendMode.ALPHA.id,
+                    cr.textureHandle, layerIndex, rank);
         } else {
             sortKey = SortKey64.packForBlend(defaultShaderIdx, BlendMode.ALPHA.id,
                     cr.textureHandle, layerIndex, z, tie);
@@ -807,60 +794,26 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void refreshTileKeys(TiledMapLayerData map, int layerIndex, SpatialTileOrderCache order) {
-        refreshingTileKeys = true;
-        try {
-            for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> values = map.getChunks(); values.hasNext(); ) {
-                TileChunk chunk = values.next();
-                if (chunk.renderRefStartIndex < 0) continue;
-                for (int local = 0; local < chunk.cellCount(); local++) {
-                    if (chunk.assetIds[local] <= 0) continue;
-                    int ref = chunk.renderRefStartIndex + local;
-                    if (ref < 0 || ref >= tiledState.getRefCount() || !tiledState.enabled[ref]) continue;
-                    int gx = chunk.chunkX * map.chunkSize + local % chunk.chunkWidth;
-                    int gy = chunk.chunkY * map.chunkSize + local / chunk.chunkWidth;
-                    int rank = order.rank(gx, gy);
-                    if (rank < 0 && order.requiresCanonicalRank(map, gx, gy)) {
-                        rank = recoverRequiredRank(map, gx, gy, chunk.assetIds[local], layerIndex);
-                    }
-                    if (rank >= 0) {
-                        tiledState.sortKey[ref] = SortKey64.packForBlendOrder30(
-                                tiledState.shader[ref], tiledState.blend[ref], tiledState.textureHandle[ref],
-                                layerIndex, rank);
-                    } else if (order.requiresCanonicalRank(map, gx, gy)) {
-                        throw missingRequiredRank(map, gx, gy, chunk.assetIds[local], layerIndex,
-                                "missing-after-canonical-key-refresh");
-                    } else {
-                        int z = clampSortZ(-(gx + gy));
-                        int tie = clampSortTie(gx);
-                        tiledState.sortKey[ref] = SortKey64.packForBlend(
-                                tiledState.shader[ref], tiledState.blend[ref], tiledState.textureHandle[ref],
-                                layerIndex, z, tie);
-                    }
+        for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> values = map.getChunks(); values.hasNext(); ) {
+            TileChunk chunk = values.next();
+            if (chunk.renderRefStartIndex < 0) continue;
+            for (int local = 0; local < chunk.cellCount(); local++) {
+                if (chunk.assetIds[local] <= 0) continue;
+                int ref = chunk.renderRefStartIndex + local;
+                if (ref < 0 || ref >= tiledState.getRefCount() || !tiledState.enabled[ref]) continue;
+                int gx = chunk.chunkX * map.chunkSize + local % chunk.chunkWidth;
+                int gy = chunk.chunkY * map.chunkSize + local / chunk.chunkWidth;
+                int rank = order.rank(gx, gy);
+                if (rank < 0) {
+                    throw missingRequiredRank(map, gx, gy, chunk.assetIds[local], layerIndex,
+                            "missing-during-key-refresh");
                 }
-            }
-            order.markKeysApplied();
-        } finally {
-            refreshingTileKeys = false;
-        }
-    }
-
-    private int recoverRequiredRank(TiledMapLayerData map,
-                                    int gx,
-                                    int gy,
-                                    int assetId,
-                                    int layerIndex) {
-        if (currentSpatialRuntime != null) {
-            currentSpatialRuntime.compiled.ensure(currentSpatialBlocks);
-            currentSpatialRuntime.projected.ensure(currentSpatialRuntime.compiled, map);
-            currentTileOrder.forceRebuild(currentLayerEntity, map, currentSpatialBlocks,
-                    currentSpatialRuntime.compiled);
-            int recovered = currentTileOrder.rank(gx, gy);
-            if (recovered >= 0) {
-                if (!refreshingTileKeys) refreshTileKeys(map, layerIndex, currentTileOrder);
-                return recovered;
+                tiledState.sortKey[ref] = SortKey64.packForBlendOrder30(
+                        tiledState.shader[ref], tiledState.blend[ref], tiledState.textureHandle[ref],
+                        layerIndex, rank);
             }
         }
-        throw missingRequiredRank(map, gx, gy, assetId, layerIndex, "missing-after-forced-rebuild");
+        order.markKeysApplied();
     }
 
     private SpatialTileSyncInvariantException missingRequiredRank(TiledMapLayerData map,
@@ -881,6 +834,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 + gx + "," + gy + "), layerEntity=" + currentLayerEntity + ", layerName=" + layerName
                 + ", layerIndex=" + layerIndex + ", chunk=(" + chunkX + "," + chunkY + ")"
                 + ", tileAssetId=" + assetId + ", spatialLayer=" + spatialLayer
+                + ", projection=" + map.projection + ", mapRevision=" + map.contentStateRevision()
+                + ", tileOrderRevision=" + (currentTileOrder != null ? currentTileOrder.orderRevision() : -1)
                 + ", ownerBlockId=" + (owner != 0 ? String.valueOf(owner) : "<none>")
                 + ", anchorStructureId=" + (anchor != 0 ? String.valueOf(anchor) : "<none>")
                 + ", explicitSpatialMetadata=" + map.hasTileSpatialOverride(gx, gy)
