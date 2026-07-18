@@ -68,7 +68,7 @@ public class RenderTiledSyncSpatialEditTest {
         blocks.revision = 1;
 
         world.process();
-        SpatialTileOrderCache order = registry.forLayer(entity.getId()).tileOrder;
+        SpatialTileOrderCache order = registry.forLayer(entity.getId(), map).tileOrder;
         Assert.assertTrue(order.rank(2, 2) >= 0);
 
         map.beginContentMutation();

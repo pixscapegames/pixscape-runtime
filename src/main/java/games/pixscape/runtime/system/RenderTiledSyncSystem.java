@@ -163,7 +163,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 && (layer.spatialEnabled || tiled.spatialEnabled || map.spatialEnabled)) {
             ensureAllChunkRenderRefs(map);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(e, null);
-            SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e);
+            SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
             runtime.compiled.ensure(blocks);
             runtime.projected.ensure(runtime.compiled, map);
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);

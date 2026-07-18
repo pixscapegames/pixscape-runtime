@@ -193,11 +193,11 @@ public class RenderTiledSyncCanonicalRankTest {
         }
 
         SpatialTileOrderCache order() {
-            return registry.forLayer(entityId).tileOrder;
+            return registry.forLayer(entityId, map).tileOrder;
         }
 
         void primeOrder() {
-            SpatialLayerFaceRuntime runtime = registry.forLayer(entityId);
+            SpatialLayerFaceRuntime runtime = registry.forLayer(entityId, map);
             runtime.compiled.ensure(null);
             runtime.projected.ensure(runtime.compiled, map);
             runtime.tileOrder.ensure(entityId, map, null, runtime.compiled);

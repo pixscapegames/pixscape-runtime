@@ -145,7 +145,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
             if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
 
-            SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(owner);
+            SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(owner, tiled.data);
             runtime.compiled.ensure(blocks);
             runtime.projected.ensure(runtime.compiled, tiled.data);
             runtime.tileOrder.ensure(owner, tiled.data, blocks, runtime.compiled);
