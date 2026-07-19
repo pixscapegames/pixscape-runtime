@@ -3,28 +3,28 @@
 <h1>Pixscape Runtime</h1>
 
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.1.7-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.1.8-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**High-performance 2D runtime for Pixscape Studio, built on LibGDX and Artemis-ODB.**
+**High-performance 2D runtime for Pixscape Studio Free, built on LibGDX and Artemis-ODB.**
 
-➡️ **Download Pixscape Studio:** https://github.com/pixscapegames/pixscape-studio-releases  
+➡️ **Download Pixscape Studio Free:** https://github.com/pixscapegames/pixscape-studio-releases  
 🌐 **Website:** https://pixscape.games/  
 📘 **Documentation:** https://pixscape.games/docs  
 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-![Pixscape Studio](docs/images/pixscape-studio.png)
+![Pixscape Studio Free](docs/images/pixscape-studio.png)
 
 ## What is Pixscape Runtime?
 
-Pixscape Runtime is the open-source runtime core powering **Pixscape Studio**.
+Pixscape Runtime is the open-source runtime core powering **Pixscape Studio Free** and exported Pixscape projects.
 
 It is a performance-oriented 2D game runtime built on top of **LibGDX** and **Artemis-ODB ECS**, designed for lightweight workflows, fast iteration, deterministic rendering, and multiplatform deployment.
 
-Pixscape Runtime provides the low-level engine layer used by Pixscape Studio exports, including rendering, tiled maps, physics integration, animation playback, particles, shaders, lights, prefabs, runtime asset availability, and 2.5D spatial ordering.
+Pixscape Runtime provides the low-level engine layer used by Pixscape Studio exports, including rendering, tiled maps, physics integration, animation playback, particles, shaders, lights, prefabs, runtime asset availability, tileset profiles, repeated renderables, and deterministic 2.5D spatial ordering.
 
-Pixscape Studio is the recommended way to build games with Pixscape.  
+Pixscape Studio Free is the recommended way to build games with Pixscape.  
 This runtime repository is also available separately for developers who want direct engine-level access, advanced customization, or full integration inside existing LibGDX projects.
 
 ## Highlights
@@ -35,29 +35,29 @@ This runtime repository is also available separately for developers who want dir
 - **Fast sprite and tiled rendering**
 - **Async atlas workflows**
 - **Runtime asset availability system**
+- **Tileset-profile-aware tiled placement**
+- **Efficient repeated renderables**
 - **Prefab loading support**
 - **Animation and particle runtime support**
 - **Shader and light pipeline**
 - **Box2D physics integration**
-- **2.5D spatial ordering**
+- **Spatial V3 deterministic 2.5D ordering**
 - **Desktop, Android and HTML5/WebGL2 deployment**
 
-## 2.5D Spatial System
+## Spatial V3 — Deterministic 2.5D Ordering
 
-Pixscape Runtime includes a **2.5D Spatial System** for deterministic front/behind ordering in orthographic and isometric scenes.
+Pixscape Runtime includes Spatial V3, a deterministic ordering system for actors and tiled environment structures in orthographic and isometric scenes.
 
-This system allows actors, tiled structures, walls, columns, and elevated environment elements to render in a coherent front/behind order without relying on expensive real-time raytracing.
+Spatial V3 supports:
 
-The spatial system is designed around deterministic ordering:
-
-- actors can move naturally in front of or behind environment structures
-- spatial blocks define authorable occlusion zones
-- altitude-aware layers support multi-level environments
-- actor/environment ordering can use physics footprints
-- tiled structures can participate in spatial sorting
-- the final draw order is computed deterministically before rendering
-
-This provides a foundation for richer 2.5D scenes while keeping the runtime lightweight and fast.
+- connected wall structures with automatic merge and split handling
+- deterministic corner and junction rules
+- exposed-face compilation for tiled structures
+- canonical static tile ranks for Spatial-enabled tiled layers
+- source-aware Spatial layer runtime caches
+- actor ordering based on circular physics footprints
+- altitude-aware structures and multi-level environments
+- stable actor, wall and tiled ordering without frame-to-frame flicker
 
 ## Runtime Features
 
@@ -71,7 +71,12 @@ This provides a foundation for richer 2.5D scenes while keeping the runtime ligh
 - Layered rendering
 - Runtime culling
 - Deterministic render ordering
-- 2.5D spatial ordering
+- Spatial V3 2.5D ordering
+- Tileset-profile-aware tiled placement
+- Native-size tile rendering with anchors and offsets
+- Tiled transform flag support
+- Efficient repeated renderables
+- Render diagnostics for texture binds, flushes, projection uploads and region-cache resolution
 
 ### Assets
 
@@ -81,7 +86,9 @@ This provides a foundation for richer 2.5D scenes while keeping the runtime ligh
 - Runtime animation definitions
 - Runtime particle definitions
 - Runtime prefab loading
-- Scene export compatibility with Pixscape Studio
+- Scene export compatibility with Pixscape Studio Free
+- Tileset profile manifest loading
+- Tiled animation metadata loading
 
 ### Animation
 
@@ -95,7 +102,7 @@ This provides a foundation for richer 2.5D scenes while keeping the runtime ligh
 
 - Box2D integration
 - Runtime physics synchronization
-- Physics-based actor footprint support for spatial ordering
+- Physics-based actor footprint support for Spatial ordering
 - Mouse/touch drag helper system
 
 ### Platforms
@@ -106,7 +113,7 @@ Pixscape Runtime targets:
 - Android
 - HTML5 / WebGL2
 
-Pixscape Runtime is built with JDK 21 tooling and published as Java 8-compatible bytecode for maximum LibGDX ecosystem portability. Pixscape Studio requires Java 21.
+Pixscape Runtime is built with JDK 21 tooling and published as Java 8-compatible bytecode for maximum LibGDX ecosystem portability. Pixscape Studio Free requires Java 21.
 
 iOS/RoboVM is not currently listed as an officially tested target.
 
@@ -118,7 +125,7 @@ Pixscape Runtime is available from Maven Central.
 
 ```gradle
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.1.7"
+    implementation "games.pixscape:pixscape-runtime:0.1.8"
 }
 ```
 
@@ -128,7 +135,7 @@ dependencies {
 <dependency>
     <groupId>games.pixscape</groupId>
     <artifactId>pixscape-runtime</artifactId>
-    <version>0.1.7</version>
+    <version>0.1.8</version>
 </dependency>
 ```
 
@@ -138,9 +145,9 @@ Full documentation is available on the official website:
 
 📘 https://pixscape.games/docs
 
-## Download Pixscape Studio
+## Download Pixscape Studio Free
 
-Pixscape Studio builds are available here:
+Pixscape Studio Free builds are available here:
 
 ➡️ https://github.com/pixscapegames/pixscape-studio-releases
 
