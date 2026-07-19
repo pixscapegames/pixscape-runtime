@@ -29,28 +29,25 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
  * SOA version of particles: updates ParticleEffect and
- * injects each active particle Sprite into RenderStateSOA.
+ * injects each active particle Sprite into VfxRenderState.
  */
 @All({ParticleEmitterComponent.class, TransformComponent.class})
 public final class RenderParticleSyncSystem extends BaseSystem implements ProfiledSystem {
 
     private final OrthographicCamera camera;
-    private final RenderStateSOA state;
+    private final VfxRenderState vfxState;
 
     // perf cache: avoids TextureRegistry.handleOf(tex) for each particle
     private Texture lastTex = null;
     private int lastTexHandle = 0;
-
-    // index range reserved for VFX in the SOA
-    private final int vfxStartIndex;
-    private final int vfxEndIndex;
 
     // cache : entityId -> ParticleEffect
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
@@ -67,26 +64,19 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     private EntitySubscription layerSubscription;
     private final IntIntMap layerVisibility = new IntIntMap();
 
-    // simple stats to clean slots from previous frame
-    private int lastUsedVfxSlots = 0;
-
     // default “material” params
     private final int defaultShaderIdx;
     private final AtlasRuntimeService atlasRuntimeService;
     private FileHandle effectsRoot;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public RenderParticleSyncSystem(RenderStateSOA state,
+    public RenderParticleSyncSystem(VfxRenderState vfxState,
                                     OrthographicCamera camera,
-                                    int vfxStartIndex,
-                                    int vfxEndIndex,
                                     int defaultShaderIdx,
                                     AtlasRuntimeService atlasRuntimeService,
                                     FileHandle effectsRoot) {
-        this.state = state;
+        this.vfxState = vfxState;
         this.camera = camera;
-        this.vfxStartIndex = vfxStartIndex;
-        this.vfxEndIndex = vfxEndIndex;
         this.defaultShaderIdx = defaultShaderIdx;
         this.atlasRuntimeService = atlasRuntimeService;
         this.effectsRoot = effectsRoot;
@@ -148,16 +138,13 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     private void processSystemInternal() {
         float dt = world.getDelta();
 
-        // 1) clean VFX slots from previous frame
-        clearPreviousVfxSlots();
+        vfxState.clearFrame();
         refreshLayerVisibility();
 
         IntBag bag = subscription.getEntities();
         int[] data = bag.getData();
         int count = bag.size();
         if (count == 0) return;
-
-        int cursor = vfxStartIndex;
 
         for (int i = 0; i < count; i++) {
             int e = data[i];
@@ -224,29 +211,16 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 continue;
             }
 
-            // inject all active particles into the SOA,
-            // as long as there is room in [vfxStartIndex, vfxEndIndex)
+            // inject all active particles into the frame-local VFX SOA.
             int layerIndex = resolveLayerIndex(e);
             int zIndex = resolveZIndex(e);
-            cursor = collectEffect(fx, cursor, layerIndex, zIndex, ov);
-            if (cursor >= vfxEndIndex) break;
+            collectEffect(fx, layerIndex, zIndex, e, ov);
         }
-
-        lastUsedVfxSlots = Math.max(0, cursor - vfxStartIndex);
     }
 
     // ------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------
-
-    private void clearPreviousVfxSlots() {
-        if (lastUsedVfxSlots <= 0) return;
-        int end = Math.min(vfxStartIndex + lastUsedVfxSlots, vfxEndIndex);
-        for (int i = vfxStartIndex; i < end; i++) {
-            state.disable(i);
-        }
-        lastUsedVfxSlots = 0;
-    }
 
     private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;
@@ -348,9 +322,13 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         lastTexHandle = 0;
     }
 
-    private int collectEffect(ParticleEffect fx, int cursor, int layerIndex, int zIndex, ParticleOverridesComponent ov) {
+    private void collectEffect(ParticleEffect fx,
+                               int layerIndex,
+                               int zIndex,
+                               int sourceEmitter,
+                               ParticleOverridesComponent ov) {
         Array<ParticleEmitter> emitters = fx.getEmitters();
-        for (int ei = 0, en = emitters.size; ei < en && cursor < vfxEndIndex; ei++) {
+        for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
 
             int blendId = emitter.isAdditive()
@@ -362,24 +340,22 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             if (particles == null || active == null) continue;
 
             int cap = emitter.getCapacity();
-            for (int pi = 0; pi < cap && cursor < vfxEndIndex; pi++) {
+            for (int pi = 0; pi < cap; pi++) {
                 if (!active[pi]) continue;
                 Particle p = particles[pi];
                 if (p == null) continue;
 
-                cursor = pushParticle(p, cursor, blendId, layerIndex, zIndex, ov);
+                pushParticle(p, blendId, layerIndex, zIndex, sourceEmitter, ov);
             }
         }
-        return cursor;
     }
 
-    private int pushParticle(Sprite sprite, int index, int blendId, int layerIndex, int zIndex, ParticleOverridesComponent ov) {
-        state.touch(index);
-        state.enabled[index] = true;
-        state.visible[index] = true;
-        state.kind[index] = RenderStateSOA.KIND_SPRITE;
-        state.entityId[index] = -1;
-
+    private void pushParticle(Sprite sprite,
+                              int blendId,
+                              int layerIndex,
+                              int zIndex,
+                              int sourceEmitter,
+                              ParticleOverridesComponent ov) {
         float[] v = sprite.getVertices();
 
         float x1 = v[Batch.X1], y1 = v[Batch.Y1], u1 = v[Batch.U1], vv1 = v[Batch.V1];
@@ -402,23 +378,14 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             float cx = (x1 + x2 + x3 + x4) * 0.25f;
             float cy = (y1 + y2 + y3 + y4) * 0.25f;
 
-            state.x1[index] = cx + (x1 - cx) * sizeMul;
-            state.y1[index] = cy + (y1 - cy) * sizeMul;
-            state.x2[index] = cx + (x2 - cx) * sizeMul;
-            state.y2[index] = cy + (y2 - cy) * sizeMul;
-            state.x3[index] = cx + (x3 - cx) * sizeMul;
-            state.y3[index] = cy + (y3 - cy) * sizeMul;
-            state.x4[index] = cx + (x4 - cx) * sizeMul;
-            state.y4[index] = cy + (y4 - cy) * sizeMul;
-        } else {
-            state.x1[index] = x1;
-            state.y1[index] = y1;
-            state.x2[index] = x2;
-            state.y2[index] = y2;
-            state.x3[index] = x3;
-            state.y3[index] = y3;
-            state.x4[index] = x4;
-            state.y4[index] = y4;
+            x1 = cx + (x1 - cx) * sizeMul;
+            y1 = cy + (y1 - cy) * sizeMul;
+            x2 = cx + (x2 - cx) * sizeMul;
+            y2 = cy + (y2 - cy) * sizeMul;
+            x3 = cx + (x3 - cx) * sizeMul;
+            y3 = cy + (y3 - cy) * sizeMul;
+            x4 = cx + (x4 - cx) * sizeMul;
+            y4 = cy + (y4 - cy) * sizeMul;
         }
 
         // UV rect
@@ -426,11 +393,6 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         float uMax = Math.max(Math.max(u1, u2), Math.max(u3, u4));
         float vMin = Math.min(Math.min(vv1, vv2), Math.min(vv3, vv4));
         float vMax = Math.max(Math.max(vv1, vv2), Math.max(vv3, vv4));
-
-        state.u1[index] = uMin;
-        state.v1[index] = vMin;
-        state.u2[index] = uMax;
-        state.v2[index] = vMax;
 
         // color (spriteColor * tintRgba), then alphaMul
         Color col = sprite.getColor();
@@ -458,8 +420,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         if (a < 0f) a = 0f;
         else if (a > 1f) a = 1f;
 
-        state.colorPacked[index] = Color.toFloatBits(r, g, b, a);
-        state.a[index] = a;
+        float colorPacked = Color.toFloatBits(r, g, b, a);
 
         // --- material / texture array ---
         Texture tex = sprite.getTexture();
@@ -472,27 +433,43 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             lastTexHandle = texHandle;
         }
 
-        state.textureHandle[index] = texHandle;
-        state.shader[index] = defaultShaderIdx;
-        state.blend[index] = blendId;
-        state.layerIndex[index] = layerIndex;
-        state.z[index] = zIndex;
-
         // sort
-        int runtimeOrder = (index - vfxStartIndex) & ((1 << SortKey64.TIE_BITS) - 1);
-        state.paramsId[index] = 0;
-        state.customParamsId[index] = 0;
+        int runtimeOrder = vfxState.activeCount & ((1 << SortKey64.TIE_BITS) - 1);
 
-        state.sortKey[index] = SortKey64.packForBlend(
-                state.shader[index],
-                state.blend[index],   // blendModeId
+        long sortKey = SortKey64.packForBlend(
+                defaultShaderIdx,
+                blendId,
                 texHandle,
-                state.layerIndex[index],
-                state.z[index],
+                layerIndex,
+                zIndex,
                 runtimeOrder
         );
 
-        return index + 1;
+        vfxState.addParticleQuad(
+                texHandle,
+                defaultShaderIdx,
+                blendId,
+                layerIndex,
+                zIndex,
+                0,
+                0,
+                sortKey,
+                x1,
+                y1,
+                x2,
+                y2,
+                x3,
+                y3,
+                x4,
+                y4,
+                uMin,
+                vMin,
+                uMax,
+                vMax,
+                colorPacked,
+                RenderRepeatFlags.NONE,
+                sourceEmitter
+        );
     }
 
     private int resolveLayerIndex(int entityId) {

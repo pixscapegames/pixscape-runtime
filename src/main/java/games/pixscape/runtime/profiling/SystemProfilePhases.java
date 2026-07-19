@@ -22,8 +22,9 @@ public final class SystemProfilePhases {
     public static final int RENDER_PARTICLE_SYNC = 18;
     public static final int ANIMATION_FALLBACK = 19;
     public static final int STUDIO_PARTICLE_FALLBACK = 20;
+    public static final int RENDER_EXTRACT_FRAME_QUEUE = 21;
 
-    public static final int PHASE_COUNT = 21;
+    public static final int PHASE_COUNT = 22;
 
     private static final String[] NAMES = {
             "AnimationSystem",
@@ -46,7 +47,8 @@ public final class SystemProfilePhases {
             "ParallaxDisplaySystem",
             "RenderParticleSyncSystem",
             "AnimationFallbackSystem",
-            "StudioParticleFallbackSystem"
+            "StudioParticleFallbackSystem",
+            "RenderExtractFrameQueueSystem"
     };
 
     private SystemProfilePhases() {

@@ -1,29 +1,31 @@
 package games.pixscape.runtime.spatial;
 
-public final class SpatialBucketDrawListComposer {
-    public interface SlotClassifier {
-        boolean isActorSlot(int slot);
-    }
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.RenderSourceDomain;
 
+public final class SpatialBucketDrawListComposer {
     public int composedSize;
     public int[] composedSlots = new int[0];
+    public byte[] composedDomains = new byte[0];
 
-    public int compose(int[] inputSlots,
-                       int inputSize,
+    public int compose(DrawList input,
                        SpatialActorCollector actors,
                        SpatialBucketPlanner planner,
-                       SlotClassifier classifier) {
-        if (inputSlots == null) {
-            throw new IllegalArgumentException("Input draw slots are required.");
+                       SpatialFrameSnapshotBuilder snapshot) {
+        if (input == null) {
+            throw new IllegalArgumentException("Input draw list is required.");
         }
-        if (inputSize < 0 || inputSize > inputSlots.length) {
+        int inputSize = input.size;
+        int[] inputSlots = input.data();
+        byte[] inputDomains = input.domainData();
+        if (inputSize < 0 || inputSize > inputSlots.length || inputSize > inputDomains.length) {
             throw new IllegalArgumentException("Invalid input draw-list size: " + inputSize);
         }
         if (actors == null || planner == null || actors.actorCount != planner.actorCount) {
             throw new IllegalArgumentException("Matching actor snapshot and bucket planner are required.");
         }
-        if (classifier == null) {
-            throw new IllegalArgumentException("Slot classifier is required.");
+        if (snapshot == null) {
+            throw new IllegalArgumentException("Spatial frame snapshot is required.");
         }
 
         ensureComposedCapacity(inputSize);
@@ -32,7 +34,9 @@ public final class SpatialBucketDrawListComposer {
         write = emitBucket(write, bucket, actors, planner);
         for (int i = 0; i < inputSize; i++) {
             int slot = inputSlots[i];
-            if (classifier.isActorSlot(slot)) continue;
+            byte domain = inputDomains[i];
+            if (snapshot.isActorEntry(domain, slot)) continue;
+            composedDomains[write] = domain;
             composedSlots[write++] = slot;
             bucket++;
             write = emitBucket(write, bucket, actors, planner);
@@ -56,6 +60,7 @@ public final class SpatialBucketDrawListComposer {
         for (int i = 0; i < count; i++) {
             int actor = planner.sortedActorIndex[start + i];
             planner.finalActorDrawIndex[actor] = write;
+            composedDomains[write] = RenderSourceDomain.SOURCE_ECS;
             composedSlots[write++] = actors.actorSlot[actor];
         }
         return write;
@@ -68,5 +73,8 @@ public final class SpatialBucketDrawListComposer {
         int[] expanded = new int[next];
         System.arraycopy(composedSlots, 0, expanded, 0, composedSlots.length);
         composedSlots = expanded;
+        byte[] expandedDomains = new byte[next];
+        System.arraycopy(composedDomains, 0, expandedDomains, 0, composedDomains.length);
+        composedDomains = expandedDomains;
     }
 }

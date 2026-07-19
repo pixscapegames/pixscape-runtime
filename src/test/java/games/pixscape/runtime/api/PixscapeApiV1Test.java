@@ -225,7 +225,6 @@ public class PixscapeApiV1Test {
         int e = world.create();
         TiledLayerComponent layer = world.edit(e).create(TiledLayerComponent.class);
         layer.data = new TiledMapLayerData(4, 4, 16, 16, 2);
-        layer.data.initSlotRange(0, 16);
         world.process();
 
         engine.api().tiled().animations().put(100, new int[]{101, 102}, new int[]{100, 100});
@@ -844,7 +843,6 @@ public class PixscapeApiV1Test {
 
         TiledLayerComponent tiled = world.edit(e).create(TiledLayerComponent.class);
         tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
-        tiled.data.initSlotRange(0, 16);
 
         world.process();
         return e;

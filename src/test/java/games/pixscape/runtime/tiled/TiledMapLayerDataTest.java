@@ -7,6 +7,71 @@ import org.junit.Test;
 public class TiledMapLayerDataTest {
 
     @Test
+    public void atomicCandidateIsReadableWithoutPublishingRevisionOrDirtyState() {
+        TiledMapLayerData map = cleanMap();
+        int revision = map.contentRevision();
+        int stateRevision = map.contentStateRevision();
+
+        map.beginAtomicMutation();
+        map.setTileStaged(1, 1, 17, TileTransformFlags.FLIP_H);
+
+        Assert.assertEquals(17, map.getTile(1, 1));
+        Assert.assertEquals(TileTransformFlags.FLIP_H, map.getTileTransformFlags(1, 1));
+        Assert.assertEquals(revision, map.contentRevision());
+        Assert.assertEquals(stateRevision, map.contentStateRevision());
+        assertChunkClean(map.getChunk(0, 0));
+    }
+
+    @Test
+    public void atomicRollbackRestoresCellsFlagsAndDirtyMetadataExactly() {
+        TiledMapLayerData map = cleanMap();
+        map.setTile(1, 1, 4, TileTransformFlags.FLIP_V);
+        int revision = map.contentRevision();
+        TileChunk chunk = map.getChunk(0, 0);
+        resetChunkDirtyState(chunk);
+
+        map.beginAtomicMutation();
+        map.setTileStaged(1, 1, 0, TileTransformFlags.NONE);
+        map.setTileStaged(2, 1, 9, TileTransformFlags.FLIP_D);
+        map.rollbackAtomicMutation();
+
+        Assert.assertEquals(4, map.getTile(1, 1));
+        Assert.assertEquals(TileTransformFlags.FLIP_V, map.getTileTransformFlags(1, 1));
+        Assert.assertEquals(0, map.getTile(2, 1));
+        Assert.assertEquals(revision, map.contentRevision());
+        assertChunkClean(chunk);
+    }
+
+    @Test
+    public void atomicCommitPublishesOneRevisionAndOnlyTouchedChunks() {
+        TiledMapLayerData map = cleanMap();
+        int revision = map.contentRevision();
+
+        map.beginAtomicMutation();
+        map.setTileStaged(0, 0, 1, TileTransformFlags.NONE);
+        map.setTileStaged(1, 1, 2, TileTransformFlags.FLIP_H);
+        map.commitAtomicMutation();
+
+        Assert.assertEquals(revision + 1, map.contentRevision());
+        Assert.assertEquals(TileChunk.DirtyState.PARTIAL, map.getChunk(0, 0).dirtyState);
+        Assert.assertEquals(2, map.getChunk(0, 0).dirtyLocalIndices.size);
+        assertChunkClean(map.getChunk(1, 0));
+        assertChunkClean(map.getChunk(0, 1));
+        assertChunkClean(map.getChunk(1, 1));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void nestedAtomicMutationIsRejected() {
+        TiledMapLayerData map = cleanMap();
+        map.beginAtomicMutation();
+        try {
+            map.beginAtomicMutation();
+        } finally {
+            map.rollbackAtomicMutation();
+        }
+    }
+
+    @Test
     public void orthoFloatTileToWorldUsesContinuousGridCoordinates() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 40, 20, 4);
         map.originX = 3f;
@@ -79,5 +144,30 @@ public class TiledMapLayerDataTest {
 
         Assert.assertEquals(gx, map.worldToTileX(worldX, worldY));
         Assert.assertEquals(gy, map.worldToTileY(worldX, worldY));
+    }
+
+    private static TiledMapLayerData cleanMap() {
+        TiledMapLayerData map = new TiledMapLayerData(8, 8, 32, 16, 4);
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                resetChunkDirtyState(map.getChunk(cx, cy));
+            }
+        }
+        map.visualBoundsDirty = false;
+        return map;
+    }
+
+    private static void resetChunkDirtyState(TileChunk chunk) {
+        chunk.dirtyState = TileChunk.DirtyState.CLEAN;
+        chunk.dirtyLocalIndices.clear();
+        chunk.contentDirty = false;
+        chunk.collisionDirty = false;
+    }
+
+    private static void assertChunkClean(TileChunk chunk) {
+        Assert.assertEquals(TileChunk.DirtyState.CLEAN, chunk.dirtyState);
+        Assert.assertEquals(0, chunk.dirtyLocalIndices.size);
+        Assert.assertFalse(chunk.contentDirty);
+        Assert.assertFalse(chunk.collisionDirty);
     }
 }

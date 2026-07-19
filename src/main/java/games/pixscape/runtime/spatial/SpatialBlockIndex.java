@@ -13,10 +13,8 @@ public final class SpatialBlockIndex {
 
     private int layerEntity = -1;
     private int refCount;
-    private int skippedDisabled;
     private int skippedNonActorOccluder;
     private int skippedZeroHeight;
-    private int skippedUnsupportedOrientation;
     private int skippedInvalidFootprint;
     private int lastVisitedCellCount;
     private int lastVisitedEntryCount;
@@ -108,10 +106,8 @@ public final class SpatialBlockIndex {
         rangeDedupe.clear();
         layerEntity = -1;
         refCount = 0;
-        skippedDisabled = 0;
         skippedNonActorOccluder = 0;
         skippedZeroHeight = 0;
-        skippedUnsupportedOrientation = 0;
         skippedInvalidFootprint = 0;
         lastVisitedCellCount = 0;
         lastVisitedEntryCount = 0;
@@ -129,20 +125,12 @@ public final class SpatialBlockIndex {
         return cells.size;
     }
 
-    public int getSkippedDisabled() {
-        return skippedDisabled;
-    }
-
     public int getSkippedNonActorOccluder() {
         return skippedNonActorOccluder;
     }
 
     public int getSkippedZeroHeight() {
         return skippedZeroHeight;
-    }
-
-    public int getSkippedUnsupportedOrientation() {
-        return skippedUnsupportedOrientation;
     }
 
     public int getSkippedInvalidFootprint() {
@@ -198,20 +186,12 @@ public final class SpatialBlockIndex {
             skippedInvalidFootprint++;
             return false;
         }
-        if (!block.enabled) {
-            skippedDisabled++;
-            return false;
-        }
         if (!block.actorOccluder) {
             skippedNonActorOccluder++;
             return false;
         }
         if (block.height <= 0f) {
             skippedZeroHeight++;
-            return false;
-        }
-        if (!SpatialBlockGeometry.isSupportedOrientation(block)) {
-            skippedUnsupportedOrientation++;
             return false;
         }
         if (block.width <= 0f || block.depth <= 0f) {

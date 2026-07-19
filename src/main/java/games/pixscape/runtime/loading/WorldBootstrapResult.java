@@ -10,9 +10,6 @@ public final class WorldBootstrapResult {
     private final int ecsStart;
     private final int ecsEnd;
 
-    private final int tiledStart;
-    private final int tiledEnd;
-
     private final int vfxStart;
     private final int vfxEnd;
 
@@ -23,8 +20,6 @@ public final class WorldBootstrapResult {
     public WorldBootstrapResult(World world,
                                 int ecsStart,
                                 int ecsEnd,
-                                int tiledStart,
-                                int tiledEnd,
                                 int vfxStart,
                                 int vfxEnd,
                                 int totalCapacity,
@@ -34,9 +29,6 @@ public final class WorldBootstrapResult {
 
         this.ecsStart = ecsStart;
         this.ecsEnd = ecsEnd;
-
-        this.tiledStart = tiledStart;
-        this.tiledEnd = tiledEnd;
 
         this.vfxStart = vfxStart;
         this.vfxEnd = vfxEnd;
@@ -56,14 +48,6 @@ public final class WorldBootstrapResult {
 
     public int getEcsEnd() {
         return ecsEnd;
-    }
-
-    public int getTiledStart() {
-        return tiledStart;
-    }
-
-    public int getTiledEnd() {
-        return tiledEnd;
     }
 
     public int getVfxStart() {

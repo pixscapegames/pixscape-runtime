@@ -1,5 +1,8 @@
 package games.pixscape.runtime.tiled;
 
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
+
 public final class TileQuadTransforms {
     private TileQuadTransforms() {
     }
@@ -21,8 +24,46 @@ public final class TileQuadTransforms {
                                        byte flags,
                                        float[] out8) {
 
-        map.tileToSpriteQuad(gx, gy, spriteW, spriteH, out8);
+        TileProfilePlacement.buildTopCenterDefaultSpriteQuad(
+                map.tileToWorldX(gx, gy),
+                map.tileToWorldY(gx, gy),
+                map.tileWidth,
+                map.tileHeight,
+                spriteW,
+                spriteH,
+                out8
+        );
 
+        applyTransformFlags(spriteW, spriteH, flags, out8);
+    }
+
+    public static void buildSpriteQuad(TiledMapLayerData map,
+                                       int gx,
+                                       int gy,
+                                       int spriteW,
+                                       int spriteH,
+                                       RuntimeTilesetProfile profile,
+                                       byte flags,
+                                       float[] out8) {
+
+        TileProfilePlacement.buildSpriteQuad(
+                map.tileToWorldX(gx, gy),
+                map.tileToWorldY(gx, gy),
+                map.tileWidth,
+                map.tileHeight,
+                spriteW,
+                spriteH,
+                profile,
+                out8
+        );
+
+        applyTransformFlags(spriteW, spriteH, flags, out8);
+    }
+
+    private static void applyTransformFlags(int spriteW,
+                                            int spriteH,
+                                            byte flags,
+                                            float[] out8) {
         flags = TileTransformFlags.sanitize(flags);
         if (flags == TileTransformFlags.NONE) return;
 
@@ -71,23 +112,23 @@ public final class TileQuadTransforms {
                 break;
             }
             case TileTransformFlags.FLIP_D: {
-                tx = ly;
-                ty = lx;
+                tx = -ly;
+                ty = -lx;
                 break;
             }
             case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H: {
-                tx = -ly;
-                ty = lx;
-                break;
-            }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = ly;
                 ty = -lx;
                 break;
             }
-            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_V: {
                 tx = -ly;
-                ty = -lx;
+                ty = lx;
+                break;
+            }
+            case TileTransformFlags.FLIP_D | TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V: {
+                tx = ly;
+                ty = lx;
                 break;
             }
             default: {

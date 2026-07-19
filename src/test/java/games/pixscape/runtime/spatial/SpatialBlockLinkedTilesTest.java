@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -17,7 +18,7 @@ public class SpatialBlockLinkedTilesTest {
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
 
         assertRefs(refs, 0, 0);
-        Assert.assertEquals(map.slotForTile(0, 0), refs.slot(0));
+        Assert.assertEquals(map.tiledRenderRefForTile(0, 0), refs.tiledRenderRef(0));
     }
 
     @Test
@@ -123,7 +124,7 @@ public class SpatialBlockLinkedTilesTest {
     public void tileWithoutRenderSlotProducesNoRefs() {
         TiledMapLayerData map = orthoMap(1, 1);
         map.setTile(0, 0, 101);
-        map.getChunk(0, 0).soaStartIndex = -1;
+        map.getChunk(0, 0).renderRefStartIndex = -1;
 
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
 
@@ -175,7 +176,7 @@ public class SpatialBlockLinkedTilesTest {
         assertRefs(refs, 0, 0, 1, 0);
         Assert.assertEquals(101, refs.tileAssetId(0));
         Assert.assertEquals(101, refs.tileAssetId(1));
-        Assert.assertNotEquals(refs.slot(0), refs.slot(1));
+        Assert.assertNotEquals(refs.tiledRenderRef(0), refs.tiledRenderRef(1));
     }
 
     @Test
@@ -205,7 +206,7 @@ public class SpatialBlockLinkedTilesTest {
 
         assertRefs(refs, 1, 1);
         Assert.assertEquals(303, refs.tileAssetId(0));
-        Assert.assertEquals(map.slotForTile(1, 1), refs.slot(0));
+        Assert.assertEquals(map.tiledRenderRefForTile(1, 1), refs.tiledRenderRef(0));
     }
 
     @Test
@@ -280,8 +281,21 @@ public class SpatialBlockLinkedTilesTest {
                                          int tileHeight,
                                          SceneMetaRuntime.TiledProjection projection) {
         TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
-        map.initSlotRange(300, 300 + width * height);
+        assignRenderRefs(map, 300);
         return map;
+    }
+
+    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+        int nextRef = startRef;
+        for (int cy = 0; cy < map.getChunksY(); cy++) {
+            for (int cx = 0; cx < map.getChunksX(); cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                if (chunk == null) continue;
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
+            }
+        }
     }
 
     private static SpatialBlockData block(float x, float y, float width, float depth) {

@@ -1,5 +1,8 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.RenderSourceDomain;
+
 import java.util.Arrays;
 
 public final class SpatialFrameSnapshotBuilder {
@@ -9,18 +12,32 @@ public final class SpatialFrameSnapshotBuilder {
     public int bucketCount;
     public int[] actorOriginalBucket = new int[0];
     public int[] nonActorSlots = new int[0];
+    public byte[] nonActorDomains = new byte[0];
     public int[] drawIndexToBucketBefore = new int[0];
     public int[] drawIndexToBucketAfter = new int[0];
     public boolean[] actorSlotMask = new boolean[0];
 
-    public void build(int[] sourceSlots,
+    public void build(DrawList drawList,
+                      int slotCapacity,
+                      SpatialActorCollector actors) {
+        if (drawList == null) {
+            throw new IllegalArgumentException("Source draw list is required.");
+        }
+        build(drawList.domainData(), drawList.data(), drawList.size, slotCapacity, actors);
+    }
+
+    public void build(byte[] sourceDomains,
+                      int[] sourceSlots,
                       int sourceSize,
                       int slotCapacity,
                       SpatialActorCollector actors) {
+        if (sourceDomains == null) {
+            throw new IllegalArgumentException("Source draw domains are required.");
+        }
         if (sourceSlots == null) {
             throw new IllegalArgumentException("Source draw slots are required.");
         }
-        if (sourceSize < 0 || sourceSize > sourceSlots.length) {
+        if (sourceSize < 0 || sourceSize > sourceSlots.length || sourceSize > sourceDomains.length) {
             throw new IllegalArgumentException("Invalid source draw-list size: " + sourceSize);
         }
         if (actors == null) {
@@ -39,11 +56,13 @@ public final class SpatialFrameSnapshotBuilder {
         nonActorCount = 0;
         for (int drawIndex = 0; drawIndex < sourceSize; drawIndex++) {
             int slot = sourceSlots[drawIndex];
+            byte domain = sourceDomains[drawIndex];
             drawIndexToBucketBefore[drawIndex] = nonActorCount;
-            if (isActorSlot(slot)) {
+            if (isActorEntry(domain, slot)) {
                 int actor = actorIndexForSlot(actors, slot);
                 if (actor >= 0) actorOriginalBucket[actor] = nonActorCount;
             } else {
+                nonActorDomains[nonActorCount] = domain;
                 nonActorSlots[nonActorCount++] = slot;
             }
             drawIndexToBucketAfter[drawIndex] = nonActorCount;
@@ -53,6 +72,10 @@ public final class SpatialFrameSnapshotBuilder {
 
     public boolean isActorSlot(int slot) {
         return slot >= 0 && slot < actorSlotMask.length && actorSlotMask[slot];
+    }
+
+    public boolean isActorEntry(byte domain, int slot) {
+        return domain == RenderSourceDomain.SOURCE_ECS && isActorSlot(slot);
     }
 
     private static int actorIndexForSlot(SpatialActorCollector actors, int slot) {
@@ -76,6 +99,7 @@ public final class SpatialFrameSnapshotBuilder {
             drawIndexToBucketBefore = grow(drawIndexToBucketBefore, next);
             drawIndexToBucketAfter = grow(drawIndexToBucketAfter, next);
             nonActorSlots = grow(nonActorSlots, next);
+            nonActorDomains = grow(nonActorDomains, next);
         }
         if (actorCapacity > actorOriginalBucket.length) {
             int next = Math.max(8, actorOriginalBucket.length);
@@ -86,6 +110,12 @@ public final class SpatialFrameSnapshotBuilder {
 
     private static int[] grow(int[] source, int next) {
         int[] expanded = new int[next];
+        System.arraycopy(source, 0, expanded, 0, source.length);
+        return expanded;
+    }
+
+    private static byte[] grow(byte[] source, int next) {
+        byte[] expanded = new byte[next];
         System.arraycopy(source, 0, expanded, 0, source.length);
         return expanded;
     }

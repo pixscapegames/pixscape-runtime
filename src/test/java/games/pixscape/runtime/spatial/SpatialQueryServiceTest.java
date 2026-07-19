@@ -106,7 +106,6 @@ public class SpatialQueryServiceTest {
     public void tiledCellVolumeDefaultsAndExplicitSpatialValues() {
         SpatialQueryService service = new SpatialQueryService();
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
-        map.initSlotRange(64, 80);
         map.setTile(1, 1, 10);
 
         SpatialVolume defaultVolume = service.buildTiledCellVolume(map, 1, 1);

@@ -11,11 +11,6 @@
     <inherits name="com.artemis-json-libgdx"/>
     <source path=""/>
 
-    <define-property name="pixscape.tiled.spatialSort" values="true,false"/>
-    <set-property name="pixscape.tiled.spatialSort" value="true"/>
-    <define-property name="pixscape.tiled.spatialSortVerify" values="true,false"/>
-    <set-property name="pixscape.tiled.spatialSortVerify" value="false"/>
-
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>

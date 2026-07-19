@@ -2,7 +2,6 @@ package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -122,16 +121,6 @@ public class SpatialBlockRuntimeGeometryTest {
     }
 
     @Test
-    public void unsupportedOrientationDoesNotProduceFootprintOrCoverage() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 32, 20, 4);
-        SpatialBlockData block = block(7, 1f, 2f, 3f, 4f);
-        block.orientation = SpatialBlockOrientation.TILE_AXIS_X;
-
-        Assert.assertFalse(SpatialBlockGeometry.writeTileCellFootprint(block, map, new float[8]));
-        Assert.assertFalse(SpatialBlockGeometry.writeCoveredCellRange(block, new SpatialBlockGeometry.CellRange()));
-    }
-
-    @Test
     public void emptyComponentProducesEmptyIndex() {
         SpatialBlockIndex index = new SpatialBlockIndex();
 
@@ -185,13 +174,9 @@ public class SpatialBlockRuntimeGeometryTest {
     }
 
     @Test
-    public void indexSkipsBlocksThatAreNotActorOccludingTileCells() {
+    public void indexSkipsBlocksThatAreNotActorOccludingOrHaveInvalidGeometry() {
         SpatialBlockIndex index = new SpatialBlockIndex();
         SpatialBlocksComponent component = new SpatialBlocksComponent();
-
-        SpatialBlockData disabled = block(1, 0f, 0f, 1f, 1f);
-        disabled.enabled = false;
-        component.blocks.add(disabled);
 
         SpatialBlockData nonActorOccluder = block(2, 1f, 0f, 1f, 1f);
         nonActorOccluder.actorOccluder = false;
@@ -201,20 +186,14 @@ public class SpatialBlockRuntimeGeometryTest {
         zeroHeight.height = 0f;
         component.blocks.add(zeroHeight);
 
-        SpatialBlockData unsupported = block(4, 3f, 0f, 1f, 1f);
-        unsupported.orientation = SpatialBlockOrientation.FREE_AXIS;
-        component.blocks.add(unsupported);
-
         SpatialBlockData invalidFootprint = block(5, 4f, 0f, 0f, 1f);
         component.blocks.add(invalidFootprint);
 
         index.rebuild(8, component);
 
         Assert.assertEquals(0, index.getRefCount());
-        Assert.assertEquals(1, index.getSkippedDisabled());
         Assert.assertEquals(1, index.getSkippedNonActorOccluder());
         Assert.assertEquals(1, index.getSkippedZeroHeight());
-        Assert.assertEquals(1, index.getSkippedUnsupportedOrientation());
         Assert.assertEquals(1, index.getSkippedInvalidFootprint());
     }
 

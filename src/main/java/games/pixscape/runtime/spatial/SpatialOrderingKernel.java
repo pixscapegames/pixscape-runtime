@@ -1,5 +1,7 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.render.DrawList;
+
 public final class SpatialOrderingKernel {
     private final SpatialBucketPlanner planner = new SpatialBucketPlanner();
     private final SpatialBucketDrawListComposer composer = new SpatialBucketDrawListComposer();
@@ -8,8 +10,16 @@ public final class SpatialOrderingKernel {
         return composer.composedSlots;
     }
 
+    public byte[] orderedDomains() {
+        return composer.composedDomains;
+    }
+
     public int orderedSize() {
         return composer.composedSize;
+    }
+
+    public void reset() {
+        planner.clear();
     }
 
     public void begin(SpatialActorCollector actors, SpatialFrameSnapshotBuilder snapshot) {
@@ -20,20 +30,19 @@ public final class SpatialOrderingKernel {
     }
 
     public void addRelations(SpatialActorCollector actors,
-                             SpatialBlocksRuntimeCache blockCache,
-                             SpatialRelationSolver relations) {
-        planner.addRelations(actors, blockCache, relations);
+                             SpatialProjectedFaceCache faces,
+                             SpatialFaceRelationSolver relations) {
+        planner.addRelations(actors, faces, relations);
     }
 
-    public int finish(int[] sourceSlots,
-                      int sourceSize,
+    public int finish(DrawList drawList,
                       SpatialActorCollector actors,
                       SpatialFrameSnapshotBuilder snapshot) {
         planner.finish(actors);
-        int composedSize = composer.compose(sourceSlots, sourceSize, actors, planner, snapshot::isActorSlot);
-        SpatialTiledSort.verifyToto3(actors, planner);
-        SpatialTiledSort.verifyToto3Signoff(actors, planner, composer.composedSlots, composedSize);
+        int composedSize = composer.compose(drawList, actors, planner, snapshot);
         return composedSize;
     }
+
+    public int unresolvedConstraintCount() { return planner.unresolvedConstraintCount(); }
 
 }

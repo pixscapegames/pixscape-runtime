@@ -11,6 +11,10 @@ import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
 
 /**
  * Runtime project I/O (pixscape-project/project.json).
@@ -182,6 +186,25 @@ public final class RuntimeProjectIO {
         }
     }
 
+    public static RuntimeTilesetProfiles loadTilesetProfiles(FileHandle projectDir) {
+        if (projectDir == null) throw new GdxRuntimeException("projectDir is null");
+
+        FileHandle file = projectDir.child(RuntimeFs.FILE_TILESET_PROFILES_JSON);
+        if (!file.exists()) {
+            return RuntimeTilesetProfiles.empty();
+        }
+
+        try {
+            JsonValue root = new JsonReader().parse(file);
+            return parseTilesetProfiles(root, file.path());
+        } catch (Exception e) {
+            throw new GdxRuntimeException(
+                    "Failed to parse " + RuntimeFs.FILE_TILESET_PROFILES_JSON + ": " + file.path(),
+                    e
+            );
+        }
+    }
+
     private static TileAnimationsRuntimeData parseTileAnimations(JsonValue root) {
         TileAnimationsRuntimeData data = new TileAnimationsRuntimeData();
 
@@ -248,6 +271,82 @@ public final class RuntimeProjectIO {
         }
 
         return data;
+    }
+
+    private static RuntimeTilesetProfiles parseTilesetProfiles(JsonValue root, String path) {
+        RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
+
+        if (root == null || !root.isObject()) {
+            throw new GdxRuntimeException("Invalid tileset profiles manifest (root must be object): " + path);
+        }
+
+        String format = root.getString("format", null);
+        if (!RuntimeTilesetProfiles.FORMAT.equals(format)) {
+            throw new GdxRuntimeException("Unsupported tileset profiles format: " + format + " in " + path);
+        }
+
+        int version = root.getInt("version", 0);
+        if (version != RuntimeTilesetProfiles.VERSION) {
+            throw new GdxRuntimeException("Unsupported tileset profiles version: " + version + " in " + path);
+        }
+
+        JsonValue tilesets = root.get("tilesets");
+        if (tilesets == null) {
+            return profiles;
+        }
+        if (!tilesets.isArray()) {
+            throw new GdxRuntimeException("Invalid tileset profiles manifest (tilesets must be array): " + path);
+        }
+
+        for (JsonValue node = tilesets.child; node != null; node = node.next) {
+            if (node == null || !node.isObject()) continue;
+            profiles.add(parseTilesetProfile(node, path));
+        }
+
+        return profiles;
+    }
+
+    private static RuntimeTilesetProfile parseTilesetProfile(JsonValue node, String path) {
+        RuntimeTilesetProfile profile = new RuntimeTilesetProfile();
+        profile.tilesetId = node.getInt("tilesetId", 0);
+        profile.logicalPath = node.getString("logicalPath", null);
+        profile.tileWidth = node.getInt("tileWidth", 0);
+        profile.tileHeight = node.getInt("tileHeight", 0);
+        profile.referenceCellWidth = node.getInt("referenceCellWidth", profile.tileWidth);
+        profile.referenceCellHeight = node.getInt("referenceCellHeight", profile.tileHeight);
+        profile.projection = parseTiledProjection(node.getString("projection", "orthogonal"), path);
+        profile.anchor = parseTilesetAnchor(node.getString("anchor", "top-center"), path);
+        profile.offsetX = node.getInt("offsetX", 0);
+        profile.offsetY = node.getInt("offsetY", 0);
+        profile.renderSize = parseTilesetRenderSize(node.getString("renderSize", "native"), path);
+        profile.tileAssetIds = readIntArray(node.get("tileAssetIds"));
+        return profile;
+    }
+
+    private static SceneMetaRuntime.TiledProjection parseTiledProjection(String raw, String path) {
+        if ("isometric".equalsIgnoreCase(raw) || "ISO".equalsIgnoreCase(raw)) {
+            return SceneMetaRuntime.TiledProjection.ISO;
+        }
+        if ("orthogonal".equalsIgnoreCase(raw) || "ORTHO".equalsIgnoreCase(raw)) {
+            return SceneMetaRuntime.TiledProjection.ORTHO;
+        }
+        throw new GdxRuntimeException("Unsupported tileset projection: " + raw + " in " + path);
+    }
+
+    private static RuntimeTilesetAnchor parseTilesetAnchor(String raw, String path) {
+        RuntimeTilesetAnchor anchor = RuntimeTilesetAnchor.fromWireName(raw);
+        if (anchor == null) {
+            throw new GdxRuntimeException("Unsupported tileset anchor: " + raw + " in " + path);
+        }
+        return anchor;
+    }
+
+    private static RuntimeTilesetRenderSize parseTilesetRenderSize(String raw, String path) {
+        RuntimeTilesetRenderSize renderSize = RuntimeTilesetRenderSize.fromWireName(raw);
+        if (renderSize == null) {
+            throw new GdxRuntimeException("Unsupported tileset render size: " + raw + " in " + path);
+        }
+        return renderSize;
     }
 
     private static int[] readIntArray(JsonValue array) {

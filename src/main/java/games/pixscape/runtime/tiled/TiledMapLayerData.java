@@ -2,11 +2,20 @@ package games.pixscape.runtime.tiled;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class TiledMapLayerData {
 
     private static final float EPSILON = 0.0001f;
+
+    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and elevation. */
+    public void projectSpatialPoint(float gx, float gy, float elevation, float[] out, int offset) {
+        if (out == null || offset < 0 || offset + 1 >= out.length) return;
+        float cellOffsetX = projection == SceneMetaRuntime.TiledProjection.ISO ? tileWidth * 0.5f : 0f;
+        out[offset] = tileToWorldX(gx, gy) + cellOffsetX;
+        out[offset + 1] = tileToWorldY(gx, gy) + elevation;
+    }
 
     // =========================
     // CONFIG MAP
@@ -30,13 +39,6 @@ public final class TiledMapLayerData {
             SceneMetaRuntime.TiledProjection.ORTHO;
 
     // =========================
-    // SOA RANGE (injected by allocator)
-    // =========================
-
-    public int layerTiledStart;
-    public int layerTiledEnd;
-
-    // =========================
     // CHUNK GRID
     // =========================
 
@@ -48,6 +50,17 @@ public final class TiledMapLayerData {
     // =========================
 
     private final IntMap<TileChunk> chunks = new IntMap<>();
+    private transient int contentRevision;
+    private transient int contentStateRevision;
+    private transient int contentMutationDepth;
+    private transient boolean contentMutationChanged;
+    private transient boolean atomicMutationOpen;
+    private transient int atomicMutationCount;
+    private transient int[] atomicGx = new int[0];
+    private transient int[] atomicGy = new int[0];
+    private transient int[] atomicBeforeAsset = new int[0];
+    private transient byte[] atomicBeforeFlags = new byte[0];
+    private transient IntIntMap atomicIndexByCell = new IntIntMap();
 
     public boolean visible = true;
     public boolean collisionEnabled = true;
@@ -56,6 +69,11 @@ public final class TiledMapLayerData {
     public int previousChunkMaxX = -1;
     public int previousChunkMinY = 0;
     public int previousChunkMaxY = -1;
+    public boolean visualBoundsDirty = true;
+    public float visualPaddingLeft = 0f;
+    public float visualPaddingRight = 0f;
+    public float visualPaddingTop = 0f;
+    public float visualPaddingBottom = 0f;
 
     public TiledMapLayerData(int mapWidth,
                              int mapHeight,
@@ -81,26 +99,15 @@ public final class TiledMapLayerData {
         this.projection = projection != null
                 ? projection
                 : SceneMetaRuntime.TiledProjection.ORTHO;
+        initializeChunks();
     }
 
     public TiledMapLayerData() {
     }
 
-    // ============================================================
-    // INITIALISATION RANGE
-    // ============================================================
-
-    public void initSlotRange(int layerStart, int layerEnd) {
-        this.layerTiledStart = layerStart;
-        this.layerTiledEnd = layerEnd;
-        allocateChunksStrict();
-    }
-
-    private void allocateChunksStrict() {
+    public void initializeChunks() {
 
         chunks.clear();
-
-        int cursor = layerTiledStart;
 
         chunksX = Math.max(1, (mapWidth + chunkSize - 1) / chunkSize);
         chunksY = Math.max(1, (mapHeight + chunkSize - 1) / chunkSize);
@@ -116,34 +123,17 @@ public final class TiledMapLayerData {
 
                 if (chunkWidth <= 0 || chunkHeight <= 0) continue;
 
-                int requiredSlots = chunkWidth * chunkHeight;
-
-                if (cursor + requiredSlots > layerTiledEnd) {
-                    throw new IllegalStateException(
-                            "TILED range overflow. Required=" +
-                                    (cursor + requiredSlots) +
-                                    " end=" + layerTiledEnd
-                    );
-                }
-
                 TileChunk chunk = new TileChunk(
                         cx,
                         cy,
                         chunkWidth,
-                        chunkHeight,
-                        cursor
+                        chunkHeight
                 );
 
                 updateChunkBounds(chunk);
 
                 chunks.put(packChunk(cx, cy), chunk);
-
-                cursor += requiredSlots;
             }
-        }
-
-        if (cursor > layerTiledEnd) {
-            throw new IllegalStateException("Tiled allocation overflow");
         }
 
         hasPreviousChunkWindow = false;
@@ -151,6 +141,7 @@ public final class TiledMapLayerData {
         previousChunkMaxX = -1;
         previousChunkMinY = 0;
         previousChunkMaxY = -1;
+        markVisualBoundsDirty();
     }
 
     public void updateChunkBounds(TileChunk chunk) {
@@ -186,6 +177,12 @@ public final class TiledMapLayerData {
         chunk.bounds.set(minX, minY, maxX - minX, maxY - minY);
     }
 
+    public void updateAllChunkBounds() {
+        for (IntMap.Values<TileChunk> values = chunks.values(); values.hasNext(); ) {
+            updateChunkBounds(values.next());
+        }
+    }
+
     // ============================================================
     // TILE ACCESS
     // ============================================================
@@ -211,6 +208,9 @@ public final class TiledMapLayerData {
     }
 
     public void setTile(int gx, int gy, int assetId, byte flags) {
+        if (atomicMutationOpen) {
+            throw new IllegalStateException("Use setTileStaged while an atomic tiled map mutation is open.");
+        }
         if (!isInside(gx, gy)) return;
 
         int cx = gx / chunkSize;
@@ -222,7 +222,160 @@ public final class TiledMapLayerData {
         int lx = gx - (cx * chunkSize);
         int ly = gy - (cy * chunkSize);
 
+        int previousAsset = chunk.get(lx, ly);
+        byte previousFlags = chunk.getTransformFlags(lx, ly);
         chunk.set(lx, ly, assetId, flags);
+        if (previousAsset != assetId || previousFlags != TileTransformFlags.sanitize(flags)) {
+            markContentChanged();
+        }
+        markVisualBoundsDirty();
+    }
+
+    /** Opens an isolated candidate mutation. Nested atomic mutations are not supported. */
+    public void beginAtomicMutation() {
+        if (atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation is already open.");
+        }
+        if (contentMutationDepth != 0) {
+            throw new IllegalStateException("An atomic tiled map mutation cannot start inside a bulk mutation.");
+        }
+        atomicMutationOpen = true;
+        atomicMutationCount = 0;
+        atomicIndexByCell.clear();
+    }
+
+    /** Writes candidate content without publishing revisions, dirty state, or render invalidation. */
+    public void setTileStaged(int gx, int gy, int assetId, byte flags) {
+        if (!atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation was not started.");
+        }
+        if (!isInside(gx, gy)) return;
+
+        TileChunk chunk = chunkForTile(gx, gy);
+        if (chunk == null) return;
+        int lx = gx - (gx / chunkSize) * chunkSize;
+        int ly = gy - (gy / chunkSize) * chunkSize;
+        int localIndex = ly * chunk.chunkWidth + lx;
+        byte safeFlags = TileTransformFlags.sanitize(flags);
+        int key = packAtomicCell(gx, gy);
+        int mutationIndex = atomicIndexByCell.get(key, -1);
+        if (mutationIndex < 0) {
+            ensureAtomicCapacity(atomicMutationCount + 1);
+            mutationIndex = atomicMutationCount++;
+            atomicIndexByCell.put(key, mutationIndex);
+            atomicGx[mutationIndex] = gx;
+            atomicGy[mutationIndex] = gy;
+            atomicBeforeAsset[mutationIndex] = chunk.assetIds[localIndex];
+            atomicBeforeFlags[mutationIndex] = chunk.transformFlags[localIndex];
+        }
+        chunk.assetIds[localIndex] = assetId;
+        chunk.transformFlags[localIndex] = safeFlags;
+    }
+
+    /** Publishes the complete candidate as one coherent map content revision. */
+    public void commitAtomicMutation() {
+        requireAtomicMutation();
+        boolean changed = false;
+        for (int i = 0; i < atomicMutationCount; i++) {
+            int gx = atomicGx[i];
+            int gy = atomicGy[i];
+            TileChunk chunk = chunkForTile(gx, gy);
+            int lx = gx - (gx / chunkSize) * chunkSize;
+            int ly = gy - (gy / chunkSize) * chunkSize;
+            int localIndex = ly * chunk.chunkWidth + lx;
+            int afterAsset = chunk.assetIds[localIndex];
+            byte afterFlags = chunk.transformFlags[localIndex];
+            if (atomicBeforeAsset[i] == afterAsset && atomicBeforeFlags[i] == afterFlags) continue;
+            chunk.publishStagedCellChange(localIndex, atomicBeforeAsset[i] != afterAsset);
+            changed = true;
+        }
+        clearAtomicMutation();
+        if (changed) {
+            contentStateRevision++;
+            contentRevision++;
+            markVisualBoundsDirty();
+        }
+    }
+
+    /** Restores the exact cell content and publishes no state change. */
+    public void rollbackAtomicMutation() {
+        requireAtomicMutation();
+        for (int i = 0; i < atomicMutationCount; i++) {
+            int gx = atomicGx[i];
+            int gy = atomicGy[i];
+            TileChunk chunk = chunkForTile(gx, gy);
+            int lx = gx - (gx / chunkSize) * chunkSize;
+            int ly = gy - (gy / chunkSize) * chunkSize;
+            int localIndex = ly * chunk.chunkWidth + lx;
+            chunk.assetIds[localIndex] = atomicBeforeAsset[i];
+            chunk.transformFlags[localIndex] = atomicBeforeFlags[i];
+        }
+        clearAtomicMutation();
+    }
+
+    public boolean isAtomicMutationOpen() {
+        return atomicMutationOpen;
+    }
+
+    private void requireAtomicMutation() {
+        if (!atomicMutationOpen) {
+            throw new IllegalStateException("An atomic tiled map mutation was not started.");
+        }
+    }
+
+    private void clearAtomicMutation() {
+        atomicMutationOpen = false;
+        atomicMutationCount = 0;
+        atomicIndexByCell.clear();
+    }
+
+    private void ensureAtomicCapacity(int required) {
+        if (atomicGx.length >= required) return;
+        int capacity = Math.max(required, Math.max(8, atomicGx.length * 2));
+        atomicGx = java.util.Arrays.copyOf(atomicGx, capacity);
+        atomicGy = java.util.Arrays.copyOf(atomicGy, capacity);
+        atomicBeforeAsset = java.util.Arrays.copyOf(atomicBeforeAsset, capacity);
+        atomicBeforeFlags = java.util.Arrays.copyOf(atomicBeforeFlags, capacity);
+    }
+
+    private static int packAtomicCell(int gx, int gy) {
+        return (gx << 16) ^ (gy & 0xFFFF);
+    }
+
+    /** Begins a bulk map mutation whose static-order revision is published once at commit. */
+    public void beginContentMutation() {
+        contentMutationDepth++;
+    }
+
+    /** Commits one bulk map mutation. Nested mutations publish only at the outer boundary. */
+    public void endContentMutation() {
+        if (contentMutationDepth <= 0) {
+            throw new IllegalStateException("Tiled map content mutation was not started.");
+        }
+        contentMutationDepth--;
+        if (contentMutationDepth == 0 && contentMutationChanged) {
+            contentMutationChanged = false;
+            contentRevision++;
+        }
+    }
+
+    public int contentRevision() {
+        return contentRevision;
+    }
+
+    /**
+     * Revision of the immediately visible tile state, including edits inside an open bulk mutation.
+     * Derived preview caches must use this revision because chunks are rendered before Studio brush
+     * transactions are committed.
+     */
+    public int contentStateRevision() {
+        return contentStateRevision;
+    }
+
+    private void markContentChanged() {
+        contentStateRevision++;
+        if (contentMutationDepth > 0) contentMutationChanged = true;
+        else contentRevision++;
     }
 
     public float getTileAltitude(int gx, int gy) {
@@ -326,9 +479,26 @@ public final class TiledMapLayerData {
             chunk.collisionDirty = true;
             chunk.visibleLastFrame = false;
         }
+        markVisualBoundsDirty();
+    }
+
+    public void markVisualBoundsDirty() {
+        visualBoundsDirty = true;
+        hasPreviousChunkWindow = false;
+    }
+
+    public void setVisualPadding(float left, float right, float top, float bottom) {
+        visualPaddingLeft = Math.max(0f, left);
+        visualPaddingRight = Math.max(0f, right);
+        visualPaddingTop = Math.max(0f, top);
+        visualPaddingBottom = Math.max(0f, bottom);
+        visualBoundsDirty = false;
     }
 
     public void rebuildWithNewSize(int newWidth, int newHeight) {
+
+        beginContentMutation();
+        try {
 
         final class SavedTile {
             final int assetId;
@@ -387,7 +557,7 @@ public final class TiledMapLayerData {
         this.mapWidth = newWidth;
         this.mapHeight = newHeight;
 
-        allocateChunksStrict();
+        initializeChunks();
 
         IntMap.Keys xs = saved.keys();
         while (xs.hasNext) {
@@ -409,6 +579,10 @@ public final class TiledMapLayerData {
         }
 
         markAllChunksContentDirty();
+        markContentChanged();
+        } finally {
+            endContentMutation();
+        }
     }
 
     // ============================================================
@@ -704,7 +878,7 @@ public final class TiledMapLayerData {
         return chunk.getTransformFlags(lx, ly);
     }
 
-    public int slotForTile(int gx, int gy) {
+    public int tiledRenderRefForTile(int gx, int gy) {
         if (!isInside(gx, gy)) return -1;
 
         TileChunk chunk = chunkForTile(gx, gy);
@@ -712,7 +886,7 @@ public final class TiledMapLayerData {
 
         int lx = gx - (gx / chunkSize) * chunkSize;
         int ly = gy - (gy / chunkSize) * chunkSize;
-        return chunk.slotFor(lx, ly);
+        return chunk.renderRefFor(lx, ly);
     }
 
     private TileChunk chunkForTile(int gx, int gy) {

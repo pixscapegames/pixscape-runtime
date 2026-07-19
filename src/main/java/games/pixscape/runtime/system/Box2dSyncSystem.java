@@ -1,6 +1,7 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.*;
+import com.badlogic.gdx.math.MathUtils;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
@@ -505,15 +506,15 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private float anchorWorldX(TransformComponent t, float localAx, float localAy) {
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
         float rx_m = localAx * cos - localAy * sin;
         return t.x + box2d.mToPx(rx_m);
     }
 
     private float anchorWorldY(TransformComponent t, float localAx, float localAy) {
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
         float ry_m = localAx * sin + localAy * cos;
         return t.y + box2d.mToPx(ry_m);
     }
@@ -720,7 +721,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private Shape createBoxShape(FixtureDefData fd) {
         PolygonShape shape = new PolygonShape();
-        float angleRad = (float) Math.toRadians(fd.angleDeg);
+        float angleRad = fd.angleDeg * MathUtils.degreesToRadians;
         shape.setAsBox(fd.halfW, fd.halfH, tmp.set(fd.offsetX, fd.offsetY), angleRad);
         return shape;
     }
@@ -738,9 +739,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         boolean valid = vertices != null && n >= 3 && n <= MAX_POLYGON_VERTICES && vertices.length >= n * 2;
         if (!valid) return createBoxShape(fd);
 
-        float angleRad = (float) Math.toRadians(fd.angleDeg);
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float angleRad = fd.angleDeg * MathUtils.degreesToRadians;
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
 
         for (int i = 0; i < n; i++) {
             float lx = vertices[i * 2];

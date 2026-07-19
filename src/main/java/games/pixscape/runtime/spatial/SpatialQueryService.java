@@ -1,5 +1,6 @@
 package games.pixscape.runtime.spatial;
 
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.SpatialHeightComponent;
@@ -295,9 +296,9 @@ public final class SpatialQueryService {
                                    SpatialShapeData shape,
                                    float localX,
                                    float localY) {
-        float shapeAngle = (float) Math.toRadians(shape.angleDeg);
-        float shapeCos = (float) Math.cos(shapeAngle);
-        float shapeSin = (float) Math.sin(shapeAngle);
+        float shapeAngle = shape.angleDeg * MathUtils.degreesToRadians;
+        float shapeCos = MathUtils.cos(shapeAngle);
+        float shapeSin = MathUtils.sin(shapeAngle);
 
         float sx = localX * shapeCos - localY * shapeSin + shape.offsetX;
         float sy = localX * shapeSin + localY * shapeCos + shape.offsetY;
@@ -305,8 +306,8 @@ public final class SpatialQueryService {
         sx *= transform.scaleX;
         sy *= transform.scaleY;
 
-        float cos = (float) Math.cos(transform.rotationRad);
-        float sin = (float) Math.sin(transform.rotationRad);
+        float cos = MathUtils.cos(transform.rotationRad);
+        float sin = MathUtils.sin(transform.rotationRad);
 
         return new float[]{
                 transform.x + sx * cos - sy * sin,

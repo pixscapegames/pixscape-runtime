@@ -7,14 +7,19 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.*;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -22,24 +27,28 @@ import java.util.function.Supplier;
 public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;
-    public static final int DEFAULT_TILED_BUDGET = 200_000;
+    public static final int DEFAULT_ECS_ENTITY_CAPACITY_HINT = 150_000;
+    public static final int DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY = 4096;
+    public static final int DEFAULT_FRAME_QUEUE_CAPACITY = 4096;
+    public static final int DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY = 4096;
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
-
-    private static final int ECS_WATERMARK = 150_000;
 
     private WorldConfigFactory() {
     }
 
     /**
-     * Backward-compatible overload.
+     * Single-hook overload.
      * <p>
      * The customizer is treated as post-render, matching the previous behavior.
      */
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -52,9 +61,12 @@ public final class WorldConfigFactory {
     ) {
         return buildWorld(
                 camera,
-                renderState,
+                dynamicEntityState,
                 layerState,
                 drawList,
+                frameQueue,
+                vfxState,
+                tiledState,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -85,7 +97,7 @@ public final class WorldConfigFactory {
      *     <li>the submit/render system supplied by {@code submitSupplier}</li>
      * </ul>
      *
-     * <p>Use this hook only for systems that write into {@link RenderStateSOA} and must be
+     * <p>Use this hook only for systems that write into frame render source state and must be
      * visible in the current frame draw list.</p>
      *
      * <p>Examples:</p>
@@ -111,15 +123,18 @@ public final class WorldConfigFactory {
      *     <li>Gizmos</li>
      * </ul>
      *
-     * <p>If unsure: systems that mutate {@link RenderStateSOA} for rendering belong in
+     * <p>If unsure: systems that mutate frame render source state for rendering belong in
      * {@code preRenderCustomizer}; systems that inspect input/UI or draw editor overlays
      * belong in {@code postRenderCustomizer}.</p>
      */
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -133,9 +148,12 @@ public final class WorldConfigFactory {
     ) {
         return buildWorld(
                 camera,
-                renderState,
+                dynamicEntityState,
                 layerState,
                 drawList,
+                frameQueue,
+                vfxState,
+                tiledState,
                 stats,
                 defaultShaderIdx,
                 atlasRuntimeService,
@@ -152,9 +170,12 @@ public final class WorldConfigFactory {
 
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             RenderStats stats,
             int defaultShaderIdx,
             AtlasRuntimeService atlasRuntimeService,
@@ -167,41 +188,82 @@ public final class WorldConfigFactory {
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
+        return buildWorld(
+                camera,
+                dynamicEntityState,
+                layerState,
+                drawList,
+                frameQueue,
+                vfxState,
+                tiledState,
+                stats,
+                defaultShaderIdx,
+                atlasRuntimeService,
+                effectsRoot,
+                submitSupplier,
+                meta,
+                tiledBudget,
+                animatedTileRegistry,
+                null,
+                systemProfiler,
+                preRenderCustomizer,
+                postRenderCustomizer
+        );
+    }
+
+    public static WorldBootstrapResult buildWorld(
+            OrthographicCamera camera,
+            DynamicEntityRenderState dynamicEntityState,
+            LayerStateSOA layerState,
+            DrawList drawList,
+            FrameRenderQueue frameQueue,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
+            RenderStats stats,
+            int defaultShaderIdx,
+            AtlasRuntimeService atlasRuntimeService,
+            FileHandle effectsRoot,
+            Supplier<BaseSystem> submitSupplier,
+            SceneMetaRuntime meta,
+            int tiledBudget,
+            TileAnimationRegistry animatedTileRegistry,
+            RuntimeTilesetProfiles tilesetProfiles,
+            SystemProfiler systemProfiler,
+            Consumer<WorldConfigurationBuilder> preRenderCustomizer,
+            Consumer<WorldConfigurationBuilder> postRenderCustomizer
+    ) {
 
         int ecsStart = 0;
-        int ecsEnd = ECS_WATERMARK;
+        int ecsEnd = DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY;
+        int entityCapacityHint = DEFAULT_ECS_ENTITY_CAPACITY_HINT;
+        int vfxStart = 0;
+        int vfxEnd = vfxStart + DEFAULT_VFX_BUDGET;
 
-        int effectiveTiledBudget = tiledBudget;
-
-        int tiledStart = ecsEnd;
-        int tiledEnd = tiledStart + effectiveTiledBudget;
-
-        int vfxStart = tiledEnd;
-        int totalCapacity = vfxStart + DEFAULT_VFX_BUDGET;
-
-        renderState.setCapacity(totalCapacity);
-        drawList.setCapacity(totalCapacity);
+        configureRenderStorageCapacities(dynamicEntityState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
+        SpatialLayerRuntimeRegistry spatialRuntimeRegistry = new SpatialLayerRuntimeRegistry();
         addCoreSyncSystems(
                 builder,
                 camera,
-                renderState,
+                dynamicEntityState,
+                vfxState,
+                tiledState,
                 layerState,
-                ecsEnd,
+                entityCapacityHint,
                 meta,
                 atlasRuntimeService,
                 defaultShaderIdx,
                 effectsRoot,
-                tiledStart,
-                tiledEnd,
                 vfxStart,
-                totalCapacity,
+                vfxEnd,
                 effectiveAnimatedTileRegistry,
-                systemProfiler
+                tilesetProfiles,
+                systemProfiler,
+                spatialRuntimeRegistry
         );
 
         if (preRenderCustomizer != null) {
@@ -210,16 +272,20 @@ public final class WorldConfigFactory {
 
         addRenderPipelineSystems(
                 builder,
-                renderState,
+                dynamicEntityState,
+                vfxState,
+                tiledState,
                 layerState,
                 drawList,
+                frameQueue,
                 stats,
                 ecsEnd,
                 vfxStart,
-                totalCapacity,
+                vfxEnd,
                 meta,
                 submitSupplier,
-                systemProfiler
+                systemProfiler,
+                spatialRuntimeRegistry
         );
 
         builder.with(profiled(new DirtyFlushSystem(), systemProfiler));
@@ -234,11 +300,9 @@ public final class WorldConfigFactory {
                 world,
                 ecsStart,
                 ecsEnd,
-                tiledStart,
-                tiledEnd,
                 vfxStart,
-                totalCapacity,
-                totalCapacity,
+                vfxEnd,
+                ecsEnd,
                 effectiveAnimatedTileRegistry
         );
     }
@@ -246,19 +310,21 @@ public final class WorldConfigFactory {
     private static void addCoreSyncSystems(
             WorldConfigurationBuilder builder,
             OrthographicCamera worldCamera,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             LayerStateSOA layerState,
             int entityCapacityHint,
             SceneMetaRuntime meta,
             AtlasRuntimeService atlasRuntimeService,
             int defaultShaderIdx,
             FileHandle effectsRoot,
-            int tiledStart,
-            int tiledEnd,
             int vfxStartIndex,
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
-            SystemProfiler systemProfiler
+            RuntimeTilesetProfiles tilesetProfiles,
+            SystemProfiler systemProfiler,
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
     ) {
         builder.with(
                 new WorldSerializationManager(),
@@ -267,24 +333,22 @@ public final class WorldConfigFactory {
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
-                profiled(new RenderSpriteSyncSystem(renderState), systemProfiler),
-                profiled(new ParallaxDisplaySystem(renderState, layerState, worldCamera), systemProfiler),
-                profiled(new CullingSystem(worldCamera, renderState), systemProfiler),
+                profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
+                profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),
+                profiled(new CullingSystem(worldCamera, dynamicEntityState), systemProfiler),
                 profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),
                 profiled(new RenderTiledSyncSystem(
                         worldCamera,
-                        renderState,
+                        tiledState,
                         atlasRuntimeService,
                         defaultShaderIdx,
-                        tiledStart,
-                        tiledEnd,
-                        animatedTileRegistry
+                        animatedTileRegistry,
+                        tilesetProfiles,
+                        spatialRuntimeRegistry
                 ), systemProfiler),
                 profiled(new RenderParticleSyncSystem(
-                        renderState,
+                        vfxState,
                         worldCamera,
-                        vfxStartIndex,
-                        vfxEndIndex,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot
@@ -292,22 +356,42 @@ public final class WorldConfigFactory {
         );
     }
 
+    static void configureRenderStorageCapacities(DynamicEntityRenderState dynamicEntityState,
+                                                 DrawList drawList,
+                                                 FrameRenderQueue frameQueue,
+                                                 VfxRenderState vfxState,
+                                                 TiledMapRenderState tiledState,
+                                                 int ecsCapacity) {
+        dynamicEntityState.setRenderCapacity(ecsCapacity);
+        dynamicEntityState.setEntityCapacity(Math.min(DEFAULT_ECS_ENTITY_CAPACITY_HINT, Math.max(1024, ecsCapacity)));
+        drawList.setCapacity(ecsCapacity);
+        frameQueue.setCapacity(DEFAULT_FRAME_QUEUE_CAPACITY);
+        vfxState.setCapacity(DEFAULT_VFX_BUDGET);
+        tiledState.setCapacity(DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY);
+    }
+
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
-            RenderStateSOA renderState,
+            DynamicEntityRenderState dynamicEntityState,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
             LayerStateSOA layerState,
             DrawList drawList,
+            FrameRenderQueue frameQueue,
             RenderStats stats,
             int entityCapacityHint,
             int vfxStartIndex,
             int vfxEndIndex,
             SceneMetaRuntime meta,
             Supplier<BaseSystem> submitSupplier,
-            SystemProfiler systemProfiler
+            SystemProfiler systemProfiler,
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
     ) {
         builder.with(
                 profiled(new RenderBuildDrawListSystem(
-                        renderState,
+                        dynamicEntityState,
+                        tiledState,
+                        vfxState,
                         layerState,
                         drawList,
                         stats,
@@ -315,13 +399,33 @@ public final class WorldConfigFactory {
                         vfxStartIndex,
                         vfxEndIndex
                 ), systemProfiler),
-                profiled(new RenderSortSystem(renderState, drawList), systemProfiler),
+                profiled(new RenderSortSystem(
+                        dynamicEntityState,
+                        tiledState,
+                        vfxState,
+                        drawList,
+                        vfxStartIndex,
+                        vfxEndIndex
+                ), systemProfiler),
                 profiled(new SpatialRenderOrderSystem(
-                        renderState,
+                        dynamicEntityState,
+                        tiledState,
                         drawList,
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
-                                : DEFAULT_PIXELS_PER_METER
+                                : DEFAULT_PIXELS_PER_METER,
+                        spatialRuntimeRegistry
+                ), systemProfiler),
+                profiled(new RenderExtractFrameQueueSystem(
+                        dynamicEntityState,
+                        tiledState,
+                        vfxState,
+                        drawList,
+                        frameQueue,
+                        stats,
+                        entityCapacityHint,
+                        vfxStartIndex,
+                        vfxEndIndex
                 ), systemProfiler)
         );
 

@@ -16,9 +16,7 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.RenderSubmitSystem;
 
 import java.io.InputStream;
 
@@ -44,10 +42,6 @@ public final class SceneLoader {
         }
 
         if (clearContentFirst) {
-            // Reset render cache
-            RenderStateSOA state = world.getSystem(RenderSubmitSystem.class).getState();
-            state.clearAll();
-            // remove existing entities, or only the "scene" content
             clearWorldContent(world);
         }
 

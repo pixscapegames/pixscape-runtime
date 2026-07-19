@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.artemis.ComponentMapper;
 import com.artemis.EntityManager;
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.SpatialHeightComponent;
@@ -10,7 +11,9 @@ import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.RenderKind;
+import games.pixscape.runtime.render.RenderSourceDomain;
 
 public final class SpatialActorCollector {
     private static final float DEFAULT_PIXELS_PER_METER = 100f;
@@ -43,7 +46,7 @@ public final class SpatialActorCollector {
     }
 
     public void collect(DrawList drawList,
-                        RenderStateSOA state,
+                        DynamicEntityRenderState state,
                         boolean[] spatialLayers,
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
@@ -66,7 +69,7 @@ public final class SpatialActorCollector {
     }
 
     public void collect(DrawList drawList,
-                        RenderStateSOA state,
+                        DynamicEntityRenderState state,
                         boolean[] spatialLayers,
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
@@ -80,7 +83,11 @@ public final class SpatialActorCollector {
         if (drawList == null || state == null || drawList.size <= 0) return;
 
         int[] data = drawList.data();
+        byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
+            if (domains[drawIndex] != RenderSourceDomain.SOURCE_ECS) {
+                continue;
+            }
             int slot = data[drawIndex];
             collectSlot(slot,
                     drawIndex,
@@ -101,9 +108,15 @@ public final class SpatialActorCollector {
         return actorCount;
     }
 
+    float circleRadius(int actor) {
+        if (actor < 0 || actor >= actorCount || actor >= actorCircleRadius.length) return 0f;
+        float radius = actorCircleRadius[actor];
+        return Float.isFinite(radius) && radius > 0f ? radius : 0f;
+    }
+
     boolean collectSlot(int slot,
                         int drawIndex,
-                        RenderStateSOA state,
+                        DynamicEntityRenderState state,
                         boolean[] spatialLayers,
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
@@ -126,7 +139,7 @@ public final class SpatialActorCollector {
             return false;
         }
 
-        int entity = state.entityId[slot];
+        int entity = state.renderSlotToEntityId[slot];
         TransformComponent transform = transformMapper.getSafe(entity, null);
         SpatialHeightComponent height = spatialHeightMapper.getSafe(entity, null);
         if (!writeActorPhysicsCircleFootprint(entity,
@@ -165,7 +178,7 @@ public final class SpatialActorCollector {
     }
 
     public boolean isEligibleActorSlot(int slot,
-                                       RenderStateSOA state,
+                                       DynamicEntityRenderState state,
                                        boolean[] spatialLayers,
                                        EntityManager entityManager,
                                        ComponentMapper<EntityIndexComponent> entityIndexMapper,
@@ -176,8 +189,8 @@ public final class SpatialActorCollector {
                                        float pixelsPerMeter) {
         if (!isRenderableSlot(slot, state)) return false;
 
-        int entity = state.entityId[slot];
-        if (entity < 0 || entity >= state.getCapacity()) return false;
+        int entity = state.renderSlotToEntityId[slot];
+        if (entity < 0) return false;
         if (entityManager == null || !entityManager.isActive(entity)) return false;
 
         EntityIndexComponent index = entityIndexMapper != null
@@ -229,8 +242,8 @@ public final class SpatialActorCollector {
 
             float localX = fixture.offsetX * ppm;
             float localY = fixture.offsetY * ppm;
-            float cos = (float) Math.cos(transform.rotationRad);
-            float sin = (float) Math.sin(transform.rotationRad);
+            float cos = MathUtils.cos(transform.rotationRad);
+            float sin = MathUtils.sin(transform.rotationRad);
             float cx = transform.x + localX * cos - localY * sin;
             float cy = transform.y + localX * sin + localY * cos;
             float radius = fixture.radius * ppm;
@@ -254,11 +267,11 @@ public final class SpatialActorCollector {
         return false;
     }
 
-    private static boolean isRenderableSlot(int slot, RenderStateSOA state) {
+    private static boolean isRenderableSlot(int slot, DynamicEntityRenderState state) {
         return state != null
                 && slot >= 0
-                && slot < state.getCapacity()
-                && state.kind[slot] == RenderStateSOA.KIND_SPRITE
+                && slot < state.activeCount
+                && state.kind[slot] == RenderKind.SPRITE
                 && state.enabled[slot]
                 && state.visible[slot]
                 && state.textureHandle[slot] != 0;
@@ -271,7 +284,7 @@ public final class SpatialActorCollector {
                 && spatialLayers[layerIndex];
     }
 
-    private static int stableActorId(int slot, RenderStateSOA state) {
+    private static int stableActorId(int slot, DynamicEntityRenderState state) {
         return slot;
     }
 

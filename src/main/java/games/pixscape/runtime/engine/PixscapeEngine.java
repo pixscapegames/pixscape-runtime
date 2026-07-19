@@ -35,12 +35,11 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.TiledSoaAllocator;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 
-import static games.pixscape.runtime.loading.WorldConfigFactory.DEFAULT_TILED_BUDGET;
 
 public final class PixscapeEngine {
 
@@ -60,9 +59,12 @@ public final class PixscapeEngine {
     private World world;
     private OrthographicCamera worldCamera;
 
-    private RenderStateSOA renderState;
+    private DynamicEntityRenderState dynamicEntityState;
     private LayerStateSOA layerState;
     private DrawList drawList;
+    private FrameRenderQueue frameQueue;
+    private VfxRenderState vfxState;
+    private TiledMapRenderState tiledState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
     private float ambientMulG = 1f;
@@ -79,6 +81,7 @@ public final class PixscapeEngine {
     private final TagRegistry tagRegistry = new TagRegistry();
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
+    private RuntimeTilesetProfiles tilesetProfiles = RuntimeTilesetProfiles.empty();
     private PixscapeAPI publicApi;
 
 
@@ -87,8 +90,6 @@ public final class PixscapeEngine {
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
-    private int runtimeTiledStart;
-    private int runtimeTiledEnd;
 
 
     public PixscapeEngine() {
@@ -160,6 +161,7 @@ public final class PixscapeEngine {
         this.cfg = RuntimeProjectIO.loadProject(runtimeProjectDir);
         RuntimeProjectIO.loadAnimations(runtimeProjectDir, animationRegistry);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
+        tilesetProfiles = RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir);
 
         if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
@@ -187,15 +189,7 @@ public final class PixscapeEngine {
                 .child(cfg.scenesDir)
                 .child(RuntimeFs.withExt(RuntimeConfig.sceneDirName(meta), RuntimeFs.EXT_JSON));
 
-        int tiledLayerCount = SceneLoader.countTiledLayers(sceneFile);
-
-        int tiledBudget = DEFAULT_TILED_BUDGET * tiledLayerCount;
-
-        if (!meta.tiledEnabled) {
-            tiledBudget = 0;
-        }
-
-        rebuildWorldWithBudget(cfg, runtimeProjectDir, meta, tiledBudget);
+        rebuildWorld(cfg, runtimeProjectDir, meta);
 
         loadSceneInternal(resolved);
 
@@ -257,10 +251,9 @@ public final class PixscapeEngine {
         return spawnPrefabFragment(fragment, offsetX, offsetY);
     }
 
-    private void rebuildWorldWithBudget(RuntimeConfig config,
-                                        FileHandle projectDir,
-                                        SceneMetaRuntime meta,
-                                        int tiledBudget) {
+    private void rebuildWorld(RuntimeConfig config,
+                              FileHandle projectDir,
+                              SceneMetaRuntime meta) {
 
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -283,11 +276,14 @@ public final class PixscapeEngine {
             box2dWorldService = null;
         }
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         applyAmbientFromMeta(meta);
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
@@ -296,17 +292,19 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
+                        frameQueue,
+                        vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -316,16 +314,15 @@ public final class PixscapeEngine {
                                 statsSink
                         ),
                         meta,
-                        tiledBudget,
+                        0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -419,6 +416,10 @@ public final class PixscapeEngine {
         return animationRegistry;
     }
 
+    public RuntimeTilesetProfiles getTilesetProfiles() {
+        return tilesetProfiles;
+    }
+
     /**
      * Returns the high-level API facade for runtime gameplay access.
      *
@@ -510,8 +511,8 @@ public final class PixscapeEngine {
         return worldCamera;
     }
 
-    public RenderStateSOA getRenderState() {
-        return renderState;
+    public DynamicEntityRenderState getDynamicEntityRenderState() {
+        return dynamicEntityState;
     }
 
     public LayerStateSOA getLayerState() {
@@ -520,6 +521,14 @@ public final class PixscapeEngine {
 
     public DrawList getDrawList() {
         return drawList;
+    }
+
+    public FrameRenderQueue getFrameQueue() {
+        return frameQueue;
+    }
+
+    public VfxRenderState getVfxState() {
+        return vfxState;
     }
 
     public MetricsBatch getMetricsBatch() {
@@ -580,11 +589,11 @@ public final class PixscapeEngine {
             atlasRuntimeService = null;
         }
 
-        renderState = null;
+        dynamicEntityState = null;
         layerState = null;
         drawList = null;
-        runtimeTiledStart = 0;
-        runtimeTiledEnd = 0;
+        frameQueue = null;
+        vfxState = null;
         stats = null;
         statsSink = null;
         defaultShaderName = null;
@@ -606,9 +615,12 @@ public final class PixscapeEngine {
 
         ShaderRegistry.initDefaults(projectDir, config.shadersDir);
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -619,7 +631,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -631,17 +643,19 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
+                        frameQueue,
+                        vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -653,14 +667,13 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -687,9 +700,12 @@ public final class PixscapeEngine {
             worldCamera = new OrthographicCamera();
         }
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -700,7 +716,7 @@ public final class PixscapeEngine {
         stats = new RenderStats();
         statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         applyAmbientFromMeta(null);
@@ -709,17 +725,19 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
+                        frameQueue,
+                        vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -731,14 +749,13 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -755,7 +772,9 @@ public final class PixscapeEngine {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
         if (worldCamera == null) worldCamera = new OrthographicCamera();
-        if (renderState == null || layerState == null || drawList == null || metricsBatch == null || stats == null || statsSink == null) {
+        if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
+                || tiledState == null
+                || metricsBatch == null || stats == null || statsSink == null) {
             initRuntime(config, projectDir);
             return;
         }
@@ -768,17 +787,19 @@ public final class PixscapeEngine {
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
                         worldCamera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
+                        frameQueue,
+                        vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
                         () -> new RenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 worldCamera,
                                 ambientMulR,
                                 ambientMulG,
@@ -790,14 +811,13 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        tilesetProfiles,
                         systemProfiler,
                         null,
                         configurationCustomizer
                 );
 
         world = result.getWorld();
-        runtimeTiledStart = result.getTiledStart();
-        runtimeTiledEnd = result.getTiledEnd();
         bindRuntimeRegistries();
         rebuildRuntimeRegistries();
 
@@ -850,8 +870,6 @@ public final class PixscapeEngine {
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
-        TiledSoaAllocator allocator = new TiledSoaAllocator(runtimeTiledStart, runtimeTiledEnd);
-
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
         ComponentMapper<LayerComponent> mLayer =
@@ -885,12 +903,8 @@ public final class PixscapeEngine {
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 
-            int required = tiled.mapWidthCells * tiled.mapHeightCells;
-            TiledSoaAllocator.Range r = allocator.allocate(required);
-            tiled.tiledStart = r.start;
-            tiled.tiledEnd = r.end;
-            tiled.data.initSlotRange(r.start, r.end);
-
+            tiled.data.beginContentMutation();
+            try {
             for (int t = 0; t < tiled.tileXs.size; t++) {
                 int gx = tiled.tileXs.get(t);
                 int gy = tiled.tileYs.get(t);
@@ -915,6 +929,9 @@ public final class PixscapeEngine {
                     int ly = gy - (cy * tiled.data.chunkSize);
                     TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, animatedTileRegistry);
                 }
+            }
+            } finally {
+                tiled.data.endContentMutation();
             }
 
             tiled.data.markAllChunksContentDirty();
@@ -990,23 +1007,7 @@ public final class PixscapeEngine {
         for (int i = 0, n = tiledBag.size(); i < n; i++) {
             TiledLayerComponent tiled = mTiled.get(data[i]);
             if (tiled == null || tiled.data == null) continue;
-            maskTiledSlotsInvisible(tiled.data);
             tiled.data.markAllChunksContentDirty();
-        }
-    }
-
-    private void maskTiledSlotsInvisible(TiledMapLayerData tiledData) {
-        if (renderState == null || tiledData == null) return;
-
-        for (IntMap.Values<TileChunk> chunks = tiledData.getChunks(); chunks.hasNext(); ) {
-            TileChunk chunk = chunks.next();
-            if (chunk == null || chunk.soaCount <= 0) continue;
-
-            int slotStart = Math.max(0, chunk.soaStartIndex);
-            int slotEnd = Math.min(renderState.visible.length, slotStart + chunk.soaCount);
-            for (int slot = slotStart; slot < slotEnd; slot++) {
-                renderState.visible[slot] = false;
-            }
         }
     }
 

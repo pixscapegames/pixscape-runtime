@@ -74,8 +74,17 @@ public final class TileChunk {
      */
     private transient boolean[] animatedMembership;
 
-    public int soaStartIndex;
-    public int soaCount;
+    public int renderRefStartIndex = -1;
+    public int renderRefCount;
+
+    public transient IntArray renderableLocalIndices = new IntArray(false, 8);
+    private transient boolean[] renderableMembership;
+    public transient boolean renderMetadataDirty = true;
+    public transient boolean hasVisualBounds = false;
+    public transient float visualMinX;
+    public transient float visualMinY;
+    public transient float visualMaxX;
+    public transient float visualMaxY;
 
     public boolean contentDirty = true;
     public boolean collisionDirty = true;
@@ -90,8 +99,7 @@ public final class TileChunk {
     public TileChunk(int chunkX,
                      int chunkY,
                      int chunkWidth,
-                     int chunkHeight,
-                     int soaStartIndex) {
+                     int chunkHeight) {
 
         this.chunkX = chunkX;
         this.chunkY = chunkY;
@@ -104,10 +112,67 @@ public final class TileChunk {
         this.assetIds = new int[cellCount];
         this.transformFlags = new byte[cellCount];
 
-        this.soaStartIndex = soaStartIndex;
-        this.soaCount = cellCount;
-
         this.bounds = new Rectangle();
+    }
+
+    public int getRenderableRefCount() {
+        return renderableLocalIndices != null ? renderableLocalIndices.size : 0;
+    }
+
+    public void clearRenderableRefs() {
+        ensureRenderableStorage();
+        renderableLocalIndices.clear();
+        for (int i = 0; i < renderableMembership.length; i++) {
+            renderableMembership[i] = false;
+        }
+        renderMetadataDirty = true;
+    }
+
+    public void setRenderableLocalIndex(int localIndex, boolean renderable) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
+            return;
+        }
+
+        ensureRenderableStorage();
+        boolean wasRenderable = renderableMembership[localIndex];
+        if (renderable == wasRenderable) {
+            return;
+        }
+
+        if (renderable) {
+            renderableMembership[localIndex] = true;
+            renderableLocalIndices.add(localIndex);
+        } else {
+            renderableMembership[localIndex] = false;
+            for (int i = 0; i < renderableLocalIndices.size; i++) {
+                if (renderableLocalIndices.get(i) == localIndex) {
+                    renderableLocalIndices.removeIndex(i);
+                    break;
+                }
+            }
+        }
+
+        renderMetadataDirty = true;
+    }
+
+    public void markRenderMetadataDirty() {
+        renderMetadataDirty = true;
+    }
+
+    private void ensureRenderableStorage() {
+        int count = cellCount();
+        if (renderableLocalIndices == null) {
+            renderableLocalIndices = new IntArray(false, Math.min(Math.max(count, 1), 16));
+        }
+        if (renderableMembership == null || renderableMembership.length != count) {
+            renderableMembership = new boolean[count];
+            for (int i = 0; i < renderableLocalIndices.size; i++) {
+                int localIndex = renderableLocalIndices.get(i);
+                if (localIndex >= 0 && localIndex < count) {
+                    renderableMembership[localIndex] = true;
+                }
+            }
+        }
     }
 
     public int get(int localX, int localY) {
@@ -141,7 +206,7 @@ public final class TileChunk {
     public boolean hasSpatialOverride(int localIndex) {
         return spatialOverrides != null
                 && localIndex >= 0
-                && localIndex < soaCount
+                && localIndex < cellCount()
                 && spatialOverrides[localIndex];
     }
 
@@ -244,16 +309,24 @@ public final class TileChunk {
         collisionDirty = true;
     }
 
-    public int slotFor(int localX, int localY) {
-        return soaStartIndex + (localY * chunkWidth + localX);
+    public int renderRefFor(int localX, int localY) {
+        int localIndex = localY * chunkWidth + localX;
+        if (renderRefStartIndex < 0 || localIndex < 0 || localIndex >= renderRefCount) {
+            return -1;
+        }
+        return renderRefStartIndex + localIndex;
     }
 
     public int localIndexFor(int localX, int localY) {
         return localY * chunkWidth + localX;
     }
 
+    public int cellCount() {
+        return assetIds != null ? assetIds.length : chunkWidth * chunkHeight;
+    }
+
     public void markLocalDirty(int localIndex) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -263,6 +336,21 @@ public final class TileChunk {
             dirtyState = DirtyState.PARTIAL;
             dirtyLocalIndices.add(localIndex);
         }
+    }
+
+    void publishStagedCellChange(int localIndex, boolean assetChanged) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
+            return;
+        }
+        if (assetChanged) {
+            clearAnimationStateInternal(localIndex);
+        }
+        contentDirty = true;
+        if (dirtyState != DirtyState.FULL) {
+            dirtyState = DirtyState.PARTIAL;
+            dirtyLocalIndices.add(localIndex);
+        }
+        collisionDirty = true;
     }
 
     // ============================================================
@@ -278,28 +366,28 @@ public final class TileChunk {
     }
 
     public byte getAnimPlaybackState(int localIndex) {
-        if (animPlaybackState == null || localIndex < 0 || localIndex >= soaCount) {
+        if (animPlaybackState == null || localIndex < 0 || localIndex >= cellCount()) {
             return TileAnimationPlayback.NONE;
         }
         return animPlaybackState[localIndex];
     }
 
     public short getAnimFrameIndex(int localIndex) {
-        if (animFrameIndex == null || localIndex < 0 || localIndex >= soaCount) {
+        if (animFrameIndex == null || localIndex < 0 || localIndex >= cellCount()) {
             return 0;
         }
         return animFrameIndex[localIndex];
     }
 
     public int getAnimFrameElapsedMs(int localIndex) {
-        if (animFrameElapsedMs == null || localIndex < 0 || localIndex >= soaCount) {
+        if (animFrameElapsedMs == null || localIndex < 0 || localIndex >= cellCount()) {
             return 0;
         }
         return animFrameElapsedMs[localIndex];
     }
 
     public byte getAnimPlaybackMode(int localIndex) {
-        if (animPlaybackMode == null || localIndex < 0 || localIndex >= soaCount) {
+        if (animPlaybackMode == null || localIndex < 0 || localIndex >= cellCount()) {
             return TileAnimationPlayback.MODE_LOOPING;
         }
         return sanitizePlaybackMode(animPlaybackMode[localIndex]);
@@ -308,14 +396,14 @@ public final class TileChunk {
     public boolean isAnimFinished(int localIndex) {
         return animFinished != null
                 && localIndex >= 0
-                && localIndex < soaCount
+                && localIndex < cellCount()
                 && animFinished[localIndex];
     }
 
     public boolean isAnimHoldLastFrame(int localIndex) {
         return animHoldLastFrame != null
                 && localIndex >= 0
-                && localIndex < soaCount
+                && localIndex < cellCount()
                 && animHoldLastFrame[localIndex];
     }
 
@@ -328,7 +416,7 @@ public final class TileChunk {
                                   byte playbackState,
                                   int frameIndex,
                                   int frameElapsedMs) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -361,7 +449,7 @@ public final class TileChunk {
                                   boolean holdLastFrame,
                                   int frameIndex,
                                   int frameElapsedMs) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -389,14 +477,14 @@ public final class TileChunk {
     }
 
     public void clearAnimationState(int localIndex) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
         clearAnimationStateInternal(localIndex);
     }
 
     public void setAnimationPlaybackState(int localIndex, byte playbackState) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -416,7 +504,7 @@ public final class TileChunk {
     }
 
     public void setAnimationPlaybackMode(int localIndex, byte playbackMode, boolean holdLastFrame) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -428,7 +516,7 @@ public final class TileChunk {
     }
 
     public void setAnimationFrameIndex(int localIndex, int frameIndex) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -439,7 +527,7 @@ public final class TileChunk {
     }
 
     public void setAnimationFrameElapsedMs(int localIndex, int frameElapsedMs) {
-        if (localIndex < 0 || localIndex >= soaCount) {
+        if (localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
 
@@ -450,7 +538,7 @@ public final class TileChunk {
     }
 
     public void advanceAnimationElapsedMs(int localIndex, int deltaMs) {
-        if (animFrameElapsedMs == null || localIndex < 0 || localIndex >= soaCount || deltaMs <= 0) {
+        if (animFrameElapsedMs == null || localIndex < 0 || localIndex >= cellCount() || deltaMs <= 0) {
             return;
         }
         animFrameElapsedMs[localIndex] += deltaMs;
@@ -458,29 +546,29 @@ public final class TileChunk {
 
     private void ensureAnimationStorage() {
         if (animPlaybackState == null) {
-            animPlaybackState = new byte[soaCount];
+            animPlaybackState = new byte[cellCount()];
         }
         if (animFrameIndex == null) {
-            animFrameIndex = new short[soaCount];
+            animFrameIndex = new short[cellCount()];
         }
         if (animFrameElapsedMs == null) {
-            animFrameElapsedMs = new int[soaCount];
+            animFrameElapsedMs = new int[cellCount()];
         }
         if (animPlaybackMode == null) {
-            animPlaybackMode = new byte[soaCount];
+            animPlaybackMode = new byte[cellCount()];
         }
         if (animFinished == null) {
-            animFinished = new boolean[soaCount];
+            animFinished = new boolean[cellCount()];
         }
         if (animHoldLastFrame == null) {
-            animHoldLastFrame = new boolean[soaCount];
+            animHoldLastFrame = new boolean[cellCount()];
         }
         if (animatedMembership == null) {
-            animatedMembership = new boolean[soaCount];
+            animatedMembership = new boolean[cellCount()];
             if (animatedLocalIndices != null) {
                 for (int i = 0; i < animatedLocalIndices.size; i++) {
                     int index = animatedLocalIndices.get(i);
-                    if (index >= 0 && index < soaCount) {
+                    if (index >= 0 && index < cellCount()) {
                         animatedMembership[index] = true;
                     }
                 }
@@ -498,14 +586,14 @@ public final class TileChunk {
             return;
         }
 
-        if (altitudes == null) altitudes = new float[soaCount];
-        if (heights == null) heights = new float[soaCount];
-        if (spatialFlags == null) spatialFlags = new int[soaCount];
-        if (spatialOverrides == null) spatialOverrides = new boolean[soaCount];
+        if (altitudes == null) altitudes = new float[cellCount()];
+        if (heights == null) heights = new float[cellCount()];
+        if (spatialFlags == null) spatialFlags = new int[cellCount()];
+        if (spatialOverrides == null) spatialOverrides = new boolean[cellCount()];
     }
 
     private void clearAnimationStateInternal(int localIndex) {
-        if (animPlaybackState == null || localIndex < 0 || localIndex >= soaCount) {
+        if (animPlaybackState == null || localIndex < 0 || localIndex >= cellCount()) {
             return;
         }
         ensureAnimationStorage();

@@ -1,15 +1,17 @@
 package games.pixscape.runtime.render;
 
 /**
- * Flat list of entities to draw for the current frame.
+ * Flat domain-aware list of render sources to draw for the current frame.
  * <p>
- * Capacity is set via the constructor or {@link #setCapacity(int)}
- * at initialization time. No dynamic growth is performed
- * beyond this capacity: overflow is considered a bug.
+ * The list is a SOA: each entry carries its render source domain and the
+ * slot/index within that domain.
  */
 public final class DrawList {
 
-    private int[] entities;
+    private static final int MIN_CAPACITY = 16;
+
+    public byte[] sourceDomain;
+    public int[] sourceSlot;
     public int size = 0;
 
     public DrawList() {
@@ -25,27 +27,52 @@ public final class DrawList {
     }
 
     public int get(int index) {
-        return entities[index];
+        return sourceSlot[index];
+    }
+
+    public byte getDomain(int index) {
+        return sourceDomain[index];
     }
 
     public int[] data() {
-        return entities;
+        return sourceSlot;
     }
 
-    public void add(int entity) {
-        if (entities == null) {
+    public byte[] domainData() {
+        return sourceDomain;
+    }
+
+    public void addEcsSlot(int slot) {
+        add(RenderSourceDomain.SOURCE_ECS, slot);
+    }
+
+    public void addTiledSlot(int slot) {
+        add(RenderSourceDomain.SOURCE_TILED, slot);
+    }
+
+    public void addVfxSlot(int vfxIndex) {
+        add(RenderSourceDomain.SOURCE_VFX, vfxIndex);
+    }
+
+    public void add(byte domain, int slot) {
+        if (sourceSlot == null || sourceDomain == null) {
             throw new IllegalStateException(
                     "DrawList capacity not initialized. " +
                             "Call setCapacity(...) after World creation."
             );
         }
-        if (size >= entities.length) {
-            throw new IllegalStateException(
-                    "DrawList overflow: size=" + size +
-                            ", capacity=" + entities.length
-            );
+        ensureCapacity(size + 1);
+        sourceDomain[size] = domain;
+        sourceSlot[size] = slot;
+        size++;
+    }
+
+    public void set(int index, byte domain, int slot) {
+        if (index < 0 || index >= size) {
+            throw new IndexOutOfBoundsException("DrawList index out of bounds: " + index + ", size=" + size);
         }
-        entities[size++] = entity;
+        sourceDomain[index] = domain;
+        sourceSlot[index] = slot;
     }
 
     /**
@@ -58,7 +85,34 @@ public final class DrawList {
         if (capacity <= 0) {
             throw new IllegalArgumentException("DrawList capacity must be > 0");
         }
-        entities = new int[capacity];
+        sourceDomain = new byte[capacity];
+        sourceSlot = new int[capacity];
         size = 0;
+    }
+
+    public void ensureCapacity(int required) {
+        if (sourceSlot == null || sourceDomain == null) {
+            throw new IllegalStateException(
+                    "DrawList capacity not initialized. " +
+                            "Call setCapacity(...) after World creation."
+            );
+        }
+        if (required <= sourceSlot.length) {
+            return;
+        }
+
+        int next = Math.max(MIN_CAPACITY, sourceSlot.length);
+        while (next < required) {
+            next <<= 1;
+        }
+
+        int[] oldSourceSlot = sourceSlot;
+        byte[] oldSourceDomain = sourceDomain;
+        sourceSlot = new int[next];
+        sourceDomain = new byte[next];
+        if (size > 0) {
+            System.arraycopy(oldSourceSlot, 0, sourceSlot, 0, size);
+            System.arraycopy(oldSourceDomain, 0, sourceDomain, 0, size);
+        }
     }
 }
