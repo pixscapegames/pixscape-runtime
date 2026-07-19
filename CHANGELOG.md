@@ -23,6 +23,8 @@
 * Added the Spatial V3 wall and structure model.
 * Added deterministic wall junction, merge, and split handling.
 * Added compiled Spatial V3 structure geometry.
+* Added canonical static tile ranks for Spatial-enabled tiled layers.
+* Added source-aware Spatial layer runtime ownership to prevent scene-scoped caches from being reused with a different tiled map source.
 
 ### Changed
 
@@ -32,6 +34,8 @@
 * Optimized TextureArrayMeshBatch region resolution with a small RegionResolveCache.
 * Reduced redundant TextureArray state changes across batch flushes. 
 * Improved TextureArray batch state tracking for projection uploads, shader uniforms and texture array binding.
+* Spatial-enabled tiled layers now require canonical tile ranks; missing ranks fail explicitly instead of falling back to ordinary isometric ordering.
+* Spatial layer runtime caches now use both the layer entity and tiled-map source identity when validating cached structures, projected faces and anchors.
 
 ### Fixed
 
@@ -44,20 +48,23 @@
 * Fixed inconsistent rendering around wall corners, junctions, and enclosed tiled structures.
 * Fixed small spatial ordering artifacts near tiled wall seams and corners by using the full circular actor footprint instead of only the actor center.
 * Fixed missing actor/face relations when a circular footprint overlaps adjacent spatial slices at tiled junctions.
+* Fixed Spatial ordering becoming inactive after scene changes when Artemis reused layer entity IDs and pooled component instances.
+* Fixed stale projected-face anchors and missing actor/face relations after Spatial scene A → B → A activation sequences.
+* Fixed Spatial tile synchronization silently using ordinary isometric ordering when a required canonical rank was missing.
 
 ### Improved
-* Added ECS extraction diagnostics for emitted and skipped render slots, including skip reasons and component presence flags.
 * Added deterministic ordering rules for tiled spatial junctions.
 * Improved render extraction diagnostics for ECS slots, including emitted/skipped slot details and skip reasons.
-* Added regression coverage for sprite/body lifecycle rendering and spatial tiled ordering.
 * Improved dynamic actor ordering accuracy around complex 2.5D tiled structures.
-* Added regression tests for circle footprint spatial relations, including corners, seams, multi-slice coverage, large/small radii, deduplication, and flicker prevention.
 
 ### Tests
 
 * Added runtime tileset profile manifest loading tests.
+* Added regression coverage for sprite/body lifecycle rendering and spatial tiled ordering.
+* Added regression tests for circle footprint spatial relations, including corners, seams, multi-slice coverage, large/small radii, deduplication, and flicker prevention.
 * Added tiled profile placement helper tests.
 * Added tiled render synchronization coverage for profile-aware placement and transform flags.
+* Added regression coverage for canonical Spatial tile-rank enforcement, source-aware cache ownership and A → B → A scene activation.
 
 
 ## [0.1.7]
