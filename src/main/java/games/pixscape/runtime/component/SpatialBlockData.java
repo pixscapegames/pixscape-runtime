@@ -24,6 +24,8 @@ public final class SpatialBlockData {
     public boolean actorOccluder = true;
     /** Participates in Studio collision fixtures and compiled spatial-collision metadata. */
     public boolean physicsCollision = false;
+    /** Scene-global fixture identity. Zero means no associated fixture. */
+    public int fixtureId = 0;
     /** Compiled as light-occlusion metadata; the downstream light consumer is not implemented yet. */
     public boolean lightOccluder = false;
     /** Compiled as shadow-geometry metadata; the downstream shadow consumer is not implemented yet. */
@@ -46,6 +48,7 @@ public final class SpatialBlockData {
         b.height = height;
         b.actorOccluder = actorOccluder;
         b.physicsCollision = physicsCollision;
+        b.fixtureId = fixtureId;
         b.lightOccluder = lightOccluder;
         b.shadowCaster = shadowCaster;
         b.particleOccluder = particleOccluder;

@@ -328,6 +328,7 @@ public final class WorldConfigFactory {
     ) {
         builder.with(
                 new WorldSerializationManager(),
+                new FixtureIdAllocatorSystem(meta),
                 new DirtyTrackerSystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),

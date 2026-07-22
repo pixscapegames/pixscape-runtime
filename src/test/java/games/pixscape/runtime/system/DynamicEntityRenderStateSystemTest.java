@@ -137,6 +137,8 @@ public class DynamicEntityRenderStateSystemTest {
 
         World world = new World(new WorldConfigurationBuilder()
                 .with(
+                        new FixtureIdAllocatorSystem(
+                                new games.pixscape.runtime.loading.SceneMetaRuntime()),
                         new DirtyTrackerSystem(64),
                         new Box2dSyncSystem(box2d),
                         new UpdateWorldGeometrySystem(),

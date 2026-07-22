@@ -32,6 +32,7 @@ import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -850,10 +851,11 @@ public final class PixscapeEngine {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
         applyPhysicsFromScene(meta);
+        world.getSystem(FixtureIdAllocatorSystem.class).bindScene(meta);
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
-        SceneLoader.loadScene(world, sceneFile, false);
+        SceneLoader.loadScene(world, sceneFile, false, meta);
         processWorld();
 
         rebuildRuntimeRegistries();

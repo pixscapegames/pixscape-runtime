@@ -15,6 +15,8 @@ public class SceneMetaRuntime {
     public boolean doSleep = true;
     public float physicsParallaxX = Float.NaN;
     public float physicsParallaxY = Float.NaN;
+    /** Next scene-global fixture identity. IDs are monotonic and never recycled. */
+    public int nextFixtureId = 1;
 
     // Ambient light
     public float ambientMulR = 1f;
@@ -72,6 +74,7 @@ public class SceneMetaRuntime {
         meta.doSleep = json.getBoolean("doSleep", meta.doSleep);
         meta.physicsParallaxX = json.getFloat("physicsParallaxX", meta.physicsParallaxX);
         meta.physicsParallaxY = json.getFloat("physicsParallaxY", meta.physicsParallaxY);
+        meta.nextFixtureId = json.getInt("nextFixtureId", meta.nextFixtureId);
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
@@ -105,6 +108,7 @@ public class SceneMetaRuntime {
         this.doSleep = other.doSleep;
         this.physicsParallaxX = other.physicsParallaxX;
         this.physicsParallaxY = other.physicsParallaxY;
+        this.nextFixtureId = other.nextFixtureId;
         this.ambientMulR = other.ambientMulR;
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;

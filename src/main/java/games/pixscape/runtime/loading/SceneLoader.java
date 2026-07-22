@@ -34,7 +34,8 @@ public final class SceneLoader {
      */
     public static SaveFileFormat loadScene(World world,
                                            FileHandle inFile,
-                                           boolean clearContentFirst) {
+                                           boolean clearContentFirst,
+                                           SceneMetaRuntime sceneMeta) {
 
         WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
         if (wsm.getSerializer() == null || !(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
@@ -51,7 +52,7 @@ public final class SceneLoader {
 
         try (InputStream in = inFile.read()) {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
-
+            FixtureIdentityValidator.validate(world, sceneMeta, inFile.path());
             return format;
 
         } catch (Exception e) {

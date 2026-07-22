@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 
 /**
  * Centralizes Physics business logic (Editor/Runtime):
@@ -27,6 +28,7 @@ public final class PhysicsService {
     private final World world;
     private Box2dWorldService box2d;
     private final DirtyTrackerSystem dirty;
+    private final FixtureIdAllocatorSystem fixtureIds;
 
     private final ComponentMapper<TransformComponent> mT;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
@@ -50,6 +52,7 @@ public final class PhysicsService {
         this.world = world;
         this.box2d = box2d;
         this.dirty = world.getSystem(DirtyTrackerSystem.class);
+        this.fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);
 
         this.mT = world.getMapper(TransformComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
@@ -128,15 +131,6 @@ public final class PhysicsService {
         return eid >= 0 ? mFixtures.getSafe(eid, null) : null;
     }
 
-    public void ensureFixtureIds(int eid) {
-        PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
-        if (fixtures == null) return;
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
-            FixtureIdSequence.i().ensure(f);
-        }
-    }
-
     public int fixtureCount(int eid) {
         PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
         return fixtures != null ? fixtures.fixtures.size : 0;
@@ -173,7 +167,6 @@ public final class PhysicsService {
         for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
             FixtureDefData f = fixtures.fixtures.get(i);
             if (f == null) continue;
-            FixtureIdSequence.i().ensure(f);
             if (f.fixtureId == fixtureId) return f;
         }
 
@@ -927,10 +920,18 @@ public final class PhysicsService {
         b.enabled = true;
     }
 
-    public static FixtureDefData createDefaultFixture() {
+    public FixtureDefData createDefaultFixture() {
         FixtureDefData f = new FixtureDefData();
         initDefaultFixture(f);
+        f.fixtureId = allocateNewFixtureId();
         return f;
+    }
+
+    public int allocateNewFixtureId() {
+        if (fixtureIds == null) {
+            throw new IllegalStateException("FixtureIdAllocatorSystem is required to create a fixture.");
+        }
+        return fixtureIds.allocateNewFixtureId();
     }
 
     public static void initDefaultFixture(FixtureDefData f) {
@@ -957,7 +958,6 @@ public final class PhysicsService {
         f.maskBits = (short) 0xFFFF;
         f.groupIndex = 0;
 
-        FixtureIdSequence.i().ensure(f);
     }
 }
 

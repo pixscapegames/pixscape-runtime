@@ -11,6 +11,10 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -27,6 +31,42 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class RuntimePrefabFragmentSpawnTest {
+
+    @Test
+    public void spawnAllocatesFreshFixtureIdsAndRemapsSpatialReferences() {
+        World world = runtimeWorld();
+        games.pixscape.runtime.system.FixtureIdAllocatorSystem allocator =
+                world.getSystem(games.pixscape.runtime.system.FixtureIdAllocatorSystem.class);
+        allocator.sceneMeta().nextFixtureId = 51;
+
+        int source = world.create();
+        FixtureDefData sourceFixture = new FixtureDefData();
+        sourceFixture.fixtureId = 50;
+        world.getMapper(PhysicsFixturesComponent.class).create(source)
+                .fixtures.add(sourceFixture);
+        SpatialBlockData sourceBlock = new SpatialBlockData();
+        sourceBlock.id = 5;
+        sourceBlock.physicsCollision = true;
+        sourceBlock.fixtureId = 50;
+        world.getMapper(SpatialBlocksComponent.class).create(source)
+                .blocks.add(sourceBlock);
+        world.process();
+
+        SaveFileFormat fragment = new SaveFileFormat();
+        fragment.entities.add(source);
+        SpawnResult result = new RuntimePrefabFragmentSpawner(new IdentityRegistry())
+                .spawn(world, fragment, 0f, 0f);
+        int created = result.createdEntityIds().get(0);
+        FixtureDefData createdFixture = world.getMapper(PhysicsFixturesComponent.class)
+                .get(created).fixtures.first();
+        SpatialBlockData createdBlock = world.getMapper(SpatialBlocksComponent.class)
+                .get(created).blocks.first();
+
+        Assert.assertEquals(51, createdFixture.fixtureId);
+        Assert.assertEquals(51, createdBlock.fixtureId);
+        Assert.assertEquals(52, allocator.sceneMeta().nextFixtureId);
+        Assert.assertEquals(50, sourceFixture.fixtureId);
+    }
 
     @Test
     public void spawnDoesNotClearExistingWorld() {
@@ -184,7 +224,10 @@ public class RuntimePrefabFragmentSpawnTest {
 
     private static World runtimeWorld() {
         return new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager(), new DirtyTrackerSystem(64))
+                .with(new WorldSerializationManager(),
+                        new games.pixscape.runtime.system.FixtureIdAllocatorSystem(
+                                new games.pixscape.runtime.loading.SceneMetaRuntime()),
+                        new DirtyTrackerSystem(64))
                 .build());
     }
 

@@ -20,7 +20,9 @@ public class PhysicsServiceTest {
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.8f));
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
-        World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
+        World world = new World(new WorldConfigurationBuilder().with(
+                new games.pixscape.runtime.system.FixtureIdAllocatorSystem(
+                        new games.pixscape.runtime.loading.SceneMetaRuntime()), dirty, sync).build());
         PhysicsService physics = new PhysicsService(world, box2d);
 
         int bodyA = world.create();
@@ -60,7 +62,9 @@ public class PhysicsServiceTest {
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.8f));
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
-        World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
+        World world = new World(new WorldConfigurationBuilder().with(
+                new games.pixscape.runtime.system.FixtureIdAllocatorSystem(
+                        new games.pixscape.runtime.loading.SceneMetaRuntime()), dirty, sync).build());
         PhysicsService physics = new PhysicsService(world, box2d);
 
         int bodyA = world.create();

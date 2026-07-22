@@ -37,7 +37,10 @@ public class PhysicsJointSerializationRemapTest {
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager(), dirty, sync)
+                .with(new WorldSerializationManager(),
+                        new games.pixscape.runtime.system.FixtureIdAllocatorSystem(
+                                new games.pixscape.runtime.loading.SceneMetaRuntime()),
+                        dirty, sync)
                 .build());
 
         PhysicsService physics = new PhysicsService(world, box2d);
