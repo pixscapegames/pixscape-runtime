@@ -2,6 +2,7 @@ package games.pixscape.runtime.component;
 
 import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 
 /**
  * Passive authored rectangular walls owned by a tiled layer entity.

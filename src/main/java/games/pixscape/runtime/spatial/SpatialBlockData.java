@@ -1,4 +1,4 @@
-package games.pixscape.runtime.component;
+package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.Array;
 

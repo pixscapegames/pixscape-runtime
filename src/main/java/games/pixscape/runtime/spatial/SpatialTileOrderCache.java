@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.SpatialBlocksComponent;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 

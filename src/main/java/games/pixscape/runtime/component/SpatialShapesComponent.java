@@ -2,6 +2,7 @@ package games.pixscape.runtime.component;
 
 import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.spatial.SpatialShapeData;
 
 public final class SpatialShapesComponent extends PooledComponent {
     public Array<SpatialShapeData> shapes = new Array<>(SpatialShapeData[]::new);
