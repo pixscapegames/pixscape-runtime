@@ -1,8 +1,9 @@
 package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.physics.PhysicsShapeIdState;
 
-public class SceneMetaRuntime {
+public class SceneMetaRuntime implements PhysicsShapeIdState {
 
     public String name;
     public String file;
@@ -15,6 +16,7 @@ public class SceneMetaRuntime {
     public boolean doSleep = true;
     public float physicsParallaxX = Float.NaN;
     public float physicsParallaxY = Float.NaN;
+    public int nextPhysicsShapeId = 1;
 
     // Ambient light
     public float ambientMulR = 1f;
@@ -72,6 +74,8 @@ public class SceneMetaRuntime {
         meta.doSleep = json.getBoolean("doSleep", meta.doSleep);
         meta.physicsParallaxX = json.getFloat("physicsParallaxX", meta.physicsParallaxX);
         meta.physicsParallaxY = json.getFloat("physicsParallaxY", meta.physicsParallaxY);
+        meta.nextPhysicsShapeId = json.getInt(
+                "nextPhysicsShapeId", meta.nextPhysicsShapeId);
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
@@ -105,6 +109,7 @@ public class SceneMetaRuntime {
         this.doSleep = other.doSleep;
         this.physicsParallaxX = other.physicsParallaxX;
         this.physicsParallaxY = other.physicsParallaxY;
+        this.nextPhysicsShapeId = other.nextPhysicsShapeId;
         this.ambientMulR = other.ambientMulR;
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
@@ -114,5 +119,15 @@ public class SceneMetaRuntime {
         this.tileHeight = other.tileHeight;
         this.chunkSize = other.chunkSize;
         this.mainCameraOffscreen = other.mainCameraOffscreen;
+    }
+
+    @Override
+    public int getNextPhysicsShapeId() {
+        return nextPhysicsShapeId;
+    }
+
+    @Override
+    public void setNextPhysicsShapeId(int nextPhysicsShapeId) {
+        this.nextPhysicsShapeId = nextPhysicsShapeId;
     }
 }
