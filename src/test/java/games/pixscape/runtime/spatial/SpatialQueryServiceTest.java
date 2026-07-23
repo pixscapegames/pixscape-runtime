@@ -1,8 +1,7 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.component.SpatialHeightComponent;
-import games.pixscape.runtime.spatial.SpatialShapeData;
-import games.pixscape.runtime.component.SpatialShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import com.badlogic.gdx.utils.IntArray;

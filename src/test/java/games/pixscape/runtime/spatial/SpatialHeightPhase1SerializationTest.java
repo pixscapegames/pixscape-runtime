@@ -8,6 +8,8 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.service.IdentityRegistry;

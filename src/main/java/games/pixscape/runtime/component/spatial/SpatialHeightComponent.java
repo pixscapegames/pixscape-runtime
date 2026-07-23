@@ -1,4 +1,4 @@
-package games.pixscape.runtime.component;
+package games.pixscape.runtime.component.spatial;
 
 import com.artemis.PooledComponent;
 

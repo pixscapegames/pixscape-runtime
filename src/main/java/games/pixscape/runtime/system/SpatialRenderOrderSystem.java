@@ -8,6 +8,8 @@ import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
@@ -23,7 +25,6 @@ import games.pixscape.runtime.spatial.SpatialFrameSnapshotBuilder;
 import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialOrderingKernel;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 import java.util.Arrays;
 

@@ -1,7 +1,8 @@
-package games.pixscape.runtime.component;
+package games.pixscape.runtime.component.spatial;
 
 import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 
 /**

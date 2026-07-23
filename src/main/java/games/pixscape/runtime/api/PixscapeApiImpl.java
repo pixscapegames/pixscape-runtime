@@ -13,6 +13,7 @@ import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;

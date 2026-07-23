@@ -6,7 +6,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;

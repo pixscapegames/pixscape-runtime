@@ -1,8 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TileChunk;
