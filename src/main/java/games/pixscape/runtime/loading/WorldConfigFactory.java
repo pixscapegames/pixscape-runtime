@@ -326,9 +326,13 @@ public final class WorldConfigFactory {
             SystemProfiler systemProfiler,
             SpatialLayerRuntimeRegistry spatialRuntimeRegistry
     ) {
+        FixtureIdAllocatorSystem fixtureIds = new FixtureIdAllocatorSystem();
+        if (meta != null) {
+            fixtureIds.bind(meta);
+        }
         builder.with(
                 new WorldSerializationManager(),
-                new FixtureIdAllocatorSystem(meta),
+                fixtureIds,
                 new DirtyTrackerSystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),

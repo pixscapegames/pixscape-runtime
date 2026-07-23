@@ -851,7 +851,7 @@ public final class PixscapeEngine {
             throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
         }
         applyPhysicsFromScene(meta);
-        world.getSystem(FixtureIdAllocatorSystem.class).bindScene(meta);
+        world.getSystem(FixtureIdAllocatorSystem.class).bind(meta);
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 

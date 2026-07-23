@@ -12,6 +12,50 @@ import org.junit.Test;
 
 public class FixtureIdentityContractTest {
     @Test
+    public void allocatorStartsUnboundAndRejectsAllocation() {
+        FixtureIdAllocatorSystem allocator = new FixtureIdAllocatorSystem();
+
+        Assert.assertFalse(allocator.isBound());
+        Assert.assertNull(allocator.sceneMeta());
+        try {
+            allocator.allocateNewFixtureId();
+            Assert.fail("Expected allocation without an active scene to fail");
+        } catch (IllegalStateException expected) {
+            Assert.assertEquals(
+                    "Cannot allocate fixture ID: no active scene metadata is bound",
+                    expected.getMessage());
+        }
+        Assert.assertFalse(allocator.isBound());
+    }
+
+    @Test
+    public void bindRejectsInvalidMetadataWithoutReplacingTheActiveScene() {
+        SceneMetaRuntime active = meta(7);
+        FixtureIdAllocatorSystem allocator = new FixtureIdAllocatorSystem(active);
+        SceneMetaRuntime invalid = meta(0);
+
+        try {
+            allocator.bind(null);
+            Assert.fail("Expected null scene metadata to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("metadata is null"));
+        }
+        Assert.assertSame(active, allocator.sceneMeta());
+
+        try {
+            allocator.bind(invalid);
+            Assert.fail("Expected invalid high-water mark to fail");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("strictly positive"));
+        }
+
+        Assert.assertSame(active, allocator.sceneMeta());
+        Assert.assertEquals(7, allocator.allocateNewFixtureId());
+        Assert.assertEquals(8, active.nextFixtureId);
+        Assert.assertEquals(0, invalid.nextFixtureId);
+    }
+
+    @Test
     public void allocationIsMonotonicAndDeletionDoesNotRecycle() {
         SceneMetaRuntime meta = meta(10);
         FixtureIdAllocatorSystem allocator = new FixtureIdAllocatorSystem(meta);
@@ -19,6 +63,39 @@ public class FixtureIdentityContractTest {
         Assert.assertEquals(10, allocator.allocateNewFixtureId());
         Assert.assertEquals(11, allocator.allocateNewFixtureId());
         Assert.assertEquals(12, meta.nextFixtureId);
+    }
+
+    @Test
+    public void rebindingAcrossScenesKeepsIndependentHighWaterMarks() {
+        SceneMetaRuntime sceneA = meta(10);
+        sceneA.name = "A";
+        SceneMetaRuntime sceneB = meta(100);
+        sceneB.name = "B";
+        FixtureIdAllocatorSystem allocator = new FixtureIdAllocatorSystem();
+
+        allocator.bind(sceneA);
+        Assert.assertEquals(10, allocator.allocateNewFixtureId());
+        Assert.assertEquals(11, sceneA.nextFixtureId);
+
+        allocator.bind(sceneB);
+        Assert.assertEquals(100, allocator.allocateNewFixtureId());
+        Assert.assertEquals(101, sceneB.nextFixtureId);
+
+        allocator.bind(sceneA);
+        Assert.assertEquals(11, allocator.allocateNewFixtureId());
+        Assert.assertEquals(12, sceneA.nextFixtureId);
+        Assert.assertEquals(101, sceneB.nextFixtureId);
+    }
+
+    @Test
+    public void boundAllocatorWorksBeforeWorldProcess() {
+        SceneMetaRuntime meta = meta(5);
+        World world = world(meta);
+
+        FixtureIdAllocatorSystem allocator = world.getSystem(FixtureIdAllocatorSystem.class);
+        Assert.assertTrue(allocator.isBound());
+        Assert.assertEquals(5, allocator.allocateNewFixtureId());
+        Assert.assertEquals(6, meta.nextFixtureId);
     }
 
     @Test
