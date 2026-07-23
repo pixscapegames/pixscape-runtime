@@ -2,6 +2,7 @@ package games.pixscape.runtime.prefab;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.Aspect;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
@@ -21,6 +22,7 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -220,6 +222,185 @@ public class RuntimePrefabFragmentSpawnTest {
         }
 
         Assert.assertTrue("Spawn should mark render + physics/joint dirty for spawned runtime entities", sawPhysicsOrJointDirty);
+    }
+
+    @Test
+    public void missingSpatialFixtureFailsBeforeWorldMutation() {
+        World world = runtimeWorld();
+        int existing = world.create();
+        world.getMapper(TransformComponent.class).create(existing).x = 42f;
+        SaveFileFormat fragment = fixtureFragment(world, new int[]{10}, 999, true);
+        world.process();
+        int beforeCount = activeEntityCount(world);
+
+        assertSpawnFails(world, fragment, "missing source fixtureId=999");
+
+        Assert.assertEquals(beforeCount, activeEntityCount(world));
+        Assert.assertEquals(42f, world.getMapper(TransformComponent.class).get(existing).x, 0f);
+    }
+
+    @Test
+    public void missingJointEntityReferenceFailsBeforeWorldMutation() {
+        World world = runtimeWorld();
+        int body = world.create();
+        world.getMapper(PhysicsBodyComponent.class).create(body);
+        int joint = world.create();
+        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(joint);
+        base.aEid = body;
+        base.bEid = 999;
+        world.getMapper(PhysicsDistanceJointComponent.class).create(joint);
+        world.process();
+        SaveFileFormat fragment = fragmentOf(body, joint);
+        int beforeCount = activeEntityCount(world);
+
+        assertSpawnFails(world, fragment, "missing source entity ID=999");
+
+        Assert.assertEquals(beforeCount, activeEntityCount(world));
+    }
+
+    @Test
+    public void duplicateSourceFixtureIdIsRejectedBeforeAllocationOrInjection() {
+        World world = runtimeWorld();
+        FixtureIdAllocatorSystem allocator = world.getSystem(FixtureIdAllocatorSystem.class);
+        allocator.sceneMeta().nextFixtureId = 70;
+        SaveFileFormat fragment = fixtureFragment(world, new int[]{12, 12}, 0, false);
+        world.process();
+        int beforeCount = activeEntityCount(world);
+
+        assertSpawnFails(world, fragment, "duplicate source fixtureId=12");
+
+        Assert.assertEquals(beforeCount, activeEntityCount(world));
+        Assert.assertEquals(70, allocator.sceneMeta().nextFixtureId);
+    }
+
+    @Test
+    public void allocatedIdsRemainConsumedWhenLateDetachedValidationFails() {
+        World world = runtimeWorld();
+        FixtureIdAllocatorSystem allocator = world.getSystem(FixtureIdAllocatorSystem.class);
+        allocator.sceneMeta().nextFixtureId = 200;
+        SaveFileFormat fragment = fixtureFragment(world, new int[]{10, 11}, 999, true);
+        world.process();
+        int beforeCount = activeEntityCount(world);
+
+        assertSpawnFails(world, fragment, "missing source fixtureId=999");
+
+        Assert.assertEquals(beforeCount, activeEntityCount(world));
+        Assert.assertEquals(202, allocator.sceneMeta().nextFixtureId);
+
+        int source = fragment.entities.get(0);
+        world.getMapper(SpatialBlocksComponent.class).get(source).blocks.first().fixtureId = 10;
+        SpawnResult result = new RuntimePrefabFragmentSpawner(new IdentityRegistry())
+                .spawn(world, fragment, 0f, 0f);
+        PhysicsFixturesComponent spawned = world.getMapper(PhysicsFixturesComponent.class)
+                .get(result.createdEntityIds().get(0));
+        Assert.assertEquals(202, spawned.fixtures.get(0).fixtureId);
+        Assert.assertEquals(203, spawned.fixtures.get(1).fixtureId);
+        Assert.assertEquals(204, allocator.sceneMeta().nextFixtureId);
+    }
+
+    @Test
+    public void nonCollisionBlockWithoutFixtureRemainsValid() {
+        World world = runtimeWorld();
+        SaveFileFormat fragment = fixtureFragment(world, new int[0], 0, false);
+        world.process();
+
+        SpawnResult result = new RuntimePrefabFragmentSpawner(new IdentityRegistry())
+                .spawn(world, fragment, 0f, 0f);
+
+        SpatialBlockData block = world.getMapper(SpatialBlocksComponent.class)
+                .get(result.createdEntityIds().get(0)).blocks.first();
+        Assert.assertFalse(block.physicsCollision);
+        Assert.assertEquals(0, block.fixtureId);
+    }
+
+    @Test
+    public void successiveSpawnsUseIndependentEntityAndFixtureMappings() {
+        World world = runtimeWorld();
+        world.getSystem(FixtureIdAllocatorSystem.class).sceneMeta().nextFixtureId = 44;
+        SaveFileFormat fragment = fixtureFragment(world, new int[]{44}, 44, true);
+        world.process();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+
+        SpawnResult first = spawner.spawn(world, fragment, 0f, 0f);
+        SpawnResult second = spawner.spawn(world, fragment, 0f, 0f);
+        int firstEntity = first.createdEntityIds().get(0);
+        int secondEntity = second.createdEntityIds().get(0);
+        int firstFixture = world.getMapper(PhysicsFixturesComponent.class)
+                .get(firstEntity).fixtures.first().fixtureId;
+        int secondFixture = world.getMapper(PhysicsFixturesComponent.class)
+                .get(secondEntity).fixtures.first().fixtureId;
+
+        Assert.assertNotEquals(firstEntity, secondEntity);
+        Assert.assertNotEquals(firstFixture, secondFixture);
+        Assert.assertNotEquals(44, firstFixture);
+        Assert.assertNotEquals(44, secondFixture);
+        Assert.assertEquals(45, firstFixture);
+        Assert.assertEquals(46, secondFixture);
+        Assert.assertEquals(firstFixture, world.getMapper(SpatialBlocksComponent.class)
+                .get(firstEntity).blocks.first().fixtureId);
+        Assert.assertEquals(secondFixture, world.getMapper(SpatialBlocksComponent.class)
+                .get(secondEntity).blocks.first().fixtureId);
+    }
+
+    @Test
+    public void serializedPrefabPathUsesTheSameDetachedTransaction() {
+        World world = runtimeWorld();
+        PrefabFixture fixture = buildPrefabFixture(world);
+        JsonValue root = new JsonReader().parse(fixture.sourceJson);
+        world.process();
+        int beforeCount = activeEntityCount(world);
+
+        SpawnResult result = new RuntimePrefabFragmentSpawner(new IdentityRegistry())
+                .spawnSerialized(world, root, 3f, 4f, "serialized-test-prefab");
+
+        Assert.assertEquals(3, result.createdEntityIds().size());
+        Assert.assertEquals(beforeCount + 3, activeEntityCountAfterProcess(world));
+    }
+
+    private static SaveFileFormat fixtureFragment(World world, int[] fixtureIds,
+                                                  int blockFixtureId, boolean collision) {
+        int source = world.create();
+        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class)
+                .create(source);
+        for (int fixtureId : fixtureIds) {
+            FixtureDefData fixture = new FixtureDefData();
+            fixture.fixtureId = fixtureId;
+            fixtures.fixtures.add(fixture);
+        }
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = 5;
+        block.physicsCollision = collision;
+        block.fixtureId = blockFixtureId;
+        world.getMapper(SpatialBlocksComponent.class).create(source).blocks.add(block);
+        return fragmentOf(source);
+    }
+
+    private static SaveFileFormat fragmentOf(int... entityIds) {
+        SaveFileFormat fragment = new SaveFileFormat();
+        for (int entityId : entityIds) fragment.entities.add(entityId);
+        return fragment;
+    }
+
+    private static int activeEntityCount(World world) {
+        return world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size();
+    }
+
+    private static int activeEntityCountAfterProcess(World world) {
+        world.process();
+        return activeEntityCount(world);
+    }
+
+    private static void assertSpawnFails(World world, SaveFileFormat fragment,
+                                         String expectedMessage) {
+        try {
+            new RuntimePrefabFragmentSpawner(new IdentityRegistry())
+                    .spawn(world, fragment, 0f, 0f);
+            Assert.fail("Expected prefab spawn to fail");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage(),
+                    expected.getMessage().contains(expectedMessage));
+        }
     }
 
     private static World runtimeWorld() {

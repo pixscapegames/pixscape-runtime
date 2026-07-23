@@ -1,7 +1,6 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.*;
-import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
@@ -246,10 +245,11 @@ public final class PixscapeEngine {
         }
 
         JsonValue root = new JsonReader().parse(fragmentFile);
-        JsonArtemisSerializer serializer = new JsonArtemisSerializer(world);
-        SaveFileFormat fragment = serializer.load(root, SaveFileFormat.class);
-
-        return spawnPrefabFragment(fragment, offsetX, offsetY);
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
+        SpawnResult result = spawner.spawnSerialized(
+                world, root, offsetX, offsetY, fragmentFile.path());
+        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
+        return result;
     }
 
     private void rebuildWorld(RuntimeConfig config,
