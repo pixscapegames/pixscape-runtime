@@ -2,7 +2,7 @@ package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -31,8 +31,8 @@ public final class PrefabAsset {
         public AnimationData animation;
         public ShaderParamsData shaderParams;
         public PhysicsBodyData physicsBody;
-        public Array<FixtureDefData> fixtures = new Array<>(FixtureDefData[]::new);
-        public PhysicsAuthoringData physicsAuthoring;
+        public Array<PhysicsShapeData> physicsShapes =
+                new Array<>(true, 4, PhysicsShapeData.class);
         public JointBaseData joint;
         public DistanceJointData distanceJoint;
         public RevoluteJointData revoluteJoint;
@@ -124,31 +124,6 @@ public final class PrefabAsset {
         public int type;
         public boolean fixedRotation, bullet, allowSleep, awake, enabled;
         public float gravityScale, linearDamping, angularDamping;
-    }
-
-    public static final class PhysicsAuthoringData {
-        public List<AuthoredPolygonDto> polygons = new ArrayList<>();
-    }
-
-    public static final class AuthoredPolygonDto {
-        public long authoringId;
-        public float[] sourceVerts;
-        public int sourceCount;
-        public int decompositionAlgorithmVersion;
-        public long sourceHash;
-        public List<ConvexPolygonPartDto> convexParts = new ArrayList<>();
-
-        public int[] generatedFixtureIds;
-
-        public float density, friction, restitution;
-        public boolean isSensor;
-        public short categoryBits, maskBits, groupIndex;
-        public float offsetX, offsetY, angleDeg;
-    }
-
-    public static final class ConvexPolygonPartDto {
-        public float[] verts;
-        public int count;
     }
 
     public static final class JointBaseData {

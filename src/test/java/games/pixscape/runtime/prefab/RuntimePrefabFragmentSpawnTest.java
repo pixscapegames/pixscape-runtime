@@ -14,6 +14,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -31,7 +33,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnDoesNotClearExistingWorld() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         int existing = world.create();
@@ -46,7 +48,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnReturnsOnlyCreatedEntitiesUsingSubscriptionDiff() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         int preExisting = world.create();
@@ -67,7 +69,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnRegeneratesStableIds() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -93,7 +95,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnAppliesTransformOffset() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         float offsetX = 10f;
@@ -123,7 +125,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnPreservesAndRemapsJointReferences() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -151,7 +153,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnMarksRenderAndPhysicsDirty() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         PrefabFixture fixture = buildPrefabFixture(world);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
@@ -180,6 +182,32 @@ public class RuntimePrefabFragmentSpawnTest {
         }
 
         Assert.assertTrue("Spawn should mark render + physics/joint dirty for spawned runtime entities", sawPhysicsOrJointDirty);
+    }
+
+    @Test
+    public void spawnAllocatesFreshShapeIdsFromTargetSceneAuthority() {
+        World world = runtimeWorld();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
+        PrefabFixture fixture = buildPrefabFixture(world);
+
+        SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
+        Set<Integer> shapeIds = new HashSet<>();
+        for (int i = 0; i < result.createdEntityIds().size(); i++) {
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class)
+                    .getSafe(result.createdEntityIds().get(i), null);
+            if (shapes == null) continue;
+            for (PhysicsShapeData shape : shapes.shapes) {
+                Assert.assertTrue(shape.physicsShapeId > 0);
+                Assert.assertNotEquals(10, shape.physicsShapeId);
+                Assert.assertNotEquals(11, shape.physicsShapeId);
+                Assert.assertTrue(shapeIds.add(shape.physicsShapeId));
+            }
+        }
+        Assert.assertEquals(2, shapeIds.size());
+        Assert.assertEquals(3, meta.nextPhysicsShapeId);
     }
 
     private static World runtimeWorld() {
@@ -253,6 +281,11 @@ public class RuntimePrefabFragmentSpawnTest {
         ta.x = 5f;
         ta.y = -3f;
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyA);
+        PhysicsShapesComponent shapesA =
+                sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyA);
+        PhysicsShapeData shapeA = new PhysicsShapeData();
+        shapeA.physicsShapeId = 10;
+        shapesA.add(shapeA);
 
         PixscapeIdentityComponent ida = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyA);
         ida.stableId = 101;
@@ -262,6 +295,11 @@ public class RuntimePrefabFragmentSpawnTest {
         tb.x = 6f;
         tb.y = -2f;
         sourceWorld.getMapper(PhysicsBodyComponent.class).create(bodyB);
+        PhysicsShapesComponent shapesB =
+                sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyB);
+        PhysicsShapeData shapeB = new PhysicsShapeData();
+        shapeB.physicsShapeId = 11;
+        shapesB.add(shapeB);
 
         PixscapeIdentityComponent idb = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyB);
         idb.stableId = 102;

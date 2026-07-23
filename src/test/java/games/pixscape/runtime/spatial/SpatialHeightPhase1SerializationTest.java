@@ -244,7 +244,7 @@ public class SpatialHeightPhase1SerializationTest {
         byte[] fragmentBytes = save(targetWorld, request);
         SaveFileFormat fragment = load(targetWorld, fragmentBytes);
 
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
         SpawnResult result = spawner.spawn(targetWorld, fragment, 0f, 0f);
 
         IntBag created = result.createdEntityIds();

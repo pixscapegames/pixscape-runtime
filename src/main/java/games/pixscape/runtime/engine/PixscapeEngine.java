@@ -213,7 +213,13 @@ public final class PixscapeEngine {
      */
     public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
+        SceneMetaRuntime sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        if (sceneMeta == null) {
+            throw new IllegalStateException(
+                    "Current scene metadata is required to allocate physics shape IDs.");
+        }
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(identityRegistry, sceneMeta);
         SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
         resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
         return result;
@@ -853,7 +859,7 @@ public final class PixscapeEngine {
 
         FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
 
-        SceneLoader.loadScene(world, sceneFile, false);
+        SceneLoader.loadScene(world, sceneFile, false, meta);
         processWorld();
 
         rebuildRuntimeRegistries();

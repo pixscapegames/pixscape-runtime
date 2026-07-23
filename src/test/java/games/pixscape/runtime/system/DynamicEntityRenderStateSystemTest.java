@@ -146,7 +146,7 @@ public class DynamicEntityRenderStateSystemTest {
                         new DirtyFlushSystem()
                 )
                 .build());
-        PhysicsService physics = new PhysicsService(world, box2d);
+        PhysicsService physics = new PhysicsService(world, box2d, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         int entity = createRenderableSprite(world);
         world.process();

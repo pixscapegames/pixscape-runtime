@@ -6,9 +6,9 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
@@ -28,7 +28,7 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
         Assert.assertEquals(fixture.renderSlotFor(actor), fixture.collector.actorSlot[0]);
@@ -44,7 +44,7 @@ public class SpatialActorCollectorTest {
         fixture.drawList.addTiledSlot(tiledSlot);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
@@ -57,7 +57,7 @@ public class SpatialActorCollectorTest {
         fixture.drawList.addVfxSlot(fixture.renderSlotFor(actor));
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
@@ -70,7 +70,7 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
@@ -87,7 +87,7 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(zero);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
@@ -101,13 +101,13 @@ public class SpatialActorCollectorTest {
         fixture.body.get(disabledBody).enabled = false;
         int noCircle = fixture.createActor(50f, 60f, 2, true);
         fixture.body.create(noCircle);
-        fixture.fixtures.create(noCircle).fixtures.add(boxFixture());
+        fixture.shapes.create(noCircle).shapes.add(boxFixture());
         fixture.addActorDrawSlot(missingBody);
         fixture.addActorDrawSlot(disabledBody);
         fixture.addActorDrawSlot(noCircle);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
@@ -123,7 +123,7 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(actor);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
         Assert.assertEquals(9f, fixture.collector.actorFootX[0], 0.0001f);
@@ -150,11 +150,11 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(actorB);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
         int[] first = Arrays.copyOf(fixture.collector.actorStableOrder, fixture.collector.actorCount());
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
         int[] second = Arrays.copyOf(fixture.collector.actorStableOrder, fixture.collector.actorCount());
 
         Assert.assertArrayEquals(first, second);
@@ -172,7 +172,7 @@ public class SpatialActorCollectorTest {
         byte[] domainsBefore = Arrays.copyOf(fixture.drawList.domainData(), fixture.drawList.size);
 
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
-                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.fixtures, PIXELS_PER_METER);
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.body, fixture.shapes, PIXELS_PER_METER);
 
         int[] after = Arrays.copyOf(fixture.drawList.data(), fixture.drawList.size);
         byte[] domainsAfter = Arrays.copyOf(fixture.drawList.domainData(), fixture.drawList.size);
@@ -180,9 +180,9 @@ public class SpatialActorCollectorTest {
         Assert.assertArrayEquals(domainsBefore, domainsAfter);
     }
 
-    private static FixtureDefData boxFixture() {
-        FixtureDefData fixture = new FixtureDefData();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
+    private static PhysicsShapeData boxFixture() {
+        PhysicsShapeData fixture = new PhysicsShapeData();
+        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
         return fixture;
     }
 
@@ -197,7 +197,7 @@ public class SpatialActorCollectorTest {
         final ComponentMapper<TransformComponent> transform = world.getMapper(TransformComponent.class);
         final ComponentMapper<SpatialHeightComponent> height = world.getMapper(SpatialHeightComponent.class);
         final ComponentMapper<PhysicsBodyComponent> body = world.getMapper(PhysicsBodyComponent.class);
-        final ComponentMapper<PhysicsFixturesComponent> fixtures = world.getMapper(PhysicsFixturesComponent.class);
+        final ComponentMapper<PhysicsShapesComponent> shapes = world.getMapper(PhysicsShapesComponent.class);
 
         Fixture() {
             spatialLayers[2] = true;
@@ -228,14 +228,14 @@ public class SpatialActorCollectorTest {
 
         void addCircle(int actor, float radiusPx, float offsetXPx, float offsetYPx) {
             body.create(actor);
-            PhysicsFixturesComponent f = fixtures.create(actor);
-            f.fixtures.clear();
-            FixtureDefData fixture = new FixtureDefData();
-            fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
+            PhysicsShapesComponent f = shapes.create(actor);
+            f.shapes.clear();
+            PhysicsShapeData fixture = new PhysicsShapeData();
+            fixture.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
             fixture.radius = radiusPx / PIXELS_PER_METER;
             fixture.offsetX = offsetXPx / PIXELS_PER_METER;
             fixture.offsetY = offsetYPx / PIXELS_PER_METER;
-            f.fixtures.add(fixture);
+            f.shapes.add(fixture);
         }
 
         int renderSlotFor(int actor) {

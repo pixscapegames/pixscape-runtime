@@ -22,8 +22,6 @@ public final class SpatialBlockData {
     public float height = DEFAULT_HEIGHT;
     /** Participates in actor spatial ordering. */
     public boolean actorOccluder = true;
-    /** Participates in Studio collision fixtures and compiled spatial-collision metadata. */
-    public boolean physicsCollision = false;
     /** Compiled as light-occlusion metadata; the downstream light consumer is not implemented yet. */
     public boolean lightOccluder = false;
     /** Compiled as shadow-geometry metadata; the downstream shadow consumer is not implemented yet. */
@@ -45,7 +43,6 @@ public final class SpatialBlockData {
         b.altitude = altitude;
         b.height = height;
         b.actorOccluder = actorOccluder;
-        b.physicsCollision = physicsCollision;
         b.lightOccluder = lightOccluder;
         b.shadowCaster = shadowCaster;
         b.particleOccluder = particleOccluder;

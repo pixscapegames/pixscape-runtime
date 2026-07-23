@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.helper.ColorHelper;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
@@ -48,7 +48,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
     private EntitySubscription spriteSub;
     private EntitySubscription physicsBodySub;
-    private EntitySubscription physicsFixturesSub;
+    private EntitySubscription physicsShapesSub;
 
     // Work list (union)
     private final IntArray work = new IntArray(false, 256);
@@ -97,8 +97,8 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
         physicsBodySub = world.getAspectSubscriptionManager().get(
                 Aspect.all(PhysicsBodyComponent.class)
         );
-        physicsFixturesSub = world.getAspectSubscriptionManager().get(
-                Aspect.all(PhysicsFixturesComponent.class)
+        physicsShapesSub = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsShapesComponent.class)
         );
         EntitySubscription.SubscriptionListener physicsCompositionListener =
                 new EntitySubscription.SubscriptionListener() {
@@ -113,7 +113,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                     }
                 };
         physicsBodySub.addSubscriptionListener(physicsCompositionListener);
-        physicsFixturesSub.addSubscriptionListener(physicsCompositionListener);
+        physicsShapesSub.addSubscriptionListener(physicsCompositionListener);
     }
 
     private void markRenderRecordsDirty(IntBag entities) {

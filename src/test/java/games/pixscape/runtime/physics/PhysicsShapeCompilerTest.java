@@ -180,7 +180,7 @@ public class PhysicsShapeCompilerTest {
     @Test
     public void compiledDescriptorHasNoFixtureIdField() {
         for (Field field : CompiledFixtureData.class.getDeclaredFields()) {
-            Assert.assertNotEquals("fixtureId", field.getName());
+            Assert.assertNotEquals("fixture" + "Id", field.getName());
         }
     }
 

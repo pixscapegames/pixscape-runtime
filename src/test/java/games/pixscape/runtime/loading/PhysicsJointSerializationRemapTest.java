@@ -40,7 +40,7 @@ public class PhysicsJointSerializationRemapTest {
                 .with(new WorldSerializationManager(), dirty, sync)
                 .build());
 
-        PhysicsService physics = new PhysicsService(world, box2d);
+        PhysicsService physics = new PhysicsService(world, box2d, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         // Make original entity ids non-trivial.
         for (int i = 0; i < 25; i++) {

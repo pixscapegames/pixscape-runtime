@@ -21,7 +21,7 @@ public class PhysicsServiceTest {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
         World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
-        PhysicsService physics = new PhysicsService(world, box2d);
+        PhysicsService physics = new PhysicsService(world, box2d, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         int bodyA = world.create();
         TransformComponent tA = world.getMapper(TransformComponent.class).create(bodyA);
@@ -61,7 +61,7 @@ public class PhysicsServiceTest {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
         World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
-        PhysicsService physics = new PhysicsService(world, box2d);
+        PhysicsService physics = new PhysicsService(world, box2d, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         int bodyA = world.create();
         TransformComponent tA = world.getMapper(TransformComponent.class).create(bodyA);

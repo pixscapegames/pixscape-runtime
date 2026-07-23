@@ -11,11 +11,15 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
+import games.pixscape.runtime.physics.PhysicsShapeIdState;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /**
  * Centralizes Physics business logic (Editor/Runtime):
- * - Creates/removes body+fixture
+ * - Creates/removes bodies and logical shapes
  * - Creates/removes joints
  * - Marks dirty bits
  * - Helpers anchors (local meters) -> world WU(px)
@@ -30,7 +34,10 @@ public final class PhysicsService {
 
     private final ComponentMapper<TransformComponent> mT;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
-    private final ComponentMapper<PhysicsFixturesComponent> mFixtures;
+    private final ComponentMapper<PhysicsShapesComponent> mShapes;
+    private final ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
+    private final ComponentMapper<PhysicsRuntimeBodyComponent> mRuntimeBody;
+    private PhysicsShapeIdAllocator shapeIdAllocator;
 
     private final ComponentMapper<PhysicsJointComponent> mJoint;
     private final ComponentMapper<PhysicsDistanceJointComponent> mDist;
@@ -53,7 +60,9 @@ public final class PhysicsService {
 
         this.mT = world.getMapper(TransformComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mFixtures = world.getMapper(PhysicsFixturesComponent.class);
+        this.mShapes = world.getMapper(PhysicsShapesComponent.class);
+        this.mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
+        this.mRuntimeBody = world.getMapper(PhysicsRuntimeBodyComponent.class);
         this.mJoint = world.getMapper(PhysicsJointComponent.class);
 
         this.mDist = world.getMapper(PhysicsDistanceJointComponent.class);
@@ -65,6 +74,26 @@ public final class PhysicsService {
         this.mWeld = world.getMapper(PhysicsWeldJointComponent.class);
         this.mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         this.mGear = world.getMapper(PhysicsGearJointComponent.class);
+    }
+
+    public PhysicsService(
+            World world, Box2dWorldService box2d, PhysicsShapeIdState physicsShapeIdState) {
+        this(world, box2d);
+        setPhysicsShapeIdState(physicsShapeIdState);
+    }
+
+    public void setPhysicsShapeIdState(PhysicsShapeIdState physicsShapeIdState) {
+        shapeIdAllocator = physicsShapeIdState != null
+                ? new PhysicsShapeIdAllocator(physicsShapeIdState)
+                : null;
+    }
+
+    public int allocateNewPhysicsShapeId() {
+        if (shapeIdAllocator == null) {
+            throw new IllegalStateException(
+                    "Scene physics shape ID authority is not configured.");
+        }
+        return shapeIdAllocator.allocateNewPhysicsShapeId();
     }
 
     public void setBox2d(Box2dWorldService box2d) {
@@ -79,19 +108,19 @@ public final class PhysicsService {
     }
 
     // ---------------------------------------------------------------------
-    // Body / Fixture
+    // Body / logical shape
     // ---------------------------------------------------------------------
 
     public boolean hasBody(int eid) {
         return eid >= 0 && mBody.has(eid);
     }
 
-    public boolean hasFixtures(int eid) {
-        return eid >= 0 && mFixtures.has(eid) && mFixtures.get(eid).hasFixtures();
+    public boolean hasShapes(int eid) {
+        return eid >= 0 && mShapes.has(eid) && mShapes.get(eid).hasShapes();
     }
 
     public boolean hasPhysics(int eid) {
-        return hasBody(eid) && hasFixtures(eid);
+        return hasBody(eid) && hasShapes(eid);
     }
 
     public void ensurePhysics(int eid) {
@@ -99,10 +128,10 @@ public final class PhysicsService {
 
         if (!mBody.has(eid)) initDefaultBody(mBody.create(eid));
 
-        PhysicsFixturesComponent fixtures = mFixtures.has(eid) ? mFixtures.get(eid) : mFixtures.create(eid);
-        if (!fixtures.hasFixtures()) {
-            fixtures.fixtures.clear();
-            fixtures.fixtures.add(createDefaultFixture());
+        PhysicsShapesComponent shapes =
+                mShapes.has(eid) ? mShapes.get(eid) : mShapes.create(eid);
+        if (!shapes.hasShapes()) {
+            shapes.add(createDefaultShape(allocateNewPhysicsShapeId()));
         }
 
         markPhysicsDirty(eid);
@@ -114,7 +143,9 @@ public final class PhysicsService {
         // keep runtime consistent: no orphan joint
         deleteAllJointsReferencingBody(eid);
 
-        if (mFixtures.has(eid)) mFixtures.remove(eid);
+        if (mShapes.has(eid)) mShapes.remove(eid);
+        if (mCompiled.has(eid)) mCompiled.remove(eid);
+        if (mRuntimeBody.has(eid)) mRuntimeBody.remove(eid);
         if (mBody.has(eid)) mBody.remove(eid);
 
         markPhysicsDirty(eid);
@@ -124,91 +155,120 @@ public final class PhysicsService {
         if (dirty != null && eid >= 0) dirty.physics(eid, PhysicsDirtyBits.ALL);
     }
 
-    public PhysicsFixturesComponent getFixturesComponent(int eid) {
-        return eid >= 0 ? mFixtures.getSafe(eid, null) : null;
+    public PhysicsShapesComponent getShapesComponent(int eid) {
+        return eid >= 0 ? mShapes.getSafe(eid, null) : null;
     }
 
-    public void ensureFixtureIds(int eid) {
-        PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
-        if (fixtures == null) return;
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
-            FixtureIdSequence.i().ensure(f);
-        }
+    public int shapeCount(int eid) {
+        PhysicsShapesComponent shapes = getShapesComponent(eid);
+        return shapes != null && shapes.shapes != null ? shapes.shapes.size : 0;
     }
 
-    public int fixtureCount(int eid) {
-        PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
-        return fixtures != null ? fixtures.fixtures.size : 0;
+    public int countCircleShapes(int eid) {
+        return countShapesByType(eid, PhysicsShapeData.SHAPE_CIRCLE);
     }
 
-    public int countCircleFixtures(int eid) {
-        return countFixturesByType(eid, FixtureDefData.SHAPE_CIRCLE);
+    public int countBoxShapes(int eid) {
+        return countShapesByType(eid, PhysicsShapeData.SHAPE_BOX);
     }
 
-    public int countQuadFixtures(int eid) {
-        return countFixturesByType(eid, FixtureDefData.SHAPE_BOX);
+    public int countPolygonShapes(int eid) {
+        return countShapesByType(eid, PhysicsShapeData.SHAPE_POLYGON);
     }
 
-    public int countPolygonFixtures(int eid) {
-        return countFixturesByType(eid, FixtureDefData.SHAPE_POLYGON);
-    }
-
-    private int countFixturesByType(int eid, int shapeType) {
-        PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
-        if (fixtures == null) return 0;
+    private int countShapesByType(int eid, int shapeType) {
+        PhysicsShapesComponent shapes = getShapesComponent(eid);
+        if (shapes == null || shapes.shapes == null) return 0;
         int count = 0;
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
-            if (f != null && f.shapeType == shapeType) count++;
+        for (int i = 0, n = shapes.shapes.size; i < n; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.shapeType == shapeType) count++;
         }
         return count;
     }
 
-    public FixtureDefData getFixtureById(int eid, int fixtureId) {
-        if (fixtureId <= 0) return null;
-        PhysicsFixturesComponent fixtures = getFixturesComponent(eid);
-        if (fixtures == null) return null;
-
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
-            if (f == null) continue;
-            FixtureIdSequence.i().ensure(f);
-            if (f.fixtureId == fixtureId) return f;
-        }
-
-        return null;
+    public PhysicsShapeData getShapeById(int eid, int physicsShapeId) {
+        PhysicsShapesComponent shapes = getShapesComponent(eid);
+        return shapes != null ? shapes.getById(physicsShapeId) : null;
     }
 
-    public boolean computeFixtureCenterWU(int bodyEid, FixtureDefData fixture, Vector2 outCenterWU) {
-        return computeFixtureOriginWU(bodyEid, fixture, outCenterWU);
+    public boolean computeShapeCenterWU(
+            int bodyEid, PhysicsShapeData shape, Vector2 outCenterWU) {
+        return computeShapeOriginWU(bodyEid, shape, outCenterWU);
     }
 
-    public float computeFixtureRadiusWU(FixtureDefData fixture) {
+    public float computeShapeRadiusWU(PhysicsShapeData shape) {
+        if (shape == null || !isAvailable()) return 0f;
+        return box2d.mToPx(Math.max(0f, shape.radius));
+    }
+
+    public boolean computeCompiledFixtureCenterWU(
+            int bodyEid, CompiledFixtureData fixture, Vector2 outCenterWU) {
+        if (fixture == null) return false;
+        return computeLocalOriginWU(bodyEid, fixture.offsetX, fixture.offsetY, outCenterWU);
+    }
+
+    public float computeCompiledFixtureRadiusWU(CompiledFixtureData fixture) {
         if (fixture == null || !isAvailable()) return 0f;
         return box2d.mToPx(Math.max(0f, fixture.radius));
     }
 
-    public int computeFixtureVerticesWU(int bodyEid, FixtureDefData fixture, float[] outVertsWU) {
+    public int computeCompiledFixtureVerticesWU(
+            int bodyEid, CompiledFixtureData fixture, float[] outVertsWU) {
         if (fixture == null || outVertsWU == null || !isAvailable()) return 0;
-
-        if (fixture.shapeType == FixtureDefData.SHAPE_BOX) {
+        if (fixture.shapeType == CompiledFixtureData.SHAPE_BOX) {
             if (outVertsWU.length < 8) return 0;
-            if (!transformFixturePointWU(bodyEid, fixture, -fixture.halfW, -fixture.halfH, outVertsWU, 0)) return 0;
-            transformFixturePointWU(bodyEid, fixture, fixture.halfW, -fixture.halfH, outVertsWU, 2);
-            transformFixturePointWU(bodyEid, fixture, fixture.halfW, fixture.halfH, outVertsWU, 4);
-            transformFixturePointWU(bodyEid, fixture, -fixture.halfW, fixture.halfH, outVertsWU, 6);
+            if (!transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
+                    fixture.angleDegrees, -fixture.halfWidth, -fixture.halfHeight,
+                    outVertsWU, 0)) return 0;
+            transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
+                    fixture.angleDegrees, fixture.halfWidth, -fixture.halfHeight,
+                    outVertsWU, 2);
+            transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
+                    fixture.angleDegrees, fixture.halfWidth, fixture.halfHeight,
+                    outVertsWU, 4);
+            transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
+                    fixture.angleDegrees, -fixture.halfWidth, fixture.halfHeight,
+                    outVertsWU, 6);
+            return 4;
+        }
+        if (fixture.shapeType == CompiledFixtureData.SHAPE_POLYGON) {
+            int count = Math.max(0, Math.min(
+                    fixture.polygonVertexCount, fixture.polygonVertices.length / 2));
+            if (count < 3 || outVertsWU.length < count * 2) return 0;
+            for (int i = 0; i < count; i++) {
+                transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
+                        fixture.angleDegrees,
+                        fixture.polygonVertices[i * 2],
+                        fixture.polygonVertices[i * 2 + 1],
+                        outVertsWU, i * 2);
+            }
+            return count;
+        }
+        return 0;
+    }
+
+    public int computeShapeVerticesWU(
+            int bodyEid, PhysicsShapeData shape, float[] outVertsWU) {
+        if (shape == null || outVertsWU == null || !isAvailable()) return 0;
+
+        if (shape.shapeType == PhysicsShapeData.SHAPE_BOX) {
+            if (outVertsWU.length < 8) return 0;
+            if (!transformShapePointWU(bodyEid, shape, -shape.halfWidth, -shape.halfHeight, outVertsWU, 0)) return 0;
+            transformShapePointWU(bodyEid, shape, shape.halfWidth, -shape.halfHeight, outVertsWU, 2);
+            transformShapePointWU(bodyEid, shape, shape.halfWidth, shape.halfHeight, outVertsWU, 4);
+            transformShapePointWU(bodyEid, shape, -shape.halfWidth, shape.halfHeight, outVertsWU, 6);
             return 4;
         }
 
-        if (fixture.shapeType == FixtureDefData.SHAPE_POLYGON) {
-            int count = safePolyCount(fixture);
+        if (shape.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
+            int count = safePolygonVertexCount(shape);
             if (count < 3) return 0;
             if (outVertsWU.length < count * 2) return 0;
             for (int i = 0; i < count; i++) {
-                float lx = fixture.polyVerts[i * 2];
-                float ly = fixture.polyVerts[i * 2 + 1];
-                transformFixturePointWU(bodyEid, fixture, lx, ly, outVertsWU, i * 2);
+                float lx = shape.polygonVertices[i * 2];
+                float ly = shape.polygonVertices[i * 2 + 1];
+                transformShapePointWU(bodyEid, shape, lx, ly, outVertsWU, i * 2);
             }
             return count;
         }
@@ -216,30 +276,30 @@ public final class PhysicsService {
         return 0;
     }
 
-    private int safePolyCount(FixtureDefData fixture) {
-        if (fixture == null || fixture.polyVerts == null) return 0;
-        return Math.max(0, Math.min(fixture.polyCount, fixture.polyVerts.length / 2));
+    private int safePolygonVertexCount(PhysicsShapeData shape) {
+        if (shape == null || shape.polygonVertices == null) return 0;
+        return Math.max(
+                0, Math.min(shape.polygonVertexCount, shape.polygonVertices.length / 2));
     }
 
-    private boolean computeFixtureOriginWU(int bodyEid, FixtureDefData fixture, Vector2 outWU) {
+    private boolean computeShapeOriginWU(
+            int bodyEid, PhysicsShapeData shape, Vector2 outWU) {
+        if (shape == null) return false;
+        return computeLocalOriginWU(bodyEid, shape.offsetX, shape.offsetY, outWU);
+    }
+
+    private boolean computeLocalOriginWU(
+            int bodyEid, float localOffsetX, float localOffsetY, Vector2 outWU) {
         if (outWU == null) return false;
         outWU.set(0f, 0f);
-        if (!isAvailable() || bodyEid < 0 || fixture == null) return false;
-
+        if (!isAvailable() || bodyEid < 0) return false;
         TransformComponent t = mT.getSafe(bodyEid, null);
         if (t == null) return false;
 
-        float fixtureAngle = fixture.angleDeg * MathUtils.degreesToRadians;
-        float fcos = MathUtils.cos(fixtureAngle);
-        float fsin = MathUtils.sin(fixtureAngle);
-
-        float fx = fixture.offsetX;
-        float fy = fixture.offsetY;
-
         float bcos = MathUtils.cos(t.rotationRad);
         float bsin = MathUtils.sin(t.rotationRad);
-        float bx = fx * bcos - fy * bsin;
-        float by = fx * bsin + fy * bcos;
+        float bx = localOffsetX * bcos - localOffsetY * bsin;
+        float by = localOffsetX * bsin + localOffsetY * bcos;
 
         outWU.set(
                 t.x + box2d.mToPx(bx),
@@ -248,18 +308,39 @@ public final class PhysicsService {
         return true;
     }
 
-    private boolean transformFixturePointWU(int bodyEid, FixtureDefData fixture, float localX_m, float localY_m, float[] outVertsWU, int outIndex) {
-        if (!isAvailable() || outVertsWU == null || outIndex < 0 || outIndex + 1 >= outVertsWU.length) return false;
-        if (bodyEid < 0 || fixture == null) return false;
+    private boolean transformShapePointWU(
+            int bodyEid,
+            PhysicsShapeData shape,
+            float localX_m,
+            float localY_m,
+            float[] outVertsWU,
+            int outIndex) {
+        if (shape == null) return false;
+        return transformLocalPointWU(bodyEid, shape.offsetX, shape.offsetY,
+                shape.angleDegrees, localX_m, localY_m, outVertsWU, outIndex);
+    }
+
+    private boolean transformLocalPointWU(
+            int bodyEid,
+            float offsetX,
+            float offsetY,
+            float angleDegrees,
+            float localX_m,
+            float localY_m,
+            float[] outVertsWU,
+            int outIndex) {
+        if (!isAvailable() || outVertsWU == null
+                || outIndex < 0 || outIndex + 1 >= outVertsWU.length) return false;
+        if (bodyEid < 0) return false;
 
         TransformComponent t = mT.getSafe(bodyEid, null);
         if (t == null) return false;
 
-        float fixtureAngle = fixture.angleDeg * MathUtils.degreesToRadians;
+        float fixtureAngle = angleDegrees * MathUtils.degreesToRadians;
         float fcos = MathUtils.cos(fixtureAngle);
         float fsin = MathUtils.sin(fixtureAngle);
-        float fx = localX_m * fcos - localY_m * fsin + fixture.offsetX;
-        float fy = localX_m * fsin + localY_m * fcos + fixture.offsetY;
+        float fx = localX_m * fcos - localY_m * fsin + offsetX;
+        float fy = localX_m * fsin + localY_m * fcos + offsetY;
 
         float bcos = MathUtils.cos(t.rotationRad);
         float bsin = MathUtils.sin(t.rotationRad);
@@ -927,37 +1008,38 @@ public final class PhysicsService {
         b.enabled = true;
     }
 
-    public static FixtureDefData createDefaultFixture() {
-        FixtureDefData f = new FixtureDefData();
-        initDefaultFixture(f);
-        return f;
+    public static PhysicsShapeData createDefaultShape(int physicsShapeId) {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        initDefaultShape(shape, physicsShapeId);
+        return shape;
     }
 
-    public static void initDefaultFixture(FixtureDefData f) {
-        f.shapeType = FixtureDefData.SHAPE_BOX;
+    public static void initDefaultShape(PhysicsShapeData shape, int physicsShapeId) {
+        PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
+        shape.physicsShapeId = physicsShapeId;
+        shape.shapeType = PhysicsShapeData.SHAPE_BOX;
 
-        f.polyVerts = new float[0];
-        f.polyCount = 0;
+        shape.polygonVertices = new float[0];
+        shape.polygonVertexCount = 0;
 
-        f.halfW = 0.5f;
-        f.halfH = 0.5f;
-        f.angleDeg = 0f;
+        shape.halfWidth = 0.5f;
+        shape.halfHeight = 0.5f;
+        shape.angleDegrees = 0f;
 
-        f.radius = 0.5f;
+        shape.radius = 0.5f;
 
-        f.offsetX = 0f;
-        f.offsetY = 0f;
+        shape.offsetX = 0f;
+        shape.offsetY = 0f;
 
-        f.density = 1f;
-        f.friction = 0.2f;
-        f.restitution = 0f;
-        f.isSensor = false;
+        shape.density = 1f;
+        shape.friction = 0.2f;
+        shape.restitution = 0f;
+        shape.sensor = false;
 
-        f.categoryBits = 0x0001;
-        f.maskBits = (short) 0xFFFF;
-        f.groupIndex = 0;
-
-        FixtureIdSequence.i().ensure(f);
+        shape.categoryBits = 0x0001;
+        shape.maskBits = (short) 0xFFFF;
+        shape.groupIndex = 0;
+        shape.enabled = true;
     }
 }
 

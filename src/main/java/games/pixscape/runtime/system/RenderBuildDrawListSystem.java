@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -41,7 +41,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private ComponentMapper<TextureRegionComponent> mTextureRegion;
     private ComponentMapper<VisibilityComponent> mVisibility;
     private ComponentMapper<PhysicsBodyComponent> mBody;
-    private ComponentMapper<PhysicsFixturesComponent> mFixtures;
+    private ComponentMapper<PhysicsShapesComponent> mShapes;
     private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
     private EntitySubscription allEntities;
     private int vfxPeakCapacity;
@@ -208,7 +208,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             if (mTextureRegion.has(entity)) flags |= RenderStats.ECS_COMPONENT_TEXTURE_REGION;
             if (mVisibility.has(entity)) flags |= RenderStats.ECS_COMPONENT_VISIBILITY;
             if (mBody.has(entity)) flags |= RenderStats.ECS_COMPONENT_BODY;
-            if (mFixtures.has(entity)) flags |= RenderStats.ECS_COMPONENT_FIXTURES;
+            if (mShapes.has(entity)) flags |= RenderStats.ECS_COMPONENT_FIXTURES;
             if (mSpatialHeight.has(entity)) flags |= RenderStats.ECS_COMPONENT_SPATIAL_HEIGHT;
         }
 

@@ -7,7 +7,7 @@ import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -43,7 +43,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
-    private ComponentMapper<PhysicsFixturesComponent> mPhysicsFixtures;
+    private ComponentMapper<PhysicsShapesComponent> mPhysicsShapes;
 
     private EntitySubscription layersSub;
     private EntitySubscription blockLayersSub;
@@ -194,7 +194,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mTransform,
                 mSpatialHeight,
                 mPhysicsBody,
-                mPhysicsFixtures,
+                mPhysicsShapes,
                 mIdentity,
                 pixelsPerMeter);
     }

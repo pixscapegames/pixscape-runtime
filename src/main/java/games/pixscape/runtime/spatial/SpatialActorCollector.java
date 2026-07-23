@@ -7,9 +7,9 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
@@ -53,7 +53,7 @@ public final class SpatialActorCollector {
                         ComponentMapper<TransformComponent> transformMapper,
                         ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
                         ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
-                        ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                        ComponentMapper<PhysicsShapesComponent> physicsShapesMapper,
                         float pixelsPerMeter) {
         collect(drawList,
                 state,
@@ -63,7 +63,7 @@ public final class SpatialActorCollector {
                 transformMapper,
                 spatialHeightMapper,
                 physicsBodyMapper,
-                physicsFixturesMapper,
+                physicsShapesMapper,
                 null,
                 pixelsPerMeter);
     }
@@ -76,7 +76,7 @@ public final class SpatialActorCollector {
                         ComponentMapper<TransformComponent> transformMapper,
                         ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
                         ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
-                        ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                        ComponentMapper<PhysicsShapesComponent> physicsShapesMapper,
                         ComponentMapper<PixscapeIdentityComponent> identityMapper,
                         float pixelsPerMeter) {
         clear();
@@ -98,7 +98,7 @@ public final class SpatialActorCollector {
                     transformMapper,
                     spatialHeightMapper,
                     physicsBodyMapper,
-                    physicsFixturesMapper,
+                    physicsShapesMapper,
                     identityMapper,
                     pixelsPerMeter);
         }
@@ -123,7 +123,7 @@ public final class SpatialActorCollector {
                         ComponentMapper<TransformComponent> transformMapper,
                         ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
                         ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
-                        ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                        ComponentMapper<PhysicsShapesComponent> physicsShapesMapper,
                         ComponentMapper<PixscapeIdentityComponent> identityMapper,
                         float pixelsPerMeter) {
         if (!isEligibleActorSlot(slot,
@@ -134,7 +134,7 @@ public final class SpatialActorCollector {
                 transformMapper,
                 spatialHeightMapper,
                 physicsBodyMapper,
-                physicsFixturesMapper,
+                physicsShapesMapper,
                 pixelsPerMeter)) {
             return false;
         }
@@ -146,7 +146,7 @@ public final class SpatialActorCollector {
                 transform,
                 height,
                 physicsBodyMapper,
-                physicsFixturesMapper,
+                physicsShapesMapper,
                 pixelsPerMeter,
                 tmpFootprint)) {
             return false;
@@ -185,7 +185,7 @@ public final class SpatialActorCollector {
                                        ComponentMapper<TransformComponent> transformMapper,
                                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
                                        ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
-                                       ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                                       ComponentMapper<PhysicsShapesComponent> physicsShapesMapper,
                                        float pixelsPerMeter) {
         if (!isRenderableSlot(slot, state)) return false;
 
@@ -212,7 +212,7 @@ public final class SpatialActorCollector {
                 transform,
                 height,
                 physicsBodyMapper,
-                physicsFixturesMapper,
+                physicsShapesMapper,
                 pixelsPerMeter,
                 null);
     }
@@ -221,7 +221,7 @@ public final class SpatialActorCollector {
                                                     TransformComponent transform,
                                                     SpatialHeightComponent height,
                                                     ComponentMapper<PhysicsBodyComponent> physicsBodyMapper,
-                                                    ComponentMapper<PhysicsFixturesComponent> physicsFixturesMapper,
+                                                    ComponentMapper<PhysicsShapesComponent> physicsShapesMapper,
                                                     float pixelsPerMeter,
                                                     SpatialActorGeometry.Footprint out) {
         if (transform == null || height == null) return false;
@@ -229,24 +229,26 @@ public final class SpatialActorCollector {
                 ? physicsBodyMapper.getSafe(entity, null)
                 : null;
         if (body == null || !body.enabled) return false;
-        PhysicsFixturesComponent fixtures = physicsFixturesMapper != null
-                ? physicsFixturesMapper.getSafe(entity, null)
+        PhysicsShapesComponent shapes = physicsShapesMapper != null
+                ? physicsShapesMapper.getSafe(entity, null)
                 : null;
-        if (fixtures == null || fixtures.fixtures == null || fixtures.fixtures.size == 0) return false;
+        if (shapes == null || shapes.shapes == null || shapes.shapes.size == 0) return false;
 
         float ppm = pixelsPerMeter > 0f ? pixelsPerMeter : DEFAULT_PIXELS_PER_METER;
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData fixture = fixtures.fixtures.get(i);
-            if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) continue;
-            if (fixture.radius <= 0f) continue;
+        for (int i = 0, n = shapes.shapes.size; i < n; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape == null
+                    || !shape.enabled
+                    || shape.shapeType != PhysicsShapeData.SHAPE_CIRCLE) continue;
+            if (shape.radius <= 0f) continue;
 
-            float localX = fixture.offsetX * ppm;
-            float localY = fixture.offsetY * ppm;
+            float localX = shape.offsetX * ppm;
+            float localY = shape.offsetY * ppm;
             float cos = MathUtils.cos(transform.rotationRad);
             float sin = MathUtils.sin(transform.rotationRad);
             float cx = transform.x + localX * cos - localY * sin;
             float cy = transform.y + localX * sin + localY * cos;
-            float radius = fixture.radius * ppm;
+            float radius = shape.radius * ppm;
             if (!Float.isFinite(cx) || !Float.isFinite(cy) || !Float.isFinite(radius) || radius <= 0f) {
                 continue;
             }
