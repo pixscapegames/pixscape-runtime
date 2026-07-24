@@ -13,10 +13,11 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
- * Simple runtime index for Pixscape identity lookups.
+ * World-scoped identity index and operational stable-ID allocator.
  * <p>
- * Source of truth = {@link PixscapeIdentityComponent}.
- * This registry is only a cache / lookup index.
+ * {@link PixscapeIdentityComponent} stores assigned identities, while
+ * {@link SceneMetaRuntime#nextEntityStableId} stores the persistent high-water mark.
+ * This registry maintains the World indexes and allocates new IDs from that mark.
  */
 public final class IdentityRegistry {
 

@@ -7,7 +7,9 @@ import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -79,6 +81,75 @@ public class SceneLoaderPersistentIdentityValidationTest {
                 cause.getMessage().contains("high-water must be greater than max ID"));
     }
 
+    @Test
+    public void realSceneLoadRejectsSpatialOwnerWithoutIdentity() throws Exception {
+        World authored = world();
+        int owner = authored.create();
+        SpatialBlocksComponent blocks = authored.getMapper(SpatialBlocksComponent.class).create(owner);
+        blocks.nextSpatialBlockId = 2;
+        blocks.blocks.add(block(1));
+
+        IllegalArgumentException cause = loadFailure(save(authored, owner), new SceneMetaRuntime());
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("spatialOwnerStableId"));
+    }
+
+    @Test
+    public void realSceneLoadRejectsNonPositiveEntityStableId() throws Exception {
+        World authored = world();
+        int entity = identityEntity(authored, 0);
+
+        IllegalArgumentException cause = loadFailure(save(authored, entity), new SceneMetaRuntime());
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("entityStableId"));
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("ID must be positive"));
+    }
+
+    @Test
+    public void realSceneLoadRejectsNonPositiveSpatialHighWater() throws Exception {
+        World authored = world();
+        int owner = identityEntity(authored, 1);
+        authored.getMapper(SpatialBlocksComponent.class).create(owner).nextSpatialBlockId = 0;
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+
+        IllegalArgumentException cause = loadFailure(save(authored, owner), meta);
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("spatialBlockId"));
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("high-water must be positive"));
+    }
+
+    @Test
+    public void realSceneLoadRejectsDuplicatePhysicsShapeIds() throws Exception {
+        World authored = world();
+        int entity = identityEntity(authored, 1);
+        PhysicsShapesComponent shapes = authored.getMapper(PhysicsShapesComponent.class).create(entity);
+        shapes.shapes.add(shape(1));
+        shapes.shapes.add(shape(1));
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+        meta.nextPhysicsShapeId = 2;
+
+        IllegalArgumentException cause = loadFailure(save(authored, entity), meta);
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("physicsShapeId"));
+        Assert.assertTrue(cause.getMessage(), cause.getMessage().contains("Duplicate"));
+    }
+
+    @Test
+    public void validRealSceneLoadsWithoutIntermediateProcess() throws Exception {
+        World authored = world();
+        int owner = identityEntity(authored, 1);
+        SpatialBlocksComponent blocks = authored.getMapper(SpatialBlocksComponent.class).create(owner);
+        blocks.nextSpatialBlockId = 2;
+        blocks.blocks.add(block(1));
+        FileHandle file = save(authored, owner);
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+        World loaded = world();
+        try {
+            SceneLoader.loadScene(loaded, file, false, meta);
+        } finally {
+            loaded.dispose();
+        }
+    }
+
     private static IllegalArgumentException loadFailure(
             FileHandle file, SceneMetaRuntime meta) {
         World loaded = world();
@@ -109,6 +180,12 @@ public class SceneLoaderPersistentIdentityValidationTest {
         block.width = 1;
         block.depth = 1;
         return block;
+    }
+
+    private static PhysicsShapeData shape(int id) {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = id;
+        return shape;
     }
 
     private static FileHandle save(World world, int... entities) throws Exception {
