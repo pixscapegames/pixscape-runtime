@@ -12,10 +12,18 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsFrictionJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsPulleyJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.physics.PhysicsWeldJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
@@ -136,13 +144,6 @@ public class RuntimePrefabFragmentSpawner {
                 stagingWorld.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper =
                 stagingWorld.getMapper(SpatialPhysicsFootprintComponent.class);
-        ComponentMapper<PhysicsJointComponent> joints =
-                stagingWorld.getMapper(PhysicsJointComponent.class);
-        ComponentMapper<PhysicsBodyComponent> bodies =
-                stagingWorld.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsGearJointComponent> gears =
-                stagingWorld.getMapper(PhysicsGearJointComponent.class);
-
         IntSet stagedEntities = new IntSet(Math.max(1, staged.entities.size()));
         IntSet stableIds = new IntSet(Math.max(1, staged.entities.size()));
         IntSet physicsShapeIds = new IntSet(Math.max(1, staged.entities.size()));
@@ -192,40 +193,9 @@ public class RuntimePrefabFragmentSpawner {
                 spatialFootprintMapper.remove(entityId);
             }
 
-            PhysicsJointComponent joint = joints.getSafe(entityId, null);
-            if (joint != null
-                    && (!stagedEntities.contains(joint.aEid)
-                    || !stagedEntities.contains(joint.bEid)
-                    || joint.aEid == joint.bEid
-                    || !bodies.has(joint.aEid)
-                    || !bodies.has(joint.bEid)
-                    || !hasShapes(shapesMapper, joint.aEid)
-                    || !hasShapes(shapesMapper, joint.bEid))) {
-                throw new IllegalArgumentException(
-                        "Prefab joint entity " + entityId
-                                + " has invalid staged endpoints aEid=" + joint.aEid
-                                + ", bEid=" + joint.bEid + ".");
-            }
-            if (joint != null && joint.type == PhysicsJointComponent.TYPE_GEAR) {
-                PhysicsGearJointComponent gear = gears.getSafe(entityId, null);
-                if (gear == null
-                        || gear.joint1Eid == gear.joint2Eid
-                        || !stagedEntities.contains(gear.joint1Eid)
-                        || !stagedEntities.contains(gear.joint2Eid)
-                        || !joints.has(gear.joint1Eid)
-                        || !joints.has(gear.joint2Eid)) {
-                    throw new IllegalArgumentException(
-                            "Prefab gear joint entity " + entityId
-                                    + " has invalid staged joint dependencies.");
-                }
-            }
         }
-    }
-
-    private static boolean hasShapes(
-            ComponentMapper<PhysicsShapesComponent> shapesMapper, int entityId) {
-        PhysicsShapesComponent shapes = shapesMapper.getSafe(entityId, null);
-        return shapes != null && shapes.hasShapes();
+        new StagedJointValidator(stagingWorld, stagedEntities)
+                .validate(staged.entities);
     }
 
     private static void markCreatedDirty(World world, IntBag created) {
@@ -249,6 +219,166 @@ public class RuntimePrefabFragmentSpawner {
 
         PreparedPrefabSpawn(byte[] serializedEntities) {
             this.serializedEntities = serializedEntities;
+        }
+    }
+
+    private static final class StagedJointValidator {
+        private final IntSet stagedEntities;
+        private final ComponentMapper<PhysicsJointComponent> joints;
+        private final ComponentMapper<PhysicsBodyComponent> bodies;
+        private final ComponentMapper<PhysicsShapesComponent> shapes;
+        private final ComponentMapper<PhysicsDistanceJointComponent> distances;
+        private final ComponentMapper<PhysicsRevoluteJointComponent> revolutes;
+        private final ComponentMapper<PhysicsPrismaticJointComponent> prismatics;
+        private final ComponentMapper<PhysicsWheelJointComponent> wheels;
+        private final ComponentMapper<PhysicsFrictionJointComponent> frictions;
+        private final ComponentMapper<PhysicsMotorJointComponent> motors;
+        private final ComponentMapper<PhysicsWeldJointComponent> welds;
+        private final ComponentMapper<PhysicsPulleyJointComponent> pulleys;
+        private final ComponentMapper<PhysicsGearJointComponent> gears;
+
+        StagedJointValidator(World world, IntSet stagedEntities) {
+            this.stagedEntities = stagedEntities;
+            joints = world.getMapper(PhysicsJointComponent.class);
+            bodies = world.getMapper(PhysicsBodyComponent.class);
+            shapes = world.getMapper(PhysicsShapesComponent.class);
+            distances = world.getMapper(PhysicsDistanceJointComponent.class);
+            revolutes = world.getMapper(PhysicsRevoluteJointComponent.class);
+            prismatics = world.getMapper(PhysicsPrismaticJointComponent.class);
+            wheels = world.getMapper(PhysicsWheelJointComponent.class);
+            frictions = world.getMapper(PhysicsFrictionJointComponent.class);
+            motors = world.getMapper(PhysicsMotorJointComponent.class);
+            welds = world.getMapper(PhysicsWeldJointComponent.class);
+            pulleys = world.getMapper(PhysicsPulleyJointComponent.class);
+            gears = world.getMapper(PhysicsGearJointComponent.class);
+        }
+
+        void validate(IntBag entities) {
+            for (int i = 0; i < entities.size(); i++) {
+                int entityId = entities.get(i);
+                PhysicsJointComponent joint = joints.getSafe(entityId, null);
+                if (joint == null) continue;
+                requireSpecificComponent(entityId, joint.type);
+                requireBodyEndpoint(entityId, joint.aEid, "aEid");
+                requireBodyEndpoint(entityId, joint.bEid, "bEid");
+                if (joint.aEid == joint.bEid) {
+                    throw invalid(entityId, "body endpoints must be distinct.");
+                }
+                if (joint.type == PhysicsJointComponent.TYPE_GEAR) {
+                    validateGear(entityId);
+                }
+            }
+        }
+
+        private void requireSpecificComponent(int entityId, int type) {
+            boolean present;
+            switch (type) {
+                case PhysicsJointComponent.TYPE_DISTANCE:
+                    present = distances.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_REVOLUTE:
+                    present = revolutes.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_PRISMATIC:
+                    present = prismatics.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_WHEEL:
+                    present = wheels.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_FRICTION:
+                    present = frictions.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_MOTOR:
+                    present = motors.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_WELD:
+                    present = welds.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_PULLEY:
+                    present = pulleys.has(entityId);
+                    break;
+                case PhysicsJointComponent.TYPE_GEAR:
+                    present = gears.has(entityId);
+                    break;
+                default:
+                    throw invalid(entityId, "unsupported joint type " + type + ".");
+            }
+            if (!present) {
+                throw invalid(
+                        entityId,
+                        "missing specific component for joint type " + type + ".");
+            }
+        }
+
+        private void requireBodyEndpoint(
+                int jointEntityId, int endpointEntityId, String field) {
+            if (!stagedEntities.contains(endpointEntityId)) {
+                throw invalid(
+                        jointEntityId,
+                        field + " references entity " + endpointEntityId
+                                + " outside the prepared prefab.");
+            }
+            if (!bodies.has(endpointEntityId)) {
+                throw invalid(
+                        jointEntityId,
+                        field + " entity " + endpointEntityId
+                                + " has no PhysicsBodyComponent.");
+            }
+            PhysicsShapesComponent endpointShapes =
+                    shapes.getSafe(endpointEntityId, null);
+            if (endpointShapes == null || !endpointShapes.hasShapes()) {
+                throw invalid(
+                        jointEntityId,
+                        field + " entity " + endpointEntityId
+                                + " has no non-empty PhysicsShapesComponent.");
+            }
+        }
+
+        private void validateGear(int gearEntityId) {
+            PhysicsGearJointComponent gear = gears.get(gearEntityId);
+            if (gear.joint1Eid == gear.joint2Eid) {
+                throw invalid(
+                        gearEntityId, "gear joint dependencies must be distinct.");
+            }
+            requireGearSource(gearEntityId, gear.joint1Eid, "joint1Eid");
+            requireGearSource(gearEntityId, gear.joint2Eid, "joint2Eid");
+        }
+
+        private void requireGearSource(
+                int gearEntityId, int sourceEntityId, String field) {
+            if (sourceEntityId == gearEntityId) {
+                throw invalid(
+                        gearEntityId, field + " cannot reference the gear itself.");
+            }
+            if (!stagedEntities.contains(sourceEntityId)) {
+                throw invalid(
+                        gearEntityId,
+                        field + " references entity " + sourceEntityId
+                                + " outside the prepared prefab.");
+            }
+            PhysicsJointComponent source = joints.getSafe(sourceEntityId, null);
+            if (source == null) {
+                throw invalid(
+                        gearEntityId,
+                        field + " entity " + sourceEntityId
+                                + " has no PhysicsJointComponent.");
+            }
+            if (source.type != PhysicsJointComponent.TYPE_REVOLUTE
+                    && source.type != PhysicsJointComponent.TYPE_PRISMATIC) {
+                throw invalid(
+                        gearEntityId,
+                        field + " entity " + sourceEntityId
+                                + " must be revolute or prismatic, but has type "
+                                + source.type + ".");
+            }
+            requireSpecificComponent(sourceEntityId, source.type);
+        }
+
+        private static IllegalArgumentException invalid(
+                int jointEntityId, String detail) {
+            return new IllegalArgumentException(
+                    "Invalid staged prefab joint entity "
+                            + jointEntityId + ": " + detail);
         }
     }
 }

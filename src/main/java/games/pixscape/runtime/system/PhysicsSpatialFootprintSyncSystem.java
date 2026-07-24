@@ -13,7 +13,8 @@ import games.pixscape.runtime.service.PhysicsSpatialFootprintProjector;
  * Cross-domain integration boundary from compiled physics caches to spatial Runtime footprints.
  */
 public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
-    private final float pixelsPerMeter;
+    private float pixelsPerMeter;
+    private boolean forceResync;
     private final PhysicsSpatialFootprintProjector projector =
             new PhysicsSpatialFootprintProjector();
 
@@ -24,10 +25,15 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
     private transient TestObserver testObserver;
 
     public PhysicsSpatialFootprintSyncSystem(float pixelsPerMeter) {
-        if (!Float.isFinite(pixelsPerMeter) || pixelsPerMeter <= 0f) {
-            throw new IllegalArgumentException("pixelsPerMeter must be finite and positive.");
-        }
+        validatePixelsPerMeter(pixelsPerMeter);
         this.pixelsPerMeter = pixelsPerMeter;
+    }
+
+    public void setPixelsPerMeter(float pixelsPerMeter) {
+        validatePixelsPerMeter(pixelsPerMeter);
+        if (this.pixelsPerMeter == pixelsPerMeter) return;
+        this.pixelsPerMeter = pixelsPerMeter;
+        forceResync = true;
     }
 
     @Override
@@ -44,6 +50,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
     protected void processSystem() {
         syncCompiledCaches();
         invalidateOrphanFootprints();
+        forceResync = false;
     }
 
     private void syncCompiledCaches() {
@@ -63,7 +70,8 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
                 }
                 continue;
             }
-            if (footprint != null
+            if (!forceResync
+                    && footprint != null
                     && footprint.physicsGeneration == compiled.generation) {
                 continue;
             }
@@ -97,6 +105,15 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
     private static int compiledGeneration(
             PhysicsCompiledFixturesComponent compiled) {
         return compiled != null ? compiled.generation : 0;
+    }
+
+    private static void validatePixelsPerMeter(float pixelsPerMeter) {
+        if (Float.isNaN(pixelsPerMeter)
+                || Float.isInfinite(pixelsPerMeter)
+                || pixelsPerMeter <= 0f) {
+            throw new IllegalArgumentException(
+                    "pixelsPerMeter must be finite and positive.");
+        }
     }
 
     void setTestObserver(TestObserver testObserver) {

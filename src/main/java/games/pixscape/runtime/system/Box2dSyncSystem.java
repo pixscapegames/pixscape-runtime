@@ -30,6 +30,7 @@ import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 import java.util.Arrays;
 
 public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem {
+    private static final float TRANSFORM_SYNC_EPSILON = 1e-6f;
 
     private Box2dWorldService box2d;
     private SceneMetaRuntime sceneMeta;
@@ -321,19 +322,39 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
             if (stepEnabled) {
                 Vector2 p = rt.body.getPosition();
-                t.x = box2d.mToPx(p.x);
-                t.y = box2d.mToPx(p.y);
-                t.rotationRad = rt.body.getAngle();
-                if (dirty != null) dirty.geometry(e, GeometryDirty.POSITION | GeometryDirty.ROTATION);
+                float nextX = box2d.mToPx(p.x);
+                float nextY = box2d.mToPx(p.y);
+                float nextRotation = rt.body.getAngle();
+                boolean positionChanged =
+                        Math.abs(t.x - nextX) > TRANSFORM_SYNC_EPSILON
+                                || Math.abs(t.y - nextY) > TRANSFORM_SYNC_EPSILON;
+                boolean rotationChanged =
+                        Math.abs(t.rotationRad - nextRotation)
+                                > TRANSFORM_SYNC_EPSILON;
+                if (positionChanged || rotationChanged) {
+                    int geometryMask = GeometryDirty.NONE;
+                    if (positionChanged) {
+                        t.x = nextX;
+                        t.y = nextY;
+                        geometryMask |= GeometryDirty.POSITION;
+                    }
+                    if (rotationChanged) {
+                        t.rotationRad = nextRotation;
+                        geometryMask |= GeometryDirty.ROTATION;
+                    }
+                    if (dirty != null) dirty.geometry(e, geometryMask);
+                }
             } else {
                 float targetX = box2d.pxToM(t.x);
                 float targetY = box2d.pxToM(t.y);
                 float targetAngle = t.rotationRad;
 
                 Vector2 p = rt.body.getPosition();
-                boolean movedByAuthoring = Math.abs(p.x - targetX) > 1e-6f
-                        || Math.abs(p.y - targetY) > 1e-6f
-                        || Math.abs(rt.body.getAngle() - targetAngle) > 1e-6f;
+                boolean movedByAuthoring =
+                        Math.abs(p.x - targetX) > TRANSFORM_SYNC_EPSILON
+                                || Math.abs(p.y - targetY) > TRANSFORM_SYNC_EPSILON
+                                || Math.abs(rt.body.getAngle() - targetAngle)
+                                > TRANSFORM_SYNC_EPSILON;
 
                 if (movedByAuthoring) {
                     rt.body.setTransform(targetX, targetY, targetAngle);

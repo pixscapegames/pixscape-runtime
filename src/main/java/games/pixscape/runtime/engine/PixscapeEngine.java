@@ -32,6 +32,7 @@ import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -1162,8 +1163,8 @@ public final class PixscapeEngine {
             return;
         }
 
+        float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
         if (box2dWorldService == null || box2dWorldService.isDisposed() || box2dWorldService.world == null) {
-            float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
             box2dWorldService = new Box2dWorldService(
                     ppm,
                     new Vector2(meta.gravityX, meta.gravityY),
@@ -1171,11 +1172,18 @@ public final class PixscapeEngine {
             );
             box2dSyncSystem.setBox2d(box2dWorldService);
         } else {
-            float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
             box2dWorldService.setPpm(ppm);
             box2dWorldService.setGravity(meta.gravityX, meta.gravityY);
             box2dWorldService.setDoSleep(meta.doSleep);
         }
+        PhysicsSpatialFootprintSyncSystem footprintSync =
+                world.getSystem(PhysicsSpatialFootprintSyncSystem.class);
+        if (footprintSync == null) {
+            throw new IllegalStateException(
+                    "PhysicsSpatialFootprintSyncSystem is required "
+                            + "to apply scene pixelsPerMeter.");
+        }
+        footprintSync.setPixelsPerMeter(ppm);
 
         box2dSyncSystem.setSceneMeta(meta);
         box2dSyncSystem.setEnabled(true);

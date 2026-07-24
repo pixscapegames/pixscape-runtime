@@ -13,6 +13,8 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.Box2dWorldService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -42,6 +44,7 @@ public class Box2dSyncSystemSleepTest {
                 harness.nativeBody().isAwake());
         Body sleepingBody = harness.nativeBody();
         harness.compilationCounter = 0;
+        clearGeometryDirty(harness);
 
         for (int frame = 0; frame < 1000; frame++) {
             harness.world.process();
@@ -50,6 +53,43 @@ public class Box2dSyncSystemSleepTest {
         Assert.assertSame(sleepingBody, harness.nativeBody());
         Assert.assertFalse(harness.nativeBody().isAwake());
         Assert.assertEquals(0, harness.compilationCounter);
+        Assert.assertEquals(GeometryDirty.NONE,
+                harness.dirty.geomSub(harness.entityId)
+                        & (GeometryDirty.POSITION | GeometryDirty.ROTATION));
+        harness.dispose();
+    }
+
+    @Test
+    public void nativeMovementPublishesOnlyChangedGeometryAxes() {
+        Harness harness = new Harness(true, false);
+        harness.sync.setStepEnabled(true);
+        harness.world.setDelta(1f / 60f);
+        harness.world.process();
+        clearGeometryDirty(harness);
+
+        Body body = harness.nativeBody();
+        body.setTransform(1f, 0f, 0f);
+        harness.world.process();
+
+        Assert.assertEquals(100f, harness.transform.x, 0f);
+        Assert.assertTrue(
+                (harness.dirty.geomSub(harness.entityId)
+                        & GeometryDirty.POSITION) != 0);
+        Assert.assertEquals(0,
+                harness.dirty.geomSub(harness.entityId)
+                        & GeometryDirty.ROTATION);
+        clearGeometryDirty(harness);
+
+        body.setTransform(1f, 0f, 0.25f);
+        harness.world.process();
+
+        Assert.assertEquals(0.25f, harness.transform.rotationRad, 0f);
+        Assert.assertTrue(
+                (harness.dirty.geomSub(harness.entityId)
+                        & GeometryDirty.ROTATION) != 0);
+        Assert.assertEquals(0,
+                harness.dirty.geomSub(harness.entityId)
+                        & GeometryDirty.POSITION);
         harness.dispose();
     }
 
@@ -178,5 +218,12 @@ public class Box2dSyncSystemSleepTest {
             world.dispose();
             box2d.dispose();
         }
+    }
+
+    private static void clearGeometryDirty(Harness harness) {
+        harness.dirty.consume(
+                DirtyBits.GEOMETRY,
+                entityId -> harness.dirty.clearAllGeomSub(entityId));
+        harness.dirty.clearAllGeomSub(harness.entityId);
     }
 }

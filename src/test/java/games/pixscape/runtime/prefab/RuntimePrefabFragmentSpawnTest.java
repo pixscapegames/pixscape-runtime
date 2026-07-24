@@ -275,7 +275,7 @@ public class RuntimePrefabFragmentSpawnTest {
             Assert.fail("Invalid prepared joint references must reject the spawn.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains(
-                    "invalid staged endpoints"));
+                    "has no PhysicsBodyComponent"));
         }
 
         Assert.assertEquals(activeBefore, activeEntityCount(world));
