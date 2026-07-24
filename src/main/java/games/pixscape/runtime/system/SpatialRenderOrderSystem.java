@@ -6,10 +6,9 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
@@ -29,8 +28,6 @@ import games.pixscape.runtime.spatial.SpatialOrderingKernel;
 import java.util.Arrays;
 
 public final class SpatialRenderOrderSystem extends BaseSystem implements ProfiledSystem {
-    private static final float DEFAULT_PIXELS_PER_METER = 100f;
-
     private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final DrawList drawList;
@@ -42,8 +39,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
-    private ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
-    private ComponentMapper<PhysicsShapesComponent> mPhysicsShapes;
+    private ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialPhysicsFootprint;
 
     private EntitySubscription layersSub;
     private EntitySubscription blockLayersSub;
@@ -61,10 +57,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private int[] slotToDrawIndex = new int[0];
     private int[] tiledRefToDrawIndex = new int[0];
-    private int[] nonActorSubsequenceAfter = new int[0];
-    private byte[] nonActorDomainAfter = new byte[0];
-
-    private float pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
@@ -72,29 +64,16 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, TiledMapRenderState tiledState, DrawList drawList) {
-        this(ecsState, tiledState, drawList, DEFAULT_PIXELS_PER_METER, null);
-    }
-
-    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList, float pixelsPerMeter) {
-        this(ecsState, null, drawList, pixelsPerMeter);
+        this(ecsState, tiledState, drawList, null);
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
                                     TiledMapRenderState tiledState,
                                     DrawList drawList,
-                                    float pixelsPerMeter) {
-        this(ecsState, tiledState, drawList, pixelsPerMeter, null);
-    }
-
-    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
-                                    TiledMapRenderState tiledState,
-                                    DrawList drawList,
-                                    float pixelsPerMeter,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
         this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.drawList = drawList;
-        this.pixelsPerMeter = pixelsPerMeter > 0f ? pixelsPerMeter : DEFAULT_PIXELS_PER_METER;
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
     }
@@ -135,7 +114,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         if (faceLayerCount == 0) {
             orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
             applyComposedDrawList();
-            assertNonActorSubsequencePreserved();
             return;
         }
 
@@ -161,7 +139,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
         orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
         applyComposedDrawList();
-        assertNonActorSubsequencePreserved();
     }
 
     private void rebuildSpatialBlockLayers() {
@@ -193,10 +170,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mEntityIndex,
                 mTransform,
                 mSpatialHeight,
-                mPhysicsBody,
-                mPhysicsShapes,
-                mIdentity,
-                pixelsPerMeter);
+                mSpatialPhysicsFootprint,
+                mIdentity);
     }
 
     private void buildDrawIndexMaps() {
@@ -229,39 +204,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
         System.arraycopy(orderingKernel.orderedSlots(), 0, drawList.data(), 0, drawList.size);
         System.arraycopy(orderingKernel.orderedDomains(), 0, drawList.domainData(), 0, drawList.size);
-    }
-
-    private void assertNonActorSubsequencePreserved() {
-        int count = 0;
-        int[] data = drawList.data();
-        byte[] domains = drawList.domainData();
-        for (int i = 0; i < drawList.size; i++) {
-            if (!snapshotBuilder.isActorEntry(domains[i], data[i])) count++;
-        }
-        if (nonActorSubsequenceAfter.length < count) {
-            nonActorSubsequenceAfter = new int[count];
-        }
-        if (nonActorDomainAfter.length < count) {
-            nonActorDomainAfter = new byte[count];
-        }
-        int out = 0;
-        for (int i = 0; i < drawList.size; i++) {
-            int slot = data[i];
-            byte domain = domains[i];
-            if (!snapshotBuilder.isActorEntry(domain, slot)) {
-                nonActorDomainAfter[out] = domain;
-                nonActorSubsequenceAfter[out++] = slot;
-            }
-        }
-        if (count != snapshotBuilder.nonActorCount) {
-            throw new IllegalStateException("Spatial non-actor subsequence changed length.");
-        }
-        for (int i = 0; i < count; i++) {
-            if (snapshotBuilder.nonActorDomains[i] != nonActorDomainAfter[i]
-                    || snapshotBuilder.nonActorSlots[i] != nonActorSubsequenceAfter[i]) {
-                throw new IllegalStateException("Spatial non-actor subsequence changed during bucket composition.");
-            }
-        }
     }
 
     private void rebuildSpatialLayers() {
@@ -341,9 +283,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 + snapshotBuilder.actorOriginalBucket.length
                 + snapshotBuilder.actorSlotMask.length
                 + snapshotBuilder.nonActorSlots.length
-                + snapshotBuilder.nonActorDomains.length
-                + nonActorDomainAfter.length
-                + nonActorSubsequenceAfter.length;
+                + snapshotBuilder.nonActorDomains.length;
     }
 
     int tiledDrawIndexForRef(int tiledRenderRef) {

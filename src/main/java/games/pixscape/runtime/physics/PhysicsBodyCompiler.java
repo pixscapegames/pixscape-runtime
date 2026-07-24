@@ -55,4 +55,31 @@ public final class PhysicsBodyCompiler {
         }
         return candidate;
     }
+
+    /**
+     * Compiles, validates and deep-copies a complete cache candidate before ECS publication.
+     */
+    public PreparedCompiledFixtures compilePrepared(PhysicsShapesComponent sources) {
+        return prepare(compile(sources));
+    }
+
+    /**
+     * Validates and deep-copies fixtures supplied by another physics-domain workflow.
+     */
+    public PreparedCompiledFixtures prepare(Array<CompiledFixtureData> candidate) {
+        Array<CompiledFixtureData> prepared =
+                new Array<>(true, candidate != null ? candidate.size : 0, CompiledFixtureData.class);
+        if (candidate != null) {
+            for (int i = 0; i < candidate.size; i++) {
+                CompiledFixtureData fixture = candidate.get(i);
+                if (fixture == null) {
+                    throw new IllegalArgumentException(
+                            "Compiled fixture candidate contains a null entry at index " + i + ".");
+                }
+                fixture.validate();
+                prepared.add(fixture.copy());
+            }
+        }
+        return new PreparedCompiledFixtures(prepared);
+    }
 }

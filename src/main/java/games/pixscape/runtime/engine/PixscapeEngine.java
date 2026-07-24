@@ -53,6 +53,7 @@ public final class PixscapeEngine {
     private RuntimeConfig cfg;
     private boolean loaded;
     private boolean sceneLoaded;
+    private SceneMetaRuntime activeSceneMeta;
     private int configuredLogLevel = Application.LOG_INFO;
 
     // World + rendering
@@ -189,10 +190,10 @@ public final class PixscapeEngine {
                 .child(cfg.scenesDir)
                 .child(RuntimeFs.withExt(RuntimeConfig.sceneDirName(meta), RuntimeFs.EXT_JSON));
 
+        sceneLoaded = false;
         rebuildWorld(cfg, runtimeProjectDir, meta);
-
         loadSceneInternal(resolved);
-
+        activeSceneMeta = meta;
         sceneLoaded = true;
         return this;
     }
@@ -212,14 +213,15 @@ public final class PixscapeEngine {
      * @throws IllegalStateException if no world is initialized
      */
     public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
-        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
-        SceneMetaRuntime sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        if (sceneMeta == null) {
+        if (world == null || !sceneLoaded) {
+            throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
+        }
+        if (activeSceneMeta == null) {
             throw new IllegalStateException(
-                    "Current scene metadata is required to allocate physics shape IDs.");
+                    "Active scene metadata is required to allocate physics shape IDs.");
         }
         RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(identityRegistry, sceneMeta);
+                new RuntimePrefabFragmentSpawner(identityRegistry, activeSceneMeta);
         SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
         resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
         return result;
@@ -377,6 +379,7 @@ public final class PixscapeEngine {
 
         loaded = false;
         sceneLoaded = false;
+        activeSceneMeta = null;
     }
 
     public PixscapeEngine setWorldCamera(OrthographicCamera cam) {
@@ -499,6 +502,10 @@ public final class PixscapeEngine {
 
     public RuntimeConfig config() {
         return cfg;
+    }
+
+    public SceneMetaRuntime getActiveSceneMeta() {
+        return activeSceneMeta;
     }
 
     public FileHandle userRootDir() {

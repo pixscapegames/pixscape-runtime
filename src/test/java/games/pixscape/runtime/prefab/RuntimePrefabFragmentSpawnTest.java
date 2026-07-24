@@ -1,5 +1,6 @@
 package games.pixscape.runtime.prefab;
 
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.io.JsonArtemisSerializer;
@@ -208,6 +209,72 @@ public class RuntimePrefabFragmentSpawnTest {
         }
         Assert.assertEquals(2, shapeIds.size());
         Assert.assertEquals(3, meta.nextPhysicsShapeId);
+    }
+
+    @Test
+    public void validationFailurePublishesNoTargetEntitiesAndDoesNotRewindIds() {
+        World world = runtimeWorld();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
+        PrefabFixture fixture = buildPrefabFixture(world);
+        int activeBefore = activeEntityCount(world);
+
+        PhysicsShapeData invalid = world.getMapper(PhysicsShapesComponent.class)
+                .get(fixture.sourceBodyAId).shapes.first();
+        invalid.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+        invalid.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        invalid.polygonVertexCount = 2;
+
+        try {
+            spawner.spawn(world, fixture.fragment, 0f, 0f);
+            Assert.fail("Invalid staged physics must reject the prefab before commit.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("physicsShapeId"));
+        }
+
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyAId));
+        Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyBId));
+        Assert.assertTrue(meta.nextPhysicsShapeId > 1);
+    }
+
+    @Test
+    public void commitFailureRollsBackEveryPublishedEntityBeforeReturning() {
+        World world = runtimeWorld();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(),
+                        meta,
+                        (index, entityId) -> {
+                            if (index == 1) {
+                                throw new IllegalStateException("injected commit failure");
+                            }
+                        });
+        PrefabFixture fixture = buildPrefabFixture(world);
+        int activeBefore = activeEntityCount(world);
+
+        try {
+            spawner.spawn(world, fixture.fragment, 0f, 0f);
+            Assert.fail("The injected commit failure must be propagated.");
+        } catch (IllegalStateException expected) {
+            Assert.assertEquals("injected commit failure", expected.getMessage());
+        }
+
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyAId));
+        Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyBId));
+        Assert.assertEquals(3, meta.nextPhysicsShapeId);
+    }
+
+    private static int activeEntityCount(World world) {
+        return world.getAspectSubscriptionManager()
+                .get(Aspect.all())
+                .getEntities()
+                .size();
     }
 
     private static World runtimeWorld() {

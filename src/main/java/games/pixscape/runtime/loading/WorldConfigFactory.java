@@ -411,9 +411,6 @@ public final class WorldConfigFactory {
                         dynamicEntityState,
                         tiledState,
                         drawList,
-                        meta != null && meta.pixelsPerMeter > 0f
-                                ? meta.pixelsPerMeter
-                                : DEFAULT_PIXELS_PER_METER,
                         spatialRuntimeRegistry
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(

@@ -10,9 +10,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.DrawList;
@@ -1617,27 +1615,28 @@ public class SpatialRenderOrderSystemTest {
         }
 
         void setActorCircleFootprint(int actor, float radiusPx, float offsetXPx, float offsetYPx) {
-            PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).get(actor);
-            if (fixtures == null) return;
-            fixtures.shapes.clear();
-            PhysicsShapeData fixture = new PhysicsShapeData();
-            fixture.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-            fixture.radius = radiusPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixture.offsetX = offsetXPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixture.offsetY = offsetYPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixtures.shapes.add(fixture);
+            SpatialPhysicsFootprintComponent footprint =
+                    world.getMapper(SpatialPhysicsFootprintComponent.class)
+                            .getSafe(actor, null);
+            if (footprint == null) return;
+            footprint.valid = true;
+            footprint.radiusPx = radiusPx;
+            footprint.localOffsetXPx = offsetXPx;
+            footprint.localOffsetYPx = offsetYPx;
         }
 
         void addPhysicsCircleFootprint(int actor, float radiusPx) {
-            world.getMapper(PhysicsBodyComponent.class).create(actor);
-            world.getMapper(PhysicsShapesComponent.class).create(actor);
+            world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
             setActorCircleFootprint(actor, radiusPx);
         }
 
         void clearActorPhysicsFootprint(int actor) {
-            PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).get(actor);
-            if (fixtures != null) {
-                fixtures.shapes.clear();
+            SpatialPhysicsFootprintComponent footprint =
+                    world.getMapper(SpatialPhysicsFootprintComponent.class)
+                            .getSafe(actor, null);
+            if (footprint != null) {
+                footprint.valid = false;
+                footprint.radiusPx = 0f;
             }
         }
 

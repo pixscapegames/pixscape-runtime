@@ -8,8 +8,10 @@ import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -19,9 +21,13 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
+import games.pixscape.runtime.service.PhysicsSpatialFootprintProjector;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 
 import java.util.Arrays;
 
@@ -31,9 +37,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private SceneMetaRuntime sceneMeta;
 
     private ComponentMapper<TransformComponent> mT;
+    private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private ComponentMapper<PhysicsBodyComponent> mBodyDef;
     private ComponentMapper<PhysicsShapesComponent> mShapes;
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
+    private ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialPhysicsFootprint;
     private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
 
     private ComponentMapper<PhysicsJointComponent> mJointBase;
@@ -60,6 +68,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private static final int MAX_POLYGON_VERTICES = 8;
     private final float[] polygonVertsScratch = new float[MAX_POLYGON_VERTICES * 2];
     private final PhysicsBodyCompiler bodyCompiler = new PhysicsBodyCompiler();
+    private final PhysicsCompiledFixtureCachePublisher compiledCachePublisher =
+            new PhysicsCompiledFixtureCachePublisher();
+    private final PhysicsSpatialFootprintProjector spatialFootprintProjector =
+            new PhysicsSpatialFootprintProjector();
+    private transient TestObserver testObserver;
 
     private float lastGx = Float.NaN;
     private float lastGy = Float.NaN;
@@ -97,6 +110,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         return box2d;
     }
 
+    void setTestObserver(TestObserver observer) {
+        this.testObserver = observer;
+    }
+
     public void setSceneMeta(SceneMetaRuntime meta) {
         this.sceneMeta = meta;
         lastGx = Float.NaN;
@@ -116,9 +133,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     @Override
     protected void initialize() {
         mT = world.getMapper(TransformComponent.class);
+        mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
         mShapes = world.getMapper(PhysicsShapesComponent.class);
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
+        mSpatialPhysicsFootprint = world.getMapper(SpatialPhysicsFootprintComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
 
         mJointBase = world.getMapper(PhysicsJointComponent.class);
@@ -561,8 +580,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         if (box2d == null || box2d.world == null || !isWantedEntity(e)) return;
 
         PhysicsShapesComponent sources = mShapes.get(e);
-        Array<CompiledFixtureData> candidateFixtures = bodyCompiler.compile(sources);
-        Body candidateBody = createBodyFromCompiled(e, candidateFixtures);
+        PhysicsCompiledFixturesComponent compiled =
+                mCompiled.has(e) ? mCompiled.get(e) : mCompiled.create(e);
+        notifyCompilationForTest(sources);
+        PreparedCompiledFixtures preparedFixtures = bodyCompiler.compilePrepared(sources);
+        int nextGeneration = compiled.generation + 1;
+        PhysicsSpatialFootprintProjector.Projection spatialProjection =
+                spatialFootprintProjector.prepare(
+                        preparedFixtures, nextGeneration, box2d.ppm);
+        Body candidateBody = createBodyFromCompiled(e, preparedFixtures.fixtures());
+        SpatialPhysicsFootprintComponent spatialFootprint =
+                mSpatialPhysicsFootprint.has(e)
+                        ? mSpatialPhysicsFootprint.get(e)
+                        : mSpatialPhysicsFootprint.create(e);
 
         Body previousBody = rt.body;
         if (previousBody != null) {
@@ -571,14 +601,17 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         rt.body = candidateBody;
-        PhysicsCompiledFixturesComponent compiled =
-                mCompiled.has(e) ? mCompiled.get(e) : mCompiled.create(e);
-        compiled.replaceWith(candidateFixtures);
+        int publishedGeneration = compiledCachePublisher.publish(compiled, preparedFixtures);
+        if (publishedGeneration != nextGeneration) {
+            throw new IllegalStateException("Physics cache generation changed during atomic publication.");
+        }
+        spatialFootprintProjector.publish(spatialFootprint, spatialProjection);
         rt.gen++;
         markJointsDirtyForBody(e);
     }
 
     private void destroyRuntimeBody(int e) {
+        invalidatePublishedCaches(e);
         if (!mRuntime.has(e)) return;
 
         PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
@@ -594,6 +627,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private void destroyRuntimeBodyByEntityId(int e) {
+        invalidatePublishedCaches(e);
         if (box2d == null || box2d.world == null) {
             if (mRuntime.has(e)) mRuntime.remove(e);
             return;
@@ -630,6 +664,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         markJointsDirtyForBody(e);
     }
 
+    private void invalidatePublishedCaches(int e) {
+        PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
+        SpatialPhysicsFootprintComponent spatialFootprint =
+                mSpatialPhysicsFootprint.getSafe(e, null);
+        int invalidGeneration = spatialFootprint != null
+                ? spatialFootprint.physicsGeneration + 1
+                : 1;
+        if (compiled != null) {
+            invalidGeneration = compiledCachePublisher.invalidate(compiled);
+        }
+        spatialFootprintProjector.invalidate(spatialFootprint, invalidGeneration);
+    }
+
     private Body createBodyFromCompiled(int e, Array<CompiledFixtureData> fixtures) {
         if (box2d == null || box2d.world == null) return null;
         if (!isWantedEntity(e)) return null;
@@ -654,9 +701,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         Body body = box2d.world.createBody(def);
         body.setUserData(Integer.valueOf(e));
+        CompiledFixtureData materializing = null;
         try {
             for (int i = 0, n = fixtures.size; i < n; i++) {
                 CompiledFixtureData fd = fixtures.get(i);
+                materializing = fd;
                 fd.validate();
                 Shape shape = null;
                 try {
@@ -671,9 +720,15 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                     fdef.filter.maskBits = fd.maskBits;
                     fdef.filter.groupIndex = fd.groupIndex;
 
+                    if (testObserver != null) {
+                        testObserver.beforeCreateFixture(e, fd);
+                    }
                     Fixture fixture = body.createFixture(fdef);
                     fixture.setUserData(new PhysicsFixtureProvenance(
                             e, fd.physicsShapeId, fd.partIndex));
+                    if (testObserver != null) {
+                        testObserver.onFixtureProvenanceCreated(e, fd);
+                    }
                 } finally {
                     if (shape != null) shape.dispose();
                 }
@@ -681,8 +736,44 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             return body;
         } catch (Throwable ex) {
             box2d.world.destroyBody(body);
-            throw new IllegalStateException(
-                    "Failed to materialize complete Box2D body for entity " + e + ".", ex);
+            throw materializationFailure(e, materializing, ex);
+        }
+    }
+
+    private IllegalStateException materializationFailure(
+            int entityId, CompiledFixtureData fixture, Throwable cause) {
+        PixscapeIdentityComponent identity = mIdentity != null
+                ? mIdentity.getSafe(entityId, null)
+                : null;
+        StringBuilder message = new StringBuilder(160);
+        message.append("Failed to materialize Box2D fixture for body entityId ")
+                .append(entityId);
+        if (identity != null && identity.stableId > 0) {
+            message.append(", stableId ").append(identity.stableId);
+        }
+        if (fixture != null) {
+            message.append(", physicsShapeId ").append(fixture.physicsShapeId)
+                    .append(", partIndex ").append(fixture.partIndex)
+                    .append(", fixtureType ").append(fixture.shapeType);
+        } else {
+            message.append(", physicsShapeId unavailable, partIndex unavailable, fixtureType unavailable");
+        }
+        message.append('.');
+        return new IllegalStateException(message.toString(), cause);
+    }
+
+    private void notifyCompilationForTest(PhysicsShapesComponent sources) {
+        if (testObserver == null) return;
+        testObserver.onBodyCompile();
+        testObserver.onBodyRebuild();
+        for (int i = 0; i < sources.shapes.size; i++) {
+            PhysicsShapeData source = sources.shapes.get(i);
+            testObserver.onShapeCompile();
+            if (source != null
+                    && source.enabled
+                    && source.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
+                testObserver.onPolygonDecomposition();
+            }
         }
     }
 
@@ -765,6 +856,28 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private void syncOneJoint(int jEid) {
+        try {
+            if (testObserver != null) {
+                testObserver.beforeCreateOrRebuildJoint(jEid);
+            }
+            syncOneJointInternal(jEid);
+        } catch (Throwable failure) {
+            destroyRuntimeJointIfAny(jEid);
+            if (dirty != null) {
+                dirty.joint(jEid, JointDirtyBits.ALL);
+            }
+            PhysicsJointComponent base = mJointBase.getSafe(jEid, null);
+            String endpoints = base != null
+                    ? ", bodyA " + base.aEid + ", bodyB " + base.bEid
+                    : "";
+            throw new IllegalStateException(
+                    "Failed to recreate Box2D joint entityId " + jEid + endpoints
+                            + "; the native joint remains invalid and dirty.",
+                    failure);
+        }
+    }
+
+    private void syncOneJointInternal(int jEid) {
         // IMPORTANT: read submask BEFORE any early return (consumeJoints ACKs after callback)
         final int sub = (dirty != null) ? dirty.jointSub(jEid) : JointDirtyBits.ALL;
 
@@ -1417,6 +1530,22 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         def.ratio = gear.ratio;
 
         return box2d.world.createJoint(def);
+    }
+
+    interface TestObserver {
+        void onBodyCompile();
+
+        void onShapeCompile();
+
+        void onPolygonDecomposition();
+
+        void onBodyRebuild();
+
+        void beforeCreateFixture(int bodyEntityId, CompiledFixtureData fixture);
+
+        void onFixtureProvenanceCreated(int bodyEntityId, CompiledFixtureData fixture);
+
+        void beforeCreateOrRebuildJoint(int jointEntityId);
     }
 
     private void destroyRuntimeJointIfAny(int jEid) {
