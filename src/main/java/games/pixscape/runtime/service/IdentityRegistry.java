@@ -22,7 +22,7 @@ public final class IdentityRegistry {
     public static final int UNASSIGNED_STABLE_ID = -1;
     public static final String DEFAULT_NAME = "unnamed";
 
-    private static final ObjectMap<World, Array<IdentityRegistry>> REGISTRIES_BY_WORLD = new ObjectMap<>();
+    private static final ObjectMap<World, IdentityRegistry> REGISTRIES_BY_WORLD = new ObjectMap<>();
 
     private World world;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -56,6 +56,7 @@ public final class IdentityRegistry {
     public void bind(World world) {
         if (this.world == world) return;
 
+        requireWorldAvailable(world);
         detachSubscriptionListener();
         unregisterBoundWorld();
 
@@ -108,24 +109,29 @@ public final class IdentityRegistry {
     }
 
     private void registerBoundWorld(World world) {
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
-        if (registries == null) {
-            registries = new Array<>();
-            REGISTRIES_BY_WORLD.put(world, registries);
+        IdentityRegistry existing = REGISTRIES_BY_WORLD.get(world);
+        if (existing != null && existing != this) {
+            throw new IllegalStateException(
+                    "World already has a different IdentityRegistry bound.");
         }
-        if (!registries.contains(this, true)) {
-            registries.add(this);
+        REGISTRIES_BY_WORLD.put(world, this);
+    }
+
+    private void requireWorldAvailable(World world) {
+        if (world == null) return;
+
+        IdentityRegistry existing = REGISTRIES_BY_WORLD.get(world);
+        if (existing != null && existing != this) {
+            throw new IllegalStateException(
+                    "World already has a different IdentityRegistry bound.");
         }
     }
 
     private void unregisterBoundWorld() {
         if (this.world == null) return;
 
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(this.world);
-        if (registries == null) return;
-
-        registries.removeValue(this, true);
-        if (registries.size == 0) {
+        IdentityRegistry registered = REGISTRIES_BY_WORLD.get(this.world);
+        if (registered == this) {
             REGISTRIES_BY_WORLD.remove(this.world);
         }
     }
@@ -133,14 +139,9 @@ public final class IdentityRegistry {
     public static void unindexEntityImmediately(World world, int eid) {
         if (world == null || eid < 0) return;
 
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
-        if (registries == null || registries.size == 0) return;
-
-        for (int i = 0; i < registries.size; i++) {
-            IdentityRegistry registry = registries.get(i);
-            if (registry != null) {
-                registry.unindexEntityImmediately(eid);
-            }
+        IdentityRegistry registry = REGISTRIES_BY_WORLD.get(world);
+        if (registry != null) {
+            registry.unindexEntityImmediately(eid);
         }
     }
 
