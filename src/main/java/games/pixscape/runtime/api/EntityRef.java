@@ -15,7 +15,7 @@ public interface EntityRef {
     /**
      * Preferred persistent/public entity identity.
      */
-    long stableId();
+    int stableId();
 
     boolean exists();
 

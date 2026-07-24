@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
@@ -826,7 +827,7 @@ public class PixscapeApiV1Test {
                 .with(dirty, tiledAnimationSystem)
                 .build());
         setField(engine, "world", world);
-        engine.getIdentityRegistry().bind(world);
+        engine.getIdentityRegistry().bind(world, new SceneMetaRuntime());
         engine.getTagRegistry().bind(world);
         return engine;
     }
@@ -870,7 +871,7 @@ public class PixscapeApiV1Test {
         World world = new World(builder.build());
         PixscapeEngine engine = new PixscapeEngine();
         setField(engine, "world", world);
-        engine.getIdentityRegistry().bind(world);
+        engine.getIdentityRegistry().bind(world, new SceneMetaRuntime());
         engine.getTagRegistry().bind(world);
         return engine;
     }

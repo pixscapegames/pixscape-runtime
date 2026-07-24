@@ -7,6 +7,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
 
     public String name;
     public String file;
+    public int nextEntityStableId = 1;
 
     // Physics
     public boolean physicsEnabled = false;
@@ -74,8 +75,9 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.doSleep = json.getBoolean("doSleep", meta.doSleep);
         meta.physicsParallaxX = json.getFloat("physicsParallaxX", meta.physicsParallaxX);
         meta.physicsParallaxY = json.getFloat("physicsParallaxY", meta.physicsParallaxY);
-        meta.nextPhysicsShapeId = json.getInt(
-                "nextPhysicsShapeId", meta.nextPhysicsShapeId);
+        meta.nextEntityStableId = requiredPositiveInt(json, "nextEntityStableId", fallbackName);
+        meta.nextPhysicsShapeId = requiredPositiveInt(
+                json, "nextPhysicsShapeId", fallbackName);
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
@@ -95,6 +97,15 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         return meta;
     }
 
+    private static int requiredPositiveInt(JsonValue json, String field, String sceneName) {
+        JsonValue value = json.get(field);
+        if (value == null || !value.isNumber() || value.asInt() <= 0) {
+            throw new IllegalArgumentException(
+                    "Scene '" + sceneName + "' requires a positive " + field + ".");
+        }
+        return value.asInt();
+    }
+
     /**
      * Copies only the "runtime settings" fields (not identity).
      */
@@ -102,6 +113,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         if (other == null) return;
         this.name = other.name;
         this.file = other.file;
+        this.nextEntityStableId = other.nextEntityStableId;
         this.physicsEnabled = other.physicsEnabled;
         this.pixelsPerMeter = other.pixelsPerMeter;
         this.gravityX = other.gravityX;

@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
  * Simple runtime index for Pixscape identity lookups.
@@ -25,6 +26,7 @@ public final class IdentityRegistry {
     private static final ObjectMap<World, IdentityRegistry> REGISTRIES_BY_WORLD = new ObjectMap<>();
 
     private World world;
+    private SceneMetaRuntime sceneMeta;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener subscriptionListener;
@@ -45,18 +47,16 @@ public final class IdentityRegistry {
     private final IntMap<Integer> stableIdByEntity = new IntMap<>();
     private final IntMap<String> nameByEntity = new IntMap<>();
 
-    /**
-     * Next candidate for stable id allocation.
-     */
-    private int nextStableId = 1;
-
     public IdentityRegistry() {
     }
 
-    public void bind(World world) {
-        if (this.world == world) return;
+    public void bind(World world, SceneMetaRuntime sceneMeta) {
+        if (this.world == world && this.sceneMeta == sceneMeta) return;
 
         requireWorldAvailable(world);
+        if (world == null && sceneMeta != null) {
+            throw new IllegalArgumentException("Scene metadata cannot be bound without a World.");
+        }
         detachSubscriptionListener();
         unregisterBoundWorld();
 
@@ -64,9 +64,9 @@ public final class IdentityRegistry {
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1;
 
         this.world = world;
+        this.sceneMeta = sceneMeta;
         this.mIdentity = null;
         this.subscription = null;
         this.subscriptionListener = null;
@@ -150,8 +150,6 @@ public final class IdentityRegistry {
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1;
-
         if (world == null || subscription == null) return;
 
         IntBag bag = subscription.getEntities();
@@ -162,15 +160,13 @@ public final class IdentityRegistry {
             indexEntityFromComponent(eid);
         }
 
-        advanceNextStableId();
     }
 
     public int allocateStableId() {
-        advanceNextStableId();
-
-        int allocated = nextStableId;
-        nextStableId++;
-
+        requireSceneMeta();
+        int allocated = sceneMeta.nextEntityStableId;
+        validateAllocatableStableId(allocated);
+        sceneMeta.nextEntityStableId++;
         return allocated;
     }
 
@@ -181,15 +177,13 @@ public final class IdentityRegistry {
         int current = c.stableId;
 
         if (current != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(current);
             Integer existing = byStableId.get(current);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(current, eid, existing));
             }
             byStableId.put(current, eid);
             stableIdByEntity.put(eid, current);
-            if (current >= nextStableId) {
-                nextStableId = current + 1;
-            }
             return current;
         }
 
@@ -308,6 +302,7 @@ public final class IdentityRegistry {
         }
 
         if (stableId != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(stableId);
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -321,9 +316,6 @@ public final class IdentityRegistry {
         if (stableId != UNASSIGNED_STABLE_ID) {
             byStableId.put(stableId, eid);
             stableIdByEntity.put(eid, stableId);
-            if (stableId >= nextStableId) {
-                nextStableId = stableId + 1;
-            }
         }
     }
 
@@ -346,6 +338,7 @@ public final class IdentityRegistry {
         int oldStableId = c.stableId;
         if (oldStableId != stableId) {
             if (stableId != UNASSIGNED_STABLE_ID) {
+                validateRestoredStableId(stableId);
                 Integer existing = byStableId.get(stableId);
                 if (existing != null && existing.intValue() != eid) {
                     throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -356,9 +349,6 @@ public final class IdentityRegistry {
             if (stableId != UNASSIGNED_STABLE_ID) {
                 byStableId.put(stableId, eid);
                 stableIdByEntity.put(eid, stableId);
-                if (stableId >= nextStableId) {
-                    nextStableId = stableId + 1;
-                }
             }
         }
 
@@ -391,6 +381,7 @@ public final class IdentityRegistry {
         unindexEntity(eid);
 
         if (stableId != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(stableId);
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -399,9 +390,6 @@ public final class IdentityRegistry {
             byStableId.put(stableId, eid);
             stableIdByEntity.put(eid, stableId);
 
-            if (stableId >= nextStableId) {
-                nextStableId = stableId + 1;
-            }
         }
 
         nameByEntity.put(eid, normalizedName);
@@ -492,13 +480,26 @@ public final class IdentityRegistry {
         }
     }
 
-    private void advanceNextStableId() {
-        if (nextStableId < 1) {
-            nextStableId = 1;
+    private void requireSceneMeta() {
+        if (sceneMeta == null) {
+            throw new IllegalStateException("Scene metadata is required to allocate entity stable IDs.");
         }
+    }
 
-        while (byStableId.containsKey(nextStableId)) {
-            nextStableId++;
+    private void validateAllocatableStableId(int stableId) {
+        if (stableId <= 0 || stableId == Integer.MAX_VALUE) {
+            throw new IllegalStateException("nextEntityStableId must be positive and allocatable, got " + stableId + ".");
+        }
+        if (byStableId.containsKey(stableId)) {
+            throw new IllegalStateException("nextEntityStableId " + stableId + " is already assigned.");
+        }
+    }
+
+    private void validateRestoredStableId(int stableId) {
+        requireSceneMeta();
+        if (stableId <= 0 || stableId >= sceneMeta.nextEntityStableId) {
+            throw new IllegalArgumentException("Restored entity stableId " + stableId
+                    + " must be positive and lower than nextEntityStableId " + sceneMeta.nextEntityStableId + ".");
         }
     }
 

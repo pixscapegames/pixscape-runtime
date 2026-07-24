@@ -35,7 +35,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnDoesNotClearExistingWorld() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         int existing = world.create();
@@ -50,7 +50,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnReturnsOnlyCreatedEntitiesUsingSubscriptionDiff() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         int preExisting = world.create();
@@ -71,13 +71,13 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnRegeneratesStableIds() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
 
         IntBag created = result.createdEntityIds();
-        Set<Long> spawnedStableIds = new HashSet<>();
+        Set<Integer> spawnedStableIds = new HashSet<>();
 
         for (int i = 0; i < created.size(); i++) {
             int eid = created.get(i);
@@ -85,7 +85,7 @@ public class RuntimePrefabFragmentSpawnTest {
 
             Assert.assertNotNull("Spawned entities must carry identity after spawn", identity);
 
-            long stableId = identity.stableId;
+            int stableId = identity.stableId;
             Assert.assertNotEquals("Spawn must not keep UNASSIGNED stable id", -1L, stableId);
             Assert.assertTrue("Spawn must regenerate stable ids immediately", stableId > 0L);
             Assert.assertNotEquals("Spawned stable ids must be regenerated (not prefab id A)", fixture.sourceStableIdA, stableId);
@@ -97,7 +97,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnAppliesTransformOffset() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         float offsetX = 10f;
@@ -127,7 +127,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnPreservesAndRemapsJointReferences() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -155,7 +155,7 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnMarksRenderAndPhysicsDirty() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
         PrefabFixture fixture = buildPrefabFixture(world);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
@@ -191,6 +191,7 @@ public class RuntimePrefabFragmentSpawnTest {
         World world = runtimeWorld();
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 103;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -217,6 +218,7 @@ public class RuntimePrefabFragmentSpawnTest {
         World world = runtimeWorld();
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 103;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -247,6 +249,7 @@ public class RuntimePrefabFragmentSpawnTest {
         World world = runtimeWorld(sentinel);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 103;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -290,6 +293,13 @@ public class RuntimePrefabFragmentSpawnTest {
                 .get(Aspect.all())
                 .getEntities()
                 .size();
+    }
+
+    private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 103;
+        return meta;
     }
 
     private static World runtimeWorld() {
@@ -430,7 +440,7 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertNotNull("Fixture serialization must contain entities", entities);
 
         Set<Integer> entityIds = new HashSet<>();
-        Set<Long> stableIds = new HashSet<>();
+        Set<Integer> stableIds = new HashSet<>();
 
         int bodyCount = 0;
         int jointCount = 0;
@@ -468,7 +478,7 @@ public class RuntimePrefabFragmentSpawnTest {
 
             JsonValue identity = component(components, "PixscapeIdentityComponent");
             if (identity != null) {
-                stableIds.add(identity.getLong("stableId"));
+                stableIds.add(identity.getInt("stableId"));
             }
         }
 
@@ -479,8 +489,8 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertTrue("Joint aEid must reference an entity in fragment closure", entityIds.contains(jointAEid));
         Assert.assertTrue("Joint bEid must reference an entity in fragment closure", entityIds.contains(jointBEid));
         Assert.assertTrue("Fixture must include transform x=5,y=-3", foundTransformFiveMinusThree);
-        Assert.assertTrue("Fixture must include source stableId 101", stableIds.contains(101L));
-        Assert.assertTrue("Fixture must include source stableId 102", stableIds.contains(102L));
+        Assert.assertTrue("Fixture must include source stableId 101", stableIds.contains(101));
+        Assert.assertTrue("Fixture must include source stableId 102", stableIds.contains(102));
     }
 
     private static JsonValue component(JsonValue components, String simpleName) {

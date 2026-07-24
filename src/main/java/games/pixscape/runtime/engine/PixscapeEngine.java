@@ -332,7 +332,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -611,7 +611,7 @@ public final class PixscapeEngine {
         stats = null;
         statsSink = null;
         defaultShaderName = null;
-        identityRegistry.bind(null);
+        identityRegistry.bind(null, null);
         tagRegistry.bind(null);
     }
 
@@ -688,7 +688,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
         rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -770,7 +770,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(null);
         rebuildRuntimeRegistries();
 
         logRuntimeInitialized(caps);
@@ -832,7 +832,7 @@ public final class PixscapeEngine {
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
         rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -1224,8 +1224,8 @@ public final class PixscapeEngine {
         );
     }
 
-    private void bindRuntimeRegistries() {
-        identityRegistry.bind(world);
+    private void bindRuntimeRegistries(SceneMetaRuntime sceneMeta) {
+        identityRegistry.bind(world, sceneMeta);
         tagRegistry.bind(world);
     }
 

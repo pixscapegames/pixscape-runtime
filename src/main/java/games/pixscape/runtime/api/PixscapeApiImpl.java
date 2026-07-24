@@ -541,7 +541,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public long stableId() {
+        public int stableId() {
             return engine.getIdentityRegistry().getStableId(entityId);
         }
 

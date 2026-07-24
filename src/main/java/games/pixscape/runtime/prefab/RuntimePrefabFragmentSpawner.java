@@ -27,7 +27,7 @@ import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
-import games.pixscape.runtime.physics.PhysicsShapeIdState;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -38,16 +38,18 @@ import java.io.ByteArrayOutputStream;
 public class RuntimePrefabFragmentSpawner {
 
     private final IdentityRegistry identityRegistry;
+    private final SceneMetaRuntime sceneMeta;
     private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
     private final PhysicsBodyCompiler physicsBodyCompiler = new PhysicsBodyCompiler();
 
     public RuntimePrefabFragmentSpawner(
-            IdentityRegistry identityRegistry, PhysicsShapeIdState physicsShapeIdState) {
+            IdentityRegistry identityRegistry, SceneMetaRuntime sceneMeta) {
         if (identityRegistry == null) {
             throw new IllegalArgumentException("identityRegistry must not be null");
         }
         this.identityRegistry = identityRegistry;
-        this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(physicsShapeIdState);
+        this.sceneMeta = sceneMeta;
+        this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(sceneMeta);
     }
 
     public SpawnResult spawn(World world, SaveFileFormat fragment, float offsetX, float offsetY) {
@@ -66,7 +68,7 @@ public class RuntimePrefabFragmentSpawner {
         if (!(targetSerialization.getSerializer() instanceof JsonArtemisSerializer)) {
             targetSerialization.setSerializer(new JsonArtemisSerializer(world));
         }
-        identityRegistry.bind(world);
+        identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
 
         ByteArrayOutputStream sourceBytes = new ByteArrayOutputStream();
