@@ -330,6 +330,10 @@ public final class WorldConfigFactory {
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
+                profiled(new PhysicsSpatialFootprintSyncSystem(
+                        meta != null && meta.pixelsPerMeter > 0f
+                                ? meta.pixelsPerMeter
+                                : DEFAULT_PIXELS_PER_METER), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),

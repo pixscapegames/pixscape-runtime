@@ -1,6 +1,5 @@
 package games.pixscape.runtime.prefab;
 
-import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
@@ -12,6 +11,8 @@ import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -31,23 +32,14 @@ public class RuntimePrefabFragmentSpawner {
     private final IdentityRegistry identityRegistry;
     private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
     private final PhysicsBodyCompiler physicsBodyCompiler = new PhysicsBodyCompiler();
-    private final CommitObserver commitObserver;
 
     public RuntimePrefabFragmentSpawner(
             IdentityRegistry identityRegistry, PhysicsShapeIdState physicsShapeIdState) {
-        this(identityRegistry, physicsShapeIdState, null);
-    }
-
-    RuntimePrefabFragmentSpawner(
-            IdentityRegistry identityRegistry,
-            PhysicsShapeIdState physicsShapeIdState,
-            CommitObserver commitObserver) {
         if (identityRegistry == null) {
             throw new IllegalArgumentException("identityRegistry must not be null");
         }
         this.identityRegistry = identityRegistry;
         this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(physicsShapeIdState);
-        this.commitObserver = commitObserver;
     }
 
     public SpawnResult spawn(World world, SaveFileFormat fragment, float offsetX, float offsetY) {
@@ -75,7 +67,7 @@ public class RuntimePrefabFragmentSpawner {
         World stagingWorld = new World(new WorldConfigurationBuilder()
                 .with(new WorldSerializationManager())
                 .build());
-        byte[] commitBytes;
+        PreparedPrefabSpawn preparedSpawn;
         try {
             WorldSerializationManager stagingSerialization =
                     stagingWorld.getSystem(WorldSerializationManager.class);
@@ -83,39 +75,50 @@ public class RuntimePrefabFragmentSpawner {
             SaveFileFormat staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes.toByteArray()),
                     SaveFileFormat.class);
-            stagingWorld.process();
             prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
 
             ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
             stagingSerialization.save(preparedBytes, staged);
-            commitBytes = preparedBytes.toByteArray();
+            byte[] serializedEntities = preparedBytes.toByteArray();
+            validatePreparedPayload(serializedEntities);
+            preparedSpawn = new PreparedPrefabSpawn(serializedEntities);
         } finally {
             stagingWorld.dispose();
         }
 
-        IntSet activeBefore = activeEntities(world);
         IntBag created = new IntBag();
-        try {
-            SaveFileFormat committed = targetSerialization.load(
-                    new ByteArrayInputStream(commitBytes),
-                    SaveFileFormat.class);
-            for (int i = 0; i < committed.entities.size(); i++) {
-                created.add(committed.entities.get(i));
-            }
-            for (int i = 0; i < created.size(); i++) {
-                if (commitObserver != null) {
-                    commitObserver.afterEntityPublished(i, created.get(i));
-                }
-            }
-        } catch (Throwable failure) {
-            appendNewActiveEntities(world, activeBefore, created);
-            rollbackCreated(world, created, failure);
-            throw propagateCommitFailure(failure);
+        SaveFileFormat committed = targetSerialization.load(
+                new ByteArrayInputStream(preparedSpawn.serializedEntities),
+                SaveFileFormat.class);
+        for (int i = 0; i < committed.entities.size(); i++) {
+            created.add(committed.entities.get(i));
         }
 
         markCreatedDirty(world, created);
 
         return new SpawnResult(created);
+    }
+
+    /**
+     * Proves that the exact commit payload can be deserialized before the target world is touched.
+     * The later target load therefore contains no data, remapping, or compilation branch that has
+     * not already completed successfully; only unexpected VM/native failures remain outside the
+     * transaction guarantee.
+     */
+    private static void validatePreparedPayload(byte[] serializedEntities) {
+        World validationWorld = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager())
+                .build());
+        try {
+            WorldSerializationManager serialization =
+                    validationWorld.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(new JsonArtemisSerializer(validationWorld));
+            serialization.load(
+                    new ByteArrayInputStream(serializedEntities),
+                    SaveFileFormat.class);
+        } finally {
+            validationWorld.dispose();
+        }
     }
 
     private void prepareAndValidateStaged(
@@ -135,6 +138,10 @@ public class RuntimePrefabFragmentSpawner {
                 stagingWorld.getMapper(SpatialPhysicsFootprintComponent.class);
         ComponentMapper<PhysicsJointComponent> joints =
                 stagingWorld.getMapper(PhysicsJointComponent.class);
+        ComponentMapper<PhysicsBodyComponent> bodies =
+                stagingWorld.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsGearJointComponent> gears =
+                stagingWorld.getMapper(PhysicsGearJointComponent.class);
 
         IntSet stagedEntities = new IntSet(Math.max(1, staged.entities.size()));
         IntSet stableIds = new IntSet(Math.max(1, staged.entities.size()));
@@ -189,13 +196,36 @@ public class RuntimePrefabFragmentSpawner {
             if (joint != null
                     && (!stagedEntities.contains(joint.aEid)
                     || !stagedEntities.contains(joint.bEid)
-                    || joint.aEid == joint.bEid)) {
+                    || joint.aEid == joint.bEid
+                    || !bodies.has(joint.aEid)
+                    || !bodies.has(joint.bEid)
+                    || !hasShapes(shapesMapper, joint.aEid)
+                    || !hasShapes(shapesMapper, joint.bEid))) {
                 throw new IllegalArgumentException(
                         "Prefab joint entity " + entityId
                                 + " has invalid staged endpoints aEid=" + joint.aEid
                                 + ", bEid=" + joint.bEid + ".");
             }
+            if (joint != null && joint.type == PhysicsJointComponent.TYPE_GEAR) {
+                PhysicsGearJointComponent gear = gears.getSafe(entityId, null);
+                if (gear == null
+                        || gear.joint1Eid == gear.joint2Eid
+                        || !stagedEntities.contains(gear.joint1Eid)
+                        || !stagedEntities.contains(gear.joint2Eid)
+                        || !joints.has(gear.joint1Eid)
+                        || !joints.has(gear.joint2Eid)) {
+                    throw new IllegalArgumentException(
+                            "Prefab gear joint entity " + entityId
+                                    + " has invalid staged joint dependencies.");
+                }
+            }
         }
+    }
+
+    private static boolean hasShapes(
+            ComponentMapper<PhysicsShapesComponent> shapesMapper, int entityId) {
+        PhysicsShapesComponent shapes = shapesMapper.getSafe(entityId, null);
+        return shapes != null && shapes.hasShapes();
     }
 
     private static void markCreatedDirty(World world, IntBag created) {
@@ -214,69 +244,11 @@ public class RuntimePrefabFragmentSpawner {
         }
     }
 
-    private static IntSet activeEntities(World world) {
-        IntBag active = world.getAspectSubscriptionManager()
-                .get(Aspect.all())
-                .getEntities();
-        IntSet result = new IntSet(Math.max(1, active.size()));
-        for (int i = 0; i < active.size(); i++) {
-            result.add(active.get(i));
-        }
-        return result;
-    }
+    private static final class PreparedPrefabSpawn {
+        final byte[] serializedEntities;
 
-    private static void appendNewActiveEntities(
-            World world, IntSet activeBefore, IntBag created) {
-        IntBag active = world.getAspectSubscriptionManager()
-                .get(Aspect.all())
-                .getEntities();
-        for (int i = 0; i < active.size(); i++) {
-            int entityId = active.get(i);
-            if (!activeBefore.contains(entityId) && !contains(created, entityId)) {
-                created.add(entityId);
-            }
+        PreparedPrefabSpawn(byte[] serializedEntities) {
+            this.serializedEntities = serializedEntities;
         }
-    }
-
-    private static boolean contains(IntBag entities, int entityId) {
-        for (int i = 0; i < entities.size(); i++) {
-            if (entities.get(i) == entityId) return true;
-        }
-        return false;
-    }
-
-    private static void rollbackCreated(
-            World world, IntBag created, Throwable originalFailure) {
-        for (int i = created.size() - 1; i >= 0; i--) {
-            int entityId = created.get(i);
-            IdentityRegistry.unindexEntityImmediately(world, entityId);
-            if (world.getEntityManager().isActive(entityId)) {
-                world.delete(entityId);
-            }
-        }
-        try {
-            world.process();
-        } catch (Throwable rollbackFailure) {
-            originalFailure.addSuppressed(rollbackFailure);
-        }
-        for (int i = 0; i < created.size(); i++) {
-            int entityId = created.get(i);
-            if (world.getEntityManager().isActive(entityId)) {
-                IllegalStateException incomplete = new IllegalStateException(
-                        "Prefab rollback left entity " + entityId + " active.");
-                originalFailure.addSuppressed(incomplete);
-            }
-        }
-    }
-
-    private static RuntimeException propagateCommitFailure(Throwable failure) {
-        if (failure instanceof RuntimeException) {
-            return (RuntimeException) failure;
-        }
-        return new IllegalStateException("Runtime prefab commit failed.", failure);
-    }
-
-    interface CommitObserver {
-        void afterEntityPublished(int index, int entityId);
     }
 }

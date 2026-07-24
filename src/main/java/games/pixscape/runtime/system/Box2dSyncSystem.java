@@ -11,7 +11,6 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -22,7 +21,6 @@ import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
-import games.pixscape.runtime.service.PhysicsSpatialFootprintProjector;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
@@ -41,7 +39,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private ComponentMapper<PhysicsBodyComponent> mBodyDef;
     private ComponentMapper<PhysicsShapesComponent> mShapes;
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
-    private ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialPhysicsFootprint;
     private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
 
     private ComponentMapper<PhysicsJointComponent> mJointBase;
@@ -70,8 +67,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private final PhysicsBodyCompiler bodyCompiler = new PhysicsBodyCompiler();
     private final PhysicsCompiledFixtureCachePublisher compiledCachePublisher =
             new PhysicsCompiledFixtureCachePublisher();
-    private final PhysicsSpatialFootprintProjector spatialFootprintProjector =
-            new PhysicsSpatialFootprintProjector();
     private transient TestObserver testObserver;
 
     private float lastGx = Float.NaN;
@@ -137,7 +132,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
         mShapes = world.getMapper(PhysicsShapesComponent.class);
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
-        mSpatialPhysicsFootprint = world.getMapper(SpatialPhysicsFootprintComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
 
         mJointBase = world.getMapper(PhysicsJointComponent.class);
@@ -283,11 +277,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 buildBody(e, rt);
             }
 
-            if (rt.body != null) {
-                PhysicsBodyComponent bd = mBodyDef.get(e);
-                if (bd != null) rt.body.setActive(bd.enabled);
-                rt.body.setAwake(true);
-            }
         }
 
         // 4) Destroy runtime bodies no longer wanted
@@ -346,13 +335,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                         || Math.abs(p.y - targetY) > 1e-6f
                         || Math.abs(rt.body.getAngle() - targetAngle) > 1e-6f;
 
-                rt.body.setTransform(
-                        targetX,
-                        targetY,
-                        targetAngle
-                );
-
                 if (movedByAuthoring) {
+                    rt.body.setTransform(targetX, targetY, targetAngle);
+                    rt.body.setAwake(true);
                     refreshConnectedDistanceJointLengths(e);
                     markJointsDirtyForBody(e);
                 }
@@ -569,14 +554,15 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private void buildBody(int e, PhysicsRuntimeBodyComponent rt) {
-        replaceBodyAtomically(e, rt);
+        replaceBodyAtomically(e, rt, false);
     }
 
     private void rebuildBody(int e, PhysicsRuntimeBodyComponent rt) {
-        replaceBodyAtomically(e, rt);
+        replaceBodyAtomically(e, rt, rt.body != null);
     }
 
-    private void replaceBodyAtomically(int e, PhysicsRuntimeBodyComponent rt) {
+    private void replaceBodyAtomically(
+            int e, PhysicsRuntimeBodyComponent rt, boolean wakeForMutation) {
         if (box2d == null || box2d.world == null || !isWantedEntity(e)) return;
 
         PhysicsShapesComponent sources = mShapes.get(e);
@@ -585,14 +571,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         notifyCompilationForTest(sources);
         PreparedCompiledFixtures preparedFixtures = bodyCompiler.compilePrepared(sources);
         int nextGeneration = compiled.generation + 1;
-        PhysicsSpatialFootprintProjector.Projection spatialProjection =
-                spatialFootprintProjector.prepare(
-                        preparedFixtures, nextGeneration, box2d.ppm);
-        Body candidateBody = createBodyFromCompiled(e, preparedFixtures.fixtures());
-        SpatialPhysicsFootprintComponent spatialFootprint =
-                mSpatialPhysicsFootprint.has(e)
-                        ? mSpatialPhysicsFootprint.get(e)
-                        : mSpatialPhysicsFootprint.create(e);
+        Body candidateBody = createBodyFromCompiled(
+                e, preparedFixtures.fixtures(), wakeForMutation);
 
         Body previousBody = rt.body;
         if (previousBody != null) {
@@ -605,13 +585,12 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         if (publishedGeneration != nextGeneration) {
             throw new IllegalStateException("Physics cache generation changed during atomic publication.");
         }
-        spatialFootprintProjector.publish(spatialFootprint, spatialProjection);
         rt.gen++;
         markJointsDirtyForBody(e);
     }
 
     private void destroyRuntimeBody(int e) {
-        invalidatePublishedCaches(e);
+        invalidateCompiledCache(e);
         if (!mRuntime.has(e)) return;
 
         PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
@@ -627,7 +606,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private void destroyRuntimeBodyByEntityId(int e) {
-        invalidatePublishedCaches(e);
+        invalidateCompiledCache(e);
         if (box2d == null || box2d.world == null) {
             if (mRuntime.has(e)) mRuntime.remove(e);
             return;
@@ -664,20 +643,17 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         markJointsDirtyForBody(e);
     }
 
-    private void invalidatePublishedCaches(int e) {
+    private void invalidateCompiledCache(int e) {
         PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
-        SpatialPhysicsFootprintComponent spatialFootprint =
-                mSpatialPhysicsFootprint.getSafe(e, null);
-        int invalidGeneration = spatialFootprint != null
-                ? spatialFootprint.physicsGeneration + 1
-                : 1;
         if (compiled != null) {
-            invalidGeneration = compiledCachePublisher.invalidate(compiled);
+            compiledCachePublisher.invalidate(compiled);
         }
-        spatialFootprintProjector.invalidate(spatialFootprint, invalidGeneration);
     }
 
-    private Body createBodyFromCompiled(int e, Array<CompiledFixtureData> fixtures) {
+    private Body createBodyFromCompiled(
+            int e,
+            Array<CompiledFixtureData> fixtures,
+            boolean wakeForMutation) {
         if (box2d == null || box2d.world == null) return null;
         if (!isWantedEntity(e)) return null;
 
@@ -695,6 +671,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         def.fixedRotation = bd.fixedRotation;
         def.bullet = bd.bullet;
         def.allowSleep = box2d.isDoSleep() && bd.allowSleep;
+        def.awake = !def.allowSleep || wakeForMutation || bd.awake;
+        def.active = bd.enabled;
         def.gravityScale = bd.gravityScale;
         def.linearDamping = bd.linearDamping;
         def.angularDamping = bd.angularDamping;

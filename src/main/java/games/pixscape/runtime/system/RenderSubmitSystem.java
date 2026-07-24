@@ -310,7 +310,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         float viewportMinY = cam.position.y - viewportH * 0.5f;
         float viewportMaxY = cam.position.y + viewportH * 0.5f;
 
-        boolean hasVisibleCopies = RenderRepeatMath.calculateVisibleRange(
+        boolean hasVisibleCopies = RenderRepeatRangeCalculator.calculateVisibleRange(
                 viewportMinX,
                 viewportMaxX,
                 viewportMinY,

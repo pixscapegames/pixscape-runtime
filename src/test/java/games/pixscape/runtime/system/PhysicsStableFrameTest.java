@@ -34,7 +34,7 @@ public class PhysicsStableFrameTest {
         Counters counters = new Counters();
         sync.setTestObserver(counters);
         World world = new World(new WorldConfigurationBuilder()
-                .with(dirty, sync)
+                .with(dirty, sync, new PhysicsSpatialFootprintSyncSystem(100f))
                 .build());
 
         int actor = world.create();

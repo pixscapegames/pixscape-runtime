@@ -213,7 +213,9 @@ public class Box2dSyncSystemPhysicsModelV2Test {
             box2d = new Box2dWorldService(100f, new Vector2());
             dirty = new DirtyTrackerSystem(16);
             sync = new Box2dSyncSystem(box2d);
-            world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
+            world = new World(new WorldConfigurationBuilder()
+                    .with(dirty, sync, new PhysicsSpatialFootprintSyncSystem(100f))
+                    .build());
             entityId = world.create();
             world.getMapper(TransformComponent.class).create(entityId);
             body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

@@ -1,12 +1,10 @@
-package games.pixscape.runtime.system;
+package games.pixscape.runtime.render;
 
-import games.pixscape.runtime.render.RenderRepeatFlags;
-
-final class RenderRepeatMath {
-    private RenderRepeatMath() {
+public final class RenderRepeatRangeCalculator {
+    private RenderRepeatRangeCalculator() {
     }
 
-    static boolean calculateVisibleRange(
+    public static boolean calculateVisibleRange(
             float viewportMinX,
             float viewportMaxX,
             float viewportMinY,
@@ -71,7 +69,7 @@ final class RenderRepeatMath {
         return true;
     }
 
-    static int visibleCount(int[] range) {
+    public static int visibleCount(int[] range) {
         long xCount = (long) range[1] - range[0] + 1L;
         long yCount = (long) range[3] - range[2] + 1L;
         long total = xCount * yCount;

@@ -12,7 +12,9 @@ public class PhysicsSpatialFootprintProjectorTest {
     @Test
     public void multipleCircleBodyUsesIsolatedTemporaryProjectionPolicy() {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
-        sources.add(circle(1, 0.25f, 1f, 2f));
+        PhysicsShapeData sensor = circle(1, 0.25f, 1f, 2f);
+        sensor.sensor = true;
+        sources.add(sensor);
         sources.add(circle(2, 0.75f, 3f, 4f));
 
         PreparedCompiledFixtures prepared =
@@ -20,16 +22,16 @@ public class PhysicsSpatialFootprintProjectorTest {
         PhysicsSpatialFootprintProjector projector =
                 new PhysicsSpatialFootprintProjector();
         PhysicsSpatialFootprintProjector.Projection projection =
-                projector.prepare(prepared, 7, 100f);
+                projector.prepare(prepared.fixtures(), 7, 100f);
         SpatialPhysicsFootprintComponent target =
                 new SpatialPhysicsFootprintComponent();
 
         projector.publish(target, projection);
 
         Assert.assertTrue(target.valid);
-        Assert.assertEquals(25f, target.radiusPx, 0f);
-        Assert.assertEquals(100f, target.localOffsetXPx, 0f);
-        Assert.assertEquals(200f, target.localOffsetYPx, 0f);
+        Assert.assertEquals(75f, target.radiusPx, 0f);
+        Assert.assertEquals(300f, target.localOffsetXPx, 0f);
+        Assert.assertEquals(400f, target.localOffsetYPx, 0f);
         Assert.assertEquals(7, target.physicsGeneration);
     }
 
@@ -50,7 +52,7 @@ public class PhysicsSpatialFootprintProjectorTest {
         SpatialPhysicsFootprintComponent target =
                 new SpatialPhysicsFootprintComponent();
 
-        projector.publish(target, projector.prepare(prepared, 3, 100f));
+        projector.publish(target, projector.prepare(prepared.fixtures(), 3, 100f));
 
         Assert.assertFalse(target.valid);
         Assert.assertEquals(0f, target.radiusPx, 0f);

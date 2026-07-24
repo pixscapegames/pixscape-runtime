@@ -1,6 +1,7 @@
 package games.pixscape.runtime.prefab;
 
 import com.artemis.Aspect;
+import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.io.JsonArtemisSerializer;
@@ -241,32 +242,46 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
-    public void commitFailureRollsBackEveryPublishedEntityBeforeReturning() {
-        World world = runtimeWorld();
+    public void preparationFailurePublishesNothingAndDoesNotProcessTargetWorld() {
+        SentinelSystem sentinel = new SentinelSystem();
+        World world = runtimeWorld(sentinel);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
-                        new IdentityRegistry(),
-                        meta,
-                        (index, entityId) -> {
-                            if (index == 1) {
-                                throw new IllegalStateException("injected commit failure");
-                            }
-                        });
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
+        sentinel.processCount = 0;
         int activeBefore = activeEntityCount(world);
+        PhysicsJointComponent sourceJoint = null;
+        for (int i = 0; i < fixture.fragment.entities.size(); i++) {
+            sourceJoint = world.getMapper(PhysicsJointComponent.class)
+                    .getSafe(fixture.fragment.entities.get(i), null);
+            if (sourceJoint != null) break;
+        }
+        Assert.assertNotNull(sourceJoint);
+        int sourceJointEntityId = -1;
+        for (int i = 0; i < fixture.fragment.entities.size(); i++) {
+            int candidate = fixture.fragment.entities.get(i);
+            if (world.getMapper(PhysicsJointComponent.class).has(candidate)) {
+                sourceJointEntityId = candidate;
+                break;
+            }
+        }
+        Assert.assertTrue(sourceJointEntityId >= 0);
+        sourceJoint.bEid = sourceJointEntityId;
 
         try {
             spawner.spawn(world, fixture.fragment, 0f, 0f);
-            Assert.fail("The injected commit failure must be propagated.");
-        } catch (IllegalStateException expected) {
-            Assert.assertEquals("injected commit failure", expected.getMessage());
+            Assert.fail("Invalid prepared joint references must reject the spawn.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "invalid staged endpoints"));
         }
 
         Assert.assertEquals(activeBefore, activeEntityCount(world));
         Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyAId));
         Assert.assertTrue(world.getEntityManager().isActive(fixture.sourceBodyBId));
+        Assert.assertEquals(0, sentinel.processCount);
         Assert.assertEquals(3, meta.nextPhysicsShapeId);
     }
 
@@ -278,9 +293,24 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     private static World runtimeWorld() {
-        return new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager(), new DirtyTrackerSystem(64))
+        return runtimeWorld(null);
+    }
+
+    private static World runtimeWorld(BaseSystem sentinel) {
+        WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(64));
+        if (sentinel != null) builder.with(sentinel);
+        return new World(builder
                 .build());
+    }
+
+    private static final class SentinelSystem extends BaseSystem {
+        int processCount;
+
+        @Override
+        protected void processSystem() {
+            processCount++;
+        }
     }
 
     private static PrefabFixture buildPrefabFixture(World fragmentOwnerWorld) {

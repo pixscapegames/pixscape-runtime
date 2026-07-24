@@ -3,7 +3,6 @@ package games.pixscape.runtime.service;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 
 /**
  * Cross-domain integration boundary from compiled physics data to the Runtime spatial cache.
@@ -12,24 +11,25 @@ public final class PhysicsSpatialFootprintProjector {
     /**
      * Builds a projection candidate outside the spatial hot path.
      *
-     * <p>Temporary policy: when a body contains several compiled circles, the first circle in
-     * deterministic compiled/authored order supplies the footprint. This policy is isolated here
-     * and is not a contract of either the physics cache or the spatial collector.</p>
+     * <p>Temporary policy: when a body contains several compiled circles, the first non-sensor
+     * circle in deterministic compiled/authored order supplies the footprint. This policy is
+     * isolated here and is not a contract of either the physics cache or the spatial collector.</p>
      */
     public Projection prepare(
-            PreparedCompiledFixtures prepared,
+            Array<CompiledFixtureData> fixtures,
             int physicsGeneration,
             float pixelsPerMeter) {
-        if (prepared == null) {
-            throw new IllegalArgumentException("Prepared compiled fixtures are required.");
+        if (fixtures == null) {
+            throw new IllegalArgumentException("Compiled fixtures are required.");
         }
         if (!Float.isFinite(pixelsPerMeter) || pixelsPerMeter <= 0f) {
             throw new IllegalArgumentException("pixelsPerMeter must be finite and positive.");
         }
-        Array<CompiledFixtureData> fixtures = prepared.fixtures();
         for (int i = 0; i < fixtures.size; i++) {
             CompiledFixtureData fixture = fixtures.get(i);
-            if (fixture.shapeType == CompiledFixtureData.SHAPE_CIRCLE && fixture.radius > 0f) {
+            if (fixture.shapeType == CompiledFixtureData.SHAPE_CIRCLE
+                    && !fixture.sensor
+                    && fixture.radius > 0f) {
                 return new Projection(
                         true,
                         fixture.offsetX * pixelsPerMeter,
