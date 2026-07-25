@@ -11,7 +11,7 @@ import java.util.Map;
 
 public final class PrefabAsset {
     public String type = "pixscape-prefab";
-    public int version = 1;
+    public int version = 2;
     public String name;
     public List<PrefabEntityData> entities = new ArrayList<>();
 
@@ -122,7 +122,7 @@ public final class PrefabAsset {
 
     public static final class PhysicsBodyData {
         public int type;
-        public boolean fixedRotation, bullet, allowSleep, awake, enabled;
+        public boolean fixedRotation, bullet, allowSleep, awake;
         public float gravityScale, linearDamping, angularDamping;
     }
 

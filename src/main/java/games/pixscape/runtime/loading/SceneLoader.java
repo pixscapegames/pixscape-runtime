@@ -78,6 +78,12 @@ public final class SceneLoader {
 
     private static void rejectObsoletePhysicsModel(String serialized, FileHandle sceneFile) {
         if (serialized == null) return;
+        if (containsObjectField(
+                serialized, "PhysicsBodyComponent", "enabled")) {
+            throw new IllegalArgumentException(
+                    "Scene contains obsolete PhysicsBodyComponent.enabled and cannot be loaded: "
+                            + sceneFile.path());
+        }
         if (containsAdjacent(serialized, "\"Physics", "Fixtures", "Component\"")
                 || containsAdjacent(serialized, "\"Physics", "Authoring", "Component\"")
                 || containsAdjacent(serialized, "\"Fixture", "Def", "Data\"")) {
@@ -85,6 +91,75 @@ public final class SceneLoader {
                     "Scene uses the incompatible Physics Model V1 and cannot be loaded: "
                             + sceneFile.path());
         }
+    }
+
+    private static boolean containsObjectField(
+            String text, String objectKeySuffix, String fieldName) {
+        int suffixOffset = text.indexOf(objectKeySuffix);
+        while (suffixOffset >= 0) {
+            int keyEnd = text.indexOf('"', suffixOffset + objectKeySuffix.length());
+            if (keyEnd >= 0) {
+                int colon = skipWhitespace(text, keyEnd + 1);
+                if (colon < text.length() && text.charAt(colon) == ':') {
+                    int objectStart = skipWhitespace(text, colon + 1);
+                    if (objectStart < text.length()
+                            && text.charAt(objectStart) == '{'
+                            && hasDirectObjectField(
+                                    text, objectStart, fieldName)) {
+                        return true;
+                    }
+                }
+            }
+            suffixOffset = text.indexOf(
+                    objectKeySuffix, suffixOffset + objectKeySuffix.length());
+        }
+        return false;
+    }
+
+    private static boolean hasDirectObjectField(
+            String text, int objectStart, String fieldName) {
+        int depth = 1;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = objectStart + 1; i < text.length() && depth > 0; i++) {
+            char c = text.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                int end = text.indexOf('"', i + 1);
+                if (depth == 1
+                        && end == i + fieldName.length() + 1
+                        && text.regionMatches(i + 1, fieldName, 0, fieldName.length())) {
+                    int colon = skipWhitespace(text, end + 1);
+                    if (colon < text.length() && text.charAt(colon) == ':') {
+                        return true;
+                    }
+                }
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+        }
+        return false;
+    }
+
+    private static int skipWhitespace(String text, int offset) {
+        int current = offset;
+        while (current < text.length()
+                && Character.isWhitespace(text.charAt(current))) {
+            current++;
+        }
+        return current;
     }
 
     private static boolean containsAdjacent(

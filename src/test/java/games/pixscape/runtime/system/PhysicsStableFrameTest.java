@@ -141,7 +141,7 @@ public class PhysicsStableFrameTest {
                 games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)
                 .get(actor).body;
         Assert.assertNotNull(nativeBody);
-        world.getMapper(PhysicsBodyComponent.class).get(actor).enabled = false;
+        world.getMapper(PhysicsBodyComponent.class).remove(actor);
         dirty.physics(actor, PhysicsDirtyBits.ALL);
         world.process();
         Assert.assertTrue(compiled.valid);

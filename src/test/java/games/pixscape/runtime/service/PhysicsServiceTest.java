@@ -23,7 +23,7 @@ public class PhysicsServiceTest {
         World world = new World();
         int entityId = world.create();
         world.getMapper(TransformComponent.class).create(entityId);
-        world.getMapper(PhysicsBodyComponent.class).create(entityId).enabled = true;
+        world.getMapper(PhysicsBodyComponent.class).create(entityId);
 
         PhysicsService.rebuildPreparedBodyCaches(world);
 
@@ -38,6 +38,19 @@ public class PhysicsServiceTest {
         Assert.assertTrue(compiled.valid);
         Assert.assertNotNull(compiled.fixtures);
         Assert.assertEquals(0, compiled.fixtures.size);
+    }
+
+    @Test
+    public void bodyPresenceDefinesAuthoredPhysicsEvenWithoutShapes() {
+        World world = new World();
+        PhysicsService physics = new PhysicsService(
+                world, null, new games.pixscape.runtime.loading.SceneMetaRuntime());
+        int entityId = world.create();
+
+        Assert.assertFalse(physics.hasPhysics(entityId));
+        world.getMapper(PhysicsBodyComponent.class).create(entityId);
+        Assert.assertTrue(physics.hasPhysics(entityId));
+        Assert.assertFalse(physics.hasShapes(entityId));
     }
 
     @Test

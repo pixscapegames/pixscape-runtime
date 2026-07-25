@@ -113,7 +113,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
     }
 
     @Test
-    public void concaveSourceBuildsPartsWithSourceProvenanceAndDisablePreservesSource() {
+    public void concaveSourceBuildsPartsWithSourceProvenanceAndBodyRemovalDestroysNativeBody() {
         Harness harness = new Harness();
         harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
         harness.source.directGeometry.polygonVertices = new float[]{
@@ -134,7 +134,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
             Assert.assertEquals(i, provenance.partIndex);
         }
 
-        harness.body.enabled = false;
+        harness.world.getMapper(PhysicsBodyComponent.class).remove(harness.entityId);
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
         harness.prepareAndProcess();
 

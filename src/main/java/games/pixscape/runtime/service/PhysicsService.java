@@ -124,7 +124,7 @@ public final class PhysicsService {
     }
 
     public boolean hasPhysics(int eid) {
-        return hasBody(eid) && hasShapes(eid);
+        return hasBody(eid);
     }
 
     public void ensurePhysics(int eid) {
@@ -1030,7 +1030,6 @@ public final class PhysicsService {
         b.gravityScale = 1f;
         b.linearDamping = 0f;
         b.angularDamping = 0f;
-        b.enabled = true;
     }
 
     public static PhysicsShapeData createDefaultShape(int physicsShapeId) {

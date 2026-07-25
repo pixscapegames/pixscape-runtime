@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.JsonWriter;
 
 public final class PrefabLoader {
     public static final String PREFAB_TYPE = "pixscape-prefab";
-    public static final int PREFAB_VERSION = 1;
+    public static final int PREFAB_VERSION = 2;
 
     private final Json json;
 

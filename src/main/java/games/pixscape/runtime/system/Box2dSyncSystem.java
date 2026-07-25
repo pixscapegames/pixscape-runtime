@@ -226,7 +226,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             int[] wantedData = wanted.getData();
             for (int i = 0, n = wanted.size(); i < n; i++) {
                 int e = wantedData[i];
-                if (isEnabledBody(e)) {
+                if (hasAuthoredBody(e)) {
                     requireCompiledCache(e);
                     dirty.physics(e, PhysicsDirtyBits.ALL);
                 }
@@ -244,7 +244,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         if (dirty != null) {
             dirty.consumePhysics(e -> {
-                if (isEnabledBody(e)) {
+                if (hasAuthoredBody(e)) {
                     requireCompiledCache(e);
                 }
                 boolean stillWanted = isWantedEntity(e);
@@ -267,7 +267,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         int[] w = wanted.getData();
         for (int i = 0, n = wanted.size(); i < n; i++) {
             int e = w[i];
-            if (!isEnabledBody(e)) continue;
+            if (!hasAuthoredBody(e)) continue;
             requireCompiledCache(e);
             if (!hasMaterializableCompiledCache(e)) continue;
 
@@ -558,12 +558,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private boolean isWantedEntity(int e) {
-        return isEnabledBody(e) && hasMaterializableCompiledCache(e);
+        return hasAuthoredBody(e) && hasMaterializableCompiledCache(e);
     }
 
-    private boolean isEnabledBody(int e) {
-        PhysicsBodyComponent body = mBodyDef.getSafe(e, null);
-        return e >= 0 && mT.has(e) && body != null && body.enabled;
+    private boolean hasAuthoredBody(int e) {
+        return e >= 0 && mT.has(e) && mBodyDef.has(e);
     }
 
     private boolean hasPreparedCompiledCache(int e) {
@@ -587,7 +586,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                     ? ", stableId " + identity.stableId
                     : "";
             throw new IllegalStateException(
-                    "Enabled physics body entityId " + e + stable
+                    "Physics body entityId " + e + stable
                             + " has no valid PhysicsCompiledFixturesComponent; "
                             + "prepare and publish the compiled cache before Box2D materialization.");
         }
@@ -696,7 +695,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         def.bullet = bd.bullet;
         def.allowSleep = box2d.isDoSleep() && bd.allowSleep;
         def.awake = !def.allowSleep || wakeForMutation || bd.awake;
-        def.active = bd.enabled;
         def.gravityScale = bd.gravityScale;
         def.linearDamping = bd.linearDamping;
         def.angularDamping = bd.angularDamping;

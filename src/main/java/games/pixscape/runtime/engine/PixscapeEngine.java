@@ -1161,6 +1161,17 @@ public final class PixscapeEngine {
         if (meta == null || !meta.physicsEnabled) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
+            if (activate && box2dWorldService != null) {
+                if (box2dWorldService.world != null
+                        && (box2dWorldService.world.getBodyCount() != 0
+                        || box2dWorldService.world.getJointCount() != 0)) {
+                    throw new IllegalStateException(
+                            "Cannot dispose Box2D before native physics teardown.");
+                }
+                box2dSyncSystem.setBox2d(null);
+                box2dWorldService.dispose();
+                box2dWorldService = null;
+            }
             Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
             return;
         }
