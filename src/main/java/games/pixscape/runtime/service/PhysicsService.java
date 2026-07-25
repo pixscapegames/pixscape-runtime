@@ -1077,6 +1077,44 @@ public final class PhysicsService {
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
 
+    public static void rebuildPreparedBodyCaches(World world) {
+        if (world == null) {
+            throw new IllegalArgumentException("World is required.");
+        }
+        IntBag bodies = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PhysicsBodyComponent.class))
+                .getEntities();
+        ComponentMapper<PhysicsShapesComponent> shapesMapper =
+                world.getMapper(PhysicsShapesComponent.class);
+        IntArray entityIds = new IntArray(bodies.size());
+        Array<PreparedPhysicsBodyCandidate> preparedBodies =
+                new Array<>(true, bodies.size(), PreparedPhysicsBodyCandidate.class);
+
+        int[] bodyIds = bodies.getData();
+        for (int i = 0; i < bodies.size(); i++) {
+            int entityId = bodyIds[i];
+            PhysicsShapesComponent shapes = shapesMapper.getSafe(entityId, null);
+            Array<PhysicsShapeData> sources = shapes != null
+                    ? shapes.shapes
+                    : new Array<>(true, 0, PhysicsShapeData.class);
+            entityIds.add(entityId);
+            preparedBodies.add(prepareBodyCandidate(sources));
+        }
+
+        ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
+        for (int i = 0; i < entityIds.size; i++) {
+            int entityId = entityIds.get(i);
+            PhysicsShapesComponent shapes = shapesMapper.has(entityId)
+                    ? shapesMapper.get(entityId)
+                    : shapesMapper.create(entityId);
+            PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
+                    ? compiledMapper.get(entityId)
+                    : compiledMapper.create(entityId);
+            publishPreparedCandidate(shapes, compiled, preparedBodies.get(i));
+        }
+    }
+
     public static void publishPreparedCandidate(
             PhysicsShapesComponent targetShapes,
             PhysicsCompiledFixturesComponent targetCompiled,

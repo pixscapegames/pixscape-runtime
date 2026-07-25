@@ -107,10 +107,16 @@ public class RuntimePrefabFragmentSpawner {
             created.add(entityId);
             PreparedPhysicsBodyCandidate candidate = preparedSpawn.physicsCandidates.get(i);
             if (candidate != null) {
-                PhysicsShapesComponent shapes =
-                        world.getMapper(PhysicsShapesComponent.class).get(entityId);
-                PhysicsCompiledFixturesComponent compiled =
-                        world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
+                ComponentMapper<PhysicsShapesComponent> shapesMapper =
+                        world.getMapper(PhysicsShapesComponent.class);
+                PhysicsShapesComponent shapes = shapesMapper.has(entityId)
+                        ? shapesMapper.get(entityId)
+                        : shapesMapper.create(entityId);
+                ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
+                        world.getMapper(PhysicsCompiledFixturesComponent.class);
+                PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
+                        ? compiledMapper.get(entityId)
+                        : compiledMapper.create(entityId);
                 PhysicsService.publishPreparedCandidate(shapes, compiled, candidate);
             }
             TransformComponent transform =
@@ -156,6 +162,8 @@ public class RuntimePrefabFragmentSpawner {
                 stagingWorld.getMapper(PixscapeIdentityComponent.class);
         ComponentMapper<PhysicsShapesComponent> shapesMapper =
                 stagingWorld.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsBodyComponent> bodiesMapper =
+                stagingWorld.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
                 stagingWorld.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper =
@@ -203,7 +211,12 @@ public class RuntimePrefabFragmentSpawner {
                                         + shape.physicsShapeId + ".");
                     }
                 }
-                physicsCandidates.add(PhysicsService.prepareBodyCandidate(shapes.shapes));
+            }
+            if (bodiesMapper.has(entityId)) {
+                Array<PhysicsShapeData> sources = shapes != null
+                        ? shapes.shapes
+                        : new Array<>(true, 0, PhysicsShapeData.class);
+                physicsCandidates.add(PhysicsService.prepareBodyCandidate(sources));
             } else {
                 physicsCandidates.add(null);
             }

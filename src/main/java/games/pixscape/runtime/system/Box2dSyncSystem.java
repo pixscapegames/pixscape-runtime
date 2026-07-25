@@ -269,6 +269,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             int e = w[i];
             if (!isEnabledBody(e)) continue;
             requireCompiledCache(e);
+            if (!hasMaterializableCompiledCache(e)) continue;
 
             PhysicsRuntimeBodyComponent rt = mRuntime.has(e) ? mRuntime.get(e) : mRuntime.create(e);
             if (rt.body == null) {
@@ -557,7 +558,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private boolean isWantedEntity(int e) {
-        return isEnabledBody(e) && hasValidCompiledCache(e);
+        return isEnabledBody(e) && hasMaterializableCompiledCache(e);
     }
 
     private boolean isEnabledBody(int e) {
@@ -565,14 +566,22 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         return e >= 0 && mT.has(e) && body != null && body.enabled;
     }
 
-    private boolean hasValidCompiledCache(int e) {
+    private boolean hasPreparedCompiledCache(int e) {
         PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
         return compiled != null && compiled.valid && compiled.fixtures != null;
     }
 
+    private boolean hasMaterializableCompiledCache(int e) {
+        PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
+        return compiled != null
+                && compiled.valid
+                && compiled.fixtures != null
+                && compiled.fixtures.size > 0;
+    }
+
     private PhysicsCompiledFixturesComponent requireCompiledCache(int e) {
         PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
-        if (compiled == null || !compiled.valid || compiled.fixtures == null) {
+        if (!hasPreparedCompiledCache(e)) {
             PixscapeIdentityComponent identity = mIdentity.getSafe(e, null);
             String stable = identity != null && identity.stableId > 0
                     ? ", stableId " + identity.stableId

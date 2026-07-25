@@ -8,19 +8,24 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,6 +37,39 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class RuntimePrefabFragmentSpawnTest {
+
+    @Test
+    public void bodyOnlyPrefabPublishesEmptyCacheWithoutNativeBody() {
+        GdxNativesLoader.load();
+        Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2());
+        Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(16), sync)
+                .build());
+        int source = world.create();
+        world.getMapper(TransformComponent.class).create(source);
+        world.getMapper(PhysicsBodyComponent.class).create(source);
+        SaveFileFormat fragment = new SaveFileFormat();
+        fragment.entities.add(source);
+
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), sceneMeta());
+        SpawnResult result = spawner.spawn(world, fragment, 0f, 0f);
+        int spawned = result.createdEntityIds().get(0);
+        world.getMapper(PhysicsBodyComponent.class).remove(source);
+        world.process();
+
+        PhysicsShapesComponent shapes =
+                world.getMapper(PhysicsShapesComponent.class).get(spawned);
+        PhysicsCompiledFixturesComponent compiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class).get(spawned);
+        Assert.assertNotNull(shapes);
+        Assert.assertEquals(0, shapes.shapes.size);
+        Assert.assertTrue(compiled.valid);
+        Assert.assertEquals(0, compiled.fixtures.size);
+        Assert.assertEquals(0, box2d.world.getBodyCount());
+        Assert.assertFalse(world.getMapper(PhysicsRuntimeBodyComponent.class).has(spawned));
+    }
 
     @Test
     public void spawnDoesNotClearExistingWorld() {

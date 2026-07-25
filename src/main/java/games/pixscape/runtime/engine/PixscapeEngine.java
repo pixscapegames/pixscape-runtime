@@ -14,10 +14,6 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -876,7 +872,7 @@ public final class PixscapeEngine {
 
         rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
-        rebuildPhysicsCaches();
+        PhysicsService.rebuildPreparedBodyCaches(world);
         applyPhysicsFromScene(meta, true);
 
         RuntimeSceneAtlasLoader.loadSceneAtlas(
@@ -1154,27 +1150,6 @@ public final class PixscapeEngine {
         ambientMulR = meta.ambientMulR;
         ambientMulG = meta.ambientMulG;
         ambientMulB = meta.ambientMulB;
-    }
-
-    private void rebuildPhysicsCaches() {
-        ComponentMapper<PhysicsShapesComponent> shapesMapper =
-                world.getMapper(PhysicsShapesComponent.class);
-        ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
-                world.getMapper(PhysicsCompiledFixturesComponent.class);
-        IntBag bodies = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PhysicsBodyComponent.class, PhysicsShapesComponent.class))
-                .getEntities();
-        int[] entityIds = bodies.getData();
-        for (int i = 0; i < bodies.size(); i++) {
-            int entityId = entityIds[i];
-            PhysicsShapesComponent shapes = shapesMapper.get(entityId);
-            PreparedPhysicsBodyCandidate prepared =
-                    PhysicsService.prepareBodyCandidate(shapes.shapes);
-            PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
-                    ? compiledMapper.get(entityId)
-                    : compiledMapper.create(entityId);
-            PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
-        }
     }
 
     private void applyPhysicsFromScene(SceneMetaRuntime meta, boolean activate) {

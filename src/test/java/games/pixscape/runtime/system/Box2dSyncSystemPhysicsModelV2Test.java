@@ -29,6 +29,49 @@ import org.junit.Test;
 
 public class Box2dSyncSystemPhysicsModelV2Test {
     @Test
+    public void emptyPreparedCacheCreatesNoNativeOrRuntimeBody() {
+        Harness harness = new Harness();
+        harness.shapes.shapes.clear();
+        harness.prepareAndProcess();
+
+        Assert.assertEquals(0, harness.box2d.world.getBodyCount());
+        Assert.assertFalse(harness.world.getMapper(
+                PhysicsRuntimeBodyComponent.class).has(harness.entityId));
+        PhysicsCompiledFixturesComponent compiled = harness.world.getMapper(
+                PhysicsCompiledFixturesComponent.class).get(harness.entityId);
+        Assert.assertTrue(compiled.valid);
+        Assert.assertEquals(0, compiled.fixtures.size);
+    }
+
+    @Test
+    public void nonEmptyAndEmptyCachesMaterializeAndDestroyNativeBody() {
+        Harness harness = new Harness();
+        harness.prepareAndProcess();
+        Assert.assertEquals(1, harness.box2d.world.getBodyCount());
+
+        harness.shapes.shapes.clear();
+        harness.publishCache(harness.entityId, harness.shapes);
+        harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
+        harness.world.process();
+
+        Assert.assertEquals(0, harness.box2d.world.getBodyCount());
+        Assert.assertFalse(harness.world.getMapper(
+                PhysicsRuntimeBodyComponent.class).has(harness.entityId));
+
+        PhysicsShapeData restored = PhysicsService.createDefaultShape(1);
+        harness.shapes.shapes.add(restored);
+        harness.publishCache(harness.entityId, harness.shapes);
+        harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
+        harness.world.process();
+
+        Assert.assertEquals(1, harness.box2d.world.getBodyCount());
+        PhysicsRuntimeBodyComponent runtime = harness.world.getMapper(
+                PhysicsRuntimeBodyComponent.class).get(harness.entityId);
+        Assert.assertNotNull(runtime.body);
+        Assert.assertEquals(1, runtime.body.getFixtureList().size);
+    }
+
+    @Test
     public void invalidRecompileKeepsPreviousNativeBodyAndCompiledCache() {
         Harness harness = new Harness();
         harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
@@ -248,7 +291,9 @@ public class Box2dSyncSystemPhysicsModelV2Test {
 
         void prepareAndProcess() {
             publishCache(entityId, shapes);
-            source = shapes.shapes.first();
+            if (shapes.shapes.size > 0) {
+                source = shapes.shapes.first();
+            }
             world.process();
         }
 
