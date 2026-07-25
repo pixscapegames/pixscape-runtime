@@ -11,16 +11,16 @@ public class PhysicsShapeCompilerTest {
 
     @Test
     public void compilesBoxAndCopiesAllPhysicalProperties() {
-        PhysicsShapeData shape = base(PhysicsShapeData.SHAPE_BOX);
-        shape.halfWidth = 2f;
-        shape.halfHeight = 3f;
+        PhysicsShapeData shape = base(PhysicsDirectGeometryData.SHAPE_BOX);
+        shape.directGeometry.halfWidth = 2f;
+        shape.directGeometry.halfHeight = 3f;
         applyDistinctProperties(shape);
 
-        CompiledFixtureData[] result = compiler.compile(shape);
+        CompiledFixtureData[] result = compiler.compile(resolve(shape));
 
         Assert.assertEquals(1, result.length);
         CompiledFixtureData fixture = result[0];
-        Assert.assertEquals(CompiledFixtureData.SHAPE_BOX, fixture.shapeType);
+        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_BOX, fixture.shapeType);
         Assert.assertEquals(2f, fixture.halfWidth, 0f);
         Assert.assertEquals(3f, fixture.halfHeight, 0f);
         assertProperties(shape, fixture);
@@ -30,16 +30,16 @@ public class PhysicsShapeCompilerTest {
 
     @Test
     public void compilesCircleAndRejectsNonPositiveRadius() {
-        PhysicsShapeData shape = base(PhysicsShapeData.SHAPE_CIRCLE);
-        shape.radius = 1.25f;
+        PhysicsShapeData shape = base(PhysicsDirectGeometryData.SHAPE_CIRCLE);
+        shape.directGeometry.radius = 1.25f;
 
-        CompiledFixtureData[] result = compiler.compile(shape);
+        CompiledFixtureData[] result = compiler.compile(resolve(shape));
 
         Assert.assertEquals(1, result.length);
         Assert.assertEquals(1.25f, result[0].radius, 0f);
-        shape.radius = 0f;
+        shape.directGeometry.radius = 0f;
         expectCompilationFailure(shape, "radius");
-        shape.radius = -1f;
+        shape.directGeometry.radius = -1f;
         expectCompilationFailure(shape, "radius");
     }
 
@@ -48,7 +48,7 @@ public class PhysicsShapeCompilerTest {
         for (int count = 3; count <= PolygonDecomposer.BOX2D_MAX_POLYGON_VERTICES; count++) {
             PhysicsShapeData shape = polygon(regularPolygon(count, 2f), count);
 
-            CompiledFixtureData[] result = compiler.compile(shape);
+            CompiledFixtureData[] result = compiler.compile(resolve(shape));
 
             Assert.assertEquals("vertex count " + count, 1, result.length);
             Assert.assertEquals(count, result[0].polygonVertexCount);
@@ -62,8 +62,8 @@ public class PhysicsShapeCompilerTest {
         float[] counterClockwise = {0f, 0f, 3f, 0f, 3f, 2f, 0f, 2f};
         float[] clockwise = {0f, 2f, 3f, 2f, 3f, 0f, 0f, 0f};
 
-        CompiledFixtureData ccw = compiler.compile(polygon(counterClockwise, 4))[0];
-        CompiledFixtureData cw = compiler.compile(polygon(clockwise, 4))[0];
+        CompiledFixtureData ccw = compiler.compile(resolve(polygon(counterClockwise, 4)))[0];
+        CompiledFixtureData cw = compiler.compile(resolve(polygon(clockwise, 4)))[0];
 
         Assert.assertArrayEquals(ccw.polygonVertices, cw.polygonVertices, 0f);
         Assert.assertTrue(PolygonValidator.signedArea(
@@ -74,11 +74,11 @@ public class PhysicsShapeCompilerTest {
     public void compilationNeverMutatesPolygonSource() {
         PhysicsShapeData shape = polygon(
                 new float[]{0f, 0f, 0f, 3f, 2f, 3f, 2f, 0f}, 4);
-        float[] before = Arrays.copyOf(shape.polygonVertices, shape.polygonVertices.length);
+        float[] before = Arrays.copyOf(shape.directGeometry.polygonVertices, shape.directGeometry.polygonVertices.length);
 
-        compiler.compile(shape);
+        compiler.compile(resolve(shape));
 
-        Assert.assertArrayEquals(before, shape.polygonVertices, 0f);
+        Assert.assertArrayEquals(before, shape.directGeometry.polygonVertices, 0f);
     }
 
     @Test
@@ -94,8 +94,8 @@ public class PhysicsShapeCompilerTest {
                 }, 6);
         applyDistinctProperties(shape);
 
-        CompiledFixtureData[] first = compiler.compile(shape);
-        CompiledFixtureData[] second = compiler.compile(shape);
+        CompiledFixtureData[] first = compiler.compile(resolve(shape));
+        CompiledFixtureData[] second = compiler.compile(resolve(shape));
 
         Assert.assertTrue(first.length > 1);
         Assert.assertEquals(first.length, second.length);
@@ -108,7 +108,7 @@ public class PhysicsShapeCompilerTest {
                     first[i].polygonVertices, first[i].polygonVertexCount));
         }
         float sourceArea = Math.abs(
-                PolygonValidator.signedArea(shape.polygonVertices, shape.polygonVertexCount));
+                PolygonValidator.signedArea(shape.directGeometry.polygonVertices, shape.directGeometry.polygonVertexCount));
         Assert.assertEquals(sourceArea, compiledArea, 0.0001f);
     }
 
@@ -116,7 +116,7 @@ public class PhysicsShapeCompilerTest {
     public void convexPolygonAboveBox2dLimitIsDecomposedSafely() {
         PhysicsShapeData shape = polygon(regularPolygon(10, 3f), 10);
 
-        CompiledFixtureData[] result = compiler.compile(shape);
+        CompiledFixtureData[] result = compiler.compile(resolve(shape));
 
         Assert.assertTrue(result.length > 1);
         for (CompiledFixtureData fixture : result) {
@@ -148,25 +148,25 @@ public class PhysicsShapeCompilerTest {
         PhysicsShapeData shape = polygon(
                 new float[]{0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f}, 4);
 
-        CompiledFixtureData compiled = compiler.compile(shape)[0];
+        CompiledFixtureData compiled = compiler.compile(resolve(shape))[0];
         compiled.polygonVertices[0] = 100f;
 
-        Assert.assertEquals(0f, shape.polygonVertices[0], 0f);
+        Assert.assertEquals(0f, shape.directGeometry.polygonVertices[0], 0f);
     }
 
     @Test
     public void disabledShapeProducesNoMaterializedFixture() {
-        PhysicsShapeData shape = base(PhysicsShapeData.SHAPE_BOX);
+        PhysicsShapeData shape = base(PhysicsDirectGeometryData.SHAPE_BOX);
         shape.enabled = false;
 
-        Assert.assertEquals(0, compiler.compile(shape).length);
+        Assert.assertEquals(0, compiler.compile(resolve(shape)).length);
     }
 
     @Test
     public void compilerAcceptsExternallyResolvedGeometryWithoutSpatialDependency() {
-        PhysicsShapeData properties = base(PhysicsShapeData.SHAPE_BOX);
+        PhysicsShapeData properties = base(PhysicsDirectGeometryData.SHAPE_BOX);
         ResolvedPhysicsShape resolved = ResolvedPhysicsShape.fromDirect(properties);
-        resolved.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+        resolved.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
         resolved.polygonVertexCount = 3;
         resolved.polygonVertices = new float[]{0f, 0f, 2f, 0f, 0f, 2f};
         resolved.diagnosticSource = "external-test";
@@ -174,7 +174,7 @@ public class PhysicsShapeCompilerTest {
         CompiledFixtureData[] result = compiler.compile(resolved);
 
         Assert.assertEquals(1, result.length);
-        Assert.assertEquals(CompiledFixtureData.SHAPE_POLYGON, result[0].shapeType);
+        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_POLYGON, result[0].shapeType);
     }
 
     @Test
@@ -186,22 +186,23 @@ public class PhysicsShapeCompilerTest {
 
     private static PhysicsShapeData base(int shapeType) {
         PhysicsShapeData shape = new PhysicsShapeData();
+        shape.directGeometry = new PhysicsDirectGeometryData();
         shape.physicsShapeId = 17;
-        shape.shapeType = shapeType;
+        shape.directGeometry.shapeType = shapeType;
         return shape;
     }
 
     private static PhysicsShapeData polygon(float[] vertices, int count) {
-        PhysicsShapeData shape = base(PhysicsShapeData.SHAPE_POLYGON);
-        shape.polygonVertices = vertices;
-        shape.polygonVertexCount = count;
+        PhysicsShapeData shape = base(PhysicsDirectGeometryData.SHAPE_POLYGON);
+        shape.directGeometry.polygonVertices = vertices;
+        shape.directGeometry.polygonVertexCount = count;
         return shape;
     }
 
     private static void applyDistinctProperties(PhysicsShapeData shape) {
-        shape.offsetX = 1.5f;
-        shape.offsetY = -2.5f;
-        shape.angleDegrees = 32f;
+        shape.directGeometry.offsetX = 1.5f;
+        shape.directGeometry.offsetY = -2.5f;
+        shape.directGeometry.angleDegrees = 32f;
         shape.density = 2.25f;
         shape.friction = 0.45f;
         shape.restitution = 0.75f;
@@ -213,9 +214,9 @@ public class PhysicsShapeCompilerTest {
 
     private static void assertProperties(
             PhysicsShapeData source, CompiledFixtureData compiled) {
-        Assert.assertEquals(source.offsetX, compiled.offsetX, 0f);
-        Assert.assertEquals(source.offsetY, compiled.offsetY, 0f);
-        Assert.assertEquals(source.angleDegrees, compiled.angleDegrees, 0f);
+        Assert.assertEquals(source.directGeometry.offsetX, compiled.offsetX, 0f);
+        Assert.assertEquals(source.directGeometry.offsetY, compiled.offsetY, 0f);
+        Assert.assertEquals(source.directGeometry.angleDegrees, compiled.angleDegrees, 0f);
         Assert.assertEquals(source.density, compiled.density, 0f);
         Assert.assertEquals(source.friction, compiled.friction, 0f);
         Assert.assertEquals(source.restitution, compiled.restitution, 0f);
@@ -227,9 +228,9 @@ public class PhysicsShapeCompilerTest {
 
     private void expectCompilationFailure(PhysicsShapeData source, String messagePart) {
         try {
-            CompiledFixtureData[] result = compiler.compile(source);
+            CompiledFixtureData[] result = compiler.compile(resolve(source));
             for (CompiledFixtureData fixture : result) {
-                Assert.assertNotEquals(CompiledFixtureData.SHAPE_BOX, fixture.shapeType);
+                Assert.assertNotEquals(PhysicsDirectGeometryData.SHAPE_BOX, fixture.shapeType);
             }
             Assert.fail("Expected compilation failure.");
         } catch (PhysicsShapeCompilationException ex) {
@@ -246,5 +247,9 @@ public class PhysicsShapeCompilerTest {
             vertices[i * 2 + 1] = (float) (Math.sin(angle) * radius);
         }
         return vertices;
+    }
+
+    private static ResolvedPhysicsShape resolve(PhysicsShapeData source) {
+        return ResolvedPhysicsShape.fromDirect(source);
     }
 }

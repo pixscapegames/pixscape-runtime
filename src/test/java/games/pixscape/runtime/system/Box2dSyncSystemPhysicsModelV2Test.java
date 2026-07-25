@@ -17,11 +17,13 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,10 +31,10 @@ public class Box2dSyncSystemPhysicsModelV2Test {
     @Test
     public void invalidRecompileKeepsPreviousNativeBodyAndCompiledCache() {
         Harness harness = new Harness();
-        harness.source.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-        harness.source.radius = 0.5f;
-        harness.source.offsetX = 0.25f;
-        harness.world.process();
+        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        harness.source.directGeometry.radius = 0.5f;
+        harness.source.directGeometry.offsetX = 0.25f;
+        harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =
                 harness.world.getMapper(PhysicsRuntimeBodyComponent.class).get(harness.entityId);
@@ -44,16 +46,16 @@ public class Box2dSyncSystemPhysicsModelV2Test {
         int originalGeneration = compiled.generation;
         int originalFootprintGeneration = footprint.physicsGeneration;
 
-        harness.source.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        harness.source.polygonVertices = new float[]{0f, 0f, 1f, 0f};
-        harness.source.polygonVertexCount = 2;
+        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        harness.source.directGeometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        harness.source.directGeometry.polygonVertexCount = 2;
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
 
         try {
-            harness.world.process();
+            harness.prepareAndProcess();
             Assert.fail("Invalid polygon source must reject the rebuild.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("physicsShapeId 1"));
+            Assert.assertTrue(expected.getMessage().contains("PhysicsShapeData"));
         }
 
         Assert.assertSame(originalBody, runtime.body);
@@ -70,12 +72,12 @@ public class Box2dSyncSystemPhysicsModelV2Test {
     @Test
     public void concaveSourceBuildsPartsWithSourceProvenanceAndDisablePreservesSource() {
         Harness harness = new Harness();
-        harness.source.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        harness.source.polygonVertices = new float[]{
+        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        harness.source.directGeometry.polygonVertices = new float[]{
                 0f, 0f, 2f, 0f, 2f, 2f, 1f, 1f, 0f, 2f
         };
-        harness.source.polygonVertexCount = 5;
-        harness.world.process();
+        harness.source.directGeometry.polygonVertexCount = 5;
+        harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =
                 harness.world.getMapper(PhysicsRuntimeBodyComponent.class).get(harness.entityId);
@@ -91,7 +93,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
 
         harness.body.enabled = false;
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
-        harness.world.process();
+        harness.prepareAndProcess();
 
         Assert.assertEquals(0, harness.box2d.world.getBodyCount());
         Assert.assertEquals(1, harness.shapes.shapes.size);
@@ -103,7 +105,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
         Harness harness = new Harness();
         harness.world.getMapper(PixscapeIdentityComponent.class)
                 .create(harness.entityId).stableId = 91;
-        harness.world.process();
+        harness.prepareAndProcess();
         PhysicsRuntimeBodyComponent runtime =
                 harness.world.getMapper(PhysicsRuntimeBodyComponent.class)
                         .get(harness.entityId);
@@ -134,7 +136,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
             Assert.assertTrue(expected.getMessage().contains("physicsShapeId 1"));
             Assert.assertTrue(expected.getMessage().contains("partIndex 0"));
             Assert.assertTrue(expected.getMessage().contains(
-                    "fixtureType " + CompiledFixtureData.SHAPE_BOX));
+                    "fixtureType " + PhysicsDirectGeometryData.SHAPE_BOX));
         }
 
         Assert.assertSame(originalBody, runtime.body);
@@ -157,7 +159,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
                 harness.world.getMapper(PhysicsDistanceJointComponent.class)
                         .create(jointEntity);
         distance.lengthM = 1f;
-        harness.world.process();
+        harness.prepareAndProcess();
         Assert.assertNotNull(
                 harness.world.getMapper(PhysicsRuntimeJointComponent.class)
                         .get(jointEntity).joint);
@@ -206,7 +208,7 @@ public class Box2dSyncSystemPhysicsModelV2Test {
         final int entityId;
         final PhysicsBodyComponent body;
         final PhysicsShapesComponent shapes;
-        final PhysicsShapeData source;
+        PhysicsShapeData source;
 
         Harness() {
             GdxNativesLoader.load();
@@ -221,8 +223,9 @@ public class Box2dSyncSystemPhysicsModelV2Test {
             body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
             shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
             source = new PhysicsShapeData();
+            source.directGeometry = new PhysicsDirectGeometryData();
             source.physicsShapeId = 1;
-            source.shapeType = PhysicsShapeData.SHAPE_BOX;
+            source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
             shapes.add(source);
         }
 
@@ -235,10 +238,25 @@ public class Box2dSyncSystemPhysicsModelV2Test {
             PhysicsShapesComponent createdShapes =
                     world.getMapper(PhysicsShapesComponent.class).create(created);
             PhysicsShapeData createdShape = new PhysicsShapeData();
+            createdShape.directGeometry = new PhysicsDirectGeometryData();
             createdShape.physicsShapeId = physicsShapeId;
-            createdShape.shapeType = PhysicsShapeData.SHAPE_BOX;
+            createdShape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
             createdShapes.add(createdShape);
+            publishCache(created, createdShapes);
             return created;
+        }
+
+        void prepareAndProcess() {
+            publishCache(entityId, shapes);
+            source = shapes.shapes.first();
+            world.process();
+        }
+
+        private void publishCache(int entity, PhysicsShapesComponent sourceShapes) {
+            PhysicsService.publishPreparedCandidate(
+                    sourceShapes,
+                    world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity),
+                    PhysicsService.prepareBodyCandidate(sourceShapes.shapes));
         }
     }
 

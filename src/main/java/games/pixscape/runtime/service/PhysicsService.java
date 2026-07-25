@@ -1,20 +1,20 @@
 package games.pixscape.runtime.service;
 
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
-import games.pixscape.runtime.physics.PhysicsShapeIdState;
+import games.pixscape.runtime.physics.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /**
@@ -27,6 +27,10 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
  * The Box2D runtime objects (Body/Joint) are created/destroyed by Box2dSyncSystem.
  */
 public final class PhysicsService {
+    private static final PhysicsShapeResolver SHAPE_RESOLVER = new PhysicsShapeResolver();
+    private static final PhysicsBodyCompiler BODY_COMPILER = new PhysicsBodyCompiler();
+    private static final PhysicsCompiledFixtureCachePublisher CACHE_PUBLISHER =
+            new PhysicsCompiledFixtureCachePublisher();
 
     private final World world;
     private Box2dWorldService box2d;
@@ -134,6 +138,10 @@ public final class PhysicsService {
             shapes.add(createDefaultShape(allocateNewPhysicsShapeId()));
         }
 
+        PreparedPhysicsBodyCandidate prepared = prepareBodyCandidate(shapes.shapes);
+        PhysicsCompiledFixturesComponent compiled =
+                mCompiled.has(eid) ? mCompiled.get(eid) : mCompiled.create(eid);
+        publishPreparedCandidate(shapes, compiled, prepared);
         markPhysicsDirty(eid);
     }
 
@@ -165,15 +173,15 @@ public final class PhysicsService {
     }
 
     public int countCircleShapes(int eid) {
-        return countShapesByType(eid, PhysicsShapeData.SHAPE_CIRCLE);
+        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_CIRCLE);
     }
 
     public int countBoxShapes(int eid) {
-        return countShapesByType(eid, PhysicsShapeData.SHAPE_BOX);
+        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_BOX);
     }
 
     public int countPolygonShapes(int eid) {
-        return countShapesByType(eid, PhysicsShapeData.SHAPE_POLYGON);
+        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_POLYGON);
     }
 
     private int countShapesByType(int eid, int shapeType) {
@@ -182,7 +190,9 @@ public final class PhysicsService {
         int count = 0;
         for (int i = 0, n = shapes.shapes.size; i < n; i++) {
             PhysicsShapeData shape = shapes.shapes.get(i);
-            if (shape != null && shape.shapeType == shapeType) count++;
+            if (shape != null
+                    && shape.directGeometry != null
+                    && shape.directGeometry.shapeType == shapeType) count++;
         }
         return count;
     }
@@ -192,14 +202,18 @@ public final class PhysicsService {
         return shapes != null ? shapes.getById(physicsShapeId) : null;
     }
 
+    public PhysicsCompiledFixturesComponent getCompiledFixturesComponent(int eid) {
+        return eid >= 0 ? mCompiled.getSafe(eid, null) : null;
+    }
+
     public boolean computeShapeCenterWU(
             int bodyEid, PhysicsShapeData shape, Vector2 outCenterWU) {
         return computeShapeOriginWU(bodyEid, shape, outCenterWU);
     }
 
     public float computeShapeRadiusWU(PhysicsShapeData shape) {
-        if (shape == null || !isAvailable()) return 0f;
-        return box2d.mToPx(Math.max(0f, shape.radius));
+        if (shape == null || shape.directGeometry == null || !isAvailable()) return 0f;
+        return box2d.mToPx(Math.max(0f, shape.directGeometry.radius));
     }
 
     public boolean computeCompiledFixtureCenterWU(
@@ -216,7 +230,7 @@ public final class PhysicsService {
     public int computeCompiledFixtureVerticesWU(
             int bodyEid, CompiledFixtureData fixture, float[] outVertsWU) {
         if (fixture == null || outVertsWU == null || !isAvailable()) return 0;
-        if (fixture.shapeType == CompiledFixtureData.SHAPE_BOX) {
+        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_BOX) {
             if (outVertsWU.length < 8) return 0;
             if (!transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
                     fixture.angleDegrees, -fixture.halfWidth, -fixture.halfHeight,
@@ -232,7 +246,7 @@ public final class PhysicsService {
                     outVertsWU, 6);
             return 4;
         }
-        if (fixture.shapeType == CompiledFixtureData.SHAPE_POLYGON) {
+        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
             int count = Math.max(0, Math.min(
                     fixture.polygonVertexCount, fixture.polygonVertices.length / 2));
             if (count < 3 || outVertsWU.length < count * 2) return 0;
@@ -251,24 +265,30 @@ public final class PhysicsService {
     public int computeShapeVerticesWU(
             int bodyEid, PhysicsShapeData shape, float[] outVertsWU) {
         if (shape == null || outVertsWU == null || !isAvailable()) return 0;
+        PhysicsDirectGeometryData geometry = shape.directGeometry;
+        if (geometry == null) return 0;
 
-        if (shape.shapeType == PhysicsShapeData.SHAPE_BOX) {
+        if (geometry.shapeType == PhysicsDirectGeometryData.SHAPE_BOX) {
             if (outVertsWU.length < 8) return 0;
-            if (!transformShapePointWU(bodyEid, shape, -shape.halfWidth, -shape.halfHeight, outVertsWU, 0)) return 0;
-            transformShapePointWU(bodyEid, shape, shape.halfWidth, -shape.halfHeight, outVertsWU, 2);
-            transformShapePointWU(bodyEid, shape, shape.halfWidth, shape.halfHeight, outVertsWU, 4);
-            transformShapePointWU(bodyEid, shape, -shape.halfWidth, shape.halfHeight, outVertsWU, 6);
+            if (!transformShapePointWU(bodyEid, geometry, -geometry.halfWidth,
+                    -geometry.halfHeight, outVertsWU, 0)) return 0;
+            transformShapePointWU(bodyEid, geometry, geometry.halfWidth,
+                    -geometry.halfHeight, outVertsWU, 2);
+            transformShapePointWU(bodyEid, geometry, geometry.halfWidth,
+                    geometry.halfHeight, outVertsWU, 4);
+            transformShapePointWU(bodyEid, geometry, -geometry.halfWidth,
+                    geometry.halfHeight, outVertsWU, 6);
             return 4;
         }
 
-        if (shape.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
-            int count = safePolygonVertexCount(shape);
+        if (geometry.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
+            int count = safePolygonVertexCount(geometry);
             if (count < 3) return 0;
             if (outVertsWU.length < count * 2) return 0;
             for (int i = 0; i < count; i++) {
-                float lx = shape.polygonVertices[i * 2];
-                float ly = shape.polygonVertices[i * 2 + 1];
-                transformShapePointWU(bodyEid, shape, lx, ly, outVertsWU, i * 2);
+                float lx = geometry.polygonVertices[i * 2];
+                float ly = geometry.polygonVertices[i * 2 + 1];
+                transformShapePointWU(bodyEid, geometry, lx, ly, outVertsWU, i * 2);
             }
             return count;
         }
@@ -276,16 +296,21 @@ public final class PhysicsService {
         return 0;
     }
 
-    private int safePolygonVertexCount(PhysicsShapeData shape) {
-        if (shape == null || shape.polygonVertices == null) return 0;
+    private int safePolygonVertexCount(PhysicsDirectGeometryData geometry) {
+        if (geometry == null || geometry.polygonVertices == null) return 0;
         return Math.max(
-                0, Math.min(shape.polygonVertexCount, shape.polygonVertices.length / 2));
+                0,
+                Math.min(
+                        geometry.polygonVertexCount,
+                        geometry.polygonVertices.length / 2));
     }
 
     private boolean computeShapeOriginWU(
             int bodyEid, PhysicsShapeData shape, Vector2 outWU) {
         if (shape == null) return false;
-        return computeLocalOriginWU(bodyEid, shape.offsetX, shape.offsetY, outWU);
+        PhysicsDirectGeometryData geometry = shape.directGeometry;
+        return geometry != null
+                && computeLocalOriginWU(bodyEid, geometry.offsetX, geometry.offsetY, outWU);
     }
 
     private boolean computeLocalOriginWU(
@@ -310,14 +335,14 @@ public final class PhysicsService {
 
     private boolean transformShapePointWU(
             int bodyEid,
-            PhysicsShapeData shape,
+            PhysicsDirectGeometryData geometry,
             float localX_m,
             float localY_m,
             float[] outVertsWU,
             int outIndex) {
-        if (shape == null) return false;
-        return transformLocalPointWU(bodyEid, shape.offsetX, shape.offsetY,
-                shape.angleDegrees, localX_m, localY_m, outVertsWU, outIndex);
+        if (geometry == null) return false;
+        return transformLocalPointWU(bodyEid, geometry.offsetX, geometry.offsetY,
+                geometry.angleDegrees, localX_m, localY_m, outVertsWU, outIndex);
     }
 
     private boolean transformLocalPointWU(
@@ -1017,19 +1042,7 @@ public final class PhysicsService {
     public static void initDefaultShape(PhysicsShapeData shape, int physicsShapeId) {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
         shape.physicsShapeId = physicsShapeId;
-        shape.shapeType = PhysicsShapeData.SHAPE_BOX;
-
-        shape.polygonVertices = new float[0];
-        shape.polygonVertexCount = 0;
-
-        shape.halfWidth = 0.5f;
-        shape.halfHeight = 0.5f;
-        shape.angleDegrees = 0f;
-
-        shape.radius = 0.5f;
-
-        shape.offsetX = 0f;
-        shape.offsetY = 0f;
+        shape.directGeometry = new PhysicsDirectGeometryData();
 
         shape.density = 1f;
         shape.friction = 0.2f;
@@ -1040,6 +1053,43 @@ public final class PhysicsService {
         shape.maskBits = (short) 0xFFFF;
         shape.groupIndex = 0;
         shape.enabled = true;
+    }
+
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            Array<PhysicsShapeData> sources) {
+        if (sources == null) {
+            throw new IllegalArgumentException("Physics shape sources cannot be null.");
+        }
+        Array<PhysicsShapeData> detached =
+                new Array<>(true, sources.size, PhysicsShapeData.class);
+        Array<ResolvedPhysicsShape> resolved =
+                new Array<>(true, sources.size, ResolvedPhysicsShape.class);
+        for (int i = 0; i < sources.size; i++) {
+            PhysicsShapeData source = sources.get(i);
+            if (source == null) {
+                throw new IllegalArgumentException(
+                        "Physics shape source at index " + i + " is null.");
+            }
+            PhysicsShapeData copy = source.copy();
+            detached.add(copy);
+            resolved.add(SHAPE_RESOLVER.resolve(copy));
+        }
+        return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
+    }
+
+    public static void publishPreparedCandidate(
+            PhysicsShapesComponent targetShapes,
+            PhysicsCompiledFixturesComponent targetCompiled,
+            PreparedPhysicsBodyCandidate prepared) {
+        if (targetShapes == null || targetCompiled == null || prepared == null) {
+            throw new IllegalArgumentException(
+                    "Physics source target, cache target and prepared candidate are required.");
+        }
+        Array<PhysicsShapeData> shapes = prepared.takeShapes();
+        Array<CompiledFixtureData> fixtures =
+                prepared.takeCompiledFixtures().takeFixtures();
+        targetShapes.shapes = shapes;
+        CACHE_PUBLISHER.publish(targetCompiled, fixtures);
     }
 }
 

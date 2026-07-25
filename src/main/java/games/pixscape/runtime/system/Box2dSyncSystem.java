@@ -20,12 +20,9 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
-import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 
 import java.util.Arrays;
 
@@ -38,7 +35,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private ComponentMapper<PhysicsBodyComponent> mBodyDef;
-    private ComponentMapper<PhysicsShapesComponent> mShapes;
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
     private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
 
@@ -58,16 +54,13 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private DirtyTrackerSystem dirty;
 
-    private EntitySubscription subWanted;   // T + Body + Fixtures
+    private EntitySubscription subWanted;   // T + Body
     private EntitySubscription subRuntime;  // RuntimeBody
     private EntitySubscription jointsSub;   // JointBase insert/remove only
 
     private final Vector2 tmp = new Vector2();
     private static final int MAX_POLYGON_VERTICES = 8;
     private final float[] polygonVertsScratch = new float[MAX_POLYGON_VERTICES * 2];
-    private final PhysicsBodyCompiler bodyCompiler = new PhysicsBodyCompiler();
-    private final PhysicsCompiledFixtureCachePublisher compiledCachePublisher =
-            new PhysicsCompiledFixtureCachePublisher();
     private transient TestObserver testObserver;
 
     private float lastGx = Float.NaN;
@@ -131,7 +124,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         mT = world.getMapper(TransformComponent.class);
         mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
-        mShapes = world.getMapper(PhysicsShapesComponent.class);
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
 
@@ -155,8 +147,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         subWanted = asm.get(Aspect.all(
                 TransformComponent.class,
-                PhysicsBodyComponent.class,
-                PhysicsShapesComponent.class
+                PhysicsBodyComponent.class
         ));
 
         subRuntime = asm.get(Aspect.all(
@@ -235,7 +226,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             int[] wantedData = wanted.getData();
             for (int i = 0, n = wanted.size(); i < n; i++) {
                 int e = wantedData[i];
-                if (isWantedEntity(e)) dirty.physics(e, PhysicsDirtyBits.ALL);
+                if (isEnabledBody(e)) {
+                    requireCompiledCache(e);
+                    dirty.physics(e, PhysicsDirtyBits.ALL);
+                }
             }
 
             IntBag joints = jointsSub.getEntities();
@@ -250,6 +244,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         if (dirty != null) {
             dirty.consumePhysics(e -> {
+                if (isEnabledBody(e)) {
+                    requireCompiledCache(e);
+                }
                 boolean stillWanted = isWantedEntity(e);
                 if (!stillWanted) {
                     destroyRuntimeBody(e);
@@ -270,11 +267,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         int[] w = wanted.getData();
         for (int i = 0, n = wanted.size(); i < n; i++) {
             int e = w[i];
-            if (!isWantedEntity(e)) continue;
+            if (!isEnabledBody(e)) continue;
+            requireCompiledCache(e);
 
             PhysicsRuntimeBodyComponent rt = mRuntime.has(e) ? mRuntime.get(e) : mRuntime.create(e);
-            PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
-            if (rt.body == null && (compiled == null || !compiled.valid)) {
+            if (rt.body == null) {
                 buildBody(e, rt);
             }
 
@@ -559,19 +556,33 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // Bodies
     // -------------------------------------------------------------
 
-    private boolean hasValidShapes(int e) {
-        if (!mShapes.has(e)) return false;
-        PhysicsShapesComponent shapes = mShapes.get(e);
-        return shapes != null && shapes.hasShapes();
+    private boolean isWantedEntity(int e) {
+        return isEnabledBody(e) && hasValidCompiledCache(e);
     }
 
-    private boolean isWantedEntity(int e) {
+    private boolean isEnabledBody(int e) {
         PhysicsBodyComponent body = mBodyDef.getSafe(e, null);
-        return e >= 0
-                && mT.has(e)
-                && body != null
-                && body.enabled
-                && hasValidShapes(e);
+        return e >= 0 && mT.has(e) && body != null && body.enabled;
+    }
+
+    private boolean hasValidCompiledCache(int e) {
+        PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
+        return compiled != null && compiled.valid && compiled.fixtures != null;
+    }
+
+    private PhysicsCompiledFixturesComponent requireCompiledCache(int e) {
+        PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
+        if (compiled == null || !compiled.valid || compiled.fixtures == null) {
+            PixscapeIdentityComponent identity = mIdentity.getSafe(e, null);
+            String stable = identity != null && identity.stableId > 0
+                    ? ", stableId " + identity.stableId
+                    : "";
+            throw new IllegalStateException(
+                    "Enabled physics body entityId " + e + stable
+                            + " has no valid PhysicsCompiledFixturesComponent; "
+                            + "prepare and publish the compiled cache before Box2D materialization.");
+        }
+        return compiled;
     }
 
     private void buildBody(int e, PhysicsRuntimeBodyComponent rt) {
@@ -586,14 +597,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             int e, PhysicsRuntimeBodyComponent rt, boolean wakeForMutation) {
         if (box2d == null || box2d.world == null || !isWantedEntity(e)) return;
 
-        PhysicsShapesComponent sources = mShapes.get(e);
-        PhysicsCompiledFixturesComponent compiled =
-                mCompiled.has(e) ? mCompiled.get(e) : mCompiled.create(e);
-        notifyCompilationForTest(sources);
-        PreparedCompiledFixtures preparedFixtures = bodyCompiler.compilePrepared(sources);
-        int nextGeneration = compiled.generation + 1;
+        PhysicsCompiledFixturesComponent compiled = requireCompiledCache(e);
+        if (testObserver != null) testObserver.onBodyRebuild();
         Body candidateBody = createBodyFromCompiled(
-                e, preparedFixtures.fixtures(), wakeForMutation);
+                e, compiled.fixtures, wakeForMutation);
 
         Body previousBody = rt.body;
         if (previousBody != null) {
@@ -602,16 +609,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         rt.body = candidateBody;
-        int publishedGeneration = compiledCachePublisher.publish(compiled, preparedFixtures);
-        if (publishedGeneration != nextGeneration) {
-            throw new IllegalStateException("Physics cache generation changed during atomic publication.");
-        }
         rt.gen++;
         markJointsDirtyForBody(e);
     }
 
     private void destroyRuntimeBody(int e) {
-        invalidateCompiledCache(e);
         if (!mRuntime.has(e)) return;
 
         PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
@@ -627,7 +629,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private void destroyRuntimeBodyByEntityId(int e) {
-        invalidateCompiledCache(e);
         if (box2d == null || box2d.world == null) {
             if (mRuntime.has(e)) mRuntime.remove(e);
             return;
@@ -662,13 +663,6 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         markJointsDirtyForBody(e);
-    }
-
-    private void invalidateCompiledCache(int e) {
-        PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
-        if (compiled != null) {
-            compiledCachePublisher.invalidate(compiled);
-        }
     }
 
     private Body createBodyFromCompiled(
@@ -761,28 +755,13 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         return new IllegalStateException(message.toString(), cause);
     }
 
-    private void notifyCompilationForTest(PhysicsShapesComponent sources) {
-        if (testObserver == null) return;
-        testObserver.onBodyCompile();
-        testObserver.onBodyRebuild();
-        for (int i = 0; i < sources.shapes.size; i++) {
-            PhysicsShapeData source = sources.shapes.get(i);
-            testObserver.onShapeCompile();
-            if (source != null
-                    && source.enabled
-                    && source.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
-                testObserver.onPolygonDecomposition();
-            }
-        }
-    }
-
     private Shape createShape(CompiledFixtureData fd) {
         switch (fd.shapeType) {
-            case CompiledFixtureData.SHAPE_BOX:
+            case PhysicsDirectGeometryData.SHAPE_BOX:
                 return createBoxShape(fd);
-            case CompiledFixtureData.SHAPE_CIRCLE:
+            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
                 return createCircleShape(fd);
-            case CompiledFixtureData.SHAPE_POLYGON:
+            case PhysicsDirectGeometryData.SHAPE_POLYGON:
                 return createPolygonShape(fd);
             default:
                 throw new IllegalArgumentException(

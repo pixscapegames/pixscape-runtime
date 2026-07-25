@@ -7,15 +7,18 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -100,7 +103,8 @@ public class Box2dSyncSystemSleepTest {
         Body previousBody = harness.nativeBody();
         Assert.assertFalse(previousBody.isAwake());
 
-        harness.shape.radius = 0.75f;
+        harness.shape.directGeometry.radius = 0.75f;
+        harness.publishCache();
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
         harness.world.process();
 
@@ -203,10 +207,22 @@ public class Box2dSyncSystemSleepTest {
             PhysicsShapesComponent shapes =
                     world.getMapper(PhysicsShapesComponent.class).create(entityId);
             shape = new PhysicsShapeData();
+            shape.directGeometry = new PhysicsDirectGeometryData();
             shape.physicsShapeId = 1;
-            shape.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-            shape.radius = 0.5f;
+            shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+            shape.directGeometry.radius = 0.5f;
             shapes.add(shape);
+            publishCache();
+        }
+
+        void publishCache() {
+            PhysicsShapesComponent shapes =
+                    world.getMapper(PhysicsShapesComponent.class).get(entityId);
+            PhysicsService.publishPreparedCandidate(
+                    shapes,
+                    world.getMapper(PhysicsCompiledFixturesComponent.class)
+                            .create(entityId),
+                    PhysicsService.prepareBodyCandidate(shapes.shapes));
         }
 
         Body nativeBody() {

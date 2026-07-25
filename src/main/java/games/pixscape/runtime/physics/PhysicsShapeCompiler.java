@@ -10,22 +10,6 @@ public final class PhysicsShapeCompiler {
 
     private static final CompiledFixtureData[] NO_FIXTURES = new CompiledFixtureData[0];
 
-    public CompiledFixtureData[] compile(PhysicsShapeData source) {
-        if (source == null) {
-            throw new PhysicsShapeCompilationException(
-                    0, -1, PolygonValidationResult.NULL_VERTICES,
-                    "PhysicsShapeData cannot be null.");
-        }
-        try {
-            return compile(ResolvedPhysicsShape.fromDirect(source));
-        } catch (PhysicsShapeCompilationException ex) {
-            throw ex;
-        } catch (IllegalArgumentException ex) {
-            throw new PhysicsShapeCompilationException(
-                    source.physicsShapeId, -1, -1, ex.getMessage());
-        }
-    }
-
     public CompiledFixtureData[] compile(ResolvedPhysicsShape source) {
         validateResolvedSource(source);
         if (!source.enabled) {
@@ -33,11 +17,11 @@ public final class PhysicsShapeCompiler {
         }
 
         switch (source.shapeType) {
-            case PhysicsShapeData.SHAPE_BOX:
+            case PhysicsDirectGeometryData.SHAPE_BOX:
                 return new CompiledFixtureData[]{compileBox(source)};
-            case PhysicsShapeData.SHAPE_CIRCLE:
+            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
                 return new CompiledFixtureData[]{compileCircle(source)};
-            case PhysicsShapeData.SHAPE_POLYGON:
+            case PhysicsDirectGeometryData.SHAPE_POLYGON:
                 return compilePolygon(source);
             default:
                 throw failure(source, -1, -1, "unsupported shapeType " + source.shapeType + ".");
@@ -48,7 +32,7 @@ public final class PhysicsShapeCompiler {
         validatePositiveFinite(source, source.halfWidth, "halfWidth");
         validatePositiveFinite(source, source.halfHeight, "halfHeight");
         CompiledFixtureData compiled = base(source, 0);
-        compiled.shapeType = CompiledFixtureData.SHAPE_BOX;
+        compiled.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
         compiled.halfWidth = source.halfWidth;
         compiled.halfHeight = source.halfHeight;
         validateCompiled(source, compiled);
@@ -58,7 +42,7 @@ public final class PhysicsShapeCompiler {
     private static CompiledFixtureData compileCircle(ResolvedPhysicsShape source) {
         validatePositiveFinite(source, source.radius, "radius");
         CompiledFixtureData compiled = base(source, 0);
-        compiled.shapeType = CompiledFixtureData.SHAPE_CIRCLE;
+        compiled.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
         compiled.radius = source.radius;
         validateCompiled(source, compiled);
         return compiled;
@@ -84,7 +68,7 @@ public final class PhysicsShapeCompiler {
                 throw failure(source, i, -1, "polygon decomposition produced a null part.");
             }
             CompiledFixtureData fixture = base(source, i);
-            fixture.shapeType = CompiledFixtureData.SHAPE_POLYGON;
+            fixture.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
             fixture.polygonVertexCount = part.vertexCount;
             fixture.polygonVertices = copyVertices(part.vertices, part.vertexCount);
             validateCompiled(source, fixture);

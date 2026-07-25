@@ -5,6 +5,7 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -173,7 +174,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
 
     private static CompiledFixtureData circle(float radius, float offsetX) {
         CompiledFixtureData circle = new CompiledFixtureData();
-        circle.shapeType = CompiledFixtureData.SHAPE_CIRCLE;
+        circle.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
         circle.radius = radius;
         circle.offsetX = offsetX;
         return circle;

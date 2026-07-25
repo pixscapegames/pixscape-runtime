@@ -80,9 +80,9 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
 
             // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
-                float rad = t.rotationRad;
-                float cos = MathUtils.cos(rad);
-                float sin = MathUtils.sin(rad);
+                t.refreshCaches();
+                float cos = t.cos;
+                float sin = t.sin;
 
                 b.ux = cos;
                 b.uy = sin;
@@ -95,12 +95,6 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
                 b.hx = 0.5f * d.width * Math.abs(sx);
                 b.hy = 0.5f * d.height * Math.abs(sy);
 
-                t.cos = cos;
-                t.sin = sin;
-                t.absCos = Math.abs(cos);
-                t.absSin = Math.abs(sin);
-                t.invScaleX = (sx != 0f) ? 1f / sx : 0f;
-                t.invScaleY = (sy != 0f) ? 1f / sy : 0f;
             }
 
             // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB

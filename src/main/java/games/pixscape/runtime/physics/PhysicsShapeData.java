@@ -1,27 +1,11 @@
 package games.pixscape.runtime.physics;
 
-import java.util.Arrays;
-
 /**
  * Persistent business source for one logical physics shape.
  */
 public final class PhysicsShapeData {
-    public static final int SHAPE_BOX = 0;
-    public static final int SHAPE_CIRCLE = 1;
-    public static final int SHAPE_POLYGON = 2;
-
     public int physicsShapeId = 0;
-    public int shapeType = SHAPE_BOX;
-
-    public float halfWidth = 0.5f;
-    public float halfHeight = 0.5f;
-    public float radius = 0.5f;
-    public float[] polygonVertices = new float[0];
-    public int polygonVertexCount = 0;
-
-    public float offsetX = 0f;
-    public float offsetY = 0f;
-    public float angleDegrees = 0f;
+    public PhysicsDirectGeometryData directGeometry;
 
     public float density = 1f;
     public float friction = 0.2f;
@@ -37,17 +21,7 @@ public final class PhysicsShapeData {
     public PhysicsShapeData copy() {
         PhysicsShapeData copy = new PhysicsShapeData();
         copy.physicsShapeId = physicsShapeId;
-        copy.shapeType = shapeType;
-        copy.halfWidth = halfWidth;
-        copy.halfHeight = halfHeight;
-        copy.radius = radius;
-        copy.polygonVertices = polygonVertices != null
-                ? Arrays.copyOf(polygonVertices, polygonVertices.length)
-                : new float[0];
-        copy.polygonVertexCount = polygonVertexCount;
-        copy.offsetX = offsetX;
-        copy.offsetY = offsetY;
-        copy.angleDegrees = angleDegrees;
+        copy.directGeometry = directGeometry != null ? directGeometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
         copy.restitution = restitution;
@@ -64,9 +38,12 @@ public final class PhysicsShapeData {
      */
     public void validateStructure() {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
-        validateFinite(offsetX, "offsetX");
-        validateFinite(offsetY, "offsetY");
-        validateFinite(angleDegrees, "angleDegrees");
+        if (directGeometry == null) {
+            throw invalid(
+                    "directGeometry is missing; external/spatial geometry is unavailable "
+                            + "before binding Phase D.");
+        }
+        directGeometry.validate(physicsShapeId);
         validateFinite(density, "density");
         validateFinite(friction, "friction");
         validateFinite(restitution, "restitution");
@@ -79,43 +56,14 @@ public final class PhysicsShapeData {
         if (restitution < 0f) {
             throw invalid("restitution must be non-negative.");
         }
-
-        switch (shapeType) {
-            case SHAPE_BOX:
-                validatePositiveFinite(halfWidth, "halfWidth");
-                validatePositiveFinite(halfHeight, "halfHeight");
-                break;
-            case SHAPE_CIRCLE:
-                validatePositiveFinite(radius, "radius");
-                break;
-            case SHAPE_POLYGON:
-                if (polygonVertices == null) {
-                    throw invalid("polygonVertices cannot be null.");
-                }
-                if (polygonVertexCount < 3) {
-                    throw invalid("polygonVertexCount must be at least 3.");
-                }
-                if (polygonVertexCount > polygonVertices.length / 2) {
-                    throw invalid("polygonVertices is smaller than polygonVertexCount.");
-                }
-                break;
-            default:
-                throw invalid("unsupported shapeType " + shapeType + ".");
-        }
     }
 
     public boolean contentEquals(PhysicsShapeData other) {
         return other != null
                 && physicsShapeId == other.physicsShapeId
-                && shapeType == other.shapeType
-                && Float.compare(halfWidth, other.halfWidth) == 0
-                && Float.compare(halfHeight, other.halfHeight) == 0
-                && Float.compare(radius, other.radius) == 0
-                && Arrays.equals(polygonVertices, other.polygonVertices)
-                && polygonVertexCount == other.polygonVertexCount
-                && Float.compare(offsetX, other.offsetX) == 0
-                && Float.compare(offsetY, other.offsetY) == 0
-                && Float.compare(angleDegrees, other.angleDegrees) == 0
+                && (directGeometry == null
+                ? other.directGeometry == null
+                : directGeometry.contentEquals(other.directGeometry))
                 && Float.compare(density, other.density) == 0
                 && Float.compare(friction, other.friction) == 0
                 && Float.compare(restitution, other.restitution) == 0
@@ -124,13 +72,6 @@ public final class PhysicsShapeData {
                 && maskBits == other.maskBits
                 && groupIndex == other.groupIndex
                 && enabled == other.enabled;
-    }
-
-    private void validatePositiveFinite(float value, String field) {
-        validateFinite(value, field);
-        if (value <= 0f) {
-            throw invalid(field + " must be strictly positive.");
-        }
     }
 
     private void validateFinite(float value, String field) {

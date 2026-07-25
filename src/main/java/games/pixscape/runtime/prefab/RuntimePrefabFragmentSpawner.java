@@ -7,6 +7,7 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -24,12 +25,13 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsWeldJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.io.ByteArrayInputStream;
@@ -40,7 +42,6 @@ public class RuntimePrefabFragmentSpawner {
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
     private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
-    private final PhysicsBodyCompiler physicsBodyCompiler = new PhysicsBodyCompiler();
 
     public RuntimePrefabFragmentSpawner(
             IdentityRegistry identityRegistry, SceneMetaRuntime sceneMeta) {
@@ -85,13 +86,14 @@ public class RuntimePrefabFragmentSpawner {
             SaveFileFormat staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes.toByteArray()),
                     SaveFileFormat.class);
-            prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
+            Array<PreparedPhysicsBodyCandidate> physicsCandidates =
+                    prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
 
             ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
             stagingSerialization.save(preparedBytes, staged);
             byte[] serializedEntities = preparedBytes.toByteArray();
             validatePreparedPayload(serializedEntities);
-            preparedSpawn = new PreparedPrefabSpawn(serializedEntities);
+            preparedSpawn = new PreparedPrefabSpawn(serializedEntities, physicsCandidates);
         } finally {
             stagingWorld.dispose();
         }
@@ -101,7 +103,19 @@ public class RuntimePrefabFragmentSpawner {
                 new ByteArrayInputStream(preparedSpawn.serializedEntities),
                 SaveFileFormat.class);
         for (int i = 0; i < committed.entities.size(); i++) {
-            created.add(committed.entities.get(i));
+            int entityId = committed.entities.get(i);
+            created.add(entityId);
+            PreparedPhysicsBodyCandidate candidate = preparedSpawn.physicsCandidates.get(i);
+            if (candidate != null) {
+                PhysicsShapesComponent shapes =
+                        world.getMapper(PhysicsShapesComponent.class).get(entityId);
+                PhysicsCompiledFixturesComponent compiled =
+                        world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
+                PhysicsService.publishPreparedCandidate(shapes, compiled, candidate);
+            }
+            TransformComponent transform =
+                    world.getMapper(TransformComponent.class).getSafe(entityId, null);
+            if (transform != null) transform.refreshCaches();
         }
 
         markCreatedDirty(world, created);
@@ -131,7 +145,7 @@ public class RuntimePrefabFragmentSpawner {
         }
     }
 
-    private void prepareAndValidateStaged(
+    private Array<PreparedPhysicsBodyCandidate> prepareAndValidateStaged(
             World stagingWorld,
             SaveFileFormat staged,
             float offsetX,
@@ -149,6 +163,8 @@ public class RuntimePrefabFragmentSpawner {
         IntSet stagedEntities = new IntSet(Math.max(1, staged.entities.size()));
         IntSet stableIds = new IntSet(Math.max(1, staged.entities.size()));
         IntSet physicsShapeIds = new IntSet(Math.max(1, staged.entities.size()));
+        Array<PreparedPhysicsBodyCandidate> physicsCandidates =
+                new Array<>(true, staged.entities.size(), PreparedPhysicsBodyCandidate.class);
         for (int i = 0; i < staged.entities.size(); i++) {
             stagedEntities.add(staged.entities.get(i));
         }
@@ -159,6 +175,7 @@ public class RuntimePrefabFragmentSpawner {
             if (transform != null) {
                 transform.x += offsetX;
                 transform.y += offsetY;
+                transform.refreshCaches();
             }
 
             PixscapeIdentityComponent identity = identities.has(entityId)
@@ -186,7 +203,9 @@ public class RuntimePrefabFragmentSpawner {
                                         + shape.physicsShapeId + ".");
                     }
                 }
-                physicsBodyCompiler.compile(shapes);
+                physicsCandidates.add(PhysicsService.prepareBodyCandidate(shapes.shapes));
+            } else {
+                physicsCandidates.add(null);
             }
             if (compiledMapper.has(entityId)) {
                 compiledMapper.remove(entityId);
@@ -198,6 +217,7 @@ public class RuntimePrefabFragmentSpawner {
         }
         new StagedJointValidator(stagingWorld, stagedEntities)
                 .validate(staged.entities);
+        return physicsCandidates;
     }
 
     private static void markCreatedDirty(World world, IntBag created) {
@@ -218,9 +238,13 @@ public class RuntimePrefabFragmentSpawner {
 
     private static final class PreparedPrefabSpawn {
         final byte[] serializedEntities;
+        final Array<PreparedPhysicsBodyCandidate> physicsCandidates;
 
-        PreparedPrefabSpawn(byte[] serializedEntities) {
+        PreparedPrefabSpawn(
+                byte[] serializedEntities,
+                Array<PreparedPhysicsBodyCandidate> physicsCandidates) {
             this.serializedEntities = serializedEntities;
+            this.physicsCandidates = physicsCandidates;
         }
     }
 

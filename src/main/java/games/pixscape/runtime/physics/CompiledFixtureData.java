@@ -6,10 +6,6 @@ import java.util.Arrays;
  * Compiled Box2D-compatible product with no persistent fixture identity.
  */
 public final class CompiledFixtureData {
-    public static final int SHAPE_BOX = PhysicsShapeData.SHAPE_BOX;
-    public static final int SHAPE_CIRCLE = PhysicsShapeData.SHAPE_CIRCLE;
-    public static final int SHAPE_POLYGON = PhysicsShapeData.SHAPE_POLYGON;
-
     public int shapeType;
 
     public float halfWidth;
@@ -77,14 +73,14 @@ public final class CompiledFixtureData {
         }
 
         switch (shapeType) {
-            case SHAPE_BOX:
+            case PhysicsDirectGeometryData.SHAPE_BOX:
                 validatePositiveFinite(halfWidth, "halfWidth");
                 validatePositiveFinite(halfHeight, "halfHeight");
                 break;
-            case SHAPE_CIRCLE:
+            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
                 validatePositiveFinite(radius, "radius");
                 break;
-            case SHAPE_POLYGON:
+            case PhysicsDirectGeometryData.SHAPE_POLYGON:
                 PolygonValidationResult validation =
                         PolygonValidator.validate(polygonVertices, polygonVertexCount);
                 if (!validation.isValid()) {

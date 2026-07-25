@@ -1,7 +1,5 @@
 package games.pixscape.runtime.physics;
 
-import java.util.Arrays;
-
 /**
  * Transient, fully resolved input to {@link PhysicsShapeCompiler}.
  */
@@ -35,21 +33,24 @@ public final class ResolvedPhysicsShape {
         if (source == null) {
             throw new IllegalArgumentException("PhysicsShapeData cannot be null.");
         }
-        source.validateStructure();
+        PhysicsDirectGeometryData geometry = source.directGeometry;
+        if (geometry == null) {
+            throw new IllegalArgumentException(
+                    "PhysicsShapeData " + source.physicsShapeId + " has no directGeometry.");
+        }
 
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
-        resolved.shapeType = source.shapeType;
-        resolved.halfWidth = source.halfWidth;
-        resolved.halfHeight = source.halfHeight;
-        resolved.radius = source.radius;
-        resolved.polygonVertices = source.polygonVertices != null
-                ? Arrays.copyOf(source.polygonVertices, source.polygonVertices.length)
-                : new float[0];
-        resolved.polygonVertexCount = source.polygonVertexCount;
-        resolved.offsetX = source.offsetX;
-        resolved.offsetY = source.offsetY;
-        resolved.angleDegrees = source.angleDegrees;
+        PhysicsDirectGeometryData detached = geometry.copy();
+        resolved.shapeType = detached.shapeType;
+        resolved.halfWidth = detached.halfWidth;
+        resolved.halfHeight = detached.halfHeight;
+        resolved.radius = detached.radius;
+        resolved.polygonVertices = detached.polygonVertices;
+        resolved.polygonVertexCount = detached.polygonVertexCount;
+        resolved.offsetX = detached.offsetX;
+        resolved.offsetY = detached.offsetY;
+        resolved.angleDegrees = detached.angleDegrees;
         resolved.density = source.density;
         resolved.friction = source.friction;
         resolved.restitution = source.restitution;
@@ -69,9 +70,7 @@ public final class ResolvedPhysicsShape {
         copy.halfWidth = halfWidth;
         copy.halfHeight = halfHeight;
         copy.radius = radius;
-        copy.polygonVertices = polygonVertices != null
-                ? Arrays.copyOf(polygonVertices, polygonVertices.length)
-                : new float[0];
+        copy.polygonVertices = copyVertices(polygonVertices);
         copy.polygonVertexCount = polygonVertexCount;
         copy.offsetX = offsetX;
         copy.offsetY = offsetY;
@@ -85,6 +84,13 @@ public final class ResolvedPhysicsShape {
         copy.groupIndex = groupIndex;
         copy.enabled = enabled;
         copy.diagnosticSource = diagnosticSource;
+        return copy;
+    }
+
+    private static float[] copyVertices(float[] source) {
+        if (source == null) return new float[0];
+        float[] copy = new float[source.length];
+        System.arraycopy(source, 0, copy, 0, source.length);
         return copy;
     }
 }

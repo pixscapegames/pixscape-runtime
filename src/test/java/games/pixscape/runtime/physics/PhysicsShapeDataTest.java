@@ -8,11 +8,11 @@ public class PhysicsShapeDataTest {
     @Test
     public void defaultsMatchCurrentFixtureDefaults() {
         PhysicsShapeData shape = new PhysicsShapeData();
-
-        Assert.assertEquals(PhysicsShapeData.SHAPE_BOX, shape.shapeType);
-        Assert.assertEquals(0.5f, shape.halfWidth, 0f);
-        Assert.assertEquals(0.5f, shape.halfHeight, 0f);
-        Assert.assertEquals(0.5f, shape.radius, 0f);
+        shape.directGeometry = new PhysicsDirectGeometryData();
+        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_BOX, shape.directGeometry.shapeType);
+        Assert.assertEquals(0.5f, shape.directGeometry.halfWidth, 0f);
+        Assert.assertEquals(0.5f, shape.directGeometry.halfHeight, 0f);
+        Assert.assertEquals(0.5f, shape.directGeometry.radius, 0f);
         Assert.assertEquals(1f, shape.density, 0f);
         Assert.assertEquals(0.2f, shape.friction, 0f);
         Assert.assertEquals(0f, shape.restitution, 0f);
@@ -29,10 +29,10 @@ public class PhysicsShapeDataTest {
         PhysicsShapeData copy = source.copy();
 
         Assert.assertTrue(source.contentEquals(copy));
-        copy.polygonVertices[0] = 99f;
+        copy.directGeometry.polygonVertices[0] = 99f;
         copy.density = 4f;
 
-        Assert.assertEquals(0f, source.polygonVertices[0], 0f);
+        Assert.assertEquals(0f, source.directGeometry.polygonVertices[0], 0f);
         Assert.assertEquals(1f, source.density, 0f);
         Assert.assertFalse(source.contentEquals(copy));
     }
@@ -40,25 +40,27 @@ public class PhysicsShapeDataTest {
     @Test
     public void structureValidationRejectsInvalidIdentityAndUnionLayout() {
         PhysicsShapeData shape = new PhysicsShapeData();
+        shape.directGeometry = new PhysicsDirectGeometryData();
         expectInvalid(shape, "physicsShapeId");
 
         shape.physicsShapeId = 1;
-        shape.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        shape.polygonVertexCount = 3;
-        shape.polygonVertices = new float[]{0f, 0f};
+        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        shape.directGeometry.polygonVertexCount = 3;
+        shape.directGeometry.polygonVertices = new float[]{0f, 0f};
         expectInvalid(shape, "smaller");
     }
 
     @Test
     public void sourceAndCompiledDataRoundTripThroughLibgdxJson() {
         PhysicsShapeData source = polygon();
-        source.offsetX = 3f;
+        source.directGeometry.offsetX = 3f;
         source.sensor = true;
         Json json = new Json();
 
         PhysicsShapeData restoredSource = json.fromJson(
                 PhysicsShapeData.class, json.toJson(source));
-        CompiledFixtureData compiled = new PhysicsShapeCompiler().compile(source)[0];
+        CompiledFixtureData compiled = new PhysicsShapeCompiler().compile(
+                new PhysicsShapeResolver().resolve(source))[0];
         CompiledFixtureData restoredCompiled = json.fromJson(
                 CompiledFixtureData.class, json.toJson(compiled));
 
@@ -71,10 +73,11 @@ public class PhysicsShapeDataTest {
 
     private static PhysicsShapeData polygon() {
         PhysicsShapeData shape = new PhysicsShapeData();
+        shape.directGeometry = new PhysicsDirectGeometryData();
         shape.physicsShapeId = 9;
-        shape.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        shape.polygonVertexCount = 4;
-        shape.polygonVertices = new float[]{0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f};
+        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        shape.directGeometry.polygonVertexCount = 4;
+        shape.directGeometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f};
         return shape;
     }
 

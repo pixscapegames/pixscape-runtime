@@ -8,10 +8,10 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
  * Passive, disposable live-world cache compiled from {@link PhysicsShapesComponent}.
  */
 public final class PhysicsCompiledFixturesComponent extends PooledComponent {
-    public transient Array<CompiledFixtureData> fixtures =
+    public Array<CompiledFixtureData> fixtures =
             new Array<>(true, 4, CompiledFixtureData.class);
-    public transient int generation;
-    public transient boolean valid;
+    public int generation;
+    public boolean valid;
 
     @Override
     protected void reset() {

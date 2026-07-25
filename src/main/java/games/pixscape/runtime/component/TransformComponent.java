@@ -1,6 +1,7 @@
 package games.pixscape.runtime.component;
 
 import com.artemis.PooledComponent;
+import com.badlogic.gdx.math.MathUtils;
 
 public final class TransformComponent extends PooledComponent {
 
@@ -14,9 +15,18 @@ public final class TransformComponent extends PooledComponent {
     public float scaleX = 1f, scaleY = 1f;
 
     // --- Derived caches (updated in Helper.refreshCaches) ---
-    public float cos = 1f, sin = 0f;        // cos/sin(rotation)
-    public float absCos = 1f, absSin = 0f;  // for fast AABB envelope
-    public float invScaleX = 1f, invScaleY = 1f;
+    public transient float cos = 1f, sin = 0f;        // cos/sin(rotation)
+    public transient float absCos = 1f, absSin = 0f;  // for fast AABB envelope
+    public transient float invScaleX = 1f, invScaleY = 1f;
+
+    public void refreshCaches() {
+        cos = MathUtils.cos(rotationRad);
+        sin = MathUtils.sin(rotationRad);
+        absCos = Math.abs(cos);
+        absSin = Math.abs(sin);
+        invScaleX = scaleX != 0f ? 1f / scaleX : 0f;
+        invScaleY = scaleY != 0f ? 1f / scaleY : 0f;
+    }
 
     public static void translate(TransformComponent t, float dx, float dy) {
         t.x += dx;

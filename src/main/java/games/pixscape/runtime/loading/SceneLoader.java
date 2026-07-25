@@ -68,7 +68,11 @@ public final class SceneLoader {
 
         } catch (Exception e) {
             clearWorldContent(world);
-            throw new RuntimeException("Error while loading scene: " + inFile.path(), e);
+            String detail = e.getMessage();
+            throw new RuntimeException(
+                    "Error while loading scene: " + inFile.path()
+                            + (detail != null && !detail.isEmpty() ? ": " + detail : ""),
+                    e);
         }
     }
 
@@ -113,6 +117,7 @@ public final class SceneLoader {
         }
 
         ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
+        ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
         ComponentMapper<PhysicsShapesComponent> physicsShapes = world.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<SpatialBlocksComponent> spatialBlocks = world.getMapper(SpatialBlocksComponent.class);
         IntSet stableIds = new IntSet();
@@ -121,6 +126,8 @@ public final class SceneLoader {
         int[] data = format.entities.getData();
         for (int i = 0; i < format.entities.size(); i++) {
             int entityId = data[i];
+            TransformComponent transform = transforms.getSafe(entityId, null);
+            if (transform != null) transform.refreshCaches();
             PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
             if (identity != null) {
                 if (identity.stableId <= 0) {
@@ -142,6 +149,13 @@ public final class SceneLoader {
                         throw new IllegalArgumentException("Scene '" + sceneFile.path()
                                 + "' contains a null PhysicsShapeData on entity " + entityId + ".");
                     }
+                    if (shape.directGeometry == null) {
+                        throw new IllegalArgumentException(
+                                "Scene '" + sceneFile.path() + "', entityId " + entityId
+                                        + ", physicsShapeId " + shape.physicsShapeId
+                                        + ": directGeometry is missing; clean break Physics Model.");
+                    }
+                    shape.validateStructure();
                     physicsIds.add(shape.physicsShapeId);
                 }
             }

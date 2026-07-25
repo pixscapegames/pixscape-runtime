@@ -17,6 +17,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -226,15 +227,15 @@ public class RuntimePrefabFragmentSpawnTest {
 
         PhysicsShapeData invalid = world.getMapper(PhysicsShapesComponent.class)
                 .get(fixture.sourceBodyAId).shapes.first();
-        invalid.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        invalid.polygonVertices = new float[]{0f, 0f, 1f, 0f};
-        invalid.polygonVertexCount = 2;
+        invalid.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        invalid.directGeometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        invalid.directGeometry.polygonVertexCount = 2;
 
         try {
             spawner.spawn(world, fixture.fragment, 0f, 0f);
             Assert.fail("Invalid staged physics must reject the prefab before commit.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("physicsShapeId"));
+            Assert.assertTrue(expected.getMessage().contains("PhysicsShapeData"));
         }
 
         Assert.assertEquals(activeBefore, activeEntityCount(world));
@@ -391,6 +392,7 @@ public class RuntimePrefabFragmentSpawnTest {
         PhysicsShapesComponent shapesA =
                 sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyA);
         PhysicsShapeData shapeA = new PhysicsShapeData();
+        shapeA.directGeometry = new PhysicsDirectGeometryData();
         shapeA.physicsShapeId = 10;
         shapesA.add(shapeA);
 
@@ -405,6 +407,7 @@ public class RuntimePrefabFragmentSpawnTest {
         PhysicsShapesComponent shapesB =
                 sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyB);
         PhysicsShapeData shapeB = new PhysicsShapeData();
+        shapeB.directGeometry = new PhysicsDirectGeometryData();
         shapeB.physicsShapeId = 11;
         shapesB.add(shapeB);
 

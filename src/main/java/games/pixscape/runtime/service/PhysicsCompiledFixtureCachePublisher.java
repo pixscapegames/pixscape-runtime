@@ -3,7 +3,6 @@ package games.pixscape.runtime.service;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 
 /**
  * Publishes already prepared physics-domain results into the passive ECS cache.
@@ -11,11 +10,12 @@ import games.pixscape.runtime.physics.PreparedCompiledFixtures;
 public final class PhysicsCompiledFixtureCachePublisher {
     public int publish(
             PhysicsCompiledFixturesComponent target,
-            PreparedCompiledFixtures prepared) {
-        if (target == null || prepared == null) {
-            throw new IllegalArgumentException("Compiled cache target and prepared result are required.");
+            Array<CompiledFixtureData> fixtures) {
+        if (target == null || fixtures == null) {
+            throw new IllegalArgumentException(
+                    "Compiled cache target and transferred fixtures are required.");
         }
-        target.fixtures = prepared.fixtures();
+        target.fixtures = fixtures;
         target.generation++;
         target.valid = true;
         return target.generation;

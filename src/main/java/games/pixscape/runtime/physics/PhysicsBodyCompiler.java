@@ -2,7 +2,6 @@ package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 
 /**
  * Atomically compiles every enabled logical shape of one body.
@@ -21,16 +20,16 @@ public final class PhysicsBodyCompiler {
         this.shapeCompiler = shapeCompiler;
     }
 
-    public Array<CompiledFixtureData> compile(PhysicsShapesComponent sources) {
-        if (sources == null || sources.shapes == null) {
-            throw new IllegalArgumentException("PhysicsShapesComponent cannot be null.");
+    public PreparedCompiledFixtures compile(Array<ResolvedPhysicsShape> sources) {
+        if (sources == null) {
+            throw new IllegalArgumentException("Resolved physics shapes cannot be null.");
         }
 
         Array<CompiledFixtureData> candidate =
-                new Array<>(true, Math.max(1, sources.shapes.size), CompiledFixtureData.class);
-        IntSet seen = new IntSet(Math.max(1, sources.shapes.size));
-        for (int sourceIndex = 0; sourceIndex < sources.shapes.size; sourceIndex++) {
-            PhysicsShapeData source = sources.shapes.get(sourceIndex);
+                new Array<>(true, Math.max(1, sources.size), CompiledFixtureData.class);
+        IntSet seen = new IntSet(Math.max(1, sources.size));
+        for (int sourceIndex = 0; sourceIndex < sources.size; sourceIndex++) {
+            ResolvedPhysicsShape source = sources.get(sourceIndex);
             if (source == null) {
                 throw new PhysicsShapeCompilationException(
                         0, -1, -1, "Body source at index " + sourceIndex + " is null.");
@@ -53,32 +52,16 @@ public final class PhysicsBodyCompiler {
                 candidate.add(fixture);
             }
         }
-        return candidate;
-    }
-
-    /**
-     * Compiles, validates and deep-copies a complete cache candidate before ECS publication.
-     */
-    public PreparedCompiledFixtures compilePrepared(PhysicsShapesComponent sources) {
-        return prepare(compile(sources));
-    }
-
-    /**
-     * Validates and deep-copies fixtures supplied by another physics-domain workflow.
-     */
-    public PreparedCompiledFixtures prepare(Array<CompiledFixtureData> candidate) {
         Array<CompiledFixtureData> prepared =
-                new Array<>(true, candidate != null ? candidate.size : 0, CompiledFixtureData.class);
-        if (candidate != null) {
-            for (int i = 0; i < candidate.size; i++) {
-                CompiledFixtureData fixture = candidate.get(i);
-                if (fixture == null) {
-                    throw new IllegalArgumentException(
-                            "Compiled fixture candidate contains a null entry at index " + i + ".");
-                }
-                fixture.validate();
-                prepared.add(fixture.copy());
+                new Array<>(true, candidate.size, CompiledFixtureData.class);
+        for (int i = 0; i < candidate.size; i++) {
+            CompiledFixtureData fixture = candidate.get(i);
+            if (fixture == null) {
+                throw new IllegalArgumentException(
+                        "Compiled fixture candidate contains a null entry at index " + i + ".");
             }
+            fixture.validate();
+            prepared.add(fixture.copy());
         }
         return new PreparedCompiledFixtures(prepared);
     }
