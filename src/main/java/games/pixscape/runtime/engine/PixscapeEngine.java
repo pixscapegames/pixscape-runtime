@@ -178,6 +178,10 @@ public final class PixscapeEngine {
 
     /**
      * Loads a scene and rebuilds world state for that scene.
+     *
+     * <p>If scene replacement fails after rebuilding begins, the engine discards
+     * the candidate scene and remains project-loaded with no active scene. The
+     * previous scene is not restored; callers may invoke {@code loadScene} again.</p>
      */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
@@ -187,16 +191,20 @@ public final class PixscapeEngine {
         if (meta == null)
             throw new IllegalArgumentException("Unknown scene: " + resolved);
 
-        FileHandle sceneFile = runtimeProjectDir
-                .child(cfg.scenesDir)
-                .child(RuntimeFs.withExt(RuntimeConfig.sceneDirName(meta), RuntimeFs.EXT_JSON));
-
         sceneLoaded = false;
-        rebuildWorld(cfg, runtimeProjectDir, meta);
-        loadSceneInternal(resolved);
-        activeSceneMeta = meta;
-        sceneLoaded = true;
-        return this;
+        activeSceneMeta = null;
+
+        try {
+            rebuildWorld(cfg, runtimeProjectDir, meta);
+            loadSceneInternal(resolved);
+
+            activeSceneMeta = meta;
+            sceneLoaded = true;
+            return this;
+        } catch (RuntimeException failure) {
+            discardFailedSceneLoad();
+            throw failure;
+        }
     }
 
     /**
@@ -611,6 +619,45 @@ public final class PixscapeEngine {
         defaultShaderName = null;
         identityRegistry.bind(null, null);
         tagRegistry.bind(null);
+    }
+
+    private void discardFailedSceneLoad() {
+        sceneLoaded = false;
+        activeSceneMeta = null;
+
+        if (box2dSyncSystem != null) {
+            box2dSyncSystem.setStepEnabled(false);
+            box2dSyncSystem.setEnabled(false);
+            box2dSyncSystem.setBox2d(null);
+        }
+        box2dSyncSystem = null;
+
+        if (world != null) {
+            world.dispose();
+            world = null;
+        }
+
+        if (box2dWorldService != null) {
+            box2dWorldService.dispose();
+            box2dWorldService = null;
+        }
+
+        identityRegistry.bind(null, null);
+        tagRegistry.bind(null);
+
+        if (layerState != null) {
+            layerState.clear();
+            layerState.physicsParallaxX = Float.NaN;
+            layerState.physicsParallaxY = Float.NaN;
+        }
+
+        dynamicEntityState = new DynamicEntityRenderState();
+        drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
+
+        applyAmbientFromMeta(null);
     }
 
     /**
