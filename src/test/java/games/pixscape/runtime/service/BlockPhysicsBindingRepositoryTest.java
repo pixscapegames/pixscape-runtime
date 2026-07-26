@@ -319,6 +319,171 @@ public class BlockPhysicsBindingRepositoryTest {
     }
 
     @Test
+    public void linkedShapeWithoutBindingsComponentIsRejectedGlobally() {
+        try (Harness harness = new Harness()) {
+            int entity = harness.world.create();
+            harness.identityRegistry.setIdentity(entity, 57, "orphan-owner");
+            addBlocks(harness, entity, 1);
+            PhysicsShapesComponent shapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(entity);
+            shapes.shapes.add(linkedShape(207));
+
+            IllegalStateException error =
+                    expectInvalid(harness, "linked shape has no binding");
+
+            Assert.assertTrue(error.getMessage().contains(
+                    "ownerEntityId=" + entity));
+            Assert.assertTrue(error.getMessage().contains(
+                    "physicsShapeId=207"));
+            Assert.assertFalse(harness.world
+                    .getMapper(BlockPhysicsBindingsComponent.class).has(entity));
+        }
+    }
+
+    @Test
+    public void linkedShapeOnNonSpatialEntityIsRejectedGlobally() {
+        try (Harness harness = new Harness()) {
+            int entity = harness.world.create();
+            PhysicsShapesComponent shapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(entity);
+            shapes.shapes.add(linkedShape(208));
+
+            IllegalStateException error =
+                    expectInvalid(harness, "linked shape has no binding");
+
+            Assert.assertTrue(error.getMessage().contains(
+                    "ownerEntityId=" + entity));
+            Assert.assertTrue(error.getMessage().contains(
+                    "physicsShapeId=208"));
+            Assert.assertFalse(harness.world
+                    .getMapper(PixscapeIdentityComponent.class).has(entity));
+            Assert.assertFalse(harness.world
+                    .getMapper(SpatialBlocksComponent.class).has(entity));
+        }
+    }
+
+    @Test
+    public void directOnlyNonSpatialEntityIsAcceptedWithoutMutation() {
+        try (Harness harness = new Harness()) {
+            int entity = harness.world.create();
+            PhysicsShapesComponent shapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(entity);
+            PhysicsShapeData first = directShape(209);
+            PhysicsShapeData second = directShape(210);
+            shapes.shapes.add(first);
+            shapes.shapes.add(second);
+            harness.activate();
+            int initialEntityCount = entityCount(harness.world);
+
+            harness.repository.rebuild();
+
+            assertEmptyQueries(harness.repository, 58);
+            Assert.assertEquals(initialEntityCount, entityCount(harness.world));
+            Assert.assertSame(first, shapes.shapes.get(0));
+            Assert.assertSame(second, shapes.shapes.get(1));
+            Assert.assertEquals(2, shapes.shapes.size);
+            Assert.assertFalse(harness.world
+                    .getMapper(BlockPhysicsBindingsComponent.class).has(entity));
+            Assert.assertFalse(harness.world
+                    .getMapper(SpatialBlocksComponent.class).has(entity));
+        }
+    }
+
+    @Test
+    public void linkedShapeCarriedByForeignEntityIsRejectedGlobally() {
+        try (Harness harness = new Harness()) {
+            Owner owner = validOwner(harness, 59, 1, 211);
+            int foreignEntity = harness.world.create();
+            PhysicsShapesComponent foreignShapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(foreignEntity);
+            foreignShapes.shapes.add(linkedShape(211));
+
+            IllegalStateException error =
+                    expectInvalid(harness, "carried by another entity");
+
+            Assert.assertTrue(error.getMessage().contains(
+                    "ownerEntityId=" + foreignEntity));
+            Assert.assertTrue(error.getMessage().contains(
+                    "physicsShapeId=211"));
+            Assert.assertTrue(error.getMessage().contains(
+                    "expected ownerEntityId=" + owner.entityId));
+        }
+    }
+
+    @Test
+    public void failedGlobalLinkedShapePassPreservesPreviousIndexesAndHasNoSideEffects() {
+        try (Harness harness = new Harness()) {
+            Owner owner = validOwner(harness, 60, 1, 212);
+            int orphanEntity = harness.world.create();
+            PhysicsShapesComponent orphanShapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(orphanEntity);
+            PhysicsShapeData orphan = directShape(213);
+            orphanShapes.shapes.add(orphan);
+            harness.activate();
+            harness.repository.rebuild();
+
+            int initialEntityCount = entityCount(harness.world);
+            int initialNextEntityId = harness.sceneMeta.nextEntityStableId;
+            int initialNextBlockId = owner.blocks.nextSpatialBlockId;
+            orphan.directGeometry = null;
+
+            IllegalStateException error = Assert.assertThrows(
+                    IllegalStateException.class, harness.repository::rebuild);
+
+            Assert.assertTrue(error.getMessage().contains(
+                    "linked shape has no binding"));
+            Assert.assertTrue(harness.repository.hasBinding(60, 1));
+            Assert.assertEquals(212,
+                    harness.repository.findByBlock(60, 1).physicsShapeId);
+            Assert.assertEquals(owner.entityId,
+                    harness.repository.findOwnerEntityByPhysicsShapeId(212));
+            Assert.assertEquals(initialEntityCount, entityCount(harness.world));
+            Assert.assertEquals(initialNextEntityId,
+                    harness.sceneMeta.nextEntityStableId);
+            Assert.assertEquals(initialNextBlockId,
+                    owner.blocks.nextSpatialBlockId);
+            Assert.assertEquals(0, harness.probe.processCalls);
+            Assert.assertFalse(harness.dirty.isDirty(
+                    owner.entityId, DirtyBits.EVERYTHING));
+            Assert.assertFalse(harness.dirty.isDirty(
+                    orphanEntity, DirtyBits.EVERYTHING));
+            Assert.assertSame(orphan, orphanShapes.shapes.first());
+            Assert.assertNull(orphan.directGeometry);
+            Assert.assertFalse(harness.world
+                    .getMapper(PhysicsBodyComponent.class).has(owner.entityId));
+            Assert.assertFalse(harness.world
+                    .getMapper(PhysicsBodyComponent.class).has(orphanEntity));
+            Assert.assertFalse(harness.world
+                    .getMapper(PhysicsCompiledFixturesComponent.class)
+                    .has(owner.entityId));
+            Assert.assertFalse(harness.world
+                    .getMapper(PhysicsCompiledFixturesComponent.class)
+                    .has(orphanEntity));
+        }
+    }
+
+    @Test
+    public void disabledLinkedShapeWithoutBindingIsRejectedGlobally() {
+        try (Harness harness = new Harness()) {
+            int entity = harness.world.create();
+            PhysicsShapesComponent shapes = harness.world
+                    .getMapper(PhysicsShapesComponent.class).create(entity);
+            PhysicsShapeData shape = linkedShape(214);
+            shape.enabled = false;
+            shapes.shapes.add(shape);
+
+            IllegalStateException error =
+                    expectInvalid(harness, "linked shape has no binding");
+
+            Assert.assertTrue(error.getMessage().contains(
+                    "ownerEntityId=" + entity));
+            Assert.assertTrue(error.getMessage().contains(
+                    "physicsShapeId=214"));
+            Assert.assertTrue(error.getMessage().contains("enabled=false"));
+        }
+    }
+
+    @Test
     public void nullInvalidAndDuplicatePhysicsShapeIdentitiesAreRejected() {
         try (Harness harness = new Harness()) {
             Owner owner = validOwner(harness, 61, 1, 101);

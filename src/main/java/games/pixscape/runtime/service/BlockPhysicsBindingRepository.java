@@ -67,6 +67,8 @@ public final class BlockPhysicsBindingRepository {
                     entityIds[i], candidate, mBindings, mIdentity, mBlocks, mShapes);
         }
 
+        validateAllLinkedShapes(candidate, mIdentity, mShapes);
+
         indexes = candidate;
     }
 
@@ -235,6 +237,62 @@ public final class BlockPhysicsBindingRepository {
 
         candidate.bindingByOwnerAndBlock.put(ownerStableId, ownerBindingIndex);
         candidate.blockByOwnerAndId.put(ownerStableId, ownerBlocks);
+    }
+
+    private void validateAllLinkedShapes(
+            IndexState candidate,
+            ComponentMapper<PixscapeIdentityComponent> mIdentity,
+            ComponentMapper<PhysicsShapesComponent> mShapes) {
+        EntitySubscription subscription = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsShapesComponent.class));
+        IntBag entities = subscription.getEntities();
+        int[] entityIds = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            int entityId = entityIds[i];
+            PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+            int ownerStableId = identity != null ? identity.stableId : -1;
+            PhysicsShapesComponent shapes = mShapes.get(entityId);
+            if (shapes.shapes == null) {
+                throw invalid(entityId, ownerStableId, -1, -1,
+                        "physics shapes collection is null");
+            }
+            for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
+                PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
+                if (shape == null) {
+                    throw invalid(entityId, ownerStableId, -1, -1,
+                            "linked shape entry is null");
+                }
+                if (shape.directGeometry != null) {
+                    continue;
+                }
+
+                int physicsShapeId = shape.physicsShapeId;
+                if (physicsShapeId <= 0) {
+                    throw invalid(entityId, ownerStableId, -1, physicsShapeId,
+                            "linked shape physicsShapeId must be positive");
+                }
+
+                BlockPhysicsBindingData binding =
+                        candidate.bindingByPhysicsShapeId.get(physicsShapeId);
+                Integer expectedOwnerEntityId =
+                        candidate.ownerEntityByPhysicsShapeId.get(physicsShapeId);
+                if (binding == null || expectedOwnerEntityId == null) {
+                    throw invalid(entityId, ownerStableId, -1, physicsShapeId,
+                            "linked shape has no binding; expected ownerEntityId is absent"
+                                    + "; enabled=" + shape.enabled);
+                }
+                if (expectedOwnerEntityId != entityId) {
+                    throw invalid(entityId, ownerStableId, binding.spatialBlockId,
+                            physicsShapeId,
+                            "linked shape is carried by another entity; expected ownerEntityId="
+                                    + expectedOwnerEntityId);
+                }
+                if (!shape.enabled) {
+                    throw invalid(entityId, ownerStableId, binding.spatialBlockId,
+                            physicsShapeId, "linked shape is disabled");
+                }
+            }
+        }
     }
 
     private IntMap<SpatialBlockData> validateAndCopyBlocks(
