@@ -4,7 +4,6 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;

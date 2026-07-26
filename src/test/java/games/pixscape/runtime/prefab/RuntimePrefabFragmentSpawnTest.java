@@ -70,14 +70,15 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
-    public void saveFileFormatWithoutSchemaMarkerIsRejected() {
+    public void inMemorySchemaVersionZeroIsRejectedWithoutPublishingEntities() {
         World world = runtimeWorld();
-        SaveFileFormat fragment = new SaveFileFormat();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.schemaVersion = 0;
         try {
             new RuntimePrefabFragmentSpawner(
                     new IdentityRegistry(), sceneMeta())
                     .spawn(world, fragment, 0f, 0f);
-            Assert.fail("Fragment schema marker must be required.");
+            Assert.fail("Fragment schema version must be rejected.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains(
                     "schemaVersion"));

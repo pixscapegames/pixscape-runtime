@@ -2,7 +2,6 @@ package games.pixscape.runtime.engine;
 
 import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
@@ -19,6 +18,7 @@ import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
@@ -202,10 +202,8 @@ public final class PixscapeEngine {
     /**
      * Spawns an in-memory prefab fragment into the currently loaded scene.
      *
-     * <p>The fragment is deserialized into the active Artemis world. All spawned
-     * transforms are offset by {@code offsetX}/{@code offsetY}, spawned identities
-     * receive fresh stable IDs, and asset references are resolved against the
-     * currently loaded runtime atlases.</p>
+     * <p>The fragment is staged and validated before its prepared entities are
+     * published into the active Artemis world.</p>
      *
      * @param fragment prefab fragment to instantiate
      * @param offsetX  world-space X offset applied to spawned transforms
@@ -213,7 +211,8 @@ public final class PixscapeEngine {
      * @return result containing all created entity IDs
      * @throws IllegalStateException if no world is initialized
      */
-    public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
+    public SpawnResult spawnPrefabFragment(
+            RuntimePrefabFragment fragment, float offsetX, float offsetY) {
         if (world == null || !sceneLoaded) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }

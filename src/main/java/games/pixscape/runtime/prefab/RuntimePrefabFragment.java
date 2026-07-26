@@ -17,13 +17,13 @@ public final class RuntimePrefabFragment extends SaveFileFormat {
         super(entities);
     }
 
-    public static void requireCurrentSchema(SaveFileFormat fragment) {
-        if (!(fragment instanceof RuntimePrefabFragment)) {
+    public static void requireCurrentSchema(RuntimePrefabFragment fragment) {
+        if (fragment == null) {
             throw new IllegalArgumentException(
                     "Runtime prefab fragment requires schemaVersion "
                             + CURRENT_SCHEMA_VERSION + ".");
         }
-        validateSchemaVersion(((RuntimePrefabFragment) fragment).schemaVersion);
+        validateSchemaVersion(fragment.schemaVersion);
     }
 
     public static void requireCurrentSchema(JsonValue root) {

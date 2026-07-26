@@ -4,7 +4,6 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.io.JsonArtemisSerializer;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
@@ -54,12 +53,9 @@ public class RuntimePrefabFragmentSpawner {
         this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(sceneMeta);
     }
 
-    public SpawnResult spawn(World world, SaveFileFormat fragment, float offsetX, float offsetY) {
+    public SpawnResult spawn(World world, RuntimePrefabFragment fragment, float offsetX, float offsetY) {
         if (world == null) {
             throw new IllegalArgumentException("world must not be null");
-        }
-        if (fragment == null) {
-            throw new IllegalArgumentException("fragment must not be null");
         }
         RuntimePrefabFragment.requireCurrentSchema(fragment);
 
@@ -108,7 +104,7 @@ public class RuntimePrefabFragmentSpawner {
             WorldSerializationManager stagingSerialization =
                     stagingWorld.getSystem(WorldSerializationManager.class);
             stagingSerialization.setSerializer(new JsonArtemisSerializer(stagingWorld));
-            SaveFileFormat staged = stagingSerialization.load(
+            RuntimePrefabFragment staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes),
                     RuntimePrefabFragment.class);
             return prepareStaged(
@@ -128,7 +124,7 @@ public class RuntimePrefabFragmentSpawner {
                     new JsonArtemisSerializer(stagingWorld);
             stagingWorld.getSystem(WorldSerializationManager.class)
                     .setSerializer(serializer);
-            SaveFileFormat staged = serializer.load(
+            RuntimePrefabFragment staged = serializer.load(
                     fragmentRoot, RuntimePrefabFragment.class);
             return prepareStaged(
                     stagingWorld,
@@ -144,7 +140,7 @@ public class RuntimePrefabFragmentSpawner {
     private PreparedPrefabSpawn prepareStaged(
             World stagingWorld,
             WorldSerializationManager stagingSerialization,
-            SaveFileFormat staged,
+            RuntimePrefabFragment staged,
             float offsetX,
             float offsetY) {
         Array<PreparedPhysicsBodyCandidate> physicsCandidates =
@@ -162,7 +158,7 @@ public class RuntimePrefabFragmentSpawner {
             WorldSerializationManager targetSerialization,
             PreparedPrefabSpawn preparedSpawn) {
         IntBag created = new IntBag();
-        SaveFileFormat committed = targetSerialization.load(
+        RuntimePrefabFragment committed = targetSerialization.load(
                 new ByteArrayInputStream(preparedSpawn.serializedEntities),
                 RuntimePrefabFragment.class);
         for (int i = 0; i < committed.entities.size(); i++) {
@@ -216,7 +212,7 @@ public class RuntimePrefabFragmentSpawner {
 
     private Array<PreparedPhysicsBodyCandidate> prepareAndValidateStaged(
             World stagingWorld,
-            SaveFileFormat staged,
+            RuntimePrefabFragment staged,
             float offsetX,
             float offsetY) {
         ComponentMapper<TransformComponent> transforms =

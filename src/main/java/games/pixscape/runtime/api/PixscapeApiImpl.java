@@ -1,7 +1,6 @@
 package games.pixscape.runtime.api;
 
 import com.artemis.*;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
@@ -16,6 +15,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -2818,7 +2818,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public SpawnResult spawnFragment(SaveFileFormat fragment, float x, float y) {
+        public SpawnResult spawnFragment(RuntimePrefabFragment fragment, float x, float y) {
             return engine.spawnPrefabFragment(fragment, x, y);
         }
 
