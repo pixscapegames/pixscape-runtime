@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
@@ -16,6 +17,8 @@ import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -44,30 +47,35 @@ public final class SceneLoader {
                                            FileHandle inFile,
                                            boolean clearContentFirst,
                                            SceneMetaRuntime sceneMeta) {
-
-        WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
-        if (wsm.getSerializer() == null || !(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
-            wsm.setSerializer(new JsonArtemisSerializer(world));
-        }
-
         if (!inFile.exists()) {
             throw new RuntimeException("Scene file not found: " + inFile.path());
         }
 
         String serialized = inFile.readString("UTF-8");
-        rejectObsoletePhysicsModel(serialized, inFile);
+        SceneMetaRuntime.validateSceneSchemaVersion(
+                sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
+                sceneMeta != null ? sceneMeta.name : inFile.path());
+        validateSerializedScene(serialized, sceneMeta, inFile);
 
         if (clearContentFirst) {
             clearWorldContent(world);
         }
 
+        WorldSerializationManager wsm =
+                world.getSystem(WorldSerializationManager.class);
+        if (wsm.getSerializer() == null
+                || !(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
+            wsm.setSerializer(new JsonArtemisSerializer(world));
+        }
+
         try (InputStream in = new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
             validatePersistentIdentities(format, world, sceneMeta, inFile);
+            validatePhysicsSchema(format, world, sceneMeta, inFile);
             return format;
 
         } catch (Exception e) {
-            clearWorldContent(world);
+            if (clearContentFirst) clearWorldContent(world);
             String detail = e.getMessage();
             throw new RuntimeException(
                     "Error while loading scene: " + inFile.path()
@@ -76,105 +84,64 @@ public final class SceneLoader {
         }
     }
 
-    private static void rejectObsoletePhysicsModel(String serialized, FileHandle sceneFile) {
-        if (serialized == null) return;
-        if (containsObjectField(
-                serialized, "PhysicsBodyComponent", "enabled")) {
-            throw new IllegalArgumentException(
-                    "Scene contains obsolete PhysicsBodyComponent.enabled and cannot be loaded: "
-                            + sceneFile.path());
-        }
-        if (containsAdjacent(serialized, "\"Physics", "Fixtures", "Component\"")
-                || containsAdjacent(serialized, "\"Physics", "Authoring", "Component\"")
-                || containsAdjacent(serialized, "\"Fixture", "Def", "Data\"")) {
-            throw new IllegalArgumentException(
-                    "Scene uses the incompatible Physics Model V1 and cannot be loaded: "
-                            + sceneFile.path());
+    private static void validateSerializedScene(String serialized, SceneMetaRuntime sceneMeta,
+            FileHandle sceneFile) {
+        World validationWorld = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            WorldSerializationManager validationSerialization =
+                    validationWorld.getSystem(WorldSerializationManager.class);
+            validationSerialization.setSerializer(
+                    new JsonArtemisSerializer(validationWorld));
+            try (InputStream in =
+                         new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
+                SaveFileFormat format =
+                        validationSerialization.load(in, SaveFileFormat.class);
+                validatePersistentIdentities(
+                        format, validationWorld, sceneMeta, sceneFile);
+                validatePhysicsSchema(
+                        format, validationWorld, sceneMeta, sceneFile);
+            }
+        } catch (Exception e) {
+            String detail = e.getMessage();
+            throw new RuntimeException(
+                    "Error while loading scene: " + sceneFile.path()
+                            + (detail != null && !detail.isEmpty()
+                            ? ": " + detail
+                            : ""),
+                    e);
+        } finally {
+            validationWorld.dispose();
         }
     }
 
-    private static boolean containsObjectField(
-            String text, String objectKeySuffix, String fieldName) {
-        int suffixOffset = text.indexOf(objectKeySuffix);
-        while (suffixOffset >= 0) {
-            int keyEnd = text.indexOf('"', suffixOffset + objectKeySuffix.length());
-            if (keyEnd >= 0) {
-                int colon = skipWhitespace(text, keyEnd + 1);
-                if (colon < text.length() && text.charAt(colon) == ':') {
-                    int objectStart = skipWhitespace(text, colon + 1);
-                    if (objectStart < text.length()
-                            && text.charAt(objectStart) == '{'
-                            && hasDirectObjectField(
-                                    text, objectStart, fieldName)) {
-                        return true;
-                    }
-                }
-            }
-            suffixOffset = text.indexOf(
-                    objectKeySuffix, suffixOffset + objectKeySuffix.length());
-        }
-        return false;
-    }
+    private static void validatePhysicsSchema(SaveFileFormat format, World world,
+            SceneMetaRuntime sceneMeta,
+            FileHandle sceneFile) {
+        if (sceneMeta.physicsEnabled) return;
 
-    private static boolean hasDirectObjectField(
-            String text, int objectStart, String fieldName) {
-        int depth = 1;
-        boolean inString = false;
-        boolean escaped = false;
-        for (int i = objectStart + 1; i < text.length() && depth > 0; i++) {
-            char c = text.charAt(i);
-            if (inString) {
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == '"') {
-                    inString = false;
-                }
-                continue;
+        ComponentMapper<PhysicsBodyComponent> bodies =
+                world.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsJointComponent> joints =
+                world.getMapper(PhysicsJointComponent.class);
+        int[] data = format.entities.getData();
+        for (int i = 0; i < format.entities.size(); i++) {
+            int entityId = data[i];
+            if (bodies.has(entityId)) {
+                throw new IllegalArgumentException(
+                        "Scene '" + sceneFile.path()
+                                + "' has physicsEnabled=false but contains "
+                                + "PhysicsBodyComponent on entity "
+                                + entityId + ".");
             }
-            if (c == '"') {
-                int end = text.indexOf('"', i + 1);
-                if (depth == 1
-                        && end == i + fieldName.length() + 1
-                        && text.regionMatches(i + 1, fieldName, 0, fieldName.length())) {
-                    int colon = skipWhitespace(text, end + 1);
-                    if (colon < text.length() && text.charAt(colon) == ':') {
-                        return true;
-                    }
-                }
-                inString = true;
-            } else if (c == '{') {
-                depth++;
-            } else if (c == '}') {
-                depth--;
+            if (joints.has(entityId)) {
+                throw new IllegalArgumentException(
+                        "Scene '" + sceneFile.path()
+                                + "' has physicsEnabled=false but contains "
+                                + "PhysicsJointComponent on entity "
+                                + entityId + ".");
             }
         }
-        return false;
-    }
-
-    private static int skipWhitespace(String text, int offset) {
-        int current = offset;
-        while (current < text.length()
-                && Character.isWhitespace(text.charAt(current))) {
-            current++;
-        }
-        return current;
-    }
-
-    private static boolean containsAdjacent(
-            String text, String first, String second, String third) {
-        int offset = text.indexOf(first);
-        while (offset >= 0) {
-            int secondOffset = offset + first.length();
-            int thirdOffset = secondOffset + second.length();
-            if (text.indexOf(second, secondOffset) == secondOffset
-                    && text.indexOf(third, thirdOffset) == thirdOffset) {
-                return true;
-            }
-            offset = text.indexOf(first, offset + 1);
-        }
-        return false;
     }
 
     private static void validatePersistentIdentities(SaveFileFormat format, World world,
@@ -228,7 +195,7 @@ public final class SceneLoader {
                         throw new IllegalArgumentException(
                                 "Scene '" + sceneFile.path() + "', entityId " + entityId
                                         + ", physicsShapeId " + shape.physicsShapeId
-                                        + ": directGeometry is missing; clean break Physics Model.");
+                                        + ": directGeometry is missing.");
                     }
                     shape.validateStructure();
                     physicsIds.add(shape.physicsShapeId);

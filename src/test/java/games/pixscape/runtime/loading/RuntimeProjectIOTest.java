@@ -1,6 +1,7 @@
 package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import org.junit.Assert;
@@ -9,7 +10,34 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileWriter;
 
-public class RuntimeProjectIOAnimationsTest {
+public class RuntimeProjectIOTest {
+
+    @Test
+    public void sceneSchemaVersionOneIsAccepted() throws Exception {
+        FileHandle projectDir = projectDirectory(projectJson(
+                "\"sceneSchemaVersion\":1,"));
+
+        RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
+
+        SceneMetaRuntime scene = config.getCurrentSceneMeta();
+        Assert.assertEquals(1, scene.sceneSchemaVersion);
+        Assert.assertTrue(scene.physicsEnabled);
+    }
+
+    @Test
+    public void missingSceneSchemaVersionIsRejected() throws Exception {
+        assertRejected("");
+    }
+
+    @Test
+    public void sceneSchemaVersionZeroIsRejected() throws Exception {
+        assertRejected("\"sceneSchemaVersion\":0,");
+    }
+
+    @Test
+    public void sceneSchemaVersionTwoIsRejected() throws Exception {
+        assertRejected("\"sceneSchemaVersion\":2,");
+    }
 
     @Test
     public void missingAnimationsJsonDoesNotCrash() {
@@ -52,6 +80,45 @@ public class RuntimeProjectIOAnimationsTest {
         Assert.assertEquals(1, registry.size());
         Assert.assertTrue(registry.containsName("test"));
         Assert.assertEquals(100, registry.idByName("test"));
+    }
+
+    private static void assertRejected(String versionField) throws Exception {
+        try {
+            RuntimeProjectIO.loadProject(
+                    projectDirectory(projectJson(versionField)));
+            Assert.fail("Scene schema version must be rejected.");
+        } catch (RuntimeException expected) {
+            Throwable cause = expected;
+            while (cause != null
+                    && (cause.getMessage() == null
+                    || !cause.getMessage().contains("sceneSchemaVersion"))) {
+                cause = cause.getCause();
+            }
+            Assert.assertNotNull(cause);
+        }
+    }
+
+    private static FileHandle projectDirectory(String json) {
+        File directory = makeTempDir("pixscape-runtime-scene-schema");
+        new FileHandle(new File(directory, RuntimeProjectIO.PROJECT_JSON))
+                .writeString(json, false, "UTF-8");
+        return new FileHandle(directory);
+    }
+
+    private static String projectJson(String versionField) {
+        return "{"
+                + "\"projectFileName\":\"schema-test\","
+                + "\"version\":\"1\","
+                + "\"currentSceneName\":\"Main\","
+                + "\"scenes\":{\"Main\":{"
+                + versionField
+                + "\"name\":\"Main\","
+                + "\"file\":\"scene1.json\","
+                + "\"physicsEnabled\":true,"
+                + "\"nextEntityStableId\":1,"
+                + "\"nextPhysicsShapeId\":1"
+                + "}}"
+                + "}";
     }
 
     private static File makeTempDir(String prefix) {

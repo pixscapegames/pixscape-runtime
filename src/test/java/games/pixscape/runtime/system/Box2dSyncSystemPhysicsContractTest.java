@@ -27,7 +27,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class Box2dSyncSystemPhysicsModelV2Test {
+public class Box2dSyncSystemPhysicsContractTest {
     @Test
     public void emptyPreparedCacheCreatesNoNativeOrRuntimeBody() {
         Harness harness = new Harness();

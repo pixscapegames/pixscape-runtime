@@ -5,6 +5,9 @@ import games.pixscape.runtime.physics.PhysicsShapeIdState;
 
 public class SceneMetaRuntime implements PhysicsShapeIdState {
 
+    public static final int CURRENT_SCENE_SCHEMA_VERSION = 1;
+
+    public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;
     public String file;
     public int nextEntityStableId = 1;
@@ -60,12 +63,13 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     }
 
     public static SceneMetaRuntime fromJson(JsonValue json, String fallbackName) {
-        SceneMetaRuntime meta = new SceneMetaRuntime();
         if (json == null || !json.isObject()) {
-            meta.name = fallbackName;
-            return meta;
+            throw new IllegalArgumentException(
+                    "Scene '" + fallbackName + "' metadata must be an object.");
         }
 
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.sceneSchemaVersion = requireCurrentSceneSchemaVersion(json, fallbackName);
         meta.name = json.getString("name", fallbackName);
         meta.file = json.getString("file", null);
         meta.physicsEnabled = json.getBoolean("physicsEnabled", meta.physicsEnabled);
@@ -97,6 +101,26 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         return meta;
     }
 
+    public static int requireCurrentSceneSchemaVersion(JsonValue json, String sceneName) {
+        JsonValue value = json != null ? json.get("sceneSchemaVersion") : null;
+        if (value == null || !value.isNumber()) {
+            throw new IllegalArgumentException("Scene '" + sceneName
+                    + "' requires numeric sceneSchemaVersion "
+                    + CURRENT_SCENE_SCHEMA_VERSION + ".");
+        }
+        int version = value.asInt();
+        validateSceneSchemaVersion(version, sceneName);
+        return version;
+    }
+
+    public static void validateSceneSchemaVersion(int sceneSchemaVersion, String sceneName) {
+        if (sceneSchemaVersion != CURRENT_SCENE_SCHEMA_VERSION) {
+            throw new IllegalArgumentException("Scene '" + sceneName
+                    + "' requires sceneSchemaVersion " + CURRENT_SCENE_SCHEMA_VERSION
+                    + ", found " + sceneSchemaVersion + ".");
+        }
+    }
+
     private static int requiredPositiveInt(JsonValue json, String field, String sceneName) {
         JsonValue value = json.get(field);
         if (value == null || !value.isNumber() || value.asInt() <= 0) {
@@ -111,6 +135,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
      */
     public void copyFrom(SceneMetaRuntime other) {
         if (other == null) return;
+        this.sceneSchemaVersion = other.sceneSchemaVersion;
         this.name = other.name;
         this.file = other.file;
         this.nextEntityStableId = other.nextEntityStableId;

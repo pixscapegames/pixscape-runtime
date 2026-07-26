@@ -149,6 +149,7 @@ public final class RuntimeConfig {
             if (meta == null) {
                 throw new RuntimeException("Scene '" + key + "' is null in: " + pathForErrors);
             }
+            SceneMetaRuntime.validateSceneSchemaVersion(meta.sceneSchemaVersion, key);
 
             if (meta.name == null || isBlank(meta.name)) {
                 meta.name = key;
