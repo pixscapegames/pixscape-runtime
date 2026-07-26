@@ -786,11 +786,44 @@ public final class PhysicsService {
      * Gear joints are returned before the source joints they depend on.
      */
     public IntArray collectJointsAffectedByBodyRemoval(int bodyEid, IntArray out) {
+        IntArray removedEntityIds = new IntArray(1);
+        removedEntityIds.add(bodyEid);
+        return collectJointsAffectedByEntityRemoval(world, removedEntityIds, out);
+    }
+
+    /**
+     * Collects joints affected by removing the supplied entities.
+     * Dependent gear joints are returned before directly affected joints.
+     */
+    public static IntArray collectJointsAffectedByEntityRemoval(
+            World world, IntArray removedEntityIds, IntArray out) {
+        if (world == null) {
+            throw new IllegalArgumentException("world is null");
+        }
         if (out == null) out = new IntArray(false, 8);
         out.clear();
-        if (bodyEid < 0) return out;
+        if (removedEntityIds == null || removedEntityIds.size == 0) return out;
 
+        IntSet removedIds = new IntSet();
+        for (int i = 0; i < removedEntityIds.size; i++) {
+            int entityId = removedEntityIds.get(i);
+            if (entityId >= 0 && world.getEntityManager().isActive(entityId)) {
+                removedIds.add(entityId);
+            }
+        }
+        if (removedIds.size == 0) return out;
+
+        return collectJointsAffectedByEntityRemoval(world, removedIds, out);
+    }
+
+    private static IntArray collectJointsAffectedByEntityRemoval(
+            World world, IntSet removedIds, IntArray out) {
+        ComponentMapper<PhysicsJointComponent> joints =
+                world.getMapper(PhysicsJointComponent.class);
+        ComponentMapper<PhysicsGearJointComponent> gears =
+                world.getMapper(PhysicsGearJointComponent.class);
         IntSet directJointIds = new IntSet();
+        IntSet gearSourceJointIds = new IntSet();
         IntSet emitted = new IntSet();
         IntArray direct = new IntArray(false, 8);
         IntBag bag = world.getAspectSubscriptionManager()
@@ -800,22 +833,32 @@ public final class PhysicsService {
         int[] data = bag.getData();
         for (int i = 0, n = bag.size(); i < n; i++) {
             int jEid = data[i];
-            PhysicsJointComponent j = mJoint.getSafe(jEid, null);
+            if (!world.getEntityManager().isActive(jEid)) continue;
+            PhysicsJointComponent j = joints.getSafe(jEid, null);
             if (j == null) continue;
-            if (j.aEid == bodyEid || j.bEid == bodyEid) {
-                if (directJointIds.add(jEid)) direct.add(jEid);
+            if (removedIds.contains(jEid)
+                    || removedIds.contains(j.aEid)
+                    || removedIds.contains(j.bEid)) {
+                if (directJointIds.add(jEid)) {
+                    direct.add(jEid);
+                    if (j.type == PhysicsJointComponent.TYPE_REVOLUTE
+                            || j.type == PhysicsJointComponent.TYPE_PRISMATIC) {
+                        gearSourceJointIds.add(jEid);
+                    }
+                }
             }
         }
 
         for (int i = 0, n = bag.size(); i < n; i++) {
             int jEid = data[i];
-            PhysicsJointComponent joint = mJoint.getSafe(jEid, null);
+            if (!world.getEntityManager().isActive(jEid)) continue;
+            PhysicsJointComponent joint = joints.getSafe(jEid, null);
             if (joint == null || joint.type != PhysicsJointComponent.TYPE_GEAR) continue;
-            PhysicsGearJointComponent gear = mGear.getSafe(jEid, null);
+            PhysicsGearJointComponent gear = gears.getSafe(jEid, null);
             if (gear == null) continue;
             if (directJointIds.contains(jEid)
-                    || directJointIds.contains(gear.joint1Eid)
-                    || directJointIds.contains(gear.joint2Eid)) {
+                    || gearSourceJointIds.contains(gear.joint1Eid)
+                    || gearSourceJointIds.contains(gear.joint2Eid)) {
                 if (emitted.add(jEid)) out.add(jEid);
             }
         }

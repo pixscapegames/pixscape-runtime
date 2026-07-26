@@ -183,6 +183,58 @@ public class PhysicsServiceTest {
     }
 
     @Test
+    public void entityRemovalClosureIncludesDependentGearBeforeRequestedSourceOnly() {
+        GdxNativesLoader.load();
+        Box2dWorldService box2d =
+                new Box2dWorldService(100f, new Vector2(0f, -9.8f));
+        try {
+            DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
+            Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
+            World world = new World(
+                    new WorldConfigurationBuilder().with(dirty, sync).build());
+            PhysicsService physics = new PhysicsService(
+                    world,
+                    box2d,
+                    new games.pixscape.runtime.loading.SceneMetaRuntime());
+
+            int staticA = createBody(world, physics, 0f, PhysicsBodyComponent.STATIC);
+            int dynamicA = createBody(world, physics, 100f, PhysicsBodyComponent.DYNAMIC);
+            int staticB = createBody(world, physics, 200f, PhysicsBodyComponent.STATIC);
+            int dynamicB = createBody(world, physics, 300f, PhysicsBodyComponent.DYNAMIC);
+            int source1 = physics.createRevoluteJoint(staticA, dynamicA, 50f, 0f);
+            int source2 = physics.createPrismaticJoint(staticB, dynamicB, 250f, 0f);
+            int gear = physics.createGearJoint(source1, source2, 2f);
+            processPhysics(world);
+
+            IntArray removed = new IntArray(1);
+            removed.add(source1);
+            IntArray affected = PhysicsService.collectJointsAffectedByEntityRemoval(
+                    world, removed, null);
+
+            Assert.assertEquals(2, affected.size);
+            Assert.assertEquals(gear, affected.get(0));
+            Assert.assertEquals(source1, affected.get(1));
+            Assert.assertFalse(affected.contains(source2));
+            Assert.assertFalse(affected.contains(staticA));
+            Assert.assertFalse(affected.contains(dynamicA));
+            Assert.assertFalse(affected.contains(staticB));
+            Assert.assertFalse(affected.contains(dynamicB));
+
+            removed.clear();
+            removed.add(gear);
+            affected = PhysicsService.collectJointsAffectedByEntityRemoval(
+                    world, removed, affected);
+
+            Assert.assertEquals(1, affected.size);
+            Assert.assertEquals(gear, affected.get(0));
+            Assert.assertFalse(affected.contains(source1));
+            Assert.assertFalse(affected.contains(source2));
+        } finally {
+            box2d.dispose();
+        }
+    }
+
+    @Test
     public void movingBodyInAuthoringRefreshesDistanceJointLength() {
         // Arrange
         GdxNativesLoader.load();
