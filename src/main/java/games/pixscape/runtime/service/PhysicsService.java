@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.physics.*;
@@ -49,6 +50,8 @@ public final class PhysicsService {
                 world.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsShapesComponent> shapes =
                 world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<BlockPhysicsBindingsComponent> bindings =
+                world.getMapper(BlockPhysicsBindingsComponent.class);
         ComponentMapper<PhysicsJointComponent> joints =
                 world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> distances =
@@ -82,6 +85,8 @@ public final class PhysicsService {
                 componentName = "PhysicsBodyComponent";
             } else if (shapes.has(entityId)) {
                 componentName = "PhysicsShapesComponent";
+            } else if (bindings.has(entityId)) {
+                componentName = "BlockPhysicsBindingsComponent";
             } else if (joints.has(entityId)) {
                 componentName = "PhysicsJointComponent";
             } else if (distances.has(entityId)) {

@@ -72,6 +72,10 @@ public final class BlockPhysicsBindingRepository {
         indexes = candidate;
     }
 
+    public boolean hasAnyBindings() {
+        return indexes.bindingByPhysicsShapeId.size > 0;
+    }
+
     public boolean hasBinding(int ownerStableId, int blockId) {
         return findInternalByBlock(ownerStableId, blockId) != null;
     }
@@ -278,7 +282,9 @@ public final class BlockPhysicsBindingRepository {
                         candidate.ownerEntityByPhysicsShapeId.get(physicsShapeId);
                 if (binding == null || expectedOwnerEntityId == null) {
                     throw invalid(entityId, ownerStableId, -1, physicsShapeId,
-                            "linked shape has no binding; expected ownerEntityId is absent"
+                            "linked shape has no binding; directGeometry is missing and no "
+                                    + "owner-local binding supplies geometry"
+                                    + "; expected ownerEntityId is absent"
                                     + "; enabled=" + shape.enabled);
                 }
                 if (expectedOwnerEntityId != entityId) {
@@ -381,9 +387,11 @@ public final class BlockPhysicsBindingRepository {
             String detail) {
         return new IllegalStateException(
                 "Invalid block-physics binding state: ownerEntityId=" + ownerEntityId
+                        + ", entityId=" + ownerEntityId
                         + ", ownerStableId=" + ownerStableId
                         + ", blockId=" + blockId
                         + ", physicsShapeId=" + physicsShapeId
+                        + " (physicsShapeId " + physicsShapeId + ")"
                         + ": " + detail + ".");
     }
 

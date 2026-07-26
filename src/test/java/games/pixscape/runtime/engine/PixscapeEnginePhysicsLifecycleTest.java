@@ -21,8 +21,16 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.BlockPhysicsBindingData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -31,6 +39,7 @@ import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -259,6 +268,90 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
+    @Test
+    public void structurallyValidLinkedSceneFailsClosedBeforeCacheAndAllowsDirectRetry()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            int buildsBeforeLinked = fixture.worldProbe.buildCount;
+
+            RuntimeException failure = Assert.assertThrows(
+                    RuntimeException.class,
+                    () -> engine.loadScene("C"));
+
+            Assert.assertTrue(failure.getMessage(),
+                    failure.getMessage().contains("structurally valid"));
+            Assert.assertTrue(failure.getMessage(),
+                    failure.getMessage().contains("Phase D"));
+            Assert.assertEquals(buildsBeforeLinked + 1,
+                    fixture.worldProbe.buildCount);
+            Assert.assertEquals(0,
+                    fixture.worldProbe.compiledFixturesAtDispose);
+            Assert.assertEquals(0,
+                    fixture.worldProbe.nativeBodiesAtDispose);
+            Assert.assertTrue(engine.isLoaded());
+            Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.getWorld());
+            Assert.assertNull(engine.getBox2dWorldService());
+            Assert.assertNull(engine.getBox2dSyncSystem());
+            Assert.assertEquals(-1, engine.findEntityByStableId(1));
+            Assert.assertSame(fixture.config, engine.config());
+            Assert.assertSame(fixture.projectDir, engine.runtimeProjectDir());
+
+            engine.loadScene("A");
+
+            Assert.assertNotNull(engine.getWorld());
+            Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
+            Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
+            engine.render();
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void publicPrefabFragmentPathAppliesPhaseFBarrierBeforeAllocation()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            World world = engine.getWorld();
+            int source = world.create();
+            world.getMapper(BlockPhysicsBindingsComponent.class)
+                    .create(source);
+            world.process();
+            RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+            fragment.entities.add(source);
+            int entityCount = world.getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all()).getEntities().size();
+            int nextEntityStableId =
+                    engine.getActiveSceneMeta().nextEntityStableId;
+            int nextPhysicsShapeId =
+                    engine.getActiveSceneMeta().nextPhysicsShapeId;
+
+            IllegalArgumentException failure = Assert.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> engine.spawnPrefabFragment(fragment, 0f, 0f));
+
+            Assert.assertTrue(failure.getMessage(),
+                    failure.getMessage().contains("Phase F"));
+            Assert.assertEquals(entityCount,
+                    world.getAspectSubscriptionManager()
+                            .get(com.artemis.Aspect.all())
+                            .getEntities().size());
+            Assert.assertEquals(nextEntityStableId,
+                    engine.getActiveSceneMeta().nextEntityStableId);
+            Assert.assertEquals(nextPhysicsShapeId,
+                    engine.getActiveSceneMeta().nextPhysicsShapeId);
+        } finally {
+            engine.dispose();
+        }
+    }
+
     private static EngineFixture createEngineFixture() throws Exception {
         GdxNativesLoader.load();
 
@@ -276,6 +369,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 projectJson(), false, "UTF-8");
         writeScene(scenesDir.child("a.json"), false);
         writeScene(scenesDir.child("b.json"), true);
+        writeLinkedScene(scenesDir.child("c.json"));
 
         PixscapeEngine engine = new PixscapeEngine();
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
@@ -323,8 +417,62 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"gravityX\":1,"
                 + "\"gravityY\":-3,"
                 + "\"doSleep\":false"
+                + "},"
+                + "\"C\":{"
+                + "\"sceneSchemaVersion\":1,"
+                + "\"name\":\"C\","
+                + "\"file\":\"c.json\","
+                + "\"nextEntityStableId\":2,"
+                + "\"nextPhysicsShapeId\":11,"
+                + "\"physicsEnabled\":true"
                 + "}"
                 + "}}";
+    }
+
+    private static void writeLinkedScene(FileHandle file) throws Exception {
+        World source = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            int owner = source.create();
+            PixscapeIdentityComponent identity = source
+                    .getMapper(PixscapeIdentityComponent.class).create(owner);
+            identity.stableId = 1;
+            SpatialBlocksComponent blocks = source
+                    .getMapper(SpatialBlocksComponent.class).create(owner);
+            SpatialBlockData block = new SpatialBlockData();
+            block.id = 1;
+            block.structureId = 1;
+            block.width = 1;
+            block.depth = 1;
+            blocks.blocks.add(block);
+            blocks.nextSpatialBlockId = 2;
+            PhysicsShapeData shape = new PhysicsShapeData();
+            shape.physicsShapeId = 10;
+            shape.directGeometry = null;
+            shape.enabled = true;
+            source.getMapper(PhysicsShapesComponent.class)
+                    .create(owner).shapes.add(shape);
+            source.getMapper(PhysicsBodyComponent.class).create(owner);
+            BlockPhysicsBindingData binding =
+                    new BlockPhysicsBindingData();
+            binding.spatialBlockId = 1;
+            binding.physicsShapeId = 10;
+            source.getMapper(BlockPhysicsBindingsComponent.class)
+                    .create(owner).bindings.add(binding);
+
+            source.process();
+            WorldSerializationManager serialization =
+                    source.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(new JsonArtemisSerializer(source));
+            SaveFileFormat format = new SaveFileFormat(
+                    source.getAspectSubscriptionManager()
+                            .get(com.artemis.Aspect.all()).getEntities());
+            try (OutputStream output = file.write(false)) {
+                serialization.save(output, format);
+            }
+        } finally {
+            source.dispose();
+        }
     }
 
     private static void writeScene(FileHandle file, boolean duplicateIds)
@@ -472,6 +620,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
     private static final class CandidateWorldProbe {
         private int buildCount;
         private World latestWorld;
+        private int compiledFixturesAtDispose;
+        private int nativeBodiesAtDispose;
     }
 
     private static final class CandidateWorldProbeSystem extends BaseSystem {
@@ -489,6 +639,27 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
         @Override
         protected void processSystem() {
+        }
+
+        @Override
+        protected void dispose() {
+            probe.compiledFixturesAtDispose = world
+                    .getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all(
+                            PhysicsCompiledFixturesComponent.class))
+                    .getEntities().size();
+            IntBag bodies = world.getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all(
+                            PhysicsRuntimeBodyComponent.class))
+                    .getEntities();
+            int nativeBodies = 0;
+            for (int i = 0; i < bodies.size(); i++) {
+                if (world.getMapper(PhysicsRuntimeBodyComponent.class)
+                        .get(bodies.get(i)).body != null) {
+                    nativeBodies++;
+                }
+            }
+            probe.nativeBodiesAtDispose = nativeBodies;
         }
     }
 

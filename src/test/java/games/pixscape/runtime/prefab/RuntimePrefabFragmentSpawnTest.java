@@ -24,6 +24,7 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
@@ -224,6 +225,72 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertEquals(activeBefore, activeEntityCount(world));
         Assert.assertEquals(211, meta.nextEntityStableId);
         Assert.assertEquals(37, meta.nextPhysicsShapeId);
+    }
+
+    @Test
+    public void inMemoryBindingFragmentIsRejectedBeforeAllocationsAndTargetProcess() {
+        SentinelSystem sentinel = new SentinelSystem();
+        World world = runtimeWorld(sentinel);
+        int source = world.create();
+        world.getMapper(BlockPhysicsBindingsComponent.class).create(source);
+        world.process();
+        sentinel.processCount = 0;
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.entities.add(source);
+        games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
+        meta.nextEntityStableId = 301;
+        meta.nextPhysicsShapeId = 401;
+        int activeBefore = activeEntityCount(world);
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(), meta, new AtlasRuntimeService())
+                        .spawn(world, fragment, 0f, 0f));
+
+        Assert.assertTrue(failure.getMessage(),
+                failure.getMessage().contains("Phase F"));
+        Assert.assertTrue(failure.getMessage(),
+                failure.getMessage().contains("linked block physics"));
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertTrue(world.getEntityManager().isActive(source));
+        Assert.assertEquals(301, meta.nextEntityStableId);
+        Assert.assertEquals(401, meta.nextPhysicsShapeId);
+        Assert.assertEquals(0, sentinel.processCount);
+    }
+
+    @Test
+    public void jsonLinkedShapeFragmentIsRejectedBeforeAllocationsAndPublication() {
+        SentinelSystem sentinel = new SentinelSystem();
+        World world = runtimeWorld(sentinel);
+        int existing = world.create();
+        world.process();
+        sentinel.processCount = 0;
+        games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
+        meta.nextEntityStableId = 501;
+        meta.nextPhysicsShapeId = 601;
+        int activeBefore = activeEntityCount(world);
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(), meta, new AtlasRuntimeService())
+                        .spawn(
+                                world,
+                                new JsonReader().parse(
+                                        buildLinkedShapePrefabJson()),
+                                0f,
+                                0f));
+
+        Assert.assertTrue(failure.getMessage(),
+                failure.getMessage().contains("Phase F"));
+        Assert.assertTrue(failure.getMessage(),
+                failure.getMessage().contains("physicsShapeId 23"));
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertTrue(world.getEntityManager().isActive(existing));
+        Assert.assertEquals(501, meta.nextEntityStableId);
+        Assert.assertEquals(601, meta.nextPhysicsShapeId);
+        Assert.assertEquals(0, sentinel.processCount);
     }
 
     @Test
@@ -819,6 +886,34 @@ public class RuntimePrefabFragmentSpawnTest {
             PhysicsShapeData shape = new PhysicsShapeData();
             shape.physicsShapeId = 23;
             shape.directGeometry = new PhysicsDirectGeometryData();
+            shapes.add(shape);
+            sourceWorld.process();
+
+            RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+            fragment.entities.add(entityId);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            serialization.save(out, fragment);
+            return out.toString(StandardCharsets.UTF_8);
+        } finally {
+            sourceWorld.dispose();
+        }
+    }
+
+    private static String buildLinkedShapePrefabJson() {
+        World sourceWorld = runtimeWorld();
+        try {
+            WorldSerializationManager serialization =
+                    sourceWorld.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(
+                    new JsonArtemisSerializer(sourceWorld)
+                            .setUsePrototypes(false));
+            int entityId = sourceWorld.create();
+            PhysicsShapesComponent shapes = sourceWorld.getMapper(
+                    PhysicsShapesComponent.class).create(entityId);
+            PhysicsShapeData shape = new PhysicsShapeData();
+            shape.physicsShapeId = 23;
+            shape.directGeometry = null;
+            shape.enabled = true;
             shapes.add(shape);
             sourceWorld.process();
 

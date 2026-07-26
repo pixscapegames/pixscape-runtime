@@ -28,6 +28,7 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsWeldJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
@@ -118,6 +119,7 @@ public class RuntimePrefabFragmentSpawner {
             RuntimePrefabFragment staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes),
                     RuntimePrefabFragment.class);
+            rejectLinkedBindingsUntilPhaseF(stagingWorld, staged.entities);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld, stagingSerialization, staged, offsetX, offsetY);
@@ -138,6 +140,7 @@ public class RuntimePrefabFragmentSpawner {
                     .setSerializer(serializer);
             RuntimePrefabFragment staged = serializer.load(
                     fragmentRoot, RuntimePrefabFragment.class);
+            rejectLinkedBindingsUntilPhaseF(stagingWorld, staged.entities);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld,
@@ -181,6 +184,43 @@ public class RuntimePrefabFragmentSpawner {
                 preparedRegionValid,
                 preparedUvs,
                 preparedRegionData);
+    }
+
+    private static void rejectLinkedBindingsUntilPhaseF(
+            World stagingWorld, IntBag entityIds) {
+        ComponentMapper<BlockPhysicsBindingsComponent> bindings =
+                stagingWorld.getMapper(BlockPhysicsBindingsComponent.class);
+        ComponentMapper<PhysicsShapesComponent> shapes =
+                stagingWorld.getMapper(PhysicsShapesComponent.class);
+        int[] data = entityIds.getData();
+        for (int i = 0; i < entityIds.size(); i++) {
+            int entityId = data[i];
+            if (bindings.has(entityId)) {
+                throw linkedPrefabUnsupported(entityId, -1);
+            }
+            PhysicsShapesComponent component = shapes.getSafe(entityId, null);
+            if (component == null || component.shapes == null) {
+                continue;
+            }
+            for (int shapeIndex = 0;
+                    shapeIndex < component.shapes.size;
+                    shapeIndex++) {
+                PhysicsShapeData shape = component.shapes.get(shapeIndex);
+                if (shape != null && shape.directGeometry == null) {
+                    throw linkedPrefabUnsupported(
+                            entityId, shape.physicsShapeId);
+                }
+            }
+        }
+    }
+
+    private static IllegalArgumentException linkedPrefabUnsupported(
+            int entityId, int physicsShapeId) {
+        return new IllegalArgumentException(
+                "Runtime prefab fragment entity " + entityId
+                        + ", physicsShapeId " + physicsShapeId
+                        + " contains linked block physics data, which is not supported "
+                        + "until Spatial-Physics Binding Phase F is available.");
     }
 
     private SpawnResult commit(

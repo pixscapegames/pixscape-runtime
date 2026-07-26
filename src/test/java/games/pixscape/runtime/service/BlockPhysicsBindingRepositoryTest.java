@@ -69,6 +69,7 @@ public class BlockPhysicsBindingRepositoryTest {
     @Test
     public void bindDetachClearAndUnboundLifecycleAreStrict() {
         BlockPhysicsBindingRepository repository = new BlockPhysicsBindingRepository();
+        Assert.assertFalse(repository.hasAnyBindings());
         Assert.assertThrows(IllegalStateException.class, repository::rebuild);
 
         try (Harness harness = new Harness()) {
@@ -82,21 +83,27 @@ public class BlockPhysicsBindingRepositoryTest {
             Owner owner = validOwner(harness, 11, 1, 101);
             harness.activate();
             repository.bind(harness.world, harness.identityRegistry);
+            Assert.assertFalse(repository.hasAnyBindings());
             repository.rebuild();
+            Assert.assertTrue(repository.hasAnyBindings());
             Assert.assertTrue(repository.hasBinding(11, 1));
 
             repository.bind(harness.world, harness.identityRegistry);
+            Assert.assertFalse(repository.hasAnyBindings());
             Assert.assertFalse(repository.hasBinding(11, 1));
             repository.rebuild();
+            Assert.assertTrue(repository.hasAnyBindings());
             Assert.assertTrue(repository.hasBinding(11, 1));
 
             repository.bind(null, null);
+            Assert.assertFalse(repository.hasAnyBindings());
             Assert.assertFalse(repository.hasBinding(11, 1));
             Assert.assertThrows(IllegalStateException.class, repository::rebuild);
 
             repository.bind(harness.world, harness.identityRegistry);
             repository.rebuild();
             repository.clear();
+            Assert.assertFalse(repository.hasAnyBindings());
             Assert.assertFalse(repository.hasBinding(11, 1));
             Assert.assertThrows(IllegalStateException.class, repository::rebuild);
             Assert.assertTrue(harness.world.getEntityManager().isActive(owner.entityId));
@@ -114,6 +121,7 @@ public class BlockPhysicsBindingRepositoryTest {
 
             harness.repository.rebuild();
 
+            Assert.assertFalse(harness.repository.hasAnyBindings());
             Assert.assertEquals(entityCount, entityCount(harness.world));
             assertEmptyQueries(harness.repository, 12);
             Assert.assertFalse(
@@ -122,6 +130,7 @@ public class BlockPhysicsBindingRepositoryTest {
 
         try (Harness harness = new Harness()) {
             harness.repository.rebuild();
+            Assert.assertFalse(harness.repository.hasAnyBindings());
             Assert.assertEquals(0, entityCount(harness.world));
             assertEmptyQueries(harness.repository, 1);
         }
@@ -577,6 +586,7 @@ public class BlockPhysicsBindingRepositoryTest {
                     IllegalStateException.class, harness.repository::rebuild);
 
             Assert.assertTrue(harness.repository.hasBinding(92, 1));
+            Assert.assertTrue(harness.repository.hasAnyBindings());
             Assert.assertEquals(402,
                     harness.repository.findByBlock(92, 1).physicsShapeId);
             Assert.assertEquals(initialEntityCount, entityCount(harness.world));

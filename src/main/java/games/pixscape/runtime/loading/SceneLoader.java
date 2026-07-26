@@ -23,6 +23,8 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.spatial.SpatialBlockData;
@@ -87,6 +89,9 @@ public final class SceneLoader {
             FileHandle sceneFile) {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+        IdentityRegistry validationIdentities = new IdentityRegistry();
+        BlockPhysicsBindingRepository validationBindings =
+                new BlockPhysicsBindingRepository();
         try {
             WorldSerializationManager validationSerialization =
                     validationWorld.getSystem(WorldSerializationManager.class);
@@ -96,10 +101,15 @@ public final class SceneLoader {
                          new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
                 SaveFileFormat format =
                         validationSerialization.load(in, SaveFileFormat.class);
+                validationWorld.process();
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
+                validationIdentities.bind(validationWorld, sceneMeta);
+                validationIdentities.rebuild();
+                validationBindings.bind(validationWorld, validationIdentities);
+                validationBindings.rebuild();
             }
         } catch (Exception e) {
             String detail = e.getMessage();
@@ -110,6 +120,8 @@ public final class SceneLoader {
                             : ""),
                     e);
         } finally {
+            validationBindings.clear();
+            validationIdentities.bind(null, null);
             validationWorld.dispose();
         }
     }
@@ -172,13 +184,9 @@ public final class SceneLoader {
                         throw new IllegalArgumentException("Scene '" + sceneFile.path()
                                 + "' contains a null PhysicsShapeData on entity " + entityId + ".");
                     }
-                    if (shape.directGeometry == null) {
-                        throw new IllegalArgumentException(
-                                "Scene '" + sceneFile.path() + "', entityId " + entityId
-                                        + ", physicsShapeId " + shape.physicsShapeId
-                                        + ": directGeometry is missing.");
+                    if (shape.directGeometry != null) {
+                        shape.validateStructure();
                     }
-                    shape.validateStructure();
                     physicsIds.add(shape.physicsShapeId);
                 }
             }

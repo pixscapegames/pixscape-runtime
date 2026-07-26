@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -33,6 +34,7 @@ public class PhysicsServiceTest {
         assertAuthoredPhysicsRejected(PhysicsWeldJointComponent.class);
         assertAuthoredPhysicsRejected(PhysicsPulleyJointComponent.class);
         assertAuthoredPhysicsRejected(PhysicsGearJointComponent.class);
+        assertAuthoredPhysicsRejected(BlockPhysicsBindingsComponent.class);
     }
 
     @Test
@@ -345,6 +347,8 @@ public class PhysicsServiceTest {
                 world.getMapper(PhysicsBodyComponent.class).has(entityId));
         Assert.assertEquals(expectedType == PhysicsShapesComponent.class,
                 world.getMapper(PhysicsShapesComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == BlockPhysicsBindingsComponent.class,
+                world.getMapper(BlockPhysicsBindingsComponent.class).has(entityId));
         Assert.assertEquals(expectedType == PhysicsJointComponent.class,
                 world.getMapper(PhysicsJointComponent.class).has(entityId));
         Assert.assertEquals(expectedType == PhysicsDistanceJointComponent.class,
