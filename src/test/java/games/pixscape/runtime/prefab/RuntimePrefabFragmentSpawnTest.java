@@ -18,6 +18,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
@@ -106,7 +107,7 @@ public class RuntimePrefabFragmentSpawnTest {
             Assert.fail("Physics fragment must be rejected.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
-                    "physicsEnabled=true"));
+                    "PhysicsBodyComponent"));
         }
 
         Assert.assertEquals(activeBefore, activeEntityCount(world));
@@ -129,7 +130,7 @@ public class RuntimePrefabFragmentSpawnTest {
             Assert.fail("Physics fragment must be rejected.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
-                    "physicsEnabled=true"));
+                    "PhysicsBodyComponent"));
         }
 
         Assert.assertEquals(activeBefore, activeEntityCount(world));
@@ -153,6 +154,67 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertEquals(1, result.createdEntityIds().size());
         Assert.assertTrue(world.getMapper(TransformComponent.class)
                 .has(result.createdEntityIds().get(0)));
+    }
+
+    @Test
+    public void disabledSceneRejectsShapesOnlyJsonBeforeAllocations() {
+        World world = runtimeWorld();
+        int existing = world.create();
+        world.process();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = false;
+        meta.nextEntityStableId = 103;
+        meta.nextPhysicsShapeId = 29;
+        int activeBefore = activeEntityCount(world);
+
+        try {
+            new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta)
+                    .spawn(
+                            world,
+                            new JsonReader().parse(buildShapesOnlyPrefabJson()),
+                            0f,
+                            0f);
+            Assert.fail("Shapes-only fragment must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
+                    "PhysicsShapesComponent"));
+        }
+
+        Assert.assertTrue(world.getEntityManager().isActive(existing));
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertEquals(103, meta.nextEntityStableId);
+        Assert.assertEquals(29, meta.nextPhysicsShapeId);
+    }
+
+    @Test
+    public void disabledSceneRejectsOrphanJointComponentBeforeAllocations() {
+        World world = runtimeWorld();
+        int source = world.create();
+        world.getMapper(PhysicsMotorJointComponent.class).create(source);
+        world.process();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.entities.add(source);
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = false;
+        meta.nextEntityStableId = 211;
+        meta.nextPhysicsShapeId = 37;
+        int activeBefore = activeEntityCount(world);
+
+        try {
+            new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta)
+                    .spawn(world, fragment, 0f, 0f);
+            Assert.fail("Orphan joint component must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
+                    "PhysicsMotorJointComponent"));
+        }
+
+        Assert.assertTrue(world.getEntityManager().isActive(source));
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertEquals(211, meta.nextEntityStableId);
+        Assert.assertEquals(37, meta.nextPhysicsShapeId);
     }
 
     @Test
@@ -612,6 +674,33 @@ public class RuntimePrefabFragmentSpawnTest {
         wsm.save(out, request);
 
         return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private static String buildShapesOnlyPrefabJson() {
+        World sourceWorld = runtimeWorld();
+        try {
+            WorldSerializationManager serialization =
+                    sourceWorld.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(
+                    new JsonArtemisSerializer(sourceWorld)
+                            .setUsePrototypes(false));
+            int entityId = sourceWorld.create();
+            PhysicsShapesComponent shapes = sourceWorld.getMapper(
+                    PhysicsShapesComponent.class).create(entityId);
+            PhysicsShapeData shape = new PhysicsShapeData();
+            shape.physicsShapeId = 23;
+            shape.directGeometry = new PhysicsDirectGeometryData();
+            shapes.add(shape);
+            sourceWorld.process();
+
+            RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+            fragment.entities.add(entityId);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            serialization.save(out, fragment);
+            return out.toString(StandardCharsets.UTF_8);
+        } finally {
+            sourceWorld.dispose();
+        }
     }
 
     private static void assertFixtureSanity(String json) {

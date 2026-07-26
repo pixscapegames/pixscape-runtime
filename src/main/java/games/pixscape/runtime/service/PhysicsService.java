@@ -33,6 +33,84 @@ public final class PhysicsService {
     private static final PhysicsCompiledFixtureCachePublisher CACHE_PUBLISHER =
             new PhysicsCompiledFixtureCachePublisher();
 
+    public static void requireNoAuthoredPhysics(
+            World world, IntBag entityIds, String context) {
+        if (world == null) {
+            throw new IllegalArgumentException("world must not be null");
+        }
+        if (entityIds == null) {
+            throw new IllegalArgumentException("entityIds must not be null");
+        }
+
+        String label = context == null || context.trim().isEmpty()
+                ? "Content"
+                : context;
+        ComponentMapper<PhysicsBodyComponent> bodies =
+                world.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsShapesComponent> shapes =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsJointComponent> joints =
+                world.getMapper(PhysicsJointComponent.class);
+        ComponentMapper<PhysicsDistanceJointComponent> distances =
+                world.getMapper(PhysicsDistanceJointComponent.class);
+        ComponentMapper<PhysicsRevoluteJointComponent> revolutes =
+                world.getMapper(PhysicsRevoluteJointComponent.class);
+        ComponentMapper<PhysicsPrismaticJointComponent> prismatics =
+                world.getMapper(PhysicsPrismaticJointComponent.class);
+        ComponentMapper<PhysicsWheelJointComponent> wheels =
+                world.getMapper(PhysicsWheelJointComponent.class);
+        ComponentMapper<PhysicsFrictionJointComponent> frictions =
+                world.getMapper(PhysicsFrictionJointComponent.class);
+        ComponentMapper<PhysicsMotorJointComponent> motors =
+                world.getMapper(PhysicsMotorJointComponent.class);
+        ComponentMapper<PhysicsWeldJointComponent> welds =
+                world.getMapper(PhysicsWeldJointComponent.class);
+        ComponentMapper<PhysicsPulleyJointComponent> pulleys =
+                world.getMapper(PhysicsPulleyJointComponent.class);
+        ComponentMapper<PhysicsGearJointComponent> gears =
+                world.getMapper(PhysicsGearJointComponent.class);
+
+        int[] data = entityIds.getData();
+        for (int i = 0; i < entityIds.size(); i++) {
+            int entityId = data[i];
+            if (entityId < 0 || !world.getEntityManager().isActive(entityId)) {
+                continue;
+            }
+
+            String componentName = null;
+            if (bodies.has(entityId)) {
+                componentName = "PhysicsBodyComponent";
+            } else if (shapes.has(entityId)) {
+                componentName = "PhysicsShapesComponent";
+            } else if (joints.has(entityId)) {
+                componentName = "PhysicsJointComponent";
+            } else if (distances.has(entityId)) {
+                componentName = "PhysicsDistanceJointComponent";
+            } else if (revolutes.has(entityId)) {
+                componentName = "PhysicsRevoluteJointComponent";
+            } else if (prismatics.has(entityId)) {
+                componentName = "PhysicsPrismaticJointComponent";
+            } else if (wheels.has(entityId)) {
+                componentName = "PhysicsWheelJointComponent";
+            } else if (frictions.has(entityId)) {
+                componentName = "PhysicsFrictionJointComponent";
+            } else if (motors.has(entityId)) {
+                componentName = "PhysicsMotorJointComponent";
+            } else if (welds.has(entityId)) {
+                componentName = "PhysicsWeldJointComponent";
+            } else if (pulleys.has(entityId)) {
+                componentName = "PhysicsPulleyJointComponent";
+            } else if (gears.has(entityId)) {
+                componentName = "PhysicsGearJointComponent";
+            }
+            if (componentName != null) {
+                throw new IllegalArgumentException(
+                        label + " has physicsEnabled=false but contains "
+                                + componentName + " on entity " + entityId + ".");
+            }
+        }
+    }
+
     private final World world;
     private Box2dWorldService box2d;
     private final DirtyTrackerSystem dirty;

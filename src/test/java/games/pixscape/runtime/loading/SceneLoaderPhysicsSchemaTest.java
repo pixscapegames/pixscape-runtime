@@ -10,7 +10,10 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -76,6 +79,50 @@ public class SceneLoaderPhysicsSchemaTest {
     }
 
     @Test
+    public void disabledPhysicsRejectsEmptyShapesWithoutMutatingTarget()
+            throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override
+            public void apply(World world) {
+                int entityId = world.create();
+                world.getMapper(PhysicsShapesComponent.class).create(entityId);
+            }
+        });
+        assertRejectedWithoutMutation(file, "PhysicsShapesComponent");
+    }
+
+    @Test
+    public void disabledPhysicsRejectsNonEmptyShapesWithoutMutatingTarget()
+            throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override
+            public void apply(World world) {
+                int entityId = world.create();
+                PhysicsShapesComponent shapes = world.getMapper(
+                        PhysicsShapesComponent.class).create(entityId);
+                PhysicsShapeData shape = new PhysicsShapeData();
+                shape.physicsShapeId = 1;
+                shape.directGeometry = new PhysicsDirectGeometryData();
+                shapes.add(shape);
+            }
+        });
+        assertRejectedWithoutMutation(file, "PhysicsShapesComponent");
+    }
+
+    @Test
+    public void disabledPhysicsRejectsOrphanJointComponentWithoutMutatingTarget()
+            throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override
+            public void apply(World world) {
+                int entityId = world.create();
+                world.getMapper(PhysicsMotorJointComponent.class).create(entityId);
+            }
+        });
+        assertRejectedWithoutMutation(file, "PhysicsMotorJointComponent");
+    }
+
+    @Test
     public void enabledPhysicsAcceptsDormantBodyWithValidEmptyCache()
             throws Exception {
         FileHandle file = writeScene(new WorldSetup() {
@@ -118,6 +165,7 @@ public class SceneLoaderPhysicsSchemaTest {
         try {
             SceneMetaRuntime meta = new SceneMetaRuntime();
             meta.physicsEnabled = false;
+            meta.nextPhysicsShapeId = 2;
 
             try {
                 SceneLoader.loadScene(target, file, false, meta);

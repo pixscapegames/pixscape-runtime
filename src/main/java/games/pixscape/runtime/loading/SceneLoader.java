@@ -17,14 +17,13 @@ import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 
@@ -120,28 +119,10 @@ public final class SceneLoader {
             FileHandle sceneFile) {
         if (sceneMeta.physicsEnabled) return;
 
-        ComponentMapper<PhysicsBodyComponent> bodies =
-                world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsJointComponent> joints =
-                world.getMapper(PhysicsJointComponent.class);
-        int[] data = format.entities.getData();
-        for (int i = 0; i < format.entities.size(); i++) {
-            int entityId = data[i];
-            if (bodies.has(entityId)) {
-                throw new IllegalArgumentException(
-                        "Scene '" + sceneFile.path()
-                                + "' has physicsEnabled=false but contains "
-                                + "PhysicsBodyComponent on entity "
-                                + entityId + ".");
-            }
-            if (joints.has(entityId)) {
-                throw new IllegalArgumentException(
-                        "Scene '" + sceneFile.path()
-                                + "' has physicsEnabled=false but contains "
-                                + "PhysicsJointComponent on entity "
-                                + entityId + ".");
-            }
-        }
+        PhysicsService.requireNoAuthoredPhysics(
+                world,
+                format.entities,
+                "Scene '" + sceneFile.path() + "'");
     }
 
     private static void validatePersistentIdentities(SaveFileFormat format, World world,

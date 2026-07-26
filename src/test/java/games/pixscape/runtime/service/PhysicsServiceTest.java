@@ -1,14 +1,14 @@
 package games.pixscape.runtime.service;
 
+import com.artemis.Component;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -18,6 +18,37 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class PhysicsServiceTest {
+
+    @Test
+    public void authoredPhysicsAuthorityRejectsEveryAuthoredComponentIndividually() {
+        assertAuthoredPhysicsRejected(PhysicsBodyComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsShapesComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsDistanceJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsRevoluteJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsPrismaticJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsWheelJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsFrictionJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsMotorJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsWeldJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsPulleyJointComponent.class);
+        assertAuthoredPhysicsRejected(PhysicsGearJointComponent.class);
+    }
+
+    @Test
+    public void authoredPhysicsAuthorityAcceptsTransformOnlyEntity() {
+        World world = new World();
+        int entityId = world.create();
+        world.getMapper(TransformComponent.class).create(entityId);
+        IntBag entities = new IntBag();
+        entities.add(entityId);
+
+        PhysicsService.requireNoAuthoredPhysics(world, entities, "Test content");
+
+        Assert.assertTrue(world.getEntityManager().isActive(entityId));
+        Assert.assertTrue(world.getMapper(TransformComponent.class).has(entityId));
+        assertOnlyExpectedAuthoredComponent(world, entityId, null);
+    }
 
     @Test
     public void rebuildPreparedBodyCachesNormalizesBodyWithoutShapes() {
@@ -284,6 +315,56 @@ public class PhysicsServiceTest {
     private static void processPhysics(World world) {
         world.process();
         world.process();
+    }
+
+    private static <T extends Component> void assertAuthoredPhysicsRejected(
+            Class<T> componentType) {
+        World world = new World();
+        int entityId = world.create();
+        world.getMapper(componentType).create(entityId);
+        IntBag entities = new IntBag();
+        entities.add(entityId);
+
+        try {
+            PhysicsService.requireNoAuthoredPhysics(
+                    world, entities, "Test content");
+            Assert.fail(componentType.getSimpleName() + " must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(
+                    expected.getMessage(),
+                    expected.getMessage().contains(componentType.getSimpleName()));
+        }
+
+        Assert.assertTrue(world.getEntityManager().isActive(entityId));
+        assertOnlyExpectedAuthoredComponent(world, entityId, componentType);
+    }
+
+    private static void assertOnlyExpectedAuthoredComponent(
+            World world, int entityId, Class<? extends Component> expectedType) {
+        Assert.assertEquals(expectedType == PhysicsBodyComponent.class,
+                world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsShapesComponent.class,
+                world.getMapper(PhysicsShapesComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsJointComponent.class,
+                world.getMapper(PhysicsJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsDistanceJointComponent.class,
+                world.getMapper(PhysicsDistanceJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsRevoluteJointComponent.class,
+                world.getMapper(PhysicsRevoluteJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsPrismaticJointComponent.class,
+                world.getMapper(PhysicsPrismaticJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsWheelJointComponent.class,
+                world.getMapper(PhysicsWheelJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsFrictionJointComponent.class,
+                world.getMapper(PhysicsFrictionJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsMotorJointComponent.class,
+                world.getMapper(PhysicsMotorJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsWeldJointComponent.class,
+                world.getMapper(PhysicsWeldJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsPulleyJointComponent.class,
+                world.getMapper(PhysicsPulleyJointComponent.class).has(entityId));
+        Assert.assertEquals(expectedType == PhysicsGearJointComponent.class,
+                world.getMapper(PhysicsGearJointComponent.class).has(entityId));
     }
 
 }

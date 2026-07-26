@@ -223,8 +223,6 @@ public class RuntimePrefabFragmentSpawner {
                 stagingWorld.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<PhysicsBodyComponent> bodiesMapper =
                 stagingWorld.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsJointComponent> jointsMapper =
-                stagingWorld.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
                 stagingWorld.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper =
@@ -239,15 +237,10 @@ public class RuntimePrefabFragmentSpawner {
         }
 
         if (!sceneMeta.physicsEnabled) {
-            for (int i = 0; i < staged.entities.size(); i++) {
-                int entityId = staged.entities.get(i);
-                if (bodiesMapper.has(entityId)
-                        || jointsMapper.has(entityId)) {
-                    throw new IllegalArgumentException(
-                            "Physics components require physicsEnabled=true "
-                                    + "for the active scene.");
-                }
-            }
+            PhysicsService.requireNoAuthoredPhysics(
+                    stagingWorld,
+                    staged.entities,
+                    "Runtime prefab fragment");
         }
 
         for (int i = 0; i < staged.entities.size(); i++) {
