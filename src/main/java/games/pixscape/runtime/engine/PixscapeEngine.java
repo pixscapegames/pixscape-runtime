@@ -254,10 +254,11 @@ public final class PixscapeEngine {
         }
 
         JsonValue root = new JsonReader().parse(fragmentFile);
-        JsonArtemisSerializer serializer = new JsonArtemisSerializer(world);
-        SaveFileFormat fragment = serializer.load(root, SaveFileFormat.class);
-
-        return spawnPrefabFragment(fragment, offsetX, offsetY);
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(identityRegistry, activeSceneMeta);
+        SpawnResult result = spawner.spawn(world, root, offsetX, offsetY);
+        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
+        return result;
     }
 
     private void rebuildWorld(RuntimeConfig config,

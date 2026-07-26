@@ -10,8 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 public final class PrefabAsset {
+    public static final int PREFAB_VERSION = 1;
+
     public String type = "pixscape-prefab";
-    public int version = 2;
+    public int version = PREFAB_VERSION;
     public String name;
     public List<PrefabEntityData> entities = new ArrayList<>();
 

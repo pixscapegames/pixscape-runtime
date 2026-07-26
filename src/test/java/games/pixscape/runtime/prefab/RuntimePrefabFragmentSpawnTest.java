@@ -39,6 +39,122 @@ import java.util.Set;
 public class RuntimePrefabFragmentSpawnTest {
 
     @Test
+    public void schemaVersionOneJsonFragmentIsAccepted() {
+        World world = runtimeWorld();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(), sceneMeta());
+
+        SpawnResult result = spawner.spawn(
+                world,
+                new JsonReader().parse(buildSourcePrefabJson()),
+                0f,
+                0f);
+
+        Assert.assertEquals(3, result.createdEntityIds().size());
+    }
+
+    @Test
+    public void missingSchemaVersionIsRejectedBeforeInstantiation() {
+        assertJsonSchemaRejected("{}");
+    }
+
+    @Test
+    public void schemaVersionZeroIsRejectedBeforeInstantiation() {
+        assertJsonSchemaRejected("{\"schemaVersion\":0}");
+    }
+
+    @Test
+    public void schemaVersionTwoIsRejectedBeforeInstantiation() {
+        assertJsonSchemaRejected("{\"schemaVersion\":2}");
+    }
+
+    @Test
+    public void saveFileFormatWithoutSchemaMarkerIsRejected() {
+        World world = runtimeWorld();
+        SaveFileFormat fragment = new SaveFileFormat();
+        try {
+            new RuntimePrefabFragmentSpawner(
+                    new IdentityRegistry(), sceneMeta())
+                    .spawn(world, fragment, 0f, 0f);
+            Assert.fail("Fragment schema marker must be required.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "schemaVersion"));
+        }
+        Assert.assertEquals(0, activeEntityCount(world));
+    }
+
+    @Test
+    public void physicsFragmentIsRejectedWithoutChangingDisabledSceneWorld() {
+        World world = runtimeWorld();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = false;
+        meta.nextEntityStableId = 103;
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
+        int activeBefore = activeEntityCount(world);
+
+        try {
+            spawner.spawn(
+                    world,
+                    new JsonReader().parse(buildSourcePrefabJson()),
+                    0f,
+                    0f);
+            Assert.fail("Physics fragment must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
+                    "physicsEnabled=true"));
+        }
+
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+    }
+
+    @Test
+    public void physicsSaveFileFragmentIsRejectedInDisabledScene() {
+        World world = runtimeWorld();
+        PrefabFixture fixture = buildPrefabFixture(world);
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = false;
+        meta.nextEntityStableId = 103;
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
+        int activeBefore = activeEntityCount(world);
+
+        try {
+            spawner.spawn(world, fixture.fragment, 0f, 0f);
+            Assert.fail("Physics fragment must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(
+                    "physicsEnabled=true"));
+        }
+
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+    }
+
+    @Test
+    public void nonPhysicsFragmentIsAcceptedInDisabledScene() {
+        World world = runtimeWorld();
+        int source = world.create();
+        world.getMapper(TransformComponent.class).create(source);
+        world.process();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.entities.add(source);
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = false;
+
+        SpawnResult result = new RuntimePrefabFragmentSpawner(
+                new IdentityRegistry(), meta).spawn(world, fragment, 0f, 0f);
+
+        Assert.assertEquals(1, result.createdEntityIds().size());
+        Assert.assertTrue(world.getMapper(TransformComponent.class)
+                .has(result.createdEntityIds().get(0)));
+    }
+
+    @Test
     public void bodyOnlyPrefabPublishesEmptyCacheWithoutNativeBody() {
         GdxNativesLoader.load();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2());
@@ -49,7 +165,7 @@ public class RuntimePrefabFragmentSpawnTest {
         int source = world.create();
         world.getMapper(TransformComponent.class).create(source);
         world.getMapper(PhysicsBodyComponent.class).create(source);
-        SaveFileFormat fragment = new SaveFileFormat();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
         fragment.entities.add(source);
 
         RuntimePrefabFragmentSpawner spawner =
@@ -231,6 +347,7 @@ public class RuntimePrefabFragmentSpawnTest {
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
+        meta.physicsEnabled = true;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -258,6 +375,7 @@ public class RuntimePrefabFragmentSpawnTest {
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
+        meta.physicsEnabled = true;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -289,6 +407,7 @@ public class RuntimePrefabFragmentSpawnTest {
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
+        meta.physicsEnabled = true;
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
         PrefabFixture fixture = buildPrefabFixture(world);
@@ -334,10 +453,28 @@ public class RuntimePrefabFragmentSpawnTest {
                 .size();
     }
 
+    private static void assertJsonSchemaRejected(String json) {
+        World world = runtimeWorld();
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(), sceneMeta());
+        int activeBefore = activeEntityCount(world);
+        try {
+            spawner.spawn(
+                    world, new JsonReader().parse(json), 0f, 0f);
+            Assert.fail("Fragment schema must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "schemaVersion"));
+        }
+        Assert.assertEquals(activeBefore, activeEntityCount(world));
+    }
+
     private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
+        meta.physicsEnabled = true;
         return meta;
     }
 
@@ -370,9 +507,9 @@ public class RuntimePrefabFragmentSpawnTest {
         WorldSerializationManager wsm = fragmentOwnerWorld.getSystem(WorldSerializationManager.class);
         wsm.setSerializer(new JsonArtemisSerializer(fragmentOwnerWorld));
 
-        SaveFileFormat fragment = wsm.load(
+        RuntimePrefabFragment fragment = wsm.load(
                 new ByteArrayInputStream(sourceJson.getBytes(StandardCharsets.UTF_8)),
-                SaveFileFormat.class
+                RuntimePrefabFragment.class
         );
 
         fragmentOwnerWorld.process();
@@ -420,7 +557,9 @@ public class RuntimePrefabFragmentSpawnTest {
         World sourceWorld = runtimeWorld();
 
         WorldSerializationManager wsm = sourceWorld.getSystem(WorldSerializationManager.class);
-        wsm.setSerializer(new JsonArtemisSerializer(sourceWorld));
+        wsm.setSerializer(
+                new JsonArtemisSerializer(sourceWorld)
+                        .setUsePrototypes(false));
 
         int bodyA = sourceWorld.create();
         TransformComponent ta = sourceWorld.getMapper(TransformComponent.class).create(bodyA);
@@ -463,7 +602,7 @@ public class RuntimePrefabFragmentSpawnTest {
 
         sourceWorld.process();
 
-        SaveFileFormat request = new SaveFileFormat();
+        RuntimePrefabFragment request = new RuntimePrefabFragment();
         request.entities.add(bodyA);
         request.entities.add(bodyB);
         request.entities.add(joint);
@@ -548,7 +687,7 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     private static final class PrefabFixture {
-        final SaveFileFormat fragment;
+        final RuntimePrefabFragment fragment;
         final String sourceJson;
         final float sourceX;
         final float sourceY;
@@ -557,7 +696,7 @@ public class RuntimePrefabFragmentSpawnTest {
         final int sourceBodyAId;
         final int sourceBodyBId;
 
-        PrefabFixture(SaveFileFormat fragment,
+        PrefabFixture(RuntimePrefabFragment fragment,
                       String sourceJson,
                       float sourceX,
                       float sourceY,

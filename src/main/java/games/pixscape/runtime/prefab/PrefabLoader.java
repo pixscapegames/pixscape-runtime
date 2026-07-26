@@ -2,11 +2,13 @@ package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 
 public final class PrefabLoader {
     public static final String PREFAB_TYPE = "pixscape-prefab";
-    public static final int PREFAB_VERSION = 2;
+    public static final int PREFAB_VERSION = PrefabAsset.PREFAB_VERSION;
 
     private final Json json;
 
@@ -22,7 +24,10 @@ public final class PrefabLoader {
             throw new IllegalArgumentException("Prefab file does not exist: " + file.path());
         }
 
-        PrefabAsset asset = json.fromJson(PrefabAsset.class, file.readString("UTF-8"));
+        String serialized = file.readString("UTF-8");
+        JsonValue root = new JsonReader().parse(serialized);
+        requireCurrentVersion(root, file);
+        PrefabAsset asset = json.fromJson(PrefabAsset.class, serialized);
         validate(asset, file);
         return asset;
     }
@@ -61,9 +66,24 @@ public final class PrefabLoader {
     private static Json createJson() {
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
-        json.setIgnoreUnknownFields(true);
+        json.setIgnoreUnknownFields(false);
         json.setUsePrototypes(false);
         return json;
+    }
+
+    private static void requireCurrentVersion(JsonValue root, FileHandle file) {
+        JsonValue version = root != null && root.isObject()
+                ? root.get("version")
+                : null;
+        if (version == null || !version.isLong()) {
+            throw new IllegalArgumentException(
+                    "Prefab requires numeric version " + PREFAB_VERSION
+                            + ": " + pathOf(file));
+        }
+        if (version.asInt() != PREFAB_VERSION) {
+            throw new IllegalArgumentException(
+                    "Unsupported prefab version: " + version.asInt());
+        }
     }
 
     private static String pathOf(FileHandle file) {

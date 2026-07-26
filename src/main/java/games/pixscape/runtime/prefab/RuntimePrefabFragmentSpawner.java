@@ -9,6 +9,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
@@ -60,7 +61,31 @@ public class RuntimePrefabFragmentSpawner {
         if (fragment == null) {
             throw new IllegalArgumentException("fragment must not be null");
         }
+        RuntimePrefabFragment.requireCurrentSchema(fragment);
 
+        WorldSerializationManager targetSerialization = prepareTarget(world);
+
+        ByteArrayOutputStream sourceBytes = new ByteArrayOutputStream();
+        targetSerialization.save(sourceBytes, fragment);
+
+        PreparedPrefabSpawn preparedSpawn = prepareFromBytes(
+                sourceBytes.toByteArray(), offsetX, offsetY);
+        return commit(world, targetSerialization, preparedSpawn);
+    }
+
+    public SpawnResult spawn(World world, JsonValue fragmentRoot, float offsetX, float offsetY) {
+        if (world == null) {
+            throw new IllegalArgumentException("world must not be null");
+        }
+        RuntimePrefabFragment.requireCurrentSchema(fragmentRoot);
+
+        WorldSerializationManager targetSerialization = prepareTarget(world);
+        PreparedPrefabSpawn preparedSpawn = prepareFromJson(
+                fragmentRoot, offsetX, offsetY);
+        return commit(world, targetSerialization, preparedSpawn);
+    }
+
+    private WorldSerializationManager prepareTarget(World world) {
         WorldSerializationManager targetSerialization =
                 world.getSystem(WorldSerializationManager.class);
         if (targetSerialization == null) {
@@ -71,37 +96,75 @@ public class RuntimePrefabFragmentSpawner {
         }
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
+        return targetSerialization;
+    }
 
-        ByteArrayOutputStream sourceBytes = new ByteArrayOutputStream();
-        targetSerialization.save(sourceBytes, fragment);
-
+    private PreparedPrefabSpawn prepareFromBytes(
+            byte[] sourceBytes, float offsetX, float offsetY) {
         World stagingWorld = new World(new WorldConfigurationBuilder()
                 .with(new WorldSerializationManager())
                 .build());
-        PreparedPrefabSpawn preparedSpawn;
         try {
             WorldSerializationManager stagingSerialization =
                     stagingWorld.getSystem(WorldSerializationManager.class);
             stagingSerialization.setSerializer(new JsonArtemisSerializer(stagingWorld));
             SaveFileFormat staged = stagingSerialization.load(
-                    new ByteArrayInputStream(sourceBytes.toByteArray()),
-                    SaveFileFormat.class);
-            Array<PreparedPhysicsBodyCandidate> physicsCandidates =
-                    prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
-
-            ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
-            stagingSerialization.save(preparedBytes, staged);
-            byte[] serializedEntities = preparedBytes.toByteArray();
-            validatePreparedPayload(serializedEntities);
-            preparedSpawn = new PreparedPrefabSpawn(serializedEntities, physicsCandidates);
+                    new ByteArrayInputStream(sourceBytes),
+                    RuntimePrefabFragment.class);
+            return prepareStaged(
+                    stagingWorld, stagingSerialization, staged, offsetX, offsetY);
         } finally {
             stagingWorld.dispose();
         }
+    }
 
+    private PreparedPrefabSpawn prepareFromJson(
+            JsonValue fragmentRoot, float offsetX, float offsetY) {
+        World stagingWorld = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager())
+                .build());
+        try {
+            JsonArtemisSerializer serializer =
+                    new JsonArtemisSerializer(stagingWorld);
+            stagingWorld.getSystem(WorldSerializationManager.class)
+                    .setSerializer(serializer);
+            SaveFileFormat staged = serializer.load(
+                    fragmentRoot, RuntimePrefabFragment.class);
+            return prepareStaged(
+                    stagingWorld,
+                    stagingWorld.getSystem(WorldSerializationManager.class),
+                    staged,
+                    offsetX,
+                    offsetY);
+        } finally {
+            stagingWorld.dispose();
+        }
+    }
+
+    private PreparedPrefabSpawn prepareStaged(
+            World stagingWorld,
+            WorldSerializationManager stagingSerialization,
+            SaveFileFormat staged,
+            float offsetX,
+            float offsetY) {
+        Array<PreparedPhysicsBodyCandidate> physicsCandidates =
+                prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
+
+        ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
+        stagingSerialization.save(preparedBytes, staged);
+        byte[] serializedEntities = preparedBytes.toByteArray();
+        validatePreparedPayload(serializedEntities);
+        return new PreparedPrefabSpawn(serializedEntities, physicsCandidates);
+    }
+
+    private SpawnResult commit(
+            World world,
+            WorldSerializationManager targetSerialization,
+            PreparedPrefabSpawn preparedSpawn) {
         IntBag created = new IntBag();
         SaveFileFormat committed = targetSerialization.load(
                 new ByteArrayInputStream(preparedSpawn.serializedEntities),
-                SaveFileFormat.class);
+                RuntimePrefabFragment.class);
         for (int i = 0; i < committed.entities.size(); i++) {
             int entityId = committed.entities.get(i);
             created.add(entityId);
@@ -145,7 +208,7 @@ public class RuntimePrefabFragmentSpawner {
             serialization.setSerializer(new JsonArtemisSerializer(validationWorld));
             serialization.load(
                     new ByteArrayInputStream(serializedEntities),
-                    SaveFileFormat.class);
+                    RuntimePrefabFragment.class);
         } finally {
             validationWorld.dispose();
         }
@@ -164,6 +227,8 @@ public class RuntimePrefabFragmentSpawner {
                 stagingWorld.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<PhysicsBodyComponent> bodiesMapper =
                 stagingWorld.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsJointComponent> jointsMapper =
+                stagingWorld.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
                 stagingWorld.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper =
@@ -175,6 +240,18 @@ public class RuntimePrefabFragmentSpawner {
                 new Array<>(true, staged.entities.size(), PreparedPhysicsBodyCandidate.class);
         for (int i = 0; i < staged.entities.size(); i++) {
             stagedEntities.add(staged.entities.get(i));
+        }
+
+        if (!sceneMeta.physicsEnabled) {
+            for (int i = 0; i < staged.entities.size(); i++) {
+                int entityId = staged.entities.get(i);
+                if (bodiesMapper.has(entityId)
+                        || jointsMapper.has(entityId)) {
+                    throw new IllegalArgumentException(
+                            "Physics components require physicsEnabled=true "
+                                    + "for the active scene.");
+                }
+            }
         }
 
         for (int i = 0; i < staged.entities.size(); i++) {

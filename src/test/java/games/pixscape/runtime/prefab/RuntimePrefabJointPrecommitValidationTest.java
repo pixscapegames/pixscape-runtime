@@ -148,7 +148,7 @@ public class RuntimePrefabJointPrecommitValidationTest {
         final SceneMetaRuntime meta = new SceneMetaRuntime();
         final RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
-        final SaveFileFormat fragment = new SaveFileFormat();
+        final RuntimePrefabFragment fragment = new RuntimePrefabFragment();
         int nextSourceShapeId = 1;
         final int bodyA = createBody();
         final int bodyB = createBody();
@@ -165,6 +165,7 @@ public class RuntimePrefabJointPrecommitValidationTest {
                 world.getMapper(PhysicsGearJointComponent.class).get(gearEntity);
 
         Fixture() {
+            meta.physicsEnabled = true;
             fragment.entities.add(bodyA);
             fragment.entities.add(bodyB);
             fragment.entities.add(bodyC);

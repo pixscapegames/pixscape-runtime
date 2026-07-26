@@ -12,6 +12,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
 import org.junit.Test;
@@ -25,6 +26,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         sceneA.nextPhysicsShapeId = 5;
         SceneMetaRuntime sceneB = new SceneMetaRuntime("B", "b.json");
         sceneB.nextPhysicsShapeId = 100;
+        sceneB.physicsEnabled = true;
         RuntimeConfig config = new RuntimeConfig();
         config.scenes.put("A", sceneA);
         config.scenes.put("B", sceneB);
@@ -46,7 +48,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         sourceShape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
         sourceShapes.add(sourceShape);
         world.process();
-        SaveFileFormat fragment = new SaveFileFormat();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
         fragment.entities.add(sourceEntity);
 
         PixscapeEngine engine = new PixscapeEngine();
