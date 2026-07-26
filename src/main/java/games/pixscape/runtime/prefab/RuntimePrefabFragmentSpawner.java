@@ -9,7 +9,10 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -30,6 +33,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -41,15 +45,22 @@ public class RuntimePrefabFragmentSpawner {
 
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
+    private final AtlasRuntimeService atlasRuntimeService;
     private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
 
     public RuntimePrefabFragmentSpawner(
-            IdentityRegistry identityRegistry, SceneMetaRuntime sceneMeta) {
+            IdentityRegistry identityRegistry,
+            SceneMetaRuntime sceneMeta,
+            AtlasRuntimeService atlasRuntimeService) {
         if (identityRegistry == null) {
             throw new IllegalArgumentException("identityRegistry must not be null");
         }
+        if (atlasRuntimeService == null) {
+            throw new IllegalArgumentException("atlasRuntimeService must not be null");
+        }
         this.identityRegistry = identityRegistry;
         this.sceneMeta = sceneMeta;
+        this.atlasRuntimeService = atlasRuntimeService;
         this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(sceneMeta);
     }
 
@@ -107,6 +118,7 @@ public class RuntimePrefabFragmentSpawner {
             RuntimePrefabFragment staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes),
                     RuntimePrefabFragment.class);
+            resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld, stagingSerialization, staged, offsetX, offsetY);
         } finally {
@@ -126,6 +138,7 @@ public class RuntimePrefabFragmentSpawner {
                     .setSerializer(serializer);
             RuntimePrefabFragment staged = serializer.load(
                     fragmentRoot, RuntimePrefabFragment.class);
+            resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld,
                     stagingWorld.getSystem(WorldSerializationManager.class),
@@ -145,12 +158,29 @@ public class RuntimePrefabFragmentSpawner {
             float offsetY) {
         Array<PreparedPhysicsBodyCandidate> physicsCandidates =
                 prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
+        boolean[] preparedAssetRefs = new boolean[staged.entities.size()];
+        boolean[] preparedRegionValid = new boolean[staged.entities.size()];
+        float[] preparedUvs = new float[staged.entities.size() * 4];
+        int[] preparedRegionData = new int[staged.entities.size() * 3];
+        capturePreparedAssetState(
+                stagingWorld,
+                staged.entities,
+                preparedAssetRefs,
+                preparedRegionValid,
+                preparedUvs,
+                preparedRegionData);
 
         ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
         stagingSerialization.save(preparedBytes, staged);
         byte[] serializedEntities = preparedBytes.toByteArray();
         validatePreparedPayload(serializedEntities);
-        return new PreparedPrefabSpawn(serializedEntities, physicsCandidates);
+        return new PreparedPrefabSpawn(
+                serializedEntities,
+                physicsCandidates,
+                preparedAssetRefs,
+                preparedRegionValid,
+                preparedUvs,
+                preparedRegionData);
     }
 
     private SpawnResult commit(
@@ -181,11 +211,133 @@ public class RuntimePrefabFragmentSpawner {
             TransformComponent transform =
                     world.getMapper(TransformComponent.class).getSafe(entityId, null);
             if (transform != null) transform.refreshCaches();
+            publishPreparedAssetState(world, entityId, i, preparedSpawn);
         }
 
         markCreatedDirty(world, created);
 
         return new SpawnResult(created);
+    }
+
+    private void resolveAssetRefsForStagedEntities(
+            World stagingWorld, IntBag entityIds) {
+        ComponentMapper<AssetRefComponent> assetRefs =
+                stagingWorld.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> regions =
+                stagingWorld.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> materials =
+                stagingWorld.getMapper(RenderMaterialComponent.class);
+
+        for (int i = 0; i < entityIds.size(); i++) {
+            int entityId = entityIds.get(i);
+            AssetRefComponent assetRef = assetRefs.getSafe(entityId, null);
+            TextureRegionComponent region = regions.getSafe(entityId, null);
+            RenderMaterialComponent material = materials.getSafe(entityId, null);
+            if (assetRef == null || region == null || material == null) {
+                continue;
+            }
+
+            if (assetRef.assetId < 0) {
+                throw new IllegalStateException(
+                        "AssetRef entity without assetId during prefab resolve: e="
+                                + entityId);
+            }
+            String atlasTag = assetRef.atlasTag;
+            if (isBlank(atlasTag)) {
+                throw new IllegalStateException(
+                        "AssetRef atlasTag not set for entity " + entityId);
+            }
+
+            AtlasRuntimeService.CachedRegion cached =
+                    atlasRuntimeService.resolveCached(assetRef.assetId, atlasTag);
+            if (cached == null) {
+                region.valid = false;
+                material.textureHandle = 0;
+                continue;
+            }
+
+            region.u1 = cached.u1;
+            region.v1 = cached.v1;
+            region.u2 = cached.u2;
+            region.v2 = cached.v2;
+            region.pixW = cached.pixW;
+            region.pixH = cached.pixH;
+            region.valid = true;
+            material.textureHandle = cached.textureHandle;
+        }
+    }
+
+    private static void capturePreparedAssetState(
+            World stagingWorld,
+            IntBag entityIds,
+            boolean[] preparedAssetRefs,
+            boolean[] preparedRegionValid,
+            float[] preparedUvs,
+            int[] preparedRegionData) {
+        ComponentMapper<AssetRefComponent> assetRefs =
+                stagingWorld.getMapper(AssetRefComponent.class);
+        ComponentMapper<TextureRegionComponent> regions =
+                stagingWorld.getMapper(TextureRegionComponent.class);
+        ComponentMapper<RenderMaterialComponent> materials =
+                stagingWorld.getMapper(RenderMaterialComponent.class);
+        for (int i = 0; i < entityIds.size(); i++) {
+            int entityId = entityIds.get(i);
+            if (!assetRefs.has(entityId)
+                    || !regions.has(entityId)
+                    || !materials.has(entityId)) {
+                continue;
+            }
+            TextureRegionComponent region = regions.get(entityId);
+            RenderMaterialComponent material = materials.get(entityId);
+            preparedAssetRefs[i] = true;
+            preparedRegionValid[i] = region.valid;
+            int uvOffset = i * 4;
+            preparedUvs[uvOffset] = region.u1;
+            preparedUvs[uvOffset + 1] = region.v1;
+            preparedUvs[uvOffset + 2] = region.u2;
+            preparedUvs[uvOffset + 3] = region.v2;
+            int dataOffset = i * 3;
+            preparedRegionData[dataOffset] = region.pixW;
+            preparedRegionData[dataOffset + 1] = region.pixH;
+            preparedRegionData[dataOffset + 2] = material.textureHandle;
+        }
+    }
+
+    private static void publishPreparedAssetState(
+            World world,
+            int entityId,
+            int preparedIndex,
+            PreparedPrefabSpawn preparedSpawn) {
+        if (!preparedSpawn.preparedAssetRefs[preparedIndex]) {
+            return;
+        }
+        TextureRegionComponent region =
+                world.getMapper(TextureRegionComponent.class).get(entityId);
+        RenderMaterialComponent material =
+                world.getMapper(RenderMaterialComponent.class).get(entityId);
+        int uvOffset = preparedIndex * 4;
+        region.u1 = preparedSpawn.preparedUvs[uvOffset];
+        region.v1 = preparedSpawn.preparedUvs[uvOffset + 1];
+        region.u2 = preparedSpawn.preparedUvs[uvOffset + 2];
+        region.v2 = preparedSpawn.preparedUvs[uvOffset + 3];
+        int dataOffset = preparedIndex * 3;
+        region.pixW = preparedSpawn.preparedRegionData[dataOffset];
+        region.pixH = preparedSpawn.preparedRegionData[dataOffset + 1];
+        region.valid = preparedSpawn.preparedRegionValid[preparedIndex];
+        material.textureHandle =
+                preparedSpawn.preparedRegionData[dataOffset + 2];
+    }
+
+    private static boolean isBlank(String value) {
+        if (value == null || value.length() == 0) {
+            return true;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isWhitespace(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -318,12 +470,24 @@ public class RuntimePrefabFragmentSpawner {
     private static final class PreparedPrefabSpawn {
         final byte[] serializedEntities;
         final Array<PreparedPhysicsBodyCandidate> physicsCandidates;
+        final boolean[] preparedAssetRefs;
+        final boolean[] preparedRegionValid;
+        final float[] preparedUvs;
+        final int[] preparedRegionData;
 
         PreparedPrefabSpawn(
                 byte[] serializedEntities,
-                Array<PreparedPhysicsBodyCandidate> physicsCandidates) {
+                Array<PreparedPhysicsBodyCandidate> physicsCandidates,
+                boolean[] preparedAssetRefs,
+                boolean[] preparedRegionValid,
+                float[] preparedUvs,
+                int[] preparedRegionData) {
             this.serializedEntities = serializedEntities;
             this.physicsCandidates = physicsCandidates;
+            this.preparedAssetRefs = preparedAssetRefs;
+            this.preparedRegionValid = preparedRegionValid;
+            this.preparedUvs = preparedUvs;
+            this.preparedRegionData = preparedRegionData;
         }
     }
 

@@ -16,6 +16,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
@@ -146,7 +147,8 @@ public class RuntimePrefabJointPrecommitValidationTest {
                 .build());
         final SceneMetaRuntime meta = new SceneMetaRuntime();
         final RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(new IdentityRegistry(), meta);
+                new RuntimePrefabFragmentSpawner(
+                        new IdentityRegistry(), meta, new AtlasRuntimeService());
         final RuntimePrefabFragment fragment = new RuntimePrefabFragment();
         int nextSourceShapeId = 1;
         final int bodyA = createBody();

@@ -13,6 +13,7 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -246,7 +247,10 @@ public class SpatialHeightPhase1SerializationTest {
         RuntimePrefabFragment fragment =
                 loadRuntimeFragment(targetWorld, fragmentBytes);
 
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry(), new games.pixscape.runtime.loading.SceneMetaRuntime());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+                new IdentityRegistry(),
+                new games.pixscape.runtime.loading.SceneMetaRuntime(),
+                new AtlasRuntimeService());
         SpawnResult result = spawner.spawn(targetWorld, fragment, 0f, 0f);
 
         IntBag created = result.createdEntityIds();

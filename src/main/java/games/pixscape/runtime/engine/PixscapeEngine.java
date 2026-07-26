@@ -221,10 +221,9 @@ public final class PixscapeEngine {
                     "Active scene metadata is required to allocate physics shape IDs.");
         }
         RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(identityRegistry, activeSceneMeta);
-        SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
-        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
-        return result;
+                new RuntimePrefabFragmentSpawner(
+                        identityRegistry, activeSceneMeta, atlasRuntimeService);
+        return spawner.spawn(world, fragment, offsetX, offsetY);
     }
 
     /**
@@ -254,10 +253,9 @@ public final class PixscapeEngine {
 
         JsonValue root = new JsonReader().parse(fragmentFile);
         RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(identityRegistry, activeSceneMeta);
-        SpawnResult result = spawner.spawn(world, root, offsetX, offsetY);
-        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
-        return result;
+                new RuntimePrefabFragmentSpawner(
+                        identityRegistry, activeSceneMeta, atlasRuntimeService);
+        return spawner.spawn(world, root, offsetX, offsetY);
     }
 
     private void rebuildWorld(RuntimeConfig config,
@@ -1079,51 +1077,6 @@ public final class PixscapeEngine {
 
             if (dirty != null) {
                 dirty.material(e);
-            }
-        }
-    }
-
-    static void resolveAssetRefsForEntities(World world, AtlasRuntimeService atlasRuntimeService, IntBag entityIds) {
-        if (world == null || atlasRuntimeService == null || entityIds == null || entityIds.isEmpty()) return;
-
-        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
-        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-
-        for (int i = 0; i < entityIds.size(); i++) {
-            int e = entityIds.get(i);
-
-            AssetRefComponent src = mSrc.getSafe(e, null);
-            TextureRegionComponent tr = mTR.getSafe(e, null);
-            RenderMaterialComponent mat = mMat.getSafe(e, null);
-            if (src == null || tr == null || mat == null) continue;
-
-            if (src.assetId < 0) {
-                throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
-            }
-            String atlasTag = src.atlasTag;
-            if (isBlank(atlasTag)) {
-                throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
-            }
-
-            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
-            if (region == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-            } else {
-                tr.u1 = region.u1;
-                tr.v1 = region.v1;
-                tr.u2 = region.u2;
-                tr.v2 = region.v2;
-                tr.pixW = region.pixW;
-                tr.pixH = region.pixH;
-                tr.valid = true;
-                mat.textureHandle = region.textureHandle;
-            }
-
-            if (dirty != null) {
-                dirty.mark(e, DirtyBits.MATERIAL | DirtyBits.GEOMETRY | DirtyBits.LAYER | DirtyBits.ORDER);
             }
         }
     }
