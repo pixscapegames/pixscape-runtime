@@ -1,7 +1,9 @@
 package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.animation.AnimationsRuntimeData;
@@ -37,19 +39,6 @@ public final class RuntimeProjectIO {
     }
 
     public static final String PROJECT_JSON = RuntimeFs.FILE_PROJECT_JSON;
-
-    private static final Json json = new Json();
-
-    static {
-        // also write values == defaults (useful for stability / debug)
-        json.setUsePrototypes(false);
-
-        // json standard
-        json.setOutputType(JsonWriter.OutputType.json);
-
-        // tolerant during migrations
-        json.setIgnoreUnknownFields(true);
-    }
 
     private RuntimeProjectIO() {
     }
