@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
@@ -137,6 +138,51 @@ public class PhysicsServiceTest {
     }
 
     @Test
+    public void bodyRemovalClosureIncludesDependentGearBeforeDirectSource() {
+        GdxNativesLoader.load();
+        Box2dWorldService box2d =
+                new Box2dWorldService(100f, new Vector2(0f, -9.8f));
+        try {
+            DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
+            Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
+            World world = new World(
+                    new WorldConfigurationBuilder().with(dirty, sync).build());
+            PhysicsService physics = new PhysicsService(
+                    world,
+                    box2d,
+                    new games.pixscape.runtime.loading.SceneMetaRuntime());
+
+            int staticA = createBody(world, physics, 0f, PhysicsBodyComponent.STATIC);
+            int dynamicA = createBody(world, physics, 100f, PhysicsBodyComponent.DYNAMIC);
+            int staticB = createBody(world, physics, 200f, PhysicsBodyComponent.STATIC);
+            int dynamicB = createBody(world, physics, 300f, PhysicsBodyComponent.DYNAMIC);
+            int source1 = physics.createRevoluteJoint(staticA, dynamicA, 50f, 0f);
+            int source2 = physics.createPrismaticJoint(staticB, dynamicB, 250f, 0f);
+            int gear = physics.createGearJoint(source1, source2, 2f);
+
+            processPhysics(world);
+
+            IntArray affected = physics.collectJointsAffectedByBodyRemoval(
+                    staticA, new IntArray(false, 4));
+            Assert.assertEquals(2, affected.size);
+            Assert.assertEquals(gear, affected.get(0));
+            Assert.assertEquals(source1, affected.get(1));
+            Assert.assertFalse(affected.contains(source2));
+            Assert.assertEquals(3, box2d.world.getJointCount());
+
+            physics.removePhysics(staticA);
+            processPhysics(world);
+
+            Assert.assertFalse(world.getEntityManager().isActive(source1));
+            Assert.assertFalse(world.getEntityManager().isActive(gear));
+            Assert.assertTrue(world.getEntityManager().isActive(source2));
+            Assert.assertEquals(1, box2d.world.getJointCount());
+        } finally {
+            box2d.dispose();
+        }
+    }
+
+    @Test
     public void movingBodyInAuthoringRefreshesDistanceJointLength() {
         // Arrange
         GdxNativesLoader.load();
@@ -170,6 +216,22 @@ public class PhysicsServiceTest {
 
         // Assert: distance joint target length follows moved transforms
         Assert.assertEquals(2f, dist.lengthM, 1e-4f);
+    }
+
+    private static int createBody(
+            World world, PhysicsService physics, float x, int type) {
+        int entityId = world.create();
+        TransformComponent transform =
+                world.getMapper(TransformComponent.class).create(entityId);
+        transform.x = x;
+        physics.ensurePhysics(entityId);
+        world.getMapper(PhysicsBodyComponent.class).get(entityId).type = type;
+        return entityId;
+    }
+
+    private static void processPhysics(World world) {
+        world.process();
+        world.process();
     }
 
 }

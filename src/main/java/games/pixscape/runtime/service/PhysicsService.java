@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
@@ -148,8 +149,11 @@ public final class PhysicsService {
     public void removePhysics(int eid) {
         if (eid < 0) return;
 
-        // keep runtime consistent: no orphan joint
-        deleteAllJointsReferencingBody(eid);
+        IntArray affectedJoints =
+                collectJointsAffectedByBodyRemoval(eid, new IntArray(false, 8));
+        for (int i = 0; i < affectedJoints.size; i++) {
+            deleteJoint(affectedJoints.get(i));
+        }
 
         if (mShapes.has(eid)) mShapes.remove(eid);
         if (mCompiled.has(eid)) mCompiled.remove(eid);
@@ -778,14 +782,17 @@ public final class PhysicsService {
     }
 
     /**
-     * Lists (scan) joints connected to a body.
-     * OK for UI. (For now, returns all joints regardless of type.)
+     * Collects joints that must be deleted before removing a body.
+     * Gear joints are returned before the source joints they depend on.
      */
-    public IntArray listJointsForBody(int bodyEid, IntArray out) {
+    public IntArray collectJointsAffectedByBodyRemoval(int bodyEid, IntArray out) {
         if (out == null) out = new IntArray(false, 8);
         out.clear();
         if (bodyEid < 0) return out;
 
+        IntSet directJointIds = new IntSet();
+        IntSet emitted = new IntSet();
+        IntArray direct = new IntArray(false, 8);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PhysicsJointComponent.class))
                 .getEntities();
@@ -795,23 +802,29 @@ public final class PhysicsService {
             int jEid = data[i];
             PhysicsJointComponent j = mJoint.getSafe(jEid, null);
             if (j == null) continue;
-            if (j.aEid == bodyEid || j.bEid == bodyEid) out.add(jEid);
+            if (j.aEid == bodyEid || j.bEid == bodyEid) {
+                if (directJointIds.add(jEid)) direct.add(jEid);
+            }
+        }
+
+        for (int i = 0, n = bag.size(); i < n; i++) {
+            int jEid = data[i];
+            PhysicsJointComponent joint = mJoint.getSafe(jEid, null);
+            if (joint == null || joint.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            PhysicsGearJointComponent gear = mGear.getSafe(jEid, null);
+            if (gear == null) continue;
+            if (directJointIds.contains(jEid)
+                    || directJointIds.contains(gear.joint1Eid)
+                    || directJointIds.contains(gear.joint2Eid)) {
+                if (emitted.add(jEid)) out.add(jEid);
+            }
+        }
+
+        for (int i = 0; i < direct.size; i++) {
+            int jointEid = direct.get(i);
+            if (emitted.add(jointEid)) out.add(jointEid);
         }
         return out;
-    }
-
-    private void deleteAllJointsReferencingBody(int bodyEid) {
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PhysicsJointComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int jEid = data[i];
-            PhysicsJointComponent j = mJoint.getSafe(jEid, null);
-            if (j == null) continue;
-            if (j.aEid == bodyEid || j.bEid == bodyEid) deleteJoint(jEid);
-        }
     }
 
     private void markJointDirty(int jointEid) {
