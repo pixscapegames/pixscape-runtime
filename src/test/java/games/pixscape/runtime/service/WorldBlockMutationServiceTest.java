@@ -151,6 +151,46 @@ public class WorldBlockMutationServiceTest {
         }
     }
 
+    @Test
+    public void rejectsStalePublishedBindingBeforeAllocation() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            fixture.world.getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner)
+                    .bindings.first().spatialBlockId = 11;
+            try {
+                fixture.service.bindBlockCollision(1, 11);
+                Assert.fail("A stale repository must be rejected.");
+            } catch (IllegalStateException expected) {
+                Assert.assertTrue(expected.getMessage().contains("stale"));
+            }
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+            Assert.assertEquals(1, fixture.repository.findByBlock(1, 10).physicsShapeId);
+            Assert.assertFalse(fixture.repository.hasBinding(1, 11));
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void detachedServiceRejectsBeforeWorldAccess() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.detach();
+            try {
+                fixture.service.bindBlockCollision(1, 10);
+                Assert.fail("Detached services must reject all public mutations.");
+            } catch (IllegalStateException expected) {
+                Assert.assertTrue(expected.getMessage().contains("detached"));
+            }
+            Assert.assertEquals(1, fixture.meta.nextPhysicsShapeId);
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+        } finally {
+            fixture.dispose();
+        }
+    }
+
     private static void assertFirstBinding(Fixture fixture, int shapeId) {
         PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class).get(fixture.owner);
         BlockPhysicsBindingsComponent bindings = fixture.world.getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner);

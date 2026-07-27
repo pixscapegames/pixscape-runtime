@@ -284,7 +284,7 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         blockPhysicsBindingRepository.clear();
         if (world != null) {
             world.dispose();
@@ -597,7 +597,7 @@ public final class PixscapeEngine {
      */
     private void disposeWorldAndRuntime() {
         // World first (systems may touch services)
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         blockPhysicsBindingRepository.clear();
         if (world != null) {
             world.dispose();
@@ -636,7 +636,7 @@ public final class PixscapeEngine {
     private void discardFailedSceneLoad() {
         sceneLoaded = false;
         activeSceneMeta = null;
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         blockPhysicsBindingRepository.clear();
 
         if (box2dSyncSystem != null) {
@@ -765,7 +765,7 @@ public final class PixscapeEngine {
      */
     public PixscapeEngine initEmptyRuntime() {
         applyConfiguredLogLevel();
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         blockPhysicsBindingRepository.clear();
         this.cfg = new RuntimeConfig();
 
@@ -846,7 +846,7 @@ public final class PixscapeEngine {
     public void rebuildWorldOnly(RuntimeConfig config, FileHandle projectDir) {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         blockPhysicsBindingRepository.clear();
         if (worldCamera == null) worldCamera = new OrthographicCamera();
         if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
@@ -1261,7 +1261,7 @@ public final class PixscapeEngine {
     }
 
     private void bindRuntimeRegistries(SceneMetaRuntime sceneMeta) {
-        worldBlockMutationService = null;
+        detachWorldBlockMutationService();
         identityRegistry.bind(world, sceneMeta);
         tagRegistry.bind(world);
         blockPhysicsBindingRepository.bind(world, identityRegistry);
@@ -1277,6 +1277,13 @@ public final class PixscapeEngine {
     private void rebuildRuntimeRegistries() {
         rebuildIdentityAndTagRegistries();
         blockPhysicsBindingRepository.rebuild();
+    }
+
+    private void detachWorldBlockMutationService() {
+        if (worldBlockMutationService != null) {
+            worldBlockMutationService.detach();
+            worldBlockMutationService = null;
+        }
     }
 
     private void rebuildIdentityAndTagRegistries() {

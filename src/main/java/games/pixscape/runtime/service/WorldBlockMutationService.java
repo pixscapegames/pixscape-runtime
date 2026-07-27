@@ -37,6 +37,7 @@ public final class WorldBlockMutationService {
     private final ComponentMapper<PhysicsShapesComponent> shapes;
     private final ComponentMapper<BlockPhysicsBindingsComponent> bindings;
     private final ComponentMapper<PhysicsCompiledFixturesComponent> compiled;
+    private boolean attached = true;
 
     public WorldBlockMutationService(World world, SceneMetaRuntime sceneMeta,
                                      IdentityRegistry identityRegistry,
@@ -62,23 +63,30 @@ public final class WorldBlockMutationService {
     }
 
     public int bindBlockCollision(int ownerStableId, int spatialBlockId) {
+        requireAttached();
         PreparedWorldBlockMutation prepared = prepareBind(ownerStableId, spatialBlockId);
         PreparedWorldBlockMutation.Publication publication = prepared.takePublication();
-        Array<PhysicsShapeData> publishedShapes = publication.physics.takeShapes();
         // Consume every throwing transfer before the first ECS mutation.
-        com.badlogic.gdx.utils.Array<games.pixscape.runtime.physics.CompiledFixtureData> fixtures =
-                publication.physics.takeCompiledFixtures().takeFixtures();
-        publish(publication, publishedShapes, fixtures);
+        PhysicsService.PreparedBodyPublication physicsPublication =
+                PhysicsService.takePreparedPublication(publication.physics);
+        publish(publication, physicsPublication);
         return publication.physicsShapeId;
     }
 
+    public void detach() {
+        attached = false;
+    }
+
     PreparedWorldBlockMutation prepareBind(int ownerStableId, int spatialBlockId) {
+        requireAttached();
         validateRequest(ownerStableId, spatialBlockId);
         int ownerEntityId = identityRegistry.findByStableId(ownerStableId);
         SpatialBlocksComponent ownerBlocks = blocks.get(ownerEntityId);
         BlockPhysicsBindingsComponent currentBindings = bindings.getSafe(ownerEntityId, null);
         PhysicsShapesComponent currentShapes = shapes.getSafe(ownerEntityId, null);
         validateOwnerAggregate(ownerEntityId, ownerStableId, currentBindings, currentShapes);
+        repository.validatePublishedOwnerState(ownerStableId, ownerEntityId, ownerBlocks,
+                currentBindings, currentShapes);
 
         Array<BlockPhysicsBindingData> nextBindings = copyBindings(currentBindings);
         Array<PhysicsShapeData> nextShapes = copyShapes(currentShapes);
@@ -93,20 +101,19 @@ public final class WorldBlockMutationService {
         nextShapes.add(shape);
 
         Array<SpatialBlockData> blockCopies = copyBlocks(ownerBlocks);
-        PreparedPhysicsBodyCandidate preparedPhysics = PhysicsService.prepareCandidateLinkedBody(
-                nextShapes, ownerStableId, tiled.get(ownerEntityId).data, sceneMeta.pixelsPerMeter,
-                nextBindings, blockCopies);
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot =
                 repository.prepareOwnerSnapshot(ownerStableId, ownerEntityId, blockCopies,
                         nextBindings, nextShapes);
-        return new PreparedWorldBlockMutation(ownerEntityId, ownerStableId, physicsShapeId,
+        PreparedPhysicsBodyCandidate preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(
+                nextShapes, ownerEntityId, ownerStableId, tiled.get(ownerEntityId).data,
+                sceneMeta.pixelsPerMeter, repositorySnapshot);
+        return new PreparedWorldBlockMutation(ownerEntityId, physicsShapeId,
                 nextBindings, preparedPhysics, repositorySnapshot,
                 !transforms.has(ownerEntityId), !bodies.has(ownerEntityId));
     }
 
     private void publish(PreparedWorldBlockMutation.Publication publication,
-                         Array<PhysicsShapeData> publishedShapes,
-                         Array<games.pixscape.runtime.physics.CompiledFixtureData> fixtures) {
+                         PhysicsService.PreparedBodyPublication physicsPublication) {
         int entityId = publication.ownerEntityId;
         TransformComponent transform = transforms.has(entityId)
                 ? transforms.get(entityId) : transforms.create(entityId);
@@ -119,8 +126,7 @@ public final class WorldBlockMutationService {
         PhysicsShapesComponent targetShapes = shapes.has(entityId) ? shapes.get(entityId) : shapes.create(entityId);
         PhysicsCompiledFixturesComponent targetCompiled = compiled.has(entityId)
                 ? compiled.get(entityId) : compiled.create(entityId);
-        targetShapes.shapes = publishedShapes;
-        new PhysicsCompiledFixtureCachePublisher().publish(targetCompiled, fixtures);
+        PhysicsService.publishPreparedPublication(targetShapes, targetCompiled, physicsPublication);
         publication.repositorySnapshot.applyTo(repository);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);
@@ -153,6 +159,13 @@ public final class WorldBlockMutationService {
         }
         if (repository.hasBinding(ownerStableId, spatialBlockId)) {
             throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "spatial block is already bound");
+        }
+    }
+
+    private void requireAttached() {
+        if (!attached || !identityRegistry.isBoundTo(world, sceneMeta)
+                || !repository.isBoundTo(world, identityRegistry)) {
+            throw new IllegalStateException("WorldBlockMutationService is detached from its World.");
         }
     }
 

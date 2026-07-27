@@ -23,7 +23,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
  * mutate either the repository snapshot or the authored ECS components through
  * this API.</p>
  */
-public final class BlockPhysicsBindingRepository {
+public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingLookup {
     private World world;
     private IdentityRegistry identityRegistry;
     private IndexState indexes = new IndexState();
@@ -40,6 +40,10 @@ public final class BlockPhysicsBindingRepository {
 
     public void clear() {
         bind(null, null);
+    }
+
+    boolean isBoundTo(World expectedWorld, IdentityRegistry expectedIdentityRegistry) {
+        return world == expectedWorld && identityRegistry == expectedIdentityRegistry;
     }
 
     /**
@@ -120,6 +124,28 @@ public final class BlockPhysicsBindingRepository {
         }
     }
 
+    /** Rejects an owner whose published ECS relation no longer matches these indexes. */
+    void validatePublishedOwnerState(int ownerStableId, int ownerEntityId,
+                                     SpatialBlocksComponent blocks,
+                                     BlockPhysicsBindingsComponent bindings,
+                                     PhysicsShapesComponent shapes) {
+        requireBound();
+        OwnerBindingIndex indexed = indexes.bindingByOwnerAndBlock.get(ownerStableId);
+        if (bindings == null) {
+            if (indexed != null || indexes.blockByOwnerAndId.containsKey(ownerStableId)) {
+                throw new IllegalStateException("Published binding repository is stale: ownerStableId="
+                        + ownerStableId + " has no bindings component.");
+            }
+            return;
+        }
+        PreparedOwnerSnapshot current = prepareOwnerSnapshot(ownerStableId, ownerEntityId,
+                copyBlocks(blocks), copyBindings(bindings), copyShapes(shapes));
+        if (!matches(indexed, indexes.blockByOwnerAndId.get(ownerStableId), current)) {
+            throw new IllegalStateException("Published binding repository is stale: ownerEntityId="
+                    + ownerEntityId + ", ownerStableId=" + ownerStableId + ".");
+        }
+    }
+
     /**
      * Prepares an owner-local replacement without scanning the World.  The
      * returned delta is deliberately small: it owns only this owner's indexes.
@@ -190,6 +216,63 @@ public final class BlockPhysicsBindingRepository {
             indexes.bindingByPhysicsShapeId.put(binding.physicsShapeId, binding);
             indexes.ownerEntityByPhysicsShapeId.put(binding.physicsShapeId, prepared.ownerEntityId);
         }
+    }
+
+    private static Array<SpatialBlockData> copyBlocks(SpatialBlocksComponent source) {
+        if (source == null || source.blocks == null) {
+            throw new IllegalArgumentException("Published spatial blocks are required.");
+        }
+        Array<SpatialBlockData> result = new Array<>(SpatialBlockData[]::new);
+        for (int i = 0; i < source.blocks.size; i++) result.add(source.blocks.get(i));
+        return result;
+    }
+
+    private static Array<BlockPhysicsBindingData> copyBindings(BlockPhysicsBindingsComponent source) {
+        if (source.bindings == null) throw new IllegalArgumentException("Published bindings are required.");
+        return source.bindings;
+    }
+
+    private static Array<PhysicsShapeData> copyShapes(PhysicsShapesComponent source) {
+        if (source == null || source.shapes == null) {
+            throw new IllegalArgumentException("Published physics shapes are required.");
+        }
+        return source.shapes;
+    }
+
+    private static boolean matches(OwnerBindingIndex indexed,
+                                   IntMap<SpatialBlockData> indexedBlocks,
+                                   PreparedOwnerSnapshot current) {
+        if (indexed == null || indexedBlocks == null || indexed.ordered.size != current.ownerIndex.ordered.size
+                || indexedBlocks.size != current.blockIndex.size) return false;
+        for (int i = 0; i < indexed.ordered.size; i++) {
+            BlockPhysicsBindingData a = indexed.ordered.get(i);
+            BlockPhysicsBindingData b = current.ownerIndex.ordered.get(i);
+            if (a.spatialBlockId != b.spatialBlockId || a.physicsShapeId != b.physicsShapeId) return false;
+        }
+        for (IntMap.Entry<SpatialBlockData> entry : indexedBlocks) {
+            SpatialBlockData other = current.blockIndex.get(entry.key);
+            if (!sameBlock(entry.value, other)) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameBlock(SpatialBlockData a, SpatialBlockData b) {
+        if (a == b) return true;
+        if (a == null || b == null || a.id != b.id || a.structureId != b.structureId
+                || a.x != b.x || a.y != b.y || a.width != b.width || a.depth != b.depth
+                || a.altitude != b.altitude || a.height != b.height
+                || a.actorOccluder != b.actorOccluder || a.lightOccluder != b.lightOccluder
+                || a.shadowCaster != b.shadowCaster || a.particleOccluder != b.particleOccluder
+                || a.linkedTileRefsAuthored != b.linkedTileRefsAuthored) return false;
+        if (a.name == null ? b.name != null : !a.name.equals(b.name)) return false;
+        if (a.linkedTileRefs == null || b.linkedTileRefs == null) return a.linkedTileRefs == b.linkedTileRefs;
+        if (a.linkedTileRefs.size != b.linkedTileRefs.size) return false;
+        for (int i = 0; i < a.linkedTileRefs.size; i++) {
+            SpatialBlockData.LinkedTileRef x = a.linkedTileRefs.get(i);
+            SpatialBlockData.LinkedTileRef y = b.linkedTileRefs.get(i);
+            if (x == null || y == null || x.gx != y.gx || x.gy != y.gy || x.tileAssetId != y.tileAssetId) return false;
+        }
+        return true;
     }
 
     private void validateAndIndexOwner(
@@ -480,7 +563,7 @@ public final class BlockPhysicsBindingRepository {
                 new Array<>(BlockPhysicsBindingData[]::new);
     }
 
-    static final class PreparedOwnerSnapshot {
+    static final class PreparedOwnerSnapshot implements BlockPhysicsBindingLookup {
         private BlockPhysicsBindingRepository repository;
         private final World world;
         private final int ownerStableId;
@@ -514,6 +597,28 @@ public final class BlockPhysicsBindingRepository {
             repository = null;
             ownerIndex = null;
             blockIndex = null;
+        }
+
+        @Override
+        public BlockPhysicsBindingData findByPhysicsShapeId(int physicsShapeId) {
+            if (ownerIndex == null || physicsShapeId <= 0) return null;
+            for (int i = 0; i < ownerIndex.ordered.size; i++) {
+                BlockPhysicsBindingData binding = ownerIndex.ordered.get(i);
+                if (binding.physicsShapeId == physicsShapeId) return binding.copy();
+            }
+            return null;
+        }
+
+        @Override
+        public SpatialBlockData findBlock(int stableId, int blockId) {
+            if (ownerStableId != stableId || blockIndex == null) return null;
+            SpatialBlockData block = blockIndex.get(blockId);
+            return block != null ? block.copy() : null;
+        }
+
+        @Override
+        public int findOwnerEntityByPhysicsShapeId(int physicsShapeId) {
+            return findByPhysicsShapeId(physicsShapeId) != null ? ownerEntityId : -1;
         }
     }
 }

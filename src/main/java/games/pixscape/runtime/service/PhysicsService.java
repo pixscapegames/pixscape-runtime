@@ -1237,6 +1237,16 @@ public final class PhysicsService {
         if (repository == null) {
             throw new IllegalArgumentException("Linked physics preparation requires a binding repository.");
         }
+        return prepareLinkedBodyCandidateInternal(sources, ownerEntityId, ownerStableId, tiledMap,
+                pixelsPerMeter, repository);
+    }
+
+    private static PreparedPhysicsBodyCandidate prepareLinkedBodyCandidateInternal(
+            Array<PhysicsShapeData> sources, int ownerEntityId, int ownerStableId,
+            TiledMapLayerData tiledMap, float pixelsPerMeter, BlockPhysicsBindingLookup lookup) {
+        if (sources == null || lookup == null) {
+            throw new IllegalArgumentException("Linked physics sources and binding lookup are required.");
+        }
         Array<PhysicsShapeData> detached =
                 new Array<>(true, sources.size, PhysicsShapeData.class);
         Array<ResolvedPhysicsShape> resolved =
@@ -1253,19 +1263,19 @@ public final class PhysicsService {
                 resolved.add(SHAPE_RESOLVER.resolve(copy));
                 continue;
             }
-            int indexedOwner = repository.findOwnerEntityByPhysicsShapeId(copy.physicsShapeId);
+            int indexedOwner = lookup.findOwnerEntityByPhysicsShapeId(copy.physicsShapeId);
             if (indexedOwner != ownerEntityId) {
                 throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId, -1,
                         "binding repository ownerEntityId does not match the reserved body");
             }
             BlockPhysicsBindingData binding =
-                    repository.findByPhysicsShapeId(copy.physicsShapeId);
+                    lookup.findByPhysicsShapeId(copy.physicsShapeId);
             if (binding == null) {
                 throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId, -1,
                         "linked shape has no binding");
             }
             SpatialBlockData block =
-                    repository.findBlock(ownerStableId, binding.spatialBlockId);
+                    lookup.findBlock(ownerStableId, binding.spatialBlockId);
             if (block == null) {
                 throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId,
                         binding.spatialBlockId, "binding references no spatial block");
@@ -1276,38 +1286,12 @@ public final class PhysicsService {
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
 
-    /** Prepares a not-yet-published owner-local linked binding candidate. */
-    static PreparedPhysicsBodyCandidate prepareCandidateLinkedBody(
-            Array<PhysicsShapeData> sources, int ownerStableId, TiledMapLayerData tiledMap,
-            float pixelsPerMeter, Array<BlockPhysicsBindingData> bindings,
-            Array<SpatialBlockData> blocks) {
-        if (sources == null || bindings == null || blocks == null) {
-            throw new IllegalArgumentException("Candidate linked sources, bindings and blocks are required.");
-        }
-        Array<PhysicsShapeData> detached = new Array<>(true, sources.size, PhysicsShapeData.class);
-        Array<ResolvedPhysicsShape> resolved = new Array<>(true, sources.size, ResolvedPhysicsShape.class);
-        for (int i = 0; i < sources.size; i++) {
-            PhysicsShapeData source = sources.get(i);
-            if (source == null) {
-                throw new IllegalArgumentException("Candidate linked shape at index " + i + " is null.");
-            }
-            PhysicsShapeData copy = source.copy();
-            detached.add(copy);
-            BlockPhysicsBindingData binding = null;
-            for (int j = 0; j < bindings.size; j++) {
-                BlockPhysicsBindingData candidate = bindings.get(j);
-                if (candidate.physicsShapeId == copy.physicsShapeId) { binding = candidate; break; }
-            }
-            if (binding == null) throw new IllegalArgumentException("Candidate linked shape has no binding: " + copy.physicsShapeId);
-            SpatialBlockData block = null;
-            for (int j = 0; j < blocks.size; j++) {
-                SpatialBlockData candidate = blocks.get(j);
-                if (candidate.id == binding.spatialBlockId) { block = candidate; break; }
-            }
-            if (block == null) throw new IllegalArgumentException("Candidate binding has no block: " + binding.spatialBlockId);
-            resolved.add(SHAPE_RESOLVER.resolveLinked(copy, ownerStableId, block, tiledMap, pixelsPerMeter));
-        }
-        return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
+    static PreparedPhysicsBodyCandidate prepareLinkedBodyCandidate(
+            Array<PhysicsShapeData> sources, int ownerEntityId, int ownerStableId,
+            TiledMapLayerData tiledMap, float pixelsPerMeter,
+            BlockPhysicsBindingLookup lookup) {
+        return prepareLinkedBodyCandidateInternal(sources, ownerEntityId, ownerStableId, tiledMap,
+                pixelsPerMeter, lookup);
     }
 
     public static void rebuildPreparedBodyCaches(World world) {
@@ -1507,6 +1491,38 @@ public final class PhysicsService {
                 + shapeId + ", spatialBlockId=" + blockId + ": " + detail + ".");
     }
 
+    static final class PreparedBodyPublication {
+        final Array<PhysicsShapeData> shapes;
+        final Array<CompiledFixtureData> fixtures;
+
+        PreparedBodyPublication(Array<PhysicsShapeData> shapes,
+                                Array<CompiledFixtureData> fixtures) {
+            this.shapes = shapes;
+            this.fixtures = fixtures;
+        }
+    }
+
+    static PreparedBodyPublication takePreparedPublication(
+            PreparedPhysicsBodyCandidate prepared) {
+        if (prepared == null) {
+            throw new IllegalArgumentException("Prepared physics candidate is required.");
+        }
+        return new PreparedBodyPublication(prepared.takeShapes(),
+                prepared.takeCompiledFixtures().takeFixtures());
+    }
+
+    static void publishPreparedPublication(
+            PhysicsShapesComponent targetShapes,
+            PhysicsCompiledFixturesComponent targetCompiled,
+            PreparedBodyPublication publication) {
+        if (targetShapes == null || targetCompiled == null || publication == null) {
+            throw new IllegalArgumentException(
+                    "Physics source target, cache target and prepared publication are required.");
+        }
+        targetShapes.shapes = publication.shapes;
+        CACHE_PUBLISHER.publish(targetCompiled, publication.fixtures);
+    }
+
     public static void publishPreparedCandidate(
             PhysicsShapesComponent targetShapes,
             PhysicsCompiledFixturesComponent targetCompiled,
@@ -1515,11 +1531,8 @@ public final class PhysicsService {
             throw new IllegalArgumentException(
                     "Physics source target, cache target and prepared candidate are required.");
         }
-        Array<PhysicsShapeData> shapes = prepared.takeShapes();
-        Array<CompiledFixtureData> fixtures =
-                prepared.takeCompiledFixtures().takeFixtures();
-        targetShapes.shapes = shapes;
-        CACHE_PUBLISHER.publish(targetCompiled, fixtures);
+        publishPreparedPublication(targetShapes, targetCompiled,
+                takePreparedPublication(prepared));
     }
 }
 

@@ -103,6 +103,10 @@ public final class IdentityRegistry {
         this.subscription.addSubscriptionListener(this.subscriptionListener);
     }
 
+    boolean isBoundTo(World expectedWorld, SceneMetaRuntime expectedSceneMeta) {
+        return world == expectedWorld && sceneMeta == expectedSceneMeta;
+    }
+
     private void detachSubscriptionListener() {
         if (subscription != null && subscriptionListener != null) {
             subscription.removeSubscriptionListener(subscriptionListener);

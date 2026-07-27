@@ -7,7 +7,6 @@ import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 /** Detached, single-use publication data for one spatial block bind. */
 final class PreparedWorldBlockMutation {
     private int ownerEntityId;
-    private int ownerStableId;
     private int physicsShapeId;
     private Array<BlockPhysicsBindingData> bindings;
     private PreparedPhysicsBodyCandidate physics;
@@ -15,13 +14,12 @@ final class PreparedWorldBlockMutation {
     private final boolean createTransform;
     private final boolean createBody;
 
-    PreparedWorldBlockMutation(int ownerEntityId, int ownerStableId, int physicsShapeId,
+    PreparedWorldBlockMutation(int ownerEntityId, int physicsShapeId,
                                Array<BlockPhysicsBindingData> bindings,
                                PreparedPhysicsBodyCandidate physics,
                                BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot,
                                boolean createTransform, boolean createBody) {
         this.ownerEntityId = ownerEntityId;
-        this.ownerStableId = ownerStableId;
         this.physicsShapeId = physicsShapeId;
         this.bindings = bindings;
         this.physics = physics;
@@ -34,7 +32,7 @@ final class PreparedWorldBlockMutation {
         if (bindings == null) {
             throw new IllegalStateException("Prepared world block mutation was already consumed.");
         }
-        Publication publication = new Publication(ownerEntityId, ownerStableId, physicsShapeId,
+        Publication publication = new Publication(ownerEntityId, physicsShapeId,
                 bindings, physics, repositorySnapshot, createTransform, createBody);
         bindings = null;
         physics = null;
@@ -44,7 +42,6 @@ final class PreparedWorldBlockMutation {
 
     static final class Publication {
         final int ownerEntityId;
-        final int ownerStableId;
         final int physicsShapeId;
         final Array<BlockPhysicsBindingData> bindings;
         final PreparedPhysicsBodyCandidate physics;
@@ -52,13 +49,12 @@ final class PreparedWorldBlockMutation {
         final boolean createTransform;
         final boolean createBody;
 
-        Publication(int ownerEntityId, int ownerStableId, int physicsShapeId,
+        Publication(int ownerEntityId, int physicsShapeId,
                     Array<BlockPhysicsBindingData> bindings,
                     PreparedPhysicsBodyCandidate physics,
                     BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot,
                     boolean createTransform, boolean createBody) {
             this.ownerEntityId = ownerEntityId;
-            this.ownerStableId = ownerStableId;
             this.physicsShapeId = physicsShapeId;
             this.bindings = bindings;
             this.physics = physics;
