@@ -119,7 +119,7 @@ public class RuntimePrefabFragmentSpawner {
             RuntimePrefabFragment staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes),
                     RuntimePrefabFragment.class);
-            rejectLinkedBindingsUntilPhaseF(stagingWorld, staged.entities);
+            rejectUnsupportedLinkedBlockPhysics(stagingWorld, staged.entities);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld, stagingSerialization, staged, offsetX, offsetY);
@@ -140,7 +140,7 @@ public class RuntimePrefabFragmentSpawner {
                     .setSerializer(serializer);
             RuntimePrefabFragment staged = serializer.load(
                     fragmentRoot, RuntimePrefabFragment.class);
-            rejectLinkedBindingsUntilPhaseF(stagingWorld, staged.entities);
+            rejectUnsupportedLinkedBlockPhysics(stagingWorld, staged.entities);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld,
@@ -186,7 +186,7 @@ public class RuntimePrefabFragmentSpawner {
                 preparedRegionData);
     }
 
-    private static void rejectLinkedBindingsUntilPhaseF(
+    private static void rejectUnsupportedLinkedBlockPhysics(
             World stagingWorld, IntBag entityIds) {
         ComponentMapper<BlockPhysicsBindingsComponent> bindings =
                 stagingWorld.getMapper(BlockPhysicsBindingsComponent.class);
@@ -219,8 +219,8 @@ public class RuntimePrefabFragmentSpawner {
         return new IllegalArgumentException(
                 "Runtime prefab fragment entity " + entityId
                         + ", physicsShapeId " + physicsShapeId
-                        + " contains linked block physics data, which is not supported "
-                        + "until Spatial-Physics Binding Phase F is available.");
+                        + " contains linked block physics data. "
+                        + "Runtime actor prefabs do not support spatial block physics.");
     }
 
     private SpawnResult commit(

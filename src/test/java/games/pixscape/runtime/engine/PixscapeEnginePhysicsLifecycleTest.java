@@ -313,7 +313,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
-    public void publicPrefabFragmentPathAppliesPhaseFBarrierBeforeAllocation()
+    public void publicPrefabFragmentPathRejectsSpatialBlockPhysicsBeforeAllocation()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;
@@ -338,7 +338,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     () -> engine.spawnPrefabFragment(fragment, 0f, 0f));
 
             Assert.assertTrue(failure.getMessage(),
-                    failure.getMessage().contains("Phase F"));
+                    failure.getMessage().contains("Runtime actor prefabs do not support spatial block physics"));
             Assert.assertEquals(entityCount,
                     world.getAspectSubscriptionManager()
                             .get(com.artemis.Aspect.all())

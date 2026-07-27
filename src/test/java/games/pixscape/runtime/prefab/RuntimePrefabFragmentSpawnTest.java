@@ -249,7 +249,7 @@ public class RuntimePrefabFragmentSpawnTest {
                         .spawn(world, fragment, 0f, 0f));
 
         Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("Phase F"));
+                failure.getMessage().contains("Runtime actor prefabs do not support spatial block physics"));
         Assert.assertTrue(failure.getMessage(),
                 failure.getMessage().contains("linked block physics"));
         Assert.assertEquals(activeBefore, activeEntityCount(world));
@@ -283,7 +283,7 @@ public class RuntimePrefabFragmentSpawnTest {
                                 0f));
 
         Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("Phase F"));
+                failure.getMessage().contains("Runtime actor prefabs do not support spatial block physics"));
         Assert.assertTrue(failure.getMessage(),
                 failure.getMessage().contains("physicsShapeId 23"));
         Assert.assertEquals(activeBefore, activeEntityCount(world));
