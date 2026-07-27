@@ -120,6 +120,78 @@ public final class BlockPhysicsBindingRepository {
         }
     }
 
+    /**
+     * Prepares an owner-local replacement without scanning the World.  The
+     * returned delta is deliberately small: it owns only this owner's indexes.
+     */
+    PreparedOwnerSnapshot prepareOwnerSnapshot(int ownerStableId, int ownerEntityId,
+                                               Array<SpatialBlockData> blocks,
+                                               Array<BlockPhysicsBindingData> bindings,
+                                               Array<PhysicsShapeData> shapes) {
+        requireBound();
+        if (ownerStableId <= 0 || ownerEntityId < 0 || blocks == null || bindings == null
+                || shapes == null) {
+            throw new IllegalArgumentException("Validated owner snapshot is required.");
+        }
+        OwnerBindingIndex ownerIndex = new OwnerBindingIndex();
+        IntMap<SpatialBlockData> blockIndex = new IntMap<>();
+        IntMap<PhysicsShapeData> shapesById = new IntMap<>();
+        IntSet boundShapeIds = new IntSet();
+        for (int i = 0; i < blocks.size; i++) {
+            SpatialBlockData block = blocks.get(i);
+            if (block == null || block.id <= 0 || blockIndex.containsKey(block.id)) {
+                throw new IllegalArgumentException("Prepared owner blocks are invalid.");
+            }
+            blockIndex.put(block.id, block.copy());
+        }
+        for (int i = 0; i < shapes.size; i++) {
+            PhysicsShapeData shape = shapes.get(i);
+            if (shape == null || shape.physicsShapeId <= 0
+                    || shape.directGeometry != null || !shape.enabled
+                    || shapesById.containsKey(shape.physicsShapeId)) {
+                throw new IllegalArgumentException("Prepared linked shapes are invalid.");
+            }
+            shapesById.put(shape.physicsShapeId, shape.copy());
+        }
+        for (int i = 0; i < bindings.size; i++) {
+            BlockPhysicsBindingData source = bindings.get(i);
+            if (source == null) throw new IllegalArgumentException("Prepared binding is null.");
+            BlockPhysicsBindingData binding = source.copy();
+            if (ownerIndex.byBlock.containsKey(binding.spatialBlockId)
+                    || !boundShapeIds.add(binding.physicsShapeId)
+                    || !blockIndex.containsKey(binding.spatialBlockId)
+                    || !shapesById.containsKey(binding.physicsShapeId)) {
+                throw new IllegalArgumentException("Prepared owner binding is invalid.");
+            }
+            Integer existingOwner = indexes.ownerEntityByPhysicsShapeId.get(binding.physicsShapeId);
+            if (existingOwner != null && existingOwner.intValue() != ownerEntityId) {
+                throw new IllegalStateException("Prepared binding delta conflicts with active repository.");
+            }
+            ownerIndex.byBlock.put(binding.spatialBlockId, binding);
+            ownerIndex.ordered.add(binding);
+        }
+        return new PreparedOwnerSnapshot(this, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex);
+    }
+
+    private void apply(PreparedOwnerSnapshot prepared) {
+        requireBound();
+        OwnerBindingIndex previous = indexes.bindingByOwnerAndBlock.get(prepared.ownerStableId);
+        if (previous != null) {
+            for (int i = 0; i < previous.ordered.size; i++) {
+                int shapeId = previous.ordered.get(i).physicsShapeId;
+                indexes.bindingByPhysicsShapeId.remove(shapeId);
+                indexes.ownerEntityByPhysicsShapeId.remove(shapeId);
+            }
+        }
+        indexes.bindingByOwnerAndBlock.put(prepared.ownerStableId, prepared.ownerIndex);
+        indexes.blockByOwnerAndId.put(prepared.ownerStableId, prepared.blockIndex);
+        for (int i = 0; i < prepared.ownerIndex.ordered.size; i++) {
+            BlockPhysicsBindingData binding = prepared.ownerIndex.ordered.get(i);
+            indexes.bindingByPhysicsShapeId.put(binding.physicsShapeId, binding);
+            indexes.ownerEntityByPhysicsShapeId.put(binding.physicsShapeId, prepared.ownerEntityId);
+        }
+    }
+
     private void validateAndIndexOwner(
             int ownerEntityId,
             IndexState candidate,
@@ -406,5 +478,42 @@ public final class BlockPhysicsBindingRepository {
         final IntMap<BlockPhysicsBindingData> byBlock = new IntMap<>();
         final Array<BlockPhysicsBindingData> ordered =
                 new Array<>(BlockPhysicsBindingData[]::new);
+    }
+
+    static final class PreparedOwnerSnapshot {
+        private BlockPhysicsBindingRepository repository;
+        private final World world;
+        private final int ownerStableId;
+        private final int ownerEntityId;
+        private OwnerBindingIndex ownerIndex;
+        private IntMap<SpatialBlockData> blockIndex;
+
+        private PreparedOwnerSnapshot(BlockPhysicsBindingRepository repository, World world,
+                                      int ownerStableId,
+                                      int ownerEntityId, OwnerBindingIndex ownerIndex,
+                                      IntMap<SpatialBlockData> blockIndex) {
+            this.repository = repository;
+            this.world = world;
+            this.ownerStableId = ownerStableId;
+            this.ownerEntityId = ownerEntityId;
+            this.ownerIndex = ownerIndex;
+            this.blockIndex = blockIndex;
+        }
+
+        void applyTo(BlockPhysicsBindingRepository target) {
+            if (repository == null) {
+                throw new IllegalStateException("Prepared repository snapshot was already consumed.");
+            }
+            if (repository != target) {
+                throw new IllegalArgumentException("Prepared repository snapshot belongs to another repository.");
+            }
+            if (repository.world != world) {
+                throw new IllegalStateException("Prepared repository snapshot belongs to a detached World.");
+            }
+            repository.apply(this);
+            repository = null;
+            ownerIndex = null;
+            blockIndex = null;
+        }
     }
 }

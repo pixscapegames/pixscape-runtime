@@ -1276,6 +1276,40 @@ public final class PhysicsService {
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
 
+    /** Prepares a not-yet-published owner-local linked binding candidate. */
+    static PreparedPhysicsBodyCandidate prepareCandidateLinkedBody(
+            Array<PhysicsShapeData> sources, int ownerStableId, TiledMapLayerData tiledMap,
+            float pixelsPerMeter, Array<BlockPhysicsBindingData> bindings,
+            Array<SpatialBlockData> blocks) {
+        if (sources == null || bindings == null || blocks == null) {
+            throw new IllegalArgumentException("Candidate linked sources, bindings and blocks are required.");
+        }
+        Array<PhysicsShapeData> detached = new Array<>(true, sources.size, PhysicsShapeData.class);
+        Array<ResolvedPhysicsShape> resolved = new Array<>(true, sources.size, ResolvedPhysicsShape.class);
+        for (int i = 0; i < sources.size; i++) {
+            PhysicsShapeData source = sources.get(i);
+            if (source == null) {
+                throw new IllegalArgumentException("Candidate linked shape at index " + i + " is null.");
+            }
+            PhysicsShapeData copy = source.copy();
+            detached.add(copy);
+            BlockPhysicsBindingData binding = null;
+            for (int j = 0; j < bindings.size; j++) {
+                BlockPhysicsBindingData candidate = bindings.get(j);
+                if (candidate.physicsShapeId == copy.physicsShapeId) { binding = candidate; break; }
+            }
+            if (binding == null) throw new IllegalArgumentException("Candidate linked shape has no binding: " + copy.physicsShapeId);
+            SpatialBlockData block = null;
+            for (int j = 0; j < blocks.size; j++) {
+                SpatialBlockData candidate = blocks.get(j);
+                if (candidate.id == binding.spatialBlockId) { block = candidate; break; }
+            }
+            if (block == null) throw new IllegalArgumentException("Candidate binding has no block: " + binding.spatialBlockId);
+            resolved.add(SHAPE_RESOLVER.resolveLinked(copy, ownerStableId, block, tiledMap, pixelsPerMeter));
+        }
+        return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
+    }
+
     public static void rebuildPreparedBodyCaches(World world) {
         rebuildPreparedBodyCachesInternal(world, null, null);
     }
@@ -1427,7 +1461,7 @@ public final class PhysicsService {
         return reserved;
     }
 
-    private static void validateReservedTransform(
+    static void validateReservedTransform(
             int entityId, int stableId, TransformComponent transform) {
         if (transform.x != 0f || transform.y != 0f || transform.originX != 0f
                 || transform.originY != 0f || transform.rotationRad != 0f
@@ -1437,7 +1471,7 @@ public final class PhysicsService {
         }
     }
 
-    private static void validateReservedBody(
+    static void validateReservedBody(
             int entityId, int stableId, PhysicsBodyComponent body) {
         if (body.type != PhysicsBodyComponent.STATIC || !body.fixedRotation || body.bullet
                 || !body.allowSleep || !body.awake || body.gravityScale != 1f

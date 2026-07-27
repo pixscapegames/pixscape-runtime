@@ -83,6 +83,7 @@ public final class PixscapeEngine {
     private final TagRegistry tagRegistry = new TagRegistry();
     private final BlockPhysicsBindingRepository blockPhysicsBindingRepository =
             new BlockPhysicsBindingRepository();
+    private WorldBlockMutationService worldBlockMutationService;
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
     private RuntimeTilesetProfiles tilesetProfiles = RuntimeTilesetProfiles.empty();
@@ -283,6 +284,7 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
+        worldBlockMutationService = null;
         blockPhysicsBindingRepository.clear();
         if (world != null) {
             world.dispose();
@@ -530,6 +532,11 @@ public final class PixscapeEngine {
         return world;
     }
 
+    /** Returns the mutation authority for the currently active World, if any. */
+    public WorldBlockMutationService getWorldBlockMutationService() {
+        return worldBlockMutationService;
+    }
+
     public OrthographicCamera getCamera() {
         return worldCamera;
     }
@@ -590,6 +597,7 @@ public final class PixscapeEngine {
      */
     private void disposeWorldAndRuntime() {
         // World first (systems may touch services)
+        worldBlockMutationService = null;
         blockPhysicsBindingRepository.clear();
         if (world != null) {
             world.dispose();
@@ -628,6 +636,7 @@ public final class PixscapeEngine {
     private void discardFailedSceneLoad() {
         sceneLoaded = false;
         activeSceneMeta = null;
+        worldBlockMutationService = null;
         blockPhysicsBindingRepository.clear();
 
         if (box2dSyncSystem != null) {
@@ -756,6 +765,7 @@ public final class PixscapeEngine {
      */
     public PixscapeEngine initEmptyRuntime() {
         applyConfiguredLogLevel();
+        worldBlockMutationService = null;
         blockPhysicsBindingRepository.clear();
         this.cfg = new RuntimeConfig();
 
@@ -836,6 +846,7 @@ public final class PixscapeEngine {
     public void rebuildWorldOnly(RuntimeConfig config, FileHandle projectDir) {
         if (config == null) throw new IllegalArgumentException("config is null");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
+        worldBlockMutationService = null;
         blockPhysicsBindingRepository.clear();
         if (worldCamera == null) worldCamera = new OrthographicCamera();
         if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
@@ -927,6 +938,9 @@ public final class PixscapeEngine {
         blockPhysicsBindingRepository.rebuild();
         PhysicsService.rebuildPreparedBodyCaches(
                 world, blockPhysicsBindingRepository, meta);
+        worldBlockMutationService = new WorldBlockMutationService(
+                world, meta, identityRegistry, blockPhysicsBindingRepository,
+                new PhysicsService(world, box2dWorldService, meta));
         applyPhysicsFromScene(meta, true);
 
         RuntimeSceneAtlasLoader.loadSceneAtlas(
@@ -1247,6 +1261,7 @@ public final class PixscapeEngine {
     }
 
     private void bindRuntimeRegistries(SceneMetaRuntime sceneMeta) {
+        worldBlockMutationService = null;
         identityRegistry.bind(world, sceneMeta);
         tagRegistry.bind(world);
         blockPhysicsBindingRepository.bind(world, identityRegistry);
