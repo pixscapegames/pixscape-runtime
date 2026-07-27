@@ -4,6 +4,8 @@ package games.pixscape.runtime.physics;
  * Transient, fully resolved input to {@link PhysicsShapeCompiler}.
  */
 public final class ResolvedPhysicsShape {
+    public static final int SOURCE_DIRECT = 1;
+    public static final int SOURCE_SPATIAL_BLOCK = 2;
     public int physicsShapeId;
     public int shapeType;
 
@@ -27,7 +29,9 @@ public final class ResolvedPhysicsShape {
     public short groupIndex;
 
     public boolean enabled;
-    public String diagnosticSource;
+    public int sourceKind;
+    public int spatialOwnerStableId;
+    public int spatialBlockId;
 
     public static ResolvedPhysicsShape fromDirect(PhysicsShapeData source) {
         if (source == null) {
@@ -59,7 +63,7 @@ public final class ResolvedPhysicsShape {
         resolved.maskBits = source.maskBits;
         resolved.groupIndex = source.groupIndex;
         resolved.enabled = source.enabled;
-        resolved.diagnosticSource = "direct";
+        resolved.sourceKind = SOURCE_DIRECT;
         return resolved;
     }
 
@@ -83,7 +87,9 @@ public final class ResolvedPhysicsShape {
         copy.maskBits = maskBits;
         copy.groupIndex = groupIndex;
         copy.enabled = enabled;
-        copy.diagnosticSource = diagnosticSource;
+        copy.sourceKind = sourceKind;
+        copy.spatialOwnerStableId = spatialOwnerStableId;
+        copy.spatialBlockId = spatialBlockId;
         return copy;
     }
 

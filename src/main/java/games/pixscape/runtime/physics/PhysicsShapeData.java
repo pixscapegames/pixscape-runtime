@@ -37,13 +37,17 @@ public final class PhysicsShapeData {
      * Checks the serialized union layout without performing polygon decomposition.
      */
     public void validateStructure() {
-        PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
+        validateAuthoredProperties();
         if (directGeometry == null) {
             throw invalid(
                     "directGeometry is missing; external/spatial geometry is unavailable "
                             + "before binding Phase D.");
         }
         directGeometry.validate(physicsShapeId);
+    }
+
+    void validateAuthoredProperties() {
+        PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
         validateFinite(density, "density");
         validateFinite(friction, "friction");
         validateFinite(restitution, "restitution");

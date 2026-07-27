@@ -24,6 +24,27 @@ public final class SpatialBlockGeometry {
         return block != null ? block.altitude + block.height : 0f;
     }
 
+    public static void projectBaseFootprint(TiledMapLayerData map,
+                                            SpatialBlockData block,
+                                            float[] out8) {
+        if (map == null) throw new IllegalArgumentException("map must not be null.");
+        if (block == null) throw new IllegalArgumentException("block must not be null.");
+        if (out8 == null || out8.length < 8) throw new IllegalArgumentException("out8 must contain eight floats.");
+        if (map.projection == null) throw new IllegalArgumentException("map projection must not be null.");
+        if (map.tileWidth <= 0 || map.tileHeight <= 0) throw new IllegalArgumentException("map tile dimensions must be positive.");
+        if (!finite(map.originX) || !finite(map.originY)) throw new IllegalArgumentException("map origin must be finite.");
+        if (!finite(block.x) || !finite(block.y) || !finite(block.width) || !finite(block.depth) || !finite(block.altitude)) throw new IllegalArgumentException("block " + block.id + " geometry must be finite.");
+        if (block.width <= 0 || block.depth <= 0) throw new IllegalArgumentException("block " + block.id + " width and depth must be positive.");
+        float x1 = block.x + block.width;
+        float y1 = block.y + block.depth;
+        map.projectSpatialPoint(block.x, block.y, block.altitude, out8, 0);
+        map.projectSpatialPoint(x1, block.y, block.altitude, out8, 2);
+        map.projectSpatialPoint(x1, y1, block.altitude, out8, 4);
+        map.projectSpatialPoint(block.x, y1, block.altitude, out8, 6);
+    }
+
+    private static boolean finite(float value) { return !Float.isNaN(value) && !Float.isInfinite(value); }
+
     public static boolean writeTileCellFootprint(SpatialBlockData block,
                                                  TiledMapLayerData map,
                                                  float[] out8) {

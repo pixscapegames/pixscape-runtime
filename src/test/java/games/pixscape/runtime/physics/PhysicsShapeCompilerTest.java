@@ -169,7 +169,7 @@ public class PhysicsShapeCompilerTest {
         resolved.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
         resolved.polygonVertexCount = 3;
         resolved.polygonVertices = new float[]{0f, 0f, 2f, 0f, 0f, 2f};
-        resolved.diagnosticSource = "external-test";
+        resolved.sourceKind = ResolvedPhysicsShape.SOURCE_DIRECT;
 
         CompiledFixtureData[] result = compiler.compile(resolved);
 
