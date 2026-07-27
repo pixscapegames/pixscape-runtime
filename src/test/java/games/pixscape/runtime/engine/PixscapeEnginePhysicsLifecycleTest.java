@@ -291,6 +291,29 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertNotNull(compiled);
             Assert.assertTrue(compiled.valid);
             Assert.assertEquals(1, compiled.fixtures.size);
+            int generation = compiled.generation;
+            engine.render();
+            PhysicsRuntimeBodyComponent runtimeBody = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Assert.assertNotNull(runtimeBody);
+            Assert.assertNotNull(runtimeBody.body);
+            Assert.assertEquals(com.badlogic.gdx.physics.box2d.BodyDef.BodyType.StaticBody,
+                    runtimeBody.body.getType());
+            Assert.assertEquals(1, runtimeBody.body.getFixtureList().size);
+            com.badlogic.gdx.physics.box2d.Fixture nativeFixture =
+                    runtimeBody.body.getFixtureList().first();
+            Assert.assertEquals(2f, nativeFixture.getDensity(), 0f);
+            Assert.assertEquals(.3f, nativeFixture.getFriction(), 0f);
+            Assert.assertEquals(.1f, nativeFixture.getRestitution(), 0f);
+            Assert.assertTrue(nativeFixture.isSensor());
+            Assert.assertEquals(2, nativeFixture.getFilterData().categoryBits);
+            Assert.assertEquals(4, nativeFixture.getFilterData().maskBits);
+            Assert.assertEquals(6, nativeFixture.getFilterData().groupIndex);
+            Object nativeBody = runtimeBody.body;
+            engine.render();
+            Assert.assertSame(nativeBody, engine.mapper(PhysicsRuntimeBodyComponent.class)
+                    .get(owner).body);
+            Assert.assertEquals(generation, compiled.generation);
 
             engine.loadScene("A");
 
@@ -361,6 +384,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("a.json"), false);
         writeScene(scenesDir.child("b.json"), true);
         writeLinkedScene(scenesDir.child("c.json"));
+        writeInvalidLinkedScene(scenesDir.child("d.json"));
 
         PixscapeEngine engine = new PixscapeEngine();
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
@@ -416,8 +440,58 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"nextEntityStableId\":2,"
                 + "\"nextPhysicsShapeId\":11,"
                 + "\"physicsEnabled\":true"
+                + "},"
+                + "\"D\":{"
+                + "\"sceneSchemaVersion\":1,"
+                + "\"name\":\"D\","
+                + "\"file\":\"d.json\","
+                + "\"nextEntityStableId\":2,"
+                + "\"nextPhysicsShapeId\":11,"
+                + "\"physicsEnabled\":true"
                 + "}"
                 + "}}";
+    }
+
+    @Test
+    public void invalidLinkedSceneFailsClosedAndDirectRetrySucceeds() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("D"));
+            Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.getWorld());
+            engine.loadScene("A");
+            Assert.assertTrue((Boolean) get(engine, "sceneLoaded"));
+            Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
+            engine.render();
+        } finally { engine.dispose(); }
+    }
+
+    private static void writeInvalidLinkedScene(FileHandle file) throws Exception {
+        World source = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+        try {
+            int owner = source.create();
+            source.getMapper(PixscapeIdentityComponent.class).create(owner).stableId = 1;
+            SpatialBlocksComponent blocks = source.getMapper(SpatialBlocksComponent.class).create(owner);
+            SpatialBlockData block = new SpatialBlockData(); block.id = 1; block.structureId = 1; block.width = 1f; block.depth = 1f;
+            blocks.blocks.add(block); blocks.nextSpatialBlockId = 2;
+            PhysicsShapeData shape = new PhysicsShapeData(); shape.physicsShapeId = 10;
+            source.getMapper(PhysicsShapesComponent.class).create(owner).shapes.add(shape);
+            source.getMapper(TransformComponent.class).create(owner);
+            source.getMapper(TiledLayerComponent.class).create(owner);
+            source.getMapper(BlockPhysicsBindingsComponent.class).create(owner).bindings.add(binding(1, 10));
+            source.process();
+            WorldSerializationManager serialization = source.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(new JsonArtemisSerializer(source));
+            SaveFileFormat format = new SaveFileFormat(source.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities());
+            try (OutputStream output = file.write(false)) { serialization.save(output, format); }
+        } finally { source.dispose(); }
+    }
+
+    private static BlockPhysicsBindingData binding(int blockId, int shapeId) {
+        BlockPhysicsBindingData binding = new BlockPhysicsBindingData(); binding.spatialBlockId = blockId; binding.physicsShapeId = shapeId; return binding;
     }
 
     private static void writeLinkedScene(FileHandle file) throws Exception {
@@ -441,6 +515,13 @@ public class PixscapeEnginePhysicsLifecycleTest {
             shape.physicsShapeId = 10;
             shape.directGeometry = null;
             shape.enabled = true;
+            shape.density = 2f;
+            shape.friction = .3f;
+            shape.restitution = .1f;
+            shape.sensor = true;
+            shape.categoryBits = 2;
+            shape.maskBits = 4;
+            shape.groupIndex = 6;
             source.getMapper(PhysicsShapesComponent.class)
                     .create(owner).shapes.add(shape);
             PhysicsBodyComponent body = source

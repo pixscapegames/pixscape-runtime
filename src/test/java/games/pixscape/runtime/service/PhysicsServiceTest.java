@@ -206,6 +206,193 @@ public class PhysicsServiceTest {
     }
 
     @Test
+    public void linkedIsoMultiBindingAndMixedDirectWorldPreserveAuthoredOrderAndCopies() {
+        World world = new World();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.pixelsPerMeter = 32f;
+        meta.nextEntityStableId = 2;
+        IdentityRegistry identities = new IdentityRegistry();
+        BlockPhysicsBindingRepository repository = new BlockPhysicsBindingRepository();
+        identities.bind(world, meta);
+        repository.bind(world, identities);
+        try {
+            int owner = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(owner).stableId = 1;
+            SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(owner);
+            SpatialBlockData firstBlock = new SpatialBlockData();
+            firstBlock.id = 11; firstBlock.structureId = 1; firstBlock.x = 1f;
+            firstBlock.y = 2f; firstBlock.width = 2f; firstBlock.depth = 1f;
+            SpatialBlockData secondBlock = firstBlock.copy();
+            secondBlock.id = 12; secondBlock.x = 4f; secondBlock.y = 1f;
+            blocks.blocks.add(firstBlock); blocks.blocks.add(secondBlock);
+            blocks.nextSpatialBlockId = 13;
+            PhysicsShapesComponent ownerShapes = world.getMapper(PhysicsShapesComponent.class).create(owner);
+            PhysicsShapeData shapeA = linkedShape(22, 2f, .3f, .1f, (short) 2, (short) 4, (short) 6);
+            PhysicsShapeData shapeB = linkedShape(21, 3f, .4f, .2f, (short) 8, (short) 16, (short) 10);
+            ownerShapes.shapes.add(shapeA); ownerShapes.shapes.add(shapeB);
+            BlockPhysicsBindingsComponent ownerBindings = world.getMapper(BlockPhysicsBindingsComponent.class).create(owner);
+            ownerBindings.bindings.add(binding(12, 22)); ownerBindings.bindings.add(binding(11, 21));
+            PhysicsBodyComponent ownerBody = world.getMapper(PhysicsBodyComponent.class).create(owner);
+            ownerBody.type = PhysicsBodyComponent.STATIC; ownerBody.fixedRotation = true;
+            world.getMapper(TransformComponent.class).create(owner);
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(owner);
+            tiled.data = new TiledMapLayerData(16, 16, 32, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+
+            int direct = world.create();
+            world.getMapper(TransformComponent.class).create(direct);
+            world.getMapper(PhysicsBodyComponent.class).create(direct);
+            PhysicsShapeData directSource = new PhysicsShapeData();
+            directSource.physicsShapeId = 30;
+            directSource.directGeometry = new PhysicsDirectGeometryData();
+            directSource.directGeometry.halfWidth = 1f;
+            directSource.directGeometry.halfHeight = 2f;
+            world.getMapper(PhysicsShapesComponent.class).create(direct).shapes.add(directSource);
+
+            world.process(); identities.rebuild(); repository.rebuild();
+            PhysicsService.rebuildPreparedBodyCaches(world, repository, meta);
+            PhysicsCompiledFixturesComponent linkedCache = world.getMapper(PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertTrue(linkedCache.valid); Assert.assertEquals(2, linkedCache.fixtures.size);
+            Assert.assertEquals(22, linkedCache.fixtures.get(0).physicsShapeId);
+            Assert.assertEquals(21, linkedCache.fixtures.get(1).physicsShapeId);
+            Assert.assertEquals(4, linkedCache.fixtures.get(0).polygonVertexCount);
+            Assert.assertEquals(2f, linkedCache.fixtures.get(0).density, 0f);
+            Assert.assertEquals(8, linkedCache.fixtures.get(1).categoryBits);
+            Assert.assertTrue(linkedCache.fixtures.get(1).polygonVertices != linkedCache.fixtures.get(0).polygonVertices);
+            Assert.assertTrue(world.getMapper(PhysicsCompiledFixturesComponent.class).get(direct).valid);
+            Assert.assertNotSame(shapeA, world.getMapper(PhysicsShapesComponent.class).get(owner).shapes.get(0));
+            float cachedX = linkedCache.fixtures.get(0).polygonVertices[0];
+            firstBlock.x = 99f; shapeA.density = 99f;
+            Assert.assertEquals(cachedX, linkedCache.fixtures.get(0).polygonVertices[0], 0f);
+            Assert.assertEquals(2f, linkedCache.fixtures.get(0).density, 0f);
+        } finally { repository.clear(); identities.bind(null, null); world.dispose(); }
+    }
+
+    private static PhysicsShapeData linkedShape(int id, float density, float friction,
+                                                float restitution, short category,
+                                                short mask, short group) {
+        PhysicsShapeData shape = new PhysicsShapeData(); shape.physicsShapeId = id;
+        shape.density = density; shape.friction = friction; shape.restitution = restitution;
+        shape.categoryBits = category; shape.maskBits = mask; shape.groupIndex = group;
+        return shape;
+    }
+
+    private static BlockPhysicsBindingData binding(int blockId, int shapeId) {
+        BlockPhysicsBindingData binding = new BlockPhysicsBindingData();
+        binding.spatialBlockId = blockId; binding.physicsShapeId = shapeId; return binding;
+    }
+
+    @Test
+    public void reservedLinkedBodyRejectsMissingComponentsAndInvalidCanonicalState() {
+        assertReservedRejects("PixscapeIdentityComponent", h ->
+                h.world.getMapper(PixscapeIdentityComponent.class).remove(h.owner));
+        assertReservedRejects("positive", h ->
+                h.world.getMapper(PixscapeIdentityComponent.class).get(h.owner).stableId = 0);
+        assertReservedRejects("required component", h ->
+                h.world.getMapper(PhysicsBodyComponent.class).remove(h.owner));
+        assertReservedRejects("required component", h ->
+                h.world.getMapper(TransformComponent.class).remove(h.owner));
+        assertReservedRejects("PhysicsShapesComponent", h ->
+                h.world.getMapper(PhysicsShapesComponent.class).remove(h.owner));
+        assertReservedRejects("required component", h ->
+                h.world.getMapper(TiledLayerComponent.class).remove(h.owner));
+        assertReservedRejects("TiledLayerComponent.data", h ->
+                h.world.getMapper(TiledLayerComponent.class).get(h.owner).data = null);
+        assertReservedRejects("identity transform", h ->
+                h.world.getMapper(TransformComponent.class).get(h.owner).x = 1f);
+        assertReservedRejects("identity transform", h ->
+                h.world.getMapper(TransformComponent.class).get(h.owner).originY = 1f);
+        assertReservedRejects("identity transform", h ->
+                h.world.getMapper(TransformComponent.class).get(h.owner).rotationRad = 1f);
+        assertReservedRejects("identity transform", h ->
+                h.world.getMapper(TransformComponent.class).get(h.owner).scaleX = 2f);
+        assertReservedRejects("canonical static profile", h ->
+                h.world.getMapper(PhysicsBodyComponent.class).get(h.owner).bullet = true);
+        assertReservedRejects("canonical static profile", h ->
+                h.world.getMapper(PhysicsBodyComponent.class).get(h.owner).gravityScale = 2f);
+        assertReservedRejects("canonical static profile", h ->
+                h.world.getMapper(PhysicsBodyComponent.class).get(h.owner).linearDamping = 1f);
+        assertReservedRejects("direct-geometry", h ->
+                h.shapes.shapes.first().directGeometry = new PhysicsDirectGeometryData());
+        assertReservedRejects("linked shape must be enabled", h -> h.shapes.shapes.first().enabled = false);
+        assertReservedRejects("pixelsPerMeter", h -> h.meta.pixelsPerMeter = 0f);
+        assertReservedRejects("pixelsPerMeter", h -> h.meta.pixelsPerMeter = Float.NaN);
+    }
+
+    @Test
+    public void reservedLinkedBodyRejectsJointsAndGlobalFailurePublishesNothing() {
+        assertReservedRejects("joint references", h -> {
+            int joint = h.world.create();
+            h.world.getMapper(PhysicsJointComponent.class).create(joint).aEid = h.owner;
+        });
+        assertReservedRejects("joint references", h -> {
+            int joint = h.world.create();
+            h.world.getMapper(PhysicsJointComponent.class).create(joint).bEid = h.owner;
+        });
+        ReservedHarness h = new ReservedHarness();
+        try {
+            int directWithoutShapes = h.world.create();
+            h.world.getMapper(PhysicsBodyComponent.class).create(directWithoutShapes);
+            int direct = h.world.create();
+            h.world.getMapper(PhysicsBodyComponent.class).create(direct);
+            PhysicsCompiledFixturesComponent sentinel = h.world.getMapper(
+                    PhysicsCompiledFixturesComponent.class).create(direct);
+            CompiledFixtureData fixture = new CompiledFixtureData();
+            sentinel.fixtures.add(fixture); sentinel.generation = 9; sentinel.valid = true;
+            h.world.getMapper(TransformComponent.class).create(direct);
+            h.world.getMapper(PhysicsShapesComponent.class).create(direct).shapes.add(directShape(40));
+            h.world.getMapper(TransformComponent.class).get(h.owner).x = 1f;
+            h.activate();
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    PhysicsService.rebuildPreparedBodyCaches(h.world, h.repository, h.meta));
+            Assert.assertFalse(h.world.getMapper(PhysicsShapesComponent.class).has(directWithoutShapes));
+            Assert.assertSame(sentinel, h.world.getMapper(PhysicsCompiledFixturesComponent.class).get(direct));
+            Assert.assertSame(fixture, sentinel.fixtures.first()); Assert.assertEquals(9, sentinel.generation);
+            Assert.assertFalse(h.world.getMapper(PhysicsCompiledFixturesComponent.class).has(h.owner));
+        } finally { h.close(); }
+    }
+
+    private static PhysicsShapeData directShape(int id) {
+        PhysicsShapeData shape = new PhysicsShapeData(); shape.physicsShapeId = id;
+        shape.directGeometry = new PhysicsDirectGeometryData(); return shape;
+    }
+
+    private static void assertReservedRejects(String fragment, ReservedMutation mutation) {
+        ReservedHarness h = new ReservedHarness();
+        try {
+            mutation.apply(h);
+            RuntimeException failure = Assert.assertThrows(RuntimeException.class, () -> {
+                h.activate();
+                h.repository.rebuild();
+                PhysicsService.rebuildPreparedBodyCaches(h.world, h.repository, h.meta);
+            });
+            Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(fragment));
+        } finally { h.close(); }
+    }
+
+    private interface ReservedMutation { void apply(ReservedHarness harness); }
+
+    private static final class ReservedHarness {
+        final World world = new World(); final SceneMetaRuntime meta = new SceneMetaRuntime();
+        final IdentityRegistry identities = new IdentityRegistry();
+        final BlockPhysicsBindingRepository repository = new BlockPhysicsBindingRepository();
+        final int owner; final PhysicsShapesComponent shapes;
+        ReservedHarness() {
+            meta.nextEntityStableId = 2; identities.bind(world, meta); repository.bind(world, identities);
+            owner = world.create(); world.getMapper(PixscapeIdentityComponent.class).create(owner).stableId = 1;
+            SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(owner);
+            SpatialBlockData block = new SpatialBlockData(); block.id = 1; block.structureId = 1;
+            block.width = 1f; block.depth = 1f; blocks.blocks.add(block); blocks.nextSpatialBlockId = 2;
+            shapes = world.getMapper(PhysicsShapesComponent.class).create(owner); shapes.shapes.add(linkedShape(1, 1f, .2f, 0f, (short) 1, (short) -1, (short) 0));
+            world.getMapper(BlockPhysicsBindingsComponent.class).create(owner).bindings.add(binding(1, 1));
+            PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(owner); body.type = PhysicsBodyComponent.STATIC; body.fixedRotation = true;
+            world.getMapper(TransformComponent.class).create(owner);
+            world.getMapper(TiledLayerComponent.class).create(owner).data = new TiledMapLayerData(4,4,32,32,2,SceneMetaRuntime.TiledProjection.ORTHO);
+        }
+        void activate() { world.process(); identities.rebuild(); }
+        void close() { repository.clear(); identities.bind(null, null); world.dispose(); }
+    }
+
+    @Test
     public void removingPhysicsDeletesRuntimeBodyFixturesAndJoints() {
         // Test: deleting a physics entity removes its body, shapes, and joints.
         // Arrange
