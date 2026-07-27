@@ -922,14 +922,11 @@ public final class PixscapeEngine {
         SceneLoader.loadScene(world, sceneFile, false, meta);
         processWorld();
 
-        rebuildRuntimeRegistries();
-        if (blockPhysicsBindingRepository.hasAnyBindings()) {
-            throw new IllegalStateException(
-                    "Linked block physics bindings are structurally valid but cannot be "
-                            + "activated until Spatial-Physics Binding Phase D is available.");
-        }
+        rebuildIdentityAndTagRegistries();
         rebuildTiledLayersRuntime(meta);
-        PhysicsService.rebuildPreparedBodyCaches(world);
+        blockPhysicsBindingRepository.rebuild();
+        PhysicsService.rebuildPreparedBodyCaches(
+                world, blockPhysicsBindingRepository, meta);
         applyPhysicsFromScene(meta, true);
 
         RuntimeSceneAtlasLoader.loadSceneAtlas(
@@ -1263,9 +1260,13 @@ public final class PixscapeEngine {
     }
 
     private void rebuildRuntimeRegistries() {
+        rebuildIdentityAndTagRegistries();
+        blockPhysicsBindingRepository.rebuild();
+    }
+
+    private void rebuildIdentityAndTagRegistries() {
         identityRegistry.rebuild();
         tagRegistry.rebuild();
-        blockPhysicsBindingRepository.rebuild();
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {

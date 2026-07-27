@@ -21,6 +21,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
@@ -269,7 +271,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
-    public void structurallyValidLinkedSceneFailsClosedBeforeCacheAndAllowsDirectRetry()
+    public void structurallyValidLinkedSceneBuildsCacheAndAllowsDirectRetry()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;
@@ -277,29 +279,18 @@ public class PixscapeEnginePhysicsLifecycleTest {
             engine.loadScene("A");
             int buildsBeforeLinked = fixture.worldProbe.buildCount;
 
-            RuntimeException failure = Assert.assertThrows(
-                    RuntimeException.class,
-                    () -> engine.loadScene("C"));
-
-            Assert.assertTrue(failure.getMessage(),
-                    failure.getMessage().contains("structurally valid"));
-            Assert.assertTrue(failure.getMessage(),
-                    failure.getMessage().contains("Phase D"));
+            engine.loadScene("C");
             Assert.assertEquals(buildsBeforeLinked + 1,
                     fixture.worldProbe.buildCount);
-            Assert.assertEquals(0,
-                    fixture.worldProbe.compiledFixturesAtDispose);
-            Assert.assertEquals(0,
-                    fixture.worldProbe.nativeBodiesAtDispose);
             Assert.assertTrue(engine.isLoaded());
-            Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
-            Assert.assertNull(engine.getActiveSceneMeta());
-            Assert.assertNull(engine.getWorld());
-            Assert.assertNull(engine.getBox2dWorldService());
-            Assert.assertNull(engine.getBox2dSyncSystem());
-            Assert.assertEquals(-1, engine.findEntityByStableId(1));
-            Assert.assertSame(fixture.config, engine.config());
-            Assert.assertSame(fixture.projectDir, engine.runtimeProjectDir());
+            Assert.assertTrue((Boolean) get(engine, "sceneLoaded"));
+            int owner = engine.findEntityByStableId(1);
+            Assert.assertTrue(owner >= 0);
+            PhysicsCompiledFixturesComponent compiled = engine
+                    .mapper(PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertNotNull(compiled);
+            Assert.assertTrue(compiled.valid);
+            Assert.assertEquals(1, compiled.fixtures.size);
 
             engine.loadScene("A");
 
@@ -452,7 +443,15 @@ public class PixscapeEnginePhysicsLifecycleTest {
             shape.enabled = true;
             source.getMapper(PhysicsShapesComponent.class)
                     .create(owner).shapes.add(shape);
-            source.getMapper(PhysicsBodyComponent.class).create(owner);
+            PhysicsBodyComponent body = source
+                    .getMapper(PhysicsBodyComponent.class).create(owner);
+            body.type = PhysicsBodyComponent.STATIC;
+            body.fixedRotation = true;
+            source.getMapper(TransformComponent.class).create(owner);
+            TiledLayerComponent tiled = source
+                    .getMapper(TiledLayerComponent.class).create(owner);
+            tiled.mapWidthCells = 2;
+            tiled.mapHeightCells = 2;
             BlockPhysicsBindingData binding =
                     new BlockPhysicsBindingData();
             binding.spatialBlockId = 1;

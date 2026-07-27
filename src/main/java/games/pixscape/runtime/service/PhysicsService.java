@@ -12,12 +12,18 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.physics.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 
 /**
  * Centralizes Physics business logic (Editor/Runtime):
@@ -1215,15 +1221,98 @@ public final class PhysicsService {
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
 
+    /**
+     * Prepares one reserved spatial body without publishing any ECS state.
+     */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            Array<PhysicsShapeData> sources,
+            int ownerEntityId,
+            int ownerStableId,
+            TiledMapLayerData tiledMap,
+            float pixelsPerMeter,
+            BlockPhysicsBindingRepository repository) {
+        if (sources == null) {
+            throw new IllegalArgumentException("Physics shape sources cannot be null.");
+        }
+        if (repository == null) {
+            throw new IllegalArgumentException("Linked physics preparation requires a binding repository.");
+        }
+        Array<PhysicsShapeData> detached =
+                new Array<>(true, sources.size, PhysicsShapeData.class);
+        Array<ResolvedPhysicsShape> resolved =
+                new Array<>(true, sources.size, ResolvedPhysicsShape.class);
+        for (int i = 0; i < sources.size; i++) {
+            PhysicsShapeData source = sources.get(i);
+            if (source == null) {
+                throw new IllegalArgumentException(
+                        "Physics shape source at index " + i + " is null.");
+            }
+            PhysicsShapeData copy = source.copy();
+            detached.add(copy);
+            if (copy.directGeometry != null) {
+                resolved.add(SHAPE_RESOLVER.resolve(copy));
+                continue;
+            }
+            int indexedOwner = repository.findOwnerEntityByPhysicsShapeId(copy.physicsShapeId);
+            if (indexedOwner != ownerEntityId) {
+                throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId, -1,
+                        "binding repository ownerEntityId does not match the reserved body");
+            }
+            BlockPhysicsBindingData binding =
+                    repository.findByPhysicsShapeId(copy.physicsShapeId);
+            if (binding == null) {
+                throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId, -1,
+                        "linked shape has no binding");
+            }
+            SpatialBlockData block =
+                    repository.findBlock(ownerStableId, binding.spatialBlockId);
+            if (block == null) {
+                throw linkedInvalid(ownerEntityId, ownerStableId, copy.physicsShapeId,
+                        binding.spatialBlockId, "binding references no spatial block");
+            }
+            resolved.add(SHAPE_RESOLVER.resolveLinked(
+                    copy, ownerStableId, block, tiledMap, pixelsPerMeter));
+        }
+        return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
+    }
+
     public static void rebuildPreparedBodyCaches(World world) {
+        rebuildPreparedBodyCachesInternal(world, null, null);
+    }
+
+    /**
+     * Rebuilds direct and linked body caches in a validate-then-publish transaction.
+     */
+    public static void rebuildPreparedBodyCaches(
+            World world,
+            BlockPhysicsBindingRepository repository,
+            SceneMetaRuntime sceneMeta) {
+        if (repository == null || sceneMeta == null) {
+            throw new IllegalArgumentException(
+                    "Linked cache rebuild requires a binding repository and scene metadata.");
+        }
+        rebuildPreparedBodyCachesInternal(world, repository, sceneMeta);
+    }
+
+    private static void rebuildPreparedBodyCachesInternal(
+            World world,
+            BlockPhysicsBindingRepository repository,
+            SceneMetaRuntime sceneMeta) {
         if (world == null) {
             throw new IllegalArgumentException("World is required.");
         }
+        IntSet reservedOwners = repository != null
+                ? validateReservedSpatialBodies(world, sceneMeta)
+                : new IntSet();
         IntBag bodies = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PhysicsBodyComponent.class))
                 .getEntities();
         ComponentMapper<PhysicsShapesComponent> shapesMapper =
                 world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PixscapeIdentityComponent> identityMapper =
+                world.getMapper(PixscapeIdentityComponent.class);
+        ComponentMapper<TiledLayerComponent> tiledMapper =
+                world.getMapper(TiledLayerComponent.class);
         IntArray entityIds = new IntArray(bodies.size());
         Array<PreparedPhysicsBodyCandidate> preparedBodies =
                 new Array<>(true, bodies.size(), PreparedPhysicsBodyCandidate.class);
@@ -1236,7 +1325,19 @@ public final class PhysicsService {
                     ? shapes.shapes
                     : new Array<>(true, 0, PhysicsShapeData.class);
             entityIds.add(entityId);
-            preparedBodies.add(prepareBodyCandidate(sources));
+            if (reservedOwners.contains(entityId)) {
+                PixscapeIdentityComponent identity = identityMapper.get(entityId);
+                TiledLayerComponent tiled = tiledMapper.get(entityId);
+                if (sources.size == 0) {
+                    throw linkedInvalid(entityId, identity.stableId, -1, -1,
+                            "reserved spatial body must produce a non-empty compiled cache");
+                }
+                preparedBodies.add(prepareBodyCandidate(
+                        sources, entityId, identity.stableId, tiled.data,
+                        sceneMeta.pixelsPerMeter, repository));
+            } else {
+                preparedBodies.add(prepareBodyCandidate(sources));
+            }
         }
 
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
@@ -1251,6 +1352,125 @@ public final class PhysicsService {
                     : compiledMapper.create(entityId);
             publishPreparedCandidate(shapes, compiled, preparedBodies.get(i));
         }
+    }
+
+    private static IntSet validateReservedSpatialBodies(World world, SceneMetaRuntime sceneMeta) {
+        if (Float.isNaN(sceneMeta.pixelsPerMeter)
+                || Float.isInfinite(sceneMeta.pixelsPerMeter)
+                || sceneMeta.pixelsPerMeter <= 0f) {
+            throw new IllegalArgumentException("pixelsPerMeter must be positive and finite.");
+        }
+        ComponentMapper<BlockPhysicsBindingsComponent> bindings =
+                world.getMapper(BlockPhysicsBindingsComponent.class);
+        ComponentMapper<PixscapeIdentityComponent> identities =
+                world.getMapper(PixscapeIdentityComponent.class);
+        ComponentMapper<SpatialBlocksComponent> blocks =
+                world.getMapper(SpatialBlocksComponent.class);
+        ComponentMapper<PhysicsBodyComponent> bodies =
+                world.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsShapesComponent> shapes =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<TransformComponent> transforms =
+                world.getMapper(TransformComponent.class);
+        ComponentMapper<TiledLayerComponent> tiled =
+                world.getMapper(TiledLayerComponent.class);
+        IntSet reserved = new IntSet();
+        IntBag owners = world.getAspectSubscriptionManager()
+                .get(Aspect.all(BlockPhysicsBindingsComponent.class)).getEntities();
+        int[] ownerIds = owners.getData();
+        for (int i = 0; i < owners.size(); i++) {
+            int entityId = ownerIds[i];
+            BlockPhysicsBindingsComponent ownerBindings = bindings.get(entityId);
+            if (ownerBindings.bindings == null || ownerBindings.bindings.size == 0) {
+                continue;
+            }
+            PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+            int stableId = identity != null ? identity.stableId : -1;
+            if (identity == null || stableId <= 0) {
+                throw linkedInvalid(entityId, stableId, -1, -1,
+                        "PixscapeIdentityComponent with positive stableId is required");
+            }
+            if (!blocks.has(entityId) || !bodies.has(entityId) || !shapes.has(entityId)
+                    || !transforms.has(entityId) || !tiled.has(entityId)) {
+                throw linkedInvalid(entityId, stableId, -1, -1,
+                        "reserved spatial body is missing a required component");
+            }
+            if (tiled.get(entityId).data == null) {
+                throw linkedInvalid(entityId, stableId, -1, -1,
+                        "TiledLayerComponent.data is required before linked resolution");
+            }
+            validateReservedTransform(entityId, stableId, transforms.get(entityId));
+            validateReservedBody(entityId, stableId, bodies.get(entityId));
+            PhysicsShapesComponent ownerShapes = shapes.get(entityId);
+            for (int shapeIndex = 0; shapeIndex < ownerShapes.shapes.size; shapeIndex++) {
+                PhysicsShapeData shape = ownerShapes.shapes.get(shapeIndex);
+                if (shape != null && shape.directGeometry != null) {
+                    throw linkedInvalid(entityId, stableId, shape.physicsShapeId, -1,
+                            "reserved spatial body must not contain directGeometry");
+                }
+            }
+            reserved.add(entityId);
+        }
+        IntBag spatialBodies = world.getAspectSubscriptionManager()
+                .get(Aspect.all(SpatialBlocksComponent.class, PhysicsBodyComponent.class))
+                .getEntities();
+        int[] spatialBodyIds = spatialBodies.getData();
+        for (int i = 0; i < spatialBodies.size(); i++) {
+            int entityId = spatialBodyIds[i];
+            if (!reserved.contains(entityId)) {
+                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+                throw linkedInvalid(entityId, identity != null ? identity.stableId : -1,
+                        -1, -1, "SpatialBlocksComponent with PhysicsBodyComponent requires bindings");
+            }
+        }
+        validateNoReservedBodyJoints(world, reserved, identities);
+        return reserved;
+    }
+
+    private static void validateReservedTransform(
+            int entityId, int stableId, TransformComponent transform) {
+        if (transform.x != 0f || transform.y != 0f || transform.originX != 0f
+                || transform.originY != 0f || transform.rotationRad != 0f
+                || transform.scaleX != 1f || transform.scaleY != 1f) {
+            throw linkedInvalid(entityId, stableId, -1, -1,
+                    "reserved TransformComponent must be the exact identity transform");
+        }
+    }
+
+    private static void validateReservedBody(
+            int entityId, int stableId, PhysicsBodyComponent body) {
+        if (body.type != PhysicsBodyComponent.STATIC || !body.fixedRotation || body.bullet
+                || !body.allowSleep || !body.awake || body.gravityScale != 1f
+                || body.linearDamping != 0f || body.angularDamping != 0f) {
+            throw linkedInvalid(entityId, stableId, -1, -1,
+                    "reserved PhysicsBodyComponent must use the canonical static profile");
+        }
+    }
+
+    private static void validateNoReservedBodyJoints(
+            World world, IntSet reserved, ComponentMapper<PixscapeIdentityComponent> identities) {
+        IntBag joints = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PhysicsJointComponent.class)).getEntities();
+        int[] jointIds = joints.getData();
+        ComponentMapper<PhysicsJointComponent> jointMapper =
+                world.getMapper(PhysicsJointComponent.class);
+        for (int i = 0; i < joints.size(); i++) {
+            PhysicsJointComponent joint = jointMapper.get(jointIds[i]);
+            int reservedId = reserved.contains(joint.aEid) ? joint.aEid
+                    : (reserved.contains(joint.bEid) ? joint.bEid : -1);
+            if (reservedId >= 0) {
+                PixscapeIdentityComponent identity = identities.getSafe(reservedId, null);
+                throw linkedInvalid(reservedId, identity != null ? identity.stableId : -1,
+                        -1, -1, "joint references a reserved spatial body");
+            }
+        }
+    }
+
+    private static IllegalArgumentException linkedInvalid(
+            int entityId, int stableId, int shapeId, int blockId, String detail) {
+        return new IllegalArgumentException("Invalid reserved linked physics body: ownerEntityId="
+                + entityId + ", ownerStableId=" + stableId + ", physicsShapeId="
+                + shapeId + ", spatialBlockId=" + blockId + ": " + detail + ".");
     }
 
     public static void publishPreparedCandidate(

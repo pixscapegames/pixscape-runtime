@@ -8,11 +8,18 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.BlockPhysicsBindingData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
@@ -127,6 +134,75 @@ public class PhysicsServiceTest {
         Assert.assertTrue(sentinel.valid);
         Assert.assertFalse(
                 world.getMapper(PhysicsCompiledFixturesComponent.class).has(bodyB));
+    }
+
+    @Test
+    public void linkedReservedBodyPublishesOnlyAfterRepositoryResolution() {
+        World world = new World();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.pixelsPerMeter = 32f;
+        meta.nextEntityStableId = 2;
+        IdentityRegistry identities = new IdentityRegistry();
+        BlockPhysicsBindingRepository repository = new BlockPhysicsBindingRepository();
+        identities.bind(world, meta);
+        repository.bind(world, identities);
+        try {
+            int owner = world.create();
+            PixscapeIdentityComponent identity = world
+                    .getMapper(PixscapeIdentityComponent.class).create(owner);
+            identity.stableId = 1;
+            SpatialBlocksComponent blocks = world
+                    .getMapper(SpatialBlocksComponent.class).create(owner);
+            SpatialBlockData block = new SpatialBlockData();
+            block.id = 4;
+            block.structureId = 1;
+            block.width = 1f;
+            block.depth = 1f;
+            blocks.blocks.add(block);
+            blocks.nextSpatialBlockId = 5;
+            PhysicsShapeData linked = new PhysicsShapeData();
+            linked.physicsShapeId = 8;
+            linked.directGeometry = null;
+            linked.density = 3f;
+            linked.friction = .4f;
+            linked.restitution = .2f;
+            linked.sensor = true;
+            linked.categoryBits = 2;
+            linked.maskBits = 4;
+            linked.groupIndex = 6;
+            world.getMapper(PhysicsShapesComponent.class).create(owner).shapes.add(linked);
+            BlockPhysicsBindingData binding = new BlockPhysicsBindingData();
+            binding.spatialBlockId = 4;
+            binding.physicsShapeId = 8;
+            world.getMapper(BlockPhysicsBindingsComponent.class)
+                    .create(owner).bindings.add(binding);
+            PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(owner);
+            body.type = PhysicsBodyComponent.STATIC;
+            body.fixedRotation = true;
+            world.getMapper(TransformComponent.class).create(owner);
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(owner);
+            tiled.data = new TiledMapLayerData(4, 4, 32, 32, 2,
+                    SceneMetaRuntime.TiledProjection.ORTHO);
+
+            world.process();
+            identities.rebuild();
+            repository.rebuild();
+            PhysicsService.rebuildPreparedBodyCaches(world, repository, meta);
+
+            PhysicsCompiledFixturesComponent compiled = world
+                    .getMapper(PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertTrue(compiled.valid);
+            Assert.assertEquals(1, compiled.fixtures.size);
+            CompiledFixtureData fixture = compiled.fixtures.first();
+            Assert.assertEquals(8, fixture.physicsShapeId);
+            Assert.assertEquals(3f, fixture.density, 0f);
+            Assert.assertEquals(2, fixture.categoryBits);
+            Assert.assertTrue(fixture.sensor);
+        } finally {
+            repository.clear();
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 
     @Test
