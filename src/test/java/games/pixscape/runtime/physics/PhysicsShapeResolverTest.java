@@ -103,6 +103,26 @@ public class PhysicsShapeResolverTest {
         invalidBlock = block(); invalidBlock.x = Float.NaN; rejectLinked(linked(), 1, invalidBlock, map(), 1f, "geometry");
     }
 
+    @Test
+    public void linkedNestedFailuresPreserveShapeOwnerAndBlockContext() {
+        PhysicsShapeData invalidMaterial = linked();
+        invalidMaterial.density = -1f;
+        IllegalArgumentException materialFailure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> resolver.resolveLinked(invalidMaterial, 9, block(), map(), 100f));
+        assertLinkedContext(materialFailure, invalidMaterial.physicsShapeId, 9, 4, "density");
+        Assert.assertNotNull(materialFailure.getCause());
+
+        PhysicsShapeData source = linked();
+        SpatialBlockData invalidBlock = block();
+        invalidBlock.width = 0f;
+        IllegalArgumentException geometryFailure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> resolver.resolveLinked(source, 9, invalidBlock, map(), 100f));
+        assertLinkedContext(geometryFailure, source.physicsShapeId, 9, invalidBlock.id, "width");
+        Assert.assertNotNull(geometryFailure.getCause());
+    }
+
     private void assertResolved(int shapeType) {
         PhysicsShapeData source = new PhysicsShapeData();
         source.physicsShapeId = shapeType + 1;
@@ -137,5 +157,14 @@ public class PhysicsShapeResolverTest {
     private void rejectLinked(PhysicsShapeData source, int owner, SpatialBlockData block, TiledMapLayerData map, float ppm, String fragment) {
         IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class, () -> resolver.resolveLinked(source, owner, block, map, ppm));
         Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(fragment));
+    }
+
+    private static void assertLinkedContext(IllegalArgumentException failure, int physicsShapeId,
+                                            int ownerStableId, int blockId, String invariant) {
+        String message = failure.getMessage();
+        Assert.assertTrue(message, message.contains("linked PhysicsShapeData " + physicsShapeId));
+        Assert.assertTrue(message, message.contains("ownerStableId " + ownerStableId));
+        Assert.assertTrue(message, message.contains("blockId " + blockId));
+        Assert.assertTrue(message, message.contains(invariant));
     }
 }

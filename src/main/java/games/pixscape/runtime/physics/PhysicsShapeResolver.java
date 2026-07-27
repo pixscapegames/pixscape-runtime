@@ -25,7 +25,11 @@ public final class PhysicsShapeResolver {
                                               SpatialBlockData block, TiledMapLayerData map,
                                               float pixelsPerMeter) {
         if (source == null) throw new IllegalArgumentException("linked PhysicsShapeData cannot be null.");
-        source.validateAuthoredProperties();
+        try {
+            source.validateAuthoredProperties();
+        } catch (IllegalArgumentException failure) {
+            throw invalid(source, spatialOwnerStableId, block, failure.getMessage(), failure);
+        }
         if (source.directGeometry != null) throw invalid(source, spatialOwnerStableId, block, "linked shape must not have directGeometry.");
         if (!source.enabled) throw invalid(source, spatialOwnerStableId, block, "linked shape must be enabled.");
         if (spatialOwnerStableId <= 0) throw invalid(source, spatialOwnerStableId, block, "ownerStableId must be positive.");
@@ -34,7 +38,11 @@ public final class PhysicsShapeResolver {
         if (map == null) throw invalid(source, spatialOwnerStableId, block, "map must not be null.");
         if (Float.isNaN(pixelsPerMeter) || Float.isInfinite(pixelsPerMeter) || pixelsPerMeter <= 0f) throw invalid(source, spatialOwnerStableId, block, "pixelsPerMeter must be positive and finite.");
         float[] pixels = new float[8];
-        SpatialBlockGeometry.projectBaseFootprint(map, block, pixels);
+        try {
+            SpatialBlockGeometry.projectBaseFootprint(map, block, pixels);
+        } catch (IllegalArgumentException failure) {
+            throw invalid(source, spatialOwnerStableId, block, failure.getMessage(), failure);
+        }
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
         resolved.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
@@ -50,8 +58,16 @@ public final class PhysicsShapeResolver {
 
     private static IllegalArgumentException invalid(PhysicsShapeData source, int ownerStableId,
                                                      SpatialBlockData block, String detail) {
-        return new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId
+        return invalid(source, ownerStableId, block, detail, null);
+    }
+
+    private static IllegalArgumentException invalid(PhysicsShapeData source, int ownerStableId,
+                                                     SpatialBlockData block, String detail,
+                                                     Throwable cause) {
+        String message = "linked PhysicsShapeData " + source.physicsShapeId
                 + ", ownerStableId " + ownerStableId + ", blockId "
-                + (block != null ? block.id : "null") + ": " + detail);
+                + (block != null ? block.id : "null") + ": " + detail;
+        return cause != null ? new IllegalArgumentException(message, cause)
+                : new IllegalArgumentException(message);
     }
 }
