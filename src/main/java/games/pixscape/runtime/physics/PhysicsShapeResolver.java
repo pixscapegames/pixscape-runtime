@@ -26,12 +26,13 @@ public final class PhysicsShapeResolver {
                                               float pixelsPerMeter) {
         if (source == null) throw new IllegalArgumentException("linked PhysicsShapeData cannot be null.");
         source.validateAuthoredProperties();
-        if (source.directGeometry != null) throw new IllegalArgumentException("PhysicsShapeData " + source.physicsShapeId + " linked shape must not have directGeometry.");
-        if (!source.enabled) throw new IllegalArgumentException("PhysicsShapeData " + source.physicsShapeId + " linked shape must be enabled.");
-        if (spatialOwnerStableId <= 0) throw new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId + " ownerStableId must be positive.");
-        if (block == null || block.id <= 0) throw new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId + " blockId must be positive.");
-        if (map == null) throw new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId + " map must not be null.");
-        if (Float.isNaN(pixelsPerMeter) || Float.isInfinite(pixelsPerMeter) || pixelsPerMeter <= 0f) throw new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId + " pixelsPerMeter must be positive and finite.");
+        if (source.directGeometry != null) throw invalid(source, spatialOwnerStableId, block, "linked shape must not have directGeometry.");
+        if (!source.enabled) throw invalid(source, spatialOwnerStableId, block, "linked shape must be enabled.");
+        if (spatialOwnerStableId <= 0) throw invalid(source, spatialOwnerStableId, block, "ownerStableId must be positive.");
+        if (block == null) throw invalid(source, spatialOwnerStableId, null, "block must not be null.");
+        if (block.id <= 0) throw invalid(source, spatialOwnerStableId, block, "blockId must be positive.");
+        if (map == null) throw invalid(source, spatialOwnerStableId, block, "map must not be null.");
+        if (Float.isNaN(pixelsPerMeter) || Float.isInfinite(pixelsPerMeter) || pixelsPerMeter <= 0f) throw invalid(source, spatialOwnerStableId, block, "pixelsPerMeter must be positive and finite.");
         float[] pixels = new float[8];
         SpatialBlockGeometry.projectBaseFootprint(map, block, pixels);
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
@@ -45,5 +46,12 @@ public final class PhysicsShapeResolver {
         resolved.enabled = true; resolved.sourceKind = ResolvedPhysicsShape.SOURCE_SPATIAL_BLOCK;
         resolved.spatialOwnerStableId = spatialOwnerStableId; resolved.spatialBlockId = block.id;
         return resolved;
+    }
+
+    private static IllegalArgumentException invalid(PhysicsShapeData source, int ownerStableId,
+                                                     SpatialBlockData block, String detail) {
+        return new IllegalArgumentException("linked PhysicsShapeData " + source.physicsShapeId
+                + ", ownerStableId " + ownerStableId + ", blockId "
+                + (block != null ? block.id : "null") + ": " + detail);
     }
 }

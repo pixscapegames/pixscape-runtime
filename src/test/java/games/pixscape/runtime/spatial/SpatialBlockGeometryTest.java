@@ -53,6 +53,12 @@ public class SpatialBlockGeometryTest {
         map.projection = SceneMetaRuntime.TiledProjection.ORTHO; map.tileWidth = 0; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "tile");
         map.tileWidth = 1; map.originX = Float.NaN; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "origin");
         map.originX = 0; block.altitude = Float.NaN; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "geometry");
+        block.altitude = 0; map.tileHeight = 0; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "tile");
+        map.tileHeight = 1; map.originY = Float.POSITIVE_INFINITY; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "origin");
+        map.originY = 0; block.x = Float.NaN; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "geometry");
+        block.x = 0; block.y = Float.POSITIVE_INFINITY; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "geometry");
+        block.y = 0; block.width = -1; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "width");
+        block.width = 1; block.depth = 0; reject(() -> SpatialBlockGeometry.projectBaseFootprint(map, block, new float[8]), "depth");
     }
 
     private static void reject(Runnable action, String fragment) {
