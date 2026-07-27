@@ -139,6 +139,7 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
             return;
         }
         PreparedOwnerSnapshot current = prepareOwnerSnapshot(ownerStableId, ownerEntityId,
+                blocks != null ? blocks.nextSpatialBlockId : -1,
                 copyBlocks(blocks), copyBindings(bindings), copyShapes(shapes));
         if (!matches(indexed, indexes.blockByOwnerAndId.get(ownerStableId), current)) {
             throw new IllegalStateException("Published binding repository is stale: ownerEntityId="
@@ -151,13 +152,48 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
      * returned delta is deliberately small: it owns only this owner's indexes.
      */
     PreparedOwnerSnapshot prepareOwnerSnapshot(int ownerStableId, int ownerEntityId,
+                                               int nextSpatialBlockId,
                                                Array<SpatialBlockData> blocks,
                                                Array<BlockPhysicsBindingData> bindings,
                                                Array<PhysicsShapeData> shapes) {
         requireBound();
-        if (ownerStableId <= 0 || ownerEntityId < 0 || blocks == null || bindings == null
-                || shapes == null) {
-            throw new IllegalArgumentException("Validated owner snapshot is required.");
+        ValidatedOwnerState state = buildValidatedOwnerState(ownerEntityId, ownerStableId,
+                nextSpatialBlockId, blocks, bindings, shapes);
+        OwnerBindingIndex ownerIndex = state.ownerIndex;
+        IntMap<SpatialBlockData> blockIndex = state.blockIndex;
+        for (int i = 0; i < ownerIndex.ordered.size; i++) {
+            BlockPhysicsBindingData binding = ownerIndex.ordered.get(i);
+            Integer existingOwner = indexes.ownerEntityByPhysicsShapeId.get(binding.physicsShapeId);
+            if (existingOwner != null && existingOwner.intValue() != ownerEntityId) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "physicsShapeId is bound more than once in the World");
+            }
+        }
+        return new PreparedOwnerSnapshot(this, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex);
+    }
+
+    private ValidatedOwnerState buildValidatedOwnerState(int ownerEntityId, int ownerStableId,
+                                                         int nextSpatialBlockId,
+                                                         Array<SpatialBlockData> blocks,
+                                                         Array<BlockPhysicsBindingData> bindings,
+                                                         Array<PhysicsShapeData> shapes) {
+        if (ownerEntityId < 0) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                "owner entity ID must be non-negative");
+        if (ownerStableId <= 0) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                "owner stableId must be positive");
+        if (blocks == null) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                "blocks collection is null");
+        if (bindings == null) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                "bindings collection is null");
+        if (shapes == null) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                "physics shapes collection is null");
+        if (nextSpatialBlockId <= 0) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                    "nextSpatialBlockId must be positive");
+        }
+        if (bindings.size == 0) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                    "published bindings component is empty");
         }
         OwnerBindingIndex ownerIndex = new OwnerBindingIndex();
         IntMap<SpatialBlockData> blockIndex = new IntMap<>();
@@ -165,38 +201,65 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
         IntSet boundShapeIds = new IntSet();
         for (int i = 0; i < blocks.size; i++) {
             SpatialBlockData block = blocks.get(i);
-            if (block == null || block.id <= 0 || blockIndex.containsKey(block.id)) {
-                throw new IllegalArgumentException("Prepared owner blocks are invalid.");
-            }
+            if (block == null) throw invalid(ownerEntityId, ownerStableId, -1, -1, "spatial block entry is null");
+            if (block.id <= 0) throw invalid(ownerEntityId, ownerStableId, block.id, -1, "spatial block ID must be positive");
+            if (blockIndex.containsKey(block.id)) throw invalid(ownerEntityId, ownerStableId, block.id, -1, "duplicate spatial block ID on the same owner");
             blockIndex.put(block.id, block.copy());
         }
+        int maxBlockId = 0;
+        for (IntMap.Entry<SpatialBlockData> entry : blockIndex) {
+            if (entry.key > maxBlockId) maxBlockId = entry.key;
+        }
+        if (nextSpatialBlockId <= maxBlockId) {
+                throw invalid(ownerEntityId, ownerStableId, maxBlockId, -1,
+                    "nextSpatialBlockId must be greater than the maximum block ID");
+        }
+        ownerIndex.nextSpatialBlockId = nextSpatialBlockId;
         for (int i = 0; i < shapes.size; i++) {
             PhysicsShapeData shape = shapes.get(i);
-            if (shape == null || shape.physicsShapeId <= 0
-                    || shape.directGeometry != null || !shape.enabled
-                    || shapesById.containsKey(shape.physicsShapeId)) {
-                throw new IllegalArgumentException("Prepared linked shapes are invalid.");
-            }
+            if (shape == null) throw invalid(ownerEntityId, ownerStableId, -1, -1, "physics shape entry is null");
+            if (shape.physicsShapeId <= 0) throw invalid(ownerEntityId, ownerStableId, -1, shape.physicsShapeId, "physicsShapeId must be positive");
+            if (shapesById.containsKey(shape.physicsShapeId)) throw invalid(ownerEntityId, ownerStableId, -1, shape.physicsShapeId, "duplicate physicsShapeId on the same owner");
             shapesById.put(shape.physicsShapeId, shape.copy());
         }
         for (int i = 0; i < bindings.size; i++) {
             BlockPhysicsBindingData source = bindings.get(i);
-            if (source == null) throw new IllegalArgumentException("Prepared binding is null.");
+            if (source == null) throw invalid(ownerEntityId, ownerStableId, -1, -1,
+                    "binding entry is null");
             BlockPhysicsBindingData binding = source.copy();
-            if (ownerIndex.byBlock.containsKey(binding.spatialBlockId)
-                    || !boundShapeIds.add(binding.physicsShapeId)
-                    || !blockIndex.containsKey(binding.spatialBlockId)
-                    || !shapesById.containsKey(binding.physicsShapeId)) {
-                throw new IllegalArgumentException("Prepared owner binding is invalid.");
+            if (ownerIndex.byBlock.containsKey(binding.spatialBlockId)) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "block has more than one binding");
             }
-            Integer existingOwner = indexes.ownerEntityByPhysicsShapeId.get(binding.physicsShapeId);
-            if (existingOwner != null && existingOwner.intValue() != ownerEntityId) {
-                throw new IllegalStateException("Prepared binding delta conflicts with active repository.");
+            if (!boundShapeIds.add(binding.physicsShapeId)) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "physics shape is bound more than once");
+            }
+            if (!blockIndex.containsKey(binding.spatialBlockId)) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "binding references a block absent from the same owner");
+            }
+            if (!shapesById.containsKey(binding.physicsShapeId)) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "binding references a physics shape absent from the same owner");
+            }
+            PhysicsShapeData shape = shapesById.get(binding.physicsShapeId);
+            if (shape.directGeometry != null || !shape.enabled) {
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, shape.directGeometry != null
+                                ? "direct-geometry shape cannot be bound"
+                                : "linked shape must be enabled");
             }
             ownerIndex.byBlock.put(binding.spatialBlockId, binding);
             ownerIndex.ordered.add(binding);
         }
-        return new PreparedOwnerSnapshot(this, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex);
+        for (IntMap.Entry<PhysicsShapeData> entry : shapesById) {
+            if (entry.value.directGeometry == null && !boundShapeIds.contains(entry.key)) {
+                throw invalid(ownerEntityId, ownerStableId, -1, entry.key,
+                        "linked shape has no binding on the same owner; linked shape has no owner-local binding");
+            }
+        }
+        return new ValidatedOwnerState(ownerIndex, blockIndex);
     }
 
     private void apply(PreparedOwnerSnapshot prepared) {
@@ -219,30 +282,27 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
     }
 
     private static Array<SpatialBlockData> copyBlocks(SpatialBlocksComponent source) {
-        if (source == null || source.blocks == null) {
-            throw new IllegalArgumentException("Published spatial blocks are required.");
-        }
+        if (source == null) return null;
         Array<SpatialBlockData> result = new Array<>(SpatialBlockData[]::new);
+        if (source.blocks == null) return null;
         for (int i = 0; i < source.blocks.size; i++) result.add(source.blocks.get(i));
         return result;
     }
 
     private static Array<BlockPhysicsBindingData> copyBindings(BlockPhysicsBindingsComponent source) {
-        if (source.bindings == null) throw new IllegalArgumentException("Published bindings are required.");
-        return source.bindings;
+        return source == null ? null : source.bindings;
     }
 
     private static Array<PhysicsShapeData> copyShapes(PhysicsShapesComponent source) {
-        if (source == null || source.shapes == null) {
-            throw new IllegalArgumentException("Published physics shapes are required.");
-        }
-        return source.shapes;
+        return source == null ? null : source.shapes;
     }
 
     private static boolean matches(OwnerBindingIndex indexed,
                                    IntMap<SpatialBlockData> indexedBlocks,
                                    PreparedOwnerSnapshot current) {
-        if (indexed == null || indexedBlocks == null || indexed.ordered.size != current.ownerIndex.ordered.size
+        if (indexed == null || indexedBlocks == null
+                || indexed.nextSpatialBlockId != current.ownerIndex.nextSpatialBlockId
+                || indexed.ordered.size != current.ownerIndex.ordered.size
                 || indexedBlocks.size != current.blockIndex.size) return false;
         for (int i = 0; i < indexed.ordered.size; i++) {
             BlockPhysicsBindingData a = indexed.ordered.get(i);
@@ -307,95 +367,33 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
             throw invalid(ownerEntityId, ownerStableId, -1, -1,
                     "SpatialBlocksComponent is missing");
         }
-        IntMap<SpatialBlockData> ownerBlocks =
-                validateAndCopyBlocks(ownerEntityId, ownerStableId, blocks);
-
         BlockPhysicsBindingsComponent bindings = mBindings.get(ownerEntityId);
-        if (bindings.bindings == null) {
+        if (bindings == null) {
             throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "bindings collection is null");
+                    "BlockPhysicsBindingsComponent is missing");
         }
-        if (bindings.bindings.size == 0) {
-            throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "published bindings component is empty");
-        }
-
         PhysicsShapesComponent shapes = mShapes.getSafe(ownerEntityId, null);
         if (shapes == null) {
             throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "PhysicsShapesComponent is missing for a bound owner");
+                    "PhysicsShapesComponent is missing");
         }
-        IntMap<PhysicsShapeData> shapesById =
-                validateShapes(ownerEntityId, ownerStableId, shapes);
-
-        OwnerBindingIndex ownerBindingIndex = new OwnerBindingIndex();
-        IntSet boundShapeIds = new IntSet();
-        for (int i = 0, n = bindings.bindings.size; i < n; i++) {
-            BlockPhysicsBindingData binding = bindings.bindings.get(i);
-            if (binding == null) {
-                throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                        "binding entry is null");
-            }
-            int blockId = binding.spatialBlockId;
+        ValidatedOwnerState state = buildValidatedOwnerState(ownerEntityId, ownerStableId,
+                blocks != null ? blocks.nextSpatialBlockId : -1,
+                blocks != null ? blocks.blocks : null,
+                bindings != null ? bindings.bindings : null,
+                shapes != null ? shapes.shapes : null);
+        for (int i = 0; i < state.ownerIndex.ordered.size; i++) {
+            BlockPhysicsBindingData binding = state.ownerIndex.ordered.get(i);
             int physicsShapeId = binding.physicsShapeId;
-            if (blockId <= 0) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "spatialBlockId must be positive");
-            }
-            if (physicsShapeId <= 0) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "physicsShapeId must be positive");
-            }
-            if (!ownerBlocks.containsKey(blockId)) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "binding references a block absent from the same owner");
-            }
-            if (ownerBindingIndex.byBlock.containsKey(blockId)) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "a local block has more than one binding");
-            }
             if (candidate.bindingByPhysicsShapeId.containsKey(physicsShapeId)) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
+                throw invalid(ownerEntityId, ownerStableId, binding.spatialBlockId, physicsShapeId,
                         "physicsShapeId is bound more than once in the World");
             }
-
-            PhysicsShapeData shape = shapesById.get(physicsShapeId);
-            if (shape == null) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "binding references a physics shape absent from the same owner");
-            }
-            if (shape.directGeometry != null) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "a direct-geometry shape cannot be bound");
-            }
-            if (!shape.enabled) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, physicsShapeId,
-                        "a linked shape must be enabled");
-            }
-
-            BlockPhysicsBindingData snapshot = binding.copy();
-            ownerBindingIndex.byBlock.put(blockId, snapshot);
-            ownerBindingIndex.ordered.add(snapshot);
-            candidate.bindingByPhysicsShapeId.put(physicsShapeId, snapshot);
+            candidate.bindingByPhysicsShapeId.put(physicsShapeId, binding);
             candidate.ownerEntityByPhysicsShapeId.put(physicsShapeId, ownerEntityId);
-            boundShapeIds.add(physicsShapeId);
         }
-
-        for (IntMap.Entry<PhysicsShapeData> entry : shapesById) {
-            PhysicsShapeData shape = entry.value;
-            boolean bound = boundShapeIds.contains(entry.key);
-            if (shape.directGeometry == null && !bound) {
-                throw invalid(ownerEntityId, ownerStableId, -1, entry.key,
-                        "linked shape has no owner-local binding");
-            }
-            if (shape.directGeometry != null && bound) {
-                throw invalid(ownerEntityId, ownerStableId, -1, entry.key,
-                        "direct-geometry shape has an owner-local binding");
-            }
-        }
-
-        candidate.bindingByOwnerAndBlock.put(ownerStableId, ownerBindingIndex);
-        candidate.blockByOwnerAndId.put(ownerStableId, ownerBlocks);
+        candidate.bindingByOwnerAndBlock.put(ownerStableId, state.ownerIndex);
+        candidate.blockByOwnerAndId.put(ownerStableId, state.blockIndex);
     }
 
     private void validateAllLinkedShapes(
@@ -456,71 +454,6 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
         }
     }
 
-    private IntMap<SpatialBlockData> validateAndCopyBlocks(
-            int ownerEntityId, int ownerStableId, SpatialBlocksComponent blocks) {
-        if (blocks.blocks == null) {
-            throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "spatial blocks collection is null");
-        }
-        if (blocks.nextSpatialBlockId <= 0) {
-            throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "nextSpatialBlockId must be positive");
-        }
-
-        IntMap<SpatialBlockData> ownerBlocks = new IntMap<>();
-        int maxBlockId = 0;
-        for (int i = 0, n = blocks.blocks.size; i < n; i++) {
-            SpatialBlockData block = blocks.blocks.get(i);
-            if (block == null) {
-                throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                        "spatial block entry is null");
-            }
-            int blockId = block.id;
-            if (blockId <= 0) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, -1,
-                        "spatial block ID must be positive");
-            }
-            if (ownerBlocks.containsKey(blockId)) {
-                throw invalid(ownerEntityId, ownerStableId, blockId, -1,
-                        "duplicate spatial block ID on the same owner");
-            }
-            ownerBlocks.put(blockId, block.copy());
-            if (blockId > maxBlockId) maxBlockId = blockId;
-        }
-        if (blocks.nextSpatialBlockId <= maxBlockId) {
-            throw invalid(ownerEntityId, ownerStableId, maxBlockId, -1,
-                    "nextSpatialBlockId must be greater than the maximum block ID");
-        }
-        return ownerBlocks;
-    }
-
-    private IntMap<PhysicsShapeData> validateShapes(
-            int ownerEntityId, int ownerStableId, PhysicsShapesComponent shapes) {
-        if (shapes.shapes == null) {
-            throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                    "physics shapes collection is null");
-        }
-        IntMap<PhysicsShapeData> shapesById = new IntMap<>();
-        for (int i = 0, n = shapes.shapes.size; i < n; i++) {
-            PhysicsShapeData shape = shapes.shapes.get(i);
-            if (shape == null) {
-                throw invalid(ownerEntityId, ownerStableId, -1, -1,
-                        "physics shape entry is null");
-            }
-            int physicsShapeId = shape.physicsShapeId;
-            if (physicsShapeId <= 0) {
-                throw invalid(ownerEntityId, ownerStableId, -1, physicsShapeId,
-                        "physicsShapeId must be positive");
-            }
-            if (shapesById.containsKey(physicsShapeId)) {
-                throw invalid(ownerEntityId, ownerStableId, -1, physicsShapeId,
-                        "duplicate physicsShapeId on the same owner");
-            }
-            shapesById.put(physicsShapeId, shape);
-        }
-        return shapesById;
-    }
-
     private BlockPhysicsBindingData findInternalByBlock(int ownerStableId, int blockId) {
         if (ownerStableId <= 0 || blockId <= 0) return null;
         OwnerBindingIndex ownerBindings = indexes.bindingByOwnerAndBlock.get(ownerStableId);
@@ -558,9 +491,20 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
     }
 
     private static final class OwnerBindingIndex {
+        int nextSpatialBlockId;
         final IntMap<BlockPhysicsBindingData> byBlock = new IntMap<>();
         final Array<BlockPhysicsBindingData> ordered =
                 new Array<>(BlockPhysicsBindingData[]::new);
+    }
+
+    private static final class ValidatedOwnerState {
+        final OwnerBindingIndex ownerIndex;
+        final IntMap<SpatialBlockData> blockIndex;
+
+        ValidatedOwnerState(OwnerBindingIndex ownerIndex, IntMap<SpatialBlockData> blockIndex) {
+            this.ownerIndex = ownerIndex;
+            this.blockIndex = blockIndex;
+        }
     }
 
     static final class PreparedOwnerSnapshot implements BlockPhysicsBindingLookup {

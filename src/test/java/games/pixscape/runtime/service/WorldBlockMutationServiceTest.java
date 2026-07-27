@@ -191,6 +191,89 @@ public class WorldBlockMutationServiceTest {
         }
     }
 
+    @Test
+    public void rejectsStaleNextSpatialBlockIdBeforeAllocation() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            fixture.world.getMapper(SpatialBlocksComponent.class).get(fixture.owner)
+                    .nextSpatialBlockId = 11;
+            try {
+                fixture.service.bindBlockCollision(1, 11);
+                Assert.fail("A stale nextSpatialBlockId must be rejected.");
+            } catch (IllegalStateException expected) {
+                Assert.assertTrue(expected.getMessage().contains("nextSpatialBlockId"));
+            }
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void rejectsStaleShapeAndBlockCollectionsBeforeAllocation() {
+        assertStaleRejected(fixture -> fixture.world.getMapper(PhysicsShapesComponent.class)
+                .get(fixture.owner).shapes.first().enabled = false);
+        assertStaleRejected(fixture -> fixture.world.getMapper(PhysicsShapesComponent.class)
+                .get(fixture.owner).shapes.clear());
+        assertStaleRejected(fixture -> fixture.world.getMapper(SpatialBlocksComponent.class)
+                .get(fixture.owner).blocks.first().width = 2f);
+    }
+
+    @Test
+    public void preparedMutationOwnsDeepCopiesOfThePublishedOwnerState() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            PreparedWorldBlockMutation prepared = fixture.service.prepareBind(1, 11);
+            SpatialBlocksComponent blocks = fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner);
+            BlockPhysicsBindingsComponent bindings = fixture.world
+                    .getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner);
+            PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner);
+            blocks.blocks.first().width = 9f;
+            bindings.bindings.first().physicsShapeId = 99;
+            shapes.shapes.first().density = 9f;
+
+            PreparedWorldBlockMutation.Publication publication = prepared.takePublication();
+            Assert.assertEquals(1, publication.bindings.first().physicsShapeId);
+            Assert.assertEquals(1f, publication.shapes.first().density, 0f);
+            Assert.assertEquals(1f, publication.repositorySnapshot.findBlock(1, 10).width, 0f);
+            Assert.assertNotSame(publication.fixtures.get(0).polygonVertices,
+                    publication.fixtures.get(1).polygonVertices);
+
+            SpatialBlockData snapshotBlock = publication.repositorySnapshot.findBlock(1, 10);
+            snapshotBlock.width = 17f;
+            Assert.assertEquals(1f, publication.repositorySnapshot.findBlock(1, 10).width, 0f);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    private static void assertStaleRejected(StaleMutation mutation) {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            mutation.apply(fixture);
+            try {
+                fixture.service.bindBlockCollision(1, 11);
+                Assert.fail("Stale owner state must be rejected.");
+            } catch (RuntimeException expected) {
+                Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+                Assert.assertFalse(fixture.repository.hasBinding(1, 11));
+            }
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    private interface StaleMutation {
+        void apply(Fixture fixture);
+    }
+
     private static void assertFirstBinding(Fixture fixture, int shapeId) {
         PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class).get(fixture.owner);
         BlockPhysicsBindingsComponent bindings = fixture.world.getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner);

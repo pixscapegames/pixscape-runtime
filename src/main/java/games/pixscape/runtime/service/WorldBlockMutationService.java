@@ -67,9 +67,7 @@ public final class WorldBlockMutationService {
         PreparedWorldBlockMutation prepared = prepareBind(ownerStableId, spatialBlockId);
         PreparedWorldBlockMutation.Publication publication = prepared.takePublication();
         // Consume every throwing transfer before the first ECS mutation.
-        PhysicsService.PreparedBodyPublication physicsPublication =
-                PhysicsService.takePreparedPublication(publication.physics);
-        publish(publication, physicsPublication);
+        publish(publication);
         return publication.physicsShapeId;
     }
 
@@ -102,7 +100,8 @@ public final class WorldBlockMutationService {
 
         Array<SpatialBlockData> blockCopies = copyBlocks(ownerBlocks);
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot =
-                repository.prepareOwnerSnapshot(ownerStableId, ownerEntityId, blockCopies,
+                repository.prepareOwnerSnapshot(ownerStableId, ownerEntityId,
+                        ownerBlocks.nextSpatialBlockId, blockCopies,
                         nextBindings, nextShapes);
         PreparedPhysicsBodyCandidate preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(
                 nextShapes, ownerEntityId, ownerStableId, tiled.get(ownerEntityId).data,
@@ -112,8 +111,7 @@ public final class WorldBlockMutationService {
                 !transforms.has(ownerEntityId), !bodies.has(ownerEntityId));
     }
 
-    private void publish(PreparedWorldBlockMutation.Publication publication,
-                         PhysicsService.PreparedBodyPublication physicsPublication) {
+    private void publish(PreparedWorldBlockMutation.Publication publication) {
         int entityId = publication.ownerEntityId;
         TransformComponent transform = transforms.has(entityId)
                 ? transforms.get(entityId) : transforms.create(entityId);
@@ -126,7 +124,8 @@ public final class WorldBlockMutationService {
         PhysicsShapesComponent targetShapes = shapes.has(entityId) ? shapes.get(entityId) : shapes.create(entityId);
         PhysicsCompiledFixturesComponent targetCompiled = compiled.has(entityId)
                 ? compiled.get(entityId) : compiled.create(entityId);
-        PhysicsService.publishPreparedPublication(targetShapes, targetCompiled, physicsPublication);
+        PhysicsService.publishPreparedData(targetShapes, targetCompiled,
+                publication.shapes, publication.fixtures);
         publication.repositorySnapshot.applyTo(repository);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);

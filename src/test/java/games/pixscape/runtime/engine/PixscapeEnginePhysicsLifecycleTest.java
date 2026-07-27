@@ -38,6 +38,7 @@ import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.WorldBlockMutationService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
@@ -327,6 +328,49 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void blockMutationServiceRebuildsOneReservedNativeBodyInAuthoredFixtureOrder()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("C");
+            int owner = engine.findEntityByStableId(1);
+            engine.render();
+            PhysicsRuntimeBodyComponent before = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Object originalNativeBody = before.body;
+
+            int physicsShapeId = engine.getWorldBlockMutationService()
+                    .bindBlockCollision(1, 2);
+            PhysicsCompiledFixturesComponent compiled = engine
+                    .mapper(PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertEquals(2, compiled.fixtures.size);
+            Assert.assertEquals(10, compiled.fixtures.get(0).physicsShapeId);
+            Assert.assertEquals(physicsShapeId, compiled.fixtures.get(1).physicsShapeId);
+            int generation = compiled.generation;
+
+            engine.render();
+            PhysicsRuntimeBodyComponent after = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Assert.assertNotNull(after.body);
+            Assert.assertNotSame(originalNativeBody, after.body);
+            Assert.assertEquals(com.badlogic.gdx.physics.box2d.BodyDef.BodyType.StaticBody,
+                    after.body.getType());
+            Assert.assertEquals(2, after.body.getFixtureList().size);
+            Assert.assertEquals(2f, after.body.getFixtureList().get(0).getDensity(), 0f);
+            Assert.assertEquals(1f, after.body.getFixtureList().get(1).getDensity(), 0f);
+
+            Object rebuiltNativeBody = after.body;
+            engine.render();
+            Assert.assertSame(rebuiltNativeBody, engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner).body);
+            Assert.assertEquals(generation, compiled.generation);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void publicPrefabFragmentPathRejectsSpatialBlockPhysicsBeforeAllocation()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
@@ -469,6 +513,34 @@ public class PixscapeEnginePhysicsLifecycleTest {
         } finally { engine.dispose(); }
     }
 
+    @Test
+    public void retainedMutationServiceIsDetachedAcrossReplacementFailureAndDispose() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        engine.loadScene("A");
+        WorldBlockMutationService serviceA = engine.getWorldBlockMutationService();
+        engine.loadScene("C");
+        assertDetached(serviceA);
+        WorldBlockMutationService serviceC = engine.getWorldBlockMutationService();
+        Assert.assertNotSame(serviceA, serviceC);
+        Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("D"));
+        assertDetached(serviceC);
+        engine.loadScene("A");
+        WorldBlockMutationService retry = engine.getWorldBlockMutationService();
+        Assert.assertNotSame(serviceC, retry);
+        engine.dispose();
+        assertDetached(retry);
+    }
+
+    private static void assertDetached(WorldBlockMutationService service) {
+        try {
+            service.bindBlockCollision(1, 1);
+            Assert.fail("Retained mutation service must be detached.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("detached"));
+        }
+    }
+
     private static void writeInvalidLinkedScene(FileHandle file) throws Exception {
         World source = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
         try {
@@ -510,7 +582,11 @@ public class PixscapeEnginePhysicsLifecycleTest {
             block.width = 1;
             block.depth = 1;
             blocks.blocks.add(block);
-            blocks.nextSpatialBlockId = 2;
+            SpatialBlockData secondBlock = block.copy();
+            secondBlock.id = 2;
+            secondBlock.x = 1;
+            blocks.blocks.add(secondBlock);
+            blocks.nextSpatialBlockId = 3;
             PhysicsShapeData shape = new PhysicsShapeData();
             shape.physicsShapeId = 10;
             shape.directGeometry = null;

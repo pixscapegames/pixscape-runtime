@@ -1491,36 +1491,16 @@ public final class PhysicsService {
                 + shapeId + ", spatialBlockId=" + blockId + ": " + detail + ".");
     }
 
-    static final class PreparedBodyPublication {
-        final Array<PhysicsShapeData> shapes;
-        final Array<CompiledFixtureData> fixtures;
-
-        PreparedBodyPublication(Array<PhysicsShapeData> shapes,
-                                Array<CompiledFixtureData> fixtures) {
-            this.shapes = shapes;
-            this.fixtures = fixtures;
-        }
-    }
-
-    static PreparedBodyPublication takePreparedPublication(
-            PreparedPhysicsBodyCandidate prepared) {
-        if (prepared == null) {
-            throw new IllegalArgumentException("Prepared physics candidate is required.");
-        }
-        return new PreparedBodyPublication(prepared.takeShapes(),
-                prepared.takeCompiledFixtures().takeFixtures());
-    }
-
-    static void publishPreparedPublication(
+    static void publishPreparedData(
             PhysicsShapesComponent targetShapes,
             PhysicsCompiledFixturesComponent targetCompiled,
-            PreparedBodyPublication publication) {
-        if (targetShapes == null || targetCompiled == null || publication == null) {
+            Array<PhysicsShapeData> shapes, Array<CompiledFixtureData> fixtures) {
+        if (targetShapes == null || targetCompiled == null || shapes == null || fixtures == null) {
             throw new IllegalArgumentException(
                     "Physics source target, cache target and prepared publication are required.");
         }
-        targetShapes.shapes = publication.shapes;
-        CACHE_PUBLISHER.publish(targetCompiled, publication.fixtures);
+        targetShapes.shapes = shapes;
+        CACHE_PUBLISHER.publish(targetCompiled, fixtures);
     }
 
     public static void publishPreparedCandidate(
@@ -1531,8 +1511,8 @@ public final class PhysicsService {
             throw new IllegalArgumentException(
                     "Physics source target, cache target and prepared candidate are required.");
         }
-        publishPreparedPublication(targetShapes, targetCompiled,
-                takePreparedPublication(prepared));
+        publishPreparedData(targetShapes, targetCompiled, prepared.takeShapes(),
+                prepared.takeCompiledFixtures().takeFixtures());
     }
 }
 
