@@ -1185,7 +1185,7 @@ public final class PixscapeEngine {
             return;
         }
 
-        float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
+        float ppm = meta.pixelsPerMeter;
         if (box2dWorldService == null || box2dWorldService.isDisposed() || box2dWorldService.world == null) {
             box2dWorldService = new Box2dWorldService(
                     ppm,
