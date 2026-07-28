@@ -5,7 +5,7 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.JsonValue;
 
 public final class RuntimePrefabFragment extends SaveFileFormat {
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
 

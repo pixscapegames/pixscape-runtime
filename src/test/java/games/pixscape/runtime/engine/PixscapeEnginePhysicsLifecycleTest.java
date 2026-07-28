@@ -21,8 +21,10 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -168,6 +170,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             World worldA = engine.getWorld();
             Assert.assertNotNull(worldA);
+            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(worldA));
             Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
             Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
             Assert.assertTrue(engine.firstEntityByTag("hero") >= 0);
@@ -190,6 +194,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
             Assert.assertNull(engine.getActiveSceneMeta());
             Assert.assertNull(engine.getWorld());
+            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(fixture.worldProbe.latestWorld));
             Assert.assertNull(engine.getBox2dWorldService());
             Assert.assertNull(engine.getBox2dSyncSystem());
             Assert.assertEquals(-1, engine.findEntityByStableId(7));
@@ -225,10 +231,47 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             Assert.assertNotNull(engine.getWorld());
             Assert.assertNotSame(worldA, engine.getWorld());
+            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(engine.getWorld()));
             Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
             Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
             Assert.assertTrue(engine.firstEntityByTag("hero") >= 0);
             engine.render();
+            World retryWorld = engine.getWorld();
+            engine.dispose();
+            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(retryWorld));
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void linkedRegistryFailureDiscardsCandidateAndAllowsRetry()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            World worldA = engine.getWorld();
+            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(worldA));
+
+            RuntimeException failure = Assert.assertThrows(
+                    RuntimeException.class,
+                    () -> engine.loadScene("C"));
+
+            Assert.assertTrue(failure.getMessage(),
+                    failure.getMessage().contains(
+                            "SpatialBlocksComponent"));
+            Assert.assertNull(engine.getWorld());
+            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(fixture.worldProbe.latestWorld));
+
+            engine.loadScene("A");
+            Assert.assertNotSame(worldA, engine.getWorld());
+            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
+                    .isBoundTo(engine.getWorld()));
         } finally {
             engine.dispose();
         }
@@ -274,8 +317,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
         projectDir.child("project.json").writeString(
                 projectJson(), false, "UTF-8");
-        writeScene(scenesDir.child("a.json"), false);
-        writeScene(scenesDir.child("b.json"), true);
+        writeScene(scenesDir.child("a.json"), false, false);
+        writeScene(scenesDir.child("b.json"), true, false);
+        writeScene(scenesDir.child("c.json"), false, true);
 
         PixscapeEngine engine = new PixscapeEngine();
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
@@ -323,11 +367,22 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"gravityX\":1,"
                 + "\"gravityY\":-3,"
                 + "\"doSleep\":false"
+                + "},"
+                + "\"C\":{"
+                + "\"sceneSchemaVersion\":2,"
+                + "\"name\":\"C\","
+                + "\"file\":\"c.json\","
+                + "\"nextEntityStableId\":10,"
+                + "\"nextPhysicsShapeId\":2,"
+                + "\"physicsEnabled\":true"
                 + "}"
                 + "}}";
     }
 
-    private static void writeScene(FileHandle file, boolean duplicateIds)
+    private static void writeScene(
+            FileHandle file,
+            boolean duplicateIds,
+            boolean invalidLinkedShape)
             throws Exception {
         World source = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
@@ -336,9 +391,11 @@ public class PixscapeEnginePhysicsLifecycleTest {
             PixscapeIdentityComponent identity =
                     source.getMapper(PixscapeIdentityComponent.class)
                             .create(first);
-            identity.stableId = duplicateIds ? 9 : 7;
-            identity.name = duplicateIds ? "invalid-a" : "hero";
-            if (!duplicateIds) {
+            identity.stableId = duplicateIds || invalidLinkedShape ? 9 : 7;
+            identity.name = invalidLinkedShape
+                    ? "invalid-linked"
+                    : duplicateIds ? "invalid-a" : "hero";
+            if (!duplicateIds && !invalidLinkedShape) {
                 PixscapeTagComponent tags =
                         source.getMapper(PixscapeTagComponent.class)
                                 .create(first);
@@ -352,6 +409,16 @@ public class PixscapeEnginePhysicsLifecycleTest {
                                 .create(second);
                 duplicate.stableId = 9;
                 duplicate.name = "invalid-b";
+            }
+
+            if (invalidLinkedShape) {
+                PhysicsShapesComponent shapes =
+                        source.getMapper(PhysicsShapesComponent.class)
+                                .create(first);
+                PhysicsShapeData linked = new PhysicsShapeData();
+                linked.physicsShapeId = 1;
+                linked.spatialBlockId = 7;
+                shapes.shapes.add(linked);
             }
 
             source.process();

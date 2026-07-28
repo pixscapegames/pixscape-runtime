@@ -10,17 +10,14 @@ import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
+import games.pixscape.runtime.physics.PhysicsShapeIdentityValidator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.PhysicsService;
@@ -141,10 +138,8 @@ public final class SceneLoader {
 
         ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
         ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
-        ComponentMapper<PhysicsShapesComponent> physicsShapes = world.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<SpatialBlocksComponent> spatialBlocks = world.getMapper(SpatialBlocksComponent.class);
         IntSet stableIds = new IntSet();
-        IntArray physicsIds = new IntArray();
         int maxStableId = 0;
         int[] data = format.entities.getData();
         for (int i = 0; i < format.entities.size(); i++) {
@@ -164,27 +159,6 @@ public final class SceneLoader {
                 maxStableId = Math.max(maxStableId, identity.stableId);
             }
 
-            PhysicsShapesComponent shapes = physicsShapes.getSafe(entityId, null);
-            if (shapes != null && shapes.shapes != null) {
-                for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
-                    PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
-                    if (shape == null) {
-                        throw new IllegalArgumentException("Scene '" + sceneFile.path()
-                                + "' contains a null PhysicsShapeData on entity " + entityId + ".");
-                    }
-                    try {
-                        shape.validateStructure();
-                    } catch (IllegalArgumentException invalidShape) {
-                        throw new IllegalArgumentException(
-                                "Scene '" + sceneFile.path() + "', entityId " + entityId
-                                        + ", physicsShapeId " + shape.physicsShapeId
-                                        + ": " + invalidShape.getMessage(),
-                                invalidShape);
-                    }
-                    physicsIds.add(shape.physicsShapeId);
-                }
-            }
-
             validateSpatialBlockIdentities(spatialBlocks.getSafe(entityId, null), identity, sceneFile, entityId);
         }
         if (sceneMeta.nextEntityStableId <= maxStableId) {
@@ -193,7 +167,8 @@ public final class SceneLoader {
         }
 
         try {
-            new PhysicsShapeIdAllocator(sceneMeta).validatePersistedPhysicsShapeIds(physicsIds.toArray());
+            PhysicsShapeIdentityValidator.validateEntities(
+                    world, format.entities, sceneMeta);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Scene '" + sceneFile.path()
                     + "', domain physicsShapeId, high-water " + sceneMeta.nextPhysicsShapeId

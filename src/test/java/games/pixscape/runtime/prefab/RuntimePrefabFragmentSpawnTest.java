@@ -44,7 +44,7 @@ import java.util.Set;
 public class RuntimePrefabFragmentSpawnTest {
 
     @Test
-    public void schemaVersionOneJsonFragmentIsAccepted() {
+    public void schemaVersionTwoJsonFragmentIsAccepted() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(
@@ -70,8 +70,13 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
-    public void schemaVersionTwoIsRejectedBeforeInstantiation() {
-        assertJsonSchemaRejected("{\"schemaVersion\":2}");
+    public void schemaVersionOneIsRejectedBeforeInstantiation() {
+        assertJsonSchemaRejected("{\"schemaVersion\":1}");
+    }
+
+    @Test
+    public void schemaVersionThreeIsRejectedBeforeInstantiation() {
+        assertJsonSchemaRejected("{\"schemaVersion\":3}");
     }
 
     @Test
@@ -89,6 +94,28 @@ public class RuntimePrefabFragmentSpawnTest {
                     "schemaVersion"));
         }
         Assert.assertEquals(0, activeEntityCount(world));
+    }
+
+    @Test
+    public void inMemorySchemaVersionOneIsRejectedWithoutPublishingEntities() {
+        World world = runtimeWorld();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.schemaVersion = 1;
+        games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
+        int nextEntityStableId = meta.nextEntityStableId;
+        int nextPhysicsShapeId = meta.nextPhysicsShapeId;
+        try {
+            new RuntimePrefabFragmentSpawner(
+                    new IdentityRegistry(), meta, new AtlasRuntimeService())
+                    .spawn(world, fragment, 0f, 0f);
+            Assert.fail("Fragment schema version must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "schemaVersion"));
+        }
+        Assert.assertEquals(0, activeEntityCount(world));
+        Assert.assertEquals(nextEntityStableId, meta.nextEntityStableId);
+        Assert.assertEquals(nextPhysicsShapeId, meta.nextPhysicsShapeId);
     }
 
     @Test
@@ -647,10 +674,13 @@ public class RuntimePrefabFragmentSpawnTest {
 
     private static void assertJsonSchemaRejected(String json) {
         World world = runtimeWorld();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
         RuntimePrefabFragmentSpawner spawner =
                 new RuntimePrefabFragmentSpawner(
-                        new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
+                        new IdentityRegistry(), meta, new AtlasRuntimeService());
         int activeBefore = activeEntityCount(world);
+        int nextEntityStableId = meta.nextEntityStableId;
+        int nextPhysicsShapeId = meta.nextPhysicsShapeId;
         try {
             spawner.spawn(
                     world, new JsonReader().parse(json), 0f, 0f);
@@ -660,6 +690,8 @@ public class RuntimePrefabFragmentSpawnTest {
                     "schemaVersion"));
         }
         Assert.assertEquals(activeBefore, activeEntityCount(world));
+        Assert.assertEquals(nextEntityStableId, meta.nextEntityStableId);
+        Assert.assertEquals(nextPhysicsShapeId, meta.nextPhysicsShapeId);
     }
 
     private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
