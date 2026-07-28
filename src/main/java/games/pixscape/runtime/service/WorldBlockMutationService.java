@@ -71,23 +71,27 @@ public final class WorldBlockMutationService {
         return publication.physicsShapeId;
     }
 
+    /** Removes the dedicated linked shape and binding for one spatial block. */
+    public void removeBlockCollision(int ownerStableId, int spatialBlockId) {
+        requireAttached();
+        PreparedWorldBlockMutation prepared = prepareRemove(ownerStableId, spatialBlockId);
+        publish(prepared.takePublication());
+    }
+
     public void detach() {
         attached = false;
     }
 
     PreparedWorldBlockMutation prepareBind(int ownerStableId, int spatialBlockId) {
         requireAttached();
-        validateRequest(ownerStableId, spatialBlockId);
-        int ownerEntityId = identityRegistry.findByStableId(ownerStableId);
-        SpatialBlocksComponent ownerBlocks = blocks.get(ownerEntityId);
-        BlockPhysicsBindingsComponent currentBindings = bindings.getSafe(ownerEntityId, null);
-        PhysicsShapesComponent currentShapes = shapes.getSafe(ownerEntityId, null);
-        validateOwnerAggregate(ownerEntityId, ownerStableId, currentBindings, currentShapes);
-        repository.validatePublishedOwnerState(ownerStableId, ownerEntityId, ownerBlocks,
-                currentBindings, currentShapes);
+        OwnerState owner = validateOwner(ownerStableId, spatialBlockId, false);
+        if (repository.hasBinding(ownerStableId, spatialBlockId)) {
+            throw invalid(owner.entityId, ownerStableId, spatialBlockId, -1,
+                    "spatial block is already bound");
+        }
 
-        Array<BlockPhysicsBindingData> nextBindings = copyBindings(currentBindings);
-        Array<PhysicsShapeData> nextShapes = copyShapes(currentShapes);
+        Array<BlockPhysicsBindingData> nextBindings = copyBindings(owner.bindings);
+        Array<PhysicsShapeData> nextShapes = copyShapes(owner.shapes);
         int physicsShapeId = physicsService.allocateNewPhysicsShapeId();
         PhysicsShapeData shape = PhysicsService.createDefaultShape(physicsShapeId);
         shape.directGeometry = null;
@@ -98,21 +102,79 @@ public final class WorldBlockMutationService {
         nextBindings.add(binding);
         nextShapes.add(shape);
 
-        Array<SpatialBlockData> blockCopies = copyBlocks(ownerBlocks);
+        Array<SpatialBlockData> blockCopies = copyBlocks(owner.blocks);
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot =
-                repository.prepareOwnerSnapshot(ownerStableId, ownerEntityId,
-                        ownerBlocks.nextSpatialBlockId, blockCopies,
+                repository.prepareOwnerSnapshot(ownerStableId, owner.entityId,
+                        owner.blocks.nextSpatialBlockId, blockCopies,
                         nextBindings, nextShapes);
         PreparedPhysicsBodyCandidate preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(
-                nextShapes, ownerEntityId, ownerStableId, tiled.get(ownerEntityId).data,
+                nextShapes, owner.entityId, ownerStableId, owner.tiled.data,
                 sceneMeta.pixelsPerMeter, repositorySnapshot);
-        return new PreparedWorldBlockMutation(ownerEntityId, physicsShapeId,
+        return new PreparedWorldBlockMutation(owner.entityId, physicsShapeId,
                 nextBindings, preparedPhysics, repositorySnapshot,
-                !transforms.has(ownerEntityId), !bodies.has(ownerEntityId));
+                !transforms.has(owner.entityId), !bodies.has(owner.entityId));
+    }
+
+    PreparedWorldBlockMutation prepareRemove(int ownerStableId, int spatialBlockId) {
+        requireAttached();
+        OwnerState owner = validateOwner(ownerStableId, spatialBlockId, true);
+        if (owner.bindings == null || owner.shapes == null) {
+            throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId, -1,
+                    "spatial block is not bound");
+        }
+        BlockPhysicsBindingData targetBinding = findBinding(owner.bindings.bindings, spatialBlockId);
+        if (targetBinding == null) {
+            throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId, -1,
+                    "spatial block is not bound");
+        }
+        PhysicsShapeData targetShape = findShape(owner.shapes.shapes, targetBinding.physicsShapeId);
+        if (targetShape == null || targetShape.directGeometry != null || !targetShape.enabled
+                || repository.findOwnerEntityByPhysicsShapeId(targetBinding.physicsShapeId) != owner.entityId
+                || !sameBinding(repository.findByBlock(ownerStableId, spatialBlockId), targetBinding)) {
+            throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId,
+                    targetBinding.physicsShapeId, "target binding or linked shape is inconsistent");
+        }
+
+        Array<BlockPhysicsBindingData> remainingBindings = copyBindings(owner.bindings);
+        Array<PhysicsShapeData> remainingShapes = copyShapes(owner.shapes);
+        removeBinding(remainingBindings, spatialBlockId, targetBinding.physicsShapeId);
+        removeShape(remainingShapes, targetBinding.physicsShapeId);
+        if (remainingBindings.size != remainingShapes.size) {
+            throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId,
+                    targetBinding.physicsShapeId, "remaining binding and shape counts differ");
+        }
+        if (remainingBindings.size == 0) {
+            if (remainingShapes.size != 0) {
+                throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId,
+                        targetBinding.physicsShapeId, "last binding removal left a shape");
+            }
+            return PreparedWorldBlockMutation.removeReservedAggregate(owner.entityId,
+                    repository.prepareOwnerRemoval(ownerStableId, owner.entityId));
+        }
+
+        Array<SpatialBlockData> blockCopies = copyBlocks(owner.blocks);
+        BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot =
+                repository.prepareOwnerSnapshot(ownerStableId, owner.entityId,
+                        owner.blocks.nextSpatialBlockId, blockCopies,
+                        remainingBindings, remainingShapes);
+        PreparedPhysicsBodyCandidate preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(
+                remainingShapes, owner.entityId, ownerStableId, owner.tiled.data,
+                sceneMeta.pixelsPerMeter, repositorySnapshot);
+        return new PreparedWorldBlockMutation(owner.entityId, -1, remainingBindings,
+                preparedPhysics, repositorySnapshot, false, false);
     }
 
     private void publish(PreparedWorldBlockMutation.Publication publication) {
         int entityId = publication.ownerEntityId;
+        if (publication.removeReservedAggregate) {
+            bindings.remove(entityId);
+            shapes.remove(entityId);
+            compiled.remove(entityId);
+            bodies.remove(entityId);
+            publication.repositorySnapshot.applyTo(repository);
+            markPhysicsDirty(entityId);
+            return;
+        }
         TransformComponent transform = transforms.has(entityId)
                 ? transforms.get(entityId) : transforms.create(entityId);
         if (publication.createTransform) transform.refreshCaches();
@@ -127,38 +189,48 @@ public final class WorldBlockMutationService {
         PhysicsService.publishPreparedData(targetShapes, targetCompiled,
                 publication.shapes, publication.fixtures);
         publication.repositorySnapshot.applyTo(repository);
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);
+        markPhysicsDirty(entityId);
     }
 
-    private void validateRequest(int ownerStableId, int spatialBlockId) {
-        if (!sceneMeta.physicsEnabled) throw invalid(-1, ownerStableId, spatialBlockId, -1, "physics is disabled");
+    private OwnerState validateOwner(int ownerStableId, int spatialBlockId, boolean unbinding) {
+        if (!sceneMeta.physicsEnabled) throw operationInvalid(unbinding, -1, ownerStableId, spatialBlockId, -1, "physics is disabled");
         if (ownerStableId <= 0 || spatialBlockId <= 0) {
-            throw invalid(-1, ownerStableId, spatialBlockId, -1, "owner and block IDs must be positive");
+            throw operationInvalid(unbinding, -1, ownerStableId, spatialBlockId, -1, "owner and block IDs must be positive");
         }
         if (Float.isNaN(sceneMeta.pixelsPerMeter) || Float.isInfinite(sceneMeta.pixelsPerMeter)
                 || sceneMeta.pixelsPerMeter <= 0f) {
-            throw invalid(-1, ownerStableId, spatialBlockId, -1, "pixelsPerMeter must be positive and finite");
+            throw operationInvalid(unbinding, -1, ownerStableId, spatialBlockId, -1, "pixelsPerMeter must be positive and finite");
         }
         int ownerEntityId = identityRegistry.findByStableId(ownerStableId);
         if (ownerEntityId < 0 || !world.getEntityManager().isActive(ownerEntityId)) {
-            throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "owner is absent or inactive");
+            throw operationInvalid(unbinding, ownerEntityId, ownerStableId, spatialBlockId, -1, "owner is absent or inactive");
         }
         PixscapeIdentityComponent identity = identities.getSafe(ownerEntityId, null);
         if (identity == null || identity.stableId != ownerStableId) {
-            throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "owner identity is inconsistent");
+            throw operationInvalid(unbinding, ownerEntityId, ownerStableId, spatialBlockId, -1, "owner identity is inconsistent");
         }
         SpatialBlocksComponent ownerBlocks = blocks.getSafe(ownerEntityId, null);
         if (ownerBlocks == null || ownerBlocks.blocks == null || findBlock(ownerBlocks.blocks, spatialBlockId) == null) {
-            throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "spatial block is absent");
+            throw operationInvalid(unbinding, ownerEntityId, ownerStableId, spatialBlockId, -1, "spatial block is absent");
         }
         TiledLayerComponent layer = tiled.getSafe(ownerEntityId, null);
         if (layer == null || layer.data == null) {
-            throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "TiledLayerComponent.data is required");
+            throw operationInvalid(unbinding, ownerEntityId, ownerStableId, spatialBlockId, -1, "TiledLayerComponent.data is required");
         }
-        if (repository.hasBinding(ownerStableId, spatialBlockId)) {
-            throw invalid(ownerEntityId, ownerStableId, spatialBlockId, -1, "spatial block is already bound");
+        BlockPhysicsBindingsComponent ownerBindings = bindings.getSafe(ownerEntityId, null);
+        PhysicsShapesComponent ownerShapes = shapes.getSafe(ownerEntityId, null);
+        try {
+            validateOwnerAggregate(ownerEntityId, ownerStableId, ownerBindings, ownerShapes);
+            repository.validatePublishedOwnerState(ownerStableId, ownerEntityId, ownerBlocks,
+                    ownerBindings, ownerShapes);
+        } catch (RuntimeException error) {
+            if (unbinding) {
+                throw unbindInvalid(ownerEntityId, ownerStableId, spatialBlockId, -1,
+                        "published owner aggregate is invalid or stale: " + error.getMessage());
+            }
+            throw error;
         }
+        return new OwnerState(ownerEntityId, ownerBlocks, ownerBindings, ownerShapes, layer);
     }
 
     private void requireAttached() {
@@ -234,6 +306,55 @@ public final class WorldBlockMutationService {
         return null;
     }
 
+    private static BlockPhysicsBindingData findBinding(Array<BlockPhysicsBindingData> source, int blockId) {
+        if (source == null) return null;
+        for (int i = 0; i < source.size; i++) {
+            BlockPhysicsBindingData binding = source.get(i);
+            if (binding != null && binding.spatialBlockId == blockId) return binding;
+        }
+        return null;
+    }
+
+    private static PhysicsShapeData findShape(Array<PhysicsShapeData> source, int shapeId) {
+        if (source == null) return null;
+        for (int i = 0; i < source.size; i++) {
+            PhysicsShapeData shape = source.get(i);
+            if (shape != null && shape.physicsShapeId == shapeId) return shape;
+        }
+        return null;
+    }
+
+    private static void removeBinding(Array<BlockPhysicsBindingData> source, int blockId, int shapeId) {
+        for (int i = 0; i < source.size; i++) {
+            BlockPhysicsBindingData binding = source.get(i);
+            if (binding.spatialBlockId == blockId && binding.physicsShapeId == shapeId) {
+                source.removeIndex(i);
+                return;
+            }
+        }
+        throw new IllegalStateException("Prepared target binding is missing.");
+    }
+
+    private static void removeShape(Array<PhysicsShapeData> source, int shapeId) {
+        for (int i = 0; i < source.size; i++) {
+            if (source.get(i).physicsShapeId == shapeId) {
+                source.removeIndex(i);
+                return;
+            }
+        }
+        throw new IllegalStateException("Prepared target shape is missing.");
+    }
+
+    private static boolean sameBinding(BlockPhysicsBindingData a, BlockPhysicsBindingData b) {
+        return a != null && b != null && a.spatialBlockId == b.spatialBlockId
+                && a.physicsShapeId == b.physicsShapeId;
+    }
+
+    private void markPhysicsDirty(int entityId) {
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);
+    }
+
     private static void initializeReservedBody(PhysicsBodyComponent body) {
         body.type = PhysicsBodyComponent.STATIC;
         body.fixedRotation = true;
@@ -250,5 +371,37 @@ public final class WorldBlockMutationService {
         return new IllegalArgumentException("Invalid spatial physics bind: ownerEntityId=" + entityId
                 + ", ownerStableId=" + stableId + ", spatialBlockId=" + blockId
                 + ", physicsShapeId=" + shapeId + ": " + detail + ".");
+    }
+
+    private static IllegalArgumentException unbindInvalid(int entityId, int stableId, int blockId,
+                                                          int shapeId, String detail) {
+        return new IllegalArgumentException("Invalid spatial physics unbind: ownerEntityId=" + entityId
+                + ", ownerStableId=" + stableId + ", spatialBlockId=" + blockId
+                + ", physicsShapeId=" + shapeId + ": " + detail + ".");
+    }
+
+    private static IllegalArgumentException operationInvalid(boolean unbinding, int entityId,
+                                                             int stableId, int blockId,
+                                                             int shapeId, String detail) {
+        return unbinding ? unbindInvalid(entityId, stableId, blockId, shapeId, detail)
+                : invalid(entityId, stableId, blockId, shapeId, detail);
+    }
+
+    private static final class OwnerState {
+        final int entityId;
+        final SpatialBlocksComponent blocks;
+        final BlockPhysicsBindingsComponent bindings;
+        final PhysicsShapesComponent shapes;
+        final TiledLayerComponent tiled;
+
+        OwnerState(int entityId, SpatialBlocksComponent blocks,
+                   BlockPhysicsBindingsComponent bindings, PhysicsShapesComponent shapes,
+                   TiledLayerComponent tiled) {
+            this.entityId = entityId;
+            this.blocks = blocks;
+            this.bindings = bindings;
+            this.shapes = shapes;
+            this.tiled = tiled;
+        }
     }
 }

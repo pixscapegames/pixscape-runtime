@@ -626,6 +626,55 @@ public class BlockPhysicsBindingRepositoryTest {
         }
     }
 
+    @Test
+    public void preparedOwnerRemovalRemovesOnlyThatOwnerAndIsSingleUse() {
+        try (Harness harness = new Harness()) {
+            Owner first = owner(harness, 94, new int[]{1, 2}, new int[]{501, 502});
+            Owner second = validOwner(harness, 95, 3, 503);
+            harness.activate();
+            harness.repository.rebuild();
+
+            BlockPhysicsBindingRepository.PreparedOwnerSnapshot removal =
+                    harness.repository.prepareOwnerRemoval(94, first.entityId);
+            Assert.assertTrue(harness.repository.hasBinding(94, 1));
+            Assert.assertTrue(harness.repository.hasBinding(94, 2));
+            Assert.assertTrue(harness.repository.hasBinding(95, 3));
+            removal.applyTo(harness.repository);
+
+            Assert.assertFalse(harness.repository.hasBinding(94, 1));
+            Assert.assertFalse(harness.repository.hasBinding(94, 2));
+            Assert.assertNull(harness.repository.findByPhysicsShapeId(501));
+            Assert.assertNull(harness.repository.findByPhysicsShapeId(502));
+            Assert.assertNull(harness.repository.findBlock(94, 1));
+            Assert.assertTrue(harness.repository.hasBinding(95, 3));
+            Assert.assertEquals(second.entityId,
+                    harness.repository.findOwnerEntityByPhysicsShapeId(503));
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> removal.applyTo(harness.repository));
+        }
+    }
+
+    @Test
+    public void preparedOwnerRemovalRejectsAnotherRepositoryAndAReboundWorld() {
+        try (Harness harness = new Harness()) {
+            Owner owner = validOwner(harness, 96, 1, 504);
+            harness.activate();
+            harness.repository.rebuild();
+            BlockPhysicsBindingRepository.PreparedOwnerSnapshot wrongRepository =
+                    harness.repository.prepareOwnerRemoval(96, owner.entityId);
+            BlockPhysicsBindingRepository other = new BlockPhysicsBindingRepository();
+            other.bind(harness.world, harness.identityRegistry);
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> wrongRepository.applyTo(other));
+
+            BlockPhysicsBindingRepository.PreparedOwnerSnapshot rebound =
+                    harness.repository.prepareOwnerRemoval(96, owner.entityId);
+            harness.repository.clear();
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> rebound.applyTo(harness.repository));
+        }
+    }
+
     private static void assertEmptyQueries(
             BlockPhysicsBindingRepository repository, int ownerStableId) {
         Assert.assertFalse(repository.hasBinding(ownerStableId, 1));

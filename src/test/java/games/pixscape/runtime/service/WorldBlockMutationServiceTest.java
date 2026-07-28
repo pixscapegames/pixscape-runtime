@@ -252,6 +252,227 @@ public class WorldBlockMutationServiceTest {
         }
     }
 
+    @Test
+    public void removesOnlyTheRequestedBindingAndRecompilesTheRemainingBody() {
+        Fixture fixture = new Fixture();
+        try {
+            int first = fixture.service.bindBlockCollision(1, 10);
+            int second = fixture.service.bindBlockCollision(1, 11);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            fixture.service.removeBlockCollision(1, 10);
+
+            BlockPhysicsBindingsComponent bindings = fixture.world
+                    .getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner);
+            PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner);
+            PhysicsCompiledFixturesComponent compiled = fixture.world
+                    .getMapper(PhysicsCompiledFixturesComponent.class).get(fixture.owner);
+            Assert.assertEquals(1, bindings.bindings.size);
+            Assert.assertEquals(11, bindings.bindings.first().spatialBlockId);
+            Assert.assertEquals(second, bindings.bindings.first().physicsShapeId);
+            Assert.assertEquals(1, shapes.shapes.size);
+            Assert.assertEquals(second, shapes.shapes.first().physicsShapeId);
+            Assert.assertEquals(1, compiled.fixtures.size);
+            Assert.assertEquals(second, compiled.fixtures.first().physicsShapeId);
+            Assert.assertFalse(fixture.repository.hasBinding(1, 10));
+            Assert.assertNull(fixture.repository.findByPhysicsShapeId(first));
+            Assert.assertTrue(fixture.repository.hasBinding(1, 11));
+            Assert.assertTrue(fixture.world.getMapper(PhysicsBodyComponent.class).has(fixture.owner));
+            Assert.assertTrue(fixture.world.getMapper(TransformComponent.class).has(fixture.owner));
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void removesTheLastAuthoredRelationWithoutChangingTheFirstRelationOrder() {
+        Fixture fixture = new Fixture();
+        try {
+            int first = fixture.service.bindBlockCollision(1, 10);
+            fixture.service.bindBlockCollision(1, 11);
+            fixture.service.removeBlockCollision(1, 11);
+
+            BlockPhysicsBindingsComponent bindings = fixture.world
+                    .getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner);
+            PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner);
+            Assert.assertEquals(1, bindings.bindings.size);
+            Assert.assertEquals(10, bindings.bindings.first().spatialBlockId);
+            Assert.assertEquals(first, bindings.bindings.first().physicsShapeId);
+            Assert.assertEquals(first, shapes.shapes.first().physicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void removesTheLastReservedAggregateWithoutRemovingTheSpatialOwner() {
+        Fixture fixture = new Fixture();
+        try {
+            int shapeId = fixture.service.bindBlockCollision(1, 10);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            fixture.service.removeBlockCollision(1, 10);
+
+            Assert.assertFalse(fixture.world.getMapper(BlockPhysicsBindingsComponent.class).has(fixture.owner));
+            Assert.assertFalse(fixture.world.getMapper(PhysicsShapesComponent.class).has(fixture.owner));
+            Assert.assertFalse(fixture.world.getMapper(PhysicsCompiledFixturesComponent.class).has(fixture.owner));
+            Assert.assertFalse(fixture.world.getMapper(PhysicsBodyComponent.class).has(fixture.owner));
+            Assert.assertTrue(fixture.world.getMapper(TransformComponent.class).has(fixture.owner));
+            Assert.assertTrue(fixture.world.getMapper(SpatialBlocksComponent.class).has(fixture.owner));
+            Assert.assertTrue(fixture.world.getMapper(TiledLayerComponent.class).has(fixture.owner));
+            Assert.assertTrue(fixture.world.getMapper(PixscapeIdentityComponent.class).has(fixture.owner));
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+            Assert.assertNull(fixture.repository.findByPhysicsShapeId(shapeId));
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void rejectsUnboundAndStaleRemovalsBeforePublication() {
+        Fixture unbound = new Fixture();
+        try {
+            assertUnbindRejected(unbound, 10, "not bound");
+            Assert.assertEquals(1, unbound.meta.nextPhysicsShapeId);
+            Assert.assertFalse(unbound.repository.hasAnyBindings());
+        } finally {
+            unbound.dispose();
+        }
+
+        Fixture stale = new Fixture();
+        try {
+            stale.service.bindBlockCollision(1, 10);
+            int highWater = stale.meta.nextPhysicsShapeId;
+            stale.world.getMapper(BlockPhysicsBindingsComponent.class).get(stale.owner)
+                    .bindings.first().spatialBlockId = 11;
+            assertUnbindRejected(stale, 10, "stale");
+            Assert.assertEquals(highWater, stale.meta.nextPhysicsShapeId);
+            Assert.assertTrue(stale.repository.hasBinding(1, 10));
+            Assert.assertTrue(stale.world.getMapper(PhysicsCompiledFixturesComponent.class).has(stale.owner));
+        } finally {
+            stale.dispose();
+        }
+
+        Fixture bound = new Fixture();
+        try {
+            bound.service.bindBlockCollision(1, 10);
+            int highWater = bound.meta.nextPhysicsShapeId;
+            assertUnbindRejected(bound, 11, "not bound");
+            Assert.assertEquals(highWater, bound.meta.nextPhysicsShapeId);
+            Assert.assertTrue(bound.repository.hasBinding(1, 10));
+            Assert.assertFalse(bound.repository.hasBinding(1, 11));
+        } finally {
+            bound.dispose();
+        }
+    }
+
+    @Test
+    public void rejectsInvalidAndDetachedUnbindRequestsBeforeWorldMutation() {
+        Fixture fixture = new Fixture();
+        try {
+            IllegalArgumentException invalidOwner = Assert.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> fixture.service.removeBlockCollision(0, 10));
+            Assert.assertTrue(invalidOwner.getMessage().contains("Invalid spatial physics unbind"));
+            Assert.assertEquals(1, fixture.meta.nextPhysicsShapeId);
+            fixture.service.detach();
+            IllegalStateException detached = Assert.assertThrows(
+                    IllegalStateException.class,
+                    () -> fixture.service.removeBlockCollision(1, 10));
+            Assert.assertTrue(detached.getMessage().contains("detached"));
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void failedRemainingShapeCompilationLeavesThePublishedAggregateUntouched() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            fixture.service.bindBlockCollision(1, 11);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+            PhysicsCompiledFixturesComponent previous = fixture.world
+                    .getMapper(PhysicsCompiledFixturesComponent.class).get(fixture.owner);
+            int generation = previous.generation;
+            fixture.world.getMapper(SpatialBlocksComponent.class).get(fixture.owner)
+                    .blocks.first().width = 0f;
+            fixture.world.process();
+            fixture.repository.rebuild();
+
+            try {
+                fixture.service.removeBlockCollision(1, 11);
+                Assert.fail("A remaining invalid block must reject recompilation.");
+            } catch (IllegalArgumentException expected) {
+                Assert.assertNotNull(expected.getMessage());
+            }
+            Assert.assertEquals(2, fixture.world.getMapper(BlockPhysicsBindingsComponent.class)
+                    .get(fixture.owner).bindings.size);
+            Assert.assertEquals(2, fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner).shapes.size);
+            Assert.assertEquals(2, previous.fixtures.size);
+            Assert.assertEquals(generation, previous.generation);
+            Assert.assertTrue(fixture.repository.hasBinding(1, 10));
+            Assert.assertTrue(fixture.repository.hasBinding(1, 11));
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void preparedRemovalsAreSingleUseAndDetachedFromTheirSources() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            fixture.service.bindBlockCollision(1, 11);
+            PreparedWorldBlockMutation prepared = fixture.service.prepareRemove(1, 10);
+            fixture.world.getMapper(BlockPhysicsBindingsComponent.class).get(fixture.owner)
+                    .bindings.first().physicsShapeId = 99;
+            PreparedWorldBlockMutation.Publication publication = prepared.takePublication();
+            Assert.assertEquals(11, publication.bindings.first().spatialBlockId);
+            Assert.assertNotNull(publication.repositorySnapshot.findBlock(1, 11));
+            try {
+                prepared.takePublication();
+                Assert.fail("Prepared removal must reject a second transfer.");
+            } catch (IllegalStateException expected) {
+                // expected
+            }
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void preparedLastRemovalSnapshotIsSingleUse() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            PreparedWorldBlockMutation prepared = fixture.service.prepareRemove(1, 10);
+            PreparedWorldBlockMutation.Publication publication = prepared.takePublication();
+            publication.repositorySnapshot.applyTo(fixture.repository);
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> publication.repositorySnapshot.applyTo(fixture.repository));
+            Assert.assertThrows(IllegalStateException.class, prepared::takePublication);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    private static void assertUnbindRejected(Fixture fixture, int blockId, String detail) {
+        try {
+            fixture.service.removeBlockCollision(1, blockId);
+            Assert.fail("Invalid unbind must be rejected.");
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Invalid spatial physics unbind"));
+            Assert.assertTrue(expected.getMessage().contains(detail));
+        }
+    }
+
     private static void assertStaleRejected(StaleMutation mutation) {
         Fixture fixture = new Fixture();
         try {

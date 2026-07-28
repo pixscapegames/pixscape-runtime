@@ -371,6 +371,68 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void blockMutationServiceUnbindsNToOneThenTearsDownAndRebindsNatively()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("C");
+            int owner = engine.findEntityByStableId(1);
+            engine.render();
+            int secondShapeId = engine.getWorldBlockMutationService().bindBlockCollision(1, 2);
+            engine.render();
+            PhysicsRuntimeBodyComponent twoFixtureRuntime = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Object twoFixtureBody = twoFixtureRuntime.body;
+            int twoFixtureGeneration = twoFixtureRuntime.gen;
+            int bodyCount = engine.getBox2dWorldService().world.getBodyCount();
+
+            engine.getWorldBlockMutationService().removeBlockCollision(1, 1);
+            PhysicsCompiledFixturesComponent oneFixtureCache = engine
+                    .mapper(PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertEquals(1, oneFixtureCache.fixtures.size);
+            Assert.assertEquals(secondShapeId, oneFixtureCache.fixtures.first().physicsShapeId);
+            engine.render();
+            PhysicsRuntimeBodyComponent oneFixtureRuntime = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Assert.assertNotSame(twoFixtureBody, oneFixtureRuntime.body);
+            Assert.assertEquals(twoFixtureGeneration + 1, oneFixtureRuntime.gen);
+            Assert.assertEquals(1, oneFixtureRuntime.body.getFixtureList().size);
+            Assert.assertEquals(bodyCount, engine.getBox2dWorldService().world.getBodyCount());
+            Object stableBody = oneFixtureRuntime.body;
+            int stableGeneration = oneFixtureRuntime.gen;
+            engine.render();
+            Assert.assertSame(stableBody, engine.mapper(PhysicsRuntimeBodyComponent.class).get(owner).body);
+            Assert.assertEquals(stableGeneration,
+                    engine.mapper(PhysicsRuntimeBodyComponent.class).get(owner).gen);
+
+            engine.getWorldBlockMutationService().removeBlockCollision(1, 2);
+            Assert.assertFalse(engine.mapper(BlockPhysicsBindingsComponent.class).has(owner));
+            Assert.assertFalse(engine.mapper(PhysicsShapesComponent.class).has(owner));
+            Assert.assertFalse(engine.mapper(PhysicsCompiledFixturesComponent.class).has(owner));
+            Assert.assertFalse(engine.mapper(PhysicsBodyComponent.class).has(owner));
+            Assert.assertTrue(engine.mapper(TransformComponent.class).has(owner));
+            Assert.assertTrue(engine.mapper(SpatialBlocksComponent.class).has(owner));
+            engine.render();
+            Assert.assertFalse(engine.mapper(PhysicsRuntimeBodyComponent.class).has(owner));
+            Assert.assertEquals(bodyCount - 1, engine.getBox2dWorldService().world.getBodyCount());
+            engine.render();
+            Assert.assertFalse(engine.mapper(PhysicsRuntimeBodyComponent.class).has(owner));
+            Assert.assertEquals(bodyCount - 1, engine.getBox2dWorldService().world.getBodyCount());
+
+            int reboundShapeId = engine.getWorldBlockMutationService().bindBlockCollision(1, 1);
+            Assert.assertTrue(reboundShapeId > secondShapeId);
+            engine.render();
+            PhysicsRuntimeBodyComponent rebound = engine
+                    .mapper(PhysicsRuntimeBodyComponent.class).get(owner);
+            Assert.assertNotNull(rebound.body);
+            Assert.assertEquals(1, rebound.body.getFixtureList().size);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void publicPrefabFragmentPathRejectsSpatialBlockPhysicsBeforeAllocation()
             throws Exception {
         EngineFixture fixture = createEngineFixture();

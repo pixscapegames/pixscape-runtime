@@ -6,7 +6,7 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 
-/** Detached, single-use publication data for one spatial block bind. */
+/** Detached, single-use publication data for one spatial block mutation. */
 final class PreparedWorldBlockMutation {
     private int ownerEntityId;
     private int physicsShapeId;
@@ -15,6 +15,8 @@ final class PreparedWorldBlockMutation {
     private BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
     private final boolean createTransform;
     private final boolean createBody;
+    private final boolean removeReservedAggregate;
+    private boolean consumed;
 
     PreparedWorldBlockMutation(int ownerEntityId, int physicsShapeId,
                                Array<BlockPhysicsBindingData> bindings,
@@ -28,16 +30,47 @@ final class PreparedWorldBlockMutation {
         this.repositorySnapshot = repositorySnapshot;
         this.createTransform = createTransform;
         this.createBody = createBody;
+        this.removeReservedAggregate = false;
+    }
+
+    private PreparedWorldBlockMutation(int ownerEntityId,
+                                       BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot) {
+        this.ownerEntityId = ownerEntityId;
+        this.repositorySnapshot = repositorySnapshot;
+        this.createTransform = false;
+        this.createBody = false;
+        this.removeReservedAggregate = true;
+    }
+
+    static PreparedWorldBlockMutation removeReservedAggregate(
+            int ownerEntityId,
+            BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot) {
+        if (repositorySnapshot == null) {
+            throw new IllegalArgumentException("Prepared repository removal is required.");
+        }
+        return new PreparedWorldBlockMutation(ownerEntityId, repositorySnapshot);
     }
 
     Publication takePublication() {
-        if (bindings == null) {
+        if (consumed) {
             throw new IllegalStateException("Prepared world block mutation was already consumed.");
         }
-        Array<PhysicsShapeData> shapes = physics.takeShapes();
-        Array<CompiledFixtureData> fixtures = physics.takeCompiledFixtures().takeFixtures();
+        if (repositorySnapshot == null) {
+            throw new IllegalStateException("Prepared world block mutation has no repository snapshot.");
+        }
+        Array<PhysicsShapeData> shapes = null;
+        Array<CompiledFixtureData> fixtures = null;
+        if (!removeReservedAggregate) {
+            if (bindings == null || physics == null) {
+                throw new IllegalStateException("Prepared world block publication is incomplete.");
+            }
+            shapes = physics.takeShapes();
+            fixtures = physics.takeCompiledFixtures().takeFixtures();
+        }
         Publication publication = new Publication(ownerEntityId, physicsShapeId,
-                bindings, shapes, fixtures, repositorySnapshot, createTransform, createBody);
+                bindings, shapes, fixtures, repositorySnapshot, createTransform, createBody,
+                removeReservedAggregate);
+        consumed = true;
         bindings = null;
         physics = null;
         repositorySnapshot = null;
@@ -53,12 +86,14 @@ final class PreparedWorldBlockMutation {
         final BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
         final boolean createTransform;
         final boolean createBody;
+        final boolean removeReservedAggregate;
 
         Publication(int ownerEntityId, int physicsShapeId,
                     Array<BlockPhysicsBindingData> bindings,
                     Array<PhysicsShapeData> shapes, Array<CompiledFixtureData> fixtures,
                     BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot,
-                    boolean createTransform, boolean createBody) {
+                    boolean createTransform, boolean createBody,
+                    boolean removeReservedAggregate) {
             this.ownerEntityId = ownerEntityId;
             this.physicsShapeId = physicsShapeId;
             this.bindings = bindings;
@@ -67,6 +102,7 @@ final class PreparedWorldBlockMutation {
             this.repositorySnapshot = repositorySnapshot;
             this.createTransform = createTransform;
             this.createBody = createBody;
+            this.removeReservedAggregate = removeReservedAggregate;
         }
     }
 }

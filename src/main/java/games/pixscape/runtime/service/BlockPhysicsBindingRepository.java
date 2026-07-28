@@ -172,6 +172,27 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
         return new PreparedOwnerSnapshot(this, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex);
     }
 
+    /** Prepares removal of one fully validated owner from the active indexes. */
+    PreparedOwnerSnapshot prepareOwnerRemoval(int ownerStableId, int ownerEntityId) {
+        requireBound();
+        OwnerBindingIndex ownerIndex = indexes.bindingByOwnerAndBlock.get(ownerStableId);
+        IntMap<SpatialBlockData> blockIndex = indexes.blockByOwnerAndId.get(ownerStableId);
+        if (ownerStableId <= 0 || ownerEntityId < 0 || ownerIndex == null || blockIndex == null
+                || ownerIndex.ordered.size == 0) {
+            throw new IllegalArgumentException("Published owner removal requires an indexed owner.");
+        }
+        for (int i = 0; i < ownerIndex.ordered.size; i++) {
+            BlockPhysicsBindingData binding = ownerIndex.ordered.get(i);
+            Integer indexedOwner = indexes.ownerEntityByPhysicsShapeId.get(binding.physicsShapeId);
+            if (indexedOwner == null || indexedOwner.intValue() != ownerEntityId) {
+                throw new IllegalStateException("Published owner removal is stale: ownerEntityId="
+                        + ownerEntityId + ", ownerStableId=" + ownerStableId + ".");
+            }
+        }
+        return new PreparedOwnerSnapshot(this, world, ownerStableId, ownerEntityId,
+                null, null, true);
+    }
+
     private ValidatedOwnerState buildValidatedOwnerState(int ownerEntityId, int ownerStableId,
                                                          int nextSpatialBlockId,
                                                          Array<SpatialBlockData> blocks,
@@ -271,6 +292,11 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
                 indexes.bindingByPhysicsShapeId.remove(shapeId);
                 indexes.ownerEntityByPhysicsShapeId.remove(shapeId);
             }
+        }
+        if (prepared.removeOwner) {
+            indexes.bindingByOwnerAndBlock.remove(prepared.ownerStableId);
+            indexes.blockByOwnerAndId.remove(prepared.ownerStableId);
+            return;
         }
         indexes.bindingByOwnerAndBlock.put(prepared.ownerStableId, prepared.ownerIndex);
         indexes.blockByOwnerAndId.put(prepared.ownerStableId, prepared.blockIndex);
@@ -514,17 +540,26 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
         private final int ownerEntityId;
         private OwnerBindingIndex ownerIndex;
         private IntMap<SpatialBlockData> blockIndex;
+        private final boolean removeOwner;
 
         private PreparedOwnerSnapshot(BlockPhysicsBindingRepository repository, World world,
                                       int ownerStableId,
                                       int ownerEntityId, OwnerBindingIndex ownerIndex,
                                       IntMap<SpatialBlockData> blockIndex) {
+            this(repository, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex, false);
+        }
+
+        private PreparedOwnerSnapshot(BlockPhysicsBindingRepository repository, World world,
+                                      int ownerStableId, int ownerEntityId,
+                                      OwnerBindingIndex ownerIndex,
+                                      IntMap<SpatialBlockData> blockIndex, boolean removeOwner) {
             this.repository = repository;
             this.world = world;
             this.ownerStableId = ownerStableId;
             this.ownerEntityId = ownerEntityId;
             this.ownerIndex = ownerIndex;
             this.blockIndex = blockIndex;
+            this.removeOwner = removeOwner;
         }
 
         void applyTo(BlockPhysicsBindingRepository target) {
