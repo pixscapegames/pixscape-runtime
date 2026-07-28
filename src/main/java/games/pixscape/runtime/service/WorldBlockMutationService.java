@@ -78,6 +78,165 @@ public final class WorldBlockMutationService {
         publish(prepared.takePublication());
     }
 
+    /** Captures the reusable, detached authored state used by editor history. */
+    public WorldBlockOwnerSnapshot captureOwnerState(int ownerStableId) {
+        requireAttached();
+        OwnerState owner = resolveOwner(ownerStableId);
+        validateOwnerAggregate(owner.entityId, ownerStableId, owner.bindings, owner.shapes);
+        repository.validatePublishedOwnerState(ownerStableId, owner.entityId, owner.blocks,
+                owner.bindings, owner.shapes);
+        PhysicsBodyComponent body = bodies.getSafe(owner.entityId, null);
+        TransformComponent transform = transforms.getSafe(owner.entityId, null);
+        WorldBlockOwnerSnapshot.BodyState bodyState = body == null ? null
+                : new WorldBlockOwnerSnapshot.BodyState(body.type, body.fixedRotation, body.bullet,
+                body.allowSleep, body.awake, body.gravityScale, body.linearDamping,
+                body.angularDamping);
+        WorldBlockOwnerSnapshot.TransformState transformState = transform == null ? null
+                : new WorldBlockOwnerSnapshot.TransformState(transform.x, transform.y, transform.originX,
+                transform.originY, transform.rotationRad, transform.scaleX, transform.scaleY);
+        return new WorldBlockOwnerSnapshot(ownerStableId, owner.blocks.nextSpatialBlockId,
+                owner.blocks.blocks, owner.bindings != null,
+                owner.bindings != null ? owner.bindings.bindings : null, owner.shapes != null,
+                owner.shapes != null ? owner.shapes.shapes : null, body != null, bodyState,
+                transform != null, transformState);
+    }
+
+    /** Restores a reusable owner snapshot without allocating an authored physics-shape ID. */
+    public void restoreOwnerState(WorldBlockOwnerSnapshot snapshot) {
+        requireAttached();
+        if (snapshot == null) throw new IllegalArgumentException("Owner snapshot is required.");
+        OwnerState owner = resolveOwner(snapshot.ownerStableId);
+        validateOwnerAggregate(owner.entityId, snapshot.ownerStableId, owner.bindings, owner.shapes);
+        repository.validatePublishedOwnerState(snapshot.ownerStableId, owner.entityId, owner.blocks,
+                owner.bindings, owner.shapes);
+        validateSnapshotHighWater(snapshot);
+        Array<SpatialBlockData> nextBlocks = snapshot.blocks();
+        Array<BlockPhysicsBindingData> nextBindings = snapshot.bindings();
+        Array<PhysicsShapeData> nextShapes = snapshot.shapes();
+        BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
+        PreparedPhysicsBodyCandidate preparedPhysics = null;
+        if (snapshot.hasBindings) {
+            if (!snapshot.hasShapes || !snapshot.hasBody || !snapshot.hasTransform) {
+                throw new IllegalArgumentException("Invalid owner snapshot: bound aggregate is incomplete.");
+            }
+            repositorySnapshot = repository.prepareOwnerSnapshot(snapshot.ownerStableId, owner.entityId,
+                    snapshot.nextSpatialBlockId, nextBlocks, nextBindings, nextShapes);
+            preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
+                    snapshot.ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter,
+                    repositorySnapshot);
+        } else {
+            if (snapshot.hasShapes || snapshot.hasBody) {
+                throw new IllegalArgumentException("Invalid owner snapshot: unbound owner contains physics.");
+            }
+            repositorySnapshot = repository.prepareOwnerRemoval(snapshot.ownerStableId, owner.entityId);
+        }
+        // All validations and compilation above must complete before this first ECS mutation.
+        owner.blocks.blocks = nextBlocks;
+        owner.blocks.nextSpatialBlockId = snapshot.nextSpatialBlockId;
+        owner.blocks.revision++;
+        if (snapshot.hasTransform) applyTransform(transforms.has(owner.entityId)
+                ? transforms.get(owner.entityId) : transforms.create(owner.entityId), snapshot.transform);
+        else transforms.remove(owner.entityId);
+        if (!snapshot.hasBindings) {
+            bindings.remove(owner.entityId);
+            shapes.remove(owner.entityId);
+            compiled.remove(owner.entityId);
+            bodies.remove(owner.entityId);
+            repositorySnapshot.applyTo(repository);
+            markPhysicsDirty(owner.entityId);
+            return;
+        }
+        applyBody(bodies.has(owner.entityId) ? bodies.get(owner.entityId) : bodies.create(owner.entityId), snapshot.body);
+        BlockPhysicsBindingsComponent targetBindings = bindings.has(owner.entityId)
+                ? bindings.get(owner.entityId) : bindings.create(owner.entityId);
+        targetBindings.bindings = nextBindings;
+        PhysicsShapesComponent targetShapes = shapes.has(owner.entityId)
+                ? shapes.get(owner.entityId) : shapes.create(owner.entityId);
+        PhysicsCompiledFixturesComponent targetCompiled = compiled.has(owner.entityId)
+                ? compiled.get(owner.entityId) : compiled.create(owner.entityId);
+        PhysicsService.publishPreparedData(targetShapes, targetCompiled, preparedPhysics.takeShapes(),
+                preparedPhysics.takeCompiledFixtures().takeFixtures());
+        repositorySnapshot.applyTo(repository);
+        markPhysicsDirty(owner.entityId);
+    }
+
+    /** Replaces authored blocks while preserving all existing linked relations. */
+    public void replaceSpatialBlocks(int ownerStableId, int nextSpatialBlockId,
+                                     Array<SpatialBlockData> replacementBlocks) {
+        requireAttached();
+        OwnerState owner = resolveOwner(ownerStableId);
+        validateOwnerAggregate(owner.entityId, ownerStableId, owner.bindings, owner.shapes);
+        repository.validatePublishedOwnerState(ownerStableId, owner.entityId, owner.blocks,
+                owner.bindings, owner.shapes);
+        if (nextSpatialBlockId <= 0) throw invalid(owner.entityId, ownerStableId, -1, -1,
+                "nextSpatialBlockId must be positive");
+        Array<SpatialBlockData> nextBlocks = WorldBlockOwnerSnapshot.copyBlocks(replacementBlocks);
+        if (owner.bindings != null) {
+            for (int i = 0; i < owner.bindings.bindings.size; i++) {
+                BlockPhysicsBindingData binding = owner.bindings.bindings.get(i);
+                if (findBlock(nextBlocks, binding.spatialBlockId) == null) {
+                    throw invalid(owner.entityId, ownerStableId, binding.spatialBlockId,
+                            binding.physicsShapeId, "replacement removes a bound spatial block");
+                }
+            }
+        }
+        publishReplacement(owner, ownerStableId, nextSpatialBlockId, nextBlocks,
+                copyBindings(owner.bindings), copyShapes(owner.shapes));
+    }
+
+    /** Deletes one block and, when necessary, its linked shape in a single publication. */
+    public void deleteSpatialBlock(int ownerStableId, int spatialBlockId, int nextSpatialBlockId,
+                                   Array<SpatialBlockData> replacementBlocks) {
+        requireAttached();
+        OwnerState owner = validateOwner(ownerStableId, spatialBlockId, false);
+        Array<SpatialBlockData> nextBlocks = WorldBlockOwnerSnapshot.copyBlocks(replacementBlocks);
+        if (findBlock(nextBlocks, spatialBlockId) != null) throw invalid(owner.entityId, ownerStableId,
+                spatialBlockId, -1, "replacement retains deleted spatial block");
+        Array<BlockPhysicsBindingData> nextBindings = copyBindings(owner.bindings);
+        Array<PhysicsShapeData> nextShapes = copyShapes(owner.shapes);
+        BlockPhysicsBindingData linked = findBinding(nextBindings, spatialBlockId);
+        if (linked != null) {
+            removeBinding(nextBindings, spatialBlockId, linked.physicsShapeId);
+            removeShape(nextShapes, linked.physicsShapeId);
+        }
+        if (owner.bindings != null) for (int i = 0; i < owner.bindings.bindings.size; i++) {
+            BlockPhysicsBindingData binding = owner.bindings.bindings.get(i);
+            if (binding.spatialBlockId != spatialBlockId && findBlock(nextBlocks, binding.spatialBlockId) == null) {
+                throw invalid(owner.entityId, ownerStableId, binding.spatialBlockId,
+                        binding.physicsShapeId, "replacement removes a bound spatial block");
+            }
+        }
+        publishReplacement(owner, ownerStableId, nextSpatialBlockId, nextBlocks, nextBindings, nextShapes);
+    }
+
+    /** Replaces only material, sensor, and filter values of an existing linked shape. */
+    public void updateBlockCollisionProperties(int ownerStableId, int spatialBlockId,
+                                               PhysicsShapeData replacement) {
+        requireAttached();
+        OwnerState owner = validateOwner(ownerStableId, spatialBlockId, true);
+        BlockPhysicsBindingData binding = findBinding(owner.bindings.bindings, spatialBlockId);
+        if (binding == null || replacement == null) throw unbindInvalid(owner.entityId, ownerStableId,
+                spatialBlockId, -1, "linked shape and replacement are required");
+        PhysicsShapeData original = findShape(owner.shapes.shapes, binding.physicsShapeId);
+        if (original == null || replacement.physicsShapeId != original.physicsShapeId
+                || replacement.directGeometry != null || !replacement.enabled) {
+            throw unbindInvalid(owner.entityId, ownerStableId, spatialBlockId, binding.physicsShapeId,
+                    "linked shape identity and geometry are immutable");
+        }
+        PhysicsShapeData next = original.copy();
+        next.density = replacement.density;
+        next.friction = replacement.friction;
+        next.restitution = replacement.restitution;
+        next.sensor = replacement.sensor;
+        next.categoryBits = replacement.categoryBits;
+        next.maskBits = replacement.maskBits;
+        next.groupIndex = replacement.groupIndex;
+        Array<PhysicsShapeData> nextShapes = copyShapes(owner.shapes);
+        for (int i = 0; i < nextShapes.size; i++) if (nextShapes.get(i).physicsShapeId == next.physicsShapeId) nextShapes.set(i, next);
+        publishReplacement(owner, ownerStableId, owner.blocks.nextSpatialBlockId,
+                copyBlocks(owner.blocks), copyBindings(owner.bindings), nextShapes);
+    }
+
     public void detach() {
         attached = false;
     }
@@ -190,6 +349,121 @@ public final class WorldBlockMutationService {
                 publication.shapes, publication.fixtures);
         publication.repositorySnapshot.applyTo(repository);
         markPhysicsDirty(entityId);
+    }
+
+    private void publishReplacement(OwnerState owner, int ownerStableId, int nextSpatialBlockId,
+                                    Array<SpatialBlockData> nextBlocks,
+                                    Array<BlockPhysicsBindingData> nextBindings,
+                                    Array<PhysicsShapeData> nextShapes) {
+        if (nextSpatialBlockId <= 0) throw invalid(owner.entityId, ownerStableId, -1, -1,
+                "nextSpatialBlockId must be positive");
+        boolean hasLinked = nextBindings.size > 0;
+        BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
+        PreparedPhysicsBodyCandidate preparedPhysics = null;
+        if (hasLinked) {
+            repositorySnapshot = repository.prepareOwnerSnapshot(ownerStableId, owner.entityId,
+                    nextSpatialBlockId, nextBlocks, nextBindings, nextShapes);
+            preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
+                    ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter, repositorySnapshot);
+        } else {
+            if (nextShapes.size != 0) throw invalid(owner.entityId, ownerStableId, -1, -1,
+                    "unbound replacement contains physics shapes");
+            repositorySnapshot = repository.prepareOwnerRemoval(ownerStableId, owner.entityId);
+        }
+        // Candidate validation and linked compilation are complete before the authoritative arrays move.
+        owner.blocks.blocks = nextBlocks;
+        owner.blocks.nextSpatialBlockId = nextSpatialBlockId;
+        owner.blocks.revision++;
+        if (!hasLinked) {
+            bindings.remove(owner.entityId);
+            shapes.remove(owner.entityId);
+            compiled.remove(owner.entityId);
+            bodies.remove(owner.entityId);
+            repositorySnapshot.applyTo(repository);
+            markPhysicsDirty(owner.entityId);
+            return;
+        }
+        BlockPhysicsBindingsComponent targetBindings = bindings.has(owner.entityId)
+                ? bindings.get(owner.entityId) : bindings.create(owner.entityId);
+        targetBindings.bindings = nextBindings;
+        PhysicsShapesComponent targetShapes = shapes.has(owner.entityId)
+                ? shapes.get(owner.entityId) : shapes.create(owner.entityId);
+        PhysicsCompiledFixturesComponent targetCompiled = compiled.has(owner.entityId)
+                ? compiled.get(owner.entityId) : compiled.create(owner.entityId);
+        PhysicsService.publishPreparedData(targetShapes, targetCompiled, preparedPhysics.takeShapes(),
+                preparedPhysics.takeCompiledFixtures().takeFixtures());
+        repositorySnapshot.applyTo(repository);
+        markPhysicsDirty(owner.entityId);
+    }
+
+    private OwnerState resolveOwner(int ownerStableId) {
+        if (ownerStableId <= 0) throw invalid(-1, ownerStableId, -1, -1,
+                "ownerStableId must be positive");
+        int ownerEntityId = identityRegistry.findByStableId(ownerStableId);
+        if (ownerEntityId < 0 || !world.getEntityManager().isActive(ownerEntityId)) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1, "owner is absent or inactive");
+        }
+        PixscapeIdentityComponent identity = identities.getSafe(ownerEntityId, null);
+        if (identity == null || identity.stableId != ownerStableId) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1, "owner identity is inconsistent");
+        }
+        SpatialBlocksComponent ownerBlocks = blocks.getSafe(ownerEntityId, null);
+        if (ownerBlocks == null || ownerBlocks.blocks == null) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1, "SpatialBlocksComponent is required");
+        }
+        TiledLayerComponent layer = tiled.getSafe(ownerEntityId, null);
+        if (layer == null || layer.data == null) {
+            throw invalid(ownerEntityId, ownerStableId, -1, -1, "TiledLayerComponent.data is required");
+        }
+        return new OwnerState(ownerEntityId, ownerBlocks, bindings.getSafe(ownerEntityId, null),
+                shapes.getSafe(ownerEntityId, null), layer);
+    }
+
+    private void validateSnapshotHighWater(WorldBlockOwnerSnapshot snapshot) {
+        int maxShapeId = 0;
+        Array<PhysicsShapeData> snapshotShapes = snapshot.shapes();
+        for (int i = 0; i < snapshotShapes.size; i++) {
+            PhysicsShapeData shape = snapshotShapes.get(i);
+            if (shape != null && shape.physicsShapeId > maxShapeId) maxShapeId = shape.physicsShapeId;
+        }
+        if (sceneMeta.nextPhysicsShapeId <= maxShapeId) {
+            throw new IllegalArgumentException("Invalid owner snapshot: nextPhysicsShapeId must exceed "
+                    + "every restored physicsShapeId.");
+        }
+        int maxBlockId = 0;
+        Array<SpatialBlockData> snapshotBlocks = snapshot.blocks();
+        for (int i = 0; i < snapshotBlocks.size; i++) {
+            SpatialBlockData block = snapshotBlocks.get(i);
+            if (block != null && block.id > maxBlockId) maxBlockId = block.id;
+        }
+        if (snapshot.nextSpatialBlockId <= maxBlockId) {
+            throw new IllegalArgumentException("Invalid owner snapshot: nextSpatialBlockId must exceed "
+                    + "every restored spatialBlockId.");
+        }
+    }
+
+    private static void applyTransform(TransformComponent target,
+                                       WorldBlockOwnerSnapshot.TransformState source) {
+        target.x = source.x;
+        target.y = source.y;
+        target.originX = source.originX;
+        target.originY = source.originY;
+        target.rotationRad = source.rotationRad;
+        target.scaleX = source.scaleX;
+        target.scaleY = source.scaleY;
+        target.refreshCaches();
+    }
+
+    private static void applyBody(PhysicsBodyComponent target,
+                                  WorldBlockOwnerSnapshot.BodyState source) {
+        target.type = source.type;
+        target.fixedRotation = source.fixedRotation;
+        target.bullet = source.bullet;
+        target.allowSleep = source.allowSleep;
+        target.awake = source.awake;
+        target.gravityScale = source.gravityScale;
+        target.linearDamping = source.linearDamping;
+        target.angularDamping = source.angularDamping;
     }
 
     private OwnerState validateOwner(int ownerStableId, int spatialBlockId, boolean unbinding) {

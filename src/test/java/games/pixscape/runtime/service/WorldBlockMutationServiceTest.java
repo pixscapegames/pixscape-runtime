@@ -3,6 +3,7 @@ package games.pixscape.runtime.service;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -458,6 +459,81 @@ public class WorldBlockMutationServiceTest {
             Assert.assertThrows(IllegalStateException.class,
                     () -> publication.repositorySnapshot.applyTo(fixture.repository));
             Assert.assertThrows(IllegalStateException.class, prepared::takePublication);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void restoresReusableDetachedOwnerSnapshotWithoutReallocatingShapeIds() {
+        Fixture fixture = new Fixture();
+        try {
+            int shapeId = fixture.service.bindBlockCollision(1, 10);
+            WorldBlockOwnerSnapshot snapshot = fixture.service.captureOwnerState(1);
+            fixture.service.removeBlockCollision(1, 10);
+            int highWater = fixture.meta.nextPhysicsShapeId;
+
+            fixture.service.restoreOwnerState(snapshot);
+            assertFirstBinding(fixture, shapeId);
+            Assert.assertEquals(highWater, fixture.meta.nextPhysicsShapeId);
+
+            Array<SpatialBlockData> detached = snapshot.blocks();
+            detached.first().width = 99f;
+            fixture.service.removeBlockCollision(1, 10);
+            fixture.service.restoreOwnerState(snapshot);
+            Assert.assertEquals(1f, fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner).blocks.first().width, 0f);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void replacesAndDeletesLinkedBlocksTransactionallyWithoutReallocation() {
+        Fixture fixture = new Fixture();
+        try {
+            int shapeId = fixture.service.bindBlockCollision(1, 10);
+            Array<SpatialBlockData> replacement = WorldBlockOwnerSnapshot.copyBlocks(
+                    fixture.world.getMapper(SpatialBlocksComponent.class).get(fixture.owner).blocks);
+            replacement.first().name = "renamed";
+            fixture.service.replaceSpatialBlocks(1, 12, replacement);
+            Assert.assertEquals(shapeId, fixture.repository.findByBlock(1, 10).physicsShapeId);
+            Assert.assertEquals(12, fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner).nextSpatialBlockId);
+
+            replacement.removeIndex(0);
+            fixture.service.deleteSpatialBlock(1, 10, 12, replacement);
+            Assert.assertFalse(fixture.repository.hasBinding(1, 10));
+            Assert.assertFalse(fixture.world.getMapper(PhysicsShapesComponent.class).has(fixture.owner));
+            Assert.assertEquals(2, fixture.meta.nextPhysicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
+    @Test
+    public void updatesOnlyLinkedMaterialAndFilterProperties() {
+        Fixture fixture = new Fixture();
+        try {
+            int shapeId = fixture.service.bindBlockCollision(1, 10);
+            PhysicsShapeData replacement = new PhysicsShapeData();
+            replacement.physicsShapeId = shapeId;
+            replacement.density = 2f;
+            replacement.friction = .7f;
+            replacement.restitution = .2f;
+            replacement.sensor = true;
+            replacement.categoryBits = 2;
+            replacement.maskBits = 4;
+            replacement.groupIndex = 3;
+            replacement.enabled = true;
+            fixture.service.updateBlockCollisionProperties(1, 10, replacement);
+            PhysicsShapeData published = fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner).shapes.first();
+            Assert.assertEquals(shapeId, published.physicsShapeId);
+            Assert.assertNull(published.directGeometry);
+            Assert.assertEquals(2f, published.density, 0f);
+            Assert.assertTrue(published.sensor);
+            Assert.assertEquals(2, published.categoryBits);
         } finally {
             fixture.dispose();
         }
