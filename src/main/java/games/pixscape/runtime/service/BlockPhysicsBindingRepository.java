@@ -193,6 +193,14 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
                 null, null, true);
     }
 
+    /** Removes an indexed owner when present, otherwise returns a consumable no-op delta. */
+    PreparedOwnerSnapshot prepareOwnerRemovalIfPresent(int ownerStableId, int ownerEntityId) {
+        requireBound();
+        return indexes.bindingByOwnerAndBlock.get(ownerStableId) == null
+                ? PreparedOwnerSnapshot.noOp(this, world, ownerStableId, ownerEntityId)
+                : prepareOwnerRemoval(ownerStableId, ownerEntityId);
+    }
+
     private ValidatedOwnerState buildValidatedOwnerState(int ownerEntityId, int ownerStableId,
                                                          int nextSpatialBlockId,
                                                          Array<SpatialBlockData> blocks,
@@ -541,6 +549,7 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
         private OwnerBindingIndex ownerIndex;
         private IntMap<SpatialBlockData> blockIndex;
         private final boolean removeOwner;
+        private final boolean noOp;
 
         private PreparedOwnerSnapshot(BlockPhysicsBindingRepository repository, World world,
                                       int ownerStableId,
@@ -553,6 +562,15 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
                                       int ownerStableId, int ownerEntityId,
                                       OwnerBindingIndex ownerIndex,
                                       IntMap<SpatialBlockData> blockIndex, boolean removeOwner) {
+            this(repository, world, ownerStableId, ownerEntityId, ownerIndex, blockIndex,
+                    removeOwner, false);
+        }
+
+        private PreparedOwnerSnapshot(BlockPhysicsBindingRepository repository, World world,
+                                      int ownerStableId, int ownerEntityId,
+                                      OwnerBindingIndex ownerIndex,
+                                      IntMap<SpatialBlockData> blockIndex, boolean removeOwner,
+                                      boolean noOp) {
             this.repository = repository;
             this.world = world;
             this.ownerStableId = ownerStableId;
@@ -560,6 +578,13 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
             this.ownerIndex = ownerIndex;
             this.blockIndex = blockIndex;
             this.removeOwner = removeOwner;
+            this.noOp = noOp;
+        }
+
+        static PreparedOwnerSnapshot noOp(BlockPhysicsBindingRepository repository, World world,
+                                          int ownerStableId, int ownerEntityId) {
+            return new PreparedOwnerSnapshot(repository, world, ownerStableId, ownerEntityId,
+                    null, null, false, true);
         }
 
         void applyTo(BlockPhysicsBindingRepository target) {
@@ -572,7 +597,7 @@ public final class BlockPhysicsBindingRepository implements BlockPhysicsBindingL
             if (repository.world != world) {
                 throw new IllegalStateException("Prepared repository snapshot belongs to a detached World.");
             }
-            repository.apply(this);
+            if (!noOp) repository.apply(this);
             repository = null;
             ownerIndex = null;
             blockIndex = null;

@@ -128,7 +128,7 @@ public final class WorldBlockMutationService {
             if (snapshot.hasShapes || snapshot.hasBody) {
                 throw new IllegalArgumentException("Invalid owner snapshot: unbound owner contains physics.");
             }
-            repositorySnapshot = repository.prepareOwnerRemoval(snapshot.ownerStableId, owner.entityId);
+            repositorySnapshot = repository.prepareOwnerRemovalIfPresent(snapshot.ownerStableId, owner.entityId);
         }
         // All validations and compilation above must complete before this first ECS mutation.
         owner.blocks.blocks = nextBlocks;
@@ -234,11 +234,15 @@ public final class WorldBlockMutationService {
         Array<PhysicsShapeData> nextShapes = copyShapes(owner.shapes);
         for (int i = 0; i < nextShapes.size; i++) if (nextShapes.get(i).physicsShapeId == next.physicsShapeId) nextShapes.set(i, next);
         publishReplacement(owner, ownerStableId, owner.blocks.nextSpatialBlockId,
-                copyBlocks(owner.blocks), copyBindings(owner.bindings), nextShapes);
+                copyBlocks(owner.blocks), copyBindings(owner.bindings), nextShapes, true);
     }
 
     public void detach() {
         attached = false;
+    }
+
+    public boolean isPhysicsEnabled() {
+        return attached && sceneMeta.physicsEnabled;
     }
 
     PreparedWorldBlockMutation prepareBind(int ownerStableId, int spatialBlockId) {
@@ -355,20 +359,33 @@ public final class WorldBlockMutationService {
                                     Array<SpatialBlockData> nextBlocks,
                                     Array<BlockPhysicsBindingData> nextBindings,
                                     Array<PhysicsShapeData> nextShapes) {
+        publishReplacement(owner, ownerStableId, nextSpatialBlockId, nextBlocks, nextBindings,
+                nextShapes, false);
+    }
+
+    private void publishReplacement(OwnerState owner, int ownerStableId, int nextSpatialBlockId,
+                                    Array<SpatialBlockData> nextBlocks,
+                                    Array<BlockPhysicsBindingData> nextBindings,
+                                    Array<PhysicsShapeData> nextShapes,
+                                    boolean forcePhysicsRebuild) {
         if (nextSpatialBlockId <= 0) throw invalid(owner.entityId, ownerStableId, -1, -1,
                 "nextSpatialBlockId must be positive");
         boolean hasLinked = nextBindings.size > 0;
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
         PreparedPhysicsBodyCandidate preparedPhysics = null;
+        boolean physicalChanged = hasLinked && (forcePhysicsRebuild
+                || linkedBlockGeometryChanged(owner.blocks.blocks, nextBlocks, nextBindings));
         if (hasLinked) {
             repositorySnapshot = repository.prepareOwnerSnapshot(ownerStableId, owner.entityId,
                     nextSpatialBlockId, nextBlocks, nextBindings, nextShapes);
-            preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
-                    ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter, repositorySnapshot);
+            if (physicalChanged) {
+                preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
+                        ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter, repositorySnapshot);
+            }
         } else {
             if (nextShapes.size != 0) throw invalid(owner.entityId, ownerStableId, -1, -1,
                     "unbound replacement contains physics shapes");
-            repositorySnapshot = repository.prepareOwnerRemoval(ownerStableId, owner.entityId);
+            repositorySnapshot = repository.prepareOwnerRemovalIfPresent(ownerStableId, owner.entityId);
         }
         // Candidate validation and linked compilation are complete before the authoritative arrays move.
         owner.blocks.blocks = nextBlocks;
@@ -383,6 +400,10 @@ public final class WorldBlockMutationService {
             markPhysicsDirty(owner.entityId);
             return;
         }
+        if (!physicalChanged) {
+            repositorySnapshot.applyTo(repository);
+            return;
+        }
         BlockPhysicsBindingsComponent targetBindings = bindings.has(owner.entityId)
                 ? bindings.get(owner.entityId) : bindings.create(owner.entityId);
         targetBindings.bindings = nextBindings;
@@ -394,6 +415,22 @@ public final class WorldBlockMutationService {
                 preparedPhysics.takeCompiledFixtures().takeFixtures());
         repositorySnapshot.applyTo(repository);
         markPhysicsDirty(owner.entityId);
+    }
+
+    private static boolean linkedBlockGeometryChanged(Array<SpatialBlockData> current,
+                                                      Array<SpatialBlockData> replacement,
+                                                      Array<BlockPhysicsBindingData> bindings) {
+        for (int i = 0; i < bindings.size; i++) {
+            int blockId = bindings.get(i).spatialBlockId;
+            SpatialBlockData before = findBlock(current, blockId);
+            SpatialBlockData after = findBlock(replacement, blockId);
+            if (before == null || after == null || Float.compare(before.x, after.x) != 0
+                    || Float.compare(before.y, after.y) != 0
+                    || Float.compare(before.width, after.width) != 0
+                    || Float.compare(before.depth, after.depth) != 0
+                    || Float.compare(before.altitude, after.altitude) != 0) return true;
+        }
+        return false;
     }
 
     private OwnerState resolveOwner(int ownerStableId) {

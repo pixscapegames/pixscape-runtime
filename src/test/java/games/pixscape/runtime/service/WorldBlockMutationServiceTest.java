@@ -539,6 +539,31 @@ public class WorldBlockMutationServiceTest {
         }
     }
 
+    @Test
+    public void replacesDeletesAndRestoresAnUnboundOwnerWithoutRepositoryRemoval() {
+        Fixture fixture = new Fixture();
+        try {
+            WorldBlockOwnerSnapshot before = fixture.service.captureOwnerState(1);
+            Array<SpatialBlockData> blocks = before.blocks();
+            blocks.first().name = "visual";
+            fixture.service.replaceSpatialBlocks(1, 12, blocks);
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+            Assert.assertEquals("visual", fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner).blocks.first().name);
+            fixture.service.restoreOwnerState(before);
+            Assert.assertFalse(fixture.repository.hasAnyBindings());
+            Assert.assertNull(fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner).blocks.first().name);
+            blocks = before.blocks();
+            blocks.removeIndex(0);
+            fixture.service.deleteSpatialBlock(1, 10, before.nextSpatialBlockId(), blocks);
+            Assert.assertEquals(1, fixture.world.getMapper(SpatialBlocksComponent.class)
+                    .get(fixture.owner).blocks.size);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
     private static void assertUnbindRejected(Fixture fixture, int blockId, String detail) {
         try {
             fixture.service.removeBlockCollision(1, blockId);
