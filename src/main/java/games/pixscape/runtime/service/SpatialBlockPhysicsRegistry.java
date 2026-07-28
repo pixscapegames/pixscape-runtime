@@ -46,6 +46,11 @@ public final class SpatialBlockPhysicsRegistry {
             detach();
             return;
         }
+        if (!identityRegistry.isBoundTo(world)) {
+            throw new IllegalArgumentException(
+                    "IdentityRegistry must be bound to the same World as "
+                            + "SpatialBlockPhysicsRegistry.");
+        }
         if (this.world == world
                 && this.identityRegistry == identityRegistry
                 && this.physicsShapeIdState == physicsShapeIdState) {
@@ -79,6 +84,11 @@ public final class SpatialBlockPhysicsRegistry {
             throw new IllegalStateException(
                     "SpatialBlockPhysicsRegistry is detached.");
         }
+        if (!identityRegistry.isBoundTo(world)) {
+            throw new IllegalStateException(
+                    "SpatialBlockPhysicsRegistry dependencies are no longer "
+                            + "bound to the same World.");
+        }
 
         PhysicsShapeIdentityValidator.validateWorld(
                 world, physicsShapeIdState);
@@ -100,17 +110,24 @@ public final class SpatialBlockPhysicsRegistry {
             int ownerEntityId = ownerEntityIds[ownerIndex];
             if (!world.getEntityManager().isActive(ownerEntityId)) continue;
             PhysicsShapesComponent shapes = shapesMapper.get(ownerEntityId);
+            OwnerBlockContext ownerContext = null;
             for (int shapeIndex = 0;
                     shapeIndex < shapes.shapes.size;
                     shapeIndex++) {
                 PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
                 if (shape.spatialBlockId <= 0) continue;
-                indexLinkedShape(
+
+                // The complete block set is validated and indexed once per linked owner.
+                // Per-shape relation checks below are expected O(1).
+                if (ownerContext == null) {
+                    ownerContext = buildOwnerBlockContext(
+                            identityMapper, blocksMapper,
+                            ownerEntityId, shape);
+                }
+                indexLinkedRelation(
                         candidateByPhysicsShapeId,
                         candidateByOwnerThenBlock,
-                        identityMapper,
-                        blocksMapper,
-                        ownerEntityId,
+                        ownerContext,
                         shape);
             }
         }
@@ -148,18 +165,18 @@ public final class SpatialBlockPhysicsRegistry {
         return findPhysicsShapeId(ownerStableId, spatialBlockId) != -1;
     }
 
-    private void indexLinkedShape(
-            IntMap<LinkedShapeRef> candidateByPhysicsShapeId,
-            IntMap<IntMap<Integer>> candidateByOwnerThenBlock,
+    private OwnerBlockContext buildOwnerBlockContext(
             ComponentMapper<PixscapeIdentityComponent> identityMapper,
             ComponentMapper<SpatialBlocksComponent> blocksMapper,
             int ownerEntityId,
-            PhysicsShapeData shape) {
+            PhysicsShapeData diagnosticShape) {
+        int spatialBlockId = diagnosticShape != null
+                ? diagnosticShape.spatialBlockId : -1;
+        int physicsShapeId = diagnosticShape != null
+                ? diagnosticShape.physicsShapeId : -1;
         PixscapeIdentityComponent identity =
                 identityMapper.getSafe(ownerEntityId, null);
         int ownerStableId = identity != null ? identity.stableId : -1;
-        int spatialBlockId = shape.spatialBlockId;
-        int physicsShapeId = shape.physicsShapeId;
 
         if (identity == null || ownerStableId <= 0) {
             throw invalidLink(
@@ -182,93 +199,112 @@ public final class SpatialBlockPhysicsRegistry {
                     physicsShapeId,
                     "owner has no SpatialBlocksComponent.");
         }
-        validateOwnerBlocks(
-                blocks, ownerEntityId, ownerStableId,
-                spatialBlockId, physicsShapeId);
+        if (blocks.blocks == null) {
+            throw invalidLink(
+                    ownerEntityId, ownerStableId, spatialBlockId,
+                    physicsShapeId,
+                    "SpatialBlocksComponent has a null blocks collection.");
+        }
+        if (blocks.nextSpatialBlockId <= 0) {
+            throw invalidLink(
+                    ownerEntityId, ownerStableId, spatialBlockId,
+                    physicsShapeId,
+                    "nextSpatialBlockId must be strictly positive.");
+        }
+
+        IntSet blockIds = new IntSet(Math.max(1, blocks.blocks.size));
+        int maxBlockId = 0;
+        for (int blockIndex = 0;
+                blockIndex < blocks.blocks.size;
+                blockIndex++) {
+            SpatialBlockData block = blocks.blocks.get(blockIndex);
+            if (block == null) {
+                throw invalidLink(
+                        ownerEntityId, ownerStableId, spatialBlockId,
+                        physicsShapeId,
+                        "SpatialBlocksComponent contains a null block.");
+            }
+            if (block.id <= 0) {
+                throw invalidLink(
+                        ownerEntityId, ownerStableId, block.id,
+                        physicsShapeId,
+                        "spatial block ID must be strictly positive.");
+            }
+            if (!blockIds.add(block.id)) {
+                throw invalidLink(
+                        ownerEntityId, ownerStableId, block.id,
+                        physicsShapeId,
+                        "duplicate spatial block ID " + block.id + ".");
+            }
+            if (block.id > maxBlockId) maxBlockId = block.id;
+        }
+        if (blocks.nextSpatialBlockId <= maxBlockId) {
+            throw invalidLink(
+                    ownerEntityId, ownerStableId, spatialBlockId,
+                    physicsShapeId,
+                    "nextSpatialBlockId " + blocks.nextSpatialBlockId
+                            + " must be greater than maximum block ID "
+                            + maxBlockId + ".");
+        }
+
+        return new OwnerBlockContext(
+                ownerEntityId, ownerStableId, blockIds);
+    }
+
+    private static void indexLinkedRelation(
+            IntMap<LinkedShapeRef> candidateByPhysicsShapeId,
+            IntMap<IntMap<Integer>> candidateByOwnerThenBlock,
+            OwnerBlockContext owner,
+            PhysicsShapeData shape) {
+        int spatialBlockId = shape.spatialBlockId;
+        int physicsShapeId = shape.physicsShapeId;
+        if (!owner.blockIds.contains(spatialBlockId)) {
+            throw invalidLink(
+                    owner.ownerEntityId, owner.ownerStableId,
+                    spatialBlockId, physicsShapeId,
+                    "referenced spatial block is missing.");
+        }
+        if (candidateByPhysicsShapeId.containsKey(physicsShapeId)) {
+            throw invalidLink(
+                    owner.ownerEntityId, owner.ownerStableId,
+                    spatialBlockId, physicsShapeId,
+                    "physicsShapeId is already indexed.");
+        }
 
         IntMap<Integer> byBlock =
-                candidateByOwnerThenBlock.get(ownerStableId);
+                candidateByOwnerThenBlock.get(owner.ownerStableId);
         if (byBlock == null) {
             byBlock = new IntMap<>();
-            candidateByOwnerThenBlock.put(ownerStableId, byBlock);
+            candidateByOwnerThenBlock.put(owner.ownerStableId, byBlock);
         }
         Integer existing = byBlock.get(spatialBlockId);
         if (existing != null) {
             throw invalidLink(
-                    ownerEntityId, ownerStableId, spatialBlockId,
+                    owner.ownerEntityId, owner.ownerStableId, spatialBlockId,
                     physicsShapeId,
                     "owner/block is already linked to physicsShapeId "
                             + existing + ".");
         }
 
         LinkedShapeRef ref = new LinkedShapeRef(
-                physicsShapeId, ownerEntityId,
-                ownerStableId, spatialBlockId);
+                physicsShapeId, owner.ownerEntityId,
+                owner.ownerStableId, spatialBlockId);
         candidateByPhysicsShapeId.put(physicsShapeId, ref);
         byBlock.put(spatialBlockId, physicsShapeId);
     }
 
-    private static void validateOwnerBlocks(
-            SpatialBlocksComponent component,
-            int ownerEntityId,
-            int ownerStableId,
-            int requiredSpatialBlockId,
-            int physicsShapeId) {
-        if (component.blocks == null) {
-            throw invalidLink(
-                    ownerEntityId, ownerStableId,
-                    requiredSpatialBlockId, physicsShapeId,
-                    "SpatialBlocksComponent has a null blocks collection.");
-        }
-        if (component.nextSpatialBlockId <= 0) {
-            throw invalidLink(
-                    ownerEntityId, ownerStableId,
-                    requiredSpatialBlockId, physicsShapeId,
-                    "nextSpatialBlockId must be strictly positive.");
-        }
+    private static final class OwnerBlockContext {
+        final int ownerEntityId;
+        final int ownerStableId;
+        final IntSet blockIds;
 
-        IntSet blockIds = new IntSet(component.blocks.size);
-        int maxBlockId = 0;
-        boolean found = false;
-        for (int blockIndex = 0;
-                blockIndex < component.blocks.size;
-                blockIndex++) {
-            SpatialBlockData block = component.blocks.get(blockIndex);
-            if (block == null) {
-                throw invalidLink(
-                        ownerEntityId, ownerStableId,
-                        requiredSpatialBlockId, physicsShapeId,
-                        "SpatialBlocksComponent contains a null block.");
-            }
-            if (block.id <= 0) {
-                throw invalidLink(
-                        ownerEntityId, ownerStableId,
-                        requiredSpatialBlockId, physicsShapeId,
-                        "spatial block ID must be strictly positive, found "
-                                + block.id + ".");
-            }
-            if (!blockIds.add(block.id)) {
-                throw invalidLink(
-                        ownerEntityId, ownerStableId,
-                        requiredSpatialBlockId, physicsShapeId,
-                        "duplicate spatial block ID " + block.id + ".");
-            }
-            if (block.id > maxBlockId) maxBlockId = block.id;
-            if (block.id == requiredSpatialBlockId) found = true;
-        }
-        if (component.nextSpatialBlockId <= maxBlockId) {
-            throw invalidLink(
-                    ownerEntityId, ownerStableId,
-                    requiredSpatialBlockId, physicsShapeId,
-                    "nextSpatialBlockId " + component.nextSpatialBlockId
-                            + " must be greater than maximum block ID "
-                            + maxBlockId + ".");
-        }
-        if (!found) {
-            throw invalidLink(
-                    ownerEntityId, ownerStableId,
-                    requiredSpatialBlockId, physicsShapeId,
-                    "referenced spatial block is missing.");
+        OwnerBlockContext(
+                int ownerEntityId,
+                int ownerStableId,
+                IntSet blockIds) {
+            this.ownerEntityId = ownerEntityId;
+            this.ownerStableId = ownerStableId;
+            this.blockIds = blockIds;
         }
     }
 

@@ -200,6 +200,91 @@ public class SpatialBlockPhysicsRegistryTest {
     }
 
     @Test
+    public void registryRejectsIdentityRegistryBoundToAnotherWorld() {
+        World worldA = new World(new WorldConfiguration());
+        World worldB = new World(new WorldConfiguration());
+        SceneMetaRuntime metaA = new SceneMetaRuntime();
+        SceneMetaRuntime metaB = new SceneMetaRuntime();
+        metaA.nextEntityStableId = 100;
+        metaB.nextEntityStableId = 100;
+
+        int ownerA = worldA.create();
+        int ownerB = worldB.create();
+        Assert.assertEquals(ownerA, ownerB);
+        worldA.getMapper(PixscapeIdentityComponent.class)
+                .create(ownerA).stableId = 11;
+        worldB.getMapper(PixscapeIdentityComponent.class)
+                .create(ownerB).stableId = 11;
+        worldA.process();
+        worldB.process();
+
+        IdentityRegistry identitiesA = new IdentityRegistry();
+        identitiesA.bind(worldA, metaA);
+        identitiesA.rebuild();
+        SpatialBlockPhysicsRegistry registry =
+                new SpatialBlockPhysicsRegistry();
+
+        try {
+            registry.bind(worldB, identitiesA, metaB);
+            Assert.fail("Cross-world IdentityRegistry binding must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "same World"));
+        }
+        Assert.assertFalse(registry.isBoundTo(worldB));
+    }
+
+    @Test
+    public void dependencyRebindRejectsRebuildWithoutReplacingPublishedState() {
+        Fixture fixture = new Fixture();
+        int owner = fixture.owner(11, 7);
+        fixture.linked(owner, 21, 7);
+        fixture.rebuild();
+        int publishedGeneration = fixture.registry.generation();
+
+        World otherWorld = new World(new WorldConfiguration());
+        SceneMetaRuntime otherMeta = new SceneMetaRuntime();
+        otherMeta.nextEntityStableId = 100;
+        int otherOwner = otherWorld.create();
+        otherWorld.getMapper(PixscapeIdentityComponent.class)
+                .create(otherOwner).stableId = 11;
+        otherWorld.process();
+        fixture.identities.bind(otherWorld, otherMeta);
+        fixture.identities.rebuild();
+
+        try {
+            fixture.registry.rebuild();
+            Assert.fail("Rebound IdentityRegistry must reject rebuild.");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "no longer bound"));
+        }
+        Assert.assertEquals(
+                publishedGeneration, fixture.registry.generation());
+        Assert.assertEquals(21, fixture.registry.findPhysicsShapeId(11, 7));
+        Assert.assertNotNull(fixture.registry.findByPhysicsShapeId(21));
+    }
+
+    @Test
+    public void manyLinkedBlocksBuildExactIndexes() {
+        Fixture fixture = new Fixture();
+        int owner = fixture.owner(11);
+
+        for (int id = 1; id <= 2000; id++) {
+            fixture.block(owner, id);
+            fixture.linked(owner, id + 10000, id);
+        }
+
+        fixture.meta.nextPhysicsShapeId = 20001;
+        fixture.rebuild();
+
+        Assert.assertEquals(
+                10001, fixture.registry.findPhysicsShapeId(11, 1));
+        Assert.assertEquals(
+                12000, fixture.registry.findPhysicsShapeId(11, 2000));
+    }
+
+    @Test
     public void failedRebuildPreservesPublishedStateAndGeneration() {
         Fixture fixture = new Fixture();
         int owner = fixture.owner(11, 7);
