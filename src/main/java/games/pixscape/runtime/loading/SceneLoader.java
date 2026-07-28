@@ -172,13 +172,15 @@ public final class SceneLoader {
                         throw new IllegalArgumentException("Scene '" + sceneFile.path()
                                 + "' contains a null PhysicsShapeData on entity " + entityId + ".");
                     }
-                    if (shape.directGeometry == null) {
+                    try {
+                        shape.validateStructure();
+                    } catch (IllegalArgumentException invalidShape) {
                         throw new IllegalArgumentException(
                                 "Scene '" + sceneFile.path() + "', entityId " + entityId
                                         + ", physicsShapeId " + shape.physicsShapeId
-                                        + ": directGeometry is missing.");
+                                        + ": " + invalidShape.getMessage(),
+                                invalidShape);
                     }
-                    shape.validateStructure();
                     physicsIds.add(shape.physicsShapeId);
                 }
             }

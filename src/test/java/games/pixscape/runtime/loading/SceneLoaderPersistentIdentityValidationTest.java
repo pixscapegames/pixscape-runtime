@@ -9,7 +9,7 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import org.junit.Assert;
@@ -185,7 +185,7 @@ public class SceneLoaderPersistentIdentityValidationTest {
 
     private static PhysicsShapeData shape(int id) {
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.geometry = new PhysicsGeometryData();
         shape.physicsShapeId = id;
         return shape;
     }

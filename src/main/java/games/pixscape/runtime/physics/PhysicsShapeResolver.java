@@ -8,12 +8,12 @@ public final class PhysicsShapeResolver {
         if (source == null) {
             throw new IllegalArgumentException("PhysicsShapeData cannot be null.");
         }
-        if (source.directGeometry == null) {
-            throw new IllegalArgumentException(
-                    "PhysicsShapeData " + source.physicsShapeId
-                            + ": external/spatial geometry is unavailable before binding Phase D.");
-        }
         source.validateStructure();
-        return ResolvedPhysicsShape.fromDirect(source);
+        if (source.spatialBlockId > 0) {
+            throw new IllegalArgumentException(
+                    "Linked physics shape resolution is not available before "
+                            + "the Spatial resolver slice.");
+        }
+        return ResolvedPhysicsShape.fromGeometry(source);
     }
 }

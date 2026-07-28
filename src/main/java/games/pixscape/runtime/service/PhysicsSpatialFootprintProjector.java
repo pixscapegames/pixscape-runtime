@@ -3,7 +3,7 @@ package games.pixscape.runtime.service;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 
 /**
  * Cross-domain integration boundary from compiled physics data to the Runtime spatial cache.
@@ -28,7 +28,7 @@ public final class PhysicsSpatialFootprintProjector {
         }
         for (int i = 0; i < fixtures.size; i++) {
             CompiledFixtureData fixture = fixtures.get(i);
-            if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE
+            if (fixture.shapeType == PhysicsGeometryData.SHAPE_CIRCLE
                     && !fixture.sensor
                     && fixture.radius > 0f) {
                 return new Projection(

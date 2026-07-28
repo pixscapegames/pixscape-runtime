@@ -13,14 +13,14 @@ import java.io.FileWriter;
 public class RuntimeProjectIOTest {
 
     @Test
-    public void sceneSchemaVersionOneIsAccepted() throws Exception {
+    public void sceneSchemaVersionTwoIsAccepted() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
-                "\"sceneSchemaVersion\":1,"));
+                "\"sceneSchemaVersion\":2,"));
 
         RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
 
         SceneMetaRuntime scene = config.getCurrentSceneMeta();
-        Assert.assertEquals(1, scene.sceneSchemaVersion);
+        Assert.assertEquals(2, scene.sceneSchemaVersion);
         Assert.assertTrue(scene.physicsEnabled);
     }
 
@@ -35,8 +35,8 @@ public class RuntimeProjectIOTest {
     }
 
     @Test
-    public void sceneSchemaVersionTwoIsRejected() throws Exception {
-        assertRejected("\"sceneSchemaVersion\":2,");
+    public void sceneSchemaVersionOneIsRejected() throws Exception {
+        assertRejected("\"sceneSchemaVersion\":1,");
     }
 
     @Test

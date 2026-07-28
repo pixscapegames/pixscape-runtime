@@ -24,7 +24,7 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -565,9 +565,9 @@ public class RuntimePrefabFragmentSpawnTest {
 
         PhysicsShapeData invalid = world.getMapper(PhysicsShapesComponent.class)
                 .get(fixture.sourceBodyAId).shapes.first();
-        invalid.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        invalid.directGeometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
-        invalid.directGeometry.polygonVertexCount = 2;
+        invalid.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        invalid.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        invalid.geometry.polygonVertexCount = 2;
 
         try {
             spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -761,9 +761,9 @@ public class RuntimePrefabFragmentSpawnTest {
         PhysicsShapesComponent shapesA =
                 sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyA);
         PhysicsShapeData shapeA = new PhysicsShapeData();
-        shapeA.directGeometry = new PhysicsDirectGeometryData();
+        shapeA.geometry = new PhysicsGeometryData();
         shapeA.physicsShapeId = 10;
-        shapesA.add(shapeA);
+        shapesA.shapes.add(shapeA);
 
         PixscapeIdentityComponent ida = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyA);
         ida.stableId = 101;
@@ -776,9 +776,9 @@ public class RuntimePrefabFragmentSpawnTest {
         PhysicsShapesComponent shapesB =
                 sourceWorld.getMapper(PhysicsShapesComponent.class).create(bodyB);
         PhysicsShapeData shapeB = new PhysicsShapeData();
-        shapeB.directGeometry = new PhysicsDirectGeometryData();
+        shapeB.geometry = new PhysicsGeometryData();
         shapeB.physicsShapeId = 11;
-        shapesB.add(shapeB);
+        shapesB.shapes.add(shapeB);
 
         PixscapeIdentityComponent idb = sourceWorld.getMapper(PixscapeIdentityComponent.class).create(bodyB);
         idb.stableId = 102;
@@ -818,8 +818,8 @@ public class RuntimePrefabFragmentSpawnTest {
                     PhysicsShapesComponent.class).create(entityId);
             PhysicsShapeData shape = new PhysicsShapeData();
             shape.physicsShapeId = 23;
-            shape.directGeometry = new PhysicsDirectGeometryData();
-            shapes.add(shape);
+            shape.geometry = new PhysicsGeometryData();
+            shapes.shapes.add(shape);
             sourceWorld.process();
 
             RuntimePrefabFragment fragment = new RuntimePrefabFragment();

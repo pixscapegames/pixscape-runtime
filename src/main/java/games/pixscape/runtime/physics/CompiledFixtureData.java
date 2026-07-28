@@ -73,14 +73,14 @@ public final class CompiledFixtureData {
         }
 
         switch (shapeType) {
-            case PhysicsDirectGeometryData.SHAPE_BOX:
+            case PhysicsGeometryData.SHAPE_BOX:
                 validatePositiveFinite(halfWidth, "halfWidth");
                 validatePositiveFinite(halfHeight, "halfHeight");
                 break;
-            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
+            case PhysicsGeometryData.SHAPE_CIRCLE:
                 validatePositiveFinite(radius, "radius");
                 break;
-            case PhysicsDirectGeometryData.SHAPE_POLYGON:
+            case PhysicsGeometryData.SHAPE_POLYGON:
                 PolygonValidationResult validation =
                         PolygonValidator.validate(polygonVertices, polygonVertexCount);
                 if (!validation.isValid()) {

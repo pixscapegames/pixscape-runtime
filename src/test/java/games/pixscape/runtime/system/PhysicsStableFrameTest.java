@@ -14,7 +14,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
@@ -51,20 +51,20 @@ public class PhysicsStableFrameTest {
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(actor);
         PhysicsShapeData circle = new PhysicsShapeData();
-        circle.directGeometry = new PhysicsDirectGeometryData();
+        circle.geometry = new PhysicsGeometryData();
         circle.physicsShapeId = 1;
-        circle.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-        circle.directGeometry.radius = 0.25f;
-        sources.add(circle);
+        circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        circle.geometry.radius = 0.25f;
+        sources.shapes.add(circle);
         PhysicsShapeData polygon = new PhysicsShapeData();
-        polygon.directGeometry = new PhysicsDirectGeometryData();
+        polygon.geometry = new PhysicsGeometryData();
         polygon.physicsShapeId = 2;
-        polygon.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        polygon.directGeometry.polygonVertices = new float[]{
+        polygon.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        polygon.geometry.polygonVertices = new float[]{
                 0f, 0f, 2f, 0f, 2f, 2f, 1f, 1f, 0f, 2f
         };
-        polygon.directGeometry.polygonVertexCount = 5;
-        sources.add(polygon);
+        polygon.geometry.polygonVertexCount = 5;
+        sources.shapes.add(polygon);
 
         DynamicEntityRenderState renderState = new DynamicEntityRenderState(8);
         int slot = renderState.acquireSlotForEntity(actor);
@@ -89,7 +89,7 @@ public class PhysicsStableFrameTest {
                 world.getMapper(SpatialPhysicsFootprintComponent.class).get(actor);
         Assert.assertTrue(compiled.valid);
         Assert.assertTrue(footprint.valid);
-        Assert.assertEquals(circle.directGeometry.radius * 100f, footprint.radiusPx, 0f);
+        Assert.assertEquals(circle.geometry.radius * 100f, footprint.radiusPx, 0f);
         Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
         Assert.assertEquals(0, counters.bodyCompiles);
         Assert.assertEquals(0, counters.shapeCompiles);
@@ -126,7 +126,7 @@ public class PhysicsStableFrameTest {
 
         int generationBeforeMutation = compiled.generation;
         PhysicsShapeData liveCircle = sources.shapes.first();
-        liveCircle.directGeometry.radius = 0.5f;
+        liveCircle.geometry.radius = 0.5f;
         PhysicsService.publishPreparedCandidate(
                 sources,
                 compiled,
@@ -134,7 +134,7 @@ public class PhysicsStableFrameTest {
         dirty.physics(actor, PhysicsDirtyBits.ALL);
         world.process();
         Assert.assertEquals(generationBeforeMutation + 1, compiled.generation);
-        Assert.assertEquals(liveCircle.directGeometry.radius * 100f, footprint.radiusPx, 0f);
+        Assert.assertEquals(liveCircle.geometry.radius * 100f, footprint.radiusPx, 0f);
         Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
 
         Body nativeBody = world.getMapper(

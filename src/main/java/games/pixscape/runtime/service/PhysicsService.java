@@ -1,6 +1,6 @@
 package games.pixscape.runtime.service;
 
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
@@ -199,7 +199,9 @@ public final class PhysicsService {
     }
 
     public boolean hasShapes(int eid) {
-        return eid >= 0 && mShapes.has(eid) && mShapes.get(eid).hasShapes();
+        if (eid < 0 || !mShapes.has(eid)) return false;
+        PhysicsShapesComponent shapes = mShapes.get(eid);
+        return shapes.shapes != null && shapes.shapes.size > 0;
     }
 
     public boolean hasPhysics(int eid) {
@@ -213,8 +215,11 @@ public final class PhysicsService {
 
         PhysicsShapesComponent shapes =
                 mShapes.has(eid) ? mShapes.get(eid) : mShapes.create(eid);
-        if (!shapes.hasShapes()) {
-            shapes.add(createDefaultShape(allocateNewPhysicsShapeId()));
+        if (shapes.shapes == null || shapes.shapes.size == 0) {
+            if (shapes.shapes == null) {
+                shapes.shapes = new Array<>(true, 4, PhysicsShapeData.class);
+            }
+            shapes.shapes.add(createDefaultShape(allocateNewPhysicsShapeId()));
         }
 
         PreparedPhysicsBodyCandidate prepared = prepareBodyCandidate(shapes.shapes);
@@ -255,15 +260,15 @@ public final class PhysicsService {
     }
 
     public int countCircleShapes(int eid) {
-        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_CIRCLE);
+        return countShapesByType(eid, PhysicsGeometryData.SHAPE_CIRCLE);
     }
 
     public int countBoxShapes(int eid) {
-        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_BOX);
+        return countShapesByType(eid, PhysicsGeometryData.SHAPE_BOX);
     }
 
     public int countPolygonShapes(int eid) {
-        return countShapesByType(eid, PhysicsDirectGeometryData.SHAPE_POLYGON);
+        return countShapesByType(eid, PhysicsGeometryData.SHAPE_POLYGON);
     }
 
     private int countShapesByType(int eid, int shapeType) {
@@ -273,15 +278,20 @@ public final class PhysicsService {
         for (int i = 0, n = shapes.shapes.size; i < n; i++) {
             PhysicsShapeData shape = shapes.shapes.get(i);
             if (shape != null
-                    && shape.directGeometry != null
-                    && shape.directGeometry.shapeType == shapeType) count++;
+                    && shape.geometry != null
+                    && shape.geometry.shapeType == shapeType) count++;
         }
         return count;
     }
 
     public PhysicsShapeData getShapeById(int eid, int physicsShapeId) {
         PhysicsShapesComponent shapes = getShapesComponent(eid);
-        return shapes != null ? shapes.getById(physicsShapeId) : null;
+        if (shapes == null || shapes.shapes == null || physicsShapeId <= 0) return null;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.physicsShapeId == physicsShapeId) return shape;
+        }
+        return null;
     }
 
     public PhysicsCompiledFixturesComponent getCompiledFixturesComponent(int eid) {
@@ -294,8 +304,8 @@ public final class PhysicsService {
     }
 
     public float computeShapeRadiusWU(PhysicsShapeData shape) {
-        if (shape == null || shape.directGeometry == null || !isAvailable()) return 0f;
-        return box2d.mToPx(Math.max(0f, shape.directGeometry.radius));
+        if (shape == null || shape.geometry == null || !isAvailable()) return 0f;
+        return box2d.mToPx(Math.max(0f, shape.geometry.radius));
     }
 
     public boolean computeCompiledFixtureCenterWU(
@@ -312,7 +322,7 @@ public final class PhysicsService {
     public int computeCompiledFixtureVerticesWU(
             int bodyEid, CompiledFixtureData fixture, float[] outVertsWU) {
         if (fixture == null || outVertsWU == null || !isAvailable()) return 0;
-        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_BOX) {
+        if (fixture.shapeType == PhysicsGeometryData.SHAPE_BOX) {
             if (outVertsWU.length < 8) return 0;
             if (!transformLocalPointWU(bodyEid, fixture.offsetX, fixture.offsetY,
                     fixture.angleDegrees, -fixture.halfWidth, -fixture.halfHeight,
@@ -328,7 +338,7 @@ public final class PhysicsService {
                     outVertsWU, 6);
             return 4;
         }
-        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
+        if (fixture.shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
             int count = Math.max(0, Math.min(
                     fixture.polygonVertexCount, fixture.polygonVertices.length / 2));
             if (count < 3 || outVertsWU.length < count * 2) return 0;
@@ -347,10 +357,10 @@ public final class PhysicsService {
     public int computeShapeVerticesWU(
             int bodyEid, PhysicsShapeData shape, float[] outVertsWU) {
         if (shape == null || outVertsWU == null || !isAvailable()) return 0;
-        PhysicsDirectGeometryData geometry = shape.directGeometry;
+        PhysicsGeometryData geometry = shape.geometry;
         if (geometry == null) return 0;
 
-        if (geometry.shapeType == PhysicsDirectGeometryData.SHAPE_BOX) {
+        if (geometry.shapeType == PhysicsGeometryData.SHAPE_BOX) {
             if (outVertsWU.length < 8) return 0;
             if (!transformShapePointWU(bodyEid, geometry, -geometry.halfWidth,
                     -geometry.halfHeight, outVertsWU, 0)) return 0;
@@ -363,7 +373,7 @@ public final class PhysicsService {
             return 4;
         }
 
-        if (geometry.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
+        if (geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
             int count = safePolygonVertexCount(geometry);
             if (count < 3) return 0;
             if (outVertsWU.length < count * 2) return 0;
@@ -378,7 +388,7 @@ public final class PhysicsService {
         return 0;
     }
 
-    private int safePolygonVertexCount(PhysicsDirectGeometryData geometry) {
+    private int safePolygonVertexCount(PhysicsGeometryData geometry) {
         if (geometry == null || geometry.polygonVertices == null) return 0;
         return Math.max(
                 0,
@@ -390,7 +400,7 @@ public final class PhysicsService {
     private boolean computeShapeOriginWU(
             int bodyEid, PhysicsShapeData shape, Vector2 outWU) {
         if (shape == null) return false;
-        PhysicsDirectGeometryData geometry = shape.directGeometry;
+        PhysicsGeometryData geometry = shape.geometry;
         return geometry != null
                 && computeLocalOriginWU(bodyEid, geometry.offsetX, geometry.offsetY, outWU);
     }
@@ -417,7 +427,7 @@ public final class PhysicsService {
 
     private boolean transformShapePointWU(
             int bodyEid,
-            PhysicsDirectGeometryData geometry,
+            PhysicsGeometryData geometry,
             float localX_m,
             float localY_m,
             float[] outVertsWU,
@@ -1175,7 +1185,8 @@ public final class PhysicsService {
     public static void initDefaultShape(PhysicsShapeData shape, int physicsShapeId) {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
         shape.physicsShapeId = physicsShapeId;
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.spatialBlockId = 0;
+        shape.geometry = new PhysicsGeometryData();
 
         shape.density = 1f;
         shape.friction = 0.2f;

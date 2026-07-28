@@ -8,11 +8,12 @@ public class PhysicsShapeDataTest {
     @Test
     public void defaultsMatchCurrentFixtureDefaults() {
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
-        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_BOX, shape.directGeometry.shapeType);
-        Assert.assertEquals(0.5f, shape.directGeometry.halfWidth, 0f);
-        Assert.assertEquals(0.5f, shape.directGeometry.halfHeight, 0f);
-        Assert.assertEquals(0.5f, shape.directGeometry.radius, 0f);
+        shape.geometry = new PhysicsGeometryData();
+        Assert.assertEquals(0, shape.spatialBlockId);
+        Assert.assertEquals(PhysicsGeometryData.SHAPE_BOX, shape.geometry.shapeType);
+        Assert.assertEquals(0.5f, shape.geometry.halfWidth, 0f);
+        Assert.assertEquals(0.5f, shape.geometry.halfHeight, 0f);
+        Assert.assertEquals(0.5f, shape.geometry.radius, 0f);
         Assert.assertEquals(1f, shape.density, 0f);
         Assert.assertEquals(0.2f, shape.friction, 0f);
         Assert.assertEquals(0f, shape.restitution, 0f);
@@ -24,36 +25,72 @@ public class PhysicsShapeDataTest {
     }
 
     @Test
-    public void copyIsDeepAndContentEqualBeforeMutation() {
+    public void copyIsDeepAndPreservesSpatialBlockId() {
         PhysicsShapeData source = polygon();
         PhysicsShapeData copy = source.copy();
 
         Assert.assertTrue(source.contentEquals(copy));
-        copy.directGeometry.polygonVertices[0] = 99f;
+        Assert.assertEquals(0, copy.spatialBlockId);
+        copy.geometry.polygonVertices[0] = 99f;
         copy.density = 4f;
 
-        Assert.assertEquals(0f, source.directGeometry.polygonVertices[0], 0f);
+        Assert.assertEquals(0f, source.geometry.polygonVertices[0], 0f);
         Assert.assertEquals(1f, source.density, 0f);
+        Assert.assertFalse(source.contentEquals(copy));
+    }
+
+    @Test
+    public void contentEqualsComparesSpatialBlockId() {
+        PhysicsShapeData source = polygon();
+        source.spatialBlockId = 17;
+        source.geometry = null;
+        PhysicsShapeData copy = source.copy();
+
+        Assert.assertEquals(17, copy.spatialBlockId);
+        Assert.assertTrue(source.contentEquals(copy));
+
+        copy.spatialBlockId = 18;
+
         Assert.assertFalse(source.contentEquals(copy));
     }
 
     @Test
     public void structureValidationRejectsInvalidIdentityAndUnionLayout() {
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.geometry = new PhysicsGeometryData();
         expectInvalid(shape, "physicsShapeId");
 
         shape.physicsShapeId = 1;
-        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        shape.directGeometry.polygonVertexCount = 3;
-        shape.directGeometry.polygonVertices = new float[]{0f, 0f};
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        shape.geometry.polygonVertexCount = 3;
+        shape.geometry.polygonVertices = new float[]{0f, 0f};
         expectInvalid(shape, "smaller");
+    }
+
+    @Test
+    public void structureValidationAppliesLocalAuthoredInvariants() {
+        PhysicsShapeData shape = polygon();
+        shape.spatialBlockId = -1;
+        expectInvalid(shape, "spatialBlockId");
+
+        shape.spatialBlockId = 0;
+        shape.geometry = null;
+        expectInvalid(shape, "manual shape geometry");
+
+        shape.geometry = new PhysicsGeometryData();
+        shape.validateStructure();
+
+        shape.spatialBlockId = 4;
+        expectInvalid(shape, "linked shape geometry");
+
+        shape.geometry = null;
+        shape.validateStructure();
     }
 
     @Test
     public void sourceAndCompiledDataRoundTripThroughLibgdxJson() {
         PhysicsShapeData source = polygon();
-        source.directGeometry.offsetX = 3f;
+        source.geometry.offsetX = 3f;
         source.sensor = true;
         Json json = new Json();
 
@@ -73,11 +110,11 @@ public class PhysicsShapeDataTest {
 
     private static PhysicsShapeData polygon() {
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.geometry = new PhysicsGeometryData();
         shape.physicsShapeId = 9;
-        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        shape.directGeometry.polygonVertexCount = 4;
-        shape.directGeometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f};
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        shape.geometry.polygonVertexCount = 4;
+        shape.geometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f};
         return shape;
     }
 

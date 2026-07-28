@@ -2,7 +2,7 @@ package games.pixscape.runtime.service;
 
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,8 +13,8 @@ public class PhysicsSpatialFootprintProjectorTest {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
         PhysicsShapeData sensor = circle(1, 0.25f, 1f, 2f);
         sensor.sensor = true;
-        sources.add(sensor);
-        sources.add(circle(2, 0.75f, 3f, 4f));
+        sources.shapes.add(sensor);
+        sources.shapes.add(circle(2, 0.75f, 3f, 4f));
 
         PhysicsSpatialFootprintProjector projector =
                 new PhysicsSpatialFootprintProjector();
@@ -36,12 +36,12 @@ public class PhysicsSpatialFootprintProjectorTest {
     public void bodyWithoutCirclePublishesInvalidSpatialFootprint() {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
         PhysicsShapeData box = new PhysicsShapeData();
-        box.directGeometry = new PhysicsDirectGeometryData();
+        box.geometry = new PhysicsGeometryData();
         box.physicsShapeId = 1;
-        box.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
-        box.directGeometry.halfWidth = 1f;
-        box.directGeometry.halfHeight = 1f;
-        sources.add(box);
+        box.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        box.geometry.halfWidth = 1f;
+        box.geometry.halfHeight = 1f;
+        sources.shapes.add(box);
 
         PhysicsSpatialFootprintProjector projector =
                 new PhysicsSpatialFootprintProjector();
@@ -61,12 +61,12 @@ public class PhysicsSpatialFootprintProjectorTest {
             float offsetX,
             float offsetY) {
         PhysicsShapeData circle = new PhysicsShapeData();
-        circle.directGeometry = new PhysicsDirectGeometryData();
+        circle.geometry = new PhysicsGeometryData();
         circle.physicsShapeId = physicsShapeId;
-        circle.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-        circle.directGeometry.radius = radius;
-        circle.directGeometry.offsetX = offsetX;
-        circle.directGeometry.offsetY = offsetY;
+        circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        circle.geometry.radius = radius;
+        circle.geometry.offsetX = offsetX;
+        circle.geometry.offsetY = offsetY;
         return circle;
     }
 

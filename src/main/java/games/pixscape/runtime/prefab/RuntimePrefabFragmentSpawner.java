@@ -595,7 +595,9 @@ public class RuntimePrefabFragmentSpawner {
             }
             PhysicsShapesComponent endpointShapes =
                     shapes.getSafe(endpointEntityId, null);
-            if (endpointShapes == null || !endpointShapes.hasShapes()) {
+            if (endpointShapes == null
+                    || endpointShapes.shapes == null
+                    || endpointShapes.shapes.size == 0) {
                 throw invalid(
                         jointEntityId,
                         field + " entity " + endpointEntityId

@@ -3,9 +3,9 @@ package games.pixscape.runtime.physics;
 import java.util.Arrays;
 
 /**
- * Persistent authored geometry for one direct physics shape.
+ * Persistent authored geometry for one manual physics shape.
  */
-public final class PhysicsDirectGeometryData {
+public final class PhysicsGeometryData {
     public static final int SHAPE_BOX = 0;
     public static final int SHAPE_CIRCLE = 1;
     public static final int SHAPE_POLYGON = 2;
@@ -20,8 +20,8 @@ public final class PhysicsDirectGeometryData {
     public float[] polygonVertices = new float[0];
     public int polygonVertexCount;
 
-    public PhysicsDirectGeometryData copy() {
-        PhysicsDirectGeometryData copy = new PhysicsDirectGeometryData();
+    public PhysicsGeometryData copy() {
+        PhysicsGeometryData copy = new PhysicsGeometryData();
         copy.shapeType = shapeType;
         copy.offsetX = offsetX;
         copy.offsetY = offsetY;
@@ -66,7 +66,7 @@ public final class PhysicsDirectGeometryData {
         }
     }
 
-    public boolean contentEquals(PhysicsDirectGeometryData other) {
+    public boolean contentEquals(PhysicsGeometryData other) {
         return other != null
                 && shapeType == other.shapeType
                 && Float.compare(offsetX, other.offsetX) == 0

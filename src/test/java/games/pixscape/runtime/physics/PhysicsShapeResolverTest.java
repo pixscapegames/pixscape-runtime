@@ -7,37 +7,39 @@ public class PhysicsShapeResolverTest {
     private final PhysicsShapeResolver resolver = new PhysicsShapeResolver();
 
     @Test
-    public void resolvesEveryDirectKindWithoutMutatingOrAliasingTheSource() {
-        assertResolved(PhysicsDirectGeometryData.SHAPE_BOX);
-        assertResolved(PhysicsDirectGeometryData.SHAPE_CIRCLE);
-        assertResolved(PhysicsDirectGeometryData.SHAPE_POLYGON);
+    public void resolvesEveryManualKindWithoutMutatingOrAliasingTheSource() {
+        assertResolved(PhysicsGeometryData.SHAPE_BOX);
+        assertResolved(PhysicsGeometryData.SHAPE_CIRCLE);
+        assertResolved(PhysicsGeometryData.SHAPE_POLYGON);
     }
 
     @Test
-    public void rejectsMissingDirectGeometryBeforePublication() {
+    public void rejectsLinkedShapeBeforeSpatialResolverSlice() {
         PhysicsShapeData source = new PhysicsShapeData();
         source.physicsShapeId = 7;
+        source.spatialBlockId = 3;
 
         try {
             resolver.resolve(source);
-            Assert.fail("Phase B must reject unresolved external geometry.");
+            Assert.fail("Linked shape resolution must be unavailable in this slice.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains(
-                    "external/spatial geometry is unavailable before binding Phase D"));
+                    "Linked physics shape resolution is not available before "
+                            + "the Spatial resolver slice."));
         }
     }
 
     private void assertResolved(int shapeType) {
         PhysicsShapeData source = new PhysicsShapeData();
         source.physicsShapeId = shapeType + 1;
-        source.directGeometry = new PhysicsDirectGeometryData();
-        source.directGeometry.shapeType = shapeType;
-        if (shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
-            source.directGeometry.polygonVertices =
+        source.geometry = new PhysicsGeometryData();
+        source.geometry.shapeType = shapeType;
+        if (shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
+            source.geometry.polygonVertices =
                     new float[]{0f, 0f, 2f, 0f, 0f, 2f};
-            source.directGeometry.polygonVertexCount = 3;
+            source.geometry.polygonVertexCount = 3;
         }
-        float[] sourceVertices = source.directGeometry.polygonVertices;
+        float[] sourceVertices = source.geometry.polygonVertices;
 
         ResolvedPhysicsShape resolved = resolver.resolve(source);
         if (resolved.polygonVertices.length > 0) {

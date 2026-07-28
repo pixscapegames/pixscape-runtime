@@ -17,11 +17,11 @@ public final class PhysicsShapeCompiler {
         }
 
         switch (source.shapeType) {
-            case PhysicsDirectGeometryData.SHAPE_BOX:
+            case PhysicsGeometryData.SHAPE_BOX:
                 return new CompiledFixtureData[]{compileBox(source)};
-            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
+            case PhysicsGeometryData.SHAPE_CIRCLE:
                 return new CompiledFixtureData[]{compileCircle(source)};
-            case PhysicsDirectGeometryData.SHAPE_POLYGON:
+            case PhysicsGeometryData.SHAPE_POLYGON:
                 return compilePolygon(source);
             default:
                 throw failure(source, -1, -1, "unsupported shapeType " + source.shapeType + ".");
@@ -32,7 +32,7 @@ public final class PhysicsShapeCompiler {
         validatePositiveFinite(source, source.halfWidth, "halfWidth");
         validatePositiveFinite(source, source.halfHeight, "halfHeight");
         CompiledFixtureData compiled = base(source, 0);
-        compiled.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
+        compiled.shapeType = PhysicsGeometryData.SHAPE_BOX;
         compiled.halfWidth = source.halfWidth;
         compiled.halfHeight = source.halfHeight;
         validateCompiled(source, compiled);
@@ -42,7 +42,7 @@ public final class PhysicsShapeCompiler {
     private static CompiledFixtureData compileCircle(ResolvedPhysicsShape source) {
         validatePositiveFinite(source, source.radius, "radius");
         CompiledFixtureData compiled = base(source, 0);
-        compiled.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        compiled.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         compiled.radius = source.radius;
         validateCompiled(source, compiled);
         return compiled;
@@ -68,7 +68,7 @@ public final class PhysicsShapeCompiler {
                 throw failure(source, i, -1, "polygon decomposition produced a null part.");
             }
             CompiledFixtureData fixture = base(source, i);
-            fixture.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+            fixture.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
             fixture.polygonVertexCount = part.vertexCount;
             fixture.polygonVertices = copyVertices(part.vertices, part.vertexCount);
             validateCompiled(source, fixture);

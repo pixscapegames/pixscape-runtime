@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
@@ -103,7 +103,7 @@ public class Box2dSyncSystemSleepTest {
         Body previousBody = harness.nativeBody();
         Assert.assertFalse(previousBody.isAwake());
 
-        harness.shape.directGeometry.radius = 0.75f;
+        harness.shape.geometry.radius = 0.75f;
         harness.publishCache();
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
         harness.world.process();
@@ -207,11 +207,11 @@ public class Box2dSyncSystemSleepTest {
             PhysicsShapesComponent shapes =
                     world.getMapper(PhysicsShapesComponent.class).create(entityId);
             shape = new PhysicsShapeData();
-            shape.directGeometry = new PhysicsDirectGeometryData();
+            shape.geometry = new PhysicsGeometryData();
             shape.physicsShapeId = 1;
-            shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-            shape.directGeometry.radius = 0.5f;
-            shapes.add(shape);
+            shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            shape.geometry.radius = 0.5f;
+            shapes.shapes.add(shape);
             publishCache();
         }
 

@@ -47,7 +47,7 @@ public class PhysicsBodyCompilerTest {
     private static ResolvedPhysicsShape circle(int physicsShapeId, float radius) {
         ResolvedPhysicsShape shape = new ResolvedPhysicsShape();
         shape.physicsShapeId = physicsShapeId;
-        shape.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        shape.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.radius = radius;
         shape.enabled = true;
         return shape;

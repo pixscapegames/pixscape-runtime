@@ -17,7 +17,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
@@ -74,9 +74,9 @@ public class Box2dSyncSystemPhysicsContractTest {
     @Test
     public void invalidRecompileKeepsPreviousNativeBodyAndCompiledCache() {
         Harness harness = new Harness();
-        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-        harness.source.directGeometry.radius = 0.5f;
-        harness.source.directGeometry.offsetX = 0.25f;
+        harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        harness.source.geometry.radius = 0.5f;
+        harness.source.geometry.offsetX = 0.25f;
         harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =
@@ -89,9 +89,9 @@ public class Box2dSyncSystemPhysicsContractTest {
         int originalGeneration = compiled.generation;
         int originalFootprintGeneration = footprint.physicsGeneration;
 
-        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        harness.source.directGeometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
-        harness.source.directGeometry.polygonVertexCount = 2;
+        harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        harness.source.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        harness.source.geometry.polygonVertexCount = 2;
         harness.dirty.physics(harness.entityId, PhysicsDirtyBits.ALL);
 
         try {
@@ -115,11 +115,11 @@ public class Box2dSyncSystemPhysicsContractTest {
     @Test
     public void concaveSourceBuildsPartsWithSourceProvenanceAndBodyRemovalDestroysNativeBody() {
         Harness harness = new Harness();
-        harness.source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        harness.source.directGeometry.polygonVertices = new float[]{
+        harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        harness.source.geometry.polygonVertices = new float[]{
                 0f, 0f, 2f, 0f, 2f, 2f, 1f, 1f, 0f, 2f
         };
-        harness.source.directGeometry.polygonVertexCount = 5;
+        harness.source.geometry.polygonVertexCount = 5;
         harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =
@@ -179,7 +179,7 @@ public class Box2dSyncSystemPhysicsContractTest {
             Assert.assertTrue(expected.getMessage().contains("physicsShapeId 1"));
             Assert.assertTrue(expected.getMessage().contains("partIndex 0"));
             Assert.assertTrue(expected.getMessage().contains(
-                    "fixtureType " + PhysicsDirectGeometryData.SHAPE_BOX));
+                    "fixtureType " + PhysicsGeometryData.SHAPE_BOX));
         }
 
         Assert.assertSame(originalBody, runtime.body);
@@ -266,10 +266,10 @@ public class Box2dSyncSystemPhysicsContractTest {
             body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
             shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
             source = new PhysicsShapeData();
-            source.directGeometry = new PhysicsDirectGeometryData();
+            source.geometry = new PhysicsGeometryData();
             source.physicsShapeId = 1;
-            source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
-            shapes.add(source);
+            source.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+            shapes.shapes.add(source);
         }
 
         int createBody(int physicsShapeId, float x) {
@@ -281,10 +281,10 @@ public class Box2dSyncSystemPhysicsContractTest {
             PhysicsShapesComponent createdShapes =
                     world.getMapper(PhysicsShapesComponent.class).create(created);
             PhysicsShapeData createdShape = new PhysicsShapeData();
-            createdShape.directGeometry = new PhysicsDirectGeometryData();
+            createdShape.geometry = new PhysicsGeometryData();
             createdShape.physicsShapeId = physicsShapeId;
-            createdShape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
-            createdShapes.add(createdShape);
+            createdShape.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+            createdShapes.shapes.add(createdShape);
             publishCache(created, createdShapes);
             return created;
         }

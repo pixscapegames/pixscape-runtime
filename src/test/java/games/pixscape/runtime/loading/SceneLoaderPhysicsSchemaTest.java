@@ -12,7 +12,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -102,8 +102,8 @@ public class SceneLoaderPhysicsSchemaTest {
                         PhysicsShapesComponent.class).create(entityId);
                 PhysicsShapeData shape = new PhysicsShapeData();
                 shape.physicsShapeId = 1;
-                shape.directGeometry = new PhysicsDirectGeometryData();
-                shapes.add(shape);
+                shape.geometry = new PhysicsGeometryData();
+                shapes.shapes.add(shape);
             }
         });
         assertRejectedWithoutMutation(file, "PhysicsShapesComponent");
@@ -152,6 +152,42 @@ public class SceneLoaderPhysicsSchemaTest {
                     PhysicsCompiledFixturesComponent.class).get(entityId);
             Assert.assertTrue(compiled.valid);
             Assert.assertEquals(0, compiled.fixtures.size);
+        } finally {
+            target.dispose();
+        }
+    }
+
+    @Test
+    public void enabledPhysicsAcceptsStructurallyValidLinkedShape()
+            throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override
+            public void apply(World world) {
+                int entityId = world.create();
+                PhysicsShapesComponent shapes = world.getMapper(
+                        PhysicsShapesComponent.class).create(entityId);
+                PhysicsShapeData shape = new PhysicsShapeData();
+                shape.physicsShapeId = 1;
+                shape.spatialBlockId = 4;
+                shape.geometry = null;
+                shapes.shapes.add(shape);
+            }
+        });
+        World target = world();
+        try {
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.physicsEnabled = true;
+            meta.nextPhysicsShapeId = 2;
+
+            SceneLoader.loadScene(target, file, false, meta);
+
+            int entityId = target.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsShapesComponent.class))
+                    .getEntities().get(0);
+            PhysicsShapeData loaded = target.getMapper(PhysicsShapesComponent.class)
+                    .get(entityId).shapes.first();
+            Assert.assertEquals(4, loaded.spatialBlockId);
+            Assert.assertNull(loaded.geometry);
         } finally {
             target.dispose();
         }

@@ -5,7 +5,8 @@ package games.pixscape.runtime.physics;
  */
 public final class PhysicsShapeData {
     public int physicsShapeId = 0;
-    public PhysicsDirectGeometryData directGeometry;
+    public int spatialBlockId = 0;
+    public PhysicsGeometryData geometry;
 
     public float density = 1f;
     public float friction = 0.2f;
@@ -21,7 +22,8 @@ public final class PhysicsShapeData {
     public PhysicsShapeData copy() {
         PhysicsShapeData copy = new PhysicsShapeData();
         copy.physicsShapeId = physicsShapeId;
-        copy.directGeometry = directGeometry != null ? directGeometry.copy() : null;
+        copy.spatialBlockId = spatialBlockId;
+        copy.geometry = geometry != null ? geometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
         copy.restitution = restitution;
@@ -38,12 +40,17 @@ public final class PhysicsShapeData {
      */
     public void validateStructure() {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
-        if (directGeometry == null) {
-            throw invalid(
-                    "directGeometry is missing; external/spatial geometry is unavailable "
-                            + "before binding Phase D.");
+        if (spatialBlockId < 0) {
+            throw invalid("spatialBlockId must be non-negative.");
         }
-        directGeometry.validate(physicsShapeId);
+        if (spatialBlockId == 0) {
+            if (geometry == null) {
+                throw invalid("manual shape geometry is required.");
+            }
+            geometry.validate(physicsShapeId);
+        } else if (geometry != null) {
+            throw invalid("linked shape geometry must be null.");
+        }
         validateFinite(density, "density");
         validateFinite(friction, "friction");
         validateFinite(restitution, "restitution");
@@ -61,9 +68,10 @@ public final class PhysicsShapeData {
     public boolean contentEquals(PhysicsShapeData other) {
         return other != null
                 && physicsShapeId == other.physicsShapeId
-                && (directGeometry == null
-                ? other.directGeometry == null
-                : directGeometry.contentEquals(other.directGeometry))
+                && spatialBlockId == other.spatialBlockId
+                && (geometry == null
+                ? other.geometry == null
+                : geometry.contentEquals(other.geometry))
                 && Float.compare(density, other.density) == 0
                 && Float.compare(friction, other.friction) == 0
                 && Float.compare(restitution, other.restitution) == 0

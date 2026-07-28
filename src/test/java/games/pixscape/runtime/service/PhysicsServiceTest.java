@@ -10,7 +10,7 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -103,10 +103,10 @@ public class PhysicsServiceTest {
                 world.getMapper(PhysicsShapesComponent.class).create(bodyB);
         PhysicsShapeData invalid = new PhysicsShapeData();
         invalid.physicsShapeId = 1;
-        invalid.directGeometry = new PhysicsDirectGeometryData();
-        invalid.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        invalid.directGeometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
-        invalid.directGeometry.polygonVertexCount = 2;
+        invalid.geometry = new PhysicsGeometryData();
+        invalid.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        invalid.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
+        invalid.geometry.polygonVertexCount = 2;
         invalidShapes.shapes.add(invalid);
 
         try {

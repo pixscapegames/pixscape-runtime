@@ -21,7 +21,7 @@ import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
 
 import java.util.Arrays;
@@ -764,11 +764,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private Shape createShape(CompiledFixtureData fd) {
         switch (fd.shapeType) {
-            case PhysicsDirectGeometryData.SHAPE_BOX:
+            case PhysicsGeometryData.SHAPE_BOX:
                 return createBoxShape(fd);
-            case PhysicsDirectGeometryData.SHAPE_CIRCLE:
+            case PhysicsGeometryData.SHAPE_CIRCLE:
                 return createCircleShape(fd);
-            case PhysicsDirectGeometryData.SHAPE_POLYGON:
+            case PhysicsGeometryData.SHAPE_POLYGON:
                 return createPolygonShape(fd);
             default:
                 throw new IllegalArgumentException(

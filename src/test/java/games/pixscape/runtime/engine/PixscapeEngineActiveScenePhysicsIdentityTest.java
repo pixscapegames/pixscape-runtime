@@ -12,7 +12,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
@@ -47,10 +47,10 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         PhysicsShapesComponent sourceShapes =
                 world.getMapper(PhysicsShapesComponent.class).create(sourceEntity);
         PhysicsShapeData sourceShape = new PhysicsShapeData();
-        sourceShape.directGeometry = new PhysicsDirectGeometryData();
+        sourceShape.geometry = new PhysicsGeometryData();
         sourceShape.physicsShapeId = 10;
-        sourceShape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
-        sourceShapes.add(sourceShape);
+        sourceShape.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        sourceShapes.shapes.add(sourceShape);
         world.process();
         RuntimePrefabFragment fragment = new RuntimePrefabFragment();
         fragment.entities.add(sourceEntity);

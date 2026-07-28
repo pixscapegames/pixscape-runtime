@@ -29,19 +29,19 @@ public final class ResolvedPhysicsShape {
     public boolean enabled;
     public String diagnosticSource;
 
-    public static ResolvedPhysicsShape fromDirect(PhysicsShapeData source) {
+    public static ResolvedPhysicsShape fromGeometry(PhysicsShapeData source) {
         if (source == null) {
             throw new IllegalArgumentException("PhysicsShapeData cannot be null.");
         }
-        PhysicsDirectGeometryData geometry = source.directGeometry;
+        PhysicsGeometryData geometry = source.geometry;
         if (geometry == null) {
             throw new IllegalArgumentException(
-                    "PhysicsShapeData " + source.physicsShapeId + " has no directGeometry.");
+                    "PhysicsShapeData " + source.physicsShapeId + " has no geometry.");
         }
 
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
-        PhysicsDirectGeometryData detached = geometry.copy();
+        PhysicsGeometryData detached = geometry.copy();
         resolved.shapeType = detached.shapeType;
         resolved.halfWidth = detached.halfWidth;
         resolved.halfHeight = detached.halfHeight;
@@ -59,7 +59,7 @@ public final class ResolvedPhysicsShape {
         resolved.maskBits = source.maskBits;
         resolved.groupIndex = source.groupIndex;
         resolved.enabled = source.enabled;
-        resolved.diagnosticSource = "direct";
+        resolved.diagnosticSource = "manual";
         return resolved;
     }
 
