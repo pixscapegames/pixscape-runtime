@@ -115,15 +115,19 @@ public final class WorldBlockMutationService {
         Array<PhysicsShapeData> nextShapes = snapshot.shapes();
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
         PreparedPhysicsBodyCandidate preparedPhysics = null;
+        boolean physicalStateUnchanged = samePhysicalState(owner, snapshot, nextBlocks,
+                nextBindings, nextShapes);
         if (snapshot.hasBindings) {
             if (!snapshot.hasShapes || !snapshot.hasBody || !snapshot.hasTransform) {
                 throw new IllegalArgumentException("Invalid owner snapshot: bound aggregate is incomplete.");
             }
             repositorySnapshot = repository.prepareOwnerSnapshot(snapshot.ownerStableId, owner.entityId,
                     snapshot.nextSpatialBlockId, nextBlocks, nextBindings, nextShapes);
-            preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
-                    snapshot.ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter,
-                    repositorySnapshot);
+            if (!physicalStateUnchanged) {
+                preparedPhysics = PhysicsService.prepareLinkedBodyCandidate(nextShapes, owner.entityId,
+                        snapshot.ownerStableId, owner.tiled.data, sceneMeta.pixelsPerMeter,
+                        repositorySnapshot);
+            }
         } else {
             if (snapshot.hasShapes || snapshot.hasBody) {
                 throw new IllegalArgumentException("Invalid owner snapshot: unbound owner contains physics.");
@@ -134,6 +138,10 @@ public final class WorldBlockMutationService {
         owner.blocks.blocks = nextBlocks;
         owner.blocks.nextSpatialBlockId = snapshot.nextSpatialBlockId;
         owner.blocks.revision++;
+        if (physicalStateUnchanged) {
+            repositorySnapshot.applyTo(repository);
+            return;
+        }
         if (snapshot.hasTransform) applyTransform(transforms.has(owner.entityId)
                 ? transforms.get(owner.entityId) : transforms.create(owner.entityId), snapshot.transform);
         else transforms.remove(owner.entityId);
@@ -374,6 +382,7 @@ public final class WorldBlockMutationService {
         BlockPhysicsBindingRepository.PreparedOwnerSnapshot repositorySnapshot;
         PreparedPhysicsBodyCandidate preparedPhysics = null;
         boolean physicalChanged = hasLinked && (forcePhysicsRebuild
+                || owner.bindings == null || owner.bindings.bindings.size != nextBindings.size
                 || linkedBlockGeometryChanged(owner.blocks.blocks, nextBlocks, nextBindings));
         if (hasLinked) {
             repositorySnapshot = repository.prepareOwnerSnapshot(ownerStableId, owner.entityId,
@@ -431,6 +440,55 @@ public final class WorldBlockMutationService {
                     || Float.compare(before.altitude, after.altitude) != 0) return true;
         }
         return false;
+    }
+
+    private boolean samePhysicalState(OwnerState owner, WorldBlockOwnerSnapshot snapshot,
+                                      Array<SpatialBlockData> targetBlocks,
+                                      Array<BlockPhysicsBindingData> targetBindings,
+                                      Array<PhysicsShapeData> targetShapes) {
+        if (owner.bindings == null != !snapshot.hasBindings || owner.shapes == null != !snapshot.hasShapes
+                || owner.bindings != null && !sameBindings(owner.bindings.bindings, targetBindings)
+                || owner.shapes != null && !sameShapes(owner.shapes.shapes, targetShapes)
+                || !sameBody(owner, snapshot) || !sameTransform(owner, snapshot)) return false;
+        return !snapshot.hasBindings || !linkedBlockGeometryChanged(owner.blocks.blocks, targetBlocks,
+                targetBindings);
+    }
+
+    private static boolean sameBindings(Array<BlockPhysicsBindingData> a,
+                                        Array<BlockPhysicsBindingData> b) {
+        if (a == null || b == null || a.size != b.size) return false;
+        for (int i = 0; i < a.size; i++) if (!sameBinding(a.get(i), b.get(i))) return false;
+        return true;
+    }
+
+    private static boolean sameShapes(Array<PhysicsShapeData> a, Array<PhysicsShapeData> b) {
+        if (a == null || b == null || a.size != b.size) return false;
+        for (int i = 0; i < a.size; i++) if (!a.get(i).contentEquals(b.get(i))) return false;
+        return true;
+    }
+
+    private boolean sameBody(OwnerState owner, WorldBlockOwnerSnapshot snapshot) {
+        PhysicsBodyComponent body = bodies.getSafe(owner.entityId, null);
+        if (body == null) return !snapshot.hasBody;
+        WorldBlockOwnerSnapshot.BodyState expected = snapshot.body;
+        return expected != null && body.type == expected.type && body.fixedRotation == expected.fixedRotation
+                && body.bullet == expected.bullet && body.allowSleep == expected.allowSleep
+                && body.awake == expected.awake && Float.compare(body.gravityScale, expected.gravityScale) == 0
+                && Float.compare(body.linearDamping, expected.linearDamping) == 0
+                && Float.compare(body.angularDamping, expected.angularDamping) == 0;
+    }
+
+    private boolean sameTransform(OwnerState owner, WorldBlockOwnerSnapshot snapshot) {
+        TransformComponent transform = transforms.getSafe(owner.entityId, null);
+        if (transform == null) return !snapshot.hasTransform;
+        WorldBlockOwnerSnapshot.TransformState expected = snapshot.transform;
+        return expected != null && Float.compare(transform.x, expected.x) == 0
+                && Float.compare(transform.y, expected.y) == 0
+                && Float.compare(transform.originX, expected.originX) == 0
+                && Float.compare(transform.originY, expected.originY) == 0
+                && Float.compare(transform.rotationRad, expected.rotationRad) == 0
+                && Float.compare(transform.scaleX, expected.scaleX) == 0
+                && Float.compare(transform.scaleY, expected.scaleY) == 0;
     }
 
     private OwnerState resolveOwner(int ownerStableId) {

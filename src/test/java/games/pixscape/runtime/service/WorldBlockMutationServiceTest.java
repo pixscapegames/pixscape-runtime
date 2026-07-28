@@ -564,6 +564,28 @@ public class WorldBlockMutationServiceTest {
         }
     }
 
+    @Test
+    public void deletingOneOfTwoLinkedBlocksRepublishesTheRemainingAggregate() {
+        Fixture fixture = new Fixture();
+        try {
+            fixture.service.bindBlockCollision(1, 10);
+            int remainingShapeId = fixture.service.bindBlockCollision(1, 11);
+            Array<SpatialBlockData> replacement = WorldBlockOwnerSnapshot.copyBlocks(
+                    fixture.world.getMapper(SpatialBlocksComponent.class).get(fixture.owner).blocks);
+            replacement.removeIndex(0);
+            fixture.service.deleteSpatialBlock(1, 10, 12, replacement);
+            Assert.assertEquals(1, fixture.world.getMapper(BlockPhysicsBindingsComponent.class)
+                    .get(fixture.owner).bindings.size);
+            Assert.assertEquals(1, fixture.world.getMapper(PhysicsShapesComponent.class)
+                    .get(fixture.owner).shapes.size);
+            Assert.assertEquals(1, fixture.world.getMapper(PhysicsCompiledFixturesComponent.class)
+                    .get(fixture.owner).fixtures.size);
+            Assert.assertEquals(remainingShapeId, fixture.repository.findByBlock(1, 11).physicsShapeId);
+        } finally {
+            fixture.dispose();
+        }
+    }
+
     private static void assertUnbindRejected(Fixture fixture, int blockId, String detail) {
         try {
             fixture.service.removeBlockCollision(1, blockId);
