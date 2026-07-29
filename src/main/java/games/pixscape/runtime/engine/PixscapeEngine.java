@@ -921,7 +921,7 @@ public final class PixscapeEngine {
 
         rebuildRuntimeRegistries();
         rebuildTiledLayersRuntime(meta);
-        PhysicsService.rebuildPreparedBodyCaches(world);
+        PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
         applyPhysicsFromScene(meta, true);
 
         RuntimeSceneAtlasLoader.loadSceneAtlas(

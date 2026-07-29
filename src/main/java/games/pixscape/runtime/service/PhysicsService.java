@@ -10,12 +10,16 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.physics.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /**
@@ -1221,7 +1225,119 @@ public final class PhysicsService {
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
 
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            World world,
+            int ownerEntityId,
+            Array<PhysicsShapeData> sources,
+            float pixelsPerMeter) {
+        if (!containsLinkedShape(sources)) {
+            return prepareBodyCandidate(sources);
+        }
+        if (world == null) {
+            throw new IllegalArgumentException(
+                    "World is required for linked physics shape ownerEntityId="
+                            + ownerEntityId + ".");
+        }
+        if (ownerEntityId < 0
+                || !world.getEntityManager().isActive(ownerEntityId)) {
+            throw new IllegalArgumentException(
+                    "Linked physics shape ownerEntityId=" + ownerEntityId
+                            + " must be active.");
+        }
+
+        TransformComponent transform = world.getMapper(TransformComponent.class)
+                .getSafe(ownerEntityId, null);
+        if (transform == null) {
+            throw new IllegalArgumentException(
+                    "Linked physics shape ownerEntityId=" + ownerEntityId
+                            + " has no TransformComponent.");
+        }
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
+                .getSafe(ownerEntityId, null);
+        if (tiled == null || tiled.data == null) {
+            throw new IllegalArgumentException(
+                    "Linked physics shape ownerEntityId=" + ownerEntityId
+                            + " has no TiledLayerComponent.data.");
+        }
+        SpatialBlocksComponent spatial = world.getMapper(SpatialBlocksComponent.class)
+                .getSafe(ownerEntityId, null);
+        if (spatial == null) {
+            throw new IllegalArgumentException(
+                    "Linked physics shape ownerEntityId=" + ownerEntityId
+                            + " has no SpatialBlocksComponent.");
+        }
+
+        int blockCount = spatial.blocks != null ? spatial.blocks.size : 0;
+        IntMap<SpatialBlockData> blocksById =
+                new IntMap<>(Math.max(1, blockCount));
+        for (int i = 0; i < blockCount; i++) {
+            SpatialBlockData block = spatial.blocks.get(i);
+            if (block == null) {
+                throw new IllegalArgumentException(
+                        "Linked physics shape ownerEntityId=" + ownerEntityId
+                                + " has null SpatialBlockData at index " + i + ".");
+            }
+            if (blocksById.containsKey(block.id)) {
+                throw new IllegalArgumentException(
+                        "Linked physics shape ownerEntityId=" + ownerEntityId
+                                + " has duplicate spatialBlockId=" + block.id + ".");
+            }
+            blocksById.put(block.id, block);
+        }
+
+        Array<PhysicsShapeData> detached =
+                new Array<>(true, sources.size, PhysicsShapeData.class);
+        Array<ResolvedPhysicsShape> resolved =
+                new Array<>(true, sources.size, ResolvedPhysicsShape.class);
+        for (int i = 0; i < sources.size; i++) {
+            PhysicsShapeData source = sources.get(i);
+            if (source == null) {
+                throw new IllegalArgumentException(
+                        "Physics shape source at index " + i + " is null.");
+            }
+            PhysicsShapeData copy = source.copy();
+            detached.add(copy);
+            if (copy.spatialBlockId == 0) {
+                resolved.add(SHAPE_RESOLVER.resolve(copy));
+            } else {
+                resolved.add(SHAPE_RESOLVER.resolveLinked(
+                        copy,
+                        blocksById.get(copy.spatialBlockId),
+                        tiled.data,
+                        transform.x,
+                        transform.y,
+                        transform.rotationRad,
+                        pixelsPerMeter,
+                        ownerEntityId));
+            }
+        }
+        return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
+    }
+
+    private static boolean containsLinkedShape(Array<PhysicsShapeData> sources) {
+        if (sources == null) {
+            return false;
+        }
+        for (int i = 0; i < sources.size; i++) {
+            PhysicsShapeData source = sources.get(i);
+            if (source != null && source.spatialBlockId > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void rebuildPreparedBodyCaches(World world) {
+        rebuildPreparedBodyCaches(world, 0f, false);
+    }
+
+    public static void rebuildPreparedBodyCaches(
+            World world, float pixelsPerMeter) {
+        rebuildPreparedBodyCaches(world, pixelsPerMeter, true);
+    }
+
+    private static void rebuildPreparedBodyCaches(
+            World world, float pixelsPerMeter, boolean resolveLinkedShapes) {
         if (world == null) {
             throw new IllegalArgumentException("World is required.");
         }
@@ -1242,7 +1358,10 @@ public final class PhysicsService {
                     ? shapes.shapes
                     : new Array<>(true, 0, PhysicsShapeData.class);
             entityIds.add(entityId);
-            preparedBodies.add(prepareBodyCandidate(sources));
+            preparedBodies.add(resolveLinkedShapes
+                    ? prepareBodyCandidate(
+                            world, entityId, sources, pixelsPerMeter)
+                    : prepareBodyCandidate(sources));
         }
 
         ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =

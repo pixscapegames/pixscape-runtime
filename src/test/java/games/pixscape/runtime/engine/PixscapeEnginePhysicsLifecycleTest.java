@@ -21,15 +21,22 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
@@ -263,6 +270,37 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void runtimeLoadRebuildsTiledDataBeforeCompilingLinkedFixture()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("D");
+
+            World world = engine.getWorld();
+            int owner = engine.findEntityByStableId(11);
+            Assert.assertTrue(owner >= 0);
+            Assert.assertNotNull(world.getMapper(
+                    TiledLayerComponent.class).get(owner).data);
+            PhysicsCompiledFixturesComponent compiled = world.getMapper(
+                    PhysicsCompiledFixturesComponent.class).get(owner);
+            Assert.assertNotNull(compiled);
+            Assert.assertTrue(compiled.valid);
+            Assert.assertEquals(1, compiled.fixtures.size);
+            Assert.assertEquals(31,
+                    compiled.fixtures.first().physicsShapeId);
+            Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON,
+                    compiled.fixtures.first().shapeType);
+            Assert.assertEquals(4,
+                    compiled.fixtures.first().polygonVertexCount);
+            Assert.assertNull(world.getMapper(PhysicsShapesComponent.class)
+                    .get(owner).shapes.first().geometry);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void unknownSceneLeavesActiveSceneIntact() throws Exception {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;
@@ -305,6 +343,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("a.json"), false, false);
         writeScene(scenesDir.child("b.json"), true, false);
         writeScene(scenesDir.child("c.json"), false, true);
+        writeLinkedScene(scenesDir.child("d.json"));
 
         PixscapeEngine engine = new PixscapeEngine();
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
@@ -360,6 +399,19 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"nextEntityStableId\":10,"
                 + "\"nextPhysicsShapeId\":2,"
                 + "\"physicsEnabled\":true"
+                + "},"
+                + "\"D\":{"
+                + "\"sceneSchemaVersion\":2,"
+                + "\"name\":\"D\","
+                + "\"file\":\"d.json\","
+                + "\"nextEntityStableId\":12,"
+                + "\"nextPhysicsShapeId\":32,"
+                + "\"physicsEnabled\":true,"
+                + "\"pixelsPerMeter\":64,"
+                + "\"tileWidth\":64,"
+                + "\"tileHeight\":32,"
+                + "\"chunkSize\":8,"
+                + "\"tiledProjection\":\"ISO\""
                 + "}"
                 + "}}";
     }
@@ -405,6 +457,64 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 linked.spatialBlockId = 7;
                 shapes.shapes.add(linked);
             }
+
+            source.process();
+            WorldSerializationManager serialization =
+                    source.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(new JsonArtemisSerializer(source));
+            SaveFileFormat format = new SaveFileFormat(
+                    source.getAspectSubscriptionManager()
+                            .get(com.artemis.Aspect.all()).getEntities());
+            try (OutputStream output = file.write(false)) {
+                serialization.save(output, format);
+            }
+        } finally {
+            source.dispose();
+        }
+    }
+
+    private static void writeLinkedScene(FileHandle file) throws Exception {
+        World source = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            int owner = source.create();
+            PixscapeIdentityComponent identity = source.getMapper(
+                    PixscapeIdentityComponent.class).create(owner);
+            identity.stableId = 11;
+            identity.name = "linked-spatial-body";
+            TransformComponent transform = source.getMapper(
+                    TransformComponent.class).create(owner);
+            transform.x = 24f;
+            transform.y = -12f;
+            transform.rotationRad = 0.25f;
+
+            TiledLayerComponent tiled = source.getMapper(
+                    TiledLayerComponent.class).create(owner);
+            tiled.mapWidthCells = 20;
+            tiled.mapHeightCells = 20;
+            tiled.originX = 5f;
+            tiled.originY = 7f;
+
+            SpatialBlocksComponent blocks = source.getMapper(
+                    SpatialBlocksComponent.class).create(owner);
+            blocks.nextSpatialBlockId = 8;
+            SpatialBlockData block = new SpatialBlockData();
+            block.id = 7;
+            block.structureId = 1;
+            block.x = 2f;
+            block.y = 3f;
+            block.width = 2f;
+            block.depth = 3f;
+            block.altitude = 4f;
+            blocks.blocks.add(block);
+
+            source.getMapper(PhysicsBodyComponent.class).create(owner);
+            PhysicsShapesComponent shapes = source.getMapper(
+                    PhysicsShapesComponent.class).create(owner);
+            PhysicsShapeData linked = new PhysicsShapeData();
+            linked.physicsShapeId = 31;
+            linked.spatialBlockId = 7;
+            shapes.shapes.add(linked);
 
             source.process();
             WorldSerializationManager serialization =
