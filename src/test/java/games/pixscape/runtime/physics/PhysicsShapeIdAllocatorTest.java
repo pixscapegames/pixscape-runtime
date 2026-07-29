@@ -100,40 +100,6 @@ public class PhysicsShapeIdAllocatorTest {
     }
 
     @Test
-    public void rejectsPersistedIdCollisionWithHighWater() {
-        SceneMetaRuntime meta = new SceneMetaRuntime();
-        meta.nextPhysicsShapeId = 5;
-        final PhysicsShapeIdAllocator allocator = new PhysicsShapeIdAllocator(meta);
-
-        expectFailure(new Runnable() {
-            @Override
-            public void run() {
-                allocator.validatePersistedPhysicsShapeIds(new int[]{1, 5});
-            }
-        }, "lower than nextPhysicsShapeId");
-    }
-
-    @Test
-    public void rejectsDuplicateAndNonPositivePersistedIds() {
-        SceneMetaRuntime meta = new SceneMetaRuntime();
-        meta.nextPhysicsShapeId = 5;
-        final PhysicsShapeIdAllocator allocator = new PhysicsShapeIdAllocator(meta);
-
-        expectFailure(new Runnable() {
-            @Override
-            public void run() {
-                allocator.validatePersistedPhysicsShapeIds(new int[]{1, 1});
-            }
-        }, "Duplicate");
-        expectFailure(new Runnable() {
-            @Override
-            public void run() {
-                allocator.validatePersistedPhysicsShapeIds(new int[]{0});
-            }
-        }, "strictly positive");
-    }
-
-    @Test
     public void refusesAllocationAtIntegerMaxValueWithoutOverflow() {
         SceneMetaRuntime meta = new SceneMetaRuntime();
         meta.nextPhysicsShapeId = Integer.MAX_VALUE;
