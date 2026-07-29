@@ -1,5 +1,38 @@
 # Changelog
 
+
+## [0.1.9]
+
+### Breaking changes
+
+* Replaced the legacy fixture authoring schema with persistent `PhysicsShapeData` and `PhysicsGeometryData`.
+* Physics scenes and prefab data using the previous schema must be recreated or re-exported.
+* Moved spatial domain classes to `games.pixscape.runtime.spatial` and Artemis spatial components to `games.pixscape.runtime.component.spatial`.
+
+### Added
+
+* Added scene-wide persistent physics shape identities with monotonic allocation and strict load validation.
+* Added an authored-to-compiled physics pipeline with polygon validation, decomposition and derived fixture caches.
+* Added linked physics shapes whose geometry is derived from Spatial Block footprints.
+* Added synchronization between compiled physics footprints and Spatial actor ordering.
+
+### Changed
+
+* Box2D bodies are now built from validated compiled fixtures instead of legacy fixture data.
+* Scene loading and prefab spawning now rebuild derived physics state from persistent authored shapes.
+* Runtime prefab spawning now allocates fresh physics shape identities and validates body and joint graphs before publication.
+
+### Fixed
+
+* Fixed stale or duplicated physics shape identities across scene loading and prefab instantiation.
+* Prevented invalid body, fixture, polygon or joint data from being partially published.
+* Fixed Spatial actor footprints becoming stale after physics or pixels-per-meter changes.
+
+### Tests
+
+* Expanded regression coverage for physics persistence, compilation, prefabs, joints, Spatial integration and stable-frame behavior.
+
+
 ## [0.1.8]
 
 ### Added
