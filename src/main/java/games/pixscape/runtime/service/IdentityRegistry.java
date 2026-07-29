@@ -163,10 +163,6 @@ public final class IdentityRegistry {
 
     }
 
-    boolean isBoundTo(World expectedWorld) {
-        return expectedWorld != null && world == expectedWorld;
-    }
-
     public int allocateStableId() {
         requireSceneMeta();
         int allocated = sceneMeta.nextEntityStableId;

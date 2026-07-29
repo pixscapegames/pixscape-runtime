@@ -66,8 +66,7 @@ public final class SceneLoader {
 
         try (InputStream in = new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
-            validatePersistentIdentities(format, world, sceneMeta, inFile);
-            validatePhysicsSchema(format, world, sceneMeta, inFile);
+            refreshTransformCaches(format, world);
             return format;
 
         } catch (Exception e) {
@@ -77,6 +76,18 @@ public final class SceneLoader {
                     "Error while loading scene: " + inFile.path()
                             + (detail != null && !detail.isEmpty() ? ": " + detail : ""),
                     e);
+        }
+    }
+
+    private static void refreshTransformCaches(
+            SaveFileFormat format, World world) {
+        ComponentMapper<TransformComponent> transforms =
+                world.getMapper(TransformComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            TransformComponent transform =
+                    transforms.getSafe(entityIds[i], null);
+            if (transform != null) transform.refreshCaches();
         }
     }
 

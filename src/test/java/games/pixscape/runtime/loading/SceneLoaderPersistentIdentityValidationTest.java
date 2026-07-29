@@ -151,6 +151,40 @@ public class SceneLoaderPersistentIdentityValidationTest {
         }
     }
 
+    @Test
+    public void physicsValidationFailureDoesNotClearExistingWorld()
+            throws Exception {
+        World authored = world();
+        int invalidOwner = identityEntity(authored, 1);
+        PhysicsShapesComponent shapes =
+                authored.getMapper(PhysicsShapesComponent.class)
+                        .create(invalidOwner);
+        shapes.shapes.add(shape(1));
+        shapes.shapes.add(shape(1));
+        FileHandle file = save(authored, invalidOwner);
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+        meta.nextPhysicsShapeId = 2;
+
+        World active = world();
+        int activeEntity = identityEntity(active, 7);
+        active.process();
+        try {
+            Assert.assertThrows(
+                    RuntimeException.class,
+                    () -> SceneLoader.loadScene(active, file, true, meta));
+
+            Assert.assertTrue(
+                    active.getEntityManager().isActive(activeEntity));
+            Assert.assertEquals(
+                    7,
+                    active.getMapper(PixscapeIdentityComponent.class)
+                            .get(activeEntity).stableId);
+        } finally {
+            active.dispose();
+        }
+    }
+
     private static IllegalArgumentException loadFailure(
             FileHandle file, SceneMetaRuntime meta) {
         World loaded = world();

@@ -7,13 +7,16 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -171,12 +174,22 @@ public class SceneLoaderPhysicsSchemaTest {
                 shape.spatialBlockId = 4;
                 shape.geometry = null;
                 shapes.shapes.add(shape);
+                world.getMapper(PixscapeIdentityComponent.class)
+                        .create(entityId).stableId = 1;
+                SpatialBlocksComponent blocks = world.getMapper(
+                        SpatialBlocksComponent.class).create(entityId);
+                blocks.nextSpatialBlockId = 5;
+                SpatialBlockData block = new SpatialBlockData();
+                block.id = 4;
+                block.structureId = 1;
+                blocks.blocks.add(block);
             }
         });
         World target = world();
         try {
             SceneMetaRuntime meta = new SceneMetaRuntime();
             meta.physicsEnabled = true;
+            meta.nextEntityStableId = 2;
             meta.nextPhysicsShapeId = 2;
 
             SceneLoader.loadScene(target, file, false, meta);

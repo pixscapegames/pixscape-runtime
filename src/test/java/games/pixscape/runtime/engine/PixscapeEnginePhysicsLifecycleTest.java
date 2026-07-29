@@ -170,8 +170,6 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             World worldA = engine.getWorld();
             Assert.assertNotNull(worldA);
-            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(worldA));
             Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
             Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
             Assert.assertTrue(engine.firstEntityByTag("hero") >= 0);
@@ -194,8 +192,6 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
             Assert.assertNull(engine.getActiveSceneMeta());
             Assert.assertNull(engine.getWorld());
-            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(fixture.worldProbe.latestWorld));
             Assert.assertNull(engine.getBox2dWorldService());
             Assert.assertNull(engine.getBox2dSyncSystem());
             Assert.assertEquals(-1, engine.findEntityByStableId(7));
@@ -231,31 +227,24 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             Assert.assertNotNull(engine.getWorld());
             Assert.assertNotSame(worldA, engine.getWorld());
-            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(engine.getWorld()));
             Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
             Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
             Assert.assertTrue(engine.firstEntityByTag("hero") >= 0);
             engine.render();
-            World retryWorld = engine.getWorld();
             engine.dispose();
-            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(retryWorld));
         } finally {
             engine.dispose();
         }
     }
 
     @Test
-    public void linkedRegistryFailureDiscardsCandidateAndAllowsRetry()
+    public void linkedValidationFailureDiscardsCandidateAndAllowsRetry()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;
         try {
             engine.loadScene("A");
             World worldA = engine.getWorld();
-            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(worldA));
 
             RuntimeException failure = Assert.assertThrows(
                     RuntimeException.class,
@@ -265,13 +254,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     failure.getMessage().contains(
                             "SpatialBlocksComponent"));
             Assert.assertNull(engine.getWorld());
-            Assert.assertFalse(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(fixture.worldProbe.latestWorld));
 
             engine.loadScene("A");
             Assert.assertNotSame(worldA, engine.getWorld());
-            Assert.assertTrue(engine.getSpatialBlockPhysicsRegistry()
-                    .isBoundTo(engine.getWorld()));
         } finally {
             engine.dispose();
         }

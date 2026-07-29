@@ -80,8 +80,6 @@ public final class PixscapeEngine {
     private String defaultShaderName;
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
-    private final SpatialBlockPhysicsRegistry spatialBlockPhysicsRegistry =
-            new SpatialBlockPhysicsRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
@@ -283,7 +281,6 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
-        spatialBlockPhysicsRegistry.detach();
         identityRegistry.bind(null, null);
         if (world != null) {
             world.dispose();
@@ -418,10 +415,6 @@ public final class PixscapeEngine {
 
     public IdentityRegistry getIdentityRegistry() {
         return identityRegistry;
-    }
-
-    public SpatialBlockPhysicsRegistry getSpatialBlockPhysicsRegistry() {
-        return spatialBlockPhysicsRegistry;
     }
 
     public TagRegistry getTagRegistry() {
@@ -594,7 +587,6 @@ public final class PixscapeEngine {
      * Disposes world and GPU-side runtime resources.
      */
     private void disposeWorldAndRuntime() {
-        spatialBlockPhysicsRegistry.detach();
         identityRegistry.bind(null, null);
 
         // World first (systems may touch services)
@@ -634,7 +626,6 @@ public final class PixscapeEngine {
     private void discardFailedSceneLoad() {
         sceneLoaded = false;
         activeSceneMeta = null;
-        spatialBlockPhysicsRegistry.detach();
         identityRegistry.bind(null, null);
 
         if (box2dSyncSystem != null) {
@@ -849,7 +840,6 @@ public final class PixscapeEngine {
             return;
         }
 
-        spatialBlockPhysicsRegistry.detach();
         identityRegistry.bind(null, null);
 
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
@@ -1253,12 +1243,6 @@ public final class PixscapeEngine {
 
     private void bindRuntimeRegistries(SceneMetaRuntime sceneMeta) {
         identityRegistry.bind(world, sceneMeta);
-        if (sceneMeta == null) {
-            spatialBlockPhysicsRegistry.detach();
-        } else {
-            spatialBlockPhysicsRegistry.bind(
-                    world, identityRegistry, sceneMeta);
-        }
         tagRegistry.bind(world);
     }
 
@@ -1271,15 +1255,7 @@ public final class PixscapeEngine {
 
     private void rebuildRuntimeRegistries() {
         identityRegistry.rebuild();
-        if (activeRegistryStateAvailable()) {
-            spatialBlockPhysicsRegistry.rebuild();
-        }
         tagRegistry.rebuild();
-    }
-
-    private boolean activeRegistryStateAvailable() {
-        return world != null
-                && spatialBlockPhysicsRegistry.isBoundTo(world);
     }
 
     private static FileHandle resolveEffectsRoot(FileHandle projectDir, RuntimeConfig config) {
