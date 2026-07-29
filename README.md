@@ -3,7 +3,7 @@
 <h1>Pixscape Runtime</h1>
 
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.1.8-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.1.9-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
