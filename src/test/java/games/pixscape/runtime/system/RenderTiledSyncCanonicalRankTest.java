@@ -13,6 +13,8 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
@@ -210,9 +212,10 @@ public class RenderTiledSyncCanonicalRankTest {
 
     private static final class TestAtlas extends AtlasRuntimeService {
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             if (assetId <= 0) return null;
-            return new CachedRegion("tile-" + assetId, 0f, 0f, 1f, 1f, 16, 8, 1);
+            return AtlasBindingTestFactory.single(
+                    assetId, "tile-" + assetId, 0f, 0f, 1f, 1f, 16, 8, 1);
         }
     }
 }

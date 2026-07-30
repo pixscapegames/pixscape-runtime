@@ -111,34 +111,35 @@ public class AtlasRuntimeService {
     }
 
     // ---------------- access ----------------
-    public CachedRegion resolveCached(int assetId, String tag) {
-        if (tag == null || isBlank(tag) || assetId < 0) return null;
+    /**
+     * Returns the precomputed first-region metadata in O(1) average time.
+     */
+    public AtlasRegionMetadata resolveCached(int assetId, String tag) {
+        requirePositiveAssetId(assetId);
+        if (tag == null || isBlank(tag)) return null;
         AtlasAssetBinding binding = resolveBinding(assetId, tag);
-        return binding != null ? binding.cachedRegion() : null;
+        return binding != null ? binding.metadata() : null;
     }
 
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
     }
 
-    public Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
-        if (assetId < 0) {
-            throw new IllegalStateException("Asset id must be >= 0.");
-        }
-        AtlasAssetBinding binding = resolveBinding(assetId, tag);
-        return binding != null ? binding.regions() : null;
-    }
-
     /**
      * Resolves the complete binding for an asset in O(1) average time.
      */
     public AtlasAssetBinding resolveBinding(int assetId, String tag) {
-        if (assetId < 0) {
-            throw new IllegalStateException("Asset id must be >= 0.");
-        }
+        requirePositiveAssetId(assetId);
         if (tag == null || isBlank(tag)) return null;
         AtlasAssetIndex index = indexesByTag.get(tag);
         return index != null ? index.get(assetId) : null;
+    }
+
+    private static void requirePositiveAssetId(int assetId) {
+        if (assetId <= 0) {
+            throw new IllegalArgumentException(
+                    "Asset id must be > 0, got " + assetId + ".");
+        }
     }
 
     int indexBuildRegionVisits(String tag) {
@@ -381,21 +382,4 @@ public class AtlasRuntimeService {
                 + " textureArray@" + System.identityHashCode(textureArray));
     }
 
-    public static final class CachedRegion {
-        public final String regionName;
-        public final float u1, v1, u2, v2;
-        public final int textureHandle;
-        public final int pixW, pixH;
-
-        public CachedRegion(String regionName, float u1, float v1, float u2, float v2, int textureHandle, int pixW, int pixH) {
-            this.regionName = regionName;
-            this.u1 = u1;
-            this.v1 = v1;
-            this.u2 = u2;
-            this.v2 = v2;
-            this.textureHandle = textureHandle;
-            this.pixW = pixW;
-            this.pixH = pixH;
-        }
-    }
 }

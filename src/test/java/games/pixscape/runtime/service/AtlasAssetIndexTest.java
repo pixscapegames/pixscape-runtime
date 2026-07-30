@@ -34,17 +34,17 @@ public class AtlasAssetIndexTest {
         Assert.assertEquals(1, index.buildRegionVisits());
         Assert.assertEquals(17, binding.assetId());
         Assert.assertEquals("hero__a17", binding.regionGroup());
-        Assert.assertSame(binding.firstRegion(), binding.regions().first());
-        Assert.assertEquals(1, binding.regions().size);
-        Assert.assertEquals(0.10f, binding.cachedRegion().u1, 0.0001f);
-        Assert.assertEquals(0.10f, binding.cachedRegion().v1, 0.0001f);
-        Assert.assertEquals(0.40f, binding.cachedRegion().u2, 0.0001f);
-        Assert.assertEquals(0.30f, binding.cachedRegion().v2, 0.0001f);
-        Assert.assertEquals(30, binding.cachedRegion().pixW);
-        Assert.assertEquals(40, binding.cachedRegion().pixH);
+        Assert.assertSame(binding.firstRegion(), binding.regionAt(0));
+        Assert.assertEquals(1, binding.regionCount());
+        Assert.assertEquals(0.10f, binding.metadata().u1(), 0.0001f);
+        Assert.assertEquals(0.10f, binding.metadata().v1(), 0.0001f);
+        Assert.assertEquals(0.40f, binding.metadata().u2(), 0.0001f);
+        Assert.assertEquals(0.30f, binding.metadata().v2(), 0.0001f);
+        Assert.assertEquals(30, binding.metadata().pixelWidth());
+        Assert.assertEquals(40, binding.metadata().pixelHeight());
         Assert.assertEquals(
                 TextureRegistry.handleOf(texture),
-                binding.cachedRegion().textureHandle);
+                binding.metadata().textureHandle());
     }
 
     @Test
@@ -60,16 +60,14 @@ public class AtlasAssetIndexTest {
 
         service.load("main", atlas(frame2, frame0, frame1));
 
-        Array<TextureAtlas.AtlasRegion> first = service.resolve(923, "main");
-        Array<TextureAtlas.AtlasRegion> second = service.resolve(923, "main");
         AtlasAssetBinding binding = service.resolveBinding(923, "main");
-        Assert.assertSame(first, second);
-        Assert.assertSame(first, binding.regions());
+        AtlasAssetBinding second = service.resolveBinding(923, "main");
+        Assert.assertSame(binding, second);
         Assert.assertSame(frame0, binding.firstRegion());
-        Assert.assertSame(frame0, first.get(0));
-        Assert.assertSame(frame1, first.get(1));
-        Assert.assertSame(frame2, first.get(2));
-        Assert.assertSame(binding.cachedRegion(), service.resolveCached(923, "main"));
+        Assert.assertSame(frame0, binding.regionAt(0));
+        Assert.assertSame(frame1, binding.regionAt(1));
+        Assert.assertSame(frame2, binding.regionAt(2));
+        Assert.assertSame(binding.metadata(), service.resolveCached(923, "main"));
     }
 
     @Test
@@ -87,12 +85,12 @@ public class AtlasAssetIndexTest {
         int getRegionsCallsAfterLoad = atlas.getRegionsCalls;
         int findRegionsCallsAfterLoad = atlas.findRegionsCalls;
 
-        Assert.assertNull(service.resolve(999999, "main"));
+        Assert.assertNull(service.resolveBinding(999999, "main"));
         for (int i = 0; i < 10000; i++) {
-            Assert.assertNotNull(service.resolve(1, "main"));
-            Assert.assertNotNull(service.resolve(2, "main"));
-            Assert.assertNotNull(service.resolve(3, "main"));
-            Assert.assertNull(service.resolve(999999, "main"));
+            Assert.assertNotNull(service.resolveBinding(1, "main"));
+            Assert.assertNotNull(service.resolveBinding(2, "main"));
+            Assert.assertNotNull(service.resolveBinding(3, "main"));
+            Assert.assertNull(service.resolveBinding(999999, "main"));
             Assert.assertNull(service.resolveCached(999999, "main"));
         }
 
@@ -114,10 +112,10 @@ public class AtlasAssetIndexTest {
         AtlasAssetBinding binding =
                 AtlasAssetIndexBuilder.build("multi", atlas(frame1, frame0)).get(44);
 
-        Assert.assertSame(pageOne, binding.regions().get(0).getTexture());
-        Assert.assertSame(pageTwo, binding.regions().get(1).getTexture());
-        Assert.assertSame(frame0, binding.regions().get(0));
-        Assert.assertSame(frame1, binding.regions().get(1));
+        Assert.assertSame(pageOne, binding.regionAt(0).getTexture());
+        Assert.assertSame(pageTwo, binding.regionAt(1).getTexture());
+        Assert.assertSame(frame0, binding.regionAt(0));
+        Assert.assertSame(frame1, binding.regionAt(1));
     }
 
     @Test
@@ -243,7 +241,27 @@ public class AtlasAssetIndexTest {
 
         Assert.assertSame(valid, service.getAtlas("main"));
         Assert.assertNotNull(service.resolveBinding(1, "main"));
-        Assert.assertNull(service.resolveBinding(0, "main"));
+        Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> service.resolveBinding(0, "main"));
+    }
+
+    @Test
+    public void allServiceLookupsRejectNonPositiveAssetIdsConsistently() {
+        AtlasRuntimeService service = new AtlasRuntimeService();
+
+        assertInvalidLookup(() -> service.resolveBinding(0, "main"), 0);
+        assertInvalidLookup(() -> service.resolveBinding(-1, "main"), -1);
+        assertInvalidLookup(() -> service.resolveCached(0, "main"), 0);
+        assertInvalidLookup(() -> service.resolveCached(-1, "main"), -1);
+    }
+
+    private static void assertInvalidLookup(Runnable lookup, int assetId) {
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                lookup::run);
+        Assert.assertTrue(failure.getMessage().contains("> 0"));
+        Assert.assertTrue(failure.getMessage().contains(Integer.toString(assetId)));
     }
 
     private static void assertInvalidSuffix(String name, String expectedDiagnostic) {

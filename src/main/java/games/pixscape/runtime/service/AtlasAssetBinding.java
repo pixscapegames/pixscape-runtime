@@ -6,8 +6,8 @@ import com.badlogic.gdx.utils.Array;
 /**
  * Complete, load-time binding for one Pixscape asset in an atlas.
  *
- * <p>The region array is built and ordered once by {@link AtlasAssetIndexBuilder}.
- * Callers must treat it as read-only.</p>
+ * <p>The region array is built and ordered once by {@link AtlasAssetIndexBuilder}
+ * and remains private. Consumers use indexed, allocation-free accessors.</p>
  */
 public final class AtlasAssetBinding {
 
@@ -15,19 +15,19 @@ public final class AtlasAssetBinding {
     private final String regionGroup;
     private final TextureAtlas.AtlasRegion firstRegion;
     private final Array<TextureAtlas.AtlasRegion> regions;
-    private final AtlasRuntimeService.CachedRegion cachedRegion;
+    private final AtlasRegionMetadata metadata;
 
     AtlasAssetBinding(
             int assetId,
             String regionGroup,
             TextureAtlas.AtlasRegion firstRegion,
             Array<TextureAtlas.AtlasRegion> regions,
-            AtlasRuntimeService.CachedRegion cachedRegion) {
+            AtlasRegionMetadata metadata) {
         this.assetId = assetId;
         this.regionGroup = regionGroup;
         this.firstRegion = firstRegion;
         this.regions = regions;
-        this.cachedRegion = cachedRegion;
+        this.metadata = metadata;
     }
 
     public int assetId() {
@@ -42,14 +42,15 @@ public final class AtlasAssetBinding {
         return firstRegion;
     }
 
-    /**
-     * Returns the prebuilt region group. The returned array is shared and read-only.
-     */
-    public Array<TextureAtlas.AtlasRegion> regions() {
-        return regions;
+    public int regionCount() {
+        return regions.size;
     }
 
-    public AtlasRuntimeService.CachedRegion cachedRegion() {
-        return cachedRegion;
+    public TextureAtlas.AtlasRegion regionAt(int index) {
+        return regions.get(index);
+    }
+
+    public AtlasRegionMetadata metadata() {
+        return metadata;
     }
 }

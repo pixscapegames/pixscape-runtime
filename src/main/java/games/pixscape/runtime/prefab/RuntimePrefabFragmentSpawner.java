@@ -33,6 +33,8 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
@@ -237,10 +239,10 @@ public class RuntimePrefabFragmentSpawner {
                 continue;
             }
 
-            if (assetRef.assetId < 0) {
+            if (assetRef.assetId <= 0) {
                 throw new IllegalStateException(
-                        "AssetRef entity without assetId during prefab resolve: e="
-                                + entityId);
+                        "AssetRef assetId must be > 0 during prefab resolve: e="
+                                + entityId + ", got " + assetRef.assetId);
             }
             String atlasTag = assetRef.atlasTag;
             if (isBlank(atlasTag)) {
@@ -248,22 +250,23 @@ public class RuntimePrefabFragmentSpawner {
                         "AssetRef atlasTag not set for entity " + entityId);
             }
 
-            AtlasRuntimeService.CachedRegion cached =
-                    atlasRuntimeService.resolveCached(assetRef.assetId, atlasTag);
-            if (cached == null) {
+            AtlasAssetBinding binding =
+                    atlasRuntimeService.resolveBinding(assetRef.assetId, atlasTag);
+            if (binding == null) {
                 region.valid = false;
                 material.textureHandle = 0;
                 continue;
             }
+            AtlasRegionMetadata metadata = binding.metadata();
 
-            region.u1 = cached.u1;
-            region.v1 = cached.v1;
-            region.u2 = cached.u2;
-            region.v2 = cached.v2;
-            region.pixW = cached.pixW;
-            region.pixH = cached.pixH;
+            region.u1 = metadata.u1();
+            region.v1 = metadata.v1();
+            region.u2 = metadata.u2();
+            region.v2 = metadata.v2();
+            region.pixW = metadata.pixelWidth();
+            region.pixH = metadata.pixelHeight();
             region.valid = true;
-            material.textureHandle = cached.textureHandle;
+            material.textureHandle = metadata.textureHandle();
         }
     }
 

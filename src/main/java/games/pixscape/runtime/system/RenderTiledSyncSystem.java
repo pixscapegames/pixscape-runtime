@@ -21,6 +21,8 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
@@ -448,9 +450,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                 tileAnimationLookup
                         );
 
-                        AtlasRuntimeService.CachedRegion cr =
-                                atlasRuntimeService.resolveCached(visualAssetId, atlasTag);
-                        if (cr == null) continue;
+                        AtlasAssetBinding binding =
+                                atlasRuntimeService.resolveBinding(visualAssetId, atlasTag);
+                        if (binding == null) continue;
+                        AtlasRegionMetadata metadata = binding.metadata();
 
                         int gx = chunk.chunkX * map.chunkSize + lx;
                         int gy = chunk.chunkY * map.chunkSize + ly;
@@ -464,8 +467,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                 map,
                                 gx,
                                 gy,
-                                cr.pixW,
-                                cr.pixH,
+                                metadata.pixelWidth(),
+                                metadata.pixelHeight(),
                                 profile,
                                 chunk.transformFlags[localIndex],
                                 tmpQuad
@@ -687,14 +690,15 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 tileAnimationLookup
         );
 
-        AtlasRuntimeService.CachedRegion cr =
-                atlasRuntimeService.resolveCached(visualAssetId, atlasTag);
+        AtlasAssetBinding binding =
+                atlasRuntimeService.resolveBinding(visualAssetId, atlasTag);
 
-        if (cr == null) {
+        if (binding == null) {
             tiledState.disableRef(tiledRenderRef);
             chunk.setRenderableLocalIndex(localIndex, false);
             return;
         }
+        AtlasRegionMetadata metadata = binding.metadata();
 
         RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(visualAssetId);
         if (profile == null) {
@@ -708,8 +712,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 map,
                 gx,
                 gy,
-                cr.pixW,
-                cr.pixH,
+                metadata.pixelWidth(),
+                metadata.pixelHeight(),
                 profile,
                 transformFlags,
                 tmpQuad
@@ -731,15 +735,15 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             if (rank < 0) throw missingRequiredRank(map, gx, gy, assetId, layerIndex,
                     "missing-during-slot-write");
             sortKey = SortKey64.packForBlendOrder30(defaultShaderIdx, BlendMode.ALPHA.id,
-                    cr.textureHandle, layerIndex, rank);
+                    metadata.textureHandle(), layerIndex, rank);
         } else {
             sortKey = SortKey64.packForBlend(defaultShaderIdx, BlendMode.ALPHA.id,
-                    cr.textureHandle, layerIndex, z, tie);
+                    metadata.textureHandle(), layerIndex, z, tie);
         }
 
         tiledState.setRenderDataForRef(
                 tiledRenderRef,
-                cr.textureHandle,
+                metadata.textureHandle(),
                 defaultShaderIdx,
                 BlendMode.ALPHA.id,
                 layerIndex,
@@ -754,10 +758,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 tmpQuad[5],
                 tmpQuad[6],
                 tmpQuad[7],
-                cr.u1,
-                cr.v1,
-                cr.u2,
-                cr.v2,
+                metadata.u1(),
+                metadata.v1(),
+                metadata.u2(),
+                metadata.v2(),
                 Color.WHITE.toFloatBits(),
                 1f,
                 RenderRepeatFlags.NONE

@@ -14,6 +14,8 @@ import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -1249,10 +1251,11 @@ public class RenderTiledSyncSystemTest {
         int resolveCalls = 0;
 
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1 || assetId == 2 || assetId == 3) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tile-" + assetId,
                         0f,
                         0f,
@@ -1269,10 +1272,11 @@ public class RenderTiledSyncSystemTest {
 
     private static final class TallCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tall-tile",
                         0f,
                         0f,
@@ -1297,10 +1301,11 @@ public class RenderTiledSyncSystemTest {
         }
 
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tile-" + assetId,
                         0f,
                         0f,

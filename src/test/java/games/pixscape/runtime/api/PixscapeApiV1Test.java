@@ -3,7 +3,6 @@ package games.pixscape.runtime.api;
 import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
@@ -14,6 +13,8 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -605,7 +606,7 @@ public class PixscapeApiV1Test {
     @Test
     public void assetsRegionResolvesKnownAssetId() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
 
         AssetRegionRef region = engine.api().assets().region(42);
 
@@ -619,22 +620,68 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void assetsRegionResolvedWithoutTextureRegionFailsClearly() throws Exception {
+    public void assetsByIdUseOneBindingLookupAndNoGlobalRegionInspection() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, false));
+        FakeAtlasRuntimeService atlas = new FakeAtlasRuntimeService(42);
+        setField(engine, "atlasRuntimeService", atlas);
 
-        try {
-            engine.api().assets().region(42);
-            Assert.fail("Expected resolved asset without TextureRegion to fail");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("no TextureRegion could be created"));
+        for (int i = 0; i < 10000; i++) {
+            Assert.assertNotNull(engine.api().assets().region(42));
         }
+        Assert.assertEquals(10000, atlas.resolveBindingCalls);
+
+        for (int i = 0; i < 10000; i++) {
+            Assert.assertTrue(engine.api().assets().contains(42));
+        }
+        Assert.assertEquals(20000, atlas.resolveBindingCalls);
+
+        for (int i = 0; i < 10000; i++) {
+            Assert.assertFalse(engine.api().assets().contains(99));
+        }
+        Assert.assertEquals(30000, atlas.resolveBindingCalls);
+    }
+
+    @Test
+    public void publicAssetRegionMutationCannotCorruptIndexedOrSpawnedUvs() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        FakeAtlasRuntimeService atlas = new FakeAtlasRuntimeService(42);
+        setField(engine, "atlasRuntimeService", atlas);
+
+        AssetRegionRef first = engine.api().assets().region(42);
+        Assert.assertFalse(first.region() instanceof TextureAtlas.AtlasRegion);
+        first.region().setRegion(0.25f, 0.25f, 0.75f, 0.75f);
+
+        Assert.assertEquals(0f, atlas.binding.firstRegion().getU(), 0f);
+        Assert.assertEquals(1f, atlas.binding.firstRegion().getU2(), 0f);
+        AssetRegionRef second = engine.api().assets().region(42);
+        Assert.assertEquals(0f, second.region().getU(), 0f);
+        Assert.assertEquals(1f, second.region().getU2(), 0f);
+
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        TextureRegionComponent rendered = engine.getWorld()
+                .getMapper(TextureRegionComponent.class)
+                .get(sprite.entityId());
+        Assert.assertEquals(0f, rendered.u1, 0f);
+        Assert.assertEquals(1f, rendered.u2, 0f);
+    }
+
+    @Test
+    public void massiveSpriteSpawnUsesOneBindingLookupPerEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        FakeAtlasRuntimeService atlas = new FakeAtlasRuntimeService(42);
+        setField(engine, "atlasRuntimeService", atlas);
+
+        for (int i = 0; i < 2000; i++) {
+            engine.api().sprites().spawn(42, i, i);
+        }
+
+        Assert.assertEquals(2000, atlas.resolveBindingCalls);
     }
 
     @Test
     public void spritesSpawnCreatesRenderableEntity() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         World world = engine.getWorld();
 
         SpriteRef ref = engine.api().sprites().spawn(42, 10f, 20f);
@@ -659,7 +706,7 @@ public class PixscapeApiV1Test {
     @Test
     public void spritesSpawnMissingAssetGivesClearError() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
 
         try {
             engine.api().sprites().spawn(99, 0f, 0f);
@@ -673,7 +720,7 @@ public class PixscapeApiV1Test {
     @Test
     public void spriteRefDelegatesTransformSpriteAndShader() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         SpriteRef ref = engine.api().sprites().spawn(42, 0f, 0f)
                 .position(2f, 3f)
                 .scale(2f)
@@ -692,7 +739,7 @@ public class PixscapeApiV1Test {
     @Test
     public void highLevelRefsRemoveThroughEntityRefAndAreIdempotent() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         World world = engine.getWorld();
 
         SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
@@ -751,7 +798,7 @@ public class PixscapeApiV1Test {
     @Test
     public void animationsSpawnCreatesAnimatedEntity() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f)
                 .fps(18f)
                 .loop(false)
@@ -771,7 +818,7 @@ public class PixscapeApiV1Test {
     @Test
     public void animationsSpawnAssetIdUsesRegistryClips() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         engine.getAnimationRegistry().put(animationDef(42, "hero"));
 
         AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f);
@@ -788,7 +835,7 @@ public class PixscapeApiV1Test {
     @Test
     public void animationsSpawnNameUsesRegistryClipsAndPlaySelectsClip() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         engine.getAnimationRegistry().put(animationDef(42, "hero"));
 
         AnimationRef ref = engine.api().animations().spawn("hero", 7f, 8f).play("attack");
@@ -802,7 +849,7 @@ public class PixscapeApiV1Test {
     @Test
     public void animationsSpawnRegistryNameMissingFromAtlasGivesAnimationError() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(99, true));
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(99));
         engine.getAnimationRegistry().put(animationDef(42, "hero"));
 
         try {
@@ -914,45 +961,28 @@ public class PixscapeApiV1Test {
 
     private static final class FakeAtlasRuntimeService extends AtlasRuntimeService {
         private final int availableAssetId;
-        private final boolean includeRegion;
+        private final AtlasAssetBinding binding;
+        int resolveBindingCalls;
 
-        FakeAtlasRuntimeService(int availableAssetId, boolean includeRegion) {
+        FakeAtlasRuntimeService(int availableAssetId) {
             this.availableAssetId = availableAssetId;
-            this.includeRegion = includeRegion;
+            this.binding = AtlasBindingTestFactory.single(
+                    availableAssetId,
+                    "crate__a" + availableAssetId,
+                    0f,
+                    0f,
+                    1f,
+                    1f,
+                    7,
+                    16,
+                    24);
         }
 
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
+            resolveBindingCalls++;
             if (assetId != availableAssetId) return null;
-            return new CachedRegion("crate__a" + assetId, 0f, 0f, 1f, 1f, 7, 16, 24);
-        }
-
-        @Override
-        public com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
-            com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> out = new com.badlogic.gdx.utils.Array<>();
-            if (assetId == availableAssetId && includeRegion) {
-                out.add(new TextureAtlas.AtlasRegion(new DummyTexture(), 0, 0, 16, 24));
-                out.first().name = "crate__a" + assetId;
-                out.first().packedWidth = 16;
-                out.first().packedHeight = 24;
-            }
-            return out;
-        }
-    }
-
-    private static final class DummyTexture extends Texture {
-        DummyTexture() {
-            super();
-        }
-
-        @Override
-        public int getWidth() {
-            return 16;
-        }
-
-        @Override
-        public int getHeight() {
-            return 24;
+            return binding;
         }
     }
 

@@ -29,7 +29,6 @@ import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
@@ -1048,11 +1047,6 @@ public final class PixscapeEngine {
             atlasRuntimeService.deferDispose(previous);
         }
 
-        AnimationSystem animationSystem = world.getSystem(AnimationSystem.class);
-        if (animationSystem != null) {
-            animationSystem.clearBindingCache();
-        }
-
         rebuildSceneAssets(sceneTag);
         markAllTiledChunksContentDirty();
 
@@ -1098,32 +1092,35 @@ public final class PixscapeEngine {
             TextureRegionComponent tr = mTR.get(e);
             RenderMaterialComponent mat = mMat.get(e);
 
-            if (src.assetId < 0)
+            if (src.assetId <= 0)
                 throw new IllegalStateException(
-                        "AssetRef entity without assetId during rebuild: e=" + e);
+                        "AssetRef assetId must be > 0 during rebuild: e=" + e
+                                + ", got " + src.assetId);
 
             String atlasTag = src.atlasTag;
             if (isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
-            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
+            AtlasAssetBinding binding =
+                    atlasRuntimeService.resolveBinding(src.assetId, atlasTag);
 
-            if (region == null) {
+            if (binding == null) {
                 tr.valid = false;
                 mat.textureHandle = 0;
                 continue;
             }
+            AtlasRegionMetadata region = binding.metadata();
 
-            tr.u1 = region.u1;
-            tr.v1 = region.v1;
-            tr.u2 = region.u2;
-            tr.v2 = region.v2;
-            tr.pixW = region.pixW;
-            tr.pixH = region.pixH;
+            tr.u1 = region.u1();
+            tr.v1 = region.v1();
+            tr.u2 = region.u2();
+            tr.v2 = region.v2();
+            tr.pixW = region.pixelWidth();
+            tr.pixH = region.pixelHeight();
             tr.valid = true;
 
-            mat.textureHandle = region.textureHandle;
+            mat.textureHandle = region.textureHandle();
 
             if (dirty != null) {
                 dirty.material(e);

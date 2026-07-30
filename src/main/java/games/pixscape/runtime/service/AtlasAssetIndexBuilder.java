@@ -74,8 +74,8 @@ final class AtlasAssetIndexBuilder {
         for (int i = 0, n = orderedGroups.size; i < n; i++) {
             MutableAssetGroup group = orderedGroups.get(i);
             TextureAtlas.AtlasRegion first = group.regions.first();
-            AtlasRuntimeService.CachedRegion cached =
-                    new AtlasRuntimeService.CachedRegion(
+            AtlasRegionMetadata metadata =
+                    new AtlasRegionMetadata(
                             first.name,
                             first.getU(),
                             first.getV(),
@@ -91,7 +91,7 @@ final class AtlasAssetIndexBuilder {
                             group.regionGroup,
                             first,
                             group.regions,
-                            cached));
+                            metadata));
             if (previous != null) {
                 throw new IllegalStateException(
                         "Atlas '" + atlasTag + "' contains a duplicate binding for asset ID "

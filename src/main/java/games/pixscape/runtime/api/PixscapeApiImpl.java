@@ -17,6 +17,8 @@ import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.ShaderRegistry;
@@ -50,8 +52,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final TiledAPI tiled;
     private final SpatialAPI spatial;
     private final PrefabsAPI prefabs;
-    private final AssetsAPI assets;
-    private final SpritesAPI sprites;
+    private final AssetsApiImpl assets;
+    private final SpritesApiImpl sprites;
     private final AnimationsAPI animations;
     private final ParticlesAPI particles;
 
@@ -118,12 +120,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return isBlank(tag) ? "main" : tag;
     }
 
-    private static TextureAtlas.AtlasRegion firstRegion(AtlasRuntimeService atlasService, int assetId, String atlasTag) {
-        if (atlasService == null) return null;
-        com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
-        return regions != null && regions.size > 0 ? regions.first() : null;
-    }
-
     private static int assetIdFromRegionName(String regionName) {
         if (regionName == null) return -1;
         int marker = regionName.lastIndexOf("__a");
@@ -173,12 +169,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     private static int createSpriteEntity(PixscapeEngine engine,
-                                          int assetId,
+                                          AtlasAssetBinding binding,
                                           String atlasTag,
                                           float x,
-                                          float y,
-                                          float width,
-                                          float height) {
+                                          float y) {
         World world = requireWorld(engine);
         int e = world.create();
 
@@ -187,8 +181,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         transform.y = y;
 
         DimensionsComponent dimensions = world.edit(e).create(DimensionsComponent.class);
-        dimensions.width = width;
-        dimensions.height = height;
+        dimensions.width = binding.metadata().pixelWidth();
+        dimensions.height = binding.metadata().pixelHeight();
 
         world.edit(e).create(OrientedBoundsComponent.class);
         world.edit(e).create(AABBComponent.class);
@@ -201,18 +195,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         world.edit(e).create(TintComponent.class);
 
         AssetRefComponent assetRef = world.edit(e).create(AssetRefComponent.class);
-        assetRef.assetId = assetId;
+        assetRef.assetId = binding.assetId();
         assetRef.atlasTag = atlasTag;
 
         TextureRegionComponent textureRegion = world.edit(e).create(TextureRegionComponent.class);
         RenderMaterialComponent material = world.edit(e).create(RenderMaterialComponent.class);
 
-        resolveSpriteRegion(engine, assetRef, textureRegion, material);
+        applySpriteBinding(binding, atlasTag, textureRegion, material);
         markSpawnDirty(world, e);
         return e;
     }
 
-    private static void configureDefaultAnimation(PixscapeEngine engine, int entityId, int assetId) {
+    private static void configureDefaultAnimation(
+            PixscapeEngine engine,
+            int entityId,
+            AtlasAssetBinding binding) {
         World world = requireWorld(engine);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
                 ? world.getMapper(AnimationComponent.class).get(entityId)
@@ -221,15 +218,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         // TODO 0.1.4 Studio integration:
         // When animation assets export clip metadata, load exported clips here instead of
         // creating a single default clip across every atlas frame.
-        int frameCount = 1;
-        AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
-        String atlasTag = currentAtlasTag(engine);
-        if (atlasService != null) {
-            com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
-            if (regions != null && regions.size > 0) {
-                frameCount = regions.size;
-            }
-        }
+        int frameCount = binding.regionCount();
 
         animation.clips.clear();
         animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, frameCount - 1)));
@@ -331,22 +320,32 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             );
         }
 
-        AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetRef.assetId, assetRef.atlasTag);
-        if (cached == null) {
+        AtlasAssetBinding binding =
+                atlasService.resolveBinding(assetRef.assetId, assetRef.atlasTag);
+        if (binding == null) {
             throw new IllegalArgumentException(
                     "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
             );
         }
 
-        textureRegion.u1 = cached.u1;
-        textureRegion.v1 = cached.v1;
-        textureRegion.u2 = cached.u2;
-        textureRegion.v2 = cached.v2;
-        textureRegion.pixW = cached.pixW;
-        textureRegion.pixH = cached.pixH;
+        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
+    }
+
+    private static void applySpriteBinding(
+            AtlasAssetBinding binding,
+            String atlasTag,
+            TextureRegionComponent textureRegion,
+            RenderMaterialComponent material) {
+        AtlasRegionMetadata metadata = binding.metadata();
+        textureRegion.u1 = metadata.u1();
+        textureRegion.v1 = metadata.v1();
+        textureRegion.u2 = metadata.u2();
+        textureRegion.v2 = metadata.v2();
+        textureRegion.pixW = metadata.pixelWidth();
+        textureRegion.pixH = metadata.pixelHeight();
         textureRegion.valid = true;
-        material.textureHandle = cached.textureHandle;
-        material.debugAtlasTag = assetRef.atlasTag;
+        material.textureHandle = metadata.textureHandle();
+        material.debugAtlasTag = atlasTag;
     }
 
     private static void markSpawnDirty(World world, int entityId) {
@@ -357,26 +356,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         dirty.color(entityId);
         dirty.order(entityId);
         dirty.layer(entityId);
-    }
-
-    static final class ResolvedAsset {
-        final int assetId;
-        final String name;
-        final String atlasTag;
-        final AtlasRuntimeService.CachedRegion cached;
-        final TextureRegion region;
-
-        ResolvedAsset(int assetId,
-                      String name,
-                      String atlasTag,
-                      AtlasRuntimeService.CachedRegion cached,
-                      TextureRegion region) {
-            this.assetId = assetId;
-            this.name = name;
-            this.atlasTag = atlasTag;
-            this.cached = cached;
-            this.region = region;
-        }
     }
 
     static final class EcsApiImpl implements ECSAPI {
@@ -997,22 +976,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 mat.textureHandle = 0;
                 return;
             }
-            AtlasRuntimeService.CachedRegion cached = atlas.resolveCached(src.assetId, src.atlasTag);
-            if (cached == null) {
+            AtlasAssetBinding binding = atlas.resolveBinding(src.assetId, src.atlasTag);
+            if (binding == null) {
                 tr.valid = false;
                 mat.textureHandle = 0;
                 return;
             }
 
-            tr.u1 = cached.u1;
-            tr.v1 = cached.v1;
-            tr.u2 = cached.u2;
-            tr.v2 = cached.v2;
-            tr.pixW = cached.pixW;
-            tr.pixH = cached.pixH;
-            tr.valid = true;
-            mat.textureHandle = cached.textureHandle;
-            mat.debugAtlasTag = src.atlasTag;
+            applySpriteBinding(binding, src.atlasTag, tr, mat);
         }
 
         private static float clamp01(float v) {
@@ -1476,24 +1447,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AssetRegionRef region(String name) {
-            ResolvedAsset asset = resolveByName(name);
-            if (asset == null) {
-                throw new IllegalArgumentException(
-                        "Asset '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
-                );
-            }
-            return new AssetRegionRefImpl(asset);
+            return new AssetRegionRefImpl(requireByName(name));
         }
 
         @Override
         public AssetRegionRef region(int assetId) {
-            ResolvedAsset asset = resolveById(assetId);
-            if (asset == null) {
-                throw new IllegalArgumentException(
-                        "Asset #" + assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
-                );
-            }
-            return new AssetRegionRefImpl(asset);
+            return new AssetRegionRefImpl(requireById(assetId));
         }
 
         @Override
@@ -1507,31 +1466,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean contains(int assetId) {
-            try {
-                return resolveById(assetId) != null;
-            } catch (IllegalStateException ex) {
-                return false;
-            }
+            return resolveById(assetId) != null;
         }
 
-        ResolvedAsset resolveById(int assetId) {
-            if (assetId < 0) return null;
+        AtlasAssetBinding resolveById(int assetId) {
+            if (assetId <= 0) return null;
             AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
             if (atlasService == null) return null;
-            String atlasTag = currentAtlasTag(engine);
-            AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
-            if (cached == null) return null;
-            TextureAtlas.AtlasRegion region = firstRegion(atlasService, assetId, atlasTag);
-            if (region == null) {
-                throw new IllegalStateException(
-                        "Asset '#" + assetId + "' is resolved in the current scene atlas but no TextureRegion could be created."
-                );
-            }
-            String name = region != null ? normalizedName(region.name) : cached.regionName;
-            return new ResolvedAsset(assetId, name, atlasTag, cached, region);
+            return atlasService.resolveBinding(assetId, currentAtlasTag(engine));
         }
 
-        ResolvedAsset resolveByName(String name) {
+        AtlasAssetBinding resolveByName(String name) {
             String normalized = normalizeLookupName(name);
             if (normalized == null) return null;
             AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
@@ -1544,62 +1489,83 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             for (int i = 0; i < regions.size; i++) {
                 TextureAtlas.AtlasRegion region = regions.get(i);
                 int assetId = assetIdFromRegionName(region.name);
-                if (assetId < 0) continue;
+                if (assetId <= 0) continue;
                 String regionName = normalizedName(region.name);
                 if (matchesLookupName(regionName, normalized)) {
-                    AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
-                    if (cached == null) continue;
-                    if (region == null) {
-                        throw new IllegalStateException(
-                                "Asset '" + name + "' is resolved in the current scene atlas but no TextureRegion could be created."
-                        );
-                    }
-                    return new ResolvedAsset(assetId, regionName, atlasTag, cached, region);
+                    return atlasService.resolveBinding(assetId, atlasTag);
                 }
             }
             return null;
         }
+
+        AtlasAssetBinding requireById(int assetId) {
+            AtlasAssetBinding binding = resolveById(assetId);
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Asset #" + assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return binding;
+        }
+
+        AtlasAssetBinding requireByName(String name) {
+            AtlasAssetBinding binding = resolveByName(name);
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Asset '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return binding;
+        }
     }
 
     static final class AssetRegionRefImpl implements AssetRegionRef {
-        private final ResolvedAsset asset;
+        private final int assetId;
+        private final String name;
+        private final TextureRegion region;
+        private final float width;
+        private final float height;
 
-        AssetRegionRefImpl(ResolvedAsset asset) {
-            this.asset = asset;
+        AssetRegionRefImpl(AtlasAssetBinding binding) {
+            this.assetId = binding.assetId();
+            this.name = normalizedName(binding.regionGroup());
+            this.region = new TextureRegion(binding.firstRegion());
+            this.width = binding.metadata().pixelWidth();
+            this.height = binding.metadata().pixelHeight();
         }
 
         @Override
         public int assetId() {
-            return asset.assetId;
+            return assetId;
         }
 
         @Override
         public String name() {
-            return asset.name;
+            return name;
         }
 
         @Override
         public TextureRegion region() {
-            return asset.region;
+            return region;
         }
 
         @Override
         public float width() {
-            return asset.cached.pixW;
+            return width;
         }
 
         @Override
         public float height() {
-            return asset.cached.pixH;
+            return height;
         }
     }
 
     static final class SpritesApiImpl implements SpritesAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
-        private final AssetsAPI assets;
+        private final AssetsApiImpl assets;
 
-        SpritesApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets) {
+        SpritesApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsApiImpl assets) {
             this.engine = engine;
             this.entities = entities;
             this.assets = assets;
@@ -1607,15 +1573,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpriteRef spawn(int assetId, float x, float y) {
-            AssetRegionRef region = assets.region(assetId);
-            int entityId = createSpriteEntity(engine, assetId, currentAtlasTag(engine), x, y, region.width(), region.height());
-            return new SpriteRefImpl(entities.ofEntityId(entityId));
+            return spawn(assets.requireById(assetId), x, y);
         }
 
         @Override
         public SpriteRef spawn(String name, float x, float y) {
-            AssetRegionRef region = assets.region(name);
-            int entityId = createSpriteEntity(engine, region.assetId(), currentAtlasTag(engine), x, y, region.width(), region.height());
+            return spawn(assets.requireByName(name), x, y);
+        }
+
+        SpriteRef spawn(AtlasAssetBinding binding, float x, float y) {
+            int entityId = createSpriteEntity(
+                    engine,
+                    binding,
+                    currentAtlasTag(engine),
+                    x,
+                    y);
             return new SpriteRefImpl(entities.ofEntityId(entityId));
         }
     }
@@ -1703,10 +1675,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class AnimationsApiImpl implements AnimationsAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
-        private final AssetsAPI assets;
-        private final SpritesAPI sprites;
+        private final AssetsApiImpl assets;
+        private final SpritesApiImpl sprites;
 
-        AnimationsApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets, SpritesAPI sprites) {
+        AnimationsApiImpl(
+                PixscapeEngine engine,
+                EntitiesAPI entities,
+                AssetsApiImpl assets,
+                SpritesApiImpl sprites) {
             this.engine = engine;
             this.entities = entities;
             this.assets = assets;
@@ -1717,13 +1693,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public AnimationRef spawn(int assetId, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
             if (def != null) {
-                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
+                AtlasAssetBinding binding = assets.requireById(def.assetId());
+                SpriteRef sprite = sprites.spawn(binding, x, y);
                 configureAnimationFromDef(engine, sprite.entityId(), def);
                 return new AnimationRefImpl(sprite.entity());
             }
 
-            SpriteRef sprite = sprites.spawn(assetId, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), assetId);
+            AtlasAssetBinding binding = assets.requireById(assetId);
+            SpriteRef sprite = sprites.spawn(binding, x, y);
+            configureDefaultAnimation(engine, sprite.entityId(), binding);
             return new AnimationRefImpl(sprite.entity());
         }
 
@@ -1731,18 +1709,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public AnimationRef spawn(String name, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByName(name);
             if (def != null) {
-                if (!assets.contains(def.assetId())) {
+                AtlasAssetBinding binding = assets.resolveById(def.assetId());
+                if (binding == null) {
                     throw new IllegalArgumentException(
                             "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
                     );
                 }
-                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
+                SpriteRef sprite = sprites.spawn(binding, x, y);
                 configureAnimationFromDef(engine, sprite.entityId(), def);
                 return new AnimationRefImpl(sprite.entity());
             }
 
-            SpriteRef sprite = sprites.spawn(name, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), sprite.sprite().assetId());
+            AtlasAssetBinding binding = assets.requireByName(name);
+            SpriteRef sprite = sprites.spawn(binding, x, y);
+            configureDefaultAnimation(engine, sprite.entityId(), binding);
             return new AnimationRefImpl(sprite.entity());
         }
 

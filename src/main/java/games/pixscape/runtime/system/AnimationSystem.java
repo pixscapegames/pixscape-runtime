@@ -5,8 +5,6 @@ import com.artemis.ComponentMapper;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
@@ -16,12 +14,12 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
  * Updates animated sprite UVs using pre-indexed atlas frame groups.
- * Resolution is cached (binding cache), never looked up in draw loop.
  */
 public final class AnimationSystem extends IteratingSystem implements ProfiledSystem {
 
@@ -34,11 +32,6 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
 
     private final AtlasRuntimeService atlasRuntimeService;
 
-    private static final class AnimationBinding {
-        final Array<TextureAtlas.AtlasRegion> frames = new Array<>();
-    }
-
-    private final ObjectMap<String, AnimationBinding> bindingCache = new ObjectMap<>();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
@@ -69,8 +62,10 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         if (clip == null) return;
 
 
-        AnimationBinding binding = resolveBinding(e);
-        if (binding == null || binding.frames.size == 0) return;
+        AtlasAssetBinding binding = resolveBinding(e);
+        if (binding == null) return;
+        int regionCount = binding.regionCount();
+        if (regionCount == 0) return;
 
         int start = Math.max(0, clip.start);
         int end = Math.max(0, clip.end);
@@ -86,42 +81,28 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
 
         int frameIndex = start + local * dir;
         if (frameIndex < 0) frameIndex = 0;
-        if (frameIndex >= binding.frames.size) frameIndex = binding.frames.size - 1;
+        if (frameIndex >= regionCount) frameIndex = regionCount - 1;
 
         if (frameIndex != a.frame) {
             a.frame = frameIndex;
-            applyFrame(e, clip, binding.frames.get(frameIndex));
+            applyFrame(e, clip, binding.regionAt(frameIndex));
         }
     }
 
-    private AnimationBinding resolveBinding(int e) {
+    private AtlasAssetBinding resolveBinding(int e) {
 
         AssetRefComponent src = mSrc.get(e);
 
-        if (src.assetId < 0)
+        if (src.assetId <= 0)
             throw new IllegalStateException(
-                    "AssetRefComponent.assetId not set for entity " + e);
+                    "AssetRefComponent.assetId must be > 0 for entity " + e
+                            + ", got " + src.assetId + ".");
 
         String atlasTag = (src.atlasTag != null) ? src.atlasTag : "";
         if (atlasTag.isEmpty())
             return null;
 
-        String cacheKey = atlasTag + "|__a" + src.assetId;
-        AnimationBinding cached = bindingCache.get(cacheKey);
-        if (cached != null)
-            return cached;
-
-        Array<TextureAtlas.AtlasRegion> regions =
-                atlasRuntimeService.resolve(src.assetId, atlasTag);
-
-        if (regions == null || regions.size == 0)
-            return null;
-
-        AnimationBinding created = new AnimationBinding();
-        created.frames.addAll(regions);
-
-        bindingCache.put(cacheKey, created);
-        return created;
+        return atlasRuntimeService.resolveBinding(src.assetId, atlasTag);
     }
 
     private void applyFrame(int e, AnimationComponent.Clip clip, TextureAtlas.AtlasRegion region) {
@@ -152,10 +133,6 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         mat.textureHandle = TextureRegistry.handleOf(pageTex);
 
         if (dirty != null) dirty.mark(e, DirtyBits.MATERIAL);
-    }
-
-    public void clearBindingCache() {
-        bindingCache.clear();
     }
 
     @Override
