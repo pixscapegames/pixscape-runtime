@@ -12,7 +12,6 @@ import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
 import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.render.InternalTextures;
 
@@ -39,7 +38,7 @@ public class AtlasRuntimeService {
 
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
-    private final ObjectMap<String, IntMap<CachedRegion>> regionCache = new ObjectMap<>();
+    private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
     private static final boolean DEBUG_BUNDLE_LIFECYCLE = false;
 
     public AtlasRuntimeService() {
@@ -48,20 +47,45 @@ public class AtlasRuntimeService {
     // ---------------- load/unload ----------------
 
     public void load(String tag, FileHandle atlasFile) {
-        if (atlases.containsKey(tag)) unload(tag);
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        Array<Texture> pageTextures = getPageTextures(atlas);
-        for (int i = 0, n = pageTextures.size; i < n; i++) {
-            Texture t = pageTextures.get(i);
-            t.setFilter(TextureFilter.Linear, TextureFilter.Linear);
-        }
-        atlases.put(tag, atlas);
-        bundles.remove(tag);
-        clearRegionCache();
+        load(tag, atlas);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
+    void load(String tag, TextureAtlas atlas) {
+        if (atlas == null) {
+            throw new IllegalArgumentException(
+                    "Atlas '" + tag + "' must not be null.");
+        }
+        AtlasAssetIndex index;
+        try {
+            index = AtlasAssetIndexBuilder.build(tag, atlas);
+            Array<Texture> pageTextures = getPageTextures(atlas);
+            for (int i = 0, n = pageTextures.size; i < n; i++) {
+                Texture texture = pageTextures.get(i);
+                texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
+            }
+        } catch (RuntimeException failure) {
+            atlas.dispose();
+            throw failure;
+        }
+
+        TextureAtlas previousAtlas = atlases.get(tag);
+        TextureArrayBundle previousBundle = bundles.remove(tag);
+        indexesByTag.put(tag, index);
+        atlases.put(tag, atlas);
+
+        if (previousAtlas != null && previousAtlas != atlas) {
+            previousAtlas.dispose();
+        }
+        if (previousBundle != null) {
+            logBundleEvent("dispose", tag, previousBundle.textureArray);
+            previousBundle.textureArray.dispose();
+        }
+    }
+
     public void unload(String tag) {
+        indexesByTag.remove(tag);
         TextureAtlas a = atlases.remove(tag);
         if (a != null) a.dispose();
         TextureArrayBundle b = bundles.remove(tag);
@@ -69,7 +93,6 @@ public class AtlasRuntimeService {
             logBundleEvent("dispose", tag, b.textureArray);
             b.textureArray.dispose();
         }
-        clearRegionCache();
     }
 
     public void unloadAll() {
@@ -83,44 +106,15 @@ public class AtlasRuntimeService {
             b.textureArray.dispose();
         }
         bundles.clear();
-        clearRegionCache();
+        indexesByTag.clear();
         flushDeferredDisposals();
     }
 
     // ---------------- access ----------------
     public CachedRegion resolveCached(int assetId, String tag) {
         if (tag == null || isBlank(tag) || assetId < 0) return null;
-
-        IntMap<CachedRegion> tagCache = regionCache.get(tag);
-        if (tagCache == null) {
-            tagCache = new IntMap<>();
-            regionCache.put(tag, tagCache);
-        }
-
-        CachedRegion cr = tagCache.get(assetId);
-        if (cr != null) return cr;
-
-        Array<AtlasRegion> regions = resolve(assetId, tag);
-        if (regions == null || regions.size == 0)
-            return null;
-
-        AtlasRegion ar = regions.first();
-
-        cr = new CachedRegion(
-                ar.name,
-                ar.getU(), ar.getV(),
-                ar.getU2(), ar.getV2(),
-                TextureRegistry.handleOf(ar.getTexture()),
-                ar.getRegionWidth(),
-                ar.getRegionHeight()
-        );
-
-        tagCache.put(assetId, cr);
-        return cr;
-    }
-
-    public void clearRegionCache() {
-        regionCache.clear();
+        AtlasAssetBinding binding = resolveBinding(assetId, tag);
+        return binding != null ? binding.cachedRegion() : null;
     }
 
     public TextureAtlas getAtlas(String tag) {
@@ -131,21 +125,25 @@ public class AtlasRuntimeService {
         if (assetId < 0) {
             throw new IllegalStateException("Asset id must be >= 0.");
         }
-        if (tag == null || isBlank(tag)) return null;
+        AtlasAssetBinding binding = resolveBinding(assetId, tag);
+        return binding != null ? binding.regions() : null;
+    }
 
-        TextureAtlas atlas = atlases.get(tag);
-        if (atlas == null) return null;
-
-        String suffix = "__a" + assetId;
-        Array<TextureAtlas.AtlasRegion> regions = atlas.getRegions();
-        for (int i = 0, n = regions.size; i < n; i++) {
-            TextureAtlas.AtlasRegion region = regions.get(i);
-            if (region != null && region.name != null && region.name.endsWith(suffix)) {
-                return atlas.findRegions(region.name);
-            }
+    /**
+     * Resolves the complete binding for an asset in O(1) average time.
+     */
+    public AtlasAssetBinding resolveBinding(int assetId, String tag) {
+        if (assetId < 0) {
+            throw new IllegalStateException("Asset id must be >= 0.");
         }
+        if (tag == null || isBlank(tag)) return null;
+        AtlasAssetIndex index = indexesByTag.get(tag);
+        return index != null ? index.get(assetId) : null;
+    }
 
-        return null;
+    int indexBuildRegionVisits(String tag) {
+        AtlasAssetIndex index = indexesByTag.get(tag);
+        return index != null ? index.buildRegionVisits() : -1;
     }
 
     /**
@@ -306,7 +304,6 @@ public class AtlasRuntimeService {
         TextureArrayBundle previous = bundles.get(tag);
         TextureArrayBundle rebuilt = buildTextureArrayFromAtlas(atlas);
         bundles.put(tag, rebuilt);
-        clearRegionCache();
         logBundleEvent(previous == null ? "build" : "rebuild", tag, rebuilt.textureArray);
         return rebuilt;
     }

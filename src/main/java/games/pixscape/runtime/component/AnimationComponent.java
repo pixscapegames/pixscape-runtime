@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 public class AnimationComponent extends PooledComponent {
 
     /**
-     * Animation group name resolved via atlas.findRegions(animation).
+     * Animation group resolved from the atlas asset index.
      * Example: "hero" -> hero_0001, hero_0002, ...
      */
     public String animation = "";

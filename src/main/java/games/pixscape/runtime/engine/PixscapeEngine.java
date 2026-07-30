@@ -1037,7 +1037,6 @@ public final class PixscapeEngine {
         if (atlas == null) {
             throw new IllegalStateException("No atlas loaded for scene: " + sceneTag);
         }
-        atlasRuntimeService.clearRegionCache();
         AtlasRuntimeService.TextureArrayBundle previous = atlasRuntimeService.bundle(sceneTag);
         AtlasRuntimeService.TextureArrayBundle bundle = atlasRuntimeService.rebuildBundle(sceneTag);
 

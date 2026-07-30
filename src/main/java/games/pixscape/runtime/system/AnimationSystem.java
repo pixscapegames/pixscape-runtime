@@ -20,7 +20,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
- * Updates animated sprite UVs using atlas frame groups (atlas.findRegions(animation)).
+ * Updates animated sprite UVs using pre-indexed atlas frame groups.
  * Resolution is cached (binding cache), never looked up in draw loop.
  */
 public final class AnimationSystem extends IteratingSystem implements ProfiledSystem {
@@ -111,16 +111,8 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         if (cached != null)
             return cached;
 
-        AtlasRuntimeService.CachedRegion cachedRegion =
-                atlasRuntimeService.resolveCached(src.assetId, atlasTag);
-
-        if (cachedRegion == null || cachedRegion.regionName == null || cachedRegion.regionName.isEmpty())
-            return null;
-
-        TextureAtlas atlas = atlasRuntimeService.getAtlas(atlasTag);
-        if (atlas == null) return null;
-
-        Array<TextureAtlas.AtlasRegion> regions = atlas.findRegions(cachedRegion.regionName);
+        Array<TextureAtlas.AtlasRegion> regions =
+                atlasRuntimeService.resolve(src.assetId, atlasTag);
 
         if (regions == null || regions.size == 0)
             return null;
