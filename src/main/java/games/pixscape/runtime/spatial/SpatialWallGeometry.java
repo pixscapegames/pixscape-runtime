@@ -1,6 +1,5 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 /** Allocation-free primitive geometry and validation rules for authored rectangular walls. */

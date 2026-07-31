@@ -15,22 +15,36 @@
 * Added an authored-to-compiled physics pipeline with polygon validation, decomposition and derived fixture caches.
 * Added linked physics shapes whose geometry is derived from Spatial Block footprints.
 * Added synchronization between compiled physics footprints and Spatial actor ordering.
+* Added indexed atlas asset bindings grouped by Asset ID, with precomputed region metadata and animation frame groups.
 
 ### Changed
 
 * Box2D bodies are now built from validated compiled fixtures instead of legacy fixture data.
 * Scene loading and prefab spawning now rebuild derived physics state from persistent authored shapes.
 * Runtime prefab spawning now allocates fresh physics shape identities and validates body and joint graphs before publication.
+* Runtime asset, sprite, animation, prefab and tiled rendering consumers now resolve atlas assets through the shared indexed binding model.
+* `AssetRegionRef#region()` now returns a defensive texture-region snapshot that can be modified without altering the indexed atlas binding.
+
+### Improved
+
+* Asset lookup by Asset ID now uses the atlas binding index instead of repeatedly scanning and regrouping atlas regions.
+* Reduced repeated atlas resolution work during sprite and animation spawning, entity rebinds, prefab instantiation and tiled rendering.
+* Animation systems now reuse indexed frame groups and precomputed region metadata.
+* Atlas loading now builds and validates the asset index once for each published atlas, while unload operations clear the corresponding bindings.
+* Centralized texture handle, UV and pixel-size resolution around shared atlas metadata.
 
 ### Fixed
 
 * Fixed stale or duplicated physics shape identities across scene loading and prefab instantiation.
 * Prevented invalid body, fixture, polygon or joint data from being partially published.
 * Fixed Spatial actor footprints becoming stale after physics or pixels-per-meter changes.
+* Prevented callers from mutating the texture-region object owned by an indexed atlas binding through `AssetRegionRef`.
 
 ### Tests
 
 * Expanded regression coverage for physics persistence, compilation, prefabs, joints, Spatial integration and stable-frame behavior.
+* Added regression coverage for atlas index construction, asset grouping, indexed API resolution, animations, prefabs and tiled rendering.
+* Revalidated the indexed asset pipeline on Desktop and through forced GWT compilation.
 
 
 ## [0.1.8]

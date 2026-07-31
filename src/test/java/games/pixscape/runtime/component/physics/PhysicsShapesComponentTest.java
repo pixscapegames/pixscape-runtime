@@ -1,11 +1,12 @@
 package games.pixscape.runtime.component.physics;
 
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import org.junit.Assert;
-import org.junit.Test;
 
 public class PhysicsShapesComponentTest {
     @Test

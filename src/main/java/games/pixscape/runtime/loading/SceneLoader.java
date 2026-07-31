@@ -1,10 +1,6 @@
 package games.pixscape.runtime.loading;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.World;
-import com.artemis.WorldConfiguration;
+import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
@@ -21,8 +17,8 @@ import games.pixscape.runtime.physics.PhysicsShapeIdentityValidator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.PhysicsService;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

@@ -9,21 +9,15 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.spatial.SpatialActorCollector;
-import games.pixscape.runtime.spatial.SpatialFaceAnchorResolver;
-import games.pixscape.runtime.spatial.SpatialFaceRelationSolver;
-import games.pixscape.runtime.spatial.SpatialFrameSnapshotBuilder;
-import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
-import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
-import games.pixscape.runtime.spatial.SpatialOrderingKernel;
+import games.pixscape.runtime.spatial.*;
 
 import java.util.Arrays;
 

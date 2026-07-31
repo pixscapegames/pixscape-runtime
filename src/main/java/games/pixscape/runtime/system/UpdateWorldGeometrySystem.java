@@ -2,17 +2,16 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.GeometryDirty;
 
 /**
