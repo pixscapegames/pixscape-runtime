@@ -170,12 +170,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 if (comp.autoStart) fx.start();
             }
 
-            // follow Transform (localSpace)
-            if (comp.localSpace) {
-                float px = t.x + t.originX;
-                float py = t.y + t.originY;
-                fx.setPosition(px, py);
-            }
+            positionEffect(fx, t);
 
             if (comp.restartRequested) {
                 applyLooping(fx, comp.looping);
@@ -221,6 +216,10 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     // ------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------
+
+    static void positionEffect(ParticleEffect fx, TransformComponent transform) {
+        fx.setPosition(transform.x, transform.y);
+    }
 
     private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;

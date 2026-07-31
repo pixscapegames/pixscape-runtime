@@ -1185,13 +1185,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public ParticleFacade setLocalSpace(boolean localSpace) {
-            ParticleEmitterComponent c = emitter(true);
-            if (c != null) c.localSpace = localSpace;
-            return this;
-        }
-
-        @Override
         public ParticleFacade setLooping(boolean looping) {
             ParticleEmitterComponent c = emitter(true);
             if (c != null) c.looping = looping;
@@ -1265,6 +1258,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private ParticleEmitterComponent emitter(boolean create) {
             World world = engine.getWorld();
             if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            if (create) {
+                ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
+                if (!transforms.has(entityId)) transforms.create(entityId);
+            }
             ComponentMapper<ParticleEmitterComponent> mapper = world.getMapper(ParticleEmitterComponent.class);
             return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
         }

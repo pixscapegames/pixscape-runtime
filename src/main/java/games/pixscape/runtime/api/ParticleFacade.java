@@ -8,8 +8,6 @@ public interface ParticleFacade {
 
     ParticleFacade setEffect(String effectPath, String atlasTag);
 
-    ParticleFacade setLocalSpace(boolean localSpace);
-
     ParticleFacade setLooping(boolean looping);
 
     ParticleFacade setAutoStart(boolean autoStart);

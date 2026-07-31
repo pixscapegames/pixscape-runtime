@@ -772,6 +772,9 @@ public class PixscapeApiV1Test {
 
         Assert.assertTrue(world.getMapper(TransformComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(ParticleEmitterComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(AABBComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(OrientedBoundsComponent.class).has(ref.entityId()));
         ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).get(ref.entityId());
         Assert.assertEquals("impact.p", emitter.effectPath);
         Assert.assertTrue(emitter.looping);
@@ -788,11 +791,31 @@ public class PixscapeApiV1Test {
         PixscapeEngine engine = setupEngineWithWorld();
         ParticleRef ref = engine.api().particles().oneshot("impact.p", 1f, 2f);
         ParticleEmitterComponent emitter = engine.getWorld().getMapper(ParticleEmitterComponent.class).get(ref.entityId());
+        World world = engine.getWorld();
 
         Assert.assertEquals("impact.p", emitter.effectPath);
         Assert.assertFalse(emitter.looping);
         Assert.assertTrue(emitter.autoRemoveWhenComplete);
         Assert.assertTrue(emitter.restartRequested);
+        Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(AABBComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(OrientedBoundsComponent.class).has(ref.entityId()));
+    }
+
+    @Test
+    public void particleFacadeCreationAlsoRequiresTransformWithoutProxies() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        world.process();
+
+        engine.api().entities().ofEntityId(entity).particles().setEffect("fire.p", "main");
+
+        Assert.assertTrue(world.getMapper(ParticleEmitterComponent.class).has(entity));
+        Assert.assertTrue(world.getMapper(TransformComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(AABBComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(OrientedBoundsComponent.class).has(entity));
     }
 
     @Test
