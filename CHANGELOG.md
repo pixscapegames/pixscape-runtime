@@ -8,6 +8,8 @@
 * Replaced the legacy fixture authoring schema with persistent `PhysicsShapeData` and `PhysicsGeometryData`.
 * Physics scenes and prefab data using the previous schema must be recreated or re-exported.
 * Moved spatial domain classes to `games.pixscape.runtime.spatial` and Artemis spatial components to `games.pixscape.runtime.component.spatial`.
+* Removed `ParticleEmitterComponent.localSpace` and `ParticleFacade#setLocalSpace(boolean)`.
+* Particle effects now always follow their owning entity at `TransformComponent.x/y`; transform origin is no longer applied to emitter positioning.
 
 ### Added
 
@@ -24,6 +26,7 @@
 * Runtime prefab spawning now allocates fresh physics shape identities and validates body and joint graphs before publication.
 * Runtime asset, sprite, animation, prefab and tiled rendering consumers now resolve atlas assets through the shared indexed binding model.
 * `AssetRegionRef#region()` now returns a defensive texture-region snapshot that can be modified without altering the indexed atlas binding.
+* Particle creation through the Runtime API now guarantees both `TransformComponent` and `ParticleEmitterComponent` without adding rectangular render or interaction proxy components.
 
 ### Improved
 
@@ -45,6 +48,7 @@
 * Expanded regression coverage for physics persistence, compilation, prefabs, joints, Spatial integration and stable-frame behavior.
 * Added regression coverage for atlas index construction, asset grouping, indexed API resolution, animations, prefabs and tiled rendering.
 * Revalidated the indexed asset pipeline on Desktop and through forced GWT compilation.
+* Added regression coverage for particle transform positioning, proxy-free particle creation and the removal of the legacy local-space API.
 
 
 ## [0.1.8]
