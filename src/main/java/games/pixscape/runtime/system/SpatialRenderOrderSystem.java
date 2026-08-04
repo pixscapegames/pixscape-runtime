@@ -291,6 +291,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         return orderingKernel.unresolvedConstraintCount();
     }
 
+    /** Number of candidate actor plans rejected in the latest ordering pass. */
+    public int actorOrderingFallbackCount() {
+        return orderingKernel.actorOrderingFallbackCount();
+    }
+
     public void setSystemProfiler(SystemProfiler profiler) {
         this.profiler = SystemProfilers.orDisabled(profiler);
     }

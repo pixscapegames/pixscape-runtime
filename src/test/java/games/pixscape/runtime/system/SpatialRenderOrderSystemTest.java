@@ -213,7 +213,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void spatialActorsDoNotSortAcrossTileAnchorWithoutBlockRelation() {
+    public void unconstrainedSpatialActorsSortAcrossOrdinaryTileAnchor() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
         TiledMapLayerData map = fixture.createBlockMap(3, 1, 16, 16, 300);
@@ -228,7 +228,7 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{tileA, higher, tileB, lower, tileC}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{tileA, lower, higher, tileB, tileC}, fixture.drawOrder());
         assertSameTiledSubsequence(new int[]{tileA, higher, tileB, lower, tileC}, fixture.drawOrder(), tileA, tileB, tileC);
     }
 
