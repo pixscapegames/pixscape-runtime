@@ -38,7 +38,7 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
-    public void residualDistinctAnchorContradictionsCountAllActorsThenThrowWithoutPublishingBuckets() {
+    public void residualDistinctAnchorContradictionsUseOriginalBucketsWithoutThrowing() {
         SpatialActorCollector actors = actors(2);
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
         faces.anchorBeforeBucket[0] = 1; faces.anchorAfterBucket[0] = 2;
@@ -52,18 +52,50 @@ public class SpatialOrderingKernelTest {
         SpatialBucketPlanner planner = new SpatialBucketPlanner();
         planner.begin(actors, new int[]{2, 3}, 6);
         planner.addRelations(actors, faces, relations);
-        try {
-            planner.finish(actors);
-            Assert.fail("Expected exact-anchor invariant failure");
-        } catch (SpatialConstraintInvariantException expected) {
-            Assert.assertEquals(2, expected.unresolvedConstraintCount());
-            Assert.assertTrue(expected.getMessage().contains("anchor=(1,0)"));
-            Assert.assertTrue(expected.getMessage().contains("anchor=(0,0)"));
-            Assert.assertTrue(expected.getMessage().contains("face=1"));
-            Assert.assertTrue(expected.getMessage().contains("face=0"));
-        }
+        planner.finish(actors);
+
         Assert.assertEquals(2, planner.unresolvedConstraintCount());
         Assert.assertArrayEquals(new int[]{2, 3}, new int[]{planner.actorBucket[0], planner.actorBucket[1]});
+    }
+
+    @Test
+    public void contradictoryActorFallsBackIndividuallyWithoutDisturbingValidActorsOrNonActors() {
+        SpatialActorCollector actors = actors(3);
+        actors.actorCircleY[0] = 20f;
+        actors.actorCircleY[1] = 40f;
+        actors.actorCircleY[2] = 30f;
+        DrawList drawList = new DrawList(8);
+        drawList.addTiledSlot(100);
+        drawList.addEcsSlot(0);
+        drawList.addTiledSlot(101);
+        drawList.addEcsSlot(1);
+        drawList.addEcsSlot(2);
+        drawList.addVfxSlot(200);
+        SpatialFrameSnapshotBuilder snapshot = new SpatialFrameSnapshotBuilder();
+        snapshot.build(drawList, 3, actors);
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        SpatialBucketDrawListComposer composer = new SpatialBucketDrawListComposer();
+        int[] firstSlots = null;
+
+        for (int pass = 0; pass < 2; pass++) {
+            planner.begin(actors, snapshot.actorOriginalBucket, snapshot.bucketCount);
+            setIntervals(planner, new int[]{3, 2, 0}, new int[]{0, 3, 2});
+            planner.finish(actors);
+            composer.compose(drawList, actors, planner, snapshot);
+
+            Assert.assertEquals(1, planner.unresolvedConstraintCount());
+            Assert.assertEquals(0, planner.actorOrderingFallbackCount());
+            Assert.assertEquals(1, planner.actorBucket[0]);
+            Assert.assertTrue(planner.actorBucket[1] >= 2 && planner.actorBucket[1] <= 3);
+            Assert.assertTrue(planner.actorBucket[2] >= 0 && planner.actorBucket[2] <= 2);
+            Assert.assertEquals(1, occurrences(composer.composedSlots, composer.composedSize, 0));
+            Assert.assertEquals(1, occurrences(composer.composedSlots, composer.composedSize, 1));
+            Assert.assertEquals(1, occurrences(composer.composedSlots, composer.composedSize, 2));
+            Assert.assertArrayEquals(new int[]{100, 101, 200},
+                    nonActorSlots(composer.composedSlots, composer.composedDomains, composer.composedSize));
+            if (firstSlots == null) firstSlots = first(composer.composedSlots, composer.composedSize);
+            else Assert.assertArrayEquals(firstSlots, first(composer.composedSlots, composer.composedSize));
+        }
     }
 
     @Test
@@ -106,8 +138,6 @@ public class SpatialOrderingKernelTest {
                 new int[]{planner.actorUpperBound[0], planner.actorUpperBound[1]});
         Assert.assertArrayEquals(new int[]{1, 1},
                 new int[]{planner.actorBucket[0], planner.actorBucket[1]});
-        Assert.assertArrayEquals(new int[]{0, 1},
-                new int[]{planner.actorComparatorPosition[0], planner.actorComparatorPosition[1]});
         Assert.assertArrayEquals(new int[]{1, 2},
                 new int[]{planner.finalActorDrawIndex[0], planner.finalActorDrawIndex[1]});
         Assert.assertArrayEquals(new int[]{100, 0, 1, 101, 200}, first(composer.composedSlots, 5));
@@ -204,6 +234,22 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
+    public void crossLayerIntervalsContradictingLayerOrderUseStructuralBaselineWithoutThrowing() {
+        SpatialActorCollector actors = actors(2);
+        actors.actorLayerIndex[0] = 1;
+        actors.actorLayerIndex[1] = 2;
+        actors.actorCircleY[0] = 10f;
+        actors.actorCircleY[1] = 30f;
+        SpatialBucketPlanner planner = plannerWithIntervals(actors,
+                new int[]{0, 1}, new int[]{2, 0}, new int[]{3, 1}, 4);
+
+        Assert.assertArrayEquals(new int[]{0, 1},
+                new int[]{planner.actorBucket[0], planner.actorBucket[1]});
+        Assert.assertEquals(0, planner.unresolvedConstraintCount());
+        Assert.assertEquals(1, planner.actorOrderingFallbackCount());
+    }
+
+    @Test
     public void disjointMandatoryIntervalsOverrideReversedActorComparatorWithoutThrowing() {
         SpatialActorCollector actors = actors(2);
         actors.actorCircleY[0] = 10f;
@@ -278,16 +324,14 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
-    public void invalidCandidatePublishesWholeTileValidBaselineAndRecordsFallback() {
+    public void incompleteCandidatePublishesWholeStructuralBaselineAndRecordsFallback() {
         SpatialActorCollector actors = actors(2);
         SpatialBucketPlanner planner = plannerWithIntervals(actors,
                 new int[]{1, 2}, new int[]{0, 1}, new int[]{2, 3}, 4);
         planner.actorBucket[0] = 99;
         planner.actorBucket[1] = 99;
-        planner.candidateActorBucket[0] = 2;
-        planner.candidateActorBucket[1] = 0;
 
-        Assert.assertFalse(planner.validateAndPublishActorBuckets(2));
+        Assert.assertFalse(planner.validateAndPublishActorBuckets(1));
 
         Assert.assertArrayEquals(new int[]{1, 2},
                 new int[]{planner.actorBucket[0], planner.actorBucket[1]});
@@ -317,6 +361,66 @@ public class SpatialOrderingKernelTest {
 
         Assert.assertArrayEquals(new int[]{1, 2, 3},
                 new int[]{planner.actorBucket[0], planner.actorBucket[1], planner.actorBucket[2]});
+    }
+
+    @Test
+    public void exhaustiveSmallValidIntervalsPreserveBoundsPrecedenceComparatorAndDeterminism() {
+        final int bucketCount = 4;
+        int[] intervalLower = new int[10];
+        int[] intervalUpper = new int[10];
+        int intervalCount = 0;
+        for (int lower = 0; lower < bucketCount; lower++) {
+            for (int upper = lower; upper < bucketCount; upper++) {
+                intervalLower[intervalCount] = lower;
+                intervalUpper[intervalCount++] = upper;
+            }
+        }
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        for (int actorCount = 1; actorCount <= 4; actorCount++) {
+            SpatialActorCollector actors = actors(actorCount);
+            int[] originals = new int[actorCount];
+            int[] lowerBounds = new int[actorCount];
+            int[] upperBounds = new int[actorCount];
+            int[] expectedOrder = new int[actorCount];
+            int[] firstBuckets = new int[actorCount];
+            int[] firstOrder = new int[actorCount];
+            int combinations = 1;
+            for (int actor = 0; actor < actorCount; actor++) combinations *= intervalCount;
+            for (int encoded = 0; encoded < combinations; encoded++) {
+                int remaining = encoded;
+                for (int actor = 0; actor < actorCount; actor++) {
+                    int interval = remaining % intervalCount;
+                    remaining /= intervalCount;
+                    lowerBounds[actor] = intervalLower[interval];
+                    upperBounds[actor] = intervalUpper[interval];
+                }
+                for (int variant = 0; variant < 4; variant++) {
+                    for (int actor = 0; actor < actorCount; actor++) {
+                        originals[actor] = (variant & 1) == 0
+                                ? actor % bucketCount : bucketCount - 1 - actor % bucketCount;
+                        actors.actorCircleY[actor] = (variant & 2) == 0
+                                ? actor + 1f : actorCount - actor;
+                    }
+                    expectedActorOrder(actors, lowerBounds, upperBounds, expectedOrder);
+                    for (int pass = 0; pass < 2; pass++) {
+                        planner.begin(actors, originals, bucketCount);
+                        setIntervals(planner, lowerBounds, upperBounds);
+                        planner.finish(actors);
+
+                        Assert.assertEquals(0, planner.unresolvedConstraintCount());
+                        Assert.assertEquals(0, planner.actorOrderingFallbackCount());
+                        assertPlannerOrder(planner, expectedOrder, lowerBounds, upperBounds,
+                                pass == 0 ? firstBuckets : null, pass == 0 ? firstOrder : null);
+                        if (pass != 0) {
+                            for (int actor = 0; actor < actorCount; actor++) {
+                                Assert.assertEquals(firstBuckets[actor], planner.actorBucket[actor]);
+                            }
+                            Assert.assertArrayEquals(firstOrder, finalActorOrder(planner));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static void assertSameAnchorOpposition(byte[] types) {
@@ -399,11 +503,103 @@ public class SpatialOrderingKernelTest {
         return result;
     }
 
+    private static int occurrences(int[] values, int count, int value) {
+        int occurrences = 0;
+        for (int index = 0; index < count; index++) if (values[index] == value) occurrences++;
+        return occurrences;
+    }
+
+    private static int[] nonActorSlots(int[] slots, byte[] domains, int count) {
+        int nonActorCount = 0;
+        for (int index = 0; index < count; index++) {
+            if (domains[index] != RenderSourceDomain.SOURCE_ECS) nonActorCount++;
+        }
+        int[] result = new int[nonActorCount];
+        int write = 0;
+        for (int index = 0; index < count; index++) {
+            if (domains[index] != RenderSourceDomain.SOURCE_ECS) result[write++] = slots[index];
+        }
+        return result;
+    }
+
+    private static void expectedActorOrder(SpatialActorCollector actors,
+                                           int[] lowerBounds,
+                                           int[] upperBounds,
+                                           int[] result) {
+        boolean[] remaining = new boolean[result.length];
+        for (int actor = 0; actor < result.length; actor++) remaining[actor] = true;
+        for (int position = 0; position < result.length; position++) {
+            int selected = -1;
+            for (int candidate = 0; candidate < result.length; candidate++) {
+                if (!remaining[candidate] || hasIntervalPredecessor(
+                        candidate, remaining, lowerBounds, upperBounds)) continue;
+                if (selected < 0 || SpatialActorBucketSorter.compareActors(
+                        actors, candidate, selected) < 0) selected = candidate;
+            }
+            Assert.assertTrue(selected >= 0);
+            result[position] = selected;
+            remaining[selected] = false;
+        }
+    }
+
+    private static boolean hasIntervalPredecessor(int actor,
+                                                  boolean[] remaining,
+                                                  int[] lowerBounds,
+                                                  int[] upperBounds) {
+        for (int other = 0; other < remaining.length; other++) {
+            if (remaining[other] && upperBounds[other] < lowerBounds[actor]) return true;
+        }
+        return false;
+    }
+
+    private static void assertPlannerOrder(SpatialBucketPlanner planner,
+                                           int[] expectedOrder,
+                                           int[] lowerBounds,
+                                           int[] upperBounds,
+                                           int[] bucketCopy,
+                                           int[] orderCopy) {
+        boolean[] seen = new boolean[expectedOrder.length];
+        int[] actualOrder = finalActorOrder(planner);
+        Assert.assertArrayEquals(expectedOrder, actualOrder);
+        int previousBucket = 0;
+        for (int position = 0; position < actualOrder.length; position++) {
+            int actor = actualOrder[position];
+            Assert.assertFalse(seen[actor]);
+            seen[actor] = true;
+            int bucket = planner.actorBucket[actor];
+            Assert.assertTrue(bucket >= lowerBounds[actor]);
+            Assert.assertTrue(bucket <= upperBounds[actor]);
+            if (position > 0) Assert.assertTrue(previousBucket <= bucket);
+            previousBucket = bucket;
+        }
+        if (bucketCopy != null) {
+            for (int actor = 0; actor < expectedOrder.length; actor++) {
+                bucketCopy[actor] = planner.actorBucket[actor];
+            }
+        }
+        if (orderCopy != null) System.arraycopy(actualOrder, 0, orderCopy, 0, actualOrder.length);
+    }
+
+    private static int[] finalActorOrder(SpatialBucketPlanner planner) {
+        int[] result = new int[planner.actorCount];
+        int write = 0;
+        for (int bucket = 0; bucket < planner.bucketCount; bucket++) {
+            int start = planner.bucketActorStart(bucket);
+            int count = planner.bucketActorCount(bucket);
+            for (int index = 0; index < count; index++) {
+                result[write++] = planner.sortedActorIndex[start + index];
+            }
+        }
+        Assert.assertEquals(planner.actorCount, write);
+        return result;
+    }
+
     private static SpatialActorCollector actors(int count) {
         SpatialActorCollector actors = new SpatialActorCollector();
         actors.actorCount = count;
         actors.actorSlot = new int[count]; actors.actorEntityId = new int[count];
-        actors.actorStableOrder = new int[count]; actors.actorCircleX = new float[count];
+        actors.actorStableOrder = new int[count]; actors.actorLayerIndex = new int[count];
+        actors.actorCircleX = new float[count];
         actors.actorCircleY = new float[count]; actors.actorDrawIndex = new int[count];
         for (int i = 0; i < count; i++) { actors.actorSlot[i] = i; actors.actorEntityId[i] = 100 + i; actors.actorStableOrder[i] = i; actors.actorDrawIndex[i] = i; }
         return actors;

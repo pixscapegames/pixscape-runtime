@@ -9,45 +9,39 @@ public final class SpatialActorBucketSorter {
                      int[] bucketCounts,
                      int bucketCount) {
         if (actors == null || actorOrder == null || bucketStarts == null || bucketCounts == null) return;
+        ensureMergeCapacity(actorOrder.length);
         for (int bucket = 0; bucket < bucketCount; bucket++) {
-            insertionSortBucket(actors, actorOrder, bucketStarts[bucket], bucketCounts[bucket]);
+            mergeSortBucket(actors, actorOrder, bucketStarts[bucket], bucketCounts[bucket]);
         }
     }
 
-    void sortAll(SpatialActorCollector actors, int[] actorOrder, int actorCount) {
-        if (actors == null || actorOrder == null) return;
-        ensureMergeCapacity(actorCount);
+    private void mergeSortBucket(SpatialActorCollector actors,
+                                 int[] actorOrder,
+                                 int start,
+                                 int count) {
+        int end = start + count;
         int[] source = actorOrder;
         int[] target = mergeScratch;
-        for (int width = 1; width < actorCount; width <<= 1) {
-            for (int start = 0; start < actorCount; start += width << 1) {
-                int middle = Math.min(start + width, actorCount);
-                int end = Math.min(start + (width << 1), actorCount);
-                merge(actors, source, target, start, middle, end);
+        for (int width = 1; width < count; width <<= 1) {
+            for (int run = start; run < end; run += width << 1) {
+                int middle = Math.min(run + width, end);
+                int runEnd = Math.min(run + (width << 1), end);
+                int left = run;
+                int right = middle;
+                for (int write = run; write < runEnd; write++) {
+                    if (left < middle && (right >= runEnd
+                            || compareActors(actors, source[left], source[right]) <= 0)) {
+                        target[write] = source[left++];
+                    } else {
+                        target[write] = source[right++];
+                    }
+                }
             }
             int[] swap = source;
             source = target;
             target = swap;
         }
-        if (source != actorOrder) System.arraycopy(source, 0, actorOrder, 0, actorCount);
-    }
-
-    private static void merge(SpatialActorCollector actors,
-                              int[] source,
-                              int[] target,
-                              int start,
-                              int middle,
-                              int end) {
-        int left = start;
-        int right = middle;
-        for (int write = start; write < end; write++) {
-            if (left < middle && (right >= end
-                    || compareActors(actors, source[left], source[right]) <= 0)) {
-                target[write] = source[left++];
-            } else {
-                target[write] = source[right++];
-            }
-        }
+        if (source != actorOrder) System.arraycopy(source, start, actorOrder, start, count);
     }
 
     private void ensureMergeCapacity(int required) {
@@ -57,22 +51,10 @@ public final class SpatialActorBucketSorter {
         mergeScratch = new int[next];
     }
 
-    private static void insertionSortBucket(SpatialActorCollector actors,
-                                            int[] actorOrder,
-                                            int start,
-                                            int count) {
-        for (int i = 1; i < count; i++) {
-            int actor = actorOrder[start + i];
-            int j = start + i - 1;
-            while (j >= start && compareActors(actors, actor, actorOrder[j]) < 0) {
-                actorOrder[j + 1] = actorOrder[j];
-                j--;
-            }
-            actorOrder[j + 1] = actor;
-        }
-    }
-
     static int compareActors(SpatialActorCollector actors, int left, int right) {
+        int leftLayer = actorLayer(actors, left);
+        int rightLayer = actorLayer(actors, right);
+        if (leftLayer != rightLayer) return leftLayer < rightLayer ? -1 : 1;
         int depthCompare = compareDepthY(actors.actorCircleY[left], actors.actorCircleY[right]);
         if (depthCompare != 0) return depthCompare;
         if (actors.actorDrawIndex[left] != actors.actorDrawIndex[right]) {
@@ -86,6 +68,11 @@ public final class SpatialActorBucketSorter {
         }
         if (left != right) return left < right ? -1 : 1;
         return 0;
+    }
+
+    static int actorLayer(SpatialActorCollector actors, int actor) {
+        return actor >= 0 && actor < actors.actorLayerIndex.length
+                ? actors.actorLayerIndex[actor] : 0;
     }
 
     private static int compareDepthY(float left, float right) {

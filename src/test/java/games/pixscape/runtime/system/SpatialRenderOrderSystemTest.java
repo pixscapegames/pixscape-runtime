@@ -93,6 +93,19 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
+    public void differentLayersWithReversedCircleOrderRemainLayerOrdered() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(1, true);
+        fixture.createLayer(2, true);
+        int lowerLayer = fixture.createActor(10f, 20f, 0, 1, true);
+        int higherLayer = fixture.createActor(10f, 40f, 0, 2, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{lowerLayer, higherLayer}, fixture.drawOrder());
+    }
+
+    @Test
     public void nonSpatialLayerKeepsLegacyOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, false);
