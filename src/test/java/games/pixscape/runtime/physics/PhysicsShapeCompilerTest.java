@@ -44,6 +44,21 @@ public class PhysicsShapeCompilerTest {
     }
 
     @Test
+    public void compilesExplicitSpatialFootprintWithSourceProvenance() {
+        PhysicsShapeData shape = base(PhysicsGeometryData.SHAPE_CIRCLE);
+        shape.geometry.radius = 1.25f;
+        shape.spatialFootprint = true;
+
+        CompiledFixtureData fixture = compiler.compile(resolve(shape))[0];
+        CompiledFixtureData copy = fixture.copy();
+
+        Assert.assertTrue(fixture.spatialFootprint);
+        Assert.assertEquals(shape.physicsShapeId, fixture.physicsShapeId);
+        Assert.assertTrue(copy.spatialFootprint);
+        Assert.assertEquals(fixture.physicsShapeId, copy.physicsShapeId);
+    }
+
+    @Test
     public void compilesEverySupportedConvexPolygonCardinality() {
         for (int count = 3; count <= PolygonDecomposer.BOX2D_MAX_POLYGON_VERTICES; count++) {
             PhysicsShapeData shape = polygon(regularPolygon(count, 2f), count);

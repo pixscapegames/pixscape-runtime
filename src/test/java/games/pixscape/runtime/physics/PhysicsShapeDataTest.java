@@ -25,12 +25,16 @@ public class PhysicsShapeDataTest {
     }
 
     @Test
-    public void copyIsDeepAndPreservesSpatialBlockId() {
+    public void copyIsDeepAndPreservesSpatialFootprintOwnership() {
         PhysicsShapeData source = polygon();
+        source.spatialFootprint = true;
+        source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        source.geometry.radius = 1f;
         PhysicsShapeData copy = source.copy();
 
         Assert.assertTrue(source.contentEquals(copy));
         Assert.assertEquals(0, copy.spatialBlockId);
+        Assert.assertTrue(copy.spatialFootprint);
         copy.geometry.polygonVertices[0] = 99f;
         copy.density = 4f;
 
@@ -88,6 +92,38 @@ public class PhysicsShapeDataTest {
     }
 
     @Test
+    public void spatialFootprintRequiresEnabledManualNonSensorCircle() {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = 1;
+        shape.geometry = new PhysicsGeometryData();
+        shape.spatialFootprint = true;
+
+        expectInvalid(shape, "circle geometry");
+
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        shape.geometry.polygonVertexCount = 3;
+        shape.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f, 0f, 1f};
+        expectInvalid(shape, "circle geometry");
+
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.sensor = true;
+        expectInvalid(shape, "must not be a sensor");
+
+        shape.sensor = false;
+        shape.enabled = false;
+        expectInvalid(shape, "must be enabled");
+
+        shape.enabled = true;
+        shape.geometry.radius = 0f;
+        expectInvalid(shape, "radius");
+
+        shape.geometry.radius = 1f;
+        shape.spatialBlockId = 4;
+        shape.geometry = null;
+        expectInvalid(shape, "manual shape");
+    }
+
+    @Test
     public void sourceAndCompiledDataRoundTripThroughLibgdxJson() {
         PhysicsShapeData source = polygon();
         source.geometry.offsetX = 3f;
@@ -105,7 +141,26 @@ public class PhysicsShapeDataTest {
         Assert.assertArrayEquals(
                 compiled.polygonVertices, restoredCompiled.polygonVertices, 0f);
         Assert.assertEquals(compiled.physicsShapeId, restoredCompiled.physicsShapeId);
+        Assert.assertEquals(compiled.spatialFootprint, restoredCompiled.spatialFootprint);
         Assert.assertEquals(compiled.partIndex, restoredCompiled.partIndex);
+    }
+
+    @Test
+    public void explicitSpatialFootprintRoundTripsAndOldJsonDefaultsToFalse() {
+        PhysicsShapeData explicit = new PhysicsShapeData();
+        explicit.physicsShapeId = 9;
+        explicit.geometry = new PhysicsGeometryData();
+        explicit.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        explicit.spatialFootprint = true;
+        Json json = new Json();
+
+        PhysicsShapeData restoredExplicit = json.fromJson(
+                PhysicsShapeData.class, json.toJson(explicit));
+        PhysicsShapeData restoredLegacy = json.fromJson(PhysicsShapeData.class,
+                "{physicsShapeId:9,spatialBlockId:0,geometry:{shapeType:1,radius:1}}");
+
+        Assert.assertTrue(restoredExplicit.spatialFootprint);
+        Assert.assertFalse(restoredLegacy.spatialFootprint);
     }
 
     private static PhysicsShapeData polygon() {

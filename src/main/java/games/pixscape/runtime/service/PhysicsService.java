@@ -1188,6 +1188,7 @@ public final class PhysicsService {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
         shape.physicsShapeId = physicsShapeId;
         shape.spatialBlockId = 0;
+        shape.spatialFootprint = false;
         shape.geometry = new PhysicsGeometryData();
 
         shape.density = 1f;
@@ -1206,6 +1207,7 @@ public final class PhysicsService {
         if (sources == null) {
             throw new IllegalArgumentException("Physics shape sources cannot be null.");
         }
+        PhysicsSpatialFootprintValidator.validateCollection(sources);
         Array<PhysicsShapeData> detached =
                 new Array<>(true, sources.size, PhysicsShapeData.class);
         Array<ResolvedPhysicsShape> resolved =
@@ -1231,6 +1233,7 @@ public final class PhysicsService {
         if (!containsLinkedShape(sources)) {
             return prepareBodyCandidate(sources);
         }
+        PhysicsSpatialFootprintValidator.validateCollection(sources);
         if (world == null) {
             throw new IllegalArgumentException(
                     "World is required for linked physics shape ownerEntityId="

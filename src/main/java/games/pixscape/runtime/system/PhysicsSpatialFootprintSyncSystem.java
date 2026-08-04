@@ -65,7 +65,10 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
             if (compiled == null || !compiled.valid) {
                 if (footprint != null
                         && (footprint.valid
-                        || footprint.physicsGeneration != compiledGeneration(compiled))) {
+                        || footprint.physicsGeneration != compiledGeneration(compiled)
+                        || footprint.sourcePhysicsShapeId != 0
+                        || footprint.explicitOwnership
+                        || footprint.invalidExplicitOwnership)) {
                     projector.invalidate(footprint, compiledGeneration(compiled));
                 }
                 continue;
@@ -96,7 +99,11 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
             int entityId = data[i];
             if (mCompiled.has(entityId)) continue;
             SpatialPhysicsFootprintComponent footprint = mFootprint.get(entityId);
-            if (footprint != null && footprint.valid) {
+            if (footprint != null
+                    && (footprint.valid
+                    || footprint.sourcePhysicsShapeId != 0
+                    || footprint.explicitOwnership
+                    || footprint.invalidExplicitOwnership)) {
                 projector.invalidate(footprint, footprint.physicsGeneration + 1);
             }
         }

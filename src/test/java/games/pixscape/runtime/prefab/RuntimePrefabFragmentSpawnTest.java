@@ -159,6 +159,37 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
+    public void prefabSpawnPreservesExplicitSpatialFootprintOwnership() {
+        World world = runtimeWorld();
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+                new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
+        PrefabFixture fixture = buildPrefabFixture(world);
+        PhysicsShapeData source = world.getMapper(PhysicsShapesComponent.class)
+                .get(fixture.sourceBodyAId).shapes.first();
+        source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        source.geometry.radius = 1f;
+        source.spatialFootprint = true;
+
+        SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
+
+        boolean found = false;
+        for (int i = 0; i < result.createdEntityIds().size(); i++) {
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class)
+                    .getSafe(result.createdEntityIds().get(i), null);
+            if (shapes == null) continue;
+            for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
+                PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
+                if (shape.spatialFootprint) {
+                    found = true;
+                    Assert.assertEquals(PhysicsGeometryData.SHAPE_CIRCLE,
+                            shape.geometry.shapeType);
+                }
+            }
+        }
+        Assert.assertTrue(found);
+    }
+
+    @Test
     public void nonPhysicsFragmentIsAcceptedInDisabledScene() {
         World world = runtimeWorld();
         int source = world.create();

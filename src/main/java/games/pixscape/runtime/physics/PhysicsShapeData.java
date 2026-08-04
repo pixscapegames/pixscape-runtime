@@ -6,6 +6,8 @@ package games.pixscape.runtime.physics;
 public final class PhysicsShapeData {
     public int physicsShapeId = 0;
     public int spatialBlockId = 0;
+    /** Explicit owner of this entity's Spatial rendering footprint. */
+    public boolean spatialFootprint = false;
     public PhysicsGeometryData geometry;
 
     public float density = 1f;
@@ -23,6 +25,7 @@ public final class PhysicsShapeData {
         PhysicsShapeData copy = new PhysicsShapeData();
         copy.physicsShapeId = physicsShapeId;
         copy.spatialBlockId = spatialBlockId;
+        copy.spatialFootprint = spatialFootprint;
         copy.geometry = geometry != null ? geometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
@@ -51,6 +54,9 @@ public final class PhysicsShapeData {
         } else if (geometry != null) {
             throw invalid("linked shape geometry must be null.");
         }
+        if (spatialFootprint) {
+            validateSpatialFootprint();
+        }
         validateFinite(density, "density");
         validateFinite(friction, "friction");
         validateFinite(restitution, "restitution");
@@ -69,6 +75,7 @@ public final class PhysicsShapeData {
         return other != null
                 && physicsShapeId == other.physicsShapeId
                 && spatialBlockId == other.spatialBlockId
+                && spatialFootprint == other.spatialFootprint
                 && (geometry == null
                 ? other.geometry == null
                 : geometry.contentEquals(other.geometry))
@@ -80,6 +87,28 @@ public final class PhysicsShapeData {
                 && maskBits == other.maskBits
                 && groupIndex == other.groupIndex
                 && enabled == other.enabled;
+    }
+
+    private void validateSpatialFootprint() {
+        if (spatialBlockId != 0) {
+            throw invalid("spatial footprint must be a manual shape.");
+        }
+        if (geometry == null) {
+            throw invalid("spatial footprint geometry is required.");
+        }
+        if (geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) {
+            throw invalid("spatial footprint must use circle geometry.");
+        }
+        if (!enabled) {
+            throw invalid("spatial footprint must be enabled.");
+        }
+        if (sensor) {
+            throw invalid("spatial footprint must not be a sensor.");
+        }
+        validateFinite(geometry.radius, "spatial footprint radius");
+        if (geometry.radius <= 0f) {
+            throw invalid("spatial footprint radius must be strictly positive.");
+        }
     }
 
     private void validateFinite(float value, String field) {

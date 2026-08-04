@@ -38,6 +38,14 @@ public final class PhysicsShapeIdentityValidator {
             if (component.shapes == null) throw new IllegalArgumentException(
                     "PhysicsShapesComponent on ownerEntityId " + ownerEntityId
                             + " has a null shapes collection.");
+            try {
+                PhysicsSpatialFootprintValidator.validateCollection(component.shapes);
+            } catch (IllegalArgumentException invalidFootprint) {
+                throw new IllegalArgumentException(
+                        "Invalid Spatial footprint ownership on ownerEntityId "
+                                + ownerEntityId + ": " + invalidFootprint.getMessage(),
+                        invalidFootprint);
+            }
 
             IntSet existingBlockIds = null;
             IntSet linkedBlockIds = null;

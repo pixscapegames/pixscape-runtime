@@ -202,6 +202,41 @@ public class SceneLoaderPhysicsSchemaTest {
         }
     }
 
+    @Test
+    public void enabledPhysicsPreservesExplicitSpatialFootprint() throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override
+            public void apply(World world) {
+                int entityId = world.create();
+                PhysicsShapesComponent shapes = world.getMapper(
+                        PhysicsShapesComponent.class).create(entityId);
+                PhysicsShapeData shape = new PhysicsShapeData();
+                shape.physicsShapeId = 1;
+                shape.geometry = new PhysicsGeometryData();
+                shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+                shape.geometry.radius = 1f;
+                shape.spatialFootprint = true;
+                shapes.shapes.add(shape);
+            }
+        });
+        World target = world();
+        try {
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.physicsEnabled = true;
+            meta.nextPhysicsShapeId = 2;
+
+            SceneLoader.loadScene(target, file, false, meta);
+
+            int entityId = target.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsShapesComponent.class))
+                    .getEntities().get(0);
+            Assert.assertTrue(target.getMapper(PhysicsShapesComponent.class)
+                    .get(entityId).shapes.first().spatialFootprint);
+        } finally {
+            target.dispose();
+        }
+    }
+
     private static void assertRejectedWithoutMutation(
             FileHandle file, String expectedComponent) {
         World target = world();

@@ -161,6 +161,8 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         world.process();
         Assert.assertFalse(footprint.valid);
         Assert.assertEquals(2, footprint.physicsGeneration);
+        Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
+        Assert.assertFalse(footprint.explicitOwnership);
 
         compiled.valid = true;
         compiled.generation = 3;
@@ -172,11 +174,83 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         world.dispose();
     }
 
+    @Test
+    public void generationRefreshesFootprintProvenanceAndDeletingItClearsTheCache() {
+        PhysicsSpatialFootprintSyncSystem sync =
+                new PhysicsSpatialFootprintSyncSystem(100f);
+        World world = new World(new WorldConfigurationBuilder().with(sync).build());
+        int entityId = world.create();
+        PhysicsCompiledFixturesComponent compiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
+        compiled.fixtures.add(circle(1, 0.5f, 0f, false));
+        compiled.generation = 1;
+        compiled.valid = true;
+
+        world.process();
+        SpatialPhysicsFootprintComponent footprint =
+                world.getMapper(SpatialPhysicsFootprintComponent.class).get(entityId);
+        Assert.assertEquals(1, footprint.sourcePhysicsShapeId);
+        Assert.assertFalse(footprint.explicitOwnership);
+
+        compiled.fixtures.clear();
+        compiled.fixtures.add(circle(2, 0.75f, 0.25f, true));
+        compiled.generation = 2;
+        world.process();
+        Assert.assertTrue(footprint.valid);
+        Assert.assertEquals(2, footprint.sourcePhysicsShapeId);
+        Assert.assertTrue(footprint.explicitOwnership);
+        Assert.assertEquals(75f, footprint.radiusPx, 0f);
+
+        compiled.fixtures.clear();
+        compiled.generation = 3;
+        world.process();
+        Assert.assertFalse(footprint.valid);
+        Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
+        Assert.assertFalse(footprint.explicitOwnership);
+        Assert.assertFalse(footprint.invalidExplicitOwnership);
+        world.dispose();
+    }
+
+    @Test
+    public void malformedMultipleExplicitFixturesInvalidateWithoutEscapingFrameSync() {
+        PhysicsSpatialFootprintSyncSystem sync =
+                new PhysicsSpatialFootprintSyncSystem(100f);
+        World world = new World(new WorldConfigurationBuilder().with(sync).build());
+        int entityId = world.create();
+        PhysicsCompiledFixturesComponent compiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
+        compiled.fixtures.add(circle(1, 0.5f, 0f, true));
+        compiled.fixtures.add(circle(2, 0.75f, 0f, true));
+        compiled.generation = 1;
+        compiled.valid = true;
+
+        world.process();
+
+        SpatialPhysicsFootprintComponent footprint =
+                world.getMapper(SpatialPhysicsFootprintComponent.class).get(entityId);
+        Assert.assertFalse(footprint.valid);
+        Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
+        Assert.assertFalse(footprint.explicitOwnership);
+        Assert.assertTrue(footprint.invalidExplicitOwnership);
+
+        compiled.valid = false;
+        world.process();
+        Assert.assertFalse(footprint.invalidExplicitOwnership);
+        world.dispose();
+    }
+
     private static CompiledFixtureData circle(float radius, float offsetX) {
+        return circle(1, radius, offsetX, false);
+    }
+
+    private static CompiledFixtureData circle(
+            int physicsShapeId, float radius, float offsetX, boolean spatialFootprint) {
         CompiledFixtureData circle = new CompiledFixtureData();
+        circle.physicsShapeId = physicsShapeId;
         circle.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.radius = radius;
         circle.offsetX = offsetX;
+        circle.spatialFootprint = spatialFootprint;
         return circle;
     }
 

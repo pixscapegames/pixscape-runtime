@@ -5,6 +5,7 @@ package games.pixscape.runtime.physics;
  */
 public final class ResolvedPhysicsShape {
     public int physicsShapeId;
+    public boolean spatialFootprint;
     public int shapeType;
 
     public float halfWidth;
@@ -41,6 +42,7 @@ public final class ResolvedPhysicsShape {
 
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
+        resolved.spatialFootprint = source.spatialFootprint;
         PhysicsGeometryData detached = geometry.copy();
         resolved.shapeType = detached.shapeType;
         resolved.halfWidth = detached.halfWidth;
@@ -66,6 +68,7 @@ public final class ResolvedPhysicsShape {
     public ResolvedPhysicsShape copy() {
         ResolvedPhysicsShape copy = new ResolvedPhysicsShape();
         copy.physicsShapeId = physicsShapeId;
+        copy.spatialFootprint = spatialFootprint;
         copy.shapeType = shapeType;
         copy.halfWidth = halfWidth;
         copy.halfHeight = halfHeight;

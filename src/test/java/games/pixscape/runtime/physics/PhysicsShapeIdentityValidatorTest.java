@@ -99,6 +99,16 @@ public class PhysicsShapeIdentityValidatorTest {
     }
 
     @Test
+    public void multipleExplicitSpatialFootprintsOnOneOwnerAreRejected() {
+        Fixture fixture = new Fixture();
+        int owner = fixture.owner();
+        fixture.spatialCircle(owner, 21);
+        fixture.spatialCircle(owner, 22);
+
+        fixture.assertRejected("more than one explicit spatial footprint");
+    }
+
+    @Test
     public void manualAndLinkedShapesOnSameOwnerAreAllowed() {
         Fixture fixture = new Fixture();
         int owner = fixture.owner(7);
@@ -200,6 +210,14 @@ public class PhysicsShapeIdentityValidatorTest {
             shape.physicsShapeId = physicsShapeId;
             shape.spatialBlockId = spatialBlockId;
             shapes(owner).shapes.add(shape);
+            return shape;
+        }
+
+        PhysicsShapeData spatialCircle(int owner, int physicsShapeId) {
+            PhysicsShapeData shape = manual(owner, physicsShapeId);
+            shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            shape.geometry.radius = 1f;
+            shape.spatialFootprint = true;
             return shape;
         }
 

@@ -111,6 +111,7 @@ public final class PhysicsShapeResolver {
 
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
+        resolved.spatialFootprint = source.spatialFootprint;
         resolved.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
         resolved.polygonVertices = vertices;
         resolved.polygonVertexCount = 4;
