@@ -234,19 +234,34 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
-    public void crossLayerIntervalsContradictingLayerOrderUseStructuralBaselineWithoutThrowing() {
+    public void crossLayerDisjointIntervalsUseHardGlobalPrecedenceWithoutFallback() {
+        SpatialActorCollector actors = actors(2);
+        actors.actorLayerIndex[0] = 1;
+        actors.actorLayerIndex[1] = 2;
+        actors.actorCircleY[0] = 30f;
+        actors.actorCircleY[1] = 10f;
+        SpatialBucketPlanner planner = plannerWithIntervals(actors,
+                new int[]{0, 1}, new int[]{2, 0}, new int[]{3, 1}, 4);
+
+        Assert.assertArrayEquals(new int[]{2, 1},
+                new int[]{planner.actorBucket[0], planner.actorBucket[1]});
+        Assert.assertEquals(0, planner.unresolvedConstraintCount());
+        Assert.assertEquals(0, planner.actorOrderingFallbackCount());
+        Assert.assertArrayEquals(new int[]{1, 0}, finalActorOrder(planner));
+    }
+
+    @Test
+    public void crossLayerOverlappingIntervalsUseGlobalGeometricComparator() {
         SpatialActorCollector actors = actors(2);
         actors.actorLayerIndex[0] = 1;
         actors.actorLayerIndex[1] = 2;
         actors.actorCircleY[0] = 10f;
-        actors.actorCircleY[1] = 30f;
+        actors.actorCircleY[1] = 40f;
         SpatialBucketPlanner planner = plannerWithIntervals(actors,
-                new int[]{0, 1}, new int[]{2, 0}, new int[]{3, 1}, 4);
+                new int[]{2, 1}, new int[]{0, 1}, new int[]{2, 3}, 4);
 
-        Assert.assertArrayEquals(new int[]{0, 1},
-                new int[]{planner.actorBucket[0], planner.actorBucket[1]});
-        Assert.assertEquals(0, planner.unresolvedConstraintCount());
-        Assert.assertEquals(1, planner.actorOrderingFallbackCount());
+        Assert.assertEquals(0, planner.actorOrderingFallbackCount());
+        Assert.assertArrayEquals(new int[]{1, 0}, finalActorOrder(planner));
     }
 
     @Test
@@ -364,7 +379,7 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
-    public void exhaustiveSmallValidIntervalsPreserveBoundsPrecedenceComparatorAndDeterminism() {
+    public void exhaustiveSmallValidIntervalsIgnoreActorLayersAndRemainDeterministic() {
         final int bucketCount = 4;
         int[] intervalLower = new int[10];
         int[] intervalUpper = new int[10];
@@ -400,9 +415,13 @@ public class SpatialOrderingKernelTest {
                                 ? actor % bucketCount : bucketCount - 1 - actor % bucketCount;
                         actors.actorCircleY[actor] = (variant & 2) == 0
                                 ? actor + 1f : actorCount - actor;
+                        actors.actorLayerIndex[actor] = 0;
                     }
                     expectedActorOrder(actors, lowerBounds, upperBounds, expectedOrder);
-                    for (int pass = 0; pass < 2; pass++) {
+                    for (int pass = 0; pass < 4; pass++) {
+                        for (int actor = 0; actor < actorCount; actor++) {
+                            actors.actorLayerIndex[actor] = pass < 2 ? 0 : actor & 1;
+                        }
                         planner.begin(actors, originals, bucketCount);
                         setIntervals(planner, lowerBounds, upperBounds);
                         planner.finish(actors);

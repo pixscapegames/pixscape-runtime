@@ -80,7 +80,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void differentLayersRemainLayerOrdered() {
+    public void differentSpatialLayersUseGlobalGeometricOrderWhenYAgrees() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
@@ -93,7 +93,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void differentLayersWithReversedCircleOrderRemainLayerOrdered() {
+    public void differentSpatialLayersUseOneGlobalGeometricOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
@@ -102,7 +102,29 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{lowerLayer, higherLayer}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{higherLayer, lowerLayer}, fixture.drawOrder());
+    }
+
+    @Test
+    public void multipleSpatialPhysicsLayersShareOneDomainAroundTiledAnchors() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(1, LayerComponent.TYPE_PHYSICS, true);
+        fixture.createLayer(2, LayerComponent.TYPE_PHYSICS, true);
+        TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(0, map);
+        int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
+        int higher = fixture.createActor(10f, 10f, 0, 1, true);
+        fixture.setSortOrder(higher, 1, 0, 20);
+        int lower = fixture.createActor(10f, 30f, 0, 2, true);
+        fixture.setSortOrder(lower, 2, 0, 30);
+        int tileB = fixture.createLinkedTile(map, 1, 0, 102, 0, 40);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tileA, tileB, lower, higher}, fixture.drawOrder());
+        assertSameTiledSubsequence(new int[]{tileA, tileB, higher, lower},
+                fixture.drawOrder(), tileA, tileB);
+        Assert.assertEquals(0, fixture.spatial.actorOrderingFallbackCount());
     }
 
     @Test

@@ -52,9 +52,6 @@ public final class SpatialActorBucketSorter {
     }
 
     static int compareActors(SpatialActorCollector actors, int left, int right) {
-        int leftLayer = actorLayer(actors, left);
-        int rightLayer = actorLayer(actors, right);
-        if (leftLayer != rightLayer) return leftLayer < rightLayer ? -1 : 1;
         int depthCompare = compareDepthY(actors.actorCircleY[left], actors.actorCircleY[right]);
         if (depthCompare != 0) return depthCompare;
         if (actors.actorDrawIndex[left] != actors.actorDrawIndex[right]) {
@@ -68,11 +65,6 @@ public final class SpatialActorBucketSorter {
         }
         if (left != right) return left < right ? -1 : 1;
         return 0;
-    }
-
-    static int actorLayer(SpatialActorCollector actors, int actor) {
-        return actor >= 0 && actor < actors.actorLayerIndex.length
-                ? actors.actorLayerIndex[actor] : 0;
     }
 
     private static int compareDepthY(float left, float right) {

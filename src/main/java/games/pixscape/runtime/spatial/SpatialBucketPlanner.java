@@ -273,40 +273,31 @@ public final class SpatialBucketPlanner {
             actorsByLowerBound[actor] = actor;
             actorRemaining[actor] = true;
         }
-        sortActorsByLowerBound(actors);
+        sortActorsByLowerBound();
+        int upperHeapSize = 0;
+        for (int actor = 0; actor < actorCount; actor++) {
+            upperHeapSize = pushUpperBound(actor, upperHeapSize);
+        }
+
+        int lowerPosition = 0;
+        int readyHeapSize = 0;
         int orderedCount = 0;
-        int groupStart = 0;
-        while (groupStart < actorCount) {
-            int layer = SpatialActorBucketSorter.actorLayer(actors, actorsByLowerBound[groupStart]);
-            int groupEnd = groupStart + 1;
-            while (groupEnd < actorCount && SpatialActorBucketSorter.actorLayer(
-                    actors, actorsByLowerBound[groupEnd]) == layer) groupEnd++;
-            int upperHeapSize = 0;
-            for (int position = groupStart; position < groupEnd; position++) {
-                upperHeapSize = pushUpperBound(actorsByLowerBound[position], upperHeapSize);
+        while (orderedCount < actorCount) {
+            while (upperHeapSize > 0 && !actorRemaining[upperBoundHeap[0]]) {
+                upperHeapSize = popUpperBound(upperHeapSize);
             }
-            int lowerPosition = groupStart;
-            int readyHeapSize = 0;
-            int groupOrderedCount = 0;
-            while (groupOrderedCount < groupEnd - groupStart) {
-                while (upperHeapSize > 0 && !actorRemaining[upperBoundHeap[0]]) {
-                    upperHeapSize = popUpperBound(upperHeapSize);
-                }
-                if (upperHeapSize == 0) break;
-                int minimumRemainingUpper = resolvedUpperBound(upperBoundHeap[0]);
-                while (lowerPosition < groupEnd
-                        && resolvedLowerBound(actorsByLowerBound[lowerPosition]) <= minimumRemainingUpper) {
-                    readyHeapSize = pushReadyActor(actors,
-                            actorsByLowerBound[lowerPosition++], readyHeapSize);
-                }
-                if (readyHeapSize == 0) break;
-                int actor = readyActorHeap[0];
-                readyHeapSize = popReadyActor(actors, readyHeapSize);
-                actorRemaining[actor] = false;
-                orderedActorIndex[orderedCount++] = actor;
-                groupOrderedCount++;
+            if (upperHeapSize == 0) break;
+            int minimumRemainingUpper = resolvedUpperBound(upperBoundHeap[0]);
+            while (lowerPosition < actorCount
+                    && resolvedLowerBound(actorsByLowerBound[lowerPosition]) <= minimumRemainingUpper) {
+                readyHeapSize = pushReadyActor(actors,
+                        actorsByLowerBound[lowerPosition++], readyHeapSize);
             }
-            groupStart = groupEnd;
+            if (readyHeapSize == 0) break;
+            int actor = readyActorHeap[0];
+            readyHeapSize = popReadyActor(actors, readyHeapSize);
+            actorRemaining[actor] = false;
+            orderedActorIndex[orderedCount++] = actor;
         }
         return orderedCount;
     }
@@ -343,7 +334,7 @@ public final class SpatialBucketPlanner {
         return actorHasConstraint[actor] && actorLowerBound[actor] > actorUpperBound[actor];
     }
 
-    private void sortActorsByLowerBound(SpatialActorCollector actors) {
+    private void sortActorsByLowerBound() {
         int[] source = actorsByLowerBound;
         int[] target = lowerSortScratch;
         for (int width = 1; width < actorCount; width <<= 1) {
@@ -354,7 +345,7 @@ public final class SpatialBucketPlanner {
                 int right = middle;
                 for (int write = start; write < end; write++) {
                     if (left < middle && (right >= end
-                            || compareLowerBound(actors, source[left], source[right]) <= 0)) {
+                            || compareLowerBound(source[left], source[right]) <= 0)) {
                         target[write] = source[left++];
                     } else {
                         target[write] = source[right++];
@@ -370,10 +361,7 @@ public final class SpatialBucketPlanner {
         }
     }
 
-    private int compareLowerBound(SpatialActorCollector actors, int left, int right) {
-        int leftLayer = SpatialActorBucketSorter.actorLayer(actors, left);
-        int rightLayer = SpatialActorBucketSorter.actorLayer(actors, right);
-        if (leftLayer != rightLayer) return leftLayer < rightLayer ? -1 : 1;
+    private int compareLowerBound(int left, int right) {
         int leftLower = resolvedLowerBound(left);
         int rightLower = resolvedLowerBound(right);
         if (leftLower != rightLower) return leftLower < rightLower ? -1 : 1;
