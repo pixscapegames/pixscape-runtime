@@ -55,6 +55,7 @@ public class PhysicsStableFrameTest {
         circle.physicsShapeId = 1;
         circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.geometry.radius = 0.25f;
+        circle.spatialFootprint = true;
         sources.shapes.add(circle);
         PhysicsShapeData polygon = new PhysicsShapeData();
         polygon.geometry = new PhysicsGeometryData();

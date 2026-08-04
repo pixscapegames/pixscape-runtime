@@ -14,10 +14,8 @@ public final class SpatialPhysicsFootprintComponent extends PooledComponent {
     public transient int physicsGeneration;
     /** Source authored shape identity for the currently projected footprint. */
     public transient int sourcePhysicsShapeId;
-    /** True when the authored shape explicitly owns the projected footprint. */
-    public transient boolean explicitOwnership;
-    /** True when compiled fixtures contain malformed explicit footprint ownership. */
-    public transient boolean invalidExplicitOwnership;
+    /** True when compiled fixtures contain an invalid Spatial footprint definition. */
+    public transient boolean invalidSpatialFootprint;
 
     @Override
     protected void reset() {
@@ -27,7 +25,6 @@ public final class SpatialPhysicsFootprintComponent extends PooledComponent {
         radiusPx = 0f;
         physicsGeneration = 0;
         sourcePhysicsShapeId = 0;
-        explicitOwnership = false;
-        invalidExplicitOwnership = false;
+        invalidSpatialFootprint = false;
     }
 }

@@ -162,7 +162,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         Assert.assertFalse(footprint.valid);
         Assert.assertEquals(2, footprint.physicsGeneration);
         Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
-        Assert.assertFalse(footprint.explicitOwnership);
+        Assert.assertFalse(footprint.invalidSpatialFootprint);
 
         compiled.valid = true;
         compiled.generation = 3;
@@ -182,7 +182,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         int entityId = world.create();
         PhysicsCompiledFixturesComponent compiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
-        compiled.fixtures.add(circle(1, 0.5f, 0f, false));
+        compiled.fixtures.add(circle(1, 0.5f, 0f, true));
         compiled.generation = 1;
         compiled.valid = true;
 
@@ -190,7 +190,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         SpatialPhysicsFootprintComponent footprint =
                 world.getMapper(SpatialPhysicsFootprintComponent.class).get(entityId);
         Assert.assertEquals(1, footprint.sourcePhysicsShapeId);
-        Assert.assertFalse(footprint.explicitOwnership);
+        Assert.assertFalse(footprint.invalidSpatialFootprint);
 
         compiled.fixtures.clear();
         compiled.fixtures.add(circle(2, 0.75f, 0.25f, true));
@@ -198,7 +198,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         world.process();
         Assert.assertTrue(footprint.valid);
         Assert.assertEquals(2, footprint.sourcePhysicsShapeId);
-        Assert.assertTrue(footprint.explicitOwnership);
+        Assert.assertFalse(footprint.invalidSpatialFootprint);
         Assert.assertEquals(75f, footprint.radiusPx, 0f);
 
         compiled.fixtures.clear();
@@ -206,8 +206,7 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         world.process();
         Assert.assertFalse(footprint.valid);
         Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
-        Assert.assertFalse(footprint.explicitOwnership);
-        Assert.assertFalse(footprint.invalidExplicitOwnership);
+        Assert.assertFalse(footprint.invalidSpatialFootprint);
         world.dispose();
     }
 
@@ -230,17 +229,16 @@ public class PhysicsSpatialFootprintSyncSystemTest {
                 world.getMapper(SpatialPhysicsFootprintComponent.class).get(entityId);
         Assert.assertFalse(footprint.valid);
         Assert.assertEquals(0, footprint.sourcePhysicsShapeId);
-        Assert.assertFalse(footprint.explicitOwnership);
-        Assert.assertTrue(footprint.invalidExplicitOwnership);
+        Assert.assertTrue(footprint.invalidSpatialFootprint);
 
         compiled.valid = false;
         world.process();
-        Assert.assertFalse(footprint.invalidExplicitOwnership);
+        Assert.assertFalse(footprint.invalidSpatialFootprint);
         world.dispose();
     }
 
     private static CompiledFixtureData circle(float radius, float offsetX) {
-        return circle(1, radius, offsetX, false);
+        return circle(1, radius, offsetX, true);
     }
 
     private static CompiledFixtureData circle(

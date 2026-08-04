@@ -9,13 +9,7 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
  * Cross-domain integration boundary from compiled physics data to the Runtime spatial cache.
  */
 public final class PhysicsSpatialFootprintProjector {
-    /**
-     * Builds a projection candidate outside the spatial hot path.
-     *
-     * <p>An explicit compiled Spatial footprint takes precedence. Legacy data with no explicit
-     * footprint uses the first valid non-sensor circle in deterministic compiled order. This
-     * compatibility fallback is isolated here and must be removed after old scenes are normalized.</p>
-     */
+    /** Builds a projection candidate outside the spatial hot path. */
     public Projection prepare(
             Array<CompiledFixtureData> fixtures,
             int physicsGeneration,
@@ -40,15 +34,8 @@ public final class PhysicsSpatialFootprintProjector {
         }
         if (explicitCount == 1) {
             return validFixture(explicitFixture)
-                    ? Projection.of(explicitFixture, physicsGeneration, pixelsPerMeter, true)
+                    ? Projection.of(explicitFixture, physicsGeneration, pixelsPerMeter)
                     : Projection.invalid(physicsGeneration, true);
-        }
-
-        for (int i = 0; i < fixtures.size; i++) {
-            CompiledFixtureData fixture = fixtures.get(i);
-            if (validFixture(fixture)) {
-                return Projection.of(fixture, physicsGeneration, pixelsPerMeter, false);
-            }
         }
         return Projection.invalid(physicsGeneration, false);
     }
@@ -63,8 +50,7 @@ public final class PhysicsSpatialFootprintProjector {
         target.radiusPx = projection.radiusPx;
         target.physicsGeneration = projection.physicsGeneration;
         target.sourcePhysicsShapeId = projection.sourcePhysicsShapeId;
-        target.explicitOwnership = projection.explicitOwnership;
-        target.invalidExplicitOwnership = projection.invalidExplicitOwnership;
+        target.invalidSpatialFootprint = projection.invalidSpatialFootprint;
     }
 
     public void invalidate(SpatialPhysicsFootprintComponent target, int physicsGeneration) {
@@ -75,8 +61,7 @@ public final class PhysicsSpatialFootprintProjector {
         target.radiusPx = 0f;
         target.physicsGeneration = physicsGeneration;
         target.sourcePhysicsShapeId = 0;
-        target.explicitOwnership = false;
-        target.invalidExplicitOwnership = false;
+        target.invalidSpatialFootprint = false;
     }
 
     private static boolean validFixture(CompiledFixtureData fixture) {
@@ -98,42 +83,39 @@ public final class PhysicsSpatialFootprintProjector {
         private final float radiusPx;
         private final int physicsGeneration;
         private final int sourcePhysicsShapeId;
-        private final boolean explicitOwnership;
-        private final boolean invalidExplicitOwnership;
+        private final boolean invalidSpatialFootprint;
 
         private Projection(boolean valid, float localOffsetXPx, float localOffsetYPx,
                            float radiusPx, int physicsGeneration, int sourcePhysicsShapeId,
-                           boolean explicitOwnership, boolean invalidExplicitOwnership) {
+                           boolean invalidSpatialFootprint) {
             this.valid = valid;
             this.localOffsetXPx = localOffsetXPx;
             this.localOffsetYPx = localOffsetYPx;
             this.radiusPx = radiusPx;
             this.physicsGeneration = physicsGeneration;
             this.sourcePhysicsShapeId = sourcePhysicsShapeId;
-            this.explicitOwnership = explicitOwnership;
-            this.invalidExplicitOwnership = invalidExplicitOwnership;
+            this.invalidSpatialFootprint = invalidSpatialFootprint;
         }
 
         private static Projection of(CompiledFixtureData fixture, int physicsGeneration,
-                                     float pixelsPerMeter, boolean explicitOwnership) {
+                                     float pixelsPerMeter) {
             return new Projection(true,
                     fixture.offsetX * pixelsPerMeter,
                     fixture.offsetY * pixelsPerMeter,
                     fixture.radius * pixelsPerMeter,
                     physicsGeneration,
                     fixture.physicsShapeId,
-                    explicitOwnership,
                     false);
         }
 
         private static Projection invalid(int physicsGeneration,
-                                          boolean invalidExplicitOwnership) {
+                                          boolean invalidSpatialFootprint) {
             return new Projection(false, 0f, 0f, 0f, physicsGeneration,
-                    0, false, invalidExplicitOwnership);
+                    0, invalidSpatialFootprint);
         }
 
-        public boolean hasInvalidExplicitOwnership() {
-            return invalidExplicitOwnership;
+        public boolean hasInvalidSpatialFootprint() {
+            return invalidSpatialFootprint;
         }
     }
 }

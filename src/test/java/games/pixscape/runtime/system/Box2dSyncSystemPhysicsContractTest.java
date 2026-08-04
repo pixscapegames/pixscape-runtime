@@ -71,6 +71,7 @@ public class Box2dSyncSystemPhysicsContractTest {
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.source.geometry.radius = 0.5f;
         harness.source.geometry.offsetX = 0.25f;
+        harness.source.spatialFootprint = true;
         harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =

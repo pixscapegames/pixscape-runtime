@@ -32,11 +32,11 @@ public class PhysicsSpatialFootprintProjectorTest {
         Assert.assertEquals(400f, target.localOffsetYPx, 0f);
         Assert.assertEquals(7, target.physicsGeneration);
         Assert.assertEquals(2, target.sourcePhysicsShapeId);
-        Assert.assertTrue(target.explicitOwnership);
+        Assert.assertFalse(target.invalidSpatialFootprint);
     }
 
     @Test
-    public void legacyBodyWithoutExplicitCircleUsesFirstValidCircle() {
+    public void ordinaryCirclesWithoutAnExplicitFootprintPublishInvalidCache() {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
         sources.shapes.add(circle(1, 0.25f, 1f, 2f));
         sources.shapes.add(circle(2, 0.75f, 3f, 4f));
@@ -46,10 +46,9 @@ public class PhysicsSpatialFootprintProjectorTest {
         SpatialPhysicsFootprintComponent target = new SpatialPhysicsFootprintComponent();
         projector.publish(target, projector.prepare(compiled(sources), 7, 100f));
 
-        Assert.assertTrue(target.valid);
-        Assert.assertEquals(25f, target.radiusPx, 0f);
-        Assert.assertEquals(1, target.sourcePhysicsShapeId);
-        Assert.assertFalse(target.explicitOwnership);
+        Assert.assertFalse(target.valid);
+        Assert.assertEquals(0, target.sourcePhysicsShapeId);
+        Assert.assertFalse(target.invalidSpatialFootprint);
     }
 
     @Test
@@ -69,13 +68,12 @@ public class PhysicsSpatialFootprintProjectorTest {
 
         Assert.assertFalse(target.valid);
         Assert.assertEquals(0, target.sourcePhysicsShapeId);
-        Assert.assertFalse(target.explicitOwnership);
-        Assert.assertTrue(target.invalidExplicitOwnership);
-        Assert.assertTrue(projection.hasInvalidExplicitOwnership());
+        Assert.assertTrue(target.invalidSpatialFootprint);
+        Assert.assertTrue(projection.hasInvalidSpatialFootprint());
     }
 
     @Test
-    public void bodyWithoutCirclePublishesInvalidSpatialFootprint() {
+    public void bodyWithoutAnExplicitCirclePublishesInvalidSpatialFootprint() {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
         PhysicsShapeData box = new PhysicsShapeData();
         box.geometry = new PhysicsGeometryData();
@@ -96,7 +94,7 @@ public class PhysicsSpatialFootprintProjectorTest {
         Assert.assertEquals(0f, target.radiusPx, 0f);
         Assert.assertEquals(3, target.physicsGeneration);
         Assert.assertEquals(0, target.sourcePhysicsShapeId);
-        Assert.assertFalse(target.explicitOwnership);
+        Assert.assertFalse(target.invalidSpatialFootprint);
     }
 
     private static PhysicsShapeData circle(
