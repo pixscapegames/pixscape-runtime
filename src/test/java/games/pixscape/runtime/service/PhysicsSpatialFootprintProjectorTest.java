@@ -36,6 +36,27 @@ public class PhysicsSpatialFootprintProjectorTest {
     }
 
     @Test
+    public void sensorSpatialCircleProducesValidProjection() {
+        PhysicsShapesComponent sources = new PhysicsShapesComponent();
+        PhysicsShapeData explicit = circle(2, 0.75f, 3f, 4f);
+        explicit.spatialFootprint = true;
+        explicit.sensor = true;
+        sources.shapes.add(explicit);
+
+        PhysicsSpatialFootprintProjector projector =
+                new PhysicsSpatialFootprintProjector();
+        SpatialPhysicsFootprintComponent target =
+                new SpatialPhysicsFootprintComponent();
+
+        projector.publish(target, projector.prepare(compiled(sources), 7, 100f));
+
+        Assert.assertTrue(target.valid);
+        Assert.assertEquals(75f, target.radiusPx, 0f);
+        Assert.assertEquals(2, target.sourcePhysicsShapeId);
+        Assert.assertFalse(target.invalidSpatialFootprint);
+    }
+
+    @Test
     public void ordinaryCirclesWithoutAnExplicitFootprintPublishInvalidCache() {
         PhysicsShapesComponent sources = new PhysicsShapesComponent();
         sources.shapes.add(circle(1, 0.25f, 1f, 2f));

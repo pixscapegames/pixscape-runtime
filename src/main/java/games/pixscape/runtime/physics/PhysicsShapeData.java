@@ -102,9 +102,6 @@ public final class PhysicsShapeData {
         if (!enabled) {
             throw invalid("spatial footprint must be enabled.");
         }
-        if (sensor) {
-            throw invalid("spatial footprint must not be a sensor.");
-        }
         validateFinite(geometry.radius, "spatial footprint radius");
         if (geometry.radius <= 0f) {
             throw invalid("spatial footprint radius must be strictly positive.");

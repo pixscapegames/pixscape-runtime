@@ -66,6 +66,25 @@ public class Box2dSyncSystemPhysicsContractTest {
     }
 
     @Test
+    public void sensorSpatialFootprintMaterializesAsBox2dSensor() {
+        Harness harness = new Harness();
+        harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        harness.source.geometry.radius = 0.5f;
+        harness.source.spatialFootprint = true;
+        harness.source.sensor = true;
+
+        harness.prepareAndProcess();
+
+        PhysicsRuntimeBodyComponent runtime = harness.world.getMapper(
+                PhysicsRuntimeBodyComponent.class).get(harness.entityId);
+        Assert.assertTrue(runtime.body.getFixtureList().first().isSensor());
+        SpatialPhysicsFootprintComponent footprint = harness.world.getMapper(
+                SpatialPhysicsFootprintComponent.class).get(harness.entityId);
+        Assert.assertTrue(footprint.valid);
+        Assert.assertEquals(harness.source.physicsShapeId, footprint.sourcePhysicsShapeId);
+    }
+
+    @Test
     public void invalidRecompileKeepsPreviousNativeBodyAndCompiledCache() {
         Harness harness = new Harness();
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;

@@ -92,7 +92,7 @@ public class PhysicsShapeDataTest {
     }
 
     @Test
-    public void spatialFootprintRequiresEnabledManualNonSensorCircle() {
+    public void spatialFootprintRequiresEnabledManualCircleWithPositiveRadius() {
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.physicsShapeId = 1;
         shape.geometry = new PhysicsGeometryData();
@@ -107,15 +107,17 @@ public class PhysicsShapeDataTest {
 
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.sensor = true;
-        expectInvalid(shape, "must not be a sensor");
+        shape.validateStructure();
 
-        shape.sensor = false;
         shape.enabled = false;
         expectInvalid(shape, "must be enabled");
 
         shape.enabled = true;
         shape.geometry.radius = 0f;
         expectInvalid(shape, "radius");
+
+        shape.geometry.radius = Float.NaN;
+        expectInvalid(shape, "finite");
 
         shape.geometry.radius = 1f;
         shape.spatialBlockId = 4;

@@ -99,9 +99,8 @@ public final class CompiledFixtureData {
             default:
                 throw invalid("unsupported shapeType " + shapeType + ".");
         }
-        if (spatialFootprint
-                && (shapeType != PhysicsGeometryData.SHAPE_CIRCLE || sensor)) {
-            throw invalid("spatial footprint must be a non-sensor circle.");
+        if (spatialFootprint && shapeType != PhysicsGeometryData.SHAPE_CIRCLE) {
+            throw invalid("spatial footprint must be a circle.");
         }
     }
 

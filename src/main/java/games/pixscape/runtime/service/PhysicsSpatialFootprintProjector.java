@@ -68,7 +68,6 @@ public final class PhysicsSpatialFootprintProjector {
         return fixture != null
                 && fixture.physicsShapeId > 0
                 && fixture.shapeType == PhysicsGeometryData.SHAPE_CIRCLE
-                && !fixture.sensor
                 && finitePositive(fixture.radius);
     }
 

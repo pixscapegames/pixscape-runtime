@@ -48,14 +48,31 @@ public class PhysicsShapeCompilerTest {
         PhysicsShapeData shape = base(PhysicsGeometryData.SHAPE_CIRCLE);
         shape.geometry.radius = 1.25f;
         shape.spatialFootprint = true;
+        shape.sensor = true;
 
         CompiledFixtureData fixture = compiler.compile(resolve(shape))[0];
         CompiledFixtureData copy = fixture.copy();
 
         Assert.assertTrue(fixture.spatialFootprint);
+        Assert.assertTrue(fixture.sensor);
         Assert.assertEquals(shape.physicsShapeId, fixture.physicsShapeId);
         Assert.assertTrue(copy.spatialFootprint);
+        Assert.assertTrue(copy.sensor);
         Assert.assertEquals(fixture.physicsShapeId, copy.physicsShapeId);
+    }
+
+    @Test
+    public void compiledFixtureValidationAcceptsSensorCircleFootprint() {
+        PhysicsShapeData shape = base(PhysicsGeometryData.SHAPE_CIRCLE);
+        shape.geometry.radius = 0.75f;
+        shape.spatialFootprint = true;
+        shape.sensor = true;
+
+        CompiledFixtureData fixture = compiler.compile(resolve(shape))[0];
+
+        fixture.validate();
+        Assert.assertTrue(fixture.spatialFootprint);
+        Assert.assertTrue(fixture.sensor);
     }
 
     @Test
