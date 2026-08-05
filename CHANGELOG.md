@@ -10,6 +10,7 @@
 * Moved spatial domain classes to `games.pixscape.runtime.spatial` and Artemis spatial components to `games.pixscape.runtime.component.spatial`.
 * Removed `ParticleEmitterComponent.localSpace` and `ParticleFacade#setLocalSpace(boolean)`.
 * Particle effects now always follow their owning entity at `TransformComponent.x/y`; transform origin is no longer applied to emitter positioning.
+* Spatial actors now require an explicitly authored physics footprint; ordinary circle fixtures are no longer inferred automatically.
 
 ### Added
 
@@ -42,6 +43,7 @@
 * Prevented invalid body, fixture, polygon or joint data from being partially published.
 * Fixed Spatial actor footprints becoming stale after physics or pixels-per-meter changes.
 * Prevented callers from mutating the texture-region object owned by an indexed atlas binding through `AssetRegionRef`.
+* Fixed Spatial actor ordering across multiple actor layers by using a single global depth domain.
 
 ### Tests
 
