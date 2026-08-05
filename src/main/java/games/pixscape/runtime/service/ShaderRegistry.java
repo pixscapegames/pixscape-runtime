@@ -295,7 +295,11 @@ public final class ShaderRegistry {
     }
 
     public static void initDefaults(FileHandle projectDir, String shadersDir) {
-        setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
+        initDefaults(PlatformTarget.AUTO, projectDir, shadersDir);
+    }
+
+    public static void initDefaults(PlatformTarget target, FileHandle projectDir, String shadersDir) {
+        setProjectContext(target, projectDir, shadersDir);
         initDefaults();
     }
 

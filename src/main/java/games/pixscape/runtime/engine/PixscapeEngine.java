@@ -619,6 +619,7 @@ public final class PixscapeEngine {
         statsSink = null;
         defaultShaderName = null;
         tagRegistry.bind(null);
+        ShaderRegistry.disposeAll();
     }
 
     private void discardFailedSceneLoad() {
@@ -672,7 +673,7 @@ public final class PixscapeEngine {
 
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
-        ShaderRegistry.initDefaults(projectDir, config.shadersDir);
+        ShaderRegistry.initDefaults(platformTarget, projectDir, config.shadersDir);
 
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
@@ -751,9 +752,10 @@ public final class PixscapeEngine {
      */
     public PixscapeEngine initEmptyRuntime() {
         applyConfiguredLogLevel();
+        disposeWorldAndRuntime();
         this.cfg = new RuntimeConfig();
 
-        ShaderRegistry.initDefaults(null, null);
+        ShaderRegistry.initDefaults(platformTarget, null, null);
 
         if (worldCamera == null) {
             worldCamera = new OrthographicCamera();
