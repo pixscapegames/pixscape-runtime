@@ -42,6 +42,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     private final PixscapeEngine engine;
+    private final SceneLayerResolver sceneLayers;
+    private final EntityLifecycleTracker entityLifecycle;
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
@@ -54,8 +56,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
+        this.sceneLayers = new SceneLayerResolver();
+        this.entityLifecycle = new EntityLifecycleTracker();
         this.ecs = new EcsApiImpl(engine);
-        this.entities = new EntitiesApiImpl(engine, ecs);
+        this.entities = new EntitiesApiImpl(engine, ecs, sceneLayers, entityLifecycle);
         this.tiled = new TiledApiImpl(engine, ecs, entities);
         this.spatial = new SpatialApiImpl(engine);
         this.assets = new AssetsApiImpl(engine);
@@ -389,15 +393,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class EntitiesApiImpl implements EntitiesAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityLifecycleTracker entityLifecycle;
 
-        EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs) {
+        EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs,
+                        SceneLayerResolver sceneLayers,
+                        EntityLifecycleTracker entityLifecycle) {
             this.engine = engine;
             this.ecs = ecs;
+            this.sceneLayers = sceneLayers;
+            this.entityLifecycle = entityLifecycle;
         }
 
         @Override
         public EntityRef ofEntityId(int entityId) {
-            return new EntityRefImpl(engine, ecs, entityId);
+            return new EntityRefImpl(engine, ecs, sceneLayers, entityLifecycle, entityId);
         }
 
         @Override
@@ -494,6 +504,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class EntityRefImpl implements EntityRef {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityLifecycleTracker entityLifecycle;
         private final int entityId;
         private TransformFacade transform;
         private SpriteFacade sprite;
@@ -502,10 +514,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private ShaderFacade shader;
         private LightFacade light;
         private SpatialEntityFacade spatial;
+        private RenderOrderFacade renderOrder;
 
-        EntityRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
+        EntityRefImpl(PixscapeEngine engine, ECSAPI ecs,
+                      SceneLayerResolver sceneLayers,
+                      EntityLifecycleTracker entityLifecycle,
+                      int entityId) {
             this.engine = engine;
             this.ecs = ecs;
+            this.sceneLayers = sceneLayers;
+            this.entityLifecycle = entityLifecycle;
             this.entityId = entityId;
         }
 
@@ -568,6 +586,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public RenderOrderFacade renderOrder() {
+            if (renderOrder == null) {
+                renderOrder = new RenderOrderFacadeImpl(
+                        engine, sceneLayers, entityLifecycle, entityId);
+            }
+            return renderOrder;
+        }
+
+        @Override
         public ECSAPI ecs() {
             return ecs;
         }
@@ -578,6 +605,129 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
             world.delete(entityId);
         }
+    }
+
+    static final class RenderOrderFacadeImpl implements RenderOrderFacade {
+        private final PixscapeEngine engine;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityLifecycleTracker entityLifecycle;
+        private final World capturedWorld;
+        private final int entityId;
+        private final int entityGeneration;
+        private LayerComponent validatedLayer;
+        private EntityIndexComponent validatedEntityIndex;
+
+        RenderOrderFacadeImpl(PixscapeEngine engine,
+                              SceneLayerResolver sceneLayers,
+                              EntityLifecycleTracker entityLifecycle,
+                              int entityId) {
+            this.engine = engine;
+            this.sceneLayers = sceneLayers;
+            this.entityLifecycle = entityLifecycle;
+            this.capturedWorld = engine.getWorld();
+            this.entityId = entityId;
+            this.entityGeneration = entityLifecycle.capture(capturedWorld, entityId);
+        }
+
+        @Override
+        public int layerIndex() {
+            validateComponents("layerIndex()");
+            return validatedEntityIndex.layerIndex;
+        }
+
+        @Override
+        public int zIndex() {
+            validateComponents("zIndex()");
+            return validatedEntityIndex.zIndex;
+        }
+
+        @Override
+        public RenderOrderFacade layerIndex(int layerIndex) {
+            int resolved = layers().requireLayerIndex(layerIndex);
+            validateComponents("layerIndex(int)");
+            apply(resolved, validatedEntityIndex.zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade layer(String layerName) {
+            int resolved = layers().requireLayerName(layerName);
+            validateComponents("layer(String)");
+            apply(resolved, validatedEntityIndex.zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade zIndex(int zIndex) {
+            validateComponents("zIndex(int)");
+            apply(validatedEntityIndex.layerIndex, zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade set(int layerIndex, int zIndex) {
+            int resolved = layers().requireLayerIndex(layerIndex);
+            validateComponents("set(int, int)");
+            apply(resolved, zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade set(String layerName, int zIndex) {
+            int resolved = layers().requireLayerName(layerName);
+            validateComponents("set(String, int)");
+            apply(resolved, zIndex);
+            return this;
+        }
+
+        private void validateComponents(String operation) {
+            World world = engine.getWorld();
+            if (world == null || world != capturedWorld || entityId < 0
+                    || !world.getEntityManager().isActive(entityId)
+                    || !entityLifecycle.matches(world, entityId, entityGeneration)) {
+                throw new IllegalStateException("Cannot perform render-order operation " + operation
+                        + ": entityId=" + entityId + " no longer exists.");
+            }
+            validatedLayer = world.getMapper(LayerComponent.class).getSafe(entityId, null);
+            if (validatedLayer == null) {
+                throw missing("LayerComponent", operation);
+            }
+            validatedEntityIndex = world.getMapper(EntityIndexComponent.class).getSafe(entityId, null);
+            if (validatedEntityIndex == null) {
+                throw missing("EntityIndexComponent", operation);
+            }
+        }
+
+        private IllegalStateException missing(String component, String operation) {
+            return new IllegalStateException("Cannot perform render-order operation " + operation
+                    + ": entityId=" + entityId + " is missing required " + component + ".");
+        }
+
+        private SceneLayerResolver layers() {
+            sceneLayers.bind(engine.getWorld());
+            return sceneLayers;
+        }
+
+        private void apply(int layerIndex, int zIndex) {
+            boolean layerChanged = validatedEntityIndex.layerIndex != layerIndex
+                    || validatedLayer.layerIndex != layerIndex;
+            boolean orderChanged = validatedEntityIndex.zIndex != zIndex;
+            if (!layerChanged && !orderChanged) return;
+
+            validatedLayer.layerIndex = layerIndex;
+            validatedEntityIndex.layerIndex = layerIndex;
+            validatedEntityIndex.zIndex = zIndex;
+
+            DirtyTrackerSystem dirty = capturedWorld.getSystem(DirtyTrackerSystem.class);
+            if (dirty == null) return;
+            if (layerChanged) {
+                dirty.layer(entityId);
+                dirty.order(entityId);
+            } else if (orderChanged) {
+                dirty.order(entityId);
+            }
+        }
+
     }
 
     static final class TransformFacadeImpl implements TransformFacade {

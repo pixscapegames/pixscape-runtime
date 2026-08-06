@@ -98,7 +98,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 Aspect.all(ParticleEmitterComponent.class, TransformComponent.class)
         );
         layerSubscription = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class));
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
 
         subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
             @Override
