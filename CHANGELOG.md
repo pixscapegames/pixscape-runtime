@@ -11,6 +11,7 @@
 * Removed `ParticleEmitterComponent.localSpace` and `ParticleFacade#setLocalSpace(boolean)`.
 * Particle effects now always follow their owning entity at `TransformComponent.x/y`; transform origin is no longer applied to emitter positioning.
 * Spatial actors now require an explicitly authored physics footprint; ordinary circle fixtures are no longer inferred automatically.
+* Removed Tiled layer lookup by Studio display name from `TiledAPI`; Runtime tiled layers must now be accessed by exported layer index, entity ID or stable ID.
 
 ### Added
 
@@ -19,6 +20,8 @@
 * Added linked physics shapes whose geometry is derived from Spatial Block footprints.
 * Added synchronization between compiled physics footprints and Spatial actor ordering.
 * Added indexed atlas asset bindings grouped by Asset ID, with precomputed region metadata and animation frame groups.
+* Added `EntityRef#renderOrder()` with high-level layer-index and z-index controls for runtime entities.
+* Added runtime layer placement support for spawned particles, sprites, animations, prefabs and existing scene entities without requiring direct ECS component access.
 
 ### Changed
 
@@ -28,6 +31,9 @@
 * Runtime asset, sprite, animation, prefab and tiled rendering consumers now resolve atlas assets through the shared indexed binding model.
 * `AssetRegionRef#region()` now returns a defensive texture-region snapshot that can be modified without altering the indexed atlas binding.
 * Particle creation through the Runtime API now guarantees both `TransformComponent` and `ParticleEmitterComponent` without adding rectangular render or interaction proxy components.
+* Runtime layer APIs now consistently use exported numerical layer indices instead of Studio-only display names.
+* Runtime scene-layer metadata now consistently distinguishes authored layer entities from rendered actors carrying layer-placement components.
+* Runtime z-index mutations now enforce the render pipeline's supported range of `-32768` through `32767`.
 
 ### Improved
 
@@ -44,6 +50,8 @@
 * Fixed Spatial actor footprints becoming stale after physics or pixels-per-meter changes.
 * Prevented callers from mutating the texture-region object owned by an indexed atlas binding through `AssetRegionRef`.
 * Fixed Spatial actor ordering across multiple actor layers by using a single global depth domain.
+* Prevented rendered actor metadata from being interpreted as authored layer metadata by Tiled, particle visibility and Spatial systems.
+* Prevented invalid preserved z-index values from passing through runtime layer changes.
 
 ### Tests
 
@@ -51,6 +59,7 @@
 * Added regression coverage for atlas index construction, asset grouping, indexed API resolution, animations, prefabs and tiled rendering.
 * Revalidated the indexed asset pipeline on Desktop and through forced GWT compilation.
 * Added regression coverage for particle transform positioning, proxy-free particle creation and the removal of the legacy local-space API.
+* Added regression coverage for runtime render-order mutation, z-index boundaries, index-only Tiled access and authored-layer isolation from rendered actors.
 
 
 ## [0.1.8]
