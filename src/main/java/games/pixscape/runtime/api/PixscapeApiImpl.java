@@ -59,7 +59,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.sceneLayers = new SceneLayerResolver();
         this.ecs = new EcsApiImpl(engine);
         this.entities = new EntitiesApiImpl(engine, ecs, sceneLayers);
-        this.tiled = new TiledApiImpl(engine, ecs, entities);
+        this.tiled = new TiledApiImpl(engine, ecs, entities, sceneLayers);
         this.spatial = new SpatialApiImpl(engine);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
@@ -630,6 +630,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
             validateComponents("layerIndex(int)");
+            validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
             return this;
@@ -2026,12 +2027,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final EntitiesAPI entities;
+        private final SceneLayerResolver sceneLayers;
         private final TiledAnimationsAPI animations;
 
-        TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities) {
+        TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities,
+                     SceneLayerResolver sceneLayers) {
             this.engine = engine;
             this.ecs = ecs;
             this.entities = entities;
+            this.sceneLayers = sceneLayers;
             this.animations = new TiledAnimationsApiImpl(engine);
         }
 
@@ -2051,11 +2055,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public TiledLayerRef ofLayerName(String name) {
-            return layer(name);
-        }
-
-        @Override
         public TiledLayerRef layer(int layerIndex) {
             World world = engine.getWorld();
             if (world == null) {
@@ -2064,72 +2063,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
             ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
             ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
-            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(LayerComponent.class)).getEntities();
-            int[] data = bag.getData();
-            boolean foundLayerIndex = false;
-
-            for (int i = 0, n = bag.size(); i < n; i++) {
-                int entityId = data[i];
-                if (!world.getEntityManager().isActive(entityId)) continue;
-
-                LayerComponent layer = layers.get(entityId);
-                if (layer.layerIndex != layerIndex) continue;
-
-                foundLayerIndex = true;
-                if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId)) {
-                    TiledLayerRef ref = ofEntityId(entityId);
-                    if (ref.exists()) return ref;
-                }
+            sceneLayers.bind(world);
+            int entityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (entityId < 0) {
+                throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
             }
 
-            if (foundLayerIndex) {
-                throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
+            LayerComponent layer = layers.get(entityId);
+            TiledLayerRef ref = ofEntityId(entityId);
+            if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId) && ref.exists()) {
+                return ref;
             }
-            throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
-        }
-
-        @Override
-        public TiledLayerRef layer(String name) {
-            String normalizedName = normalizeLookupName(name);
-            if (isBlank(normalizedName)) {
-                throw new IllegalArgumentException("Tiled layer name must not be blank.");
-            }
-
-            World world = engine.getWorld();
-            if (world == null) {
-                throw new IllegalStateException("Cannot resolve tiled layer name '" + name + "': world is not loaded.");
-            }
-
-            ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
-            ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
-            ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities();
-            int[] data = bag.getData();
-            int match = -1;
-            int matchCount = 0;
-
-            for (int i = 0, n = bag.size(); i < n; i++) {
-                int entityId = data[i];
-                if (!world.getEntityManager().isActive(entityId) || !tiledLayers.has(entityId)) continue;
-                if (layers.has(entityId) && layers.get(entityId).type != LayerComponent.TYPE_TILED) continue;
-
-                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
-                String layerName = identity != null ? normalizeLookupName(identity.name) : null;
-                if (!normalizedName.equals(layerName)) continue;
-
-                TiledLayerRef ref = ofEntityId(entityId);
-                if (!ref.exists()) continue;
-
-                match = entityId;
-                matchCount++;
-            }
-
-            if (matchCount == 1) return ofEntityId(match);
-            if (matchCount > 1) {
-                throw new IllegalArgumentException("Tiled layer name '" + name + "' is ambiguous (" + matchCount
-                        + " tiled layers match). Use layer(index) instead.");
-            }
-            throw new IllegalArgumentException("No tiled layer exists for name '" + name + "'.");
+            throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
         }
 
         @Override

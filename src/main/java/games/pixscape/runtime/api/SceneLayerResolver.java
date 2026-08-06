@@ -68,15 +68,22 @@ final class SceneLayerResolver {
     }
 
     public int requireLayerIndex(int layerIndex) {
+        if (findLayerEntityId(layerIndex) < 0) {
+            throw new IllegalArgumentException("No scene layer exists for layer index " + layerIndex + ".");
+        }
+        return layerIndex;
+    }
+
+    int findLayerEntityId(int layerIndex) {
         IntArray matches = byLayerIndex.get(layerIndex);
         if (matches == null || matches.size == 0) {
-            throw new IllegalArgumentException("No scene layer exists for layer index " + layerIndex + ".");
+            return -1;
         }
         if (matches.size > 1) {
             throw new IllegalArgumentException("Scene layer index " + layerIndex + " is ambiguous ("
-                    + matches.size + " scene layers match).");
+                    + matches.size + " authored scene layers match).");
         }
-        return layerIndex;
+        return matches.get(0);
     }
 
     private void index(int entityId) {

@@ -173,6 +173,28 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
+    public void layerIndexRejectsInvalidPreservedZWithoutMutationOrDirtyWork() throws Exception {
+        final int[] invalid = {SortKey64.MIN_Z - 1, SortKey64.MAX_Z + 1};
+        Fixture fixture = fixture();
+        fixture.layer(5, LayerComponent.TYPE_CLASSIC);
+
+        for (int i = 0; i < invalid.length; i++) {
+            final int value = invalid[i];
+            final EntityRef entity = fixture.target(0, value);
+            fixture.dirty.clearAll();
+
+            expectInvalidZ(value, "layerIndex(int)", new Action() {
+                @Override
+                public void run() {
+                    entity.renderOrder().layerIndex(5);
+                }
+            });
+
+            assertUnchanged(fixture, entity, 0, value);
+        }
+    }
+
+    @Test
     public void combinedValidationFailureNeverPartiallyMutates() throws Exception {
         Fixture fixture = fixture();
         fixture.layer(5, LayerComponent.TYPE_CLASSIC);
@@ -290,17 +312,18 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void existingTiledApiNameAndIndexLookupRemainAvailable() throws Exception {
+    public void existingTiledApiIndexLookupRemainsAvailable() throws Exception {
         Fixture fixture = fixture();
-        int tiled = fixture.tiledLayer(3, "maps/ground.tmx");
+        int tiled = fixture.tiledLayer(3);
 
         Assert.assertEquals(tiled, fixture.engine.api().tiled().layer(3).entityId());
-        Assert.assertEquals(tiled, fixture.engine.api().tiled().layer("ground").entityId());
     }
 
     private static void assertUnchanged(Fixture fixture, EntityRef entity, int layerIndex, int zIndex) {
         Assert.assertEquals(layerIndex, entity.renderOrder().layerIndex());
         Assert.assertEquals(zIndex, entity.renderOrder().zIndex());
+        Assert.assertEquals(layerIndex, fixture.world.getMapper(LayerComponent.class)
+                .get(entity.entityId()).layerIndex);
         Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER | DirtyBits.ORDER));
     }
 
@@ -376,10 +399,8 @@ public class RenderOrderFacadeTest {
             return entityId;
         }
 
-        int tiledLayer(int layerIndex, String name) {
+        int tiledLayer(int layerIndex) {
             int entityId = layer(layerIndex, LayerComponent.TYPE_TILED);
-            PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
-            identity.name = name;
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
             tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
             world.process();

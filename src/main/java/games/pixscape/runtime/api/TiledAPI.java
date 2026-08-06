@@ -2,6 +2,9 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level API for runtime tiled layers.
+ *
+ * <p>Layer indices and stable IDs are exported Runtime data. Studio display
+ * names are not part of the Runtime layer contract.</p>
  */
 public interface TiledAPI {
     TiledLayerRef ofEntityId(int entityId);
@@ -10,11 +13,7 @@ public interface TiledAPI {
 
     TiledLayerRef ofLayerIndex(int layerIndex);
 
-    TiledLayerRef ofLayerName(String name);
-
     TiledLayerRef layer(int layerIndex);
-
-    TiledLayerRef layer(String name);
 
     TiledLayerRef requireEntityId(int entityId);
 

@@ -115,6 +115,34 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void tiledApiSurfaceIsIndexEntityAndStableIdOnly() throws Exception {
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("ofEntityId", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("ofStableId", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("ofLayerIndex", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("layer", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("requireEntityId", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("requireStableId", int.class).getReturnType());
+        Assert.assertEquals(TiledAnimationsAPI.class,
+                TiledAPI.class.getMethod("animations").getReturnType());
+        Assert.assertEquals(7, TiledAPI.class.getDeclaredMethods().length);
+
+        Method[] methods = TiledAPI.class.getMethods();
+        for (int i = 0; i < methods.length; i++) {
+            Class<?>[] parameters = methods[i].getParameterTypes();
+            for (int p = 0; p < parameters.length; p++) {
+                Assert.assertNotEquals("TiledAPI must not expose layer-name parameters",
+                        String.class, parameters[p]);
+            }
+        }
+    }
+
+    @Test
     public void spatialApiIgnoresRenderedActorLayerMetadata() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -177,7 +205,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledSpatialFacadeControlsDefaultsAndTileOverrides() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        int e = createTiledLayer(engine, 3, "new layer");
+        int e = createTiledLayer(engine, 3);
         World world = engine.getWorld();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(e);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(e);
@@ -378,7 +406,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledLayerResolvesByVisualLayerIndex() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        int tiled = createTiledLayer(engine, 3, "new layer");
+        int tiled = createTiledLayer(engine, 3);
 
         TiledLayerRef ref = engine.api().tiled().layer(3);
 
@@ -387,47 +415,49 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void tiledLayerResolvesByName() throws Exception {
+    public void tiledLayerIndexRejectsDuplicateAuthoredLayersAsAmbiguous() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        int tiled = createTiledLayer(engine, 3, "new layer");
-
-        TiledLayerRef ref = engine.api().tiled().layer("new layer");
-
-        Assert.assertEquals(tiled, ref.entityId());
-        Assert.assertTrue(ref.exists());
-    }
-
-    @Test
-    public void tiledLayerNameRejectsAmbiguousMatches() throws Exception {
-        PixscapeEngine engine = setupEngineWithWorld();
-        createTiledLayer(engine, 3, "new layer");
-        createTiledLayer(engine, 4, "new layer");
-
-        try {
-            engine.api().tiled().layer("new layer");
-            Assert.fail("Expected ambiguous tiled layer name to fail");
-        } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("ambiguous"));
-            Assert.assertTrue(expected.getMessage().contains("layer(index)"));
-        }
-    }
-
-    @Test
-    public void tiledLayerIndexRejectsNonTiledLayer() throws Exception {
-        PixscapeEngine engine = setupEngineWithWorld();
-        World world = engine.getWorld();
-        int e = world.create();
-        LayerComponent layer = world.edit(e).create(LayerComponent.class);
-        layer.layerIndex = 3;
-        layer.type = LayerComponent.TYPE_CLASSIC;
-        world.process();
+        createTiledLayer(engine, 3);
+        createTiledLayer(engine, 3);
 
         try {
             engine.api().tiled().layer(3);
-            Assert.fail("Expected non-tiled layer index to fail");
+            Assert.fail("Expected duplicate authored layer index to fail");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("does not designate a tiled layer"));
+            Assert.assertTrue(expected.getMessage().contains("ambiguous"));
+            Assert.assertTrue(expected.getMessage().contains("2 authored scene layers"));
         }
+    }
+
+    @Test
+    public void tiledLayerIndexRejectsEveryNonTiledAuthoredLayerType() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        final int[] types = {
+                LayerComponent.TYPE_CLASSIC,
+                LayerComponent.TYPE_PHYSICS,
+                LayerComponent.TYPE_LIGHT
+        };
+
+        for (int i = 0; i < types.length; i++) {
+            int layerIndex = 3 + i;
+            createAuthoredLayer(engine, layerIndex, types[i]);
+            assertTiledLookupFails(engine, layerIndex, "does not designate a tiled layer");
+        }
+    }
+
+    @Test
+    public void tiledLayerIndexIgnoresRenderedActorMetadata() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createActorLayer(engine, 7, LayerComponent.TYPE_CLASSIC, false);
+        createActorLayer(engine, 8, LayerComponent.TYPE_TILED, false);
+        createActorLayer(engine, 9, LayerComponent.TYPE_TILED, true);
+        int authored = createTiledLayer(engine, 10);
+        createActorLayer(engine, 10, LayerComponent.TYPE_TILED, true);
+
+        assertTiledLookupFails(engine, 7, "No tiled layer exists for layer index 7");
+        assertTiledLookupFails(engine, 8, "No tiled layer exists for layer index 8");
+        assertTiledLookupFails(engine, 9, "No tiled layer exists for layer index 9");
+        Assert.assertEquals(authored, engine.api().tiled().layer(10).entityId());
     }
 
     @Test
@@ -445,7 +475,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledLayerApiSetsStaticTileId() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        createTiledLayer(engine, 3, "new layer");
+        createTiledLayer(engine, 3);
 
         engine.api().tiled().layer(3).tiles().set(0, 0, 5);
 
@@ -455,7 +485,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledLayerApiSetsAnimationByName() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        createTiledLayer(engine, 3, "new layer");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(100, "test", new int[]{101, 102}, new int[]{100, 100}));
 
         engine.api().tiled().layer(3).tiles().set(1, 0, "test");
@@ -469,7 +499,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledLayerApiRejectsUnknownAnimationName() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        createTiledLayer(engine, 3, "new layer");
+        createTiledLayer(engine, 3);
 
         try {
             engine.api().tiled().layer(3).tiles().set(1, 0, "missing");
@@ -482,12 +512,12 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledAnimationPlayOnceHoldsLastFrameAndCanReplay() throws Exception {
         PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
-        createTiledLayer(engine, 3, "doors");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        TiledLayerRef layer = engine.api().tiled().layer(3);
         layer.tiles().set(1, 0, "door_open_anim");
 
         layer.tileAnimations().playOnce(1, 0);
@@ -528,12 +558,12 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledAnimationPlayOnceWithoutHoldUsesStopVisualButKeepsFinishedQuery() throws Exception {
         PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
-        createTiledLayer(engine, 3, "doors");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(
                 100, "door_open_anim", new int[]{101, 102}, new int[]{100, 100}
         ));
 
-        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        TiledLayerRef layer = engine.api().tiled().layer(3);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tileAnimations().playOnce(1, 0, false);
 
@@ -550,12 +580,12 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledAnimationLoopingCellsStillLoopByDefault() throws Exception {
         PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
-        createTiledLayer(engine, 3, "water");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(
                 100, "water_loop", new int[]{101, 102}, new int[]{100, 100}
         ));
 
-        TiledLayerRef layer = engine.api().tiled().layer("water");
+        TiledLayerRef layer = engine.api().tiled().layer(3);
         layer.tiles().set(1, 0, "water_loop");
 
         engine.getWorld().setDelta(0.25f);
@@ -570,12 +600,12 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledAnimationPauseAndSetFrameKeepWorkingWithOneShotMode() throws Exception {
         PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
-        createTiledLayer(engine, 3, "doors");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        TiledLayerRef layer = engine.api().tiled().layer(3);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tileAnimations().playOnce(1, 0).setFrame(1, 0, 1).setElapsedMs(1, 0, 25).pause(1, 0);
 
@@ -595,12 +625,12 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledAnimationCellsUsingSameAssetHaveIndependentPlaybackState() throws Exception {
         PixscapeEngine engine = setupEngineWithTiledAnimationSystem();
-        createTiledLayer(engine, 3, "doors");
+        createTiledLayer(engine, 3);
         engine.getAnimatedTileRegistry().put(tileAnimationData(
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledLayerRef layer = engine.api().tiled().layer("doors");
+        TiledLayerRef layer = engine.api().tiled().layer(3);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tiles().set(2, 0, "door_open_anim");
 
@@ -985,13 +1015,19 @@ public class PixscapeApiV1Test {
         return engine;
     }
 
-    private static int createTiledLayer(PixscapeEngine engine, int layerIndex, String name) {
+    private static int createAuthoredLayer(PixscapeEngine engine, int layerIndex, int type) {
         World world = engine.getWorld();
         int e = world.create();
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = layerIndex;
+        layer.type = type;
+        world.process();
+        return e;
+    }
 
-        PixscapeIdentityComponent identity = world.edit(e).create(PixscapeIdentityComponent.class);
-        identity.name = name;
-
+    private static int createTiledLayer(PixscapeEngine engine, int layerIndex) {
+        World world = engine.getWorld();
+        int e = world.create();
         LayerComponent layer = world.edit(e).create(LayerComponent.class);
         layer.layerIndex = layerIndex;
         layer.type = LayerComponent.TYPE_TILED;
@@ -1001,6 +1037,32 @@ public class PixscapeApiV1Test {
 
         world.process();
         return e;
+    }
+
+    private static int createActorLayer(PixscapeEngine engine, int layerIndex,
+                                        int type, boolean tiledComponent) {
+        World world = engine.getWorld();
+        int e = world.create();
+        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        layer.layerIndex = layerIndex;
+        layer.type = type;
+        world.edit(e).create(EntityIndexComponent.class).layerIndex = layerIndex;
+        if (tiledComponent) {
+            TiledLayerComponent tiled = world.edit(e).create(TiledLayerComponent.class);
+            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        }
+        world.process();
+        return e;
+    }
+
+    private static void assertTiledLookupFails(PixscapeEngine engine, int layerIndex,
+                                               String expectedMessage) {
+        try {
+            engine.api().tiled().layer(layerIndex);
+            Assert.fail("Expected tiled layer lookup to fail for index " + layerIndex);
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(expectedMessage));
+        }
     }
 
     private static TileAnimationDefData tileAnimationData(int id,
