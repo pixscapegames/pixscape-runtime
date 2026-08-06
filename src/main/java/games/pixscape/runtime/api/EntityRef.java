@@ -39,8 +39,8 @@ public interface EntityRef {
     /**
      * Layer placement and local z-order controls for this entity.
      *
-     * <p>For example, {@code entity.renderOrder().layer("Effects")} preserves
-     * the current z-index, while chaining {@code .zIndex(10)} changes it.</p>
+     * <p>For example, {@code entity.renderOrder().layerIndex(4)} preserves the
+     * current z-index, while chaining {@code .zIndex(10)} changes it.</p>
      */
     RenderOrderFacade renderOrder();
 

@@ -2,12 +2,14 @@ package games.pixscape.runtime.system;
 
 import com.artemis.ComponentMapper;
 import com.artemis.annotations.All;
+import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntSet;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -39,6 +41,7 @@ import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 
 
 @All({LayerComponent.class, TiledLayerComponent.class})
+@Exclude(EntityIndexComponent.class)
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
 
     private static final int CHUNK_OUTSIDE = 0;

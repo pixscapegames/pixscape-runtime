@@ -27,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 public class PixscapeApiV1Test {
 
@@ -89,6 +90,88 @@ public class PixscapeApiV1Test {
         engine.api().spatial().setLayerEnabled(5, false);
         Assert.assertFalse(layer.spatialEnabled);
         Assert.assertFalse(engine.api().spatial().isLayerEnabled(5));
+    }
+
+    @Test
+    public void renderOrderApiSurfaceIsIndexOnly() throws Exception {
+        Assert.assertEquals(RenderOrderFacade.class,
+                EntityRef.class.getMethod("renderOrder").getReturnType());
+        Assert.assertEquals(RenderOrderFacade.class,
+                RenderOrderFacade.class.getMethod("layerIndex", int.class).getReturnType());
+        Assert.assertEquals(RenderOrderFacade.class,
+                RenderOrderFacade.class.getMethod("zIndex", int.class).getReturnType());
+        Assert.assertEquals(RenderOrderFacade.class,
+                RenderOrderFacade.class.getMethod("set", int.class, int.class).getReturnType());
+
+        Method[] methods = RenderOrderFacade.class.getMethods();
+        for (int i = 0; i < methods.length; i++) {
+            Method method = methods[i];
+            Class<?>[] parameters = method.getParameterTypes();
+            for (int p = 0; p < parameters.length; p++) {
+                Assert.assertNotEquals("RenderOrderFacade must not expose layer-name parameters",
+                        String.class, parameters[p]);
+            }
+        }
+    }
+
+    @Test
+    public void spatialApiIgnoresRenderedActorLayerMetadata() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int sceneLayerEntity = world.create();
+        LayerComponent sceneLayer = world.edit(sceneLayerEntity).create(LayerComponent.class);
+        sceneLayer.layerIndex = 5;
+
+        int actorEntity = world.create();
+        LayerComponent actorLayer = world.edit(actorEntity).create(LayerComponent.class);
+        actorLayer.layerIndex = 5;
+        actorLayer.spatialEnabled = true;
+        world.edit(actorEntity).create(EntityIndexComponent.class).layerIndex = 5;
+        world.process();
+
+        Assert.assertFalse(engine.api().spatial().isLayerEnabled(5));
+    }
+
+    @Test
+    public void spatialApiSetLayerEnabledChangesOnlyAuthoredLayerEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int sceneLayerEntity = world.create();
+        LayerComponent sceneLayer = world.edit(sceneLayerEntity).create(LayerComponent.class);
+        sceneLayer.layerIndex = 5;
+
+        int actorEntity = world.create();
+        LayerComponent actorLayer = world.edit(actorEntity).create(LayerComponent.class);
+        actorLayer.layerIndex = 5;
+        world.edit(actorEntity).create(EntityIndexComponent.class).layerIndex = 5;
+        world.process();
+
+        engine.api().spatial().setLayerEnabled(5, true);
+
+        Assert.assertTrue(sceneLayer.spatialEnabled);
+        Assert.assertFalse(actorLayer.spatialEnabled);
+    }
+
+    @Test
+    public void movingActorDoesNotActivateTargetSpatialLayerFromActorMetadata() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int targetLayerEntity = world.create();
+        LayerComponent targetLayer = world.edit(targetLayerEntity).create(LayerComponent.class);
+        targetLayer.layerIndex = 4;
+
+        int actorEntity = world.create();
+        LayerComponent actorLayer = world.edit(actorEntity).create(LayerComponent.class);
+        actorLayer.layerIndex = 0;
+        actorLayer.spatialEnabled = true;
+        world.edit(actorEntity).create(EntityIndexComponent.class).layerIndex = 0;
+        world.process();
+
+        engine.api().entities().ofEntityId(actorEntity).renderOrder().layerIndex(4);
+
+        Assert.assertFalse(engine.api().spatial().isLayerEnabled(4));
+        Assert.assertFalse(targetLayer.spatialEnabled);
+        Assert.assertTrue(actorLayer.spatialEnabled);
     }
 
     @Test

@@ -74,9 +74,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     @Override
     protected void initialize() {
-        layersSub = world.getAspectSubscriptionManager().get(Aspect.all(LayerComponent.class));
+        layersSub = world.getAspectSubscriptionManager().get(
+                Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
         blockLayersSub = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class));
+                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class)
+                        .exclude(EntityIndexComponent.class));
     }
 
     @Override
@@ -226,7 +228,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
     }
 
-    private int tiledLayerEntityCount() {
+    int tiledLayerEntityCount() {
         return blockLayersSub != null ? blockLayersSub.getEntities().size() : 0;
     }
 

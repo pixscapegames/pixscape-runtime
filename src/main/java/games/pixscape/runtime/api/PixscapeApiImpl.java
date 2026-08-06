@@ -17,6 +17,7 @@ import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -43,7 +44,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     private final PixscapeEngine engine;
     private final SceneLayerResolver sceneLayers;
-    private final EntityLifecycleTracker entityLifecycle;
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
@@ -57,9 +57,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
         this.sceneLayers = new SceneLayerResolver();
-        this.entityLifecycle = new EntityLifecycleTracker();
         this.ecs = new EcsApiImpl(engine);
-        this.entities = new EntitiesApiImpl(engine, ecs, sceneLayers, entityLifecycle);
+        this.entities = new EntitiesApiImpl(engine, ecs, sceneLayers);
         this.tiled = new TiledApiImpl(engine, ecs, entities);
         this.spatial = new SpatialApiImpl(engine);
         this.assets = new AssetsApiImpl(engine);
@@ -394,20 +393,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final SceneLayerResolver sceneLayers;
-        private final EntityLifecycleTracker entityLifecycle;
 
         EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs,
-                        SceneLayerResolver sceneLayers,
-                        EntityLifecycleTracker entityLifecycle) {
+                        SceneLayerResolver sceneLayers) {
             this.engine = engine;
             this.ecs = ecs;
             this.sceneLayers = sceneLayers;
-            this.entityLifecycle = entityLifecycle;
         }
 
         @Override
         public EntityRef ofEntityId(int entityId) {
-            return new EntityRefImpl(engine, ecs, sceneLayers, entityLifecycle, entityId);
+            return new EntityRefImpl(engine, ecs, sceneLayers, entityId);
         }
 
         @Override
@@ -505,7 +501,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final SceneLayerResolver sceneLayers;
-        private final EntityLifecycleTracker entityLifecycle;
         private final int entityId;
         private TransformFacade transform;
         private SpriteFacade sprite;
@@ -518,12 +513,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         EntityRefImpl(PixscapeEngine engine, ECSAPI ecs,
                       SceneLayerResolver sceneLayers,
-                      EntityLifecycleTracker entityLifecycle,
                       int entityId) {
             this.engine = engine;
             this.ecs = ecs;
             this.sceneLayers = sceneLayers;
-            this.entityLifecycle = entityLifecycle;
             this.entityId = entityId;
         }
 
@@ -589,7 +582,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public RenderOrderFacade renderOrder() {
             if (renderOrder == null) {
                 renderOrder = new RenderOrderFacadeImpl(
-                        engine, sceneLayers, entityLifecycle, entityId);
+                        engine, sceneLayers, entityId);
             }
             return renderOrder;
         }
@@ -610,23 +603,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class RenderOrderFacadeImpl implements RenderOrderFacade {
         private final PixscapeEngine engine;
         private final SceneLayerResolver sceneLayers;
-        private final EntityLifecycleTracker entityLifecycle;
-        private final World capturedWorld;
         private final int entityId;
-        private final int entityGeneration;
         private LayerComponent validatedLayer;
         private EntityIndexComponent validatedEntityIndex;
 
         RenderOrderFacadeImpl(PixscapeEngine engine,
                               SceneLayerResolver sceneLayers,
-                              EntityLifecycleTracker entityLifecycle,
                               int entityId) {
             this.engine = engine;
             this.sceneLayers = sceneLayers;
-            this.entityLifecycle = entityLifecycle;
-            this.capturedWorld = engine.getWorld();
             this.entityId = entityId;
-            this.entityGeneration = entityLifecycle.capture(capturedWorld, entityId);
         }
 
         @Override
@@ -643,16 +629,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
-            int resolved = layers().requireLayerIndex(layerIndex);
             validateComponents("layerIndex(int)");
-            apply(resolved, validatedEntityIndex.zIndex);
-            return this;
-        }
-
-        @Override
-        public RenderOrderFacade layer(String layerName) {
-            int resolved = layers().requireLayerName(layerName);
-            validateComponents("layer(String)");
+            int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
             return this;
         }
@@ -660,31 +638,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public RenderOrderFacade zIndex(int zIndex) {
             validateComponents("zIndex(int)");
+            validateZIndex(zIndex, "zIndex(int)");
             apply(validatedEntityIndex.layerIndex, zIndex);
             return this;
         }
 
         @Override
         public RenderOrderFacade set(int layerIndex, int zIndex) {
-            int resolved = layers().requireLayerIndex(layerIndex);
             validateComponents("set(int, int)");
-            apply(resolved, zIndex);
-            return this;
-        }
-
-        @Override
-        public RenderOrderFacade set(String layerName, int zIndex) {
-            int resolved = layers().requireLayerName(layerName);
-            validateComponents("set(String, int)");
+            int resolved = layers().requireLayerIndex(layerIndex);
+            validateZIndex(zIndex, "set(int, int)");
             apply(resolved, zIndex);
             return this;
         }
 
         private void validateComponents(String operation) {
             World world = engine.getWorld();
-            if (world == null || world != capturedWorld || entityId < 0
-                    || !world.getEntityManager().isActive(entityId)
-                    || !entityLifecycle.matches(world, entityId, entityGeneration)) {
+            if (world == null || entityId < 0
+                    || !world.getEntityManager().isActive(entityId)) {
                 throw new IllegalStateException("Cannot perform render-order operation " + operation
                         + ": entityId=" + entityId + " no longer exists.");
             }
@@ -708,6 +679,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return sceneLayers;
         }
 
+        private void validateZIndex(int zIndex, String operation) {
+            if (zIndex < SortKey64.MIN_Z || zIndex > SortKey64.MAX_Z) {
+                throw new IllegalArgumentException("zIndex " + zIndex
+                        + " is outside the supported range [" + SortKey64.MIN_Z
+                        + ", " + SortKey64.MAX_Z + "] for render-order operation "
+                        + operation + ".");
+            }
+        }
+
         private void apply(int layerIndex, int zIndex) {
             boolean layerChanged = validatedEntityIndex.layerIndex != layerIndex
                     || validatedLayer.layerIndex != layerIndex;
@@ -718,7 +698,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             validatedEntityIndex.layerIndex = layerIndex;
             validatedEntityIndex.zIndex = zIndex;
 
-            DirtyTrackerSystem dirty = capturedWorld.getSystem(DirtyTrackerSystem.class);
+            World world = engine.getWorld();
+            DirtyTrackerSystem dirty = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
             if (dirty == null) return;
             if (layerChanged) {
                 dirty.layer(entityId);
@@ -910,7 +891,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (world == null) return false;
             ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
             IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class))
+                    .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
                     .getEntities();
             int[] data = entities.getData();
             for (int i = 0, n = entities.size(); i < n; i++) {
@@ -926,7 +907,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (world == null) return this;
             ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
             IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class))
+                    .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
                     .getEntities();
             int[] data = entities.getData();
             for (int i = 0, n = entities.size(); i < n; i++) {

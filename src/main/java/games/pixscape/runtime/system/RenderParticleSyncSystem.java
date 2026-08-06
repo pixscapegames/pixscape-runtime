@@ -476,7 +476,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return index != null ? index.getLayerIndex() : 0;
     }
 
-    private boolean isLayerVisible(int entityId) {
+    boolean isLayerVisible(int entityId) {
         EntityIndexComponent index = mEntityIndex.getSafe(entityId, null);
         if (index == null) return true;
 

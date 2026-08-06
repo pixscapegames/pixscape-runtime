@@ -17,6 +17,8 @@ public final class SortKey64 {
 
     public static final int MAX_TEXTURE_HANDLE = (1 << TEX_BITS) - 1;
     public static final int MAX_TIE = (1 << TIE_BITS) - 1;
+    public static final int MIN_Z = -(1 << (Z_BITS - 1));
+    public static final int MAX_Z = (1 << (Z_BITS - 1)) - 1;
 
     static {
         int sum = PASS_BITS + SHADER_BITS + BLEND_BITS + TEX_BITS + LAYER_BITS + Z_BITS + TIE_BITS;

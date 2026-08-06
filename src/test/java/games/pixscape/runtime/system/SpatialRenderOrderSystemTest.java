@@ -140,6 +140,34 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
+    public void actorLayerMetadataCannotActivateSpatialOrderingForItsLayer() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(6, false);
+        int higher = fixture.createActor(10f, 20f, 0, 6, true);
+        int lower = fixture.createActor(10f, 40f, 0, 6, true);
+        fixture.setActorLayerMetadata(higher, 6, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{higher, lower}, fixture.drawOrder());
+    }
+
+    @Test
+    public void renderedActorCannotEnterAuthoredTiledBlockLayerSubscription() {
+        Fixture fixture = new Fixture(512);
+        int actor = fixture.createActor(10f, 20f, 0, 6, true);
+        LayerComponent layer = fixture.world.getMapper(LayerComponent.class).create(actor);
+        layer.layerIndex = 6;
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.spatialEnabled = true;
+        fixture.world.getMapper(TiledLayerComponent.class).create(actor);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.tiledLayerEntityCount());
+    }
+
+    @Test
     public void spatialEnabledPhysicsLayerSortsActors() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, LayerComponent.TYPE_PHYSICS, true);
@@ -1706,6 +1734,12 @@ public class SpatialRenderOrderSystemTest {
 
             enableActorSlot(entity, entity, layerIndex, z, entity);
             return entity;
+        }
+
+        void setActorLayerMetadata(int actor, int layerIndex, boolean spatialEnabled) {
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(actor);
+            layer.layerIndex = layerIndex;
+            layer.spatialEnabled = spatialEnabled;
         }
 
         int createActorInRenderSlot(float x, float y, int z, int layerIndex, int slot) {

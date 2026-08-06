@@ -7,13 +7,16 @@ import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,7 +25,7 @@ import java.lang.reflect.Field;
 public class RenderOrderFacadeTest {
 
     @Test
-    public void facadeIsExposedCachedAndReadsCanonicalEntityIndexValues() throws Exception {
+    public void facadeIsExposedCachedAndReadsEntityIndexValues() throws Exception {
         Fixture fixture = fixture();
         EntityRef entity = fixture.target(2, 7);
 
@@ -32,63 +35,41 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void layerIndexUpdatesBothComponentsAndPublishesLayerAndOrderDirty() throws Exception {
+    public void layerIndexAcceptsEveryExportedSceneLayerType() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(4, "Effects", LayerComponent.TYPE_CLASSIC);
+        fixture.layer(1, LayerComponent.TYPE_CLASSIC);
+        fixture.layer(2, LayerComponent.TYPE_PHYSICS);
+        fixture.layer(3, LayerComponent.TYPE_LIGHT);
+        fixture.layer(4, LayerComponent.TYPE_TILED);
+        EntityRef entity = fixture.target(0, 9);
+
+        Assert.assertEquals(1, entity.renderOrder().layerIndex(1).layerIndex());
+        Assert.assertEquals(2, entity.renderOrder().layerIndex(2).layerIndex());
+        Assert.assertEquals(3, entity.renderOrder().layerIndex(3).layerIndex());
+        Assert.assertEquals(4, entity.renderOrder().layerIndex(4).layerIndex());
+        Assert.assertEquals(9, entity.renderOrder().zIndex());
+    }
+
+    @Test
+    public void unknownDuplicateAndActorOnlyLayerIndicesFail() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(2, LayerComponent.TYPE_CLASSIC);
+        fixture.layer(2, LayerComponent.TYPE_LIGHT);
+        fixture.actorMetadata(8, true);
         EntityRef entity = fixture.target(0, 3);
-        LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
-        EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(entity.entityId());
-        fixture.dirty.clearAll();
 
-        entity.renderOrder().layerIndex(4);
-
-        Assert.assertEquals(4, layer.layerIndex);
-        Assert.assertEquals(4, index.layerIndex);
-        Assert.assertEquals(3, index.zIndex);
-        Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
-        Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
-    }
-
-    @Test
-    public void namesResolveAllSceneLayerTypes() throws Exception {
-        Fixture fixture = fixture();
-        fixture.layer(1, "Classic", LayerComponent.TYPE_CLASSIC);
-        fixture.layer(2, "Physics", LayerComponent.TYPE_PHYSICS);
-        fixture.layer(3, "Light", LayerComponent.TYPE_LIGHT);
-        fixture.layer(4, "Tiled", LayerComponent.TYPE_TILED);
-        EntityRef entity = fixture.target(0, 0);
-
-        Assert.assertEquals(1, entity.renderOrder().layer("Classic").layerIndex());
-        Assert.assertEquals(2, entity.renderOrder().layer("Physics").layerIndex());
-        Assert.assertEquals(3, entity.renderOrder().layer("Light").layerIndex());
-        Assert.assertEquals(4, entity.renderOrder().layer("Tiled").layerIndex());
-    }
-
-    @Test
-    public void actorNamesNeverResolveAsSceneLayers() throws Exception {
-        Fixture fixture = fixture();
-        fixture.namedActor(8, "Impostor");
-        EntityRef entity = fixture.target(0, 0);
-
+        expectIllegalArgument("ambiguous", new Action() {
+            @Override
+            public void run() {
+                entity.renderOrder().layerIndex(2);
+            }
+        });
         expectIllegalArgument("No scene layer", new Action() {
             @Override
             public void run() {
-                entity.renderOrder().layer("Impostor");
+                entity.renderOrder().layerIndex(8);
             }
         });
-    }
-
-    @Test
-    public void invalidNamesAndIndicesFailWithoutMutation() throws Exception {
-        Fixture fixture = fixture();
-        fixture.layer(2, "Duplicate", LayerComponent.TYPE_CLASSIC);
-        fixture.layer(3, "Duplicate", LayerComponent.TYPE_LIGHT);
-        EntityRef entity = fixture.target(0, 9);
-
-        expectIllegalArgument("blank", actionLayer(entity, "  "));
-        expectIllegalArgument("No scene layer", actionLayer(entity, "Missing"));
-        expectIllegalArgument("ambiguous", actionLayer(entity, "Duplicate"));
-        expectIllegalArgument("layerIndex(int)", actionLayer(entity, "Duplicate"));
         expectIllegalArgument("No scene layer", new Action() {
             @Override
             public void run() {
@@ -96,72 +77,121 @@ public class RenderOrderFacadeTest {
             }
         });
         Assert.assertEquals(0, entity.renderOrder().layerIndex());
-        Assert.assertEquals(9, entity.renderOrder().zIndex());
+        Assert.assertEquals(3, entity.renderOrder().zIndex());
     }
 
     @Test
-    public void zIndexAndCombinedSetHaveAtomicPreservingSemantics() throws Exception {
+    public void layerChangeSynchronizesFieldsPreservesMetadataAndPublishesLayerAndOrder() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(5, "Effects", LayerComponent.TYPE_CLASSIC);
-        EntityRef entity = fixture.target(0, 1);
+        fixture.layer(4, LayerComponent.TYPE_CLASSIC);
+        EntityRef entity = fixture.target(0, 3);
         LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
+        EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(entity.entityId());
         layer.type = LayerComponent.TYPE_LIGHT;
         layer.spatialEnabled = true;
-
-        entity.renderOrder().zIndex(Integer.MIN_VALUE);
-        Assert.assertEquals(0, entity.renderOrder().layerIndex());
-        Assert.assertEquals(Integer.MIN_VALUE, entity.renderOrder().zIndex());
-
-        entity.renderOrder().set(5, Integer.MAX_VALUE);
-        Assert.assertEquals(5, entity.renderOrder().layerIndex());
-        Assert.assertEquals(Integer.MAX_VALUE, entity.renderOrder().zIndex());
-        Assert.assertEquals(LayerComponent.TYPE_LIGHT, layer.type);
-        Assert.assertTrue(layer.spatialEnabled);
-
-        entity.renderOrder().set("Effects", 5);
-        Assert.assertEquals(5, entity.renderOrder().layerIndex());
-        Assert.assertEquals(5, entity.renderOrder().zIndex());
-
-        try {
-            entity.renderOrder().set("Missing", 123);
-            Assert.fail("Expected unknown layer to fail");
-        } catch (IllegalArgumentException expected) {
-            Assert.assertEquals(5, entity.renderOrder().layerIndex());
-            Assert.assertEquals(5, entity.renderOrder().zIndex());
-        }
-    }
-
-    @Test
-    public void unchangedValuesPublishNoDirtyWork() throws Exception {
-        Fixture fixture = fixture();
-        fixture.layer(2, "Effects", LayerComponent.TYPE_CLASSIC);
-        EntityRef entity = fixture.target(2, 10);
         fixture.dirty.clearAll();
 
-        entity.renderOrder().set("Effects", 10);
+        entity.renderOrder().layerIndex(4);
 
-        Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER | DirtyBits.ORDER));
+        Assert.assertEquals(4, layer.layerIndex);
+        Assert.assertEquals(4, index.layerIndex);
+        Assert.assertEquals(3, index.zIndex);
+        Assert.assertEquals(LayerComponent.TYPE_LIGHT, layer.type);
+        Assert.assertTrue(layer.spatialEnabled);
+        Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
+        Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
     }
 
     @Test
-    public void zIndexChangesOnlyOrderState() throws Exception {
+    public void zIndexBoundariesSucceedAndPreserveLayerWithOrderOnlyDirty() throws Exception {
         Fixture fixture = fixture();
         EntityRef entity = fixture.target(2, 3);
         LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
+
         fixture.dirty.clearAll();
-
-        entity.renderOrder().zIndex(4);
-
+        entity.renderOrder().zIndex(SortKey64.MIN_Z);
+        Assert.assertEquals(SortKey64.MIN_Z, entity.renderOrder().zIndex());
+        Assert.assertEquals(2, entity.renderOrder().layerIndex());
         Assert.assertEquals(2, layer.layerIndex);
-        Assert.assertEquals(4, entity.renderOrder().zIndex());
+        Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
+        Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
+
+        fixture.dirty.clearAll();
+        entity.renderOrder().zIndex(SortKey64.MAX_Z);
+        Assert.assertEquals(SortKey64.MAX_Z, entity.renderOrder().zIndex());
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
         Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
     }
 
     @Test
+    public void setUpdatesBothValuesAtomicallyAndUnchangedValuesPublishNothing() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(5, LayerComponent.TYPE_PHYSICS);
+        EntityRef entity = fixture.target(0, 1);
+
+        entity.renderOrder().set(5, 10);
+        Assert.assertEquals(5, entity.renderOrder().layerIndex());
+        Assert.assertEquals(10, entity.renderOrder().zIndex());
+
+        fixture.dirty.clearAll();
+        entity.renderOrder().set(5, 10);
+        Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER | DirtyBits.ORDER));
+    }
+
+    @Test
+    public void invalidZIndicesFailWithoutMutationOrDirtyWork() throws Exception {
+        final int[] invalid = {
+                SortKey64.MIN_Z - 1,
+                SortKey64.MAX_Z + 1,
+                Integer.MIN_VALUE,
+                Integer.MAX_VALUE
+        };
+        Fixture fixture = fixture();
+        fixture.layer(5, LayerComponent.TYPE_CLASSIC);
+        final EntityRef entity = fixture.target(0, 7);
+
+        for (int i = 0; i < invalid.length; i++) {
+            final int value = invalid[i];
+            fixture.dirty.clearAll();
+            expectInvalidZ(value, "zIndex(int)", new Action() {
+                @Override
+                public void run() {
+                    entity.renderOrder().zIndex(value);
+                }
+            });
+            assertUnchanged(fixture, entity, 0, 7);
+
+            fixture.dirty.clearAll();
+            expectInvalidZ(value, "set(int, int)", new Action() {
+                @Override
+                public void run() {
+                    entity.renderOrder().set(5, value);
+                }
+            });
+            assertUnchanged(fixture, entity, 0, 7);
+        }
+    }
+
+    @Test
+    public void combinedValidationFailureNeverPartiallyMutates() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(5, LayerComponent.TYPE_CLASSIC);
+        EntityRef entity = fixture.target(0, 7);
+
+        expectIllegalArgument("No scene layer", new Action() {
+            @Override
+            public void run() {
+                entity.renderOrder().set(99, 10);
+            }
+        });
+        Assert.assertEquals(0, entity.renderOrder().layerIndex());
+        Assert.assertEquals(7, entity.renderOrder().zIndex());
+    }
+
+    @Test
     public void missingComponentsFailClearlyAndAreNotCreated() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(2, "Effects", LayerComponent.TYPE_CLASSIC);
+        fixture.layer(2, LayerComponent.TYPE_CLASSIC);
         int noLayer = fixture.world.create();
         fixture.world.getMapper(EntityIndexComponent.class).create(noLayer);
         int noIndex = fixture.world.create();
@@ -188,52 +218,44 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void removedAndRecycledEntityCannotBeMutatedThroughOldFacade() throws Exception {
+    public void inactiveEntityFailsClearly() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(2, "Effects", LayerComponent.TYPE_CLASSIC);
-        EntityRef stale = fixture.target(0, 0);
-        RenderOrderFacade facade = stale.renderOrder();
-        int recycledId = stale.entityId();
-        fixture.world.delete(recycledId);
-        fixture.world.process();
-        int replacement = fixture.world.create();
-        Assert.assertEquals(recycledId, replacement);
-        fixture.world.getMapper(LayerComponent.class).create(replacement);
-        fixture.world.getMapper(EntityIndexComponent.class).create(replacement);
+        EntityRef entity = fixture.target(0, 0);
+        RenderOrderFacade facade = entity.renderOrder();
+        fixture.world.delete(entity.entityId());
         fixture.world.process();
 
-        expectIllegalState("entityId=" + recycledId, "no longer exists", "zIndex", new Action() {
+        expectIllegalState("entityId=" + entity.entityId(), "no longer exists", "zIndex", new Action() {
             @Override
             public void run() {
-                facade.zIndex(12);
+                facade.zIndex(1);
             }
         });
-        Assert.assertEquals(0, fixture.world.getMapper(EntityIndexComponent.class).get(replacement).zIndex);
     }
 
     @Test
-    public void particleSpriteAndAnimationUseCommonFacadeImmediatelyAfterSpawn() throws Exception {
+    public void particleSpriteAndAnimationUseIndexFacadeImmediatelyAfterSpawn() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(4, "Effects", LayerComponent.TYPE_CLASSIC);
+        fixture.layer(4, LayerComponent.TYPE_CLASSIC);
         setField(fixture.engine, "atlasRuntimeService", new TestAtlasRuntimeService());
 
-        ParticleRef particle = fixture.engine.api().particles().spawn("Flame", 10f, 20f);
-        particle.entity().renderOrder().layer("Effects").zIndex(5);
-        Assert.assertEquals(4, particle.entity().renderOrder().layerIndex());
-        Assert.assertEquals(5, particle.entity().renderOrder().zIndex());
-        particle.entity().renderOrder().set("Effects", 5);
+        ParticleRef flame = fixture.engine.api().particles().spawn("Flame", 10f, 20f);
+        flame.entity().renderOrder().layerIndex(4).zIndex(5);
+        Assert.assertEquals(4, flame.entity().renderOrder().layerIndex());
+        Assert.assertEquals(5, flame.entity().renderOrder().zIndex());
+        flame.entity().renderOrder().set(4, 5);
 
         SpriteRef sprite = fixture.engine.api().sprites().spawn(42, 1f, 2f);
-        sprite.entity().renderOrder().set("Effects", 6);
+        sprite.entity().renderOrder().set(4, 6);
         Assert.assertEquals(4, sprite.entity().renderOrder().layerIndex());
 
         AnimationRef animation = fixture.engine.api().animations().spawn(42, 3f, 4f);
-        animation.entity().renderOrder().set("Effects", 7);
+        animation.entity().renderOrder().set(4, 7);
         Assert.assertEquals(7, animation.entity().renderOrder().zIndex());
     }
 
     @Test
-    public void prefabSpawnedEntityUsesCommonFacade() throws Exception {
+    public void prefabSpawnedEntityUsesIndexFacade() throws Exception {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
         World world = new World(new WorldConfigurationBuilder()
                 .with(dirty, new WorldSerializationManager())
@@ -258,35 +280,39 @@ public class RenderOrderFacadeTest {
         world.process();
 
         Fixture fixture = new Fixture(engine, world, dirty);
-        fixture.layer(4, "Effects", LayerComponent.TYPE_CLASSIC);
+        fixture.layer(4, LayerComponent.TYPE_CLASSIC);
         SpawnResult result = engine.api().prefabs().spawnFragment(fragment, 0f, 0f);
         EntityRef spawned = engine.api().entities().ofEntityId(result.createdEntityIds().get(0));
 
-        spawned.renderOrder().set("Effects", 8);
+        spawned.renderOrder().set(4, 8);
         Assert.assertEquals(4, spawned.renderOrder().layerIndex());
         Assert.assertEquals(8, spawned.renderOrder().zIndex());
     }
 
     @Test
-    public void existingTiledApiLookupBehaviorRemainsAvailable() throws Exception {
+    public void existingTiledApiNameAndIndexLookupRemainAvailable() throws Exception {
         Fixture fixture = fixture();
-        int tiled = fixture.layer(3, "maps/ground.tmx", LayerComponent.TYPE_TILED);
-        games.pixscape.runtime.component.TiledLayerComponent tiledLayer = fixture.world
-                .getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).create(tiled);
-        tiledLayer.data = new games.pixscape.runtime.tiled.TiledMapLayerData(1, 1, 16, 16, 1);
-        fixture.world.process();
+        int tiled = fixture.tiledLayer(3, "maps/ground.tmx");
 
         Assert.assertEquals(tiled, fixture.engine.api().tiled().layer(3).entityId());
         Assert.assertEquals(tiled, fixture.engine.api().tiled().layer("ground").entityId());
     }
 
-    private static Action actionLayer(final EntityRef entity, final String name) {
-        return new Action() {
-            @Override
-            public void run() {
-                entity.renderOrder().layer(name);
-            }
-        };
+    private static void assertUnchanged(Fixture fixture, EntityRef entity, int layerIndex, int zIndex) {
+        Assert.assertEquals(layerIndex, entity.renderOrder().layerIndex());
+        Assert.assertEquals(zIndex, entity.renderOrder().zIndex());
+        Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER | DirtyBits.ORDER));
+    }
+
+    private static void expectInvalidZ(int value, String operation, Action action) {
+        try {
+            action.run();
+            Assert.fail("Expected invalid zIndex " + value + " to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(String.valueOf(value)));
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains("[-32768, 32767]"));
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(operation));
+        }
     }
 
     private static void expectIllegalArgument(String message, Action action) {
@@ -341,40 +367,43 @@ public class RenderOrderFacadeTest {
             this.dirty = dirty;
         }
 
-        int layer(int layerIndex, String name, int type) {
+        int layer(int layerIndex, int type) {
             int entityId = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
             layer.layerIndex = layerIndex;
             layer.type = type;
+            world.process();
+            return entityId;
+        }
+
+        int tiledLayer(int layerIndex, String name) {
+            int entityId = layer(layerIndex, LayerComponent.TYPE_TILED);
             PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
             identity.name = name;
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
+            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            world.process();
+            return entityId;
+        }
+
+        int actorMetadata(int layerIndex, boolean spatialEnabled) {
+            int entityId = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
+            layer.layerIndex = layerIndex;
+            layer.spatialEnabled = spatialEnabled;
+            world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = layerIndex;
             world.process();
             return entityId;
         }
 
         EntityRef target(int layerIndex, int zIndex) {
-            int entityId = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.layerIndex = layerIndex;
-            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
-            index.layerIndex = layerIndex;
-            index.zIndex = zIndex;
-            world.process();
+            int entityId = actorMetadata(layerIndex, false);
+            world.getMapper(EntityIndexComponent.class).get(entityId).zIndex = zIndex;
             return engine.api().entities().ofEntityId(entityId);
-        }
-
-        void namedActor(int layerIndex, String name) {
-            EntityRef actor = target(layerIndex, 0);
-            world.getMapper(PixscapeIdentityComponent.class).create(actor.entityId()).name = name;
-            world.process();
         }
     }
 
     private static final class TestAtlasRuntimeService extends AtlasRuntimeService {
-        TestAtlasRuntimeService() {
-            super();
-        }
-
         @Override
         public games.pixscape.runtime.service.AtlasAssetBinding resolveBinding(int assetId, String atlasTag) {
             if (assetId != 42) return null;

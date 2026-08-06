@@ -1,9 +1,16 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.render.VfxRenderState;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -55,6 +62,31 @@ public class RenderParticleSyncSystemTest {
 
         Assert.assertEquals(30f, effect.x, 0f);
         Assert.assertEquals(40f, effect.y, 0f);
+    }
+
+    @Test
+    public void layerVisibilityComesOnlyFromAuthoredSceneLayerEntities() {
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0, null, null);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+
+        int sceneLayerEntity = world.create();
+        LayerComponent sceneLayer = world.getMapper(LayerComponent.class).create(sceneLayerEntity);
+        sceneLayer.layerIndex = 4;
+        VisibilityComponent sceneVisibility = world.getMapper(VisibilityComponent.class).create(sceneLayerEntity);
+        sceneVisibility.visible = false;
+
+        int actorEntity = world.create();
+        LayerComponent actorLayer = world.getMapper(LayerComponent.class).create(actorEntity);
+        actorLayer.layerIndex = 4;
+        world.getMapper(EntityIndexComponent.class).create(actorEntity).layerIndex = 4;
+        VisibilityComponent actorVisibility = world.getMapper(VisibilityComponent.class).create(actorEntity);
+        actorVisibility.visible = true;
+        actorVisibility.inView = true;
+
+        world.process();
+
+        Assert.assertFalse(system.isLayerVisible(actorEntity));
     }
 
     private static final class CapturingParticleEffect extends ParticleEffect {

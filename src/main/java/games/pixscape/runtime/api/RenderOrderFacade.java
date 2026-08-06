@@ -3,16 +3,16 @@ package games.pixscape.runtime.api;
 /**
  * Runtime layer placement and local z-order controls for one entity.
  *
- * <p>Layer names refer to loaded scene layers. Unknown or ambiguous names fail;
- * use {@link #layerIndex(int)} when duplicate layer names are intentional. The
- * z-index is optional: changing the layer preserves the current z-index, and
- * changing the z-index preserves the current layer. {@code set(...)} changes
- * both values as one operation.</p>
+ * <p>Layer indices refer to exported scene layers. Changing the layer preserves
+ * the current z-index, changing the z-index preserves the current layer, and
+ * {@link #set(int, int)} changes both values as one operation. The supported
+ * z-index range is {@code -32768} through {@code 32767}, inclusive.</p>
  *
  * <p>For example:</p>
  * <pre>{@code
- * entity.renderOrder().layer("Effects");
- * entity.renderOrder().layer("Effects").zIndex(10);
+ * entity.renderOrder().layerIndex(4);
+ * entity.renderOrder().layerIndex(4).zIndex(10);
+ * entity.renderOrder().set(4, 10);
  * }</pre>
  *
  * <p>Spatial actors remain subject to the scene's Spatial ordering rules. These
@@ -31,27 +31,19 @@ public interface RenderOrderFacade {
     int zIndex();
 
     /**
-     * Moves the entity to an existing scene layer by index.
+     * Moves the entity to an existing exported scene layer by index.
      */
     RenderOrderFacade layerIndex(int layerIndex);
 
     /**
-     * Moves the entity to an existing scene layer by name.
-     */
-    RenderOrderFacade layer(String layerName);
-
-    /**
-     * Changes the local z-index inside the current layer.
+     * Changes the local z-index inside the current layer. Valid values are
+     * {@code -32768} through {@code 32767}, inclusive.
      */
     RenderOrderFacade zIndex(int zIndex);
 
     /**
-     * Changes layer and z-index as one public operation.
+     * Changes layer and z-index as one operation. Valid z-index values are
+     * {@code -32768} through {@code 32767}, inclusive.
      */
     RenderOrderFacade set(int layerIndex, int zIndex);
-
-    /**
-     * Changes layer and z-index as one public operation.
-     */
-    RenderOrderFacade set(String layerName, int zIndex);
 }
