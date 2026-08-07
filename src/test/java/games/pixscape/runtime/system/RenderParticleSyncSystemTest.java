@@ -6,6 +6,8 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.engine.PixscapeEngine;
@@ -17,6 +19,8 @@ import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
+import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import org.junit.Assert;
@@ -120,6 +124,18 @@ public class RenderParticleSyncSystemTest {
         world.process();
 
         Assert.assertFalse(system.isLayerVisible(actorEntity));
+    }
+
+    @Test
+    public void extractsEmitterBlendModesWithBatchEquivalentPrecedence() throws Exception {
+        VfxRenderState vfxState = new VfxRenderState(4);
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                vfxState, new OrthographicCamera(), 0, null, null);
+
+        assertExtractedBlend(system, vfxState, false, false, BlendMode.ALPHA);
+        assertExtractedBlend(system, vfxState, true, false, BlendMode.ADDITIVE_ALPHA);
+        assertExtractedBlend(system, vfxState, false, true, BlendMode.PREMULT_ALPHA);
+        assertExtractedBlend(system, vfxState, true, true, BlendMode.PREMULT_ALPHA);
     }
 
     @Test
@@ -276,6 +292,53 @@ public class RenderParticleSyncSystemTest {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private static void assertExtractedBlend(RenderParticleSyncSystem system,
+                                             VfxRenderState vfxState,
+                                             boolean additive,
+                                             boolean premultipliedAlpha,
+                                             BlendMode expected) throws Exception {
+        ParticleEmitter emitter = new ParticleEmitter();
+        emitter.setAdditive(additive);
+        emitter.setPremultipliedAlpha(premultipliedAlpha);
+        emitter.setCleansUpBlendFunction(false);
+        emitter.setMaxParticleCount(1);
+        emitter.particles[0] = new ParticleEmitter.Particle(new Sprite());
+        emitter.getActiveArray()[0] = true;
+
+        int[] batchBlend = new int[2];
+        Batch batch = (Batch) Proxy.newProxyInstance(
+                Batch.class.getClassLoader(),
+                new Class<?>[]{Batch.class},
+                (proxy, method, args) -> {
+                    if ("setBlendFunction".equals(method.getName())) {
+                        batchBlend[0] = (Integer) args[0];
+                        batchBlend[1] = (Integer) args[1];
+                    }
+                    return null;
+                });
+        emitter.draw(batch);
+        Assert.assertEquals(expected.srcFactor, batchBlend[0]);
+        Assert.assertEquals(expected.dstFactor, batchBlend[1]);
+
+        ParticleEffect effect = new ParticleEffect();
+        effect.getEmitters().add(emitter);
+
+        Method collectEffect = RenderParticleSyncSystem.class.getDeclaredMethod(
+                "collectEffect",
+                ParticleEffect.class,
+                int.class,
+                int.class,
+                int.class,
+                games.pixscape.runtime.component.ParticleOverridesComponent.class);
+        collectEffect.setAccessible(true);
+
+        vfxState.clearFrame();
+        collectEffect.invoke(system, effect, 0, 0, 0, null);
+
+        Assert.assertEquals(1, vfxState.activeCount);
+        Assert.assertEquals(expected.id, vfxState.blend[0]);
     }
 
     private static final class CapturingParticleEffect extends ParticleEffect {

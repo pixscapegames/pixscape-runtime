@@ -368,9 +368,14 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
 
-            int blendId = emitter.isAdditive()
-                    ? BlendMode.ADDITIVE_ALPHA.id
-                    : BlendMode.ALPHA.id;
+            int blendId;
+            if (emitter.isPremultipliedAlpha()) {
+                blendId = BlendMode.PREMULT_ALPHA.id;
+            } else if (emitter.isAdditive()) {
+                blendId = BlendMode.ADDITIVE_ALPHA.id;
+            } else {
+                blendId = BlendMode.ALPHA.id;
+            }
 
             Particle[] particles = emitter.particles;
             boolean[] active = emitter.getActiveArray();
