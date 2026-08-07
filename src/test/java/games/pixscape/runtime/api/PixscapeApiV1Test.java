@@ -10,14 +10,19 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.system.TiledAnimationSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -56,7 +61,7 @@ public class PixscapeApiV1Test {
         ref.spatial().enable().setVolume(3f, 7f);
 
         Assert.assertTrue(ref.spatial().enabled());
-        Assert.assertTrue(ref.spatial().participatesInRenderOrder());
+        Assert.assertFalse(ref.spatial().participatesInRenderOrder());
         Assert.assertEquals(3f, ref.spatial().altitude(), 0.0001f);
         Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
         Assert.assertEquals(3f, world.getMapper(SpatialHeightComponent.class).get(e).altitude, 0.0001f);
@@ -69,6 +74,53 @@ public class PixscapeApiV1Test {
         ref.spatial().disable();
         Assert.assertFalse(ref.spatial().enabled());
         Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(e));
+    }
+
+    @Test
+    public void spatialParticipationUsesEffectiveRuntimeEligibility() throws Exception {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(8);
+        SpatialRenderOrderSystem spatialSystem = new SpatialRenderOrderSystem(state, new DrawList(8));
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
+        World world = new World(new WorldConfigurationBuilder().with(dirty, spatialSystem).build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+
+        int layerEntity = world.create();
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
+        layer.layerIndex = 4;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        layer.spatialEnabled = true;
+
+        int actor = world.create();
+        world.getMapper(TransformComponent.class).create(actor);
+        world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 4;
+        world.getMapper(SpatialHeightComponent.class).create(actor).height = 2f;
+        int slot = state.acquireSlotForEntity(actor);
+        state.kind[slot] = RenderKind.SPRITE;
+        state.enabled[slot] = true;
+        state.visible[slot] = true;
+        state.textureHandle[slot] = 1;
+        state.layerIndex[slot] = 4;
+        world.process();
+
+        SpatialEntityFacade facade = engine.api().entities().ofEntityId(actor).spatial();
+        Assert.assertFalse("Positive height without a footprint is ineligible",
+                facade.participatesInRenderOrder());
+
+        SpatialPhysicsFootprintComponent footprint =
+                world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
+        footprint.valid = true;
+        footprint.radiusPx = 3f;
+        layer.spatialEnabled = false;
+        Assert.assertFalse("A valid footprint on a non-Spatial layer is ineligible",
+                facade.participatesInRenderOrder());
+
+        layer.spatialEnabled = true;
+        Assert.assertTrue("A renderable sprite with volume, footprint, and Spatial layer participates",
+                facade.participatesInRenderOrder());
+
+        facade.setHeight(0f);
+        Assert.assertFalse("Zero height is ineligible", facade.participatesInRenderOrder());
     }
 
     @Test
@@ -401,6 +453,28 @@ public class PixscapeApiV1Test {
         ref.tiles().hLine(0, 2, 3, 100).vLine(2, 0, 3, 100).markAllDirty();
         ref.map().setOrigin(3f, 4f).setVisible(false).setCollisionEnabled(false).resize(3, 3);
         Assert.assertEquals(3, ref.map().width());
+    }
+
+    @Test
+    public void invalidTiledRefSetterCannotPartiallyConstructCapability() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        world.process();
+
+        TiledLayerRef ref = engine.api().tiled().ofEntityId(entity);
+        Assert.assertFalse(ref.exists());
+        ref.map().setAtlasTag("partial");
+        ref.map().setAtlasTag("partial-again");
+
+        Assert.assertFalse(world.getMapper(TiledLayerComponent.class).has(entity));
+        Assert.assertEquals("", ref.map().atlasTag());
+        try {
+            engine.api().tiled().requireEntityId(entity);
+            Assert.fail("Expected a deterministic invalid-ref failure");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("entityId=" + entity));
+        }
     }
 
     @Test

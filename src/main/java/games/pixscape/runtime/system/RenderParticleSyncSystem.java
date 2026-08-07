@@ -51,6 +51,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
     // cache : entityId -> ParticleEffect
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
+    private final IntMap<String> effectPaths = new IntMap<>();
+    private final IntMap<String> effectAtlasTags = new IntMap<>();
     private final ObjectMap<String, ParticleEffectPool> effectPools = new ObjectMap<>();
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
@@ -112,6 +114,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];
                     ParticleEffectPool.PooledEffect fx = effects.remove(e);
+                    effectPaths.remove(e);
+                    effectAtlasTags.remove(e);
                     if (fx != null) {
                         fx.free();
                     }
@@ -149,22 +153,35 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         for (int i = 0; i < count; i++) {
             int e = data[i];
 
+            ParticleEmitterComponent comp = mEmitter.get(e);
+            TransformComponent t = mTransform.get(e);
+            if (comp == null || t == null) continue;
+
+            ParticleEffectPool.PooledEffect fx = effects.get(e);
+            if (fx != null && !matchesAuthoredEffect(e, comp)) {
+                if (!comp.paused && !fx.isComplete()) {
+                    comp.playRequested = true;
+                }
+                effects.remove(e);
+                effectPaths.remove(e);
+                effectAtlasTags.remove(e);
+                fx.free();
+                fx = null;
+            }
+
             if (mVis != null && mVis.has(e) && !mVis.get(e).isVisible()) {
                 continue;
             }
             if (!isLayerVisible(e)) continue;
 
-            ParticleEmitterComponent comp = mEmitter.get(e);
-            TransformComponent t = mTransform.get(e);
-            if (comp == null || t == null) continue;
-
             ParticleOverridesComponent ov = (mOverrides != null) ? mOverrides.getSafe(e, null) : null;
 
-            ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx == null) {
                 fx = createEffect(comp);
                 if (fx == null) continue;
                 effects.put(e, fx);
+                effectPaths.put(e, normalized(comp.effectPath));
+                effectAtlasTags.put(e, normalized(comp.atlasTag));
                 applyLooping(fx, comp.looping);
 
                 if (comp.autoStart) fx.start();
@@ -191,6 +208,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
             if (comp.autoRemoveWhenComplete && fx.isComplete()) {
                 effects.remove(e);
+                effectPaths.remove(e);
+                effectAtlasTags.remove(e);
                 fx.free();
                 world.delete(e);
                 continue;
@@ -219,6 +238,15 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
     static void positionEffect(ParticleEffect fx, TransformComponent transform) {
         fx.setPosition(transform.x, transform.y);
+    }
+
+    private boolean matchesAuthoredEffect(int entityId, ParticleEmitterComponent emitter) {
+        return normalized(emitter.effectPath).equals(effectPaths.get(entityId))
+                && normalized(emitter.atlasTag).equals(effectAtlasTags.get(entityId));
+    }
+
+    private static String normalized(String value) {
+        return value != null ? value : "";
     }
 
     private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
@@ -316,6 +344,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         }
 
         effects.clear();
+        effectPaths.clear();
+        effectAtlasTags.clear();
         effectPools.clear();
         lastTex = null;
         lastTexHandle = 0;

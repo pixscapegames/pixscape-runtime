@@ -20,6 +20,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -986,8 +987,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean participatesInRenderOrder() {
-            SpatialHeightComponent c = comp(false);
-            return c != null && c.height > 0f;
+            World world = engine.getWorld();
+            if (world == null) return false;
+            SpatialRenderOrderSystem system = world.getSystem(SpatialRenderOrderSystem.class);
+            return system != null && system.participatesInRenderOrder(entityId);
         }
 
         private SpatialHeightComponent comp(boolean create) {
@@ -2216,7 +2219,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledMapFacade setAtlasTag(String atlasTag) {
-            TiledLayerComponent c = comp(true);
+            TiledLayerComponent c = comp(false);
             if (c == null) return this;
             String normalized = isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalized.equals(c.atlasTag)) {

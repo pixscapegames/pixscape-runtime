@@ -52,10 +52,8 @@ public interface SpatialEntityFacade {
     SpatialEntityFacade setVolume(float altitude, float height);
 
     /**
-     * Returns whether this entity has a positive-height spatial volume.
-     *
-     * <p>Layer participation and physics fixture presence are still required by
-     * the renderer for actor sorting.</p>
+     * Returns whether the entity currently satisfies the Runtime conditions for
+     * Spatial actor render ordering.
      */
     boolean participatesInRenderOrder();
 }

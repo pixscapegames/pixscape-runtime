@@ -2,7 +2,11 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -10,13 +14,21 @@ import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class RenderParticleSyncSystemTest {
+
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void particleContractsDoNotExposeLocalSpace() {
@@ -87,6 +99,61 @@ public class RenderParticleSyncSystemTest {
         world.process();
 
         Assert.assertFalse(system.isLayerVisible(actorEntity));
+    }
+
+    @Test
+    public void replacesLiveEffectAndReturnsPreviousEffectToItsPool() throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("effects"));
+        temporaryFolder.newFile("effects/a.p");
+        temporaryFolder.newFile("effects/b.p");
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+
+        ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ParticleEffectPool poolB = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        pools.put("atlas-a|a.p", poolA);
+        pools.put("atlas-b|b.p", poolB);
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).create(entity);
+        emitter.effectPath = "a.p";
+        emitter.atlasTag = "atlas-a";
+        world.process();
+
+        IntMap<ParticleEffectPool.PooledEffect> effects = field(system, "effects");
+        ParticleEffectPool.PooledEffect liveA = effects.get(entity);
+        Assert.assertNotNull(liveA);
+        Assert.assertEquals(0, poolA.getFree());
+
+        engine.api().entities().ofEntityId(entity).particles().setEffect("b.p", "atlas-b");
+        world.process();
+
+        ParticleEffectPool.PooledEffect liveB = effects.get(entity);
+        Assert.assertNotNull(liveB);
+        Assert.assertNotSame(liveA, liveB);
+        Assert.assertEquals(1, poolA.getFree());
+        Assert.assertEquals(0, poolB.getFree());
+        Assert.assertEquals("b.p", emitter.effectPath);
+        Assert.assertEquals("atlas-b", emitter.atlasTag);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T field(Object target, String name) throws Exception {
+        Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return (T) field.get(target);
+    }
+
+    private static void setField(Object target, String name, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     private static final class CapturingParticleEffect extends ParticleEffect {

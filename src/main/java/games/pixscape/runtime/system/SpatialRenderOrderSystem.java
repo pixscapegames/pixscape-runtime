@@ -170,6 +170,27 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mIdentity);
     }
 
+    /**
+     * Returns whether the current derived render state makes {@code entityId}
+     * eligible for Spatial actor ordering.
+     */
+    public boolean participatesInRenderOrder(int entityId) {
+        if (ecsState == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) {
+            return false;
+        }
+        rebuildSpatialLayers();
+        int slot = ecsState.renderSlotForEntity(entityId);
+        return actorCollector.isEligibleActorSlot(
+                slot,
+                ecsState,
+                spatialLayers,
+                world.getEntityManager(),
+                mEntityIndex,
+                mTransform,
+                mSpatialHeight,
+                mSpatialPhysicsFootprint);
+    }
+
     private void buildDrawIndexMaps() {
         int ecsRenderCapacity = ecsState.getRenderCapacity();
         ensureSlotToDrawIndexCapacity(ecsRenderCapacity);
