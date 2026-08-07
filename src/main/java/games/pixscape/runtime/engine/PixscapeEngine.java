@@ -135,7 +135,10 @@ public final class PixscapeEngine {
      * update hook.</p>
      *
      * <p>The callback is invoked while each candidate Artemis World is being configured.
-     * Setting it does not insert systems into an already-built World; it applies on the next
+     * That candidate is not yet published by {@link #getWorld()}, which may still return the
+     * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
+     * argument to register systems. Setting it does not insert systems into an already-built
+     * World; it applies on the next
      * runtime/scene World build.
      * Added systems execute synchronously on the thread calling {@link #render()}, normally
      * the LibGDX render thread; no thread-safety guarantee is provided.</p>
@@ -159,7 +162,10 @@ public final class PixscapeEngine {
      * this hook must not be used to alter that submitted frame.</p>
      *
      * <p>The callback is invoked while each candidate Artemis World is being configured.
-     * This method and {@link #setConfigurationCustomizer(Consumer)} configure the same
+     * That candidate is not yet published by {@link #getWorld()}, which may still return the
+     * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
+     * argument to register systems. This method and
+     * {@link #setConfigurationCustomizer(Consumer)} configure the same
      * post-render callback slot, so the most recent call replaces the previous callback.
      * Setting it does not insert systems into an already-built World; it applies on the next
      * runtime/scene World build.
@@ -535,7 +541,11 @@ public final class PixscapeEngine {
     /**
      * Supplies the camera borrowed by subsequently built Runtime Worlds.
      *
-     * <p>Configure the camera before runtime initialization or a World rebuild. Pixscape keeps
+     * <p>The configured engine field changes immediately, but systems in an already-built
+     * World retain the camera reference captured when that World was constructed. Configure
+     * the camera before runtime initialization or a World rebuild when possible; a late
+     * replacement is used by systems after the next World build and does not retroactively
+     * rewire existing systems. Pixscape keeps
      * the reference rather than cloning it, does not dispose it, reads it during culling and
      * rendering, and default submission calls {@link OrthographicCamera#update()}. The
      * application may mutate the camera between frames; {@link #resize(int, int)} changes its
@@ -686,9 +696,12 @@ public final class PixscapeEngine {
     /**
      * Returns the camera borrowed by the current Runtime configuration.
      *
-     * <p>The application owns a supplied camera. Pixscape reads it during core rendering and
-     * default submission updates it; callers must not assume exclusive mutation during
-     * {@link #render()}.</p>
+     * <p>This is the camera currently configured on the engine. After a late
+     * {@link #setWorldCamera(OrthographicCamera)} call, it can differ from the reference held
+     * by systems in an already-built World until the next World build. The application owns a
+     * supplied camera; Pixscape never disposes it. Pixscape reads captured camera references
+     * during core rendering and default submission updates them; callers must not assume
+     * exclusive mutation during {@link #render()}.</p>
      */
     public OrthographicCamera getCamera() {
         return worldCamera;

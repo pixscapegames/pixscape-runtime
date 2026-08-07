@@ -3,8 +3,11 @@ package games.pixscape.runtime.api;
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.animation.AnimationClipDefData;
@@ -12,14 +15,17 @@ import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -54,6 +60,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final SpritesApiImpl sprites;
     private final AnimationsAPI animations;
     private final ParticlesAPI particles;
+    private final PhysicsAPI physics;
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
@@ -66,6 +73,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.sprites = new SpritesApiImpl(engine, entities, assets);
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
+        this.physics = new PhysicsApiImpl(engine);
         this.prefabs = new PrefabsApiImpl(engine, entities);
     }
 
@@ -110,8 +118,128 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     @Override
+    public PhysicsAPI physics() {
+        return physics;
+    }
+
+    @Override
     public PrefabsAPI prefabs() {
         return prefabs;
+    }
+
+    static final class PhysicsApiImpl implements PhysicsAPI {
+        private static final float DEFAULT_PIXELS_PER_METER = 100f;
+        private final PixscapeEngine engine;
+
+        PhysicsApiImpl(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        @Override
+        public boolean isRunning() {
+            World ecsWorld = engine.getWorld();
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            Box2dWorldService service = engine.getBox2dWorldService();
+            Box2dSyncSystem sync = engine.getBox2dSyncSystem();
+            return ecsWorld != null
+                    && meta != null
+                    && meta.physicsEnabled
+                    && service != null
+                    && !service.isDisposed()
+                    && service.world != null
+                    && sync != null
+                    && sync.isEnabled()
+                    && sync.isStepEnabled()
+                    && sync.getBox2d() == service;
+        }
+
+        @Override
+        public float pixelsPerMeter() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            Box2dWorldService service = engine.getBox2dWorldService();
+            Box2dSyncSystem sync = engine.getBox2dSyncSystem();
+            if (meta != null && meta.physicsEnabled
+                    && service != null && !service.isDisposed() && service.world != null
+                    && sync != null && sync.getBox2d() == service
+                    && isValidScale(service.ppm)) {
+                return service.ppm;
+            }
+            if (meta != null && isValidScale(meta.pixelsPerMeter)) {
+                return meta.pixelsPerMeter;
+            }
+            return DEFAULT_PIXELS_PER_METER;
+        }
+
+        @Override
+        public float parallaxX() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            return meta == null || Float.isNaN(meta.physicsParallaxX)
+                    ? 1f : meta.physicsParallaxX;
+        }
+
+        @Override
+        public float parallaxY() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            return meta == null || Float.isNaN(meta.physicsParallaxY)
+                    ? 1f : meta.physicsParallaxY;
+        }
+
+        @Override
+        public Vector2 removeParallax(Vector2 renderedWorldPosition,
+                                      OrthographicCamera camera,
+                                      Vector2 out) {
+            if (renderedWorldPosition == null) {
+                throw new IllegalArgumentException("renderedWorldPosition must not be null");
+            }
+            if (camera == null) {
+                throw new IllegalArgumentException("camera must not be null");
+            }
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            float renderedX = renderedWorldPosition.x;
+            float renderedY = renderedWorldPosition.y;
+            return out.set(
+                    renderedX - (1f - parallaxX()) * camera.position.x,
+                    renderedY - (1f - parallaxY()) * camera.position.y);
+        }
+
+        @Override
+        public com.badlogic.gdx.physics.box2d.World box2dWorld() {
+            Box2dWorldService service = engine.getBox2dWorldService();
+            if (service == null || service.isDisposed()) return null;
+            return service.world;
+        }
+
+        @Override
+        public Body body(EntityRef entity) {
+            if (entity == null) return null;
+            World world = engine.getWorld();
+            int entityId = entity.entityId();
+            if (world == null || !isActive(world, entityId)) {
+                return null;
+            }
+            PhysicsRuntimeBodyComponent runtimeBody = world
+                    .getMapper(PhysicsRuntimeBodyComponent.class)
+                    .getSafe(entityId, null);
+            Body body = runtimeBody != null ? runtimeBody.body : null;
+            com.badlogic.gdx.physics.box2d.World nativeWorld = box2dWorld();
+            return body != null && nativeWorld != null && body.getWorld() == nativeWorld
+                    ? body : null;
+        }
+
+        private static boolean isValidScale(float value) {
+            return value > 0f && !Float.isNaN(value) && !Float.isInfinite(value);
+        }
+
+        private static boolean isActive(World world, int entityId) {
+            if (entityId < 0) return false;
+            try {
+                return world.getEntityManager().isActive(entityId);
+            } catch (IndexOutOfBoundsException ignored) {
+                return false;
+            }
+        }
     }
 
     private static String currentAtlasTag(PixscapeEngine engine) {
