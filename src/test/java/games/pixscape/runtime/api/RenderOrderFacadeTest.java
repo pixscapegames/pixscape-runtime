@@ -30,6 +30,7 @@ public class RenderOrderFacadeTest {
         EntityRef entity = fixture.target(2, 7);
 
         Assert.assertSame(entity.renderOrder(), entity.renderOrder());
+        Assert.assertTrue(entity.renderOrder().exists());
         Assert.assertEquals(2, entity.renderOrder().layerIndex());
         Assert.assertEquals(7, entity.renderOrder().zIndex());
     }
@@ -221,6 +222,7 @@ public class RenderOrderFacadeTest {
         fixture.world.process();
 
         EntityRef first = fixture.engine.api().entities().ofEntityId(noLayer);
+        Assert.assertFalse(first.renderOrder().exists());
         expectIllegalState("entityId=" + noLayer, "LayerComponent", "set", new Action() {
             @Override
             public void run() {
@@ -230,6 +232,7 @@ public class RenderOrderFacadeTest {
         Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(noLayer));
 
         EntityRef second = fixture.engine.api().entities().ofEntityId(noIndex);
+        Assert.assertFalse(second.renderOrder().exists());
         expectIllegalState("entityId=" + noIndex, "EntityIndexComponent", "zIndex", new Action() {
             @Override
             public void run() {
@@ -246,6 +249,8 @@ public class RenderOrderFacadeTest {
         RenderOrderFacade facade = entity.renderOrder();
         fixture.world.delete(entity.entityId());
         fixture.world.process();
+
+        Assert.assertFalse(facade.exists());
 
         expectIllegalState("entityId=" + entity.entityId(), "no longer exists", "zIndex", new Action() {
             @Override

@@ -17,8 +17,20 @@ public interface TiledAPI {
      */
     TiledLayerRef ofStableId(int stableId);
 
+    /**
+     * Returns a tolerant tiled view for an authored layer index.
+     * Missing and non-tiled layers produce an inert reference whose
+     * {@link TiledLayerRef#exists()} returns {@code false}.
+     */
     TiledLayerRef ofLayerIndex(int layerIndex);
 
+    /**
+     * Strict compatibility lookup for an authored tiled layer index.
+     * Prefer {@link #requireLayerIndex(int)} when strict acquisition is intended.
+     *
+     * @throws IllegalArgumentException when the layer is missing, ambiguous, or not tiled
+     * @throws IllegalStateException when no Runtime World is loaded
+     */
     TiledLayerRef layer(int layerIndex);
 
     /**
@@ -32,6 +44,14 @@ public interface TiledAPI {
      * The returned reference can later become stale and inert.
      */
     TiledLayerRef requireStableId(int stableId);
+
+    /**
+     * Strictly resolves a tiled layer index at acquisition time.
+     * The returned reference can later become stale and inert.
+     *
+     * @throws IllegalStateException when the index does not identify a valid tiled capability
+     */
+    TiledLayerRef requireLayerIndex(int layerIndex);
 
     /**
      * Global animated tile definition registry.

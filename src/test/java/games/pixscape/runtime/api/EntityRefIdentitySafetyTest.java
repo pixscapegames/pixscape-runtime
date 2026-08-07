@@ -108,6 +108,7 @@ public class EntityRefIdentitySafetyTest {
             AnimationFacade oldAnimation = oldEntity.animation();
             ParticleFacade oldParticles = oldEntity.particles();
             ShaderFacade oldShader = oldEntity.shader();
+            RenderOrderFacade oldRenderOrder = oldEntity.renderOrder();
             TiledLayerRef oldTiled = engine.api().tiled().requireEntityId(first);
 
             world.delete(first);
@@ -127,8 +128,13 @@ public class EntityRefIdentitySafetyTest {
             Assert.assertFalse(oldEntity.exists());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
             Assert.assertEquals(0, oldTiled.map().width());
+            Assert.assertFalse(oldSprite.exists());
+            Assert.assertFalse(oldShader.exists());
+            Assert.assertFalse(oldRenderOrder.exists());
+            Assert.assertFalse(oldTiled.map().isInside(0, 0));
 
             oldTransform.setX(200f);
+            oldTransform.setPosition(Float.NaN, Float.POSITIVE_INFINITY);
             oldAnimation.setFps(30f);
             oldAnimation.setClip(null);
             oldSprite.setAsset(-1, "");

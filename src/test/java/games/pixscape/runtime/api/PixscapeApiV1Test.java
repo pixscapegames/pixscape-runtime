@@ -221,9 +221,11 @@ public class PixscapeApiV1Test {
                 TiledAPI.class.getMethod("requireEntityId", int.class).getReturnType());
         Assert.assertEquals(TiledLayerRef.class,
                 TiledAPI.class.getMethod("requireStableId", int.class).getReturnType());
+        Assert.assertEquals(TiledLayerRef.class,
+                TiledAPI.class.getMethod("requireLayerIndex", int.class).getReturnType());
         Assert.assertEquals(TiledAnimationsAPI.class,
                 TiledAPI.class.getMethod("animations").getReturnType());
-        Assert.assertEquals(7, TiledAPI.class.getDeclaredMethods().length);
+        Assert.assertEquals(8, TiledAPI.class.getDeclaredMethods().length);
 
         Method[] methods = TiledAPI.class.getMethods();
         for (int i = 0; i < methods.length; i++) {
@@ -392,6 +394,114 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void transformRejectsNonFiniteGeometryWithoutMutationOrDirtyState() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        TransformComponent transform = world.edit(entity).create(TransformComponent.class);
+        transform.x = 1f;
+        transform.y = 2f;
+        transform.rotationRad = 0.5f;
+        transform.scaleX = 3f;
+        transform.scaleY = 4f;
+        transform.originX = 5f;
+        transform.originY = 6f;
+        world.process();
+        TransformFacade facade = engine.api().entities().ofEntityId(entity).transform();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setPosition(Float.NaN, 9f); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setScale(Float.POSITIVE_INFINITY); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setOrigin(9f, Float.NEGATIVE_INFINITY); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setRotationRad(Float.NaN); }
+        });
+
+        Assert.assertEquals(1f, transform.x, 0f);
+        Assert.assertEquals(2f, transform.y, 0f);
+        Assert.assertEquals(0.5f, transform.rotationRad, 0f);
+        Assert.assertEquals(3f, transform.scaleX, 0f);
+        Assert.assertEquals(4f, transform.scaleY, 0f);
+        Assert.assertEquals(5f, transform.originX, 0f);
+        Assert.assertEquals(6f, transform.originY, 0f);
+        Assert.assertFalse(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.GEOMETRY));
+
+        facade.setScale(-2f, -3f);
+        Assert.assertEquals(-2f, transform.scaleX, 0f);
+        Assert.assertEquals(-3f, transform.scaleY, 0f);
+    }
+
+    @Test
+    public void spriteSizeRejectsNonFiniteValuesWithoutMutationOrDirtyState() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
+        World world = engine.getWorld();
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        int entity = sprite.entityId();
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { sprite.sprite().setSize(Float.NaN, 10f); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { sprite.sprite().setSize(10f, Float.POSITIVE_INFINITY); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { sprite.sprite().setSize(Float.NEGATIVE_INFINITY, 10f); }
+        });
+
+        Assert.assertEquals(16f, dimensions.width, 0f);
+        Assert.assertEquals(24f, dimensions.height, 0f);
+        Assert.assertFalse(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.GEOMETRY));
+    }
+
+    @Test
+    public void spatialHeightRejectsNonFiniteValuesAndPreservesFiniteClamping() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        SpatialHeightComponent spatial = world.edit(entity).create(SpatialHeightComponent.class);
+        spatial.altitude = 2f;
+        spatial.height = 5f;
+        world.process();
+        SpatialEntityFacade facade = engine.api().entities().ofEntityId(entity).spatial();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setHeight(Float.NaN); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setHeight(Float.POSITIVE_INFINITY); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setHeight(Float.NEGATIVE_INFINITY); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setVolume(Float.NaN, 3f); }
+        });
+
+        Assert.assertEquals(2f, spatial.altitude, 0f);
+        Assert.assertEquals(5f, spatial.height, 0f);
+        Assert.assertFalse(dirty.isDirty(entity,
+                games.pixscape.runtime.render.DirtyBits.COARSE_MASK));
+
+        facade.setHeight(-4f);
+        Assert.assertEquals(0f, spatial.height, 0f);
+    }
+
+    @Test
     public void spriteFacadeDoesNotCompleteArbitraryOrPartialEntities() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -404,6 +514,7 @@ public class PixscapeApiV1Test {
         world.process();
 
         SpriteFacade ordinarySprite = engine.api().entities().ofEntityId(ordinary).sprite();
+        Assert.assertFalse(ordinarySprite.exists());
         ordinarySprite.setVisible(false)
                 .setTint(1f, 0f, 0f, 1f)
                 .setSize(42f, 24f)
@@ -419,6 +530,7 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(ordinary));
 
         SpriteFacade partialSprite = engine.api().entities().ofEntityId(partial).sprite();
+        Assert.assertFalse(partialSprite.exists());
         partialSprite.setVisible(false)
                 .setTint(1f, 0f, 0f, 1f)
                 .setSize(42f, 24f)
@@ -440,6 +552,7 @@ public class PixscapeApiV1Test {
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         World world = engine.getWorld();
         SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        Assert.assertTrue(sprite.sprite().exists());
         int e = sprite.entityId();
         DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(e);
 
@@ -610,10 +723,66 @@ public class PixscapeApiV1Test {
         PixscapeEngine engine = setupEngineWithWorld();
         int tiled = createTiledLayer(engine, 3);
 
-        TiledLayerRef ref = engine.api().tiled().layer(3);
+        TiledLayerRef ref = engine.api().tiled().ofLayerIndex(3);
 
         Assert.assertEquals(tiled, ref.entityId());
         Assert.assertTrue(ref.exists());
+        Assert.assertEquals(tiled, engine.api().tiled().requireLayerIndex(3).entityId());
+        Assert.assertEquals(tiled, engine.api().tiled().layer(3).entityId());
+    }
+
+    @Test
+    public void tiledLayerIndexTolerantAndStrictResolutionAreDistinct() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        createAuthoredLayer(engine, 4, LayerComponent.TYPE_CLASSIC);
+
+        Assert.assertFalse(engine.api().tiled().ofLayerIndex(99).exists());
+        Assert.assertFalse(engine.api().tiled().ofLayerIndex(4).exists());
+        assertRequiredTiledLayerFails(engine, 99);
+        assertRequiredTiledLayerFails(engine, 4);
+    }
+
+    @Test
+    public void tiledMapIsInsideDistinguishesEmptyCellsFromInvalidCoordinates() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        int entity = createTiledLayer(engine, 3);
+        TiledLayerRef ref = engine.api().tiled().ofLayerIndex(3);
+
+        Assert.assertEquals(0, ref.tiles().get(0, 0));
+        Assert.assertTrue(ref.map().isInside(0, 0));
+        Assert.assertTrue(ref.map().isInside(3, 3));
+        Assert.assertFalse(ref.map().isInside(-1, 0));
+        Assert.assertFalse(ref.map().isInside(0, -1));
+        Assert.assertFalse(ref.map().isInside(4, 0));
+        Assert.assertFalse(ref.map().isInside(0, 4));
+        Assert.assertFalse(engine.api().tiled().ofEntityId(999).map().isInside(0, 0));
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { ref.map().setOrigin(Float.NaN, 2f); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() {
+                ref.spatial().setDefaultVolume(1f, Float.POSITIVE_INFINITY);
+            }
+        });
+        TiledMapLayerData data = engine.getWorld().getMapper(TiledLayerComponent.class)
+                .get(entity).data;
+        Assert.assertEquals(0f, data.originX, 0f);
+        Assert.assertEquals(0f, data.originY, 0f);
+        Assert.assertEquals(0f, data.defaultTileAltitude, 0f);
+        Assert.assertEquals(0f, data.defaultTileHeight, 0f);
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { ref.map().resize(0, 4); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { ref.map().resize(4, -1); }
+        });
+        Assert.assertEquals(4, ref.map().width());
+        Assert.assertEquals(4, ref.map().height());
+
+        engine.getWorld().delete(entity);
+        engine.getWorld().process();
+        Assert.assertFalse(ref.map().isInside(0, 0));
     }
 
     @Test
@@ -883,12 +1052,14 @@ public class PixscapeApiV1Test {
         world.process();
 
         ShaderFacade ordinaryShader = engine.api().entities().ofEntityId(ordinary).shader();
+        Assert.assertFalse(ordinaryShader.exists());
         ordinaryShader.use("texture-array-default").setFloat("u_time", 1f).clear();
 
         Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(ordinary));
         Assert.assertFalse(world.getMapper(ShaderParamsComponent.class).has(ordinary));
 
         ShaderFacade orphanShader = engine.api().entities().ofEntityId(orphanParams).shader();
+        Assert.assertFalse(orphanShader.exists());
         orphanShader.setFloat("u_time", 2f).clearFloats();
 
         Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(orphanParams));
@@ -909,6 +1080,7 @@ public class PixscapeApiV1Test {
         world.process();
 
         EntityRef ref = engine.api().entities().ofEntityId(e);
+        Assert.assertTrue(ref.shader().exists());
         String valid = "__valid_shader_for_facade_test__";
         String unknown = "__missing_shader_for_test__";
         ObjectIntMap<String> shaderNames = shaderNameIndex();
@@ -1372,6 +1544,14 @@ public class PixscapeApiV1Test {
         assertInvalidFpsRejected(facade, Float.POSITIVE_INFINITY);
         assertInvalidFpsRejected(facade, Float.NEGATIVE_INFINITY);
         Assert.assertEquals(12f, facade.fps(), 0f);
+
+        facade.setStateTime(2f);
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { facade.setStateTime(Float.NaN); }
+        });
+        Assert.assertEquals(2f, facade.stateTime(), 0f);
+        facade.setStateTime(-1f);
+        Assert.assertEquals(0f, facade.stateTime(), 0f);
     }
 
     @Test
@@ -1533,6 +1713,15 @@ public class PixscapeApiV1Test {
         }
     }
 
+    private static void assertIllegalArgument(Runnable action) {
+        try {
+            action.run();
+            Assert.fail("Expected invalid facade input to fail");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
     private static void assertSpriteBindingAUnchanged(AssetRefComponent asset,
                                                       TextureRegionComponent region,
                                                       RenderMaterialComponent material,
@@ -1678,6 +1867,15 @@ public class PixscapeApiV1Test {
             Assert.fail("Expected tiled layer lookup to fail for index " + layerIndex);
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(expectedMessage));
+        }
+    }
+
+    private static void assertRequiredTiledLayerFails(PixscapeEngine engine, int layerIndex) {
+        try {
+            engine.api().tiled().requireLayerIndex(layerIndex);
+            Assert.fail("Expected strict tiled lookup to fail for index " + layerIndex);
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("layerIndex=" + layerIndex));
         }
     }
 

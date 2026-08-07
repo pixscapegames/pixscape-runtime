@@ -8,6 +8,9 @@ package games.pixscape.runtime.api;
  * <p>This facade exposes tiled layer participation, default tile volume, and
  * per-cell volume overrides. Authored occluder blocks remain internal runtime
  * data and are not exposed here.</p>
+ *
+ * <p>Authored altitude and height values must be finite. Negative finite heights are clamped
+ * to zero.</p>
  */
 public interface TiledSpatialFacade {
     /**

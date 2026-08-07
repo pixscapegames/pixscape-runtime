@@ -3,6 +3,8 @@ package games.pixscape.runtime.api;
 /**
  * High-level transform access for one entity.
  * Setters establish a standalone authored transform when it is absent.
+ * Non-finite position, rotation, scale, origin, and delta values are rejected before mutation.
+ * Negative finite scale remains supported.
  */
 public interface TransformFacade {
     float x();

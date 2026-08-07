@@ -200,6 +200,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return true;
     }
 
+    private static boolean isFinite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
+    }
+
+    private static void requireFinite(String operation, float value) {
+        if (!isFinite(value)) {
+            throw new IllegalArgumentException(
+                    operation + " requires a finite value, got " + value + ".");
+        }
+    }
+
+    private static void requireFinite(String operation, float first, float second) {
+        if (!isFinite(first) || !isFinite(second)) {
+            throw new IllegalArgumentException(
+                    operation + " requires finite values, got " + first + ", " + second + ".");
+        }
+    }
+
     private final PixscapeEngine engine;
     private final EntityReferenceTracker entityReferences;
     private final SceneLayerResolver sceneLayers;
@@ -909,6 +927,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean exists() {
+            World world = handle.world();
+            return world != null
+                    && world.getMapper(LayerComponent.class).has(handle.entityId)
+                    && world.getMapper(EntityIndexComponent.class).has(handle.entityId);
+        }
+
+        @Override
         public int layerIndex() {
             validateComponents("layerIndex()");
             return validatedEntityIndex.layerIndex;
@@ -1044,6 +1070,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setPosition(float x, float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform position", x, y);
             TransformComponent t = t(true);
             if (t == null) return this;
             if (t.x != x || t.y != y) {
@@ -1056,6 +1084,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setX(float x) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform x", x);
             TransformComponent t = t(true);
             if (t != null && t.x != x) {
                 t.x = x;
@@ -1066,6 +1096,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setY(float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform y", y);
             TransformComponent t = t(true);
             if (t != null && t.y != y) {
                 t.y = y;
@@ -1076,11 +1108,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade moveBy(float dx, float dy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform movement", dx, dy);
             if (dx != 0f || dy != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
-                    t.x += dx;
-                    t.y += dy;
+                    float x = t.x + dx;
+                    float y = t.y + dy;
+                    requireFinite("Transform position", x, y);
+                    t.x = x;
+                    t.y = y;
                     markGeometry(GeometryDirty.POSITION);
                 }
             }
@@ -1089,6 +1126,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setRotationRad(float radians) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform rotation", radians);
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
                 t.rotationRad = radians;
@@ -1099,10 +1138,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade rotateByRad(float radians) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform rotation delta", radians);
             if (radians != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
-                    t.rotationRad += radians;
+                    float rotation = t.rotationRad + radians;
+                    requireFinite("Transform rotation", rotation);
+                    t.rotationRad = rotation;
                     markGeometry(GeometryDirty.ROTATION);
                 }
             }
@@ -1116,6 +1159,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScale(float sx, float sy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale", sx, sy);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -1127,6 +1172,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScaleX(float sx) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale x", sx);
             TransformComponent t = t(true);
             if (t != null && t.scaleX != sx) {
                 t.scaleX = sx;
@@ -1137,6 +1184,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScaleY(float sy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale y", sy);
             TransformComponent t = t(true);
             if (t != null && t.scaleY != sy) {
                 t.scaleY = sy;
@@ -1147,6 +1196,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setOrigin(float ox, float oy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform origin", ox, oy);
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
                 t.originX = ox;
@@ -1257,6 +1308,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setAltitude(float altitude) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial altitude", altitude);
             SpatialHeightComponent c = comp(true);
             if (c != null) c.altitude = altitude;
             return this;
@@ -1264,6 +1317,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setHeight(float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial height", height);
             SpatialHeightComponent c = comp(true);
             if (c != null) c.height = Math.max(0f, height);
             return this;
@@ -1271,6 +1326,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setVolume(float altitude, float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial volume", altitude, height);
             SpatialHeightComponent c = comp(true);
             if (c != null) {
                 c.altitude = altitude;
@@ -1308,6 +1365,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean exists() {
+            return spriteCapabilityWorld(handle) != null;
+        }
+
+        @Override
         public int assetId() {
             AssetRefComponent c = src(false);
             return c != null ? c.assetId : -1;
@@ -1336,6 +1398,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setTint(float r, float g, float b, float a) {
             TintComponent c = tint(true);
             if (c == null) return this;
+            requireFinite("Sprite tint red", r);
+            requireFinite("Sprite tint green", g);
+            requireFinite("Sprite tint blue", b);
+            requireFinite("Sprite tint alpha", a);
             c.rgba = Color.rgba8888(clamp01(r), clamp01(g), clamp01(b), clamp01(a));
             markColor();
             return this;
@@ -1345,6 +1411,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setAlpha(float alpha) {
             TintComponent c = tint(true);
             if (c == null) return this;
+            requireFinite("Sprite alpha", alpha);
             int nextA = (int) (clamp01(alpha) * 255f + 0.5f);
             int currentA = c.rgba & 0xFF;
             if (currentA != nextA) {
@@ -1358,6 +1425,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setSize(float width, float height) {
             DimensionsComponent d = dim(true);
             if (d == null) return this;
+            requireFinite("Sprite size", width, height);
             if (d.width != width || d.height != height) {
                 d.width = width;
                 d.height = height;
@@ -1584,6 +1652,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public AnimationFacade setStateTime(float stateTime) {
             AnimationComponent a = anim();
             if (a != null) {
+                requireFinite("Animation state time", stateTime);
                 a.stateTime = Math.max(0f, stateTime);
                 a.frame = -1;
                 markMaterial();
@@ -1762,6 +1831,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         ShaderFacadeImpl(EntityHandle handle) {
             this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return renderCapabilityWorld() != null;
         }
 
         @Override
@@ -2433,7 +2507,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledLayerRef ofLayerIndex(int layerIndex) {
-            return layer(layerIndex);
+            World world = engine.getWorld();
+            if (world == null) return ofEntityId(-1);
+            sceneLayers.bind(world);
+            int entityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (entityId < 0) return ofEntityId(-1);
+            LayerComponent layer = world.getMapper(LayerComponent.class).get(entityId);
+            if (layer.type != LayerComponent.TYPE_TILED
+                    || !world.getMapper(TiledLayerComponent.class).has(entityId)) {
+                return ofEntityId(-1);
+            }
+            TiledLayerRef ref = ofEntityId(entityId);
+            return ref.exists() ? ref : ofEntityId(-1);
         }
 
         @Override
@@ -2472,6 +2557,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             TiledLayerRef ref = ofStableId(stableId);
             if (!ref.exists())
                 throw new IllegalStateException("Tiled layer entity does not exist for stableId=" + stableId);
+            return ref;
+        }
+
+        @Override
+        public TiledLayerRef requireLayerIndex(int layerIndex) {
+            TiledLayerRef ref = ofLayerIndex(layerIndex);
+            if (!ref.exists()) {
+                throw new IllegalStateException(
+                        "Tiled layer does not exist for layerIndex=" + layerIndex);
+            }
             return ref;
         }
 
@@ -2594,6 +2689,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean isInside(int x, int y) {
+            TiledMapLayerData d = data();
+            return d != null && d.isInside(x, y);
+        }
+
+        @Override
         public String atlasTag() {
             TiledLayerComponent c = comp();
             return c != null ? c.atlasTag : "";
@@ -2636,8 +2737,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledMapFacade setOrigin(float x, float y) {
             TiledMapLayerData d = data();
+            if (d == null) return this;
+            requireFinite("Tiled map origin", x, y);
             TiledLayerComponent c = comp();
-            if (d != null && (d.originX != x || d.originY != y)) {
+            if (d.originX != x || d.originY != y) {
                 d.originX = x;
                 d.originY = y;
                 for (IntMap.Values<TileChunk> it = d.getChunks(); it.hasNext(); ) d.updateChunkBounds(it.next());
@@ -2702,6 +2805,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TiledMapFacade resize(int width, int height) {
             TiledMapLayerData d = data();
             if (d != null) {
+                if (width <= 0 || height <= 0) {
+                    throw new IllegalArgumentException(
+                            "Tiled map dimensions must be > 0, got "
+                                    + width + " x " + height + ".");
+                }
                 d.rebuildWithNewSize(width, height);
                 TiledLayerComponent c = comp();
                 if (c != null) {
@@ -2766,16 +2874,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledSpatialFacade setDefaultVolume(float altitude, float height) {
-            float sanitizedHeight = Math.max(0f, height);
             TiledLayerComponent c = comp();
-            if (c != null) {
+            if (c != null && c.data != null) {
+                requireFinite("Tiled default Spatial volume", altitude, height);
+                float sanitizedHeight = Math.max(0f, height);
                 c.defaultTileAltitude = altitude;
                 c.defaultTileHeight = sanitizedHeight;
-                if (c.data != null) {
-                    c.data.defaultTileAltitude = altitude;
-                    c.data.defaultTileHeight = sanitizedHeight;
-                    c.data.markAllChunksContentDirty();
-                }
+                c.data.defaultTileAltitude = altitude;
+                c.data.defaultTileHeight = sanitizedHeight;
+                c.data.markAllChunksContentDirty();
             }
             return this;
         }
@@ -2801,7 +2908,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledSpatialFacade setTileVolume(int x, int y, float altitude, float height) {
             TiledMapLayerData d = data();
-            if (d != null) d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
+            if (d != null && d.isInside(x, y)) {
+                requireFinite("Tiled cell Spatial volume", altitude, height);
+                d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
+            }
             return this;
         }
 

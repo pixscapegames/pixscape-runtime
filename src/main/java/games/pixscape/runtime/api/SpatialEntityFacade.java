@@ -8,6 +8,9 @@ package games.pixscape.runtime.api;
  *
  * <p>Actor footprint geometry is derived from the entity physics circle fixture.
  * This facade only exposes the vertical volume used by the spatial renderer.</p>
+ *
+ * <p>Altitude and height must be finite. Negative finite heights retain the documented
+ * zero-clamping behavior.</p>
  */
 public interface SpatialEntityFacade {
     /**

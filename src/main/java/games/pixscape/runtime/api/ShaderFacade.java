@@ -10,6 +10,16 @@ package games.pixscape.runtime.api;
  * <p>Uniforms are applied only when supported by the active shader/backend.</p>
  */
 public interface ShaderFacade {
+    /**
+     * Returns whether the entity has the render-material capability required by this facade.
+     * This does not imply that a custom shader or shader parameters are selected.
+     */
+    boolean exists();
+
+    /**
+     * Returns the selected shader name, or {@code null} when no registered shader is selected
+     * or the render-material capability is absent. Use {@link #exists()} to distinguish absence.
+     */
     String shader();
 
     /**
@@ -29,8 +39,14 @@ public interface ShaderFacade {
      */
     ShaderFacade setFloat(String uniform, float value);
 
+    /**
+     * Returns the uniform value, or {@code defaultValue} when it or the capability is absent.
+     */
     float getFloat(String uniform, float defaultValue);
 
+    /**
+     * Returns whether the existing render capability stores the named float uniform.
+     */
     boolean hasFloat(String uniform);
 
     /**

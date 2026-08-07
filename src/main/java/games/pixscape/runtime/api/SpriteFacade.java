@@ -8,6 +8,12 @@ package games.pixscape.runtime.api;
  */
 public interface SpriteFacade {
     /**
+     * Returns whether the minimum complete authored sprite capability exists.
+     * This does not imply that the sprite is visible, currently resolvable, or submitted.
+     */
+    boolean exists();
+
+    /**
      * Returns the current sprite asset id, or {@code -1} when the entity has no asset reference.
      */
     int assetId();
@@ -55,6 +61,7 @@ public interface SpriteFacade {
      * @param b blue channel
      * @param a alpha channel
      * @return this facade for chaining
+     * @throws IllegalArgumentException when any channel is NaN or infinite
      */
     SpriteFacade setTint(float r, float g, float b, float a);
 
@@ -65,15 +72,18 @@ public interface SpriteFacade {
      *
      * @param alpha alpha channel value
      * @return this facade for chaining
+     * @throws IllegalArgumentException when alpha is NaN or infinite
      */
     SpriteFacade setAlpha(float alpha);
 
     /**
      * Sets the sprite render size in world units.
+     * Zero and negative finite dimensions retain their existing Runtime semantics.
      *
      * @param width render width in world units
      * @param height render height in world units
      * @return this facade for chaining
+     * @throws IllegalArgumentException when either dimension is NaN or infinite
      */
     SpriteFacade setSize(float width, float height);
 

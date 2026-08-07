@@ -66,6 +66,11 @@ public interface AnimationFacade {
      */
     AnimationFacade setFps(float fps);
 
+    /**
+     * Sets playback time, clamping negative finite values to zero.
+     *
+     * @throws IllegalArgumentException when the value is NaN or infinite
+     */
     AnimationFacade setStateTime(float stateTime);
 
     boolean isPlaying();

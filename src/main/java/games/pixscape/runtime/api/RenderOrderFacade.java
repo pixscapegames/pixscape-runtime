@@ -24,12 +24,22 @@ package games.pixscape.runtime.api;
 public interface RenderOrderFacade {
 
     /**
+     * Returns whether both authored layer and entity-index ordering components exist.
+     * This reports capability presence, not current render submission or visibility.
+     */
+    boolean exists();
+
+    /**
      * Returns the current scene layer index of the entity.
+     *
+     * @throws IllegalStateException when {@link #exists()} is {@code false}
      */
     int layerIndex();
 
     /**
      * Returns the current local z-index of the entity.
+     *
+     * @throws IllegalStateException when {@link #exists()} is {@code false}
      */
     int zIndex();
 
