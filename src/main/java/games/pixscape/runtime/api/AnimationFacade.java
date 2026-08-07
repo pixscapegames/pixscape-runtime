@@ -2,8 +2,14 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level sprite clip animation controls for one entity.
+ *
+ * <p>Operations affect an existing animated-sprite capability only. They do not
+ * create animation or render components on an arbitrary entity.</p>
  */
 public interface AnimationFacade {
+    /**
+     * Returns whether the entity has a complete animated-sprite capability.
+     */
     boolean exists();
 
     /**

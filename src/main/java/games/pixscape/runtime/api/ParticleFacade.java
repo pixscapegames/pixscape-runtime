@@ -2,6 +2,7 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level particle emitter controls for one entity.
+ * Setters may establish the minimum authored transform and emitter capability.
  */
 public interface ParticleFacade {
     boolean exists();

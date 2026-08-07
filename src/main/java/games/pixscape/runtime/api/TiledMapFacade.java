@@ -2,6 +2,7 @@ package games.pixscape.runtime.api;
 
 /**
  * Runtime tiled map/layer properties and coordinate conversion helpers.
+ * Operations affect existing tiled map data only and never create a tiled layer.
  */
 public interface TiledMapFacade {
     int width();

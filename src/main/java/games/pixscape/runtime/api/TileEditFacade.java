@@ -3,6 +3,8 @@ package games.pixscape.runtime.api;
 /**
  * Logical tile editing operations for one tiled layer.
  *
+ * <p>Operations affect existing tiled map data only and never create a tiled layer.</p>
+ *
  * <p>Mutations keep per-cell tile animation playback state in sync with the logical tile value.</p>
  */
 public interface TileEditFacade {

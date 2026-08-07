@@ -367,6 +367,8 @@ public class PixscapeApiV1Test {
         world.edit(e).create(AssetRefComponent.class);
         world.edit(e).create(RenderMaterialComponent.class);
         world.edit(e).create(TintComponent.class);
+        world.edit(e).create(EntityIndexComponent.class);
+        world.edit(e).create(LayerComponent.class);
         world.process();
 
         EntityRef ref = engine.api().entities().ofEntityId(e);
@@ -389,39 +391,76 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void spriteSetVisibleUpdatesVisibilityComponentWithoutDirtyMark() throws Exception {
+    public void spriteFacadeDoesNotCompleteArbitraryOrPartialEntities() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int e = world.create();
-        VisibilityComponent visibility = world.edit(e).create(VisibilityComponent.class);
+        int ordinary = world.create();
+        int partial = world.create();
+        VisibilityComponent visibility = world.edit(partial).create(VisibilityComponent.class);
+        visibility.visible = true;
+        TintComponent tint = world.edit(partial).create(TintComponent.class);
+        int originalTint = tint.rgba;
         world.process();
 
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        EntityRef ref = engine.api().entities().ofEntityId(e);
+        SpriteFacade ordinarySprite = engine.api().entities().ofEntityId(ordinary).sprite();
+        ordinarySprite.setVisible(false)
+                .setTint(1f, 0f, 0f, 1f)
+                .setSize(42f, 24f)
+                .setRepeat(true, true)
+                .setAsset(42, "main");
 
-        ref.sprite().setVisible(false);
-        Assert.assertFalse(visibility.visible);
-        Assert.assertFalse("Visibility should not require dirty bits in current runtime path",
-                dirty.isDirty(e, games.pixscape.runtime.render.DirtyBits.GEOMETRY
-                        | games.pixscape.runtime.render.DirtyBits.MATERIAL
-                        | games.pixscape.runtime.render.DirtyBits.COLOR));
+        Assert.assertFalse(world.getMapper(VisibilityComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(TintComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(AssetRefComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(ordinary));
+
+        SpriteFacade partialSprite = engine.api().entities().ofEntityId(partial).sprite();
+        partialSprite.setVisible(false)
+                .setTint(1f, 0f, 0f, 1f)
+                .setSize(42f, 24f)
+                .setRepeat(true, true)
+                .setAssetId(42);
+
+        Assert.assertTrue(visibility.visible);
+        Assert.assertEquals(originalTint, tint.rgba);
+        Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(partial));
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(partial));
+        Assert.assertFalse(world.getMapper(AssetRefComponent.class).has(partial));
+        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).has(partial));
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(partial));
     }
 
     @Test
-    public void spriteSetSizeUpdatesDimensionsAndSetsGeometrySizeDirty() throws Exception {
+    public void validSpriteSettersStillMutateAndMarkDirty() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
         World world = engine.getWorld();
-        int e = world.create();
-        DimensionsComponent dimensions = world.edit(e).create(DimensionsComponent.class);
-        world.process();
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        int e = sprite.entityId();
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(e);
 
-        EntityRef ref = engine.api().entities().ofEntityId(e);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
-        ref.sprite().setSize(42f, 24f);
+        sprite.sprite().setVisible(false)
+                .setTint(1f, 0f, 0f, 0.5f)
+                .setSize(42f, 24f)
+                .setRepeat(true, false)
+                .setAssetId(42);
+
+        Assert.assertFalse(world.getMapper(VisibilityComponent.class).get(e).visible);
         Assert.assertEquals(42f, dimensions.width, 0.0001f);
         Assert.assertEquals(24f, dimensions.height, 0.0001f);
+        Assert.assertTrue(world.getMapper(RenderRepeatComponent.class).get(e).repeatX);
         Assert.assertTrue((dirty.geomSub(e) & GeometryDirty.SIZE) != 0);
+        Assert.assertTrue(dirty.isDirty(e, games.pixscape.runtime.render.DirtyBits.COLOR));
+
+        sprite.sprite().setAssetId(99);
+        Assert.assertEquals(99, sprite.sprite().assetId());
+        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).get(e).valid);
+        Assert.assertEquals(0, world.getMapper(RenderMaterialComponent.class).get(e).textureHandle);
     }
 
     @Test
@@ -784,6 +823,31 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void shaderFacadeDoesNotCreateRenderCapabilityOrOrphanParams() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int ordinary = world.create();
+        int orphanParams = world.create();
+        ShaderParamsComponent existingParams =
+                world.getMapper(ShaderParamsComponent.class).create(orphanParams);
+        existingParams.floats.add(new ShaderFloatParam("existing", 3f));
+        world.process();
+
+        ShaderFacade ordinaryShader = engine.api().entities().ofEntityId(ordinary).shader();
+        ordinaryShader.use("texture-array-default").setFloat("u_time", 1f).clear();
+
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(ShaderParamsComponent.class).has(ordinary));
+
+        ShaderFacade orphanShader = engine.api().entities().ofEntityId(orphanParams).shader();
+        orphanShader.setFloat("u_time", 2f).clearFloats();
+
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(orphanParams));
+        Assert.assertEquals(1, existingParams.floats.size);
+        Assert.assertEquals("existing", existingParams.floats.first().name);
+    }
+
+    @Test
     public void shaderUseWithUnknownNameFailsWithoutMutatingFloats() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -1094,6 +1158,27 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void transformAndSpatialFacadesRemainAuthoredBuilders() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int transformEntity = world.create();
+        int spatialEntity = world.create();
+        world.process();
+
+        engine.api().entities().ofEntityId(transformEntity).transform().setPosition(3f, 4f);
+        engine.api().entities().ofEntityId(spatialEntity).spatial().setVolume(2f, 5f);
+
+        TransformComponent transform =
+                world.getMapper(TransformComponent.class).get(transformEntity);
+        SpatialHeightComponent spatial =
+                world.getMapper(SpatialHeightComponent.class).get(spatialEntity);
+        Assert.assertEquals(3f, transform.x, 0f);
+        Assert.assertEquals(4f, transform.y, 0f);
+        Assert.assertEquals(2f, spatial.altitude, 0f);
+        Assert.assertEquals(5f, spatial.height, 0f);
+    }
+
+    @Test
     public void animationsSpawnCreatesAnimatedEntity() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
@@ -1111,6 +1196,46 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(animation.loop);
         Assert.assertTrue(animation.playing);
         Assert.assertSame(ref.animation(), engine.api().animations().get(ref.entity()));
+
+        ref.animation().setClip("default").setStateTime(2f);
+        Assert.assertEquals("default", ref.animation().clip());
+        Assert.assertEquals(2f, ref.animation().stateTime(), 0f);
+    }
+
+    @Test
+    public void animationFacadeRejectsMissingAndBareAnimationCapabilities() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int ordinary = world.create();
+        int bare = world.create();
+        AnimationComponent bareAnimation =
+                world.getMapper(AnimationComponent.class).create(bare);
+        bareAnimation.fps = 7f;
+        bareAnimation.playing = false;
+        bareAnimation.loop = false;
+        bareAnimation.currentClip = "";
+        world.process();
+
+        AnimationFacade ordinaryAnimation =
+                engine.api().entities().ofEntityId(ordinary).animation();
+        ordinaryAnimation.play("missing").setLoop(true).setFps(20f).setStateTime(3f);
+
+        Assert.assertFalse(ordinaryAnimation.exists());
+        Assert.assertFalse(world.getMapper(AnimationComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(AssetRefComponent.class).has(ordinary));
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(ordinary));
+
+        AnimationFacade bareFacade = engine.api().entities().ofEntityId(bare).animation();
+        Assert.assertFalse(bareFacade.exists());
+        bareFacade.play().setClip("missing").setLoop(true).setFps(20f).setStateTime(3f);
+
+        Assert.assertEquals(7f, bareAnimation.fps, 0f);
+        Assert.assertFalse(bareAnimation.playing);
+        Assert.assertFalse(bareAnimation.loop);
+        Assert.assertEquals("", bareAnimation.currentClip);
+        Assert.assertFalse(world.getMapper(AssetRefComponent.class).has(bare));
+        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).has(bare));
+        Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(bare));
     }
 
     @Test
@@ -1298,7 +1423,12 @@ public class PixscapeApiV1Test {
         world.getMapper(OrientedBoundsComponent.class).create(entity);
         world.getMapper(AABBComponent.class).create(entity);
         world.getMapper(EntityIndexComponent.class).create(entity);
+        world.getMapper(LayerComponent.class).create(entity);
         world.getMapper(VisibilityComponent.class).create(entity);
+        world.getMapper(TintComponent.class).create(entity);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).create(entity);
+        asset.assetId = 1;
+        asset.atlasTag = "main";
         TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).create(entity);
         region.valid = true;
         region.u2 = 1f;
@@ -1331,7 +1461,7 @@ public class PixscapeApiV1Test {
                                             String clipName,
                                             int start,
                                             int end) {
-        int entity = world.create();
+        int entity = createRenderableSprite(world);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entity);
         animation.clips.put(clipName, new AnimationComponent.Clip(start, end));
         animation.currentClip = clipName;
@@ -1339,11 +1469,9 @@ public class PixscapeApiV1Test {
         animation.loop = false;
         animation.playing = true;
         animation.frame = -1;
-        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).create(entity);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
         asset.assetId = 1;
         asset.atlasTag = "main";
-        world.getMapper(TextureRegionComponent.class).create(entity);
-        world.getMapper(RenderMaterialComponent.class).create(entity);
         return entity;
     }
 

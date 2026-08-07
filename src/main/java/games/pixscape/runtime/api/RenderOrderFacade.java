@@ -3,6 +3,9 @@ package games.pixscape.runtime.api;
 /**
  * Runtime layer placement and local z-order controls for one entity.
  *
+ * <p>Operations require existing layer and entity-index components and never
+ * create render-order capability.</p>
+ *
  * <p>Layer indices refer to exported scene layers. Changing the layer preserves
  * the current z-index, changing the z-index preserves the current layer, and
  * {@link #set(int, int)} changes both values as one operation. The supported

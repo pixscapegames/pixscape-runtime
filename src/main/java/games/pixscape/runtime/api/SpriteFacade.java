@@ -2,6 +2,9 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level sprite/material access for one entity.
+ *
+ * <p>Operations affect an existing complete authored sprite capability only.
+ * They do not convert an arbitrary entity into a sprite.</p>
  */
 public interface SpriteFacade {
     /**

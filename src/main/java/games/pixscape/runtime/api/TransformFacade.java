@@ -2,6 +2,7 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level transform access for one entity.
+ * Setters establish a standalone authored transform when it is absent.
  */
 public interface TransformFacade {
     float x();

@@ -3,6 +3,9 @@ package games.pixscape.runtime.api;
 /**
  * Spatial render-order settings for one runtime entity.
  *
+ * <p>Volume setters may establish authored spatial-height intent even when the
+ * entity does not yet participate in effective Spatial render ordering.</p>
+ *
  * <p>Actor footprint geometry is derived from the entity physics circle fixture.
  * This facade only exposes the vertical volume used by the spatial renderer.</p>
  */
