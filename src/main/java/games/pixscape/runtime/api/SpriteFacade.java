@@ -15,8 +15,9 @@ public interface SpriteFacade {
     /**
      * Changes the sprite asset within the current atlas tag.
      *
-     * <p>The new asset should be part of Runtime Availability for the current scene. If it is
-     * missing, the sprite region becomes invalid until a resolvable asset is assigned.</p>
+     * <p>The new asset must be available in the current atlas tag. An unavailable or invalid
+     * asset causes {@link IllegalArgumentException} before mutation, preserving the previous
+     * authored asset and live render binding.</p>
      *
      * @param assetId asset id to assign
      * @return this facade for chaining
@@ -26,8 +27,9 @@ public interface SpriteFacade {
     /**
      * Changes the sprite asset and atlas tag.
      *
-     * <p>The asset should exist in the requested atlas tag. A blank tag resolves to {@code main}.
-     * Missing assets make the sprite region invalid until a resolvable asset is assigned.</p>
+     * <p>The asset must exist in the requested atlas tag. A blank tag resolves to {@code main}.
+     * An unavailable or invalid asset causes {@link IllegalArgumentException} before mutation,
+     * preserving the previous authored asset and live render binding.</p>
      *
      * @param assetId asset id to assign
      * @param atlasTag atlas tag to resolve against, or blank for {@code main}

@@ -8,6 +8,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.utils.ObjectIntMap;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
@@ -456,11 +457,59 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(world.getMapper(RenderRepeatComponent.class).get(e).repeatX);
         Assert.assertTrue((dirty.geomSub(e) & GeometryDirty.SIZE) != 0);
         Assert.assertTrue(dirty.isDirty(e, games.pixscape.runtime.render.DirtyBits.COLOR));
+    }
 
-        sprite.sprite().setAssetId(99);
-        Assert.assertEquals(99, sprite.sprite().assetId());
-        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).get(e).valid);
-        Assert.assertEquals(0, world.getMapper(RenderMaterialComponent.class).get(e).textureHandle);
+    @Test
+    public void validSpriteAssetReassignmentPublishesPreparedBinding() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new TwoAssetAtlasRuntimeService());
+        World world = engine.getWorld();
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        int entity = sprite.entityId();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        sprite.sprite().setAsset(43, "main");
+
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).get(entity);
+        RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).get(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        Assert.assertEquals(43, asset.assetId);
+        Assert.assertEquals("main", asset.atlasTag);
+        Assert.assertTrue(region.valid);
+        Assert.assertEquals(32, region.pixW);
+        Assert.assertEquals(48, region.pixH);
+        Assert.assertEquals(8, material.textureHandle);
+        Assert.assertEquals(16f, dimensions.width, 0f);
+        Assert.assertEquals(24f, dimensions.height, 0f);
+        Assert.assertTrue(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.MATERIAL));
+    }
+
+    @Test
+    public void missingSpriteAssetReassignmentIsFailureAtomicForBothPaths() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new TwoAssetAtlasRuntimeService());
+        World world = engine.getWorld();
+        SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
+        int entity = sprite.entityId();
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).get(entity);
+        RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).get(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        assertMissingSpriteAssetRejected(sprite.sprite(), false);
+        assertSpriteBindingAUnchanged(asset, region, material, dimensions);
+        Assert.assertFalse(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.MATERIAL));
+
+        assertMissingSpriteAssetRejected(sprite.sprite(), true);
+        assertSpriteBindingAUnchanged(asset, region, material, dimensions);
+        Assert.assertFalse(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.MATERIAL));
     }
 
     @Test
@@ -845,32 +894,69 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(world.getMapper(RenderMaterialComponent.class).has(orphanParams));
         Assert.assertEquals(1, existingParams.floats.size);
         Assert.assertEquals("existing", existingParams.floats.first().name);
+
+        ordinaryShader.use(" ").setFloat(" ", 2f);
+        Assert.assertFalse(world.getMapper(ShaderParamsComponent.class).has(ordinary));
     }
 
     @Test
-    public void shaderUseWithUnknownNameFailsWithoutMutatingFloats() throws Exception {
+    public void shaderUseValidatesBeforePublishingMaterialOrDirtyState() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int e = world.create();
-        world.edit(e).create(RenderMaterialComponent.class);
+        RenderMaterialComponent material = world.edit(e).create(RenderMaterialComponent.class);
         world.edit(e).create(ShaderParamsComponent.class);
         world.process();
 
         EntityRef ref = engine.api().entities().ofEntityId(e);
-        ref.shader().setFloat("u_time", 1f);
-        Assert.assertEquals(1f, ref.shader().getFloat("u_time", 0f), 0.0001f);
-
+        String valid = "__valid_shader_for_facade_test__";
         String unknown = "__missing_shader_for_test__";
-        Assert.assertEquals(-1, ShaderRegistry.indexOf(unknown));
+        ObjectIntMap<String> shaderNames = shaderNameIndex();
+        shaderNames.put(valid, 4242);
         try {
-            ref.shader().use(unknown);
-            Assert.fail("Expected unknown shader to fail");
-        } catch (IllegalArgumentException expected) {
-            // expected
-        }
+            ref.shader().use(valid).setFloat("u_time", 1f);
+            Assert.assertEquals(4242, material.shaderIdx);
+            Assert.assertEquals(valid, ref.shader().shader());
+            Assert.assertEquals(1f, ref.shader().getFloat("u_time", 0f), 0.0001f);
 
-        Assert.assertTrue(ref.shader().hasFloat("u_time"));
-        Assert.assertEquals(1f, ref.shader().getFloat("u_time", 0f), 0.0001f);
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            dirty.clearAll();
+            assertInvalidShaderRejected(ref.shader(), unknown);
+            Assert.assertEquals(4242, material.shaderIdx);
+            Assert.assertTrue(ref.shader().hasFloat("u_time"));
+            Assert.assertEquals(1f, ref.shader().getFloat("u_time", 0f), 0.0001f);
+            Assert.assertFalse(dirty.isDirty(
+                    e, games.pixscape.runtime.render.DirtyBits.MATERIAL));
+
+            assertInvalidShaderRejected(ref.shader(), "   ");
+            Assert.assertEquals(4242, material.shaderIdx);
+        } finally {
+            shaderNames.remove(valid, -1);
+        }
+    }
+
+    @Test
+    public void blankShaderUniformMutationFailsBeforeParameterMutation() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int withoutParams = world.create();
+        world.edit(withoutParams).create(RenderMaterialComponent.class);
+        int withParams = world.create();
+        world.edit(withParams).create(RenderMaterialComponent.class);
+        ShaderParamsComponent existing = world.edit(withParams).create(ShaderParamsComponent.class);
+        existing.floats.add(new ShaderFloatParam("existing", 3f));
+        world.process();
+
+        assertInvalidUniformRejected(
+                engine.api().entities().ofEntityId(withoutParams).shader(), " ", false);
+        Assert.assertFalse(world.getMapper(ShaderParamsComponent.class).has(withoutParams));
+
+        ShaderFacade shader = engine.api().entities().ofEntityId(withParams).shader();
+        assertInvalidUniformRejected(shader, null, false);
+        assertInvalidUniformRejected(shader, "", true);
+        Assert.assertEquals(1, existing.floats.size);
+        Assert.assertEquals("existing", existing.floats.first().name);
+        Assert.assertEquals(3f, existing.floats.first().value, 0f);
     }
 
     @Test
@@ -1158,6 +1244,35 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void particleFacadeRejectsMalformedIdentityBeforeAuthoredMutation() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        world.edit(entity).create(TransformComponent.class);
+        ParticleEmitterComponent emitter = world.edit(entity).create(ParticleEmitterComponent.class);
+        emitter.effectPath = "live-a.p";
+        emitter.atlasTag = "atlas-a";
+        int arbitrary = world.create();
+        world.process();
+
+        ParticleFacade facade = engine.api().entities().ofEntityId(entity).particles();
+        assertInvalidParticleIdentityRejected(facade, " ", "atlas-b");
+        assertInvalidParticleIdentityRejected(facade, "b.p", null);
+        Assert.assertEquals("live-a.p", emitter.effectPath);
+        Assert.assertEquals("atlas-a", emitter.atlasTag);
+
+        ParticleFacade arbitraryFacade = engine.api().entities().ofEntityId(arbitrary).particles();
+        assertInvalidParticleIdentityRejected(arbitraryFacade, "", "main");
+        Assert.assertFalse(world.getMapper(TransformComponent.class).has(arbitrary));
+        Assert.assertFalse(world.getMapper(ParticleEmitterComponent.class).has(arbitrary));
+
+        facade.setEffect("unavailable-but-well-formed.p", "missing-atlas");
+        Assert.assertEquals("unavailable-but-well-formed.p", emitter.effectPath);
+        Assert.assertEquals("missing-atlas", emitter.atlasTag);
+        Assert.assertTrue(facade.exists());
+    }
+
+    @Test
     public void transformAndSpatialFacadesRemainAuthoredBuilders() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -1200,6 +1315,63 @@ public class PixscapeApiV1Test {
         ref.animation().setClip("default").setStateTime(2f);
         Assert.assertEquals("default", ref.animation().clip());
         Assert.assertEquals(2f, ref.animation().stateTime(), 0f);
+    }
+
+    @Test
+    public void animationClipSelectionIsStrictAndFailureAtomic() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = createAnimatedSprite(world, "idle", 0, 2);
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entity);
+        animation.clips.put("walk", new AnimationComponent.Clip(3, 5));
+        animation.currentClip = "idle";
+        animation.frame = 2;
+        animation.stateTime = 1.5f;
+        animation.playing = false;
+        animation.loop = true;
+        world.process();
+        AnimationFacade facade = engine.api().entities().ofEntityId(entity).animation();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        assertInvalidClipRejected(facade, "missing", false);
+        assertAnimationIdleStateUnchanged(animation);
+        assertInvalidClipRejected(facade, "missing", true);
+        assertAnimationIdleStateUnchanged(animation);
+        assertInvalidClipRejected(facade, null, false);
+        assertInvalidClipRejected(facade, "   ", true);
+        assertAnimationIdleStateUnchanged(animation);
+        Assert.assertEquals(7,
+                world.getMapper(RenderMaterialComponent.class).get(entity).textureHandle);
+        Assert.assertFalse(dirty.isDirty(
+                entity, games.pixscape.runtime.render.DirtyBits.MATERIAL));
+
+        facade.setClip("walk");
+        Assert.assertEquals("walk", animation.currentClip);
+        Assert.assertEquals(-1, animation.frame);
+        Assert.assertEquals(0f, animation.stateTime, 0f);
+        Assert.assertFalse(animation.playing);
+        facade.play("idle");
+        Assert.assertEquals("idle", animation.currentClip);
+        Assert.assertTrue(animation.playing);
+    }
+
+    @Test
+    public void animationFpsAcceptsZeroAndRejectsInvalidValuesAtomically() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = createAnimatedSprite(world, "idle", 0, 2);
+        world.process();
+        AnimationFacade facade = engine.api().entities().ofEntityId(entity).animation();
+
+        facade.setFps(0f);
+        Assert.assertEquals(0f, facade.fps(), 0f);
+        facade.setFps(12f);
+        assertInvalidFpsRejected(facade, -1f);
+        assertInvalidFpsRejected(facade, Float.NaN);
+        assertInvalidFpsRejected(facade, Float.POSITIVE_INFINITY);
+        assertInvalidFpsRejected(facade, Float.NEGATIVE_INFINITY);
+        Assert.assertEquals(12f, facade.fps(), 0f);
     }
 
     @Test
@@ -1348,6 +1520,101 @@ public class PixscapeApiV1Test {
 
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
+    }
+
+    private static void assertMissingSpriteAssetRejected(SpriteFacade sprite,
+                                                         boolean assetIdOnly) {
+        try {
+            if (assetIdOnly) sprite.setAssetId(99);
+            else sprite.setAsset(99, "main");
+            Assert.fail("Expected missing sprite asset to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("Asset #99"));
+        }
+    }
+
+    private static void assertSpriteBindingAUnchanged(AssetRefComponent asset,
+                                                      TextureRegionComponent region,
+                                                      RenderMaterialComponent material,
+                                                      DimensionsComponent dimensions) {
+        Assert.assertEquals(42, asset.assetId);
+        Assert.assertEquals("main", asset.atlasTag);
+        Assert.assertTrue(region.valid);
+        Assert.assertEquals(16, region.pixW);
+        Assert.assertEquals(24, region.pixH);
+        Assert.assertEquals(7, material.textureHandle);
+        Assert.assertEquals("main", material.debugAtlasTag);
+        Assert.assertEquals(16f, dimensions.width, 0f);
+        Assert.assertEquals(24f, dimensions.height, 0f);
+    }
+
+    private static void assertInvalidClipRejected(AnimationFacade animation,
+                                                  String clipName,
+                                                  boolean play) {
+        try {
+            if (play) animation.play(clipName);
+            else animation.setClip(clipName);
+            Assert.fail("Expected invalid animation clip to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("animation clip"));
+        }
+    }
+
+    private static void assertAnimationIdleStateUnchanged(AnimationComponent animation) {
+        Assert.assertEquals("idle", animation.currentClip);
+        Assert.assertEquals(2, animation.frame);
+        Assert.assertEquals(1.5f, animation.stateTime, 0f);
+        Assert.assertFalse(animation.playing);
+        Assert.assertTrue(animation.loop);
+    }
+
+    private static void assertInvalidFpsRejected(AnimationFacade animation, float fps) {
+        try {
+            animation.setFps(fps);
+            Assert.fail("Expected invalid animation fps to fail: " + fps);
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("fps"));
+        }
+        Assert.assertEquals(12f, animation.fps(), 0f);
+    }
+
+    private static void assertInvalidParticleIdentityRejected(ParticleFacade particles,
+                                                              String effectPath,
+                                                              String atlasTag) {
+        try {
+            particles.setEffect(effectPath, atlasTag);
+            Assert.fail("Expected malformed particle identity to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("must not be blank"));
+        }
+    }
+
+    private static void assertInvalidShaderRejected(ShaderFacade shader, String shaderName) {
+        try {
+            shader.use(shaderName);
+            Assert.fail("Expected invalid shader name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().toLowerCase().contains("shader"));
+        }
+    }
+
+    private static void assertInvalidUniformRejected(ShaderFacade shader,
+                                                     String uniform,
+                                                     boolean remove) {
+        try {
+            if (remove) shader.removeFloat(uniform);
+            else shader.setFloat(uniform, 1f);
+            Assert.fail("Expected blank uniform name to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("uniform name"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectIntMap<String> shaderNameIndex() throws Exception {
+        Field field = ShaderRegistry.class.getDeclaredField("nameToIdx");
+        field.setAccessible(true);
+        return (ObjectIntMap<String>) field.get(null);
     }
 
     private static PixscapeEngine setupEngineWithTiledAnimationSystem() throws Exception {
@@ -1561,6 +1828,21 @@ public class PixscapeApiV1Test {
             resolveBindingCalls++;
             if (assetId != availableAssetId) return null;
             return binding;
+        }
+    }
+
+    private static final class TwoAssetAtlasRuntimeService extends AtlasRuntimeService {
+        private final AtlasAssetBinding bindingA = AtlasBindingTestFactory.single(
+                42, "crate__a42", 0f, 0f, 0.5f, 0.5f, 7, 16, 24);
+        private final AtlasAssetBinding bindingB = AtlasBindingTestFactory.single(
+                43, "barrel__a43", 0.5f, 0.5f, 1f, 1f, 8, 32, 48);
+
+        @Override
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
+            if (!"main".equals(tag)) return null;
+            if (assetId == 42) return bindingA;
+            if (assetId == 43) return bindingB;
+            return null;
         }
     }
 

@@ -14,17 +14,30 @@ public interface ShaderFacade {
 
     /**
      * Selects a shader by logical name.
+     *
+     * @throws IllegalArgumentException when the name is blank or unknown; the previous material
+     * state remains unchanged
      */
     ShaderFacade use(String shaderName);
 
     ShaderFacade clear();
 
+    /**
+     * Sets a float uniform on the existing render capability.
+     *
+     * @throws IllegalArgumentException when the uniform name is blank, before parameter mutation
+     */
     ShaderFacade setFloat(String uniform, float value);
 
     float getFloat(String uniform, float defaultValue);
 
     boolean hasFloat(String uniform);
 
+    /**
+     * Removes a float uniform from the existing render capability.
+     *
+     * @throws IllegalArgumentException when the uniform name is blank, before parameter mutation
+     */
     ShaderFacade removeFloat(String uniform);
 
     ShaderFacade clearFloats();

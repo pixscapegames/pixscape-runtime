@@ -104,8 +104,10 @@ public class EntityRefIdentitySafetyTest {
 
             EntityRef oldEntity = engine.api().entities().requireEntityId(first);
             TransformFacade oldTransform = oldEntity.transform();
+            SpriteFacade oldSprite = oldEntity.sprite();
             AnimationFacade oldAnimation = oldEntity.animation();
             ParticleFacade oldParticles = oldEntity.particles();
+            ShaderFacade oldShader = oldEntity.shader();
             TiledLayerRef oldTiled = engine.api().tiled().requireEntityId(first);
 
             world.delete(first);
@@ -128,7 +130,11 @@ public class EntityRefIdentitySafetyTest {
 
             oldTransform.setX(200f);
             oldAnimation.setFps(30f);
+            oldAnimation.setClip(null);
+            oldSprite.setAsset(-1, "");
             oldParticles.play();
+            oldParticles.setEffect("", "");
+            oldShader.use("").setFloat("", 1f);
             oldTiled.map().setVisible(false);
             oldEntity.remove();
 

@@ -595,22 +595,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                                             AssetRefComponent assetRef,
                                             TextureRegionComponent textureRegion,
                                             RenderMaterialComponent material) {
+        AtlasAssetBinding binding = requireSpriteBinding(
+                engine, assetRef.assetId, assetRef.atlasTag);
+        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
+    }
+
+    private static AtlasAssetBinding requireSpriteBinding(PixscapeEngine engine,
+                                                           int assetId,
+                                                           String atlasTag) {
         AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
         if (atlasService == null) {
             throw new IllegalArgumentException(
-                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                    "Asset #" + assetId + " is not available in current scene atlas. "
+                            + "Add it to Runtime Availability before export."
             );
         }
 
-        AtlasAssetBinding binding =
-                atlasService.resolveBinding(assetRef.assetId, assetRef.atlasTag);
+        AtlasAssetBinding binding = atlasService.resolveBinding(assetId, atlasTag);
         if (binding == null) {
             throw new IllegalArgumentException(
-                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                    "Asset #" + assetId + " is not available in current scene atlas. "
+                            + "Add it to Runtime Availability before export."
             );
         }
-
-        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
+        return binding;
     }
 
     private static void applySpriteBinding(
@@ -1307,35 +1315,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpriteFacade setAssetId(int assetId) {
-            AssetRefComponent src = src(true);
-            if (src == null) return this;
-            if (src.assetId != assetId) {
-                src.assetId = assetId;
-                resolveRegion(src);
-                markMaterial();
-            }
-            return this;
+            AssetRefComponent src = src(false);
+            return src != null ? assignAsset(assetId, src.atlasTag) : this;
         }
 
         @Override
         public SpriteFacade setAsset(int assetId, String atlasTag) {
-            AssetRefComponent src = src(true);
-            if (src == null) return this;
-            boolean changed = false;
-            if (src.assetId != assetId) {
-                src.assetId = assetId;
-                changed = true;
-            }
             String normalizedTag = isBlank(atlasTag) ? "main" : atlasTag;
-            if (!normalizedTag.equals(src.atlasTag)) {
-                src.atlasTag = normalizedTag;
-                changed = true;
-            }
-            if (changed) {
-                resolveRegion(src);
-                markMaterial();
-            }
-            return this;
+            return assignAsset(assetId, normalizedTag);
         }
 
         @Override
@@ -1404,9 +1391,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private void resolveRegion(AssetRefComponent src) {
+        private SpriteFacade assignAsset(int assetId, String atlasTag) {
             World world = spriteCapabilityWorld(handle);
-            if (world == null) return;
+            if (world == null) return this;
+            AssetRefComponent src = world.getMapper(AssetRefComponent.class).get(handle.entityId);
+            String normalizedTag = isBlank(atlasTag) ? "main" : atlasTag;
+            AtlasAssetBinding binding = requireSpriteBinding(
+                    engine, assetId, normalizedTag);
+            if (src.assetId == assetId && normalizedTag.equals(src.atlasTag)) return this;
+
             TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class)
                     .has(handle.entityId)
                     ? world.getMapper(TextureRegionComponent.class).get(handle.entityId)
@@ -1416,20 +1409,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                     ? world.getMapper(RenderMaterialComponent.class).get(handle.entityId)
                     : world.getMapper(RenderMaterialComponent.class).create(handle.entityId);
 
-            AtlasRuntimeService atlas = engine.getAtlasRuntimeService();
-            if (atlas == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-                return;
-            }
-            AtlasAssetBinding binding = atlas.resolveBinding(src.assetId, src.atlasTag);
-            if (binding == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-                return;
-            }
-
-            applySpriteBinding(binding, src.atlasTag, tr, mat);
+            applySpriteBinding(binding, normalizedTag, tr, mat);
+            src.assetId = assetId;
+            src.atlasTag = normalizedTag;
+            markMaterial();
+            return this;
         }
 
         private static float clamp01(float v) {
@@ -1560,19 +1544,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AnimationFacade play(String clipName) {
-            setClip(clipName);
-            return play();
+            AnimationComponent a = anim();
+            if (a == null) return this;
+            requireClip(a, clipName);
+            selectClip(a, clipName);
+            a.playing = true;
+            return this;
         }
 
         @Override
         public AnimationFacade setClip(String clipName) {
             AnimationComponent a = anim();
-            if (a != null) {
-                a.currentClip = clipName != null ? clipName : "";
-                a.frame = -1;
-                a.stateTime = 0f;
-                markMaterial();
-            }
+            if (a == null) return this;
+            requireClip(a, clipName);
+            selectClip(a, clipName);
             return this;
         }
 
@@ -1586,7 +1571,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public AnimationFacade setFps(float fps) {
             AnimationComponent a = anim();
-            if (a != null) a.fps = fps;
+            if (a == null) return this;
+            if (fps < 0f || Float.isNaN(fps) || Float.isInfinite(fps)) {
+                throw new IllegalArgumentException(
+                        "Animation fps must be finite and >= 0, got " + fps + ".");
+            }
+            a.fps = fps;
             return this;
         }
 
@@ -1631,6 +1621,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return world.getMapper(AnimationComponent.class).get(handle.entityId);
         }
 
+        private static void requireClip(AnimationComponent animation, String clipName) {
+            if (isBlank(clipName) || !animation.clips.containsKey(clipName)) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank animation clip: '" + clipName + "'.");
+            }
+        }
+
+        private void selectClip(AnimationComponent animation, String clipName) {
+            animation.currentClip = clipName;
+            animation.frame = -1;
+            animation.stateTime = 0f;
+            markMaterial();
+        }
+
         private void markMaterial() {
             World world = animationCapabilityWorld(handle);
             DirtyTrackerSystem d = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
@@ -1652,10 +1656,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ParticleFacade setEffect(String effectPath, String atlasTag) {
+            if (handle.world() == null) return this;
+            if (isBlank(effectPath)) {
+                throw new IllegalArgumentException("Particle effect path must not be blank.");
+            }
+            if (isBlank(atlasTag)) {
+                throw new IllegalArgumentException("Particle atlas tag must not be blank.");
+            }
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
-                c.effectPath = effectPath != null ? effectPath : "";
-                c.atlasTag = atlasTag != null ? atlasTag : "";
+                c.effectPath = effectPath;
+                c.atlasTag = atlasTag;
             }
             return this;
         }
@@ -1764,6 +1775,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public ShaderFacade use(String shaderName) {
             RenderMaterialComponent m = mat();
             if (m == null) return this;
+            if (isBlank(shaderName)) {
+                throw new IllegalArgumentException("Shader name must not be blank.");
+            }
             int shaderIdx = ShaderRegistry.indexOf(shaderName);
             if (shaderIdx < 0) throw new IllegalArgumentException("Unknown shader: " + shaderName);
             if (m.shaderIdx != shaderIdx) {
@@ -1785,7 +1799,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ShaderFacade setFloat(String uniform, float value) {
-            if (uniform == null || isBlank(uniform)) return this;
+            if (renderCapabilityWorld() == null) return this;
+            requireUniformName(uniform);
 
             ShaderParamsComponent params = params(true);
             if (params != null) {
@@ -1837,8 +1852,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ShaderFacade removeFloat(String uniform) {
+            if (renderCapabilityWorld() == null) return this;
+            requireUniformName(uniform);
             ShaderParamsComponent params = params(false);
-            if (params == null || uniform == null || isBlank(uniform)) return this;
+            if (params == null) return this;
 
             for (int i = params.floats.size - 1; i >= 0; i--) {
                 ShaderFloatParam param = params.floats.get(i);
@@ -1885,6 +1902,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (world == null) return null;
             return world.getMapper(RenderMaterialComponent.class).has(handle.entityId)
                     ? world : null;
+        }
+
+        private static void requireUniformName(String uniform) {
+            if (isBlank(uniform)) {
+                throw new IllegalArgumentException("Shader uniform name must not be blank.");
+            }
         }
 
         private void markMaterial() {

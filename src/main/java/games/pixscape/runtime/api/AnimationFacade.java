@@ -41,12 +41,29 @@ public interface AnimationFacade {
 
     AnimationFacade restart();
 
+    /**
+     * Selects and starts an existing clip.
+     *
+     * @throws IllegalArgumentException when the clip name is blank or unknown; the previous
+     * animation state remains unchanged
+     */
     AnimationFacade play(String clipName);
 
+    /**
+     * Selects an existing clip and resets its frame and playback time.
+     *
+     * @throws IllegalArgumentException when the clip name is blank or unknown; the previous
+     * animation state remains unchanged
+     */
     AnimationFacade setClip(String clipName);
 
     AnimationFacade setLoop(boolean loop);
 
+    /**
+     * Sets playback frames per second. Zero is allowed as a non-advancing rate.
+     *
+     * @throws IllegalArgumentException when {@code fps} is negative, NaN, or infinite
+     */
     AnimationFacade setFps(float fps);
 
     AnimationFacade setStateTime(float stateTime);
