@@ -37,6 +37,133 @@ import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
 public final class PixscapeApiImpl implements PixscapeAPI {
 
+    private static final class EntityReferenceTracker
+            implements EntitySubscription.SubscriptionListener {
+        private static final int INITIAL_CAPACITY = 64;
+
+        private final PixscapeEngine engine;
+        private World world;
+        private EntitySubscription subscription;
+        private int worldGeneration;
+        private int[] entityGenerations = new int[INITIAL_CAPACITY];
+
+        EntityReferenceTracker(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        EntityHandle capture(int entityId) {
+            bindCurrentWorld();
+            int entityGeneration = 0;
+            if (isActive(world, entityId)) {
+                ensureCapacity(entityId);
+                entityGeneration = entityGenerations[entityId];
+                if (entityGeneration == 0) {
+                    entityGeneration = 1;
+                    entityGenerations[entityId] = entityGeneration;
+                }
+            }
+            return new EntityHandle(
+                    this, entityId, worldGeneration, entityGeneration);
+        }
+
+        World world(EntityHandle handle) {
+            bindCurrentWorld();
+            if (handle.worldGeneration != worldGeneration
+                    || handle.entityGeneration == 0
+                    || !isActive(world, handle.entityId)
+                    || handle.entityId >= entityGenerations.length
+                    || entityGenerations[handle.entityId] != handle.entityGeneration) {
+                return null;
+            }
+            return world;
+        }
+
+        @Override
+        public void inserted(IntBag entities) {
+            int[] ids = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                int entityId = ids[i];
+                ensureCapacity(entityId);
+                if (entityGenerations[entityId] == 0) {
+                    entityGenerations[entityId] = 1;
+                }
+            }
+        }
+
+        @Override
+        public void removed(IntBag entities) {
+            int[] ids = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                int entityId = ids[i];
+                ensureCapacity(entityId);
+                int next = entityGenerations[entityId] + 1;
+                entityGenerations[entityId] = next != 0 ? next : 1;
+            }
+        }
+
+        private void bindCurrentWorld() {
+            World current = engine.getWorld();
+            if (current == world) return;
+
+            if (subscription != null) {
+                subscription.removeSubscriptionListener(this);
+                subscription = null;
+            }
+            world = current;
+            worldGeneration++;
+            if (worldGeneration == 0) worldGeneration = 1;
+            entityGenerations = new int[INITIAL_CAPACITY];
+            if (world != null) {
+                subscription = world.getAspectSubscriptionManager().get(Aspect.all());
+                subscription.addSubscriptionListener(this);
+            }
+        }
+
+        private void ensureCapacity(int entityId) {
+            if (entityId < entityGenerations.length) return;
+            int capacity = entityGenerations.length;
+            while (capacity <= entityId) capacity <<= 1;
+            int[] grown = new int[capacity];
+            System.arraycopy(entityGenerations, 0, grown, 0, entityGenerations.length);
+            entityGenerations = grown;
+        }
+
+        private static boolean isActive(World world, int entityId) {
+            if (world == null || entityId < 0) return false;
+            try {
+                return world.getEntity(entityId) != null
+                        && world.getEntityManager().isActive(entityId);
+            } catch (IndexOutOfBoundsException ignored) {
+                return false;
+            }
+        }
+    }
+
+    private static final class EntityHandle {
+        private final EntityReferenceTracker tracker;
+        private final int entityId;
+        private final int worldGeneration;
+        private final int entityGeneration;
+
+        EntityHandle(EntityReferenceTracker tracker,
+                     int entityId,
+                     int worldGeneration,
+                     int entityGeneration) {
+            this.tracker = tracker;
+            this.entityId = entityId;
+            this.worldGeneration = worldGeneration;
+            this.entityGeneration = entityGeneration;
+        }
+
+        World world() {
+            return tracker.world(this);
+        }
+
+        boolean exists() {
+            return world() != null;
+        }
+    }
+
     private static boolean isBlank(String s) {
         if (s == null || s.length() == 0) return true;
 
@@ -50,6 +177,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     private final PixscapeEngine engine;
+    private final EntityReferenceTracker entityReferences;
     private final SceneLayerResolver sceneLayers;
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
@@ -64,10 +192,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
+        this.entityReferences = new EntityReferenceTracker(engine);
         this.sceneLayers = new SceneLayerResolver();
         this.ecs = new EcsApiImpl(engine);
-        this.entities = new EntitiesApiImpl(engine, ecs, sceneLayers);
-        this.tiled = new TiledApiImpl(engine, ecs, entities, sceneLayers);
+        this.entities = new EntitiesApiImpl(
+                engine, ecs, sceneLayers, entityReferences);
+        this.tiled = new TiledApiImpl(
+                engine, ecs, entities, sceneLayers, entityReferences);
         this.spatial = new SpatialApiImpl(engine);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
@@ -213,7 +344,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public Body body(EntityRef entity) {
-            if (entity == null) return null;
+            if (entity == null || !entity.exists()) return null;
             World world = engine.getWorld();
             int entityId = entity.entityId();
             if (world == null || !isActive(world, entityId)) {
@@ -522,17 +653,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final SceneLayerResolver sceneLayers;
+        private final EntityReferenceTracker entityReferences;
 
         EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs,
-                        SceneLayerResolver sceneLayers) {
+                        SceneLayerResolver sceneLayers,
+                        EntityReferenceTracker entityReferences) {
             this.engine = engine;
             this.ecs = ecs;
             this.sceneLayers = sceneLayers;
+            this.entityReferences = entityReferences;
         }
 
         @Override
         public EntityRef ofEntityId(int entityId) {
-            return new EntityRefImpl(engine, ecs, sceneLayers, entityId);
+            return new EntityRefImpl(
+                    engine, ecs, sceneLayers, entityReferences.capture(entityId));
         }
 
         @Override
@@ -610,7 +745,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public void destroy(EntityRef ref) {
             if (ref == null) return;
-            destroyEntityId(ref.entityId());
+            ref.remove();
         }
 
         @Override
@@ -630,7 +765,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final SceneLayerResolver sceneLayers;
-        private final int entityId;
+        private final EntityHandle handle;
         private TransformFacade transform;
         private SpriteFacade sprite;
         private AnimationFacade animation;
@@ -642,68 +777,69 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         EntityRefImpl(PixscapeEngine engine, ECSAPI ecs,
                       SceneLayerResolver sceneLayers,
-                      int entityId) {
+                      EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
             this.sceneLayers = sceneLayers;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
         public int entityId() {
-            return entityId;
+            return handle.entityId;
         }
 
         @Override
         public int stableId() {
-            return engine.getIdentityRegistry().getStableId(entityId);
+            return handle.exists()
+                    ? engine.getIdentityRegistry().getStableId(handle.entityId)
+                    : -1;
         }
 
         @Override
         public boolean exists() {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId);
+            return handle.exists();
         }
 
         @Override
         public TransformFacade transform() {
-            if (transform == null) transform = new TransformFacadeImpl(engine, entityId);
+            if (transform == null) transform = new TransformFacadeImpl(handle);
             return transform;
         }
 
         @Override
         public SpriteFacade sprite() {
-            if (sprite == null) sprite = new SpriteFacadeImpl(engine, entityId);
+            if (sprite == null) sprite = new SpriteFacadeImpl(engine, handle);
             return sprite;
         }
 
         @Override
         public AnimationFacade animation() {
-            if (animation == null) animation = new AnimationFacadeImpl(engine, entityId);
+            if (animation == null) animation = new AnimationFacadeImpl(handle);
             return animation;
         }
 
         @Override
         public ParticleFacade particles() {
-            if (particles == null) particles = new ParticleFacadeImpl(engine, entityId);
+            if (particles == null) particles = new ParticleFacadeImpl(handle);
             return particles;
         }
 
         @Override
         public ShaderFacade shader() {
-            if (shader == null) shader = new ShaderFacadeImpl(engine, entityId);
+            if (shader == null) shader = new ShaderFacadeImpl(handle);
             return shader;
         }
 
         @Override
         public LightFacade light() {
-            if (light == null) light = new LightFacadeImpl(engine, entityId);
+            if (light == null) light = new LightFacadeImpl(handle);
             return light;
         }
 
         @Override
         public SpatialEntityFacade spatial() {
-            if (spatial == null) spatial = new SpatialEntityFacadeImpl(engine, entityId);
+            if (spatial == null) spatial = new SpatialEntityFacadeImpl(handle);
             return spatial;
         }
 
@@ -711,7 +847,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public RenderOrderFacade renderOrder() {
             if (renderOrder == null) {
                 renderOrder = new RenderOrderFacadeImpl(
-                        engine, sceneLayers, entityId);
+                        sceneLayers, handle);
             }
             return renderOrder;
         }
@@ -723,25 +859,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public void remove() {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
-            world.delete(entityId);
+            World world = handle.world();
+            if (world != null) world.delete(handle.entityId);
         }
     }
 
     static final class RenderOrderFacadeImpl implements RenderOrderFacade {
-        private final PixscapeEngine engine;
         private final SceneLayerResolver sceneLayers;
-        private final int entityId;
+        private final EntityHandle handle;
         private LayerComponent validatedLayer;
         private EntityIndexComponent validatedEntityIndex;
 
-        RenderOrderFacadeImpl(PixscapeEngine engine,
-                              SceneLayerResolver sceneLayers,
-                              int entityId) {
-            this.engine = engine;
+        RenderOrderFacadeImpl(SceneLayerResolver sceneLayers,
+                              EntityHandle handle) {
             this.sceneLayers = sceneLayers;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -783,17 +915,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private void validateComponents(String operation) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0
-                    || !world.getEntityManager().isActive(entityId)) {
+            World world = handle.world();
+            if (world == null) {
                 throw new IllegalStateException("Cannot perform render-order operation " + operation
-                        + ": entityId=" + entityId + " no longer exists.");
+                        + ": entityId=" + handle.entityId + " no longer exists.");
             }
-            validatedLayer = world.getMapper(LayerComponent.class).getSafe(entityId, null);
+            validatedLayer = world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
             if (validatedLayer == null) {
                 throw missing("LayerComponent", operation);
             }
-            validatedEntityIndex = world.getMapper(EntityIndexComponent.class).getSafe(entityId, null);
+            validatedEntityIndex = world.getMapper(EntityIndexComponent.class)
+                    .getSafe(handle.entityId, null);
             if (validatedEntityIndex == null) {
                 throw missing("EntityIndexComponent", operation);
             }
@@ -801,11 +933,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         private IllegalStateException missing(String component, String operation) {
             return new IllegalStateException("Cannot perform render-order operation " + operation
-                    + ": entityId=" + entityId + " is missing required " + component + ".");
+                    + ": entityId=" + handle.entityId + " is missing required " + component + ".");
         }
 
         private SceneLayerResolver layers() {
-            sceneLayers.bind(engine.getWorld());
+            sceneLayers.bind(handle.world());
             return sceneLayers;
         }
 
@@ -828,26 +960,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             validatedEntityIndex.layerIndex = layerIndex;
             validatedEntityIndex.zIndex = zIndex;
 
-            World world = engine.getWorld();
+            World world = handle.world();
             DirtyTrackerSystem dirty = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
             if (dirty == null) return;
             if (layerChanged) {
-                dirty.layer(entityId);
-                dirty.order(entityId);
+                dirty.layer(handle.entityId);
+                dirty.order(handle.entityId);
             } else if (orderChanged) {
-                dirty.order(entityId);
+                dirty.order(handle.entityId);
             }
         }
 
     }
 
     static final class TransformFacadeImpl implements TransformFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TransformFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        TransformFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -995,16 +1125,22 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TransformComponent t(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<TransformComponent> mapper = world.getMapper(TransformComponent.class);
-            if (create) return mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId);
-            return mapper.getSafe(entityId, null);
+            if (create) {
+                return mapper.has(handle.entityId)
+                        ? mapper.get(handle.entityId)
+                        : mapper.create(handle.entityId);
+            }
+            return mapper.getSafe(handle.entityId, null);
         }
 
         private void markGeometry(int subMask) {
-            DirtyTrackerSystem dirty = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (dirty != null) dirty.geometry(entityId, subMask);
+            World world = handle.world();
+            DirtyTrackerSystem dirty = world != null
+                    ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (dirty != null) dirty.geometry(handle.entityId, subMask);
         }
     }
 
@@ -1049,12 +1185,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        SpatialEntityFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        SpatialEntityFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1070,10 +1204,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade disable() {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return this;
+            World world = handle.world();
+            if (world == null) return this;
             ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
-            if (mapper.has(entityId)) mapper.remove(entityId);
+            if (mapper.has(handle.entityId)) mapper.remove(handle.entityId);
             return this;
         }
 
@@ -1115,27 +1249,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean participatesInRenderOrder() {
-            World world = engine.getWorld();
+            World world = handle.world();
             if (world == null) return false;
             SpatialRenderOrderSystem system = world.getSystem(SpatialRenderOrderSystem.class);
-            return system != null && system.participatesInRenderOrder(entityId);
+            return system != null && system.participatesInRenderOrder(handle.entityId);
         }
 
         private SpatialHeightComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
     }
 
     static final class SpriteFacadeImpl implements SpriteFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        SpriteFacadeImpl(PixscapeEngine engine, int entityId) {
+        SpriteFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -1244,14 +1381,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private void resolveRegion(AssetRefComponent src) {
-            World world = engine.getWorld();
+            World world = handle.world();
             if (world == null) return;
-            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).has(entityId)
-                    ? world.getMapper(TextureRegionComponent.class).get(entityId)
-                    : world.getMapper(TextureRegionComponent.class).create(entityId);
-            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).has(entityId)
-                    ? world.getMapper(RenderMaterialComponent.class).get(entityId)
-                    : world.getMapper(RenderMaterialComponent.class).create(entityId);
+            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class)
+                    .has(handle.entityId)
+                    ? world.getMapper(TextureRegionComponent.class).get(handle.entityId)
+                    : world.getMapper(TextureRegionComponent.class).create(handle.entityId);
+            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class)
+                    .has(handle.entityId)
+                    ? world.getMapper(RenderMaterialComponent.class).get(handle.entityId)
+                    : world.getMapper(RenderMaterialComponent.class).create(handle.entityId);
 
             AtlasRuntimeService atlas = engine.getAtlasRuntimeService();
             if (atlas == null) {
@@ -1290,41 +1429,42 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<T> mapper = world.getMapper(type);
-            if (create) return mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId);
-            return mapper.getSafe(entityId, null);
+            if (create) {
+                return mapper.has(handle.entityId)
+                        ? mapper.get(handle.entityId) : mapper.create(handle.entityId);
+            }
+            return mapper.getSafe(handle.entityId, null);
         }
 
         private void markGeometry(int sub) {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.geometry(entityId, sub);
+            if (d != null) d.geometry(handle.entityId, sub);
         }
 
         private void markMaterial() {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.material(entityId);
+            if (d != null) d.material(handle.entityId);
         }
 
         private void markColor() {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.color(entityId);
+            if (d != null) d.color(handle.entityId);
         }
 
         private DirtyTrackerSystem dirty() {
-            World w = engine.getWorld();
+            World w = handle.world();
             return w != null ? w.getSystem(DirtyTrackerSystem.class) : null;
         }
     }
 
     static final class AnimationFacadeImpl implements AnimationFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        AnimationFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        AnimationFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1466,25 +1606,27 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<T> mapper = world.getMapper(type);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
         private void markMaterial() {
-            DirtyTrackerSystem d = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (d != null) d.material(entityId);
+            World world = handle.world();
+            DirtyTrackerSystem d = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (d != null) d.material(handle.entityId);
         }
     }
 
     static final class ParticleFacadeImpl implements ParticleFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        ParticleFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        ParticleFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1574,24 +1716,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private ParticleEmitterComponent emitter(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             if (create) {
                 ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
-                if (!transforms.has(entityId)) transforms.create(entityId);
+                if (!transforms.has(handle.entityId)) transforms.create(handle.entityId);
             }
             ComponentMapper<ParticleEmitterComponent> mapper = world.getMapper(ParticleEmitterComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
     }
 
     static final class ShaderFacadeImpl implements ShaderFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        ShaderFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        ShaderFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1711,25 +1854,27 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<T> mapper = world.getMapper(type);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
         private void markMaterial() {
-            DirtyTrackerSystem d = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (d != null) d.material(entityId);
+            World world = handle.world();
+            DirtyTrackerSystem d = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (d != null) d.material(handle.entityId);
         }
     }
 
     static final class LightFacadeImpl implements LightFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        LightFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        LightFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1743,8 +1888,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private boolean has(Class<? extends Component> type) {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId) && world.getMapper(type).has(entityId);
+            World world = handle.world();
+            return world != null && world.getMapper(type).has(handle.entityId);
         }
     }
 
@@ -2214,20 +2359,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final ECSAPI ecs;
         private final EntitiesAPI entities;
         private final SceneLayerResolver sceneLayers;
+        private final EntityReferenceTracker entityReferences;
         private final TiledAnimationsAPI animations;
 
         TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities,
-                     SceneLayerResolver sceneLayers) {
+                     SceneLayerResolver sceneLayers,
+                     EntityReferenceTracker entityReferences) {
             this.engine = engine;
             this.ecs = ecs;
             this.entities = entities;
             this.sceneLayers = sceneLayers;
+            this.entityReferences = entityReferences;
             this.animations = new TiledAnimationsApiImpl(engine);
         }
 
         @Override
         public TiledLayerRef ofEntityId(int entityId) {
-            return new TiledLayerRefImpl(engine, ecs, entityId);
+            return new TiledLayerRefImpl(
+                    engine, ecs, entityReferences.capture(entityId));
         }
 
         @Override
@@ -2288,38 +2437,41 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class TiledLayerRefImpl implements TiledLayerRef {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
-        private final int entityId;
+        private final EntityHandle handle;
         private final TiledMapFacade map;
         private final TileEditFacade tiles;
         private final TiledSpatialFacade spatial;
         private final TileAnimationControlFacade tileAnimations;
 
-        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
+        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
-            this.entityId = entityId;
-            this.map = new TiledMapFacadeImpl(engine, entityId);
-            this.tiles = new TileEditFacadeImpl(engine, entityId);
-            this.spatial = new TiledSpatialFacadeImpl(engine, entityId);
-            this.tileAnimations = new TileAnimationControlFacadeImpl(engine, entityId);
+            this.handle = handle;
+            this.map = new TiledMapFacadeImpl(engine, handle);
+            this.tiles = new TileEditFacadeImpl(engine, handle);
+            this.spatial = new TiledSpatialFacadeImpl(handle);
+            this.tileAnimations = new TileAnimationControlFacadeImpl(engine, handle);
         }
 
         @Override
         public int entityId() {
-            return entityId;
+            return handle.entityId;
         }
 
         @Override
         public int stableId() {
-            return engine.getIdentityRegistry().getStableId(entityId);
+            return handle.exists()
+                    ? engine.getIdentityRegistry().getStableId(handle.entityId)
+                    : -1;
         }
 
         @Override
         public boolean exists() {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId)
-                    && world.getMapper(TiledLayerComponent.class).has(entityId)
-                    && world.getMapper(TiledLayerComponent.class).get(entityId).data != null;
+            World world = handle.world();
+            return world != null
+                    && world.getMapper(TiledLayerComponent.class).has(handle.entityId)
+                    && world.getMapper(TiledLayerComponent.class)
+                    .get(handle.entityId).data != null;
         }
 
         @Override
@@ -2345,11 +2497,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class TiledMapFacadeImpl implements TiledMapFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TiledMapFacadeImpl(PixscapeEngine engine, int entityId) {
+        TiledMapFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -2515,10 +2667,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledLayerComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
         private TiledMapLayerData data() {
@@ -2528,12 +2683,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class TiledSpatialFacadeImpl implements TiledSpatialFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TiledSpatialFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        TiledSpatialFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -2617,17 +2770,23 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledLayerComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
         private LayerComponent layer(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
         private TiledMapLayerData data() {
@@ -2638,11 +2797,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class TileEditFacadeImpl implements TileEditFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TileEditFacadeImpl(PixscapeEngine engine, int entityId) {
+        TileEditFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -2762,10 +2921,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledMapLayerData data() {
-            World w = engine.getWorld();
-            if (w == null || entityId < 0 || !w.getEntityManager().isActive(entityId)) return null;
+            World w = handle.world();
+            if (w == null) return null;
             ComponentMapper<TiledLayerComponent> mapper = w.getMapper(TiledLayerComponent.class);
-            TiledLayerComponent c = mapper.getSafe(entityId, null);
+            TiledLayerComponent c = mapper.getSafe(handle.entityId, null);
             return c != null ? c.data : null;
         }
     }
@@ -2857,14 +3016,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class TileAnimationControlFacadeImpl implements TileAnimationControlFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
         private TileChunk cellChunk;
         private int cellLocalIndex;
         private int cellAssetId;
 
-        TileAnimationControlFacadeImpl(PixscapeEngine engine, int entityId) {
+        TileAnimationControlFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -3029,9 +3188,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledMapLayerData data() {
-            World w = engine.getWorld();
-            if (w == null || entityId < 0 || !w.getEntityManager().isActive(entityId)) return null;
-            TiledLayerComponent c = w.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
+            World w = handle.world();
+            if (w == null) return null;
+            TiledLayerComponent c = w.getMapper(TiledLayerComponent.class)
+                    .getSafe(handle.entityId, null);
             return c != null ? c.data : null;
         }
 

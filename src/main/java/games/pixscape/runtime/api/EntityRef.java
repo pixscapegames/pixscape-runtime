@@ -3,8 +3,9 @@ package games.pixscape.runtime.api;
 /**
  * Entity handle that bridges stableId identity and runtime ECS access.
  *
- * <p>The handle stores a runtime {@code entityId}, while {@link #stableId()}
- * resolves the preferred persistent/public identity.</p>
+ * <p>The handle is bound to the entity incarnation and Runtime World in which
+ * it was resolved. If that entity is removed or the World is replaced, the
+ * handle becomes inert and never retargets a recycled {@code entityId}.</p>
  */
 public interface EntityRef {
     /**
@@ -17,6 +18,9 @@ public interface EntityRef {
      */
     int stableId();
 
+    /**
+     * Returns whether the same captured entity still exists in the same Runtime World.
+     */
     boolean exists();
 
     TransformFacade transform();
@@ -44,6 +48,10 @@ public interface EntityRef {
      */
     RenderOrderFacade renderOrder();
 
+    /**
+     * Schedules removal only while this handle still identifies its captured entity.
+     * Calling this method on a stale handle has no effect.
+     */
     void remove();
 
     /**

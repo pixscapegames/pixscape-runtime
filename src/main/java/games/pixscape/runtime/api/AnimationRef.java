@@ -1,5 +1,9 @@
 package games.pixscape.runtime.api;
 
+/**
+ * Animation handle bound to one entity incarnation and Runtime World.
+ * It becomes inert if that entity is removed or the World is replaced.
+ */
 public interface AnimationRef {
     int entityId();
 
