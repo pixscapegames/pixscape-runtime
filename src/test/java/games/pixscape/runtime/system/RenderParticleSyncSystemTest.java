@@ -2,6 +2,8 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.IntMap;
@@ -18,17 +20,36 @@ import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 public class RenderParticleSyncSystemTest {
 
+    private Application previousApp;
+
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Before
+    public void installApplication() {
+        previousApp = Gdx.app;
+        Gdx.app = (Application) Proxy.newProxyInstance(
+                Application.class.getClassLoader(),
+                new Class<?>[]{Application.class},
+                (proxy, method, args) -> null);
+    }
+
+    @After
+    public void restoreApplication() {
+        Gdx.app = previousApp;
+    }
 
     @Test
     public void particleContractsDoNotExposeLocalSpace() {
@@ -132,6 +153,7 @@ public class RenderParticleSyncSystemTest {
         Assert.assertEquals(0, poolA.getFree());
 
         engine.api().entities().ofEntityId(entity).particles().setEffect("b.p", "atlas-b");
+        emitter.playRequested = true;
         world.process();
 
         ParticleEffectPool.PooledEffect liveB = effects.get(entity);
@@ -141,6 +163,106 @@ public class RenderParticleSyncSystemTest {
         Assert.assertEquals(0, poolB.getFree());
         Assert.assertEquals("b.p", emitter.effectPath);
         Assert.assertEquals("atlas-b", emitter.atlasTag);
+        Assert.assertFalse(emitter.playRequested);
+    }
+
+    @Test
+    public void failedMissingEffectReplacementPreservesLiveEffectAndRecovers()
+            throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("recovery-effects"));
+        temporaryFolder.newFile("recovery-effects/a.p");
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+
+        ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ParticleEffectPool poolB = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        pools.put("atlas-a|a.p", poolA);
+        pools.put("atlas-b|b.p", poolB);
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        emitter.effectPath = "a.p";
+        emitter.atlasTag = "atlas-a";
+        world.process();
+
+        IntMap<ParticleEffectPool.PooledEffect> effects = field(system, "effects");
+        IntMap<String> effectPaths = field(system, "effectPaths");
+        IntMap<String> effectAtlasTags = field(system, "effectAtlasTags");
+        ParticleEffectPool.PooledEffect liveA = effects.get(entity);
+
+        engine.api().entities().ofEntityId(entity).particles()
+                .setEffect("b.p", "atlas-b");
+        world.process();
+        world.process();
+
+        Assert.assertSame(liveA, effects.get(entity));
+        Assert.assertEquals(0, poolA.getFree());
+        Assert.assertEquals(0, poolB.getFree());
+        Assert.assertEquals("b.p", emitter.effectPath);
+        Assert.assertEquals("atlas-b", emitter.atlasTag);
+        Assert.assertEquals("a.p", effectPaths.get(entity));
+        Assert.assertEquals("atlas-a", effectAtlasTags.get(entity));
+
+        temporaryFolder.newFile("recovery-effects/b.p");
+        world.process();
+
+        ParticleEffectPool.PooledEffect liveB = effects.get(entity);
+        Assert.assertNotNull(liveB);
+        Assert.assertNotSame(liveA, liveB);
+        Assert.assertEquals(1, poolA.getFree());
+        Assert.assertEquals(0, poolB.getFree());
+        Assert.assertEquals("b.p", effectPaths.get(entity));
+        Assert.assertEquals("atlas-b", effectAtlasTags.get(entity));
+    }
+
+    @Test
+    public void failedMissingAtlasReplacementPreservesLiveEffectAndIdentity()
+            throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("atlas-effects"));
+        temporaryFolder.newFile("atlas-effects/a.p");
+        temporaryFolder.newFile("atlas-effects/b.p");
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+
+        ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        pools.put("atlas-a|a.p", poolA);
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        emitter.effectPath = "a.p";
+        emitter.atlasTag = "atlas-a";
+        world.process();
+
+        IntMap<ParticleEffectPool.PooledEffect> effects = field(system, "effects");
+        IntMap<String> effectPaths = field(system, "effectPaths");
+        IntMap<String> effectAtlasTags = field(system, "effectAtlasTags");
+        ParticleEffectPool.PooledEffect liveA = effects.get(entity);
+
+        engine.api().entities().ofEntityId(entity).particles()
+                .setEffect("b.p", "missing-atlas");
+        world.process();
+
+        Assert.assertSame(liveA, effects.get(entity));
+        Assert.assertEquals(0, poolA.getFree());
+        Assert.assertEquals("b.p", emitter.effectPath);
+        Assert.assertEquals("missing-atlas", emitter.atlasTag);
+        Assert.assertEquals("a.p", effectPaths.get(entity));
+        Assert.assertEquals("atlas-a", effectAtlasTags.get(entity));
+        Assert.assertNull(pools.get("missing-atlas|b.p"));
     }
 
     @SuppressWarnings("unchecked")

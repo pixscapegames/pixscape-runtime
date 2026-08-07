@@ -159,14 +159,22 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
             ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx != null && !matchesAuthoredEffect(e, comp)) {
-                if (!comp.paused && !fx.isComplete()) {
-                    comp.playRequested = true;
+                ParticleEffectPool.PooledEffect replacement = createEffect(comp);
+                if (replacement != null) {
+                    boolean preservePlaying = !comp.paused && !fx.isComplete();
+                    applyLooping(replacement, comp.looping);
+                    if (comp.autoStart) replacement.start();
+
+                    ParticleEffectPool.PooledEffect previous = fx;
+                    fx = replacement;
+                    effects.put(e, replacement);
+                    effectPaths.put(e, normalized(comp.effectPath));
+                    effectAtlasTags.put(e, normalized(comp.atlasTag));
+                    if (preservePlaying) {
+                        comp.playRequested = true;
+                    }
+                    previous.free();
                 }
-                effects.remove(e);
-                effectPaths.remove(e);
-                effectAtlasTags.remove(e);
-                fx.free();
-                fx = null;
             }
 
             if (mVis != null && mVis.has(e) && !mVis.get(e).isVisible()) {
