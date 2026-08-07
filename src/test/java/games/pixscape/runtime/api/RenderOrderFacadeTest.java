@@ -212,52 +212,96 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void missingComponentsFailClearlyAndAreNotCreated() throws Exception {
+    public void missingCapabilityUsesDefaultsAndInertSettersWithoutCreatingComponents()
+            throws Exception {
         Fixture fixture = fixture();
         fixture.layer(2, LayerComponent.TYPE_CLASSIC);
-        int noLayer = fixture.world.create();
-        fixture.world.getMapper(EntityIndexComponent.class).create(noLayer);
-        int noIndex = fixture.world.create();
-        fixture.world.getMapper(LayerComponent.class).create(noIndex);
+        int ordinary = fixture.world.create();
         fixture.world.process();
 
-        EntityRef first = fixture.engine.api().entities().ofEntityId(noLayer);
-        Assert.assertFalse(first.renderOrder().exists());
-        expectIllegalState("entityId=" + noLayer, "LayerComponent", "set", new Action() {
-            @Override
-            public void run() {
-                first.renderOrder().set(2, 1);
-            }
-        });
-        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(noLayer));
+        RenderOrderFacade facade = fixture.engine.api().entities()
+                .ofEntityId(ordinary).renderOrder();
+        Assert.assertFalse(facade.exists());
+        Assert.assertEquals(-1, facade.layerIndex());
+        Assert.assertEquals(0, facade.zIndex());
 
-        EntityRef second = fixture.engine.api().entities().ofEntityId(noIndex);
-        Assert.assertFalse(second.renderOrder().exists());
-        expectIllegalState("entityId=" + noIndex, "EntityIndexComponent", "zIndex", new Action() {
-            @Override
-            public void run() {
-                second.renderOrder().zIndex(1);
-            }
-        });
-        Assert.assertFalse(fixture.world.getMapper(EntityIndexComponent.class).has(noIndex));
+        facade.layerIndex(99).zIndex(Integer.MAX_VALUE).set(99, Integer.MIN_VALUE);
+
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(ordinary));
+        Assert.assertFalse(fixture.world.getMapper(EntityIndexComponent.class).has(ordinary));
+        Assert.assertFalse(fixture.dirty.isDirty(ordinary, DirtyBits.LAYER | DirtyBits.ORDER));
     }
 
     @Test
-    public void inactiveEntityFailsClearly() throws Exception {
+    public void partialCapabilitiesUseDefaultsAndInertSettersWithoutCompletion() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(2, LayerComponent.TYPE_CLASSIC);
+        int indexOnly = fixture.world.create();
+        EntityIndexComponent existingIndex =
+                fixture.world.getMapper(EntityIndexComponent.class).create(indexOnly);
+        existingIndex.layerIndex = 7;
+        existingIndex.zIndex = 8;
+        int layerOnly = fixture.world.create();
+        LayerComponent existingLayer = fixture.world.getMapper(LayerComponent.class).create(layerOnly);
+        existingLayer.layerIndex = 9;
+        fixture.world.process();
+
+        RenderOrderFacade indexOnlyFacade = fixture.engine.api().entities()
+                .ofEntityId(indexOnly).renderOrder();
+        Assert.assertFalse(indexOnlyFacade.exists());
+        Assert.assertEquals(-1, indexOnlyFacade.layerIndex());
+        Assert.assertEquals(0, indexOnlyFacade.zIndex());
+        indexOnlyFacade.set(2, 1).layerIndex(2).zIndex(1);
+        Assert.assertEquals(7, existingIndex.layerIndex);
+        Assert.assertEquals(8, existingIndex.zIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(indexOnly));
+
+        RenderOrderFacade layerOnlyFacade = fixture.engine.api().entities()
+                .ofEntityId(layerOnly).renderOrder();
+        Assert.assertFalse(layerOnlyFacade.exists());
+        Assert.assertEquals(-1, layerOnlyFacade.layerIndex());
+        Assert.assertEquals(0, layerOnlyFacade.zIndex());
+        layerOnlyFacade.set(2, 1).layerIndex(2).zIndex(1);
+        Assert.assertEquals(9, existingLayer.layerIndex);
+        Assert.assertFalse(fixture.world.getMapper(EntityIndexComponent.class).has(layerOnly));
+        Assert.assertFalse(fixture.dirty.isDirty(
+                indexOnly, DirtyBits.LAYER | DirtyBits.ORDER));
+        Assert.assertFalse(fixture.dirty.isDirty(
+                layerOnly, DirtyBits.LAYER | DirtyBits.ORDER));
+    }
+
+    @Test
+    public void staleEntityUsesDefaultsAndCannotMutateReusedEntityId() throws Exception {
         Fixture fixture = fixture();
         EntityRef entity = fixture.target(0, 0);
         RenderOrderFacade facade = entity.renderOrder();
-        fixture.world.delete(entity.entityId());
+        int entityId = entity.entityId();
+        fixture.world.delete(entityId);
         fixture.world.process();
 
-        Assert.assertFalse(facade.exists());
+        int replacement = fixture.world.create();
+        Assert.assertEquals(entityId, replacement);
+        LayerComponent replacementLayer =
+                fixture.world.getMapper(LayerComponent.class).create(replacement);
+        replacementLayer.layerIndex = 3;
+        EntityIndexComponent replacementIndex =
+                fixture.world.getMapper(EntityIndexComponent.class).create(replacement);
+        replacementIndex.layerIndex = 3;
+        replacementIndex.zIndex = 4;
+        fixture.world.process();
+        fixture.dirty.clearAll();
 
-        expectIllegalState("entityId=" + entity.entityId(), "no longer exists", "zIndex", new Action() {
-            @Override
-            public void run() {
-                facade.zIndex(1);
-            }
-        });
+        Assert.assertFalse(facade.exists());
+        Assert.assertEquals(-1, facade.layerIndex());
+        Assert.assertEquals(0, facade.zIndex());
+
+        facade.layerIndex(99).zIndex(Integer.MAX_VALUE).set(99, Integer.MIN_VALUE);
+
+        Assert.assertEquals(3, replacementLayer.layerIndex);
+        Assert.assertEquals(3, replacementIndex.layerIndex);
+        Assert.assertEquals(4, replacementIndex.zIndex);
+        Assert.assertFalse(fixture.dirty.isDirty(
+                replacement, DirtyBits.LAYER | DirtyBits.ORDER));
     }
 
     @Test
@@ -349,17 +393,6 @@ public class RenderOrderFacadeTest {
             Assert.fail("Expected IllegalArgumentException containing " + message);
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(message));
-        }
-    }
-
-    private static void expectIllegalState(String first, String second, String third, Action action) {
-        try {
-            action.run();
-            Assert.fail("Expected IllegalStateException");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(first));
-            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(second));
-            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(third));
         }
     }
 

@@ -928,27 +928,22 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean exists() {
-            World world = handle.world();
-            return world != null
-                    && world.getMapper(LayerComponent.class).has(handle.entityId)
-                    && world.getMapper(EntityIndexComponent.class).has(handle.entityId);
+            return resolveComponents();
         }
 
         @Override
         public int layerIndex() {
-            validateComponents("layerIndex()");
-            return validatedEntityIndex.layerIndex;
+            return resolveComponents() ? validatedEntityIndex.layerIndex : -1;
         }
 
         @Override
         public int zIndex() {
-            validateComponents("zIndex()");
-            return validatedEntityIndex.zIndex;
+            return resolveComponents() ? validatedEntityIndex.zIndex : 0;
         }
 
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
-            validateComponents("layerIndex(int)");
+            if (!resolveComponents()) return this;
             validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
@@ -957,7 +952,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade zIndex(int zIndex) {
-            validateComponents("zIndex(int)");
+            if (!resolveComponents()) return this;
             validateZIndex(zIndex, "zIndex(int)");
             apply(validatedEntityIndex.layerIndex, zIndex);
             return this;
@@ -965,33 +960,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade set(int layerIndex, int zIndex) {
-            validateComponents("set(int, int)");
+            if (!resolveComponents()) return this;
             int resolved = layers().requireLayerIndex(layerIndex);
             validateZIndex(zIndex, "set(int, int)");
             apply(resolved, zIndex);
             return this;
         }
 
-        private void validateComponents(String operation) {
+        private boolean resolveComponents() {
             World world = handle.world();
             if (world == null) {
-                throw new IllegalStateException("Cannot perform render-order operation " + operation
-                        + ": entityId=" + handle.entityId + " no longer exists.");
+                validatedLayer = null;
+                validatedEntityIndex = null;
+                return false;
             }
             validatedLayer = world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
-            if (validatedLayer == null) {
-                throw missing("LayerComponent", operation);
-            }
             validatedEntityIndex = world.getMapper(EntityIndexComponent.class)
                     .getSafe(handle.entityId, null);
-            if (validatedEntityIndex == null) {
-                throw missing("EntityIndexComponent", operation);
-            }
-        }
-
-        private IllegalStateException missing(String component, String operation) {
-            return new IllegalStateException("Cannot perform render-order operation " + operation
-                    + ": entityId=" + handle.entityId + " is missing required " + component + ".");
+            return validatedLayer != null && validatedEntityIndex != null;
         }
 
         private SceneLayerResolver layers() {
