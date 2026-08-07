@@ -38,6 +38,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 
 public final class PixscapeEngine {
@@ -85,7 +86,9 @@ public final class PixscapeEngine {
     private PixscapeAPI publicApi;
 
 
-    private Consumer<WorldConfigurationBuilder> configurationCustomizer;
+    private Consumer<WorldConfigurationBuilder> preRenderSystemCustomizer;
+    private Consumer<WorldConfigurationBuilder> postRenderSystemCustomizer;
+    private Supplier<BaseSystem> renderSubmitSystemSupplier;
 
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
@@ -95,8 +98,115 @@ public final class PixscapeEngine {
     public PixscapeEngine() {
     }
 
+    /**
+     * Configures the existing general system extension point after Pixscape rendering.
+     *
+     * <p>This source-compatible method has the same phase and replacement semantics as
+     * {@link #setPostRenderSystemCustomizer(Consumer)}. Systems added by the most recent
+     * call to either method run after render submission and {@link games.pixscape.runtime.system.DirtyFlushSystem},
+     * but before the synchronous {@link World#process()} call returns.</p>
+     *
+     * @param customizer builder callback invoked while each candidate World is configured,
+     *                   or {@code null} to clear the post-render callback
+     * @return this engine
+     */
     public PixscapeEngine setConfigurationCustomizer(Consumer<WorldConfigurationBuilder> customizer) {
-        this.configurationCustomizer = customizer;
+        return setPostRenderSystemCustomizer(customizer);
+    }
+
+    /**
+     * Adds advanced render-integration systems after Pixscape core synchronization and
+     * before draw-list construction, sorting, Spatial composition, frame-queue extraction,
+     * and default or custom submission.
+     *
+     * <pre>
+     * core runtime sync
+     *     -&gt; pre-render custom systems
+     *     -&gt; draw-list build -&gt; sort -&gt; Spatial composition -&gt; queue extraction
+     *     -&gt; submit -&gt; dirty flush -&gt; post-render custom systems
+     * </pre>
+     *
+     * <p>The core synchronization already includes the normal sprite, tiled, and VFX
+     * authored-ECS-to-derived-state work for this frame. A pre-render system can affect the
+     * current frame when it intentionally produces data in the supported derived/frame
+     * render source structures consumed by the later pipeline. Mutating an ordinary authored
+     * component here does not rerun earlier synchronization systems and must not be assumed
+     * to update every derived structure in the same frame. This is not a general gameplay
+     * update hook.</p>
+     *
+     * <p>The callback is invoked while each candidate Artemis World is being configured.
+     * Setting it does not insert systems into an already-built World; it applies on the next
+     * runtime/scene World build.
+     * Added systems execute synchronously on the thread calling {@link #render()}, normally
+     * the LibGDX render thread; no thread-safety guarantee is provided.</p>
+     *
+     * @param customizer builder callback for pre-render systems, or {@code null} to clear it
+     * @return this engine
+     */
+    public PixscapeEngine setPreRenderSystemCustomizer(
+            Consumer<WorldConfigurationBuilder> customizer) {
+        this.preRenderSystemCustomizer = customizer;
+        return this;
+    }
+
+    /**
+     * Adds integration systems after render submission and dirty flushing, but before
+     * {@link World#process()} returns.
+     *
+     * <p>This phase is appropriate for overlays, diagnostics, picking, gizmos,
+     * application/editor integration, inspection, and mutations intended for a subsequent
+     * frame. Current-frame Pixscape queue extraction and submission are already complete;
+     * this hook must not be used to alter that submitted frame.</p>
+     *
+     * <p>The callback is invoked while each candidate Artemis World is being configured.
+     * This method and {@link #setConfigurationCustomizer(Consumer)} configure the same
+     * post-render callback slot, so the most recent call replaces the previous callback.
+     * Setting it does not insert systems into an already-built World; it applies on the next
+     * runtime/scene World build.
+     * Added systems execute synchronously on the thread calling {@link #render()}, normally
+     * the LibGDX render thread; no thread-safety guarantee is provided.</p>
+     *
+     * @param customizer builder callback for post-render systems, or {@code null} to clear it
+     * @return this engine
+     */
+    public PixscapeEngine setPostRenderSystemCustomizer(
+            Consumer<WorldConfigurationBuilder> customizer) {
+        this.postRenderSystemCustomizer = customizer;
+        return this;
+    }
+
+    /**
+     * Replaces Pixscape's default GPU submission system with an expert Artemis system.
+     *
+     * <p>Pixscape still performs synchronization, culling, draw-list construction, sorting,
+     * Spatial composition, and {@link games.pixscape.runtime.system.RenderExtractFrameQueueSystem}
+     * before the supplied system runs. The custom system runs after queue extraction and
+     * before dirty flushing. It owns submission of that frame's engine-owned
+     * {@link FrameRenderQueue}; Pixscape does not also run {@link RenderSubmitSystem}.</p>
+     *
+     * <p>The custom system is responsible for its GPU calls, any batch begin/end lifecycle,
+     * and any render-stat reporting it requires. Engine getters provide borrowed access to
+     * the queue, camera, layer state, internal {@link MetricsBatch}, and metrics; ownership
+     * remains with Pixscape, so the custom system must not dispose those objects.</p>
+     *
+     * <p>The supplier is invoked while each candidate World is configured and may be invoked
+     * again whenever scene/runtime lifecycle rebuilds the Artemis World. It must return a
+     * non-null system suitable for the new World; callers must not assume that one system
+     * instance can be reused across Worlds. The candidate World is not yet published through
+     * {@link #getWorld()} when configuration occurs. Systems execute synchronously during
+     * {@link #render()}, normally on the LibGDX render thread.</p>
+     *
+     * <p>Changing the supplier does not replace the submit system in an already-built World;
+     * the selection applies on the next runtime/scene World build.</p>
+     *
+     * <p>Passing {@code null} restores the default {@link RenderSubmitSystem} for subsequent
+     * World builds.</p>
+     *
+     * @param supplier supplier of a fresh custom submit system, or {@code null} for default submission
+     * @return this engine
+     */
+    public PixscapeEngine setRenderSubmitSystemSupplier(Supplier<BaseSystem> supplier) {
+        this.renderSubmitSystemSupplier = supplier;
         return this;
     }
 
@@ -316,24 +426,14 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         meta,
                         0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
@@ -348,7 +448,12 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Updates ECS delta time; call once per frame before {@link #render()}.
+     * Sets the active Artemis World's delta time for the next processing pass.
+     *
+     * <p>This method does not call {@link World#process()} and does not by itself advance
+     * the complete Runtime simulation. Normal usage calls it once before {@link #render()}.</p>
+     *
+     * @param dt frame delta time in seconds
      */
     public void update(float dt) {
         if (world == null) return;
@@ -356,7 +461,42 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Processes the ECS world and flushes deferred atlas disposals.
+     * Synchronously processes the configured Artemis World and then flushes deferred atlas
+     * disposals.
+     *
+     * <p>Despite its name, this is more than a stateless GPU draw call. Depending on Runtime
+     * configuration, the {@link World#process()} pass includes physics/runtime systems,
+     * animation, geometry and render synchronization, culling, custom pre-render systems,
+     * draw-list construction, sorting, Spatial composition, frame-queue extraction,
+     * default or custom submission, dirty flushing, and custom post-render systems. All
+     * systems run synchronously on the calling thread, normally the LibGDX render thread;
+     * the engine and its render integration objects are not thread-safe.</p>
+     *
+     * <p>Ordinary LibGDX rendering does not require a system hook:</p>
+     * <pre>{@code
+     * engine.update(delta);
+     *
+     * // Optional application rendering before Pixscape.
+     * // Begin and end the application's own Batch normally.
+     *
+     * engine.render();
+     *
+     * // Optional application rendering after Pixscape.
+     * // Begin and end the application's own Batch normally.
+     * }</pre>
+     *
+     * <p>With default submission, Pixscape calls {@link MetricsBatch#begin} and
+     * {@link MetricsBatch#end} and the internal batch is ended before this method returns
+     * normally. Pixscape owns and closes that batch; callers must not dispose it. External
+     * callers own their separate LibGDX batches and may use them before or after Pixscape once
+     * each batch's own begin/end lifecycle is respected.</p>
+     *
+     * <p>Pixscape does not capture and restore the caller's complete OpenGL state. Submission
+     * binds shader programs and textures and changes blending; concrete internal batches may
+     * also select texture unit zero and change depth-mask state. Framebuffer, viewport,
+     * scissor, culling, depth state, and color mask are not preserved as a caller-state
+     * snapshot. External rendering after this call must establish every GL state it relies
+     * on rather than assuming the pre-Pixscape state was restored.</p>
      */
     public void render() {
         if (world == null) return;
@@ -367,7 +507,11 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Resizes the runtime camera viewport.
+     * Sets the borrowed Runtime camera's viewport dimensions and immediately calls
+     * {@link OrthographicCamera#update()}.
+     *
+     * <p>Pixscape does not own or dispose a camera supplied through
+     * {@link #setWorldCamera(OrthographicCamera)}.</p>
      */
     public void resize(int w, int h) {
         if (worldCamera != null) {
@@ -388,6 +532,19 @@ public final class PixscapeEngine {
         activeSceneMeta = null;
     }
 
+    /**
+     * Supplies the camera borrowed by subsequently built Runtime Worlds.
+     *
+     * <p>Configure the camera before runtime initialization or a World rebuild. Pixscape keeps
+     * the reference rather than cloning it, does not dispose it, reads it during culling and
+     * rendering, and default submission calls {@link OrthographicCamera#update()}. The
+     * application may mutate the camera between frames; {@link #resize(int, int)} changes its
+     * viewport and updates it. Passing {@code null} allows a later build to create the default
+     * camera.</p>
+     *
+     * @param cam borrowed application camera, or {@code null} for a later default
+     * @return this engine
+     */
     public PixscapeEngine setWorldCamera(OrthographicCamera cam) {
         this.worldCamera = cam;
         return this;
@@ -526,34 +683,95 @@ public final class PixscapeEngine {
         return world;
     }
 
+    /**
+     * Returns the camera borrowed by the current Runtime configuration.
+     *
+     * <p>The application owns a supplied camera. Pixscape reads it during core rendering and
+     * default submission updates it; callers must not assume exclusive mutation during
+     * {@link #render()}.</p>
+     */
     public OrthographicCamera getCamera() {
         return worldCamera;
     }
 
+    /**
+     * Returns the engine-owned derived SOA for synchronized dynamic ECS render sources.
+     *
+     * <p>Core synchronization writes it before the pre-render phase. Expert mutation is
+     * phase-sensitive and must preserve its invariants; it is not authored scene state.
+     * Reacquire it after scene/runtime World rebuilds, and never dispose it.</p>
+     */
     public DynamicEntityRenderState getDynamicEntityRenderState() {
         return dynamicEntityState;
     }
 
+    /**
+     * Returns engine-owned derived layer render state built from authored layer components.
+     *
+     * <p>It is current after core synchronization and is consumed by later render phases.
+     * Expert mutation is phase-sensitive. Reacquire it after lifecycle rebuilds and do not
+     * dispose it.</p>
+     */
     public LayerStateSOA getLayerState() {
         return layerState;
     }
 
+    /**
+     * Returns the engine-owned frame-local draw-list workspace.
+     *
+     * <p>Pixscape builds, sorts, and Spatially composes this list after pre-render systems,
+     * then extracts the frame queue from it. It is derived data, is reset each frame, and
+     * must not be retained as persistent scene state or disposed. Direct mutation outside
+     * the owning pipeline phases is unsupported.</p>
+     */
     public DrawList getDrawList() {
         return drawList;
     }
 
+    /**
+     * Returns the engine-owned, frame-local submit queue.
+     *
+     * <p>{@link games.pixscape.runtime.system.RenderExtractFrameQueueSystem} populates this
+     * derived queue after build, sort, and Spatial composition. A default or custom submit
+     * system sees it immediately after extraction. Its entries are not authored or persistent
+     * scene state and may change on every frame. Mutation is an expert, phase-sensitive
+     * operation; callers must not dispose the queue or retain entry assumptions across
+     * scene/runtime World rebuilds.</p>
+     */
     public FrameRenderQueue getFrameQueue() {
         return frameQueue;
     }
 
+    /**
+     * Returns the engine-owned frame-local VFX render-source SOA.
+     *
+     * <p>Core VFX synchronization clears and populates it before pre-render systems, and the
+     * draw-list pipeline consumes it afterward. Expert current-frame production is
+     * phase-sensitive. It is derived data; do not retain entries across frames/rebuilds or
+     * dispose it.</p>
+     */
     public VfxRenderState getVfxState() {
         return vfxState;
     }
 
+    /**
+     * Returns Pixscape's borrowed expert view of the engine-owned internal batch.
+     *
+     * <p>Default submission owns its begin/end lifecycle and the engine closes it during
+     * disposal. A custom submitter that elects to use it assumes responsibility for a correct
+     * per-frame begin/end sequence and must leave it ended before returning. Callers must not
+     * close or dispose it and should reacquire it after runtime reinitialization.</p>
+     */
     public MetricsBatch getMetricsBatch() {
         return metricsBatch;
     }
 
+    /**
+     * Returns engine-owned mutable metrics for the current rendering lifecycle.
+     *
+     * <p>Render systems update this derived diagnostic object. It is not scene state, is not
+     * thread-safe, may be replaced during runtime reinitialization, and must not be disposed.</p>
+     */
     public RenderStats getRenderStats() {
         return stats;
     }
@@ -580,6 +798,23 @@ public final class PixscapeEngine {
     // ---------------------------------------------------------------------
     // Internal init / reset
     // ---------------------------------------------------------------------
+
+    private Supplier<BaseSystem> createRenderSubmitSystemSupplier() {
+        if (renderSubmitSystemSupplier != null) {
+            return renderSubmitSystemSupplier;
+        }
+        return () -> new RenderSubmitSystem(
+                layerState,
+                frameQueue,
+                worldCamera,
+                ambientMulR,
+                ambientMulG,
+                ambientMulB,
+                metricsBatch,
+                stats,
+                statsSink
+        );
+    }
 
     /**
      * Disposes world and GPU-side runtime resources.
@@ -713,24 +948,14 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         null,
                         0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
@@ -796,24 +1021,14 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         null,
                         0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
@@ -860,24 +1075,14 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         null,
                         0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();

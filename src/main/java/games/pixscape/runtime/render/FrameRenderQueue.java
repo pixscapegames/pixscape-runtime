@@ -1,11 +1,18 @@
 package games.pixscape.runtime.render;
 
 /**
- * Frame-local queue containing draw-ready render data.
+ * Engine-owned frame-local queue containing draw-ready render data.
  * <p>
  * This queue is intentionally a structure-of-arrays. It stores copied render
- * data for the current frame so submit code can eventually render without
- * reading domain-specific source state.
+ * data for the current frame so submit code can render without reading
+ * domain-specific source state. {@link games.pixscape.runtime.system.RenderExtractFrameQueueSystem}
+ * populates it after draw-list build, sorting, and Spatial composition; the configured
+ * submit system consumes it next.
+ *
+ * <p>The contents are derived data, not persistent authored scene state. Entries and backing
+ * arrays may be reset, grown, or replaced across frames and scene/World rebuilds. Expert
+ * mutation is phase-sensitive and must preserve the queue's SOA invariants. Callers borrowing
+ * the queue from the engine must not dispose it or retain entry assumptions across rebuilds.</p>
  */
 public final class FrameRenderQueue {
     public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
