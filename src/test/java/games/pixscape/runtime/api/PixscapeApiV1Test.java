@@ -3,7 +3,11 @@ package games.pixscape.runtime.api;
 import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
@@ -17,24 +21,60 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.RenderKind;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.DirtyFlushSystem;
+import games.pixscape.runtime.system.AnimationSystem;
+import games.pixscape.runtime.system.RenderSpriteSyncSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.system.TiledAnimationSystem;
+import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 public class PixscapeApiV1Test {
+    private GL20 previousGl;
+    private Graphics previousGraphics;
+
+    @BeforeClass
+    public static void loadGdxNatives() {
+        GdxNativesLoader.load();
+    }
+
+    @Before
+    public void installGlProxy() {
+        previousGl = Gdx.gl;
+        previousGraphics = Gdx.graphics;
+        Gdx.gl = (GL20) Proxy.newProxyInstance(
+                GL20.class.getClassLoader(),
+                new Class[]{GL20.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.graphics = (Graphics) Proxy.newProxyInstance(
+                Graphics.class.getClassLoader(),
+                new Class[]{Graphics.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+    }
+
+    @After
+    public void restoreGlProxy() {
+        Gdx.gl = previousGl;
+        Gdx.graphics = previousGraphics;
+    }
 
     @Test
     public void engineApiReturnsFacadeAndDirectMethodsStillWork() throws Exception {
@@ -891,6 +931,54 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void spriteRepeatFacadeSynchronizesAuthoredAndDerivedState() throws Exception {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(8);
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(dirty, new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state), new DirtyFlushSystem())
+                .build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+        int entity = createRenderableSprite(world);
+        SpriteFacade sprite = engine.api().entities().ofEntityId(entity).sprite();
+
+        Assert.assertFalse(sprite.repeatsX());
+        Assert.assertFalse(sprite.repeatsY());
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entity));
+        world.process();
+        int slot = state.renderSlotForEntity(entity);
+        Assert.assertEquals(RenderRepeatFlags.NONE, state.repeatFlags[slot]);
+
+        assertRepeat(world, state, entity, sprite, true, false, RenderRepeatFlags.REPEAT_X);
+        assertRepeat(world, state, entity, sprite, false, true, RenderRepeatFlags.REPEAT_Y);
+        assertRepeat(world, state, entity, sprite, true, true, RenderRepeatFlags.ANY);
+        assertRepeat(world, state, entity, sprite, false, false, RenderRepeatFlags.NONE);
+    }
+
+    @Test
+    public void animatedSpriteStoresRepeatButRendererSuppressesIt() throws Exception {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(8);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64), new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state), new DirtyFlushSystem())
+                .build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+        int entity = createRenderableSprite(world);
+        world.getMapper(AnimationComponent.class).create(entity);
+
+        SpriteFacade sprite = engine.api().entities().ofEntityId(entity).sprite();
+        sprite.setRepeat(true, true);
+        world.process();
+
+        int slot = state.renderSlotForEntity(entity);
+        Assert.assertTrue(sprite.repeatsX());
+        Assert.assertTrue(sprite.repeatsY());
+        Assert.assertEquals(RenderRepeatFlags.NONE, state.repeatFlags[slot]);
+    }
+
+    @Test
     public void spritesSpawnMissingAssetGivesClearError() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
@@ -1026,6 +1114,68 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void animationFacadeQueriesRuntimeStateAndCompletionBoundaries() throws Exception {
+        FixedFramesAtlasRuntimeService atlas = new FixedFramesAtlasRuntimeService(3);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64), new AnimationSystem(atlas))
+                .build());
+        PixscapeEngine engine = new PixscapeEngine();
+        setField(engine, "world", world);
+        int entity = createAnimatedSprite(world, "forward", 0, 2);
+        AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+
+        Assert.assertEquals("forward", animation.clip());
+        Assert.assertTrue(animation.hasClip("forward"));
+        Assert.assertFalse(animation.hasClip("missing"));
+        Assert.assertFalse(animation.hasClip(null));
+        Assert.assertFalse(animation.hasClip("   "));
+        Assert.assertEquals(-1, animation.frame());
+        Assert.assertEquals(0f, animation.stateTime(), 0f);
+
+        world.setDelta(0.5f);
+        world.process();
+        Assert.assertEquals(1, animation.frame());
+        Assert.assertEquals(0.5f, animation.stateTime(), 0f);
+        Assert.assertFalse(animation.isFinished());
+
+        world.process();
+        Assert.assertEquals("Final frame is visible before its full duration is consumed",
+                2, animation.frame());
+        Assert.assertFalse(animation.isFinished());
+
+        world.process();
+        Assert.assertEquals(1.5f, animation.stateTime(), 0f);
+        Assert.assertTrue("Exact full-duration boundary is finished", animation.isFinished());
+
+        world.process();
+        Assert.assertTrue("Playback after the boundary remains finished", animation.isFinished());
+
+        AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
+        component.clips.put("reverse", new AnimationComponent.Clip(2, 0));
+        component.currentClip = "reverse";
+        component.stateTime = 1.5f;
+        Assert.assertTrue("Reverse clips use the same inclusive frame count", animation.isFinished());
+
+        component.loop = true;
+        Assert.assertFalse(animation.isFinished());
+        component.loop = false;
+        component.fps = 0f;
+        Assert.assertFalse(animation.isFinished());
+        component.fps = 2f;
+        component.currentClip = "missing";
+        Assert.assertFalse(animation.isFinished());
+
+        int missingEntity = world.create();
+        world.process();
+        AnimationFacade missing = engine.api().entities().ofEntityId(missingEntity).animation();
+        Assert.assertEquals("", missing.clip());
+        Assert.assertFalse(missing.hasClip("forward"));
+        Assert.assertEquals(-1, missing.frame());
+        Assert.assertEquals(0f, missing.stateTime(), 0f);
+        Assert.assertFalse(missing.isFinished());
+    }
+
+    @Test
     public void animationsSpawnAssetIdUsesRegistryClips() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
@@ -1139,6 +1289,64 @@ public class PixscapeApiV1Test {
         }
     }
 
+    private static int createRenderableSprite(World world) {
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entity);
+        dimensions.width = 16f;
+        dimensions.height = 16f;
+        world.getMapper(OrientedBoundsComponent.class).create(entity);
+        world.getMapper(AABBComponent.class).create(entity);
+        world.getMapper(EntityIndexComponent.class).create(entity);
+        world.getMapper(VisibilityComponent.class).create(entity);
+        TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).create(entity);
+        region.valid = true;
+        region.u2 = 1f;
+        region.v2 = 1f;
+        world.getMapper(RenderMaterialComponent.class).create(entity).textureHandle = 7;
+        return entity;
+    }
+
+    private static void assertRepeat(World world,
+                                     DynamicEntityRenderState state,
+                                     int entity,
+                                     SpriteFacade sprite,
+                                     boolean repeatX,
+                                     boolean repeatY,
+                                     byte expectedFlags) {
+        sprite.setRepeat(repeatX, repeatY);
+        RenderRepeatComponent authored = world.getMapper(RenderRepeatComponent.class).get(entity);
+        Assert.assertEquals(repeatX, authored.repeatX);
+        Assert.assertEquals(repeatY, authored.repeatY);
+        Assert.assertEquals(repeatX, sprite.repeatsX());
+        Assert.assertEquals(repeatY, sprite.repeatsY());
+
+        world.process();
+
+        int slot = state.renderSlotForEntity(entity);
+        Assert.assertEquals(expectedFlags, state.repeatFlags[slot]);
+    }
+
+    private static int createAnimatedSprite(World world,
+                                            String clipName,
+                                            int start,
+                                            int end) {
+        int entity = world.create();
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entity);
+        animation.clips.put(clipName, new AnimationComponent.Clip(start, end));
+        animation.currentClip = clipName;
+        animation.fps = 2f;
+        animation.loop = false;
+        animation.playing = true;
+        animation.frame = -1;
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).create(entity);
+        asset.assetId = 1;
+        asset.atlasTag = "main";
+        world.getMapper(TextureRegionComponent.class).create(entity);
+        world.getMapper(RenderMaterialComponent.class).create(entity);
+        return entity;
+    }
+
     private static TileAnimationDefData tileAnimationData(int id,
                                                           String name,
                                                           int[] frameAssetIds,
@@ -1226,6 +1434,33 @@ public class PixscapeApiV1Test {
             if (assetId != availableAssetId) return null;
             return binding;
         }
+    }
+
+    private static final class FixedFramesAtlasRuntimeService extends AtlasRuntimeService {
+        private final AtlasAssetBinding binding;
+
+        FixedFramesAtlasRuntimeService(int frameCount) {
+            binding = AtlasBindingTestFactory.frames(
+                    1, "animation__a1", frameCount, 7, 16, 16);
+        }
+
+        @Override
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
+            return assetId == 1 ? binding : null;
+        }
+    }
+
+    private static Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0d;
+        if (type == char.class) return (char) 0;
+        return null;
     }
 
     private static final class ProcessCounterSystem extends BaseSystem {

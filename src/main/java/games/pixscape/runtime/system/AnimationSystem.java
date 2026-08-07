@@ -70,7 +70,7 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         int start = Math.max(0, clip.start);
         int end = Math.max(0, clip.end);
         int dir = (end >= start) ? 1 : -1;
-        int count = Math.abs(end - start) + 1;
+        int count = AnimationComponent.frameCount(clip);
         if (count <= 0) return;
 
         a.stateTime += world.getDelta();

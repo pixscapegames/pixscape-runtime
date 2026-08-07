@@ -1090,6 +1090,31 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
+        @Override
+        public boolean repeatsX() {
+            RenderRepeatComponent repeat = comp(RenderRepeatComponent.class, false);
+            return repeat != null && repeat.repeatX;
+        }
+
+        @Override
+        public boolean repeatsY() {
+            RenderRepeatComponent repeat = comp(RenderRepeatComponent.class, false);
+            return repeat != null && repeat.repeatY;
+        }
+
+        @Override
+        public SpriteFacade setRepeat(boolean repeatX, boolean repeatY) {
+            RenderRepeatComponent repeat = comp(
+                    RenderRepeatComponent.class, repeatX || repeatY);
+            if (repeat == null) return this;
+            if (repeat.repeatX != repeatX || repeat.repeatY != repeatY) {
+                repeat.repeatX = repeatX;
+                repeat.repeatY = repeatY;
+                markMaterial();
+            }
+            return this;
+        }
+
         private void resolveRegion(AssetRefComponent src) {
             World world = engine.getWorld();
             if (world == null) return;
@@ -1177,6 +1202,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public boolean exists() {
             return anim(false) != null;
+        }
+
+        @Override
+        public String clip() {
+            AnimationComponent a = anim(false);
+            return a != null && a.currentClip != null ? a.currentClip : "";
+        }
+
+        @Override
+        public boolean hasClip(String clipName) {
+            AnimationComponent a = anim(false);
+            return a != null && !isBlank(clipName) && a.clips.containsKey(clipName);
+        }
+
+        @Override
+        public int frame() {
+            AnimationComponent a = anim(false);
+            return a != null ? a.frame : -1;
+        }
+
+        @Override
+        public float stateTime() {
+            AnimationComponent a = anim(false);
+            return a != null ? a.stateTime : 0f;
         }
 
         @Override
@@ -1276,6 +1325,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public float fps() {
             AnimationComponent a = anim(false);
             return a != null ? a.fps : 0f;
+        }
+
+        @Override
+        public boolean isFinished() {
+            AnimationComponent a = anim(false);
+            return a != null && a.isFinished();
         }
 
         private AnimationComponent anim(boolean create) {

@@ -71,4 +71,27 @@ public interface SpriteFacade {
      * @return this facade for chaining
      */
     SpriteFacade setSize(float width, float height);
+
+    /**
+     * Returns whether horizontal repeat is configured for this sprite.
+     */
+    boolean repeatsX();
+
+    /**
+     * Returns whether vertical repeat is configured for this sprite.
+     */
+    boolean repeatsY();
+
+    /**
+     * Configures axis-aligned Repeat V1 rendering on the X and Y axes.
+     *
+     * <p>Repeat configuration is effective only for non-animated, axis-aligned
+     * sprites. Animated sprites retain the configuration but Runtime does not
+     * submit repeated draws for them. Rotated sprites fall back to one draw.</p>
+     *
+     * @param repeatX whether to repeat horizontally
+     * @param repeatY whether to repeat vertically
+     * @return this facade for chaining
+     */
+    SpriteFacade setRepeat(boolean repeatX, boolean repeatY);
 }

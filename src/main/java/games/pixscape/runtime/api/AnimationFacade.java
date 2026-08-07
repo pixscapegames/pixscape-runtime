@@ -6,6 +6,27 @@ package games.pixscape.runtime.api;
 public interface AnimationFacade {
     boolean exists();
 
+    /**
+     * Returns the selected clip name, or an empty string when animation is absent.
+     */
+    String clip();
+
+    /**
+     * Returns whether the animation defines the supplied non-blank clip name.
+     */
+    boolean hasClip(String clipName);
+
+    /**
+     * Returns the resolved animation/atlas frame index held by Runtime, or
+     * {@code -1} when no frame has been resolved.
+     */
+    int frame();
+
+    /**
+     * Returns the existing animation playback time, or {@code 0} when absent.
+     */
+    float stateTime();
+
     AnimationFacade play();
 
     AnimationFacade pause();
@@ -29,4 +50,11 @@ public interface AnimationFacade {
     boolean isLooping();
 
     float fps();
+
+    /**
+     * Returns whether the selected non-looping clip has consumed its complete
+     * playback duration. Looping clips and missing or invalid animation state
+     * never report finished.
+     */
+    boolean isFinished();
 }
