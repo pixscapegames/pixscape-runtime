@@ -18,6 +18,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.particle.MissingParticleAtlasRegionException;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.particle.ParticleEffectPool;
@@ -53,6 +54,10 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
     private final IntMap<String> effectPaths = new IntMap<>();
     private final IntMap<String> effectAtlasTags = new IntMap<>();
+    private final IntMap<String> failedPreparationEffectPaths = new IntMap<>();
+    private final IntMap<String> failedPreparationAtlasTags = new IntMap<>();
+    private final IntIntMap failedPreparationAtlasRevisions = new IntIntMap();
+    private int lazyPreparationAttemptCount;
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
     private ComponentMapper<TransformComponent> mTransform;
@@ -90,6 +95,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         this.effectsRoot = effectsRoot;
         this.particleAvailability =
                 new ParticleRuntimeAvailability(atlasRuntimeService, effectsRoot);
+        clearPreparationFailures();
     }
 
     /** Strictly prepares every authored and explicitly declared scene dependency. */
@@ -135,6 +141,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                     ParticleEffectPool.PooledEffect fx = effects.remove(e);
                     effectPaths.remove(e);
                     effectAtlasTags.remove(e);
+                    clearPreparationFailure(e);
                     if (fx != null) {
                         fx.free();
                     }
@@ -178,7 +185,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
             ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx != null && !matchesAuthoredEffect(e, comp)) {
-                ParticleEffectPool.PooledEffect replacement = createEffect(comp);
+                ParticleEffectPool.PooledEffect replacement = createEffect(e, comp);
                 if (replacement != null) {
                     boolean preservePlaying = !comp.paused && !fx.isComplete();
                     applyLooping(replacement, comp.looping);
@@ -204,7 +211,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             ParticleOverridesComponent ov = (mOverrides != null) ? mOverrides.getSafe(e, null) : null;
 
             if (fx == null) {
-                fx = createEffect(comp);
+                fx = createEffect(e, comp);
                 if (fx == null) continue;
                 effects.put(e, fx);
                 effectPaths.put(e, normalized(comp.effectPath));
@@ -276,7 +283,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return value != null ? value : "";
     }
 
-    private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
+    private ParticleEffectPool.PooledEffect createEffect(
+            int entityId, ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;
 
         if (effectsRoot == null) {
@@ -299,16 +307,84 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 emitter.atlasTag.isEmpty()) {
             return null;
         }
+        if (!atlasRuntimeService.hasPublishedAtlases()
+                && !particleAvailability.isPrepared(
+                emitter.atlasTag, emitter.effectPath)) {
+            return null;
+        }
+        int atlasRevision = atlasRuntimeService.publicationRevision(emitter.atlasTag);
+        if (!shouldAttemptPreparation(entityId, emitter, atlasRevision)) return null;
+        lazyPreparationAttemptCount++;
         try {
-            return particleAvailability.obtain(emitter.atlasTag, emitter.effectPath);
+            ParticleEffectPool.PooledEffect effect =
+                    particleAvailability.obtain(emitter.atlasTag, emitter.effectPath);
+            clearPreparationFailure(entityId);
+            return effect;
         } catch (RuntimeException failure) {
-            if (Gdx.app != null) {
+            boolean shouldLog = recordPreparationFailureAndShouldLog(
+                    entityId, emitter, atlasRevision, failure);
+            if (shouldLog && Gdx.app != null) {
                 Gdx.app.error("RenderParticleSyncSystem",
                         "Cannot lazily prepare particle effect: " + emitter.effectPath,
                         failure);
             }
             return null;
         }
+    }
+
+    private boolean shouldAttemptPreparation(
+            int entityId, ParticleEmitterComponent emitter, int atlasRevision) {
+        return atlasRevision != failedPreparationAtlasRevisions.get(entityId, Integer.MIN_VALUE)
+                || !normalized(emitter.effectPath).equals(
+                failedPreparationEffectPaths.get(entityId))
+                || !normalized(emitter.atlasTag).equals(
+                failedPreparationAtlasTags.get(entityId));
+    }
+
+    boolean recordPreparationFailureAndShouldLog(
+            int entityId, ParticleEmitterComponent emitter, int atlasRevision,
+            RuntimeException failure) {
+        String effectPath = normalized(emitter.effectPath);
+        String atlasTag = normalized(emitter.atlasTag);
+        boolean sameInputPreviouslyFailed = effectPath.equals(
+                failedPreparationEffectPaths.get(entityId))
+                && atlasTag.equals(failedPreparationAtlasTags.get(entityId));
+        int previousRevision = failedPreparationAtlasRevisions.get(
+                entityId, Integer.MIN_VALUE);
+
+        boolean shouldLog = !isMissingAtlasRegionFailure(failure)
+                || (!atlasRuntimeService.isPublicationPending(atlasTag)
+                && (!sameInputPreviouslyFailed || previousRevision != atlasRevision));
+
+        failedPreparationEffectPaths.put(entityId, effectPath);
+        failedPreparationAtlasTags.put(entityId, atlasTag);
+        failedPreparationAtlasRevisions.put(entityId, atlasRevision);
+        return shouldLog;
+    }
+
+    private boolean isMissingAtlasRegionFailure(Throwable failure) {
+        Throwable cause = failure;
+        while (cause != null) {
+            if (cause instanceof MissingParticleAtlasRegionException) return true;
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private void clearPreparationFailure(int entityId) {
+        failedPreparationEffectPaths.remove(entityId);
+        failedPreparationAtlasTags.remove(entityId);
+        failedPreparationAtlasRevisions.remove(entityId, 0);
+    }
+
+    private void clearPreparationFailures() {
+        failedPreparationEffectPaths.clear();
+        failedPreparationAtlasTags.clear();
+        failedPreparationAtlasRevisions.clear();
+    }
+
+    int lazyPreparationAttemptCount() {
+        return lazyPreparationAttemptCount;
     }
 
     private void applyLooping(ParticleEffect fx, boolean looping) {

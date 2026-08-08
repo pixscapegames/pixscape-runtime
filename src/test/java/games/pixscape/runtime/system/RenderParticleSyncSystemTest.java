@@ -8,6 +8,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.engine.PixscapeEngine;
@@ -17,6 +18,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
+import games.pixscape.runtime.particle.MissingParticleAtlasRegionException;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
@@ -284,11 +286,131 @@ public class RenderParticleSyncSystemTest {
         Assert.assertNull(pools.get("missing-atlas|b.p"));
     }
 
+    @Test
+    public void lazyPreparationRetriesOnlyAfterInputOrAtlasPublicationChanges()
+            throws Exception {
+        final int[] errorCount = {0};
+        Gdx.app = (Application) Proxy.newProxyInstance(
+                Application.class.getClassLoader(),
+                new Class<?>[]{Application.class},
+                (proxy, method, args) -> {
+                    if ("error".equals(method.getName())) errorCount[0]++;
+                    return null;
+                });
+
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("lazy-effects"));
+        temporaryFolder.newFile("lazy-effects/a.p");
+        temporaryFolder.newFile("lazy-effects/b.p");
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        emitter.effectPath = "a.p";
+        emitter.atlasTag = "scene";
+
+        world.process();
+        world.process();
+
+        Assert.assertEquals("Startup must wait while no usable atlas is published", 0,
+                system.lazyPreparationAttemptCount());
+        Assert.assertEquals("Temporary startup absence must not be logged", 0, errorCount[0]);
+
+        atlasService.loadBorrowed("other-scene", new TextureAtlas());
+        world.process();
+        world.process();
+
+        Assert.assertEquals("A missing tag after publication must be attempted once", 1,
+                system.lazyPreparationAttemptCount());
+        Assert.assertEquals("A genuinely missing tag must be logged once", 1, errorCount[0]);
+
+        emitter.effectPath = "b.p";
+        world.process();
+        world.process();
+
+        Assert.assertEquals("A distinct authored effect must still be attempted", 2,
+                system.lazyPreparationAttemptCount());
+        Assert.assertEquals("A distinct genuine error must still be reported", 2,
+                errorCount[0]);
+
+        ParticleEffectPool recoveredPool =
+                new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
+        pools.put("scene|b.p", recoveredPool);
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+
+        world.process();
+
+        Assert.assertEquals("A new usable atlas publication must permit retry", 3,
+                system.lazyPreparationAttemptCount());
+        Assert.assertNotNull(field(system, "effects", IntMap.class).get(entity));
+        Assert.assertEquals("Successful retry must not add another error", 2, errorCount[0]);
+    }
+
+    @Test
+    public void missingAtlasRegionIsReportedOnlyIfItSurvivesANewPublication() {
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, new FileHandle("effects"));
+        ParticleEmitterComponent emitter = new ParticleEmitterComponent();
+        emitter.effectPath = "fire.p";
+        emitter.atlasTag = "scene";
+        RuntimeException missingRegion = new RuntimeException(
+                new MissingParticleAtlasRegionException("fire__a1"));
+        int oldRevision = atlasService.publicationRevision("scene");
+
+        atlasService.markPublicationPending("scene");
+
+        Assert.assertFalse("The current publication may simply predate async repacking",
+                system.recordPreparationFailureAndShouldLog(
+                        42, emitter, oldRevision, missingRegion));
+
+        system.invalidateAllEffects();
+
+        Assert.assertFalse("Invalidation alone must not turn the same atlas state into an error",
+                system.recordPreparationFailureAndShouldLog(
+                        42, emitter, oldRevision, missingRegion));
+
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        int newRevision = atlasService.publicationRevision("scene");
+
+        Assert.assertTrue("A region still absent from the next publication is a genuine error",
+                system.recordPreparationFailureAndShouldLog(
+                        42, emitter, newRevision, missingRegion));
+
+        emitter.effectPath = "smoke.p";
+        Assert.assertTrue("Without a pending publication a missing region is immediately visible",
+                system.recordPreparationFailureAndShouldLog(
+                        42, emitter, newRevision, missingRegion));
+
+        atlasService.markPublicationPending("scene");
+        emitter.effectPath = "sparks.p";
+        Assert.assertFalse("A newly authored effect waits for its requested publication",
+                system.recordPreparationFailureAndShouldLog(
+                        42, emitter, newRevision, missingRegion));
+        Assert.assertTrue("Non-atlas preparation failures remain immediately visible",
+                system.recordPreparationFailureAndShouldLog(
+                        43, emitter, newRevision,
+                        new IllegalArgumentException("broken effect")));
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> T field(Object target, String name) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return (T) field.get(target);
+    }
+
+    private static <T> T field(Object target, String name, Class<T> type) throws Exception {
+        return type.cast(field(target, name));
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {

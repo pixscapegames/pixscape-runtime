@@ -5,12 +5,12 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
-import com.badlogic.gdx.graphics.Texture.TextureWrap;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 
@@ -38,7 +38,10 @@ public class AtlasRuntimeService {
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
     private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
+    private final ObjectIntMap<String> publicationRevisions = new ObjectIntMap<>();
+    private final ObjectSet<String> pendingPublications = new ObjectSet<>();
     private final ObjectSet<String> ownedAtlasTags = new ObjectSet<>();
+    private int nextPublicationRevision;
     private static final boolean DEBUG_BUNDLE_LIFECYCLE = false;
 
     public AtlasRuntimeService() {
@@ -89,6 +92,8 @@ public class AtlasRuntimeService {
         TextureArrayBundle previousBundle = bundles.remove(tag);
         indexesByTag.put(tag, index);
         atlases.put(tag, atlas);
+        publicationRevisions.put(tag, nextPublicationRevision());
+        pendingPublications.remove(tag);
         if (owned) {
             ownedAtlasTags.add(tag);
         } else {
@@ -130,6 +135,7 @@ public class AtlasRuntimeService {
         }
         bundles.clear();
         indexesByTag.clear();
+        pendingPublications.clear();
         flushDeferredDisposals();
     }
 
@@ -146,6 +152,38 @@ public class AtlasRuntimeService {
 
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
+    }
+
+    /** Returns whether at least one successfully published atlas is currently usable. */
+    public boolean hasPublishedAtlases() {
+        return atlases.size > 0;
+    }
+
+    /**
+     * Returns the revision of the latest successfully published atlas for {@code tag}.
+     * Zero means that this service has not published that atlas tag yet.
+     */
+    public int publicationRevision(String tag) {
+        return tag != null ? publicationRevisions.get(tag, 0) : 0;
+    }
+
+    /** Marks that a replacement atlas publication has been requested for {@code tag}. */
+    public void markPublicationPending(String tag) {
+        if (tag == null || isBlank(tag)) {
+            throw new IllegalArgumentException("Atlas tag is blank.");
+        }
+        pendingPublications.add(tag);
+    }
+
+    /** Returns whether a requested replacement has not yet been successfully published. */
+    public boolean isPublicationPending(String tag) {
+        return tag != null && pendingPublications.contains(tag);
+    }
+
+    private int nextPublicationRevision() {
+        nextPublicationRevision++;
+        if (nextPublicationRevision == 0) nextPublicationRevision++;
+        return nextPublicationRevision;
     }
 
     /**

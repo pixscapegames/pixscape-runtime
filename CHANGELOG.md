@@ -30,6 +30,7 @@
 
 ### Changed
 
+* Deferred transient lazy particle preparation during atlas replacement and prevented repeated attempts until the relevant published atlas changes.
 * Reduced Spatial query and frame-preparation overhead by avoiding full scene-layer and inactive slot-range scans.
 * Box2D bodies are now built from validated compiled fixtures instead of legacy fixture data.
 * Scene loading and prefab spawning now rebuild derived physics state from persistent authored shapes.
