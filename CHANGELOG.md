@@ -22,6 +22,11 @@
 * Added indexed atlas asset bindings grouped by Asset ID, with precomputed region metadata and animation frame groups.
 * Added `EntityRef#renderOrder()` with high-level layer-index and z-index controls for runtime entities.
 * Added runtime layer placement support for spawned particles, sprites, animations, prefabs and existing scene entities without requiring direct ECS component access.
+* Added progressive scene loading through `SceneLoadHandle`, with phase, progress and runtime-ready state for custom loading screens.
+* Added `PixscapeEngine#setAssetManager(...)` for applications that provide and manage a shared LibGDX `AssetManager`.
+* Added exact resource discovery for the selected scene, including its scene data, atlas pages and declared particle effects.
+* Added a high-level Physics API for runtime state, pixels-per-meter, parallax conversion and native Box2D world/body access.* Added advanced render hooks for custom extraction, submission and integration around the Runtime render pipeline.
+* Added animation state and query controls, plus repeatable sprite creation and mutation through the public Runtime API.
 
 ### Changed
 
@@ -34,6 +39,9 @@
 * Runtime layer APIs now consistently use exported numerical layer indices instead of Studio-only display names.
 * Runtime scene-layer metadata now consistently distinguishes authored layer entities from rendered actors carrying layer-placement components.
 * Runtime z-index mutations now enforce the render pipeline's supported range of `-32768` through `32767`.
+* Scene loading now follows one availability, construction and runtime-readiness pipeline across synchronous and progressive entry points.
+* Runtime-ready completion now waits for heavy scene state, including particles, physics, Tiled maps, Spatial data and render preparation.
+* Runtime references now preserve entity incarnation identity and report stale access consistently after removal or world replacement.
 
 ### Improved
 
@@ -42,6 +50,8 @@
 * Animation systems now reuse indexed frame groups and precomputed region metadata.
 * Atlas loading now builds and validates the asset index once for each published atlas, while unload operations clear the corresponding bindings.
 * Centralized texture handle, UV and pixel-size resolution around shared atlas metadata.
+* Scene and prefab state is now fully validated before it becomes visible through Runtime facades.
+* Atlas publication now reuses pages already loaded by the configured `AssetManager` instead of loading duplicate textures.
 
 ### Fixed
 
@@ -52,6 +62,10 @@
 * Fixed Spatial actor ordering across multiple actor layers by using a single global depth domain.
 * Prevented rendered actor metadata from being interpreted as authored layer metadata by Tiled, particle visibility and Spatial systems.
 * Prevented invalid preserved z-index values from passing through runtime layer changes.
+* Made particle effect replacement failure-atomic so a failed replacement preserves the previously published effect.
+* Fixed particle extraction to preserve premultiplied-alpha blend semantics.
+* Fixed Spatial participation and invalid typed Tiled references across removal, replacement and scene transitions.
+* Fixed stale facade and render-order access after entity removal or world replacement.
 
 ### Tests
 
@@ -60,6 +74,8 @@
 * Revalidated the indexed asset pipeline on Desktop and through forced GWT compilation.
 * Added regression coverage for particle transform positioning, proxy-free particle creation and the removal of the legacy local-space API.
 * Added regression coverage for runtime render-order mutation, z-index boundaries, index-only Tiled access and authored-layer isolation from rendered actors.
+* Added grouped coverage for progressive loading, exact availability, shared `AssetManager` reuse and runtime-ready completion across particles, physics, Tiled, Spatial and rendering.
+* Added grouped facade identity and failure-contract coverage, with forced GWT compilation and Java 8 compatibility validation.
 
 
 ## [0.1.8]
