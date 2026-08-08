@@ -51,7 +51,7 @@ public class FileAvailabilityServiceTest {
         assertTrue(source.createNewFile());
 
         CountingAssetManager manager = manager(root);
-        FileAvailabilityService service = new FileAvailabilityService(manager);
+        FileAvailabilityService service = new FileAvailabilityService(manager, true);
         try {
             service.requestFile("effects/Explosion.p");
             service.requestFile("effects/Explosion.p");
@@ -77,7 +77,7 @@ public class FileAvailabilityServiceTest {
                 service.request("scenes/scene1.json", String.class);
                 fail("Expected wrong-type request rejection.");
             } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("different type"));
+                assertTrue(expected.getMessage().contains("type collision"));
             }
         } finally {
             service.dispose();
@@ -111,7 +111,7 @@ public class FileAvailabilityServiceTest {
     }
 
     private static FileAvailabilityService service(File root) {
-        return new FileAvailabilityService(manager(root));
+        return new FileAvailabilityService(manager(root), true);
     }
 
     private static CountingAssetManager manager(final File root) {

@@ -4,6 +4,8 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
@@ -49,6 +51,12 @@ public final class PixscapeEngine {
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
+    private AssetManager suppliedAssetManager;
+    private FileAvailabilityService fileAvailability;
+    private SceneAvailabilityPlan activeSceneAvailability;
+    private SceneAvailabilityPlan pendingSceneAvailability;
+    private boolean assetManagerConfigurationLocked;
+    private final AssetManagerFactory assetManagerFactory;
 
     private RuntimeConfig cfg;
     private boolean loaded;
@@ -96,6 +104,43 @@ public final class PixscapeEngine {
 
 
     public PixscapeEngine() {
+        this(new AssetManagerFactory() {
+            @Override
+            public AssetManager create(FileHandleResolver resolver) {
+                return new AssetManager(resolver);
+            }
+        });
+    }
+
+    PixscapeEngine(AssetManagerFactory assetManagerFactory) {
+        if (assetManagerFactory == null) throw new IllegalArgumentException("assetManagerFactory is null");
+        this.assetManagerFactory = assetManagerFactory;
+    }
+
+    interface AssetManagerFactory {
+        AssetManager create(FileHandleResolver resolver);
+    }
+
+    /**
+     * Selects the AssetManager used for Pixscape project/scene resources.
+     *
+     * <p>Configure this before {@link #loadProject(FileHandle)} or scene loading begins.
+     * A supplied manager is borrowed: Pixscape queues, gets, and unloads only the
+     * references it acquires, and never globally clears or disposes the manager. This
+     * permits application, splash, and Pixscape assets to share one normal LibGDX loading
+     * queue. Applications may instead keep independent managers. Passing {@code null}
+     * before loading restores the default internally owned manager behavior.</p>
+     *
+     * @param assetManager borrowed application manager, or {@code null} for an internal one
+     * @return this engine
+     */
+    public PixscapeEngine setAssetManager(AssetManager assetManager) {
+        if (assetManagerConfigurationLocked) {
+            throw new IllegalStateException(
+                    "AssetManager must be configured before Pixscape project/scene loading begins.");
+        }
+        this.suppliedAssetManager = assetManager;
+        return this;
     }
 
     /**
@@ -264,6 +309,7 @@ public final class PixscapeEngine {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         this.userRootDir = userRootDir;
         this.runtimeProjectDir = userRootDir.child(RUNTIME_DIR_NAME);
+        ensureFileAvailability();
 
         if (loaded) return this;
 
@@ -298,36 +344,75 @@ public final class PixscapeEngine {
      * previous scene is not restored; callers may invoke {@code loadScene} again.</p>
      */
     public PixscapeEngine loadScene(String sceneName) {
-        return loadScene(sceneName, null);
+        if (!loaded) loadProject(userRootDir);
+        String resolved = resolveSceneName(sceneName);
+        try {
+            internalBeginSceneLoad(resolved);
+            pendingSceneAvailability.finishOnNative();
+            return internalCompleteSceneLoad();
+        } catch (RuntimeException failure) {
+            releasePendingSceneAvailability();
+            throw failure;
+        }
     }
 
-    /**
-     * Loads a scene synchronously while reusing an already realized atlas.
-     *
-     * <p>The caller retains ownership of {@code availableAtlas} and must keep it
-     * alive until this scene is unloaded. This narrow seam prevents a
-     * manager-loaded atlas from being recreated from its FileHandle.</p>
-     */
-    public PixscapeEngine loadScene(String sceneName, TextureAtlas availableAtlas) {
-        if (!loaded) loadProject(userRootDir);
-
+    /** Unsupported HTML bridge: begins exact Runtime-owned scene availability. */
+    public PixscapeEngine internalBeginSceneLoad(String sceneName) {
+        if (!loaded) throw new IllegalStateException("loadProject() must be called before scene loading.");
         String resolved = resolveSceneName(sceneName);
-        SceneMetaRuntime meta = cfg.getSceneMeta(resolved);
-        if (meta == null)
+        if (cfg.getSceneMeta(resolved) == null) {
             throw new IllegalArgumentException("Unknown scene: " + resolved);
+        }
+        releasePendingSceneAvailability();
+        pendingSceneAvailability = new SceneAvailabilityPlan(
+                fileAvailability, cfg, runtimeProjectDir, resolved);
+        return this;
+    }
 
+    /** Unsupported HTML bridge: advances the shared queue once. */
+    public boolean internalUpdateSceneAvailability() {
+        if (pendingSceneAvailability == null) {
+            throw new IllegalStateException("No scene availability operation is pending.");
+        }
+        try {
+            return pendingSceneAvailability.update();
+        } catch (RuntimeException failure) {
+            releasePendingSceneAvailability();
+            throw failure;
+        }
+    }
+
+    /** Unsupported HTML bridge: returns deterministic Pixscape-scoped item progress. */
+    public float internalSceneAvailabilityProgress() {
+        return pendingSceneAvailability != null ? pendingSceneAvailability.progress() : 1f;
+    }
+
+    /** Unsupported HTML bridge: constructs the scene from the completed availability plan. */
+    public PixscapeEngine internalCompleteSceneLoad() {
+        if (pendingSceneAvailability == null || !pendingSceneAvailability.isComplete()) {
+            throw new IllegalStateException("Scene file availability is not complete.");
+        }
+
+        SceneAvailabilityPlan candidate = pendingSceneAvailability;
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
         sceneLoaded = false;
         activeSceneMeta = null;
-
+        boolean constructionStarted = false;
         try {
+            constructionStarted = true;
             rebuildWorld(cfg, runtimeProjectDir, meta);
-            loadSceneInternal(resolved, availableAtlas);
-
+            retireActiveSceneAvailability();
+            loadSceneInternal(candidate.sceneName(), candidate.atlas());
+            activeSceneAvailability = candidate;
+            pendingSceneAvailability = null;
             activeSceneMeta = meta;
             sceneLoaded = true;
             return this;
         } catch (RuntimeException failure) {
             discardFailedSceneLoad();
+            if (atlasRuntimeService != null) atlasRuntimeService.unload(candidate.sceneTag());
+            releasePendingSceneAvailability();
+            if (constructionStarted) retireActiveSceneAvailability();
             throw failure;
         }
     }
@@ -543,10 +628,17 @@ public final class PixscapeEngine {
      */
     public void dispose() {
         disposeWorldAndRuntime();
+        releasePendingSceneAvailability();
+        releaseActiveSceneAvailability();
+        if (fileAvailability != null) {
+            fileAvailability.dispose();
+            fileAvailability = null;
+        }
 
         loaded = false;
         sceneLoaded = false;
         activeSceneMeta = null;
+        assetManagerConfigurationLocked = false;
     }
 
     /**
@@ -1162,6 +1254,50 @@ public final class PixscapeEngine {
         );
         rebindAtlas(sceneTag);
         forceFullDirtyAfterLoad();
+    }
+
+    private void ensureFileAvailability() {
+        assetManagerConfigurationLocked = true;
+        if (fileAvailability != null) return;
+        if (suppliedAssetManager != null) {
+            fileAvailability = new FileAvailabilityService(suppliedAssetManager, false);
+        } else {
+            final FileHandle projectRoot = runtimeProjectDir;
+            FileHandleResolver resolver = new FileHandleResolver() {
+                @Override
+                public FileHandle resolve(String fileName) {
+                    String normalized = FileAvailabilityService.normalizePath(fileName);
+                    String rootPath = FileAvailabilityService.normalizePath(projectRoot.path());
+                    if (normalized.equals(rootPath)) return projectRoot;
+                    String prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
+                    if (normalized.startsWith(prefix)) {
+                        return projectRoot.child(normalized.substring(prefix.length()));
+                    }
+                    return Gdx.files.internal(normalized);
+                }
+            };
+            fileAvailability = new FileAvailabilityService(assetManagerFactory.create(resolver), true);
+        }
+    }
+
+    private void retireActiveSceneAvailability() {
+        if (activeSceneAvailability == null) return;
+        if (atlasRuntimeService != null) {
+            atlasRuntimeService.unload(activeSceneAvailability.sceneTag());
+        }
+        releaseActiveSceneAvailability();
+    }
+
+    private void releaseActiveSceneAvailability() {
+        if (activeSceneAvailability == null) return;
+        activeSceneAvailability.release();
+        activeSceneAvailability = null;
+    }
+
+    private void releasePendingSceneAvailability() {
+        if (pendingSceneAvailability == null) return;
+        pendingSceneAvailability.release();
+        pendingSceneAvailability = null;
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {

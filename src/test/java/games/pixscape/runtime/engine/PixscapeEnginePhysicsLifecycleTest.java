@@ -11,6 +11,11 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.assets.AssetDescriptor;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.assets.loaders.FileHandleResolver;
+import com.badlogic.gdx.assets.loaders.SynchronousAssetLoader;
+import com.badlogic.gdx.assets.loaders.TextureAtlasLoader;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
@@ -19,6 +24,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -345,7 +351,14 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("c.json"), false, true);
         writeLinkedScene(scenesDir.child("d.json"));
 
-        PixscapeEngine engine = new PixscapeEngine();
+        PixscapeEngine engine = new PixscapeEngine(new PixscapeEngine.AssetManagerFactory() {
+            @Override
+            public AssetManager create(FileHandleResolver resolver) {
+                AssetManager manager = new AssetManager(resolver);
+                manager.setLoader(TextureAtlas.class, new EmptyAtlasLoader(resolver));
+                return manager;
+            }
+        });
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
         engine.setConfigurationCustomizer(builder ->
                 builder.with(new CandidateWorldProbeSystem(worldProbe)));
@@ -664,12 +677,36 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
 
         @Override
+        public void loadBorrowed(String tag, TextureAtlas atlas) {
+        }
+
+        @Override
         public TextureArrayBundle rebuildBundle(String tag) {
             return null;
         }
 
         @Override
         public TextureArrayBundle bundle(String tag) {
+            return null;
+        }
+    }
+
+    private static final class EmptyAtlasLoader extends SynchronousAssetLoader<
+            TextureAtlas, TextureAtlasLoader.TextureAtlasParameter> {
+
+        EmptyAtlasLoader(FileHandleResolver resolver) {
+            super(resolver);
+        }
+
+        @Override
+        public TextureAtlas load(AssetManager manager, String fileName, FileHandle file,
+                                 TextureAtlasLoader.TextureAtlasParameter parameter) {
+            return new TextureAtlas();
+        }
+
+        @Override
+        public Array<AssetDescriptor> getDependencies(String fileName, FileHandle file,
+                TextureAtlasLoader.TextureAtlasParameter parameter) {
             return null;
         }
     }

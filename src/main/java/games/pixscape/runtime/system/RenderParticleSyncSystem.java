@@ -21,6 +21,7 @@ import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.particle.ParticleEmitter.Particle;
@@ -265,7 +266,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             return null;
         }
 
-        FileHandle effectFile = effectsRoot.child(emitter.effectPath);
+        FileHandle effectFile = ParticleEffectPath.resolve(effectsRoot, emitter.effectPath);
         if (!effectFile.exists()) {
             Gdx.app.error("RenderParticleSyncSystem",
                     "Effect file not found: " + effectFile.path()

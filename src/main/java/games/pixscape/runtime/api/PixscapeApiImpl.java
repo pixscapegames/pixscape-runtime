@@ -20,6 +20,7 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
+import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
@@ -597,8 +598,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     private static String normalizeEffectPath(String effectPathOrName) {
-        String value = effectPathOrName.trim().replace('\\', '/');
-        return value.endsWith(".p") ? value : value + ".p";
+        return ParticleEffectPath.normalize(effectPathOrName);
     }
 
     private static World requireWorld(PixscapeEngine engine) {
@@ -1720,7 +1720,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             }
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
-                c.effectPath = effectPath;
+                c.effectPath = ParticleEffectPath.normalize(effectPath);
                 c.atlasTag = atlasTag;
             }
             return this;

@@ -1,5 +1,6 @@
 package games.pixscape.runtime.loading;
 
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.physics.PhysicsShapeIdState;
 
@@ -11,6 +12,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public String name;
     public String file;
     public int nextEntityStableId = 1;
+    /** Explicit particle files exported in this scene's runtimeAvailability. */
+    public final Array<String> runtimeParticleEffectPaths = new Array<>();
 
     // Physics
     public boolean physicsEnabled = false;
@@ -98,6 +101,14 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.tileHeight = json.getFloat("tileHeight", meta.tileHeight);
         meta.chunkSize = json.getInt("chunkSize", meta.chunkSize);
         meta.mainCameraOffscreen = json.getBoolean("mainCameraOffscreen", meta.mainCameraOffscreen);
+        JsonValue availability = json.get("runtimeAvailability");
+        JsonValue particles = availability != null && availability.isObject()
+                ? availability.get("particles") : null;
+        if (particles != null && particles.isArray()) {
+            for (JsonValue particle = particles.child; particle != null; particle = particle.next) {
+                if (particle.isString()) meta.runtimeParticleEffectPaths.add(particle.asString());
+            }
+        }
         return meta;
     }
 
@@ -139,6 +150,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.name = other.name;
         this.file = other.file;
         this.nextEntityStableId = other.nextEntityStableId;
+        this.runtimeParticleEffectPaths.clear();
+        this.runtimeParticleEffectPaths.addAll(other.runtimeParticleEffectPaths);
         this.physicsEnabled = other.physicsEnabled;
         this.pixelsPerMeter = other.pixelsPerMeter;
         this.gravityX = other.gravityX;

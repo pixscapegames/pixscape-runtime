@@ -4,19 +4,11 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.configuration.RuntimeConfig;
-import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 public final class RuntimeSceneAtlasLoader {
 
     private RuntimeSceneAtlasLoader() {
-    }
-
-    public static void loadSceneAtlas(RuntimeConfig cfg,
-                                      String sceneName,
-                                      FileHandle projectDir,
-                                      AtlasRuntimeService atlasRuntimeService) {
-        loadSceneAtlas(cfg, sceneName, projectDir, atlasRuntimeService, null);
     }
 
     public static void loadSceneAtlas(RuntimeConfig cfg,
@@ -41,25 +33,13 @@ public final class RuntimeSceneAtlasLoader {
             return;
         }
 
-        if (availableAtlas != null) {
-            atlasRuntimeService.unload(sceneDirName);
-            atlasRuntimeService.loadBorrowed(sceneDirName, availableAtlas);
-            Gdx.app.log("RuntimeSceneAtlasLoader",
-                    "Scene atlas reused for '" + sceneName + "'.");
-            return;
+        if (availableAtlas == null) {
+            throw new IllegalArgumentException(
+                    "Manager-owned scene atlas is required for '" + sceneName + "'.");
         }
-
-        FileHandle atlasesRoot = projectDir.child(cfg.atlasesDir);
-        FileHandle atlasFile = atlasesRoot.child(RuntimeFs.withExt(sceneDirName, RuntimeFs.EXT_ATLAS));
-        if (!atlasFile.exists()) {
-            Gdx.app.log("RuntimeSceneAtlasLoader",
-                    "No atlas file for scene '" + sceneName + "'. Scene atlas sprites will stay invalid.");
-            return;
-        }
-
         atlasRuntimeService.unload(sceneDirName);
-        atlasRuntimeService.load(sceneDirName, atlasFile);
+        atlasRuntimeService.loadBorrowed(sceneDirName, availableAtlas);
         Gdx.app.log("RuntimeSceneAtlasLoader",
-                "Scene atlas loaded for '" + sceneName + "'.");
+                "Manager-owned scene atlas reused for '" + sceneName + "'.");
     }
 }
