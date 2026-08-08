@@ -115,7 +115,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         }
     }
 
-    public ParticleRuntimeAvailability particleAvailability() {
+    ParticleRuntimeAvailability particleAvailability() {
         return particleAvailability;
     }
 
@@ -458,7 +458,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 blendId = BlendMode.ALPHA.id;
             }
 
-            Particle[] particles = emitter.particles;
+            Particle[] particles = emitter.getParticles();
             boolean[] active = emitter.getActiveArray();
             if (particles == null || active == null) continue;
 

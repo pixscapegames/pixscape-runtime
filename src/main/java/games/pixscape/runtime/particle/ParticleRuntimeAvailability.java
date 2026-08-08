@@ -38,19 +38,19 @@ public final class ParticleRuntimeAvailability {
         return pools.containsKey(key(atlasTag, effectPath));
     }
 
-    public int fileParseCount() {
+    int fileParseCount() {
         return fileParseCount;
     }
 
-    public int templateConstructionCount() {
+    int templateConstructionCount() {
         return templateConstructionCount;
     }
 
-    public int poolConstructionCount() {
+    int poolConstructionCount() {
         return poolConstructionCount;
     }
 
-    public int obtainCount() {
+    int obtainCount() {
         return obtainCount;
     }
 

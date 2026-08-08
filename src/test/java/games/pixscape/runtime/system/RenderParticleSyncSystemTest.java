@@ -429,7 +429,7 @@ public class RenderParticleSyncSystemTest {
         emitter.setPremultipliedAlpha(premultipliedAlpha);
         emitter.setCleansUpBlendFunction(false);
         emitter.setMaxParticleCount(1);
-        emitter.particles[0] = new ParticleEmitter.Particle(new Sprite());
+        emitter.getParticles()[0] = new ParticleEmitter.Particle(new Sprite());
         emitter.getActiveArray()[0] = true;
 
         int[] batchBlend = new int[2];
