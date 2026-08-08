@@ -516,9 +516,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 ? world.getMapper(AnimationComponent.class).get(entityId)
                 : world.getMapper(AnimationComponent.class).create(entityId);
 
-        // TODO 0.1.4 Studio integration:
-        // When animation assets export clip metadata, load exported clips here instead of
-        // creating a single default clip across every atlas frame.
         int frameCount = binding.regionCount();
 
         animation.clips.clear();
