@@ -225,6 +225,23 @@ public class AtlasAssetIndexTest {
     }
 
     @Test
+    public void borrowedAtlasRemainsOwnedByItsCaller() {
+        TestTexture texture = new TestTexture(16, 16);
+        TrackingTextureAtlas atlas = new TrackingTextureAtlas();
+        atlas.getRegions().add(region(texture, "borrowed__a1", -1, 0, 0, 8, 8));
+        AtlasRuntimeService service = new AtlasRuntimeService();
+
+        service.loadBorrowed("main", atlas);
+        Assert.assertSame(atlas, service.getAtlas("main"));
+
+        service.unload("main");
+        Assert.assertFalse(atlas.disposed);
+
+        atlas.dispose();
+        Assert.assertTrue(atlas.disposed);
+    }
+
+    @Test
     public void failedReloadLeavesPreviousAtlasAndIndexPublished() {
         TestTexture texture = new TestTexture(32, 32);
         AtlasRuntimeService service = new AtlasRuntimeService();
@@ -352,6 +369,16 @@ public class AtlasAssetIndexTest {
         public Array<TextureAtlas.AtlasRegion> findRegions(String name) {
             findRegionsCalls++;
             return super.findRegions(name);
+        }
+    }
+
+    private static final class TrackingTextureAtlas extends TextureAtlas {
+        boolean disposed;
+
+        @Override
+        public void dispose() {
+            disposed = true;
+            super.dispose();
         }
     }
 }

@@ -298,6 +298,17 @@ public final class PixscapeEngine {
      * previous scene is not restored; callers may invoke {@code loadScene} again.</p>
      */
     public PixscapeEngine loadScene(String sceneName) {
+        return loadScene(sceneName, null);
+    }
+
+    /**
+     * Loads a scene synchronously while reusing an already realized atlas.
+     *
+     * <p>The caller retains ownership of {@code availableAtlas} and must keep it
+     * alive until this scene is unloaded. This narrow seam prevents a
+     * manager-loaded atlas from being recreated from its FileHandle.</p>
+     */
+    public PixscapeEngine loadScene(String sceneName, TextureAtlas availableAtlas) {
         if (!loaded) loadProject(userRootDir);
 
         String resolved = resolveSceneName(sceneName);
@@ -310,7 +321,7 @@ public final class PixscapeEngine {
 
         try {
             rebuildWorld(cfg, runtimeProjectDir, meta);
-            loadSceneInternal(resolved);
+            loadSceneInternal(resolved, availableAtlas);
 
             activeSceneMeta = meta;
             sceneLoaded = true;
@@ -1118,7 +1129,7 @@ public final class PixscapeEngine {
     // Scene loading
     // ---------------------------------------------------------------------
 
-    private void loadSceneInternal(String sceneName) {
+    private void loadSceneInternal(String sceneName, TextureAtlas availableAtlas) {
         if (world == null) return;
         if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
 
@@ -1146,7 +1157,8 @@ public final class PixscapeEngine {
                 cfg,
                 resolvedName,
                 runtimeProjectDir,
-                atlasRuntimeService
+                atlasRuntimeService,
+                availableAtlas
         );
         rebindAtlas(sceneTag);
         forceFullDirtyAfterLoad();

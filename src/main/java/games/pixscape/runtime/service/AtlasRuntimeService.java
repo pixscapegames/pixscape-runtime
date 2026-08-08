@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 
 
@@ -39,6 +40,7 @@ public class AtlasRuntimeService {
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
     private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
+    private final ObjectSet<String> ownedAtlasTags = new ObjectSet<>();
     private static final boolean DEBUG_BUNDLE_LIFECYCLE = false;
 
     public AtlasRuntimeService() {
@@ -48,11 +50,25 @@ public class AtlasRuntimeService {
 
     public void load(String tag, FileHandle atlasFile) {
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        load(tag, atlas);
+        load(tag, atlas, true);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
     void load(String tag, TextureAtlas atlas) {
+        load(tag, atlas, true);
+    }
+
+    /**
+     * Uses an externally owned atlas without taking disposal ownership.
+     *
+     * <p>This is the object-reuse seam for AssetManager integration. The owner
+     * must keep the atlas alive until it is unloaded from this service.</p>
+     */
+    public void loadBorrowed(String tag, TextureAtlas atlas) {
+        load(tag, atlas, false);
+    }
+
+    private void load(String tag, TextureAtlas atlas, boolean owned) {
         if (atlas == null) {
             throw new IllegalArgumentException(
                     "Atlas '" + tag + "' must not be null.");
@@ -66,16 +82,22 @@ public class AtlasRuntimeService {
                 texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
             }
         } catch (RuntimeException failure) {
-            atlas.dispose();
+            if (owned) atlas.dispose();
             throw failure;
         }
 
         TextureAtlas previousAtlas = atlases.get(tag);
+        boolean ownedPreviousAtlas = ownedAtlasTags.contains(tag);
         TextureArrayBundle previousBundle = bundles.remove(tag);
         indexesByTag.put(tag, index);
         atlases.put(tag, atlas);
+        if (owned) {
+            ownedAtlasTags.add(tag);
+        } else {
+            ownedAtlasTags.remove(tag);
+        }
 
-        if (previousAtlas != null && previousAtlas != atlas) {
+        if (previousAtlas != null && previousAtlas != atlas && ownedPreviousAtlas) {
             previousAtlas.dispose();
         }
         if (previousBundle != null) {
@@ -86,8 +108,9 @@ public class AtlasRuntimeService {
 
     public void unload(String tag) {
         indexesByTag.remove(tag);
+        boolean ownedAtlas = ownedAtlasTags.remove(tag);
         TextureAtlas a = atlases.remove(tag);
-        if (a != null) a.dispose();
+        if (a != null && ownedAtlas) a.dispose();
         TextureArrayBundle b = bundles.remove(tag);
         if (b != null) {
             logBundleEvent("dispose", tag, b.textureArray);
@@ -96,10 +119,12 @@ public class AtlasRuntimeService {
     }
 
     public void unloadAll() {
-        for (ObjectMap.Values<TextureAtlas> it = atlases.values(); it.hasNext(); ) {
-            it.next().dispose();
+        for (ObjectMap.Entries<String, TextureAtlas> it = atlases.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, TextureAtlas> entry = it.next();
+            if (ownedAtlasTags.contains(entry.key)) entry.value.dispose();
         }
         atlases.clear();
+        ownedAtlasTags.clear();
         for (ObjectMap.Values<TextureArrayBundle> it = bundles.values(); it.hasNext(); ) {
             TextureArrayBundle b = it.next();
             logBundleEvent("dispose", "__all__", b.textureArray);
