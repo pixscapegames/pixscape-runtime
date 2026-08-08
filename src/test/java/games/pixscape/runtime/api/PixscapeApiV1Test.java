@@ -1653,6 +1653,24 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void authoredSceneActorAnimationDoesNotRequireLayerComponent() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = createAnimatedSprite(world, "run_000", 0, 19);
+        world.getMapper(LayerComponent.class).remove(entity);
+        AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
+        component.clips.put("run_090", new AnimationComponent.Clip(40, 59));
+        world.process();
+
+        AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+
+        Assert.assertTrue(animation.exists());
+        Assert.assertTrue(animation.hasClip("run_090"));
+        animation.play("run_090");
+        Assert.assertEquals("run_090", animation.clip());
+    }
+
+    @Test
     public void animationsSpawnAssetIdUsesRegistryClips() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));

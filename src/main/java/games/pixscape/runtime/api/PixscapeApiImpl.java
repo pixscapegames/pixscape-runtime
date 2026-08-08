@@ -174,7 +174,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 && world.getMapper(AssetRefComponent.class).has(entityId)
                 && world.getMapper(VisibilityComponent.class).has(entityId)
                 && world.getMapper(EntityIndexComponent.class).has(entityId)
-                && world.getMapper(LayerComponent.class).has(entityId)
                 && world.getMapper(TintComponent.class).has(entityId)
                 ? world : null;
     }
