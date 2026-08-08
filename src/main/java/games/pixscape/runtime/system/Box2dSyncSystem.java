@@ -364,6 +364,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
     }
 
+    /**
+     * Builds bodies, fixtures and joints, including the mandatory bootstrap step,
+     * while leaving normal simulation stepping disabled.
+     */
+    public void prepareRuntimeAvailability() {
+        setStepEnabled(false);
+        setEnabled(true);
+        processSystemInternal();
+        if (fullRebuildPending || bootstrapStepPending) {
+            throw new IllegalStateException("Box2D Runtime availability did not close.");
+        }
+    }
+
     // -------------------------------------------------------------
     // Inverse cache (body -> joints)
     // -------------------------------------------------------------

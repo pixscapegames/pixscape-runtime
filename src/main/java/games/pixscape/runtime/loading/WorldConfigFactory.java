@@ -237,6 +237,7 @@ public final class WorldConfigFactory {
         configureRenderStorageCapacities(dynamicEntityState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
+        builder.register(new SceneLoadingInvocationStrategy());
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();

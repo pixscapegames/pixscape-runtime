@@ -53,6 +53,13 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
         forceResync = false;
     }
 
+    /** Prepares persistent Spatial physics footprints without processing a gameplay frame. */
+    public void prepareRuntimeAvailability() {
+        syncCompiledCaches();
+        invalidateOrphanFootprints();
+        forceResync = false;
+    }
+
     private void syncCompiledCaches() {
         IntBag entities = compiledSubscription.getEntities();
         int[] data = entities.getData();

@@ -1,6 +1,8 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
+import com.artemis.utils.IntBag;
 import com.artemis.annotations.All;
 import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
@@ -140,6 +142,19 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
                 break;
             }
         }
+    }
+
+    /** Builds persistent layer state without running the normal render pipeline. */
+    public void prepareRuntimeAvailability() {
+        begin();
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
+                .getEntities();
+        int[] data = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            process(data[i]);
+        }
+        end();
     }
 
     @Override

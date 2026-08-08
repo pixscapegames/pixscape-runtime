@@ -32,6 +32,28 @@ public class RenderTiledSyncSystemTest {
     }
 
     @Test
+    public void runtimeAvailabilityCompilesAllPersistentChunksBeforeFirstPan() {
+        Fixture fixture = createTwoChunksFixture();
+        fixture.world.process();
+        fixture.map.markAllChunksContentDirty();
+
+        fixture.tiledSync.prepareRuntimeAvailability();
+
+        Assert.assertEquals(2, fixture.tiledSync.preparedPersistentChunkCount());
+        for (IntMap.Values<TileChunk> chunks =
+                fixture.map.getChunks(); chunks.hasNext(); ) {
+            Assert.assertEquals(TileChunk.DirtyState.CLEAN,
+                    chunks.next().dirtyState);
+        }
+        int compilations = fixture.tiledSync.persistentChunkCompilationCount();
+
+        fixture.camera.position.set(48f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals(compilations,
+                fixture.tiledSync.persistentChunkCompilationCount());
+    }
+
+    @Test
     public void hideShowCleanChunkSkipsFullRebuildAndPreservesSlotValidity() {
         Fixture fixture = createSingleChunkFixture();
 

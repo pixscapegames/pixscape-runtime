@@ -1,6 +1,8 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
+import com.artemis.utils.IntBag;
 import com.artemis.annotations.All;
 import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
@@ -74,6 +76,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private int hiddenChunkCount;
     private int dirtyFullChunkCount;
     private int dirtyPartialChunkCount;
+    private int preparedPersistentChunkCount;
+    private int persistentChunkCompilationCount;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
@@ -265,10 +269,70 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         return dirtyPartialChunkCount;
     }
 
+    /**
+     * Compiles every authored persistent chunk and Spatial layer cache without
+     * evaluating camera visibility or publishing a frame-local visible list.
+     */
+    public void prepareRuntimeAvailability() {
+        preparedPersistentChunkCount = 0;
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class)
+                        .exclude(EntityIndexComponent.class))
+                .getEntities();
+        int[] data = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            int entityId = data[i];
+            LayerComponent layer = mLayer.get(entityId);
+            TiledLayerComponent tiled = mTiled.get(entityId);
+            if (layer == null || layer.type != LayerComponent.TYPE_TILED
+                    || tiled == null || tiled.data == null) continue;
+
+            TiledMapLayerData map = tiled.data;
+            currentLayerEntity = entityId;
+            currentTileOrder = null;
+            ensureAllChunkRenderRefs(map);
+            if (map.projection == SceneMetaRuntime.TiledProjection.ISO
+                    && (layer.spatialEnabled || tiled.spatialEnabled || map.spatialEnabled)) {
+                SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entityId, null);
+                SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
+                runtime.compiled.ensure(blocks);
+                runtime.projected.ensure(runtime.compiled, map);
+                runtime.tileOrder.ensure(entityId, map, blocks, runtime.compiled);
+                currentTileOrder = runtime.tileOrder;
+            }
+            refreshVisualPaddingIfDirty(map, tiled.atlasTag);
+            for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks =
+                    map.getChunks(); chunks.hasNext(); ) {
+                TileChunk chunk = chunks.next();
+                if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
+                    rebuildChunk(chunk, map, entityId, tiled.atlasTag);
+                } else if (chunk.dirtyState == TileChunk.DirtyState.PARTIAL) {
+                    updatePartialChunk(chunk, map, entityId, tiled.atlasTag);
+                } else if (chunk.renderMetadataDirty) {
+                    recomputeChunkVisualBounds(chunk);
+                }
+                preparedPersistentChunkCount++;
+            }
+            if (currentTileOrder != null && currentTileOrder.needsKeyRefresh()) {
+                refreshTileKeys(map, layer.layerIndex, currentTileOrder);
+            }
+        }
+    }
+
+    public int preparedPersistentChunkCount() {
+        return preparedPersistentChunkCount;
+    }
+
+    public int persistentChunkCompilationCount() {
+        return persistentChunkCompilationCount;
+    }
+
     private void updatePartialChunk(TileChunk chunk,
                                     TiledMapLayerData map,
                                     int entityId,
                                     String atlasTag) {
+
+        persistentChunkCompilationCount++;
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 
@@ -629,6 +693,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                               TiledMapLayerData map,
                               int entityId,
                               String atlasTag) {
+
+        persistentChunkCompilationCount++;
 
         int layerIndex = mLayer.get(entityId).layerIndex;
 

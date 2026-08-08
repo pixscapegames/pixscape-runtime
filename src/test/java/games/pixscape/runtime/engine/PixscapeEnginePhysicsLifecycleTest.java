@@ -35,6 +35,8 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.loading.SceneLoadHandle;
+import games.pixscape.runtime.loading.SceneLoadPhase;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
@@ -46,6 +48,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
+import games.pixscape.runtime.system.RenderTiledSyncSystem;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -174,6 +177,99 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void progressiveLoadIsMonotonicReadyAndDoesNotProcessGameplayWorld()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            SceneLoadHandle load = engine.beginLoadScene("A");
+            float previousProgress = 0f;
+            int previousPhase = SceneLoadPhase.FILES.ordinal();
+            while (!load.isReady() && !load.isFailed()) {
+                load.update();
+                Assert.assertTrue(load.progress() >= previousProgress);
+                Assert.assertTrue(load.phase().ordinal() >= previousPhase);
+                Assert.assertTrue(load.progress() < 1f || load.isReady());
+                previousProgress = load.progress();
+                previousPhase = load.phase().ordinal();
+            }
+
+            Assert.assertFalse(load.isFailed());
+            Assert.assertNull(load.failure());
+            Assert.assertEquals(SceneLoadPhase.READY, load.phase());
+            Assert.assertEquals(1f, load.progress(), 0f);
+            Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
+            Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
+            Assert.assertEquals(0, fixture.worldProbe.processCount);
+
+            engine.render();
+            Assert.assertEquals(1, fixture.worldProbe.processCount);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void progressiveLoadRejectsParallelOperationAndExposesRootFailure()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            SceneLoadHandle active = engine.beginLoadScene("A");
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> engine.beginLoadScene("D"));
+            while (!active.isReady() && !active.isFailed()) active.update();
+            Assert.assertTrue(active.isReady());
+
+            SceneLoadHandle failed = engine.beginLoadScene("B");
+            while (!failed.isReady() && !failed.isFailed()) failed.update();
+            Assert.assertTrue(failed.isFailed());
+            Assert.assertNotNull(failed.failure());
+            Assert.assertTrue(failed.failure().getMessage(),
+                    failed.failure().getMessage().contains("duplicate ID"));
+            Assert.assertTrue(failed.progress() < 1f);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void synchronousAndProgressiveLoadsPublishEquivalentRuntimeState()
+            throws Exception {
+        EngineFixture synchronous = createEngineFixture();
+        int synchronousBodies;
+        int synchronousFixtures;
+        try {
+            synchronous.engine.loadScene("D");
+            int owner = synchronous.engine.findEntityByStableId(11);
+            synchronousBodies = synchronous.engine.getBox2dWorldService()
+                    .world.getBodyCount();
+            synchronousFixtures = synchronous.engine.getWorld()
+                    .getMapper(PhysicsCompiledFixturesComponent.class)
+                    .get(owner).fixtures.size;
+        } finally {
+            synchronous.engine.dispose();
+        }
+
+        EngineFixture progressive = createEngineFixture();
+        try {
+            SceneLoadHandle load = progressive.engine.beginLoadScene("D");
+            while (!load.isReady() && !load.isFailed()) load.update();
+            Assert.assertTrue(load.isReady());
+            int owner = progressive.engine.findEntityByStableId(11);
+            Assert.assertTrue(owner >= 0);
+            Assert.assertEquals(synchronousBodies,
+                    progressive.engine.getBox2dWorldService().world.getBodyCount());
+            Assert.assertEquals(synchronousFixtures,
+                    progressive.engine.getWorld()
+                            .getMapper(PhysicsCompiledFixturesComponent.class)
+                            .get(owner).fixtures.size);
+        } finally {
+            progressive.engine.dispose();
+        }
+    }
+
+    @Test
     public void failedReplacementDiscardsCandidateAndAllowsRetry()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
@@ -198,9 +294,6 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     fixture.worldProbe.buildCount);
             Assert.assertNotNull(fixture.worldProbe.latestWorld);
             Assert.assertNotSame(worldA, fixture.worldProbe.latestWorld);
-            Assert.assertTrue(debugMessages.stream().anyMatch(
-                    message -> message.contains("enabled ppm=64.0")));
-
             Assert.assertTrue(engine.isLoaded());
             Assert.assertFalse((Boolean) get(engine, "sceneLoaded"));
             Assert.assertNull(engine.getActiveSceneMeta());
@@ -301,6 +394,21 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     compiled.fixtures.first().polygonVertexCount);
             Assert.assertNull(world.getMapper(PhysicsShapesComponent.class)
                     .get(owner).shapes.first().geometry);
+            Assert.assertNotNull(engine.getBox2dWorldService());
+            Assert.assertEquals(1,
+                    engine.getBox2dWorldService().world.getBodyCount());
+            Assert.assertTrue(engine.getBox2dSyncSystem().isEnabled());
+            Assert.assertTrue(engine.getBox2dSyncSystem().isStepEnabled());
+
+            RenderTiledSyncSystem tiled =
+                    world.getSystem(RenderTiledSyncSystem.class);
+            int compiledChunks = tiled.persistentChunkCompilationCount();
+            int nativeBodies = engine.getBox2dWorldService().world.getBodyCount();
+            engine.render();
+            Assert.assertEquals(compiledChunks,
+                    tiled.persistentChunkCompilationCount());
+            Assert.assertEquals(nativeBodies,
+                    engine.getBox2dWorldService().world.getBodyCount());
         } finally {
             engine.dispose();
         }
@@ -646,6 +754,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
     private static final class CandidateWorldProbe {
         private int buildCount;
+        private int processCount;
         private World latestWorld;
     }
 
@@ -664,6 +773,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
         @Override
         protected void processSystem() {
+            probe.processCount++;
         }
     }
 

@@ -152,7 +152,8 @@ public class RenderParticleSyncSystemTest {
 
         ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
         ParticleEffectPool poolB = new ParticleEffectPool(new ParticleEffect(), 0, 4);
-        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
         pools.put("atlas-a|a.p", poolA);
         pools.put("atlas-b|b.p", poolB);
 
@@ -196,7 +197,8 @@ public class RenderParticleSyncSystemTest {
 
         ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
         ParticleEffectPool poolB = new ParticleEffectPool(new ParticleEffect(), 0, 4);
-        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
         pools.put("atlas-a|a.p", poolA);
         pools.put("atlas-b|b.p", poolB);
 
@@ -252,7 +254,8 @@ public class RenderParticleSyncSystemTest {
         setField(engine, "world", world);
 
         ParticleEffectPool poolA = new ParticleEffectPool(new ParticleEffect(), 0, 4);
-        ObjectMap<String, ParticleEffectPool> pools = field(system, "effectPools");
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
         pools.put("atlas-a|a.p", poolA);
 
         int entity = world.create();

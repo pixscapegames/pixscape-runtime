@@ -32,8 +32,14 @@ import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.DirtyFlushSystem;
+import games.pixscape.runtime.system.LayerStateBuildSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.RenderSpriteSyncSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+import games.pixscape.runtime.system.RenderTiledSyncSystem;
+import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -55,6 +61,7 @@ public final class PixscapeEngine {
     private FileAvailabilityService fileAvailability;
     private SceneAvailabilityPlan activeSceneAvailability;
     private SceneAvailabilityPlan pendingSceneAvailability;
+    private SceneLoadHandleImpl activeSceneLoad;
     private boolean assetManagerConfigurationLocked;
     private final AssetManagerFactory assetManagerFactory;
 
@@ -337,28 +344,44 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Loads a scene and rebuilds world state for that scene.
+     * Loads a scene through the complete FILES, SCENE and RUNTIME readiness pipeline.
      *
-     * <p>If scene replacement fails after rebuilding begins, the engine discards
-     * the candidate scene and remains project-loaded with no active scene. The
-     * previous scene is not restored; callers may invoke {@code loadScene} again.</p>
+     * <p>This is a blocking convenience where the platform can block. HTML cannot
+     * synchronously wait for outstanding lazy network downloads; use
+     * {@link #beginLoadScene(String)} there. On return, the scene is active and all
+     * known heavyweight Runtime preparation is complete.</p>
      */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
-        String resolved = resolveSceneName(sceneName);
-        try {
-            internalBeginSceneLoad(resolved);
-            pendingSceneAvailability.finishOnNative();
-            return internalCompleteSceneLoad();
-        } catch (RuntimeException failure) {
-            releasePendingSceneAvailability();
-            throw failure;
+        SceneLoadHandleImpl handle = (SceneLoadHandleImpl) beginLoadScene(sceneName);
+        handle.update();
+        if (isWebGlApplication() && handle.phase() == SceneLoadPhase.FILES
+                && !handle.isFailed()) {
+            IllegalStateException failure = new IllegalStateException(
+                    "HTML cannot synchronously wait for outstanding scene downloads. "
+                            + "Use beginLoadScene(...) and call SceneLoadHandle.update() "
+                            + "from the render loop.");
+            handle.fail(failure);
         }
+        while (!handle.isReady() && !handle.isFailed()) handle.update();
+        if (handle.isFailed()) throwSceneLoadFailure(handle.failure());
+        return this;
     }
 
-    /** Unsupported HTML bridge: begins exact Runtime-owned scene availability. */
-    public PixscapeEngine internalBeginSceneLoad(String sceneName) {
+    /**
+     * Starts a complete progressive scene load.
+     *
+     * <p>The operation includes exact file availability, scene construction and
+     * Runtime availability. Call {@link SceneLoadHandle#update()} from the normal
+     * application loop. Pixscape does not render a loading screen. This is the normal
+     * HTML path when scene resources require deferred network downloads.</p>
+     */
+    public SceneLoadHandle beginLoadScene(String sceneName) {
         if (!loaded) throw new IllegalStateException("loadProject() must be called before scene loading.");
+        if (activeSceneLoad != null
+                && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) {
+            throw new IllegalStateException("Another scene load is already active.");
+        }
         String resolved = resolveSceneName(sceneName);
         if (cfg.getSceneMeta(resolved) == null) {
             throw new IllegalArgumentException("Unknown scene: " + resolved);
@@ -366,55 +389,8 @@ public final class PixscapeEngine {
         releasePendingSceneAvailability();
         pendingSceneAvailability = new SceneAvailabilityPlan(
                 fileAvailability, cfg, runtimeProjectDir, resolved);
-        return this;
-    }
-
-    /** Unsupported HTML bridge: advances the shared queue once. */
-    public boolean internalUpdateSceneAvailability() {
-        if (pendingSceneAvailability == null) {
-            throw new IllegalStateException("No scene availability operation is pending.");
-        }
-        try {
-            return pendingSceneAvailability.update();
-        } catch (RuntimeException failure) {
-            releasePendingSceneAvailability();
-            throw failure;
-        }
-    }
-
-    /** Unsupported HTML bridge: returns deterministic Pixscape-scoped item progress. */
-    public float internalSceneAvailabilityProgress() {
-        return pendingSceneAvailability != null ? pendingSceneAvailability.progress() : 1f;
-    }
-
-    /** Unsupported HTML bridge: constructs the scene from the completed availability plan. */
-    public PixscapeEngine internalCompleteSceneLoad() {
-        if (pendingSceneAvailability == null || !pendingSceneAvailability.isComplete()) {
-            throw new IllegalStateException("Scene file availability is not complete.");
-        }
-
-        SceneAvailabilityPlan candidate = pendingSceneAvailability;
-        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
-        sceneLoaded = false;
-        activeSceneMeta = null;
-        boolean constructionStarted = false;
-        try {
-            constructionStarted = true;
-            rebuildWorld(cfg, runtimeProjectDir, meta);
-            retireActiveSceneAvailability();
-            loadSceneInternal(candidate.sceneName(), candidate.atlas());
-            activeSceneAvailability = candidate;
-            pendingSceneAvailability = null;
-            activeSceneMeta = meta;
-            sceneLoaded = true;
-            return this;
-        } catch (RuntimeException failure) {
-            discardFailedSceneLoad();
-            if (atlasRuntimeService != null) atlasRuntimeService.unload(candidate.sceneTag());
-            releasePendingSceneAvailability();
-            if (constructionStarted) retireActiveSceneAvailability();
-            throw failure;
-        }
+        activeSceneLoad = new SceneLoadHandleImpl(pendingSceneAvailability);
+        return activeSceneLoad;
     }
 
     /**
@@ -602,6 +578,8 @@ public final class PixscapeEngine {
      */
     public void render() {
         if (world == null) return;
+        if (activeSceneLoad != null
+                && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
         processWorld();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
@@ -638,6 +616,7 @@ public final class PixscapeEngine {
         loaded = false;
         sceneLoaded = false;
         activeSceneMeta = null;
+        activeSceneLoad = null;
         assetManagerConfigurationLocked = false;
     }
 
@@ -1221,39 +1200,115 @@ public final class PixscapeEngine {
     // Scene loading
     // ---------------------------------------------------------------------
 
-    private void loadSceneInternal(String sceneName, TextureAtlas availableAtlas) {
-        if (world == null) return;
-        if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
-
-        String resolvedName = resolveSceneName(sceneName);
-        SceneMetaRuntime meta = cfg.getSceneMeta(resolvedName);
-        if (meta == null) throw new IllegalArgumentException("Unknown scene: " + resolvedName);
-
-        String sceneTag = RuntimeConfig.sceneDirName(meta);
-        if (sceneTag == null || isBlank(sceneTag)) {
-            throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
+    private void constructScene(SceneAvailabilityPlan candidate) {
+        if (candidate == null || !candidate.isComplete()) {
+            throw new IllegalStateException("Scene file availability is not complete.");
         }
-        applyPhysicsFromScene(meta, false);
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        sceneLoaded = false;
+        activeSceneMeta = null;
+        rebuildWorld(cfg, runtimeProjectDir, meta);
+        retireActiveSceneAvailability();
 
-        FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
-
+        FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir)
+                .child(RuntimeFs.withExt(candidate.sceneTag(), RuntimeFs.EXT_JSON));
         SceneLoader.loadScene(world, sceneFile, false, meta);
-        processWorld();
+        SceneLoadingInvocationStrategy invocation =
+                (SceneLoadingInvocationStrategy) world.getInvocationStrategy();
+        invocation.synchronizeEntitySubscriptions();
+    }
 
-        rebuildRuntimeRegistries();
-        rebuildTiledLayersRuntime(meta);
+    private void prepareSceneRuntime(
+            SceneAvailabilityPlan candidate, int step) {
+        if (world == null) throw new IllegalStateException("Candidate World is unavailable.");
+        if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        if (meta == null) throw new IllegalArgumentException(
+                "Unknown scene: " + candidate.sceneName());
+
+        switch (step) {
+            case 0:
+                rebuildRuntimeRegistries();
+                rebuildTiledLayersRuntime(meta);
+                RuntimeSceneAtlasLoader.loadSceneAtlas(
+                        cfg,
+                        candidate.sceneName(),
+                        runtimeProjectDir,
+                        atlasRuntimeService,
+                        candidate.atlas());
+                rebindAtlas(candidate.sceneTag());
+                forceFullDirtyAfterLoad();
+                return;
+            case 1:
+                requireSystem(RenderParticleSyncSystem.class)
+                        .prepareRuntimeAvailability(
+                                candidate.sceneTag(), meta.runtimeParticleEffectPaths);
+                return;
+            case 2:
+                requireSystem(RenderTiledSyncSystem.class)
+                        .prepareRuntimeAvailability();
+                return;
+            case 3:
+                preparePhysicsRuntime(meta);
+                return;
+            case 4:
+                preparePersistentRenderAndRegistries();
+                return;
+            default:
+                throw new IllegalArgumentException("Unknown Runtime availability step: " + step);
+        }
+    }
+
+    private void preparePhysicsRuntime(SceneMetaRuntime meta) {
         PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
-        applyPhysicsFromScene(meta, true);
+        applyPhysicsFromScene(meta, false);
+        PhysicsSpatialFootprintSyncSystem footprints =
+                requireSystem(PhysicsSpatialFootprintSyncSystem.class);
+        footprints.prepareRuntimeAvailability();
+        if (meta.physicsEnabled) {
+            box2dSyncSystem.prepareRuntimeAvailability();
+        }
+    }
 
-        RuntimeSceneAtlasLoader.loadSceneAtlas(
-                cfg,
-                resolvedName,
-                runtimeProjectDir,
-                atlasRuntimeService,
-                availableAtlas
-        );
-        rebindAtlas(sceneTag);
-        forceFullDirtyAfterLoad();
+    private void preparePersistentRenderAndRegistries() {
+        requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
+        requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
+        requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
+        rebuildRuntimeRegistries();
+        requireSystem(DirtyFlushSystem.class).finishRuntimeAvailability();
+    }
+
+    private void publishReadyScene(SceneAvailabilityPlan candidate) {
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        if (meta.physicsEnabled) {
+            box2dSyncSystem.setStepEnabled(true);
+        }
+        activeSceneAvailability = candidate;
+        pendingSceneAvailability = null;
+        activeSceneMeta = meta;
+        cfg.currentSceneName = candidate.sceneName();
+        sceneLoaded = true;
+    }
+
+    private void failSceneLoad(
+            SceneAvailabilityPlan candidate, boolean constructionStarted) {
+        if (constructionStarted) {
+            discardFailedSceneLoad();
+            if (atlasRuntimeService != null && candidate != null) {
+                atlasRuntimeService.unload(candidate.sceneTag());
+            }
+            retireActiveSceneAvailability();
+        }
+        releasePendingSceneAvailability();
+    }
+
+    private <T extends BaseSystem> T requireSystem(Class<T> type) {
+        T system = world != null ? world.getSystem(type) : null;
+        if (system == null) {
+            throw new IllegalStateException(
+                    "Required Runtime availability system is missing: " + type.getName());
+        }
+        return system;
     }
 
     private void ensureFileAvailability() {
@@ -1639,6 +1694,115 @@ public final class PixscapeEngine {
         }
 
         return true;
+    }
+
+    private static boolean isWebGlApplication() {
+        return Gdx.app != null
+                && Gdx.app.getType() == Application.ApplicationType.WebGL;
+    }
+
+    private static void throwSceneLoadFailure(Throwable failure) {
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        if (failure instanceof Error) {
+            throw (Error) failure;
+        }
+        throw new RuntimeException("Scene loading failed.", failure);
+    }
+
+    private final class SceneLoadHandleImpl implements SceneLoadHandle {
+        private static final int RUNTIME_STEP_COUNT = 5;
+        private final SceneAvailabilityPlan candidate;
+        private SceneLoadPhase phase = SceneLoadPhase.FILES;
+        private float progress;
+        private int runtimeStep;
+        private Throwable failure;
+        private boolean constructionStarted;
+
+        private SceneLoadHandleImpl(SceneAvailabilityPlan candidate) {
+            this.candidate = candidate;
+        }
+
+        @Override
+        public void update() {
+            if (isReady() || isFailed()) return;
+            try {
+                switch (phase) {
+                    case FILES:
+                        boolean available = candidate.update();
+                        setProgress(0.60f * candidate.progress());
+                        if (available) {
+                            phase = SceneLoadPhase.SCENE;
+                            setProgress(0.60f);
+                        }
+                        return;
+                    case SCENE:
+                        constructionStarted = true;
+                        constructScene(candidate);
+                        phase = SceneLoadPhase.RUNTIME;
+                        setProgress(0.70f);
+                        return;
+                    case RUNTIME:
+                        prepareSceneRuntime(candidate, runtimeStep);
+                        runtimeStep++;
+                        setProgress(0.70f + 0.29f
+                                * ((float) runtimeStep / (float) RUNTIME_STEP_COUNT));
+                        if (runtimeStep == RUNTIME_STEP_COUNT) {
+                            publishReadyScene(candidate);
+                            phase = SceneLoadPhase.READY;
+                            progress = 1f;
+                        }
+                        return;
+                    case READY:
+                        return;
+                    default:
+                        throw new IllegalStateException("Unknown scene load phase: " + phase);
+                }
+            } catch (RuntimeException loadFailure) {
+                fail(loadFailure);
+            }
+        }
+
+        private void fail(Throwable loadFailure) {
+            if (failure != null || phase == SceneLoadPhase.READY) return;
+            failure = loadFailure != null
+                    ? loadFailure : new IllegalStateException("Scene loading failed.");
+            try {
+                failSceneLoad(candidate, constructionStarted);
+            } catch (RuntimeException ignoredCleanupFailure) {
+                // Preserve the original failure exposed by the public handle.
+            }
+        }
+
+        private void setProgress(float value) {
+            if (value > progress) progress = Math.min(value, 0.99f);
+        }
+
+        @Override
+        public float progress() {
+            return progress;
+        }
+
+        @Override
+        public SceneLoadPhase phase() {
+            return phase;
+        }
+
+        @Override
+        public boolean isReady() {
+            return phase == SceneLoadPhase.READY && failure == null;
+        }
+
+        @Override
+        public boolean isFailed() {
+            return failure != null;
+        }
+
+        @Override
+        public Throwable failure() {
+            return failure;
+        }
     }
 
     public boolean isLoaded() {
