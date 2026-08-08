@@ -182,6 +182,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;
         try {
+            Assert.assertEquals(0, fixture.worldProbe.buildCount);
+
             SceneLoadHandle load = engine.beginLoadScene("A");
             float previousProgress = 0f;
             int previousPhase = SceneLoadPhase.FILES.ordinal();
@@ -200,6 +202,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertEquals(1f, load.progress(), 0f);
             Assert.assertSame(fixture.sceneA, engine.getActiveSceneMeta());
             Assert.assertTrue(engine.findEntityByStableId(7) >= 0);
+            Assert.assertEquals(1, fixture.worldProbe.buildCount);
             Assert.assertEquals(0, fixture.worldProbe.processCount);
 
             engine.render();

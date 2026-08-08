@@ -8,8 +8,6 @@ import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.Texture.TextureWrap;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
-import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
-import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
@@ -209,7 +207,7 @@ public class AtlasRuntimeService {
     }
 
     /**
-     * Builds a {@link TextureArrayBundle} from atlas page textures using libGDX texture-array data.
+     * Builds a {@link TextureArrayBundle} from atlas page textures.
      *
      * @param textures atlas page textures in stable order
      * @return texture-array bundle with a {@code textureHandle -> layer} mapping
@@ -229,74 +227,43 @@ public class AtlasRuntimeService {
             }
         }
 
-        // 1) Copy each source texture to a pixmap (atlas size is fixed).
         Array<Pixmap> srcs = new Array<>(sources.size);
-        for (int i = 0; i < sources.size; i++) {
-            Texture t = sources.get(i);
-            Pixmap pm = obtainPixmapCopy(t);
-            validateAtlasPageSize(pm, t);
-            srcs.add(pm);
+        Array<Pixmap> uploadLayers = new Array<>(1 + sources.size);
+        TextureArray textureArray = null;
+        boolean completed = false;
+        boolean uploadOwnershipTransferred = false;
+        try {
+            // Copy each source texture before normalizing it to the fixed atlas size.
+            for (int i = 0; i < sources.size; i++) {
+                Texture texture = sources.get(i);
+                Pixmap pixmap = obtainPixmapCopy(texture);
+                srcs.add(pixmap);
+                validateAtlasPageSize(pixmap, texture);
+            }
+
+            // Layer 0 is the fixed-size internal white texture.
+            Pixmap white = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
+            uploadLayers.add(white);
+            white.setBlending(Pixmap.Blending.None);
+            white.setColor(1f, 1f, 1f, 1f);
+            white.fill();
+
+            for (int i = 0; i < srcs.size; i++) {
+                uploadLayers.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
+            }
+
+            uploadOwnershipTransferred = true;
+            textureArray = OneShotPixmapTextureArrayData.upload(uploadLayers, true);
+
+            IntIntMap handle2layer = buildHandleToLayer(sources);
+
+            completed = true;
+            return new TextureArrayBundle(textureArray, handle2layer);
+        } finally {
+            disposePixmaps(srcs);
+            if (!uploadOwnershipTransferred) disposePixmaps(uploadLayers);
+            if (!completed && textureArray != null) textureArray.dispose();
         }
-
-        // 2) White pixmap (layer 0) in fixed atlas size (required by TextureArray)
-        Pixmap whitePm = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
-        whitePm.setBlending(Pixmap.Blending.None);
-        whitePm.setColor(1f, 1f, 1f, 1f);
-        whitePm.fill();
-
-        // 3) Normalize all pages to the fixed atlas size.
-        Array<Pixmap> normalized = new Array<>(srcs.size);
-        for (int i = 0; i < srcs.size; i++) {
-            normalized.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
-        }
-
-        // 4) TextureData[]: index 0 = white (WxH), then normalized pages (WxH).
-        TextureData[] data = new TextureData[1 + normalized.size];
-
-        data[0] = new PixmapTextureData(
-                whitePm,
-                Format.RGBA8888,
-                false,
-                true // dispose whitePm
-        );
-
-        for (int i = 0; i < normalized.size; i++) {
-            data[i + 1] = new PixmapTextureData(
-                    normalized.get(i),
-                    Format.RGBA8888,
-                    false,
-                    true // dispose normalized[i]
-            );
-        }
-
-        // 5) Build TextureArray
-        TextureArrayData tad = new FileTextureArrayData(Format.RGBA8888, false, data);
-        TextureArray ta = new TextureArray(tad);
-        ta.setFilter(TextureFilter.Linear, TextureFilter.Linear);
-        ta.setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
-
-        // 6) Build map: handle -> layer.
-        IntIntMap handle2layer = new IntIntMap();
-
-        int whiteHandle = InternalTextures.whiteHandle();
-        handle2layer.put(whiteHandle, 0);
-
-        // Layers 1..N map to sources[i].
-        for (int i = 0; i < sources.size; i++) {
-            Texture page = sources.get(i);
-            int handle = TextureRegistry.handleOf(page);
-
-            int layer = i + 1;
-            handle2layer.put(handle, layer);
-        }
-
-        // 7) Dispose temporary source pixmaps (copies).
-        for (int i = 0; i < srcs.size; i++) {
-            srcs.get(i).dispose();
-        }
-        // normalized pixmaps and whitePm are disposed by PixmapTextureData.
-
-        return new TextureArrayBundle(ta, handle2layer);
     }
 
 
@@ -364,21 +331,47 @@ public class AtlasRuntimeService {
         if (!td.isPrepared()) td.prepare();
 
         Pixmap src = td.consumePixmap();
-        Pixmap copy = new Pixmap(src.getWidth(), src.getHeight(), src.getFormat());
-        copy.setBlending(Pixmap.Blending.None);
-        copy.drawPixmap(src, 0, 0);
+        Pixmap copy = null;
+        boolean completed = false;
+        try {
+            copy = new Pixmap(src.getWidth(), src.getHeight(), src.getFormat());
+            copy.setBlending(Pixmap.Blending.None);
+            copy.drawPixmap(src, 0, 0);
+            completed = true;
+            return copy;
+        } finally {
+            if (td.disposePixmap()) src.dispose();
+            if (!completed && copy != null) copy.dispose();
+        }
+    }
 
-        if (td.disposePixmap()) src.dispose();
-        return copy;
+    static IntIntMap buildHandleToLayer(Array<Texture> sources) {
+        IntIntMap handle2layer = new IntIntMap();
+        handle2layer.put(InternalTextures.whiteHandle(), 0);
+        for (int i = 0; i < sources.size; i++) {
+            handle2layer.put(TextureRegistry.handleOf(sources.get(i)), i + 1);
+        }
+        return handle2layer;
     }
 
     private static Pixmap normalizeTo(Pixmap pm, int W, int H) {
-        // Always create a new pixmap with size (W, H).
         Pixmap out = new Pixmap(W, H, Format.RGBA8888);
-        out.setBlending(Pixmap.Blending.None);
-        out.drawPixmap(pm, 0, 0);
-        // Do not dispose here: disposal is centralized later.
-        return out;
+        boolean completed = false;
+        try {
+            out.setBlending(Pixmap.Blending.None);
+            out.drawPixmap(pm, 0, 0);
+            completed = true;
+            return out;
+        } finally {
+            if (!completed) out.dispose();
+        }
+    }
+
+    private static void disposePixmaps(Array<Pixmap> pixmaps) {
+        for (int i = 0; i < pixmaps.size; i++) {
+            Pixmap pixmap = pixmaps.get(i);
+            if (pixmap != null) pixmap.dispose();
+        }
     }
 
     private static void validateAtlasPageSize(Pixmap pm, Texture sourceTexture) {

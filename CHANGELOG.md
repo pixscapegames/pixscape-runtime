@@ -40,6 +40,9 @@
 * Runtime scene-layer metadata now consistently distinguishes authored layer entities from rendered actors carrying layer-placement components.
 * Runtime z-index mutations now enforce the render pipeline's supported range of `-32768` through `32767`.
 * Scene loading now follows one availability, construction and runtime-readiness pipeline across synchronous and progressive entry points.
+* Project bootstrap no longer instantiates application custom systems before the first scene World is constructed.
+* `PhysicsMouseDragSystem` can now use `PhysicsAPI` directly for lifecycle, parallax and pixel-to-meter conversion.
+* Sprite and animation facades now recognize authored scene actors without requiring a layer-only `LayerComponent`.
 * Runtime-ready completion now waits for heavy scene state, including particles, physics, Tiled maps, Spatial data and render preparation.
 * Runtime references now preserve entity incarnation identity and report stale access consistently after removal or world replacement.
 
@@ -52,6 +55,7 @@
 * Centralized texture handle, UV and pixel-size resolution around shared atlas metadata.
 * Scene and prefab state is now fully validated before it becomes visible through Runtime facades.
 * Atlas publication now reuses pages already loaded by the configured `AssetManager` instead of loading duplicate textures.
+* Released temporary texture-array CPU image backing after GPU upload, avoiding retained GWT Pixmap/canvas memory.
 
 ### Fixed
 

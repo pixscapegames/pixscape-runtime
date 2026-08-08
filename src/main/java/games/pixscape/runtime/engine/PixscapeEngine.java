@@ -158,7 +158,10 @@ public final class PixscapeEngine {
      * call to either method run after render submission and {@link games.pixscape.runtime.system.DirtyFlushSystem},
      * but before the synchronous {@link World#process()} call returns.</p>
      *
-     * @param customizer builder callback invoked while each candidate World is configured,
+     * <p>The callback must add fresh system instances on every invocation. Artemis systems
+     * belong to exactly one World and cannot be reused after that World is disposed.</p>
+     *
+     * @param customizer builder callback invoked while each application World is configured,
      *                   or {@code null} to clear the post-render callback
      * @return this engine
      */
@@ -189,7 +192,9 @@ public final class PixscapeEngine {
      * <p>The callback is invoked while each candidate Artemis World is being configured.
      * That candidate is not yet published by {@link #getWorld()}, which may still return the
      * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
-     * argument to register systems. Setting it does not insert systems into an already-built
+     * argument to register fresh system instances. The project bootstrap World created by
+     * {@link #loadProject(FileHandle)} does not invoke application customizers. Setting this
+     * callback does not insert systems into an already-built
      * World; it applies on the next
      * runtime/scene World build.
      * Added systems execute synchronously on the thread calling {@link #render()}, normally
@@ -216,7 +221,9 @@ public final class PixscapeEngine {
      * <p>The callback is invoked while each candidate Artemis World is being configured.
      * That candidate is not yet published by {@link #getWorld()}, which may still return the
      * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
-     * argument to register systems. This method and
+     * argument to register fresh system instances. Artemis systems belong to exactly one
+     * World and cannot be reused after disposal. The project bootstrap World created by
+     * {@link #loadProject(FileHandle)} does not invoke application customizers. This method and
      * {@link #setConfigurationCustomizer(Consumer)} configure the same
      * post-render callback slot, so the most recent call replaces the previous callback.
      * Setting it does not insert systems into an already-built World; it applies on the next
@@ -336,7 +343,7 @@ public final class PixscapeEngine {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
-        initRuntime(cfg, runtimeProjectDir);
+        initRuntime(cfg, runtimeProjectDir, false);
 
         loaded = true;
 
@@ -898,6 +905,10 @@ public final class PixscapeEngine {
         if (renderSubmitSystemSupplier != null) {
             return renderSubmitSystemSupplier;
         }
+        return createDefaultRenderSubmitSystemSupplier();
+    }
+
+    private Supplier<BaseSystem> createDefaultRenderSubmitSystemSupplier() {
         return () -> new RenderSubmitSystem(
                 layerState,
                 frameQueue,
@@ -994,7 +1005,8 @@ public final class PixscapeEngine {
     /**
      * Fully initializes runtime resources and creates an empty world.
      */
-    private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
+    private void initRuntime(
+            RuntimeConfig config, FileHandle projectDir, boolean includeApplicationSystems) {
         applyConfiguredLogLevel();
         disposeWorldAndRuntime();
 
@@ -1028,7 +1040,13 @@ public final class PixscapeEngine {
         applyAmbientFromMeta(meta);
 
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
-        FileHandle effectsRoot = resolveEffectsRoot(projectDir, config);
+        Supplier<BaseSystem> submitSupplier = includeApplicationSystems
+                ? createRenderSubmitSystemSupplier()
+                : createDefaultRenderSubmitSystemSupplier();
+        Consumer<WorldConfigurationBuilder> preRenderCustomizer = includeApplicationSystems
+                ? preRenderSystemCustomizer : null;
+        Consumer<WorldConfigurationBuilder> postRenderCustomizer = includeApplicationSystems
+                ? postRenderSystemCustomizer : null;
 
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
@@ -1043,14 +1061,14 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
-                        createRenderSubmitSystemSupplier(),
+                        submitSupplier,
                         null,
                         0,
                         animatedTileRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        preRenderSystemCustomizer,
-                        postRenderSystemCustomizer
+                        preRenderCustomizer,
+                        postRenderCustomizer
                 );
 
         world = result.getWorld();
@@ -1146,7 +1164,7 @@ public final class PixscapeEngine {
         if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
                 || tiledState == null
                 || metricsBatch == null || stats == null || statsSink == null) {
-            initRuntime(config, projectDir);
+            initRuntime(config, projectDir, true);
             return;
         }
 
