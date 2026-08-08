@@ -4,6 +4,13 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.physics.PhysicsShapeIdState;
 
+/**
+ * {@code SUPPORTED_EXPERT} mutable exported-scene metadata schema.
+ *
+ * <p>Instances exposed by the engine are borrowed. Configure them before scene construction;
+ * changing fields does not retroactively reconfigure an active World. The next-id fields are
+ * persistence high-water marks and must not be reduced while allocating authored identities.</p>
+ */
 public class SceneMetaRuntime implements PhysicsShapeIdState {
 
     public static final int CURRENT_SCENE_SCHEMA_VERSION = 2;

@@ -1,5 +1,12 @@
 package games.pixscape.runtime.render.batch.performance;
 
+/**
+ * {@code SUPPORTED_EXPERT} mutable rendering diagnostics for the current frame.
+ *
+ * <p>When obtained from the engine, this object is borrowed, engine-owned, and reset during
+ * draw-list construction each frame. It is not thread-safe or persistent scene state and may be
+ * replaced during Runtime reinitialization.</p>
+ */
 public final class RenderStats {
     public static final int ECS_SKIP_NONE = 0;
     public static final int ECS_SKIP_DISABLED = 1;
@@ -45,7 +52,7 @@ public final class RenderStats {
     public long regionResolveCacheHits;
     public long regionResolveCacheMisses;
 
-    // Organisation
+    // Organization
     public int batchesOpaque;
     public int batchesAlpha;
     public int buildDrawListScannedEcsSlots;

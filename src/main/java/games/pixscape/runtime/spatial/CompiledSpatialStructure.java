@@ -1,6 +1,13 @@
 package games.pixscape.runtime.spatial;
 
-/** Immutable primitive-array geometry compiled from one authored Spatial V3 structure. */
+/**
+ * {@code SUPPORTED_EXPERT} immutable-by-contract primitive-array geometry compiled from one
+ * authored Spatial V3 structure.
+ *
+ * <p>Instances are caller-owned compiler results. Indexed accessors do not allocate; returned
+ * nested face/diagnostic objects remain part of this result and must not be treated as live
+ * Runtime cache state.</p>
+ */
 public final class CompiledSpatialStructure {
     public static final byte MIN_X = 0;
     public static final byte MAX_X = 1;

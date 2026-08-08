@@ -23,6 +23,13 @@ import com.badlogic.gdx.utils.Pool;
  * Derived from libGDX ParticleEffectPool and modified by Pixscape only for
  * package relocation and use with Pixscape's ParticleEffect fork.
  */
+/**
+ * {@code SUPPORTED_EXPERT} pool for copies of one {@link ParticleEffect} template.
+ *
+ * <p>Each obtained effect belongs to this pool until returned exactly once through
+ * {@link PooledEffect#free()}. Returning it resets emitter state and restores template scaling;
+ * callers must not retain or use the effect after freeing it.</p>
+ */
 public class ParticleEffectPool extends Pool<ParticleEffectPool.PooledEffect> {
     private final ParticleEffect effect;
 

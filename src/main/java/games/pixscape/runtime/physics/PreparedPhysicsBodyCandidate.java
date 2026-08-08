@@ -3,7 +3,9 @@ package games.pixscape.runtime.physics;
 import com.badlogic.gdx.utils.Array;
 
 /**
- * Detached authored sources and compiled cache ready for one atomic publication.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. This single-use transfer object holds detached authored sources
+ * and a compiled cache for failure-atomic publication.
  */
 public final class PreparedPhysicsBodyCandidate {
     private Array<PhysicsShapeData> shapes;

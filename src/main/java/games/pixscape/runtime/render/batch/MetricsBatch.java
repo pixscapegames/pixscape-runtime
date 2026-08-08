@@ -6,7 +6,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
- * Data-oriented Pixscape submission batch; this is not a LibGDX immediate-mode
+ * {@code SUPPORTED_EXPERT} data-oriented Pixscape submission batch; this is not a LibGDX immediate-mode
  * {@code Batch} API.
  *
  * <p>When obtained from {@link games.pixscape.runtime.engine.PixscapeEngine#getMetricsBatch()},

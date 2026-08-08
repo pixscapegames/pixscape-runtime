@@ -31,6 +31,18 @@ import java.io.*;
  * the Runtime particle package, uses Pixscape's emitter fork, and avoids
  * iterator allocation in Runtime-sensitive loops.
  */
+/**
+ * {@code SUPPORTED_EXPERT} LibGDX-compatible 2D particle effect fork.
+ *
+ * <p>The familiar emitter lifecycle, standard {@code .p} parser/writer, atlas-prefix lookup,
+ * standalone {@link Batch} drawing, and scaling behavior are supported. Pixscape Runtime uses
+ * the same model but updates effects and extracts emitter sprite state into its render pipeline.
+ * Prefer the high-level particle facades for ordinary gameplay.</p>
+ *
+ * <p>Atlas-based loads borrow atlas textures. Directory-based image loads create textures owned
+ * by this effect, which are released by {@link #dispose()}. Callers must not dispose borrowed
+ * Runtime/Studio effects or mutate an effect while its owning runtime pipeline is processing it.</p>
+ */
 public class ParticleEffect implements Disposable {
     private final Array<ParticleEmitter> emitters;
     private BoundingBox bounds;

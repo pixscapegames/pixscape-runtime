@@ -36,6 +36,11 @@ import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Applications obtain the supported facade through
+ * {@link PixscapeEngine#api()}.
+ */
 public final class PixscapeApiImpl implements PixscapeAPI {
 
     private static final class EntityReferenceTracker

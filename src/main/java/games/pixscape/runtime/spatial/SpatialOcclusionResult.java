@@ -1,5 +1,9 @@
 package games.pixscape.runtime.spatial;
 
+/**
+ * {@code SUPPORTED_EXPERT} caller-owned mutable result of one Spatial occlusion query.
+ * Reuse through query output parameters when allocation matters; this is not a live Runtime view.
+ */
 public final class SpatialOcclusionResult {
     public boolean occluded;
     public boolean partiallyOccluded;

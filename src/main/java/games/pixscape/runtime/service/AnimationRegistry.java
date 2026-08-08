@@ -5,6 +5,13 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.animation.AnimationDefData;
 
+/**
+ * {@code SUPPORTED_EXPERT} project-scoped index of validated animation definitions.
+ *
+ * <p>Name and asset-ID lookups are O(1) average and return registry-owned definitions. The engine
+ * may clear/rebuild this registry during project lifecycle changes; do not retain definitions
+ * across project reload/disposal. The registry is not thread-safe.</p>
+ */
 public final class AnimationRegistry {
 
     private final IntMap<AnimationDef> defsByAssetId = new IntMap<>();

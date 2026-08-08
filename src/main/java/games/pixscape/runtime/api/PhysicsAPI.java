@@ -5,7 +5,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 
 /**
- * Common Runtime physics queries and coordinate conversion, plus borrowed access to native
+ * {@code HIGH_LEVEL} Runtime physics queries and coordinate conversion, plus borrowed access to native
  * Box2D objects for operations that do not need a Pixscape-specific abstraction.
  *
  * <p>Native objects returned by this facade are owned by Pixscape and are tied to the active

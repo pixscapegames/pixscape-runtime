@@ -6,8 +6,9 @@ package games.pixscape.runtime.api;
  * <p>Operations affect an existing tiled capability only and never create a layer or map.</p>
  *
  * <p>This facade exposes tiled layer participation, default tile volume, and
- * per-cell volume overrides. Authored occluder blocks remain internal runtime
- * data and are not exposed here.</p>
+ * per-cell volume overrides. Authored occluder blocks are not exposed by this
+ * high-level facade; advanced authored/compiler access is a separate
+ * {@code SUPPORTED_EXPERT} contract.</p>
  *
  * <p>Authored altitude and height values must be finite. Negative finite heights are clamped
  * to zero.</p>

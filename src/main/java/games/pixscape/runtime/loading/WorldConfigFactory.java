@@ -19,6 +19,10 @@ import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. It assembles the engine's ordered Artemis system pipeline.
+ */
 public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;

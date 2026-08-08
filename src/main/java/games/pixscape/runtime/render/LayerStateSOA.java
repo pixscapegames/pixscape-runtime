@@ -3,11 +3,11 @@ package games.pixscape.runtime.render;
 import games.pixscape.runtime.component.LayerComponent;
 
 /**
- * SOA for layer state, indexed by layerIndex (0..capacity-1).
+ * {@code SUPPORTED_EXPERT} borrowed derived layer state indexed by layer index.
  * <p>
- * Convention parallax :
- * - parallaxX/Y == NaN  -> no parallax for this layer
- * - parallaxX/Y != NaN  -> parallax actif
+ * A {@code NaN} parallax value means that parallax is disabled for that axis. The engine owns and
+ * rebuilds this state; mutation is phase-sensitive, and callers must reacquire it after World
+ * replacement rather than retaining backing arrays.
  */
 public final class LayerStateSOA {
 
@@ -30,8 +30,7 @@ public final class LayerStateSOA {
     }
 
     /**
-     * Sets max capacity for layers.
-     * Call once at startup (or very rarely).
+     * Sets the layer capacity, replacing all backing arrays and clearing their contents.
      */
     public void setCapacity(int maxLayers) {
         if (maxLayers <= 0) {

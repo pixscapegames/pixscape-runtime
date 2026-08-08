@@ -5,6 +5,10 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import games.pixscape.runtime.service.TextureRegistry;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Methods create or dispose GL resources and are GL-thread only.
+ */
 public final class InternalTextures {
     private InternalTextures() {
     }

@@ -6,6 +6,11 @@ package games.pixscape.runtime.api;
  * <p>The handle is bound to the entity incarnation and Runtime World in which
  * it was resolved. If that entity is removed or the World is replaced, the
  * handle becomes inert and never retargets a recycled {@code entityId}.</p>
+ *
+ * <p>Facades obtained from this reference remain bound to the same captured entity. When stale,
+ * their queries return the safe absence/default values documented by each facade and mutations
+ * have no effect. {@link #entityId()} still reports the captured short-lived ID for diagnostics;
+ * {@link #stableId()} returns {@code -1} once stale.</p>
  */
 public interface EntityRef {
     /**
@@ -14,7 +19,7 @@ public interface EntityRef {
     int entityId();
 
     /**
-     * Preferred persistent/public entity identity.
+     * Returns the preferred persistent/public identity, or {@code -1} when stale.
      */
     int stableId();
 

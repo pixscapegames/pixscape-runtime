@@ -12,10 +12,12 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.PixscapeTagComponent;
 
 /**
- * Simple runtime index: tag -> entityIds.
+ * {@code SUPPORTED_EXPERT} World-scoped index from normalized tags to entity IDs.
  * <p>
  * Source of truth = {@link PixscapeTagComponent}.
- * This registry is only a cache / lookup index.
+ * This registry is only a cache / lookup index. It must be rebound after World replacement and
+ * is not thread-safe. Single lookups are O(1) average; collection-returning lookup methods return
+ * caller-owned snapshots, while output-parameter overloads reuse caller storage.
  */
 public final class TagRegistry {
 

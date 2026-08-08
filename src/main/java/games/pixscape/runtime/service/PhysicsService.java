@@ -21,13 +21,18 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /**
- * Centralizes Physics business logic (Editor/Runtime):
- * - Creates/removes bodies and logical shapes
- * - Creates/removes joints
- * - Marks dirty bits
- * - Helpers anchors (local meters) -> world WU(px)
- * <p>
- * The Box2D runtime objects (Body/Joint) are created/destroyed by Box2dSyncSystem.
+ * {@code SUPPORTED_EXPERT} authored-physics service shared by Runtime and Studio tooling.
+ *
+ * <p>Artemis physics components are authoritative. This service creates/removes authored bodies,
+ * shapes, and joints, allocates persistent shape IDs from the bound scene state, performs
+ * coordinate/geometry queries, and signals Runtime dirty state. Native Box2D bodies and joints
+ * remain derived objects created by {@link games.pixscape.runtime.system.Box2dSyncSystem}.</p>
+ *
+ * <p>Instances are bound to one Artemis World and are not thread-safe. Use them on the Runtime or
+ * Studio owning thread and reacquire/recreate them after World replacement. Methods whose names
+ * explicitly prepare or publish candidates are Runtime implementation boundaries used to validate
+ * complete fixture state before publication; their candidate layouts are {@code INTERNAL} and
+ * carry no compatibility promise.</p>
  */
 public final class PhysicsService {
     private static final PhysicsShapeResolver SHAPE_RESOLVER = new PhysicsShapeResolver();

@@ -7,8 +7,11 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
- * Exported runtime configuration (project.json on user project side).
- * Contains no studio-side fields.
+ * {@code SUPPORTED_EXPERT} mutable schema for an exported {@code project.json}.
+ *
+ * <p>The Runtime owns the instance returned by the engine. Treat it as configuration input:
+ * populate or modify it before loading/rebuilding a scene, not while a World is processing.
+ * It contains no Studio-only fields.</p>
  */
 public final class RuntimeConfig {
 

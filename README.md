@@ -145,6 +145,10 @@ Full documentation is available on the official website:
 
 📘 https://pixscape.games/docs
 
+Runtime Java APIs are divided into `HIGH_LEVEL`, `SUPPORTED_EXPERT`, and
+`INTERNAL` support levels. See [RUNTIME_API_SUPPORT_POLICY.md](RUNTIME_API_SUPPORT_POLICY.md)
+for compatibility, lifecycle, and ownership expectations.
+
 ## Download Pixscape Studio Free
 
 Pixscape Studio Free builds are available here:

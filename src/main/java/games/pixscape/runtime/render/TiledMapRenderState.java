@@ -1,9 +1,10 @@
 package games.pixscape.runtime.render;
 
 /**
- * Frame-local tiled render state.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API.
  * <p>
- * Owns stable logical tiled refs and draw-ready tiled quad data.
+ * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
 

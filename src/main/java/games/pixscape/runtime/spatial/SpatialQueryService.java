@@ -8,6 +8,18 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
+/**
+ * {@code SUPPORTED_EXPERT} geometry and relation queries over caller-supplied Spatial data.
+ *
+ * <p>The service does not own or publish authored/compiled Runtime state. Methods without an
+ * output parameter allocate a result; output-parameter overloads reuse the supplied result when
+ * non-null. Some shape-volume calculations use internal temporary objects and are not guaranteed
+ * allocation-free. This instance reuses scratch vertex storage and is not thread-safe.</p>
+ *
+ * <p>Null or out-of-range inputs return the documented empty/default relation rather than
+ * resolving Runtime entities implicitly. Use the high-level Spatial facades for ordinary
+ * gameplay participation and mutation.</p>
+ */
 public final class SpatialQueryService {
     private static final float FALLBACK_HALF_EXTENT = 0.5f;
 

@@ -49,6 +49,17 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 
+/**
+ * Primary {@code HIGH_LEVEL} Runtime lifecycle and gameplay entry point.
+ *
+ * <p>Pixscape supports one active engine per application/LibGDX graphics context. Disposing one
+ * engine and later creating another is supported; concurrent independent engines sharing the
+ * same graphics context are not. Lifecycle methods and built-in systems run synchronously on the
+ * calling thread, normally the LibGDX render thread, and the engine is not thread-safe.</p>
+ *
+ * <p>Scene and Runtime World rebuilds invalidate borrowed ECS, render, physics, atlas, and other
+ * derived objects. Reacquire those objects from this engine after a rebuild.</p>
+ */
 public final class PixscapeEngine {
 
     public static final String RUNTIME_DIR_NAME = RuntimeFs.DIR_RUNTIME_PROJECT;
@@ -357,6 +368,15 @@ public final class PixscapeEngine {
      * synchronously wait for outstanding lazy network downloads; use
      * {@link #beginLoadScene(String)} there. On return, the scene is active and all
      * known heavyweight Runtime preparation is complete.</p>
+     *
+     * <p>Loading uses the same pipeline as {@link #beginLoadScene(String)}. If failure occurs
+     * after scene construction starts, the failed candidate is discarded and no scene remains
+     * active; the previously active scene is not restored.</p>
+     *
+     * @param sceneName configured scene name; blank resolves through the current/default scene
+     * @return this engine after the requested scene is active and ready
+     * @throws IllegalArgumentException if the resolved scene is unknown
+     * @throws RuntimeException if file, scene, or Runtime preparation fails
      */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
@@ -382,6 +402,20 @@ public final class PixscapeEngine {
      * Runtime availability. Call {@link SceneLoadHandle#update()} from the normal
      * application loop. Pixscape does not render a loading screen. This is the normal
      * HTML path when scene resources require deferred network downloads.</p>
+     *
+     * <p>Only one non-terminal handle may exist at a time. The handle advances synchronously on
+     * the thread calling {@link SceneLoadHandle#update()}, normally the LibGDX render thread.
+     * Reaching {@link SceneLoadPhase#READY} means the requested scene has already been published
+     * as the active scene.</p>
+     *
+     * <p>Before the SCENE phase starts, a failure leaves any active scene untouched. Once scene
+     * construction starts, the old Runtime World is retired; a later failure discards the failed
+     * World and leaves the engine project-loaded with no active scene.</p>
+     *
+     * @param sceneName configured scene name; blank resolves through the current/default scene
+     * @return the new engine-owned load handle
+     * @throws IllegalStateException if the project is not loaded or another load is active
+     * @throws IllegalArgumentException if the resolved scene is unknown
      */
     public SceneLoadHandle beginLoadScene(String sceneName) {
         if (!loaded) throw new IllegalStateException("loadProject() must be called before scene loading.");
@@ -649,19 +683,31 @@ public final class PixscapeEngine {
         return this;
     }
 
+    /** Returns the borrowed expert physics service for the current World, or {@code null}. */
     public Box2dWorldService getBox2dWorldService() {
         return box2dWorldService;
     }
 
+    /** Returns the borrowed expert physics synchronization system for the current World. */
     public Box2dSyncSystem getBox2dSyncSystem() {
         return box2dSyncSystem;
     }
 
+    /**
+     * Returns a borrowed mapper from the current World.
+     *
+     * @throws IllegalStateException if no World is active
+     */
     public <T extends Component> ComponentMapper<T> mapper(Class<T> type) {
         if (world == null) throw new IllegalStateException("World is not initialized.");
         return world.getMapper(type);
     }
 
+    /**
+     * Returns a borrowed system from the current World.
+     *
+     * @throws IllegalStateException if no World is active
+     */
     public <T extends BaseSystem> T system(Class<T> type) {
         if (world == null) throw new IllegalStateException("World is not initialized.");
         return world.getSystem(type);
@@ -762,10 +808,12 @@ public final class PixscapeEngine {
     // Getters
     // ---------------------------------------------------------------------
 
+    /** Returns the borrowed expert project configuration owned by this engine. */
     public RuntimeConfig config() {
         return cfg;
     }
 
+    /** Returns borrowed metadata for the active scene, or {@code null} when none is active. */
     public SceneMetaRuntime getActiveSceneMeta() {
         return activeSceneMeta;
     }
@@ -778,6 +826,10 @@ public final class PixscapeEngine {
         return runtimeProjectDir;
     }
 
+    /**
+     * Returns the borrowed current Artemis World, or {@code null} when no scene is active.
+     * Callers must reacquire it after scene replacement and must not dispose or process it.
+     */
     public World getWorld() {
         return world;
     }
@@ -878,10 +930,12 @@ public final class PixscapeEngine {
         return stats;
     }
 
+    /** Returns the borrowed expert rolling render-statistics sink owned by this engine. */
     public RenderStatsSink getRenderStatsSink() {
         return statsSink;
     }
 
+    /** Returns the borrowed expert atlas service; published atlas contents are lifecycle-bound. */
     public AtlasRuntimeService getAtlasRuntimeService() {
         return atlasRuntimeService;
     }

@@ -6,7 +6,8 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 
 /**
- * Creates runtime rendering batches and selects the default texture-array shader.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Creates engine-owned batches and selects the default shader.
  */
 public final class BatchFactory {
 

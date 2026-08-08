@@ -23,6 +23,10 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Use {@code PixscapeAPI.prefabs()} for supported spawning.
+ */
 public class RuntimePrefabFragmentSpawner {
 
     private final IdentityRegistry identityRegistry;

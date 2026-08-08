@@ -15,6 +15,18 @@ import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 
 
+/**
+ * {@code SUPPORTED_EXPERT} scene-atlas publication, indexed lookup, and texture-array service.
+ *
+ * <p>Published atlas bindings are engine/scene derived state and all successful and failed asset
+ * lookups are indexed. Returned atlases, bindings, metadata, textures, and bundles are borrowed;
+ * do not dispose them and reacquire them after atlas publication or scene/Runtime rebuilds.</p>
+ *
+ * <p>{@link #load(String, FileHandle)} creates and owns its atlas. {@link #loadBorrowed(String,
+ * TextureAtlas)} retains caller ownership, so the caller must keep that atlas alive until unload.
+ * Loading, rebuilding, and disposal are GL/lifecycle operations and must run at an explicit safe
+ * point on the LibGDX GL thread, never from render submission or asset lookup.</p>
+ */
 public class AtlasRuntimeService {
 
     private static boolean isBlank(String s) {

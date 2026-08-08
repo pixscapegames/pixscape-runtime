@@ -6,6 +6,10 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API.
+ */
 public final class RuntimeSceneAtlasLoader {
 
     private RuntimeSceneAtlasLoader() {

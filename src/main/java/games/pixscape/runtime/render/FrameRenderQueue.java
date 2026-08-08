@@ -1,7 +1,7 @@
 package games.pixscape.runtime.render;
 
 /**
- * Engine-owned frame-local queue containing draw-ready render data.
+ * {@code SUPPORTED_EXPERT} engine-owned frame-local queue containing draw-ready render data.
  * <p>
  * This queue is intentionally a structure-of-arrays. It stores copied render
  * data for the current frame so submit code can render without reading

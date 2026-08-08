@@ -36,6 +36,15 @@ import java.util.Arrays;
  * and exposes borrowed particle/active storage for allocation-free SOA render
  * extraction.
  */
+/**
+ * {@code SUPPORTED_EXPERT} LibGDX-compatible emitter used by standalone effects and Pixscape
+ * Runtime/Studio extraction.
+ *
+ * <p>Numeric values, sprite paths, lifecycle, simulation, and {@code .p} serialization follow
+ * the upstream emitter model. The particle and active-slot arrays exposed for Pixscape extraction
+ * are mutable emitter-owned backing storage: do not replace them or retain them across capacity
+ * changes.</p>
+ */
 public class ParticleEmitter {
     static private final int UPDATE_SCALE = 1 << 0;
     static private final int UPDATE_ANGLE = 1 << 1;

@@ -4,7 +4,14 @@ import com.badlogic.gdx.utils.Array;
 
 import java.util.Arrays;
 
-/** Strict compiler for deterministic exposed faces of one authored Spatial V3 structure. */
+/**
+ * {@code SUPPORTED_EXPERT} strict compiler for deterministic exposed faces of one authored
+ * Spatial V3 structure.
+ *
+ * <p>Compilation validates the selected structure and returns a caller-owned immutable-by-contract
+ * result. It allocates and performs global structure work, so call it at authoring, loading, or
+ * explicit rebuild boundaries rather than from frame processing.</p>
+ */
 public final class SpatialStructureCompiler {
     private SpatialStructureCompiler() {
     }

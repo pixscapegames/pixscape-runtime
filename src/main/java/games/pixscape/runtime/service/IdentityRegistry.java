@@ -13,11 +13,15 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
- * World-scoped identity index and operational stable-ID allocator.
+ * {@code SUPPORTED_EXPERT} World-scoped identity index and stable-ID allocator.
  * <p>
  * {@link PixscapeIdentityComponent} stores assigned identities, while
  * {@link SceneMetaRuntime#nextEntityStableId} stores the persistent high-water mark.
  * This registry maintains the World indexes and allocates new IDs from that mark.
+ * It must be rebound after World replacement and is not thread-safe.
+ *
+ * <p>Single lookups are O(1) average after binding/rebuild. Collection-returning lookup methods
+ * return caller-owned snapshots; overloads accepting an output collection reuse caller storage.</p>
  */
 public final class IdentityRegistry {
 

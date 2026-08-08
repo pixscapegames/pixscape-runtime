@@ -1,11 +1,13 @@
 package games.pixscape.runtime.render;
 
 /**
- * Dense render state for dynamic ECS entities.
+ * {@code SUPPORTED_EXPERT} borrowed dense render state for dynamic ECS entities.
  * <p>
  * Render slots are compact: active slots are always {@code 0..activeCount - 1}.
  * Artemis entity ids are mapped through {@link #entityIdToRenderSlot}; high
  * entity ids only grow that lightweight mapping, not the render data arrays.
+ * This is derived engine-owned state, not authored ECS data. Mutation is phase-sensitive;
+ * reacquire it after World rebuilds and do not retain backing arrays across capacity changes.
  */
 public final class DynamicEntityRenderState {
     public static final int NO_SLOT = -1;

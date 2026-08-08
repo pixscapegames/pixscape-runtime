@@ -5,7 +5,8 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.physics.CompiledFixtureData;
 
 /**
- * Publishes already prepared physics-domain results into the passive ECS cache.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Publishes prepared physics results into the passive ECS cache.
  */
 public final class PhysicsCompiledFixtureCachePublisher {
     public int publish(
