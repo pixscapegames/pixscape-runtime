@@ -30,6 +30,7 @@
 
 ### Changed
 
+* Reduced Spatial query and frame-preparation overhead by avoiding full scene-layer and inactive slot-range scans.
 * Box2D bodies are now built from validated compiled fixtures instead of legacy fixture data.
 * Scene loading and prefab spawning now rebuild derived physics state from persistent authored shapes.
 * Runtime prefab spawning now allocates fresh physics shape identities and validates body and joint graphs before publication.

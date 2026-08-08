@@ -23,6 +23,7 @@ final class SceneLayerResolver {
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener listener;
     private final IntMap<IntArray> byLayerIndex = new IntMap<IntArray>();
+    private int lastSpatialLookupVisitCount;
 
     public void bind(World world) {
         if (this.world == world) return;
@@ -84,6 +85,52 @@ final class SceneLayerResolver {
                     + matches.size + " authored scene layers match).");
         }
         return matches.get(0);
+    }
+
+    boolean isLayerSpatialEnabled(int layerIndex) {
+        IntArray matches = byLayerIndex.get(layerIndex);
+        lastSpatialLookupVisitCount = 0;
+        if (matches == null) return false;
+        for (int i = 0, n = matches.size; i < n; i++) {
+            lastSpatialLookupVisitCount++;
+            LayerComponent layer = layers.getSafe(matches.get(i), null);
+            if (layer != null && layer.spatialEnabled) return true;
+        }
+        return false;
+    }
+
+    boolean isActorSpatialLayerEnabled(int layerIndex) {
+        IntArray matches = byLayerIndex.get(layerIndex);
+        lastSpatialLookupVisitCount = 0;
+        if (matches == null) return false;
+        for (int i = 0, n = matches.size; i < n; i++) {
+            lastSpatialLookupVisitCount++;
+            LayerComponent layer = layers.getSafe(matches.get(i), null);
+            if (layer != null
+                    && layer.type != LayerComponent.TYPE_TILED
+                    && layer.spatialEnabled) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void setLayerSpatialEnabled(int layerIndex, boolean enabled) {
+        IntArray matches = byLayerIndex.get(layerIndex);
+        if (matches == null) return;
+        for (int i = 0, n = matches.size; i < n; i++) {
+            LayerComponent layer = layers.getSafe(matches.get(i), null);
+            if (layer != null) layer.spatialEnabled = enabled;
+        }
+    }
+
+    int matchingLayerCount(int layerIndex) {
+        IntArray matches = byLayerIndex.get(layerIndex);
+        return matches != null ? matches.size : 0;
+    }
+
+    int lastSpatialLookupVisitCount() {
+        return lastSpatialLookupVisitCount;
     }
 
     private void index(int entityId) {

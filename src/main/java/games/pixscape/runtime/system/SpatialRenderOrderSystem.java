@@ -39,6 +39,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private EntitySubscription blockLayersSub;
 
     private boolean[] spatialLayers = new boolean[0];
+    private int[] activeSpatialLayerIndices = new int[0];
+    private int activeSpatialLayerCount;
 
     private int[] faceLayerEntities = new int[0];
     private int faceLayerCount;
@@ -51,6 +53,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private int[] slotToDrawIndex = new int[0];
     private int[] tiledRefToDrawIndex = new int[0];
+    private int[] mappedSlots = new int[0];
+    private int mappedSlotCount;
+    private int[] mappedTiledRefs = new int[0];
+    private int mappedTiledRefCount;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
@@ -174,16 +180,15 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
      * Returns whether the current derived render state makes {@code entityId}
      * eligible for Spatial actor ordering.
      */
-    public boolean participatesInRenderOrder(int entityId) {
+    public boolean participatesInRenderOrder(int entityId, boolean spatialLayerEnabled) {
         if (ecsState == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) {
             return false;
         }
-        rebuildSpatialLayers();
         int slot = ecsState.renderSlotForEntity(entityId);
-        return actorCollector.isEligibleActorSlot(
+        return actorCollector.isEligibleActorSlotOnSpatialLayer(
                 slot,
                 ecsState,
-                spatialLayers,
+                spatialLayerEnabled,
                 world.getEntityManager(),
                 mEntityIndex,
                 mTransform,
@@ -194,12 +199,17 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private void buildDrawIndexMaps() {
         int ecsRenderCapacity = ecsState.getRenderCapacity();
         ensureSlotToDrawIndexCapacity(ecsRenderCapacity);
-        Arrays.fill(slotToDrawIndex, 0, ecsRenderCapacity, -1);
+        for (int i = 0; i < mappedSlotCount; i++) {
+            slotToDrawIndex[mappedSlots[i]] = -1;
+        }
+        mappedSlotCount = 0;
         int tiledRefCapacity = tiledState != null ? tiledState.getCapacity() : 0;
         ensureTiledRefToDrawIndexCapacity(tiledRefCapacity);
-        if (tiledRefCapacity > 0) {
-            Arrays.fill(tiledRefToDrawIndex, 0, tiledRefCapacity, -1);
+        for (int i = 0; i < mappedTiledRefCount; i++) {
+            tiledRefToDrawIndex[mappedTiledRefs[i]] = -1;
         }
+        mappedTiledRefCount = 0;
+        ensureMappedEntryCapacity(drawList.size);
         int[] data = drawList.data();
         byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
@@ -207,10 +217,12 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             byte domain = domains[drawIndex];
             if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < ecsRenderCapacity) {
                 slotToDrawIndex[slot] = drawIndex;
+                mappedSlots[mappedSlotCount++] = slot;
             } else if (domain == RenderSourceDomain.SOURCE_TILED
                     && slot >= 0
                     && slot < tiledRefToDrawIndex.length) {
                 tiledRefToDrawIndex[slot] = drawIndex;
+                mappedTiledRefs[mappedTiledRefCount++] = slot;
             }
         }
     }
@@ -224,9 +236,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void rebuildSpatialLayers() {
-        for (int i = 0, n = spatialLayers.length; i < n; i++) {
-            spatialLayers[i] = false;
+        for (int i = 0; i < activeSpatialLayerCount; i++) {
+            spatialLayers[activeSpatialLayerIndices[i]] = false;
         }
+        activeSpatialLayerCount = 0;
 
         if (layersSub == null) return;
 
@@ -239,7 +252,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             if (layer.type == LayerComponent.TYPE_TILED) continue;
 
             ensureSpatialLayerCapacity(layer.layerIndex + 1);
-            spatialLayers[layer.layerIndex] = true;
+            if (!spatialLayers[layer.layerIndex]) {
+                ensureActiveSpatialLayerCapacity(activeSpatialLayerCount + 1);
+                spatialLayers[layer.layerIndex] = true;
+                activeSpatialLayerIndices[activeSpatialLayerCount++] = layer.layerIndex;
+            }
         }
     }
 
@@ -262,6 +279,21 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         spatialLayers = expanded;
     }
 
+    private void ensureActiveSpatialLayerCapacity(int required) {
+        if (required <= activeSpatialLayerIndices.length) return;
+        int next = Math.max(8, activeSpatialLayerIndices.length);
+        while (required > next) next <<= 1;
+        activeSpatialLayerIndices = Arrays.copyOf(activeSpatialLayerIndices, next);
+    }
+
+    private void ensureMappedEntryCapacity(int required) {
+        if (required <= mappedSlots.length) return;
+        int next = Math.max(8, mappedSlots.length);
+        while (required > next) next <<= 1;
+        mappedSlots = Arrays.copyOf(mappedSlots, next);
+        mappedTiledRefs = Arrays.copyOf(mappedTiledRefs, next);
+    }
+
     private void ensureFaceLayerCapacity(int required) {
         if (required <= faceLayerEntities.length) return;
         int next = Math.max(4, faceLayerEntities.length);
@@ -273,16 +305,20 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private void ensureSlotToDrawIndexCapacity(int required) {
         if (required <= slotToDrawIndex.length) return;
+        int oldLength = slotToDrawIndex.length;
         int next = Math.max(8, slotToDrawIndex.length);
         while (required > next) next <<= 1;
         slotToDrawIndex = grow(slotToDrawIndex, next);
+        Arrays.fill(slotToDrawIndex, oldLength, next, -1);
     }
 
     private void ensureTiledRefToDrawIndexCapacity(int required) {
         if (required <= tiledRefToDrawIndex.length) return;
+        int oldLength = tiledRefToDrawIndex.length;
         int next = Math.max(8, tiledRefToDrawIndex.length);
         while (required > next) next <<= 1;
         tiledRefToDrawIndex = grow(tiledRefToDrawIndex, next);
+        Arrays.fill(tiledRefToDrawIndex, oldLength, next, -1);
     }
 
     private static int[] grow(int[] source, int next) {

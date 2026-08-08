@@ -241,7 +241,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 engine, ecs, sceneLayers, entityReferences);
         this.tiled = new TiledApiImpl(
                 engine, ecs, entities, sceneLayers, entityReferences);
-        this.spatial = new SpatialApiImpl(engine);
+        this.spatial = new SpatialApiImpl(engine, sceneLayers);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
@@ -885,7 +885,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade spatial() {
-            if (spatial == null) spatial = new SpatialEntityFacadeImpl(handle);
+            if (spatial == null) spatial = new SpatialEntityFacadeImpl(sceneLayers, handle);
             return spatial;
         }
 
@@ -1211,48 +1211,37 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class SpatialApiImpl implements SpatialAPI {
         private final PixscapeEngine engine;
+        private final SceneLayerResolver sceneLayers;
 
-        SpatialApiImpl(PixscapeEngine engine) {
+        SpatialApiImpl(PixscapeEngine engine, SceneLayerResolver sceneLayers) {
             this.engine = engine;
+            this.sceneLayers = sceneLayers;
         }
 
         @Override
         public boolean isLayerEnabled(int layerIndex) {
             World world = engine.getWorld();
             if (world == null) return false;
-            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
-                    .getEntities();
-            int[] data = entities.getData();
-            for (int i = 0, n = entities.size(); i < n; i++) {
-                LayerComponent layer = mapper.get(data[i]);
-                if (layer.layerIndex == layerIndex && layer.spatialEnabled) return true;
-            }
-            return false;
+            sceneLayers.bind(world);
+            return sceneLayers.isLayerSpatialEnabled(layerIndex);
         }
 
         @Override
         public SpatialAPI setLayerEnabled(int layerIndex, boolean enabled) {
             World world = engine.getWorld();
             if (world == null) return this;
-            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
-                    .getEntities();
-            int[] data = entities.getData();
-            for (int i = 0, n = entities.size(); i < n; i++) {
-                LayerComponent layer = mapper.get(data[i]);
-                if (layer.layerIndex == layerIndex) layer.spatialEnabled = enabled;
-            }
+            sceneLayers.bind(world);
+            sceneLayers.setLayerSpatialEnabled(layerIndex, enabled);
             return this;
         }
     }
 
     static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
+        private final SceneLayerResolver sceneLayers;
         private final EntityHandle handle;
 
-        SpatialEntityFacadeImpl(EntityHandle handle) {
+        SpatialEntityFacadeImpl(SceneLayerResolver sceneLayers, EntityHandle handle) {
+            this.sceneLayers = sceneLayers;
             this.handle = handle;
         }
 
@@ -1323,7 +1312,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = handle.world();
             if (world == null) return false;
             SpatialRenderOrderSystem system = world.getSystem(SpatialRenderOrderSystem.class);
-            return system != null && system.participatesInRenderOrder(handle.entityId);
+            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
+                    .getSafe(handle.entityId, null);
+            if (system == null || index == null) return false;
+            sceneLayers.bind(world);
+            return system.participatesInRenderOrder(
+                    handle.entityId,
+                    sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
         }
 
         private SpatialHeightComponent comp(boolean create) {

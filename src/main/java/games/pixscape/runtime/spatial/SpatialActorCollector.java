@@ -183,10 +183,61 @@ public final class SpatialActorCollector {
                 null);
     }
 
+    public boolean isEligibleActorSlotOnSpatialLayer(
+            int slot,
+            DynamicEntityRenderState state,
+            boolean spatialLayerEnabled,
+            EntityManager entityManager,
+            ComponentMapper<EntityIndexComponent> entityIndexMapper,
+            ComponentMapper<TransformComponent> transformMapper,
+            ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
+            ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper) {
+        if (!isEligibleActorSlotWithoutFootprint(
+                slot,
+                state,
+                null,
+                spatialLayerEnabled,
+                entityManager,
+                entityIndexMapper,
+                spatialHeightMapper)) {
+            return false;
+        }
+
+        int entity = state.renderSlotToEntityId[slot];
+        SpatialHeightComponent height = spatialHeightMapper.getSafe(entity, null);
+        TransformComponent transform = transformMapper != null
+                ? transformMapper.getSafe(entity, null)
+                : null;
+        return writeActorPhysicsCircleFootprint(
+                entity,
+                transform,
+                height,
+                spatialFootprintMapper,
+                null);
+    }
+
     private static boolean isEligibleActorSlotWithoutFootprint(
             int slot,
             DynamicEntityRenderState state,
             boolean[] spatialLayers,
+            EntityManager entityManager,
+            ComponentMapper<EntityIndexComponent> entityIndexMapper,
+            ComponentMapper<SpatialHeightComponent> spatialHeightMapper) {
+        return isEligibleActorSlotWithoutFootprint(
+                slot,
+                state,
+                spatialLayers,
+                false,
+                entityManager,
+                entityIndexMapper,
+                spatialHeightMapper);
+    }
+
+    private static boolean isEligibleActorSlotWithoutFootprint(
+            int slot,
+            DynamicEntityRenderState state,
+            boolean[] spatialLayers,
+            boolean spatialLayerEnabled,
             EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
             ComponentMapper<SpatialHeightComponent> spatialHeightMapper) {
@@ -201,7 +252,11 @@ public final class SpatialActorCollector {
                 : null;
         if (index == null) return false;
         if (index.layerIndex != state.layerIndex[slot]) return false;
-        if (!isSpatialLayer(index.layerIndex, spatialLayers)) return false;
+        if (spatialLayers != null) {
+            if (!isSpatialLayer(index.layerIndex, spatialLayers)) return false;
+        } else if (!spatialLayerEnabled) {
+            return false;
+        }
 
         SpatialHeightComponent height = spatialHeightMapper != null
                 ? spatialHeightMapper.getSafe(entity, null)

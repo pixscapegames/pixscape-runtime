@@ -160,8 +160,54 @@ public class PixscapeApiV1Test {
         Assert.assertTrue("A renderable sprite with volume, footprint, and Spatial layer participates",
                 facade.participatesInRenderOrder());
 
+        state.visible[slot] = false;
+        Assert.assertFalse("A renderer-hidden actor is ineligible",
+                facade.participatesInRenderOrder());
+        state.visible[slot] = true;
+
+        layer.type = LayerComponent.TYPE_TILED;
+        Assert.assertFalse("A Tiled layer does not enable ECS actor participation",
+                facade.participatesInRenderOrder());
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        Assert.assertTrue("Restoring the current layer contract takes effect immediately",
+                facade.participatesInRenderOrder());
+
+        footprint.valid = false;
+        Assert.assertFalse("Invalidating the footprint takes effect immediately",
+                facade.participatesInRenderOrder());
+        footprint.valid = true;
+        Assert.assertTrue("Restoring the footprint takes effect immediately",
+                facade.participatesInRenderOrder());
+
         facade.setHeight(0f);
         Assert.assertFalse("Zero height is ineligible", facade.participatesInRenderOrder());
+        facade.setHeight(2f);
+        Assert.assertTrue("Restoring positive height takes effect immediately",
+                facade.participatesInRenderOrder());
+
+        world.delete(actor);
+        world.process();
+        state.releaseSlotForEntity(actor);
+        int replacement = world.create();
+        Assert.assertEquals("The regression must exercise Artemis ID reuse", actor, replacement);
+        world.getMapper(TransformComponent.class).create(replacement);
+        world.getMapper(EntityIndexComponent.class).create(replacement).layerIndex = 4;
+        world.getMapper(SpatialHeightComponent.class).create(replacement).height = 2f;
+        SpatialPhysicsFootprintComponent replacementFootprint =
+                world.getMapper(SpatialPhysicsFootprintComponent.class).create(replacement);
+        replacementFootprint.valid = true;
+        replacementFootprint.radiusPx = 3f;
+        int replacementSlot = state.acquireSlotForEntity(replacement);
+        state.kind[replacementSlot] = RenderKind.SPRITE;
+        state.enabled[replacementSlot] = true;
+        state.visible[replacementSlot] = true;
+        state.textureHandle[replacementSlot] = 1;
+        state.layerIndex[replacementSlot] = 4;
+
+        Assert.assertFalse("A stale facade must not resolve a recycled entity ID",
+                facade.participatesInRenderOrder());
+        Assert.assertTrue("A fresh facade may resolve the eligible replacement",
+                engine.api().entities().ofEntityId(replacement).spatial().participatesInRenderOrder());
     }
 
     @Test
