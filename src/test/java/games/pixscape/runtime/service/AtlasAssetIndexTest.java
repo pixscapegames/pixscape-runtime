@@ -55,9 +55,9 @@ public class AtlasAssetIndexTest {
                 region(texture, "run__a923", 0, 0, 0, 10, 10);
         TextureAtlas.AtlasRegion frame1 =
                 region(texture, "run__a923", 1, 10, 0, 10, 10);
-        AtlasRuntimeService service = new AtlasRuntimeService();
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
 
-        service.load("main", atlas(frame2, frame0, frame1));
+        service.publishOwned("main", atlas(frame2, frame0, frame1));
 
         AtlasAssetBinding binding = service.resolveBinding(923, "main");
         AtlasAssetBinding second = service.resolveBinding(923, "main");
@@ -78,8 +78,8 @@ public class AtlasAssetIndexTest {
                 region(texture, "middle__a2", -1, 8, 0, 8, 8),
                 region(texture, "internal-normal", -1, 0, 0, 1, 1),
                 region(texture, "last__a3", -1, 16, 0, 8, 8));
-        AtlasRuntimeService service = new AtlasRuntimeService();
-        service.load("main", atlas);
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
+        service.publishOwned("main", atlas);
         int visitsAfterLoad = service.indexBuildRegionVisits("main");
         int getRegionsCallsAfterLoad = atlas.getRegionsCalls;
         int findRegionsCallsAfterLoad = atlas.findRegionsCalls;
@@ -191,17 +191,17 @@ public class AtlasAssetIndexTest {
     @Test
     public void reloadAndUnloadKeepAtlasAndIndexLifecycleAligned() {
         TestTexture texture = new TestTexture(32, 32);
-        AtlasRuntimeService service = new AtlasRuntimeService();
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
         TextureAtlas firstAtlas =
                 atlas(region(texture, "first__a1", -1, 0, 0, 8, 8));
         TextureAtlas secondAtlas =
                 atlas(region(texture, "second__a2", -1, 8, 0, 8, 8));
 
-        service.load("main", firstAtlas);
+        service.publishOwned("main", firstAtlas);
         Assert.assertSame(firstAtlas, service.getAtlas("main"));
         Assert.assertNotNull(service.resolveBinding(1, "main"));
 
-        service.load("main", secondAtlas);
+        service.publishOwned("main", secondAtlas);
         Assert.assertSame(secondAtlas, service.getAtlas("main"));
         Assert.assertNull(service.resolveBinding(1, "main"));
         Assert.assertNotNull(service.resolveBinding(2, "main"));
@@ -211,10 +211,10 @@ public class AtlasAssetIndexTest {
         Assert.assertNull(service.resolveBinding(2, "main"));
         Assert.assertEquals(-1, service.indexBuildRegionVisits("main"));
 
-        service.load(
+        service.publishOwned(
                 "one",
                 atlas(region(texture, "one__a11", -1, 0, 0, 8, 8)));
-        service.load(
+        service.publishOwned(
                 "two",
                 atlas(region(texture, "two__a22", -1, 8, 0, 8, 8)));
         service.unloadAll();
@@ -244,14 +244,14 @@ public class AtlasAssetIndexTest {
     @Test
     public void failedReloadLeavesPreviousAtlasAndIndexPublished() {
         TestTexture texture = new TestTexture(32, 32);
-        AtlasRuntimeService service = new AtlasRuntimeService();
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
         TextureAtlas valid =
                 atlas(region(texture, "valid__a1", -1, 0, 0, 8, 8));
-        service.load("main", valid);
+        service.publishOwned("main", valid);
 
         Assert.assertThrows(
                 IllegalStateException.class,
-                () -> service.load(
+                () -> service.publishOwned(
                         "main",
                         atlas(region(texture, "invalid__a0", -1, 8, 0, 8, 8))));
 
@@ -379,6 +379,12 @@ public class AtlasAssetIndexTest {
         public void dispose() {
             disposed = true;
             super.dispose();
+        }
+    }
+
+    private static final class TestAtlasRuntimeService extends AtlasRuntimeService {
+        void publishOwned(String tag, TextureAtlas atlas) {
+            publishOwnedAtlas(tag, atlas);
         }
     }
 }

@@ -67,7 +67,8 @@ public class AtlasRuntimeService {
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
-    void load(String tag, TextureAtlas atlas) {
+    /** Publishes an already-created atlas and transfers its ownership to this service. */
+    protected final void publishOwnedAtlas(String tag, TextureAtlas atlas) {
         load(tag, atlas, true);
     }
 
@@ -303,7 +304,7 @@ public class AtlasRuntimeService {
             }
 
             uploadOwnershipTransferred = true;
-            textureArray = OneShotPixmapTextureArrayData.upload(uploadLayers, true);
+            textureArray = TextureArrayUploads.uploadOwned(uploadLayers);
 
             IntIntMap handle2layer = buildHandleToLayer(sources);
 

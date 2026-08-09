@@ -7,6 +7,28 @@ import org.junit.Test;
 public class AtlasRuntimeServicePublicationRevisionTest {
 
     @Test
+    public void protectedOwnedPublicationUsesNormalPublicationLifecycle() {
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
+        TrackingTextureAtlas first = new TrackingTextureAtlas();
+        TrackingTextureAtlas replacement = new TrackingTextureAtlas();
+
+        service.publishOwned("main", first);
+        int firstRevision = service.publicationRevision("main");
+        service.markPublicationPending("main");
+
+        service.publishOwned("main", replacement);
+
+        Assert.assertTrue(first.disposed);
+        Assert.assertFalse(replacement.disposed);
+        Assert.assertSame(replacement, service.getAtlas("main"));
+        Assert.assertNotEquals(firstRevision, service.publicationRevision("main"));
+        Assert.assertFalse(service.isPublicationPending("main"));
+
+        service.unload("main");
+        Assert.assertTrue(replacement.disposed);
+    }
+
+    @Test
     public void revisionAdvancesOnlyWhenUsableAtlasIsPublished() {
         AtlasRuntimeService service = new AtlasRuntimeService();
 
@@ -40,5 +62,21 @@ public class AtlasRuntimeServicePublicationRevisionTest {
         Assert.assertNotEquals(firstRevision, service.publicationRevision("main"));
         Assert.assertFalse("Successful publication clears the pending marker",
                 service.isPublicationPending("main"));
+    }
+
+    private static final class TestAtlasRuntimeService extends AtlasRuntimeService {
+        void publishOwned(String tag, TextureAtlas atlas) {
+            publishOwnedAtlas(tag, atlas);
+        }
+    }
+
+    private static final class TrackingTextureAtlas extends TextureAtlas {
+        boolean disposed;
+
+        @Override
+        public void dispose() {
+            disposed = true;
+            super.dispose();
+        }
     }
 }
