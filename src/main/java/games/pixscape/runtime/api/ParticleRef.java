@@ -19,6 +19,10 @@ public interface ParticleRef {
 
     ParticleRef stop();
 
+    /**
+     * Controls continuous emission without removing the particle entity; a
+     * persistent particle can later be restarted.
+     */
     ParticleRef loop(boolean loop);
 
     ParticleRef scale(float scale);

@@ -52,6 +52,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
     private final IntMap<String> effectPaths = new IntMap<>();
     private final IntMap<String> effectAtlasTags = new IntMap<>();
+    private final IntIntMap appliedLooping = new IntIntMap();
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
     private ComponentMapper<TransformComponent> mTransform;
@@ -144,6 +145,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                     ParticleEffectPool.PooledEffect fx = effects.remove(e);
                     effectPaths.remove(e);
                     effectAtlasTags.remove(e);
+                    appliedLooping.remove(e, 0);
                     if (fx != null) {
                         fx.free();
                     }
@@ -190,7 +192,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 ParticleEffectPool.PooledEffect replacement = createEffect(comp);
                 if (replacement != null) {
                     boolean preservePlaying = !comp.paused && !fx.isComplete();
-                    applyLooping(replacement, comp.looping);
+                    applyLooping(e, replacement, comp.looping);
                     if (comp.autoStart) replacement.start();
 
                     ParticleEffectPool.PooledEffect previous = fx;
@@ -205,6 +207,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 }
             }
 
+            synchronizeLooping(e, fx, comp.looping);
+
             if (mVis != null && mVis.has(e) && !mVis.get(e).isVisible()) {
                 continue;
             }
@@ -218,7 +222,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 effects.put(e, fx);
                 effectPaths.put(e, normalized(comp.effectPath));
                 effectAtlasTags.put(e, normalized(comp.atlasTag));
-                applyLooping(fx, comp.looping);
+                applyLooping(e, fx, comp.looping);
 
                 if (comp.autoStart) fx.start();
             }
@@ -226,12 +230,12 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             positionEffect(fx, t);
 
             if (comp.restartRequested) {
-                applyLooping(fx, comp.looping);
+                applyLooping(e, fx, comp.looping);
                 fx.reset(true, true);
                 comp.restartRequested = false;
             }
             if (comp.playRequested) {
-                applyLooping(fx, comp.looping);
+                applyLooping(e, fx, comp.looping);
                 fx.start();
                 comp.playRequested = false;
             }
@@ -246,6 +250,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 effects.remove(e);
                 effectPaths.remove(e);
                 effectAtlasTags.remove(e);
+                appliedLooping.remove(e, 0);
                 fx.free();
                 world.delete(e);
                 continue;
@@ -297,7 +302,12 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return particleAvailability.obtain(emitter.atlasTag, emitter.effectPath);
     }
 
-    private void applyLooping(ParticleEffect fx, boolean looping) {
+    private void synchronizeLooping(int entityId, ParticleEffect fx, boolean looping) {
+        if (fx == null || appliedLooping.get(entityId, -1) == (looping ? 1 : 0)) return;
+        applyLooping(entityId, fx, looping);
+    }
+
+    private void applyLooping(int entityId, ParticleEffect fx, boolean looping) {
         if (fx == null) return;
         Array<ParticleEmitter> emitters = fx.getEmitters();
         for (int i = 0, n = emitters.size; i < n; i++) {
@@ -306,6 +316,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 emitter.setContinuous(looping);
             }
         }
+        appliedLooping.put(entityId, looping ? 1 : 0);
     }
 
     private boolean isEffectVisible(ParticleEffect fx) {
@@ -346,6 +357,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         effects.clear();
         effectPaths.clear();
         effectAtlasTags.clear();
+        appliedLooping.clear();
         particleAvailability.clear();
         lastTex = null;
         lastTexHandle = 0;

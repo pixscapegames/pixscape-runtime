@@ -1438,6 +1438,22 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void persistentParticleCompletesWithoutRemovingEntityAndCanRestart() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().spawn("impact", 5f, 6f);
+
+        ref.loop(false);
+        engine.getWorld().process();
+
+        Assert.assertTrue(ref.entity().exists());
+        Assert.assertTrue(ref.particles().exists());
+
+        ref.particles().restart();
+        engine.getWorld().process();
+        Assert.assertTrue(ref.entity().exists());
+    }
+
+    @Test
     public void particlesSpawnRejectsUndeclaredResourceWithoutCreatingEntity()
             throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
@@ -1469,6 +1485,17 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(world.getMapper(DimensionsComponent.class).has(ref.entityId()));
         Assert.assertFalse(world.getMapper(AABBComponent.class).has(ref.entityId()));
         Assert.assertFalse(world.getMapper(OrientedBoundsComponent.class).has(ref.entityId()));
+    }
+
+    @Test
+    public void completedOneshotRemovesItsEntity() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().oneshot("impact.p", 1f, 2f);
+
+        engine.getWorld().process();
+        engine.getWorld().process();
+
+        Assert.assertFalse(ref.entity().exists());
     }
 
     @Test

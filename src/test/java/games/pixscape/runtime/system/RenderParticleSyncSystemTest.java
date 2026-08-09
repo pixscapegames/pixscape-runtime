@@ -142,6 +142,72 @@ public class RenderParticleSyncSystemTest {
     }
 
     @Test
+    public void synchronizesDirectAuthoredLoopingChangesToLiveEffect() throws Exception {
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), null);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
+        pools.put("main|fire.p", particlePool(true));
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent authored = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        authored.effectPath = "fire.p";
+        authored.atlasTag = "main";
+        authored.looping = true;
+        world.process();
+
+        IntMap<ParticleEffectPool.PooledEffect> effects = field(system, "effects");
+        ParticleEffectPool.PooledEffect live = effects.get(entity);
+        Assert.assertTrue(live.getEmitters().get(0).isContinuous());
+
+        authored.looping = false;
+        world.process();
+        Assert.assertFalse(live.getEmitters().get(0).isContinuous());
+
+        authored.looping = true;
+        world.process();
+        Assert.assertTrue(live.getEmitters().get(0).isContinuous());
+        world.dispose();
+    }
+
+    @Test
+    public void replacementAppliesLoopingWithoutInheritingPreviousCachedState() throws Exception {
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), null);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        ObjectMap<String, ParticleEffectPool> pools =
+                field(system.particleAvailability(), "pools");
+        pools.put("main|a.p", particlePool(true));
+        pools.put("main|b.p", particlePool(true));
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent authored = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        authored.effectPath = "a.p";
+        authored.atlasTag = "main";
+        authored.looping = false;
+        world.process();
+
+        IntMap<ParticleEffectPool.PooledEffect> effects = field(system, "effects");
+        ParticleEffectPool.PooledEffect previous = effects.get(entity);
+        Assert.assertFalse(previous.getEmitters().get(0).isContinuous());
+
+        authored.effectPath = "b.p";
+        world.process();
+
+        ParticleEffectPool.PooledEffect replacement = effects.get(entity);
+        Assert.assertNotSame(previous, replacement);
+        Assert.assertFalse(replacement.getEmitters().get(0).isContinuous());
+        world.dispose();
+    }
+
+    @Test
     public void replacesLiveEffectAndReturnsPreviousEffectToItsPool() throws Exception {
         FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("effects"));
         temporaryFolder.newFile("effects/a.p");
@@ -446,6 +512,14 @@ public class RenderParticleSyncSystemTest {
         StringWriter writer = new StringWriter();
         source.save(writer);
         file.writeString(writer.toString(), false, "UTF-8");
+    }
+
+    private static ParticleEffectPool particlePool(boolean continuous) {
+        ParticleEffect source = new ParticleEffect();
+        ParticleEmitter emitter = new ParticleEmitter();
+        emitter.setContinuous(continuous);
+        source.getEmitters().add(emitter);
+        return new ParticleEffectPool(source, 0, 4);
     }
 
     @SuppressWarnings("unchecked")
