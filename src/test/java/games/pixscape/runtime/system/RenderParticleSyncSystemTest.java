@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.engine.PixscapeEngine;
@@ -315,7 +316,7 @@ public class RenderParticleSyncSystemTest {
     }
 
     @Test
-    public void studioInvalidationAfterAtlasPublicationPreparesCurrentParticles() throws Exception {
+    public void explicitAuthoringPreparationAfterAtlasPublicationPreparesCurrentParticles() throws Exception {
         FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("authoring-effects"));
         writeEffect(effectsRoot.child("fire.p"));
         AtlasRuntimeService atlasService = new AtlasRuntimeService();
@@ -335,11 +336,107 @@ public class RenderParticleSyncSystemTest {
         world.process();
         Assert.assertFalse(system.particleAvailability().isPrepared("scene", "fire.p"));
         system.invalidateAllEffects();
+        system.prepareRuntimeAvailability("scene", new Array<String>());
         Assert.assertTrue(system.particleAvailability().isPrepared("scene", "fire.p"));
 
         world.process();
 
         Assert.assertNotNull(field(system, "effects", IntMap.class).get(entity));
+        world.dispose();
+    }
+
+    @Test
+    public void declaredParticleWithoutEmitterIsPreparedAtAuthoringPublication() throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("declared-effects"));
+        writeEffect(effectsRoot.child("gameplay-only.p"));
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        world.process();
+
+        Array<String> declared = new Array<>();
+        declared.add("gameplay-only.p");
+        system.prepareRuntimeAvailability("scene", declared);
+
+        Assert.assertTrue(system.particleAvailability()
+                .isPrepared("scene", "gameplay-only.p"));
+        world.dispose();
+    }
+
+    @Test
+    public void invalidateAllEffectsOnlyInvalidates() throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("invalidate-effects"));
+        writeEffect(effectsRoot.child("fire.p"));
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        emitter.effectPath = "fire.p";
+        emitter.atlasTag = "scene";
+        world.process();
+        system.prepareRuntimeAvailability("scene", new Array<String>());
+        Assert.assertTrue(system.particleAvailability().isPrepared("scene", "fire.p"));
+
+        system.invalidateAllEffects();
+
+        Assert.assertFalse(system.particleAvailability().isPrepared("scene", "fire.p"));
+        world.process();
+        Assert.assertNull(field(system, "effects", IntMap.class).get(entity));
+        world.dispose();
+    }
+
+    @Test
+    public void repeatedAuthoringPublicationReplacesStalePoolWithoutDuplicatePreparation()
+            throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("republication-effects"));
+        writeEffect(effectsRoot.child("fire.p"));
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class)
+                .create(entity);
+        emitter.effectPath = "fire.p";
+        emitter.atlasTag = "scene";
+        world.process();
+
+        Array<String> declared = new Array<>();
+        declared.add("fire.p");
+        system.prepareRuntimeAvailability("scene", declared);
+        world.process();
+        ParticleEffectPool.PooledEffect first = (ParticleEffectPool.PooledEffect)
+                field(system, "effects", IntMap.class).get(entity);
+        Assert.assertNotNull(first);
+        ObjectMap<?, ?> firstPools = field(
+                system.particleAvailability(), "pools", ObjectMap.class);
+        Assert.assertEquals(1, firstPools.size);
+
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        system.invalidateAllEffects();
+        Assert.assertEquals(0, firstPools.size);
+        system.prepareRuntimeAvailability("scene", declared);
+        ObjectMap<?, ?> replacementPools = field(
+                system.particleAvailability(), "pools", ObjectMap.class);
+        Assert.assertEquals(1, replacementPools.size);
+        world.process();
+
+        Assert.assertNotSame(first, field(system, "effects", IntMap.class).get(entity));
+        Assert.assertEquals(1, replacementPools.size);
         world.dispose();
     }
 

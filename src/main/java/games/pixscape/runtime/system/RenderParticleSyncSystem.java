@@ -333,10 +333,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return overlapX && overlapY;
     }
 
-    /**
-     * Rebuilds particle availability after an explicit authoring atlas publication.
-     * Normal gameplay must not call this from frame synchronization or resource-use paths.
-     */
+    /** Invalidates particle instances and prepared pools without preparing resources. */
     public void invalidateAllEffects() {
         for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
             IntMap.Entry<ParticleEffectPool.PooledEffect> entry = it.next();
@@ -352,9 +349,6 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         particleAvailability.clear();
         lastTex = null;
         lastTexHandle = 0;
-        if (atlasRuntimeService != null && atlasRuntimeService.hasPublishedAtlases()) {
-            prepareAuthoredParticles();
-        }
     }
 
     private void collectEffect(ParticleEffect fx,
