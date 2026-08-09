@@ -1441,16 +1441,37 @@ public class PixscapeApiV1Test {
     public void persistentParticleCompletesWithoutRemovingEntityAndCanRestart() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         ParticleRef ref = engine.api().particles().spawn("impact", 5f, 6f);
+        ParticleEmitterComponent emitter = engine.getWorld()
+                .getMapper(ParticleEmitterComponent.class).get(ref.entityId());
 
-        ref.loop(false);
+        ref.loop(false).stop();
+        Assert.assertSame(ref, ref.restart());
+        Assert.assertTrue(emitter.restartRequested);
+        Assert.assertFalse(emitter.paused);
+        Assert.assertFalse(emitter.looping);
+        Assert.assertFalse(emitter.autoRemoveWhenComplete);
+        Assert.assertEquals("impact.p", emitter.effectPath);
         engine.getWorld().process();
 
         Assert.assertTrue(ref.entity().exists());
         Assert.assertTrue(ref.particles().exists());
 
-        ref.particles().restart();
+        ref.restart();
         engine.getWorld().process();
         Assert.assertTrue(ref.entity().exists());
+    }
+
+    @Test
+    public void staleParticleRestartIsSafeAndInert() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().spawn("impact", 5f, 6f);
+
+        ref.remove();
+        engine.getWorld().process();
+
+        Assert.assertFalse(ref.entity().exists());
+        Assert.assertSame(ref, ref.restart());
+        Assert.assertFalse(ref.entity().exists());
     }
 
     @Test

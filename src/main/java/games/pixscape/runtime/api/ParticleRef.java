@@ -17,6 +17,8 @@ public interface ParticleRef {
 
     ParticleRef pause();
 
+    ParticleRef restart();
+
     ParticleRef stop();
 
     /**

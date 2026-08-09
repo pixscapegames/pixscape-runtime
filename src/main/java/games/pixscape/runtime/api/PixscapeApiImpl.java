@@ -2451,6 +2451,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleRef restart() {
+            particles().restart();
+            return this;
+        }
+
+        @Override
         public ParticleRef stop() {
             particles().stop();
             return this;
