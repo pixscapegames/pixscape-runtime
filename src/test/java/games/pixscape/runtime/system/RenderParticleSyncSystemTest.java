@@ -382,6 +382,32 @@ public class RenderParticleSyncSystemTest {
     }
 
     @Test
+    public void internalPreparedQueryIsReadOnlyAndReturnsFalseForUnavailableState() throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("prepared-query-effects"));
+        writeEffect(effectsRoot.child("fire.p"));
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem system = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+
+        Assert.assertFalse(system.isPrepared("scene", "fire.p"));
+        Assert.assertFalse(system.isPrepared(null, "fire.p"));
+        Assert.assertFalse(system.isPrepared("scene", " "));
+        Assert.assertEquals(0, (int) field(
+                system.particleAvailability(), "fileParseCount"));
+
+        world.process();
+        system.prepareRuntimeAvailability("scene", declared("fire.p"));
+
+        Assert.assertTrue(system.isPrepared("scene", "fire.p"));
+        Assert.assertEquals(1, (int) field(
+                system.particleAvailability(), "fileParseCount"));
+        world.dispose();
+    }
+
+    @Test
     public void explicitAuthoringPreparationAfterAtlasPublicationPreparesCurrentParticles() throws Exception {
         FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("authoring-effects"));
         writeEffect(effectsRoot.child("fire.p"));
@@ -512,6 +538,12 @@ public class RenderParticleSyncSystemTest {
         StringWriter writer = new StringWriter();
         source.save(writer);
         file.writeString(writer.toString(), false, "UTF-8");
+    }
+
+    private static Array<String> declared(String effectPath) {
+        Array<String> paths = new Array<>();
+        paths.add(effectPath);
+        return paths;
     }
 
     private static ParticleEffectPool particlePool(boolean continuous) {

@@ -114,6 +114,16 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return particleAvailability;
     }
 
+    /**
+     * INTERNAL authoring-integration query for already prepared particle state.
+     * This method never loads, prepares, mutates, or logs.
+     */
+    public boolean isPrepared(String atlasTag, String effectPath) {
+        if (atlasTag == null || atlasTag.trim().length() == 0) return false;
+        if (effectPath == null || effectPath.trim().length() == 0) return false;
+        return particleAvailability.isPrepared(atlasTag, effectPath);
+    }
+
     /** Fails unless scene loading or an explicit authoring publication prepared this resource. */
     public void requirePrepared(String atlasTag, String effectPath) {
         if (!particleAvailability.isPrepared(atlasTag, effectPath)) {
