@@ -92,7 +92,7 @@ are explicit.
 
 | Type / package / family | Current visibility | Support level | Why | Compatibility expectation | Action before 1.0 |
 |---|---|---|---|---|---|
-| `PixscapeEngine`, `PixscapeAPI` | Public | `HIGH_LEVEL` | Primary lifecycle and gameplay entry points | Strongest | Link this policy; document one-engine rule on `PixscapeEngine` |
+| `PixscapeEngine`, `PixscapeAPI`, `SceneLoadHandle`, `SceneLoadPhase` | Public | `HIGH_LEVEL` | Primary lifecycle, progressive scene loading, and gameplay entry points | Strongest | Link this policy; document one-engine rule on `PixscapeEngine` |
 | Domain APIs, refs, facades, and views in `runtime.api` (`Assets`, `Entities`, sprites, animations, particles, prefabs, Tiled, Spatial, physics, transform, order, shader, light) | Public | `HIGH_LEVEL` | Normal safe gameplay path | Strongest | Keep facade/failure rules as design policy |
 | `PlatformTarget`, `SpawnResult` | Public | `HIGH_LEVEL` | Normal configuration/result values | Strongest | Normal Javadoc maintenance |
 | `ECSAPI`; `PixscapeEngine.getWorld/mapper/system` | Public | `SUPPORTED_EXPERT` | Canonical Artemis escape hatch for custom systems and components | Serious expert compatibility | Add one concise expert-boundary reference |
@@ -101,6 +101,7 @@ are explicit.
 | `RuntimeConfig`, `SceneMetaRuntime` | Public | `SUPPORTED_EXPERT` | Mutable lifecycle/authored configuration needed by tools and advanced bootstrap | Preserve schema meaning more strongly than layout | Document mutation/build timing |
 | `RuntimeProjectIO`, `SceneLoader`, public prefab/animation DTOs and loader results | Public | `SUPPORTED_EXPERT` | Legitimate import/export and first-party/third-party tooling surface | Intentional changes with migration | Separate DTO/schema guarantees from loader implementation |
 | `WorldConfigFactory`, `RuntimeSceneAtlasLoader`, `RuntimePrefabFragmentSpawner` | Public | `INTERNAL` | Engine bootstrap/loading choreography now has supported engine hooks/facades | None | Mark internal; do not move yet |
+| `FileAvailabilityService`, `SceneAvailabilityPlan`, `ParticleRuntimeAvailability`, and resource-availability preparation machinery | Public or implementation-visible | `INTERNAL` | Requesting, retaining, preparing, invalidating, and releasing resources implement the supported `PixscapeEngine` / `SceneLoadHandle` / `SceneLoadPhase.READY` contract | None | Keep implementation machinery out of the supported consumer surface |
 | `IdentityRegistry`, `TagRegistry`, animation/tile-animation registries, `AtlasRuntimeService` and its binding/index metadata, `ShaderRegistry` | Public and exposed by engine | `SUPPORTED_EXPERT` | Legitimate indexed lookup, tooling, and custom-render integration | Preserve lookup/lifecycle contracts; layouts may evolve | Strengthen borrowed/rebuild/thread Javadocs |
 | `TextureRegistry`, `ShaderSourcePreprocessor`, atlas index builders | Public | `INTERNAL` | Resource-loading implementation rather than the supported lookup boundary | None | Mark internal after checking first-party tooling |
 | Profiling package and `RenderStats`/`RenderStatsSink` | Public | `SUPPORTED_EXPERT` | Deliberate diagnostics and profiling extension surface | Preserve metric meaning where documented | Document reset/lifetime/thread behavior |
@@ -136,6 +137,11 @@ Support for an authored component does not freeze every public field forever. It
 serialization role, units, identity rules, and mutation propagation are the expert contract.
 Derived fields embedded in an otherwise supported component must be explicitly labeled.
 
+Directly changing a `ParticleEmitterComponent` effect identity after `SceneLoadPhase.READY` does not
+authorize Runtime resource acquisition or preparation. The referenced particle resource must
+already belong to the prepared scene availability set. First-party tooling may explicitly rebuild
+availability at an authoring publication boundary.
+
 ## 6. Systems classification
 
 Public Artemis visibility does not make every core system an extension point.
@@ -147,7 +153,7 @@ Public Artemis visibility does not make every core system an extension point.
 | `Box2dSyncSystem` | `SUPPORTED_EXPERT` | Intentionally exposed physics enable/step/rebuild coordination |
 | `SpatialRenderOrderSystem` public query/diagnostic methods | `SUPPORTED_EXPERT` | Provides effective participation and ordering diagnostics; construction remains pipeline-owned |
 | `PhysicsMouseDragSystem` | `SUPPORTED_EXPERT` | Optional, configurable gameplay/tooling integration used by the demo |
-| Animation, geometry, layer-build, culling, parallax, Tiled/VFX/sprite sync, Spatial-footprint sync | `INTERNAL` | Core authored-to-derived synchronization choreography |
+| Animation, geometry, layer-build, culling, parallax, Tiled/VFX/sprite sync, Spatial-footprint sync | `INTERNAL` | Core authored-to-derived synchronization choreography; `RenderParticleSyncSystem` availability/preparation machinery is not a supported consumer extension point |
 | Draw-list build/sort, queue extraction, default `RenderSubmitSystem`, `DirtyFlushSystem` | `INTERNAL` | Replaceable pipeline stages; the supported boundary is hooks plus `FrameRenderQueue`/custom submission |
 
 System lookup remains technically available for all Artemis systems. For internal systems, lookup is
@@ -205,6 +211,26 @@ Borrowed engine-owned objects must be reacquired after documented scene/Runtime 
 Javadocs require it. Runtime APIs and built-in systems execute synchronously on the thread calling
 the lifecycle methods, normally the LibGDX render thread; no general thread-safety guarantee exists.
 
+### READY and Runtime Availability
+
+Direct scene dependencies and explicitly declared Runtime Availability resources are acquired
+before `SceneLoadPhase.READY`. Resource types requiring persistent Runtime preparation are also
+prepared before READY. After READY, normal gameplay consumes prepared resources and does not
+implicitly load or prepare undeclared scene resources. A resource intended for dynamic gameplay
+use must therefore be declared through Runtime Availability unless it is already a direct scene
+dependency.
+
+Deferred transport is distinct from gameplay lazy loading. Platform transport, including GWT
+delivery, may defer and progressively acquire a declared resource during `SceneLoadHandle`
+processing, but `SceneLoadPhase.READY` still waits for its acquisition and required preparation.
+The guarantee concerns resource acquisition and persistent preparation, not the elimination of all
+later CPU or GPU work; normal gameplay operations such as prefab entity instantiation and
+deserialization may still perform their intrinsic work.
+
+Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring publication
+such as atlas replacement. This is a first-party authoring publication boundary, not normal Runtime
+gameplay loading behavior.
+
 ## 9. External consumer evidence
 
 The current `tiled-iso-demo` uses the intended layering:
@@ -212,6 +238,7 @@ The current `tiled-iso-demo` uses the intended layering:
 | Direct usage | Classification | Assessment |
 |---|---|---|
 | `PixscapeEngine`, `PixscapeAPI`, entity/animation/particle/physics facades | `HIGH_LEVEL` | Normal gameplay path |
+| `loadProject(...)`, `beginLoadScene(...)`, `SceneLoadHandle` | `HIGH_LEVEL` | Canonical progressive loading path, validated through `SceneLoadPhase.READY` |
 | Native Box2D forces, velocities, queries, contacts reached through `PhysicsAPI` | `SUPPORTED_EXPERT` native integration | Deliberate LibGDX/Box2D use |
 | Custom Artemis control/follow/trigger systems and `PixscapeIdentityComponent` mappers | `SUPPORTED_EXPERT` | Legitimate expert ECS gameplay |
 | `setPostRenderSystemCustomizer(...)` | `SUPPORTED_EXPERT` | Correct named phase for next-frame gameplay/custom systems |
@@ -224,10 +251,11 @@ The locally available Studio sources use many supported authored components, ser
 loaders, compilers, and diagnostics, confirming real tooling value in the expert layer. They also
 reference internal candidates such as prepared physics candidates, Spatial cache owners, concrete
 render construction/state types, `InternalTextures`, and sync systems. Studio is first-party
-tooling that can co-evolve with Runtime; those dependencies do not create a third-party
-compatibility promise, but releases must coordinate them before internal changes land. Some Studio
-source hits are historical/stale names, so this policy does not treat every textual import as a
-current supported dependency.
+tooling that can co-evolve with Runtime and may use the explicit authoring publication boundary;
+those dependencies and authoring behavior do not create a third-party compatibility promise, but
+releases must coordinate them before internal changes land. Some Studio source hits are
+historical/stale names, so this policy does not treat every textual import as a current supported
+dependency.
 
 ## 10. Documentation mechanism
 
@@ -263,6 +291,7 @@ For internal-but-public types, use this consistent sentence:
 | `P1_BEFORE_1_0` | Add/complete expert Javadocs for ECS/dirty tracking, render hooks and borrowed states, `PhysicsService`/Box2D lifecycle, registries, Tiled mutation, and Spatial compiler/query boundaries. |
 | `P1_BEFORE_1_0` | Mark the most obvious public internal types consistently: `PixscapeApiImpl`, render construction/context/internal textures, pipeline systems, prepared physics/cache publishers, Tiled sync helpers, and Spatial cache/planner/composer families. |
 | `COMPLETE` | Classify standalone particle effect/emitter/pool types as `SUPPORTED_EXPERT`; preserve `.p`, pooling, and Runtime/Studio extraction contracts. |
+| `COMPLETE` | Define and enforce `SceneLoadPhase.READY` / Runtime Availability gameplay loading semantics. |
 | `P1_BEFORE_1_0` | Audit active Studio dependencies before changing internal visibility; coordinate first-party migrations without promoting implementation types to supported API. |
 | `P2_BEFORE_1_0` | Reduce `PhysicsMouseDragSystem`'s manual `LayerStateSOA` wiring if a simple self-binding path exists; current expert use remains supported. |
 | `P2_BEFORE_1_0` | Add field-level authored/derived notes to mixed components such as `RenderMaterialComponent`. |
@@ -285,6 +314,11 @@ For internal-but-public types, use this consistent sentence:
 > **`INTERNAL`** includes replaceable Runtime machinery. Some internal types remain
 > Java-public for technical or first-party integration reasons, but they are not compatibility
 > contracts and may change between releases.
+>
+> Scene loading defines a resource-readiness boundary. Direct scene dependencies and Runtime
+> Availability resources are acquired and prepared before `SceneLoadPhase.READY`. Normal gameplay
+> does not implicitly load undeclared resources after READY. Deferred platform transport during
+> loading, including GWT delivery, does not change this guarantee.
 >
 > High-level convenience does not remove expert access. Use the highest-level API that meets the
 > need, and cross into the expert layer deliberately when lower-level control is required.
@@ -322,3 +356,7 @@ Before 1.0, prioritize communication over refactoring: publish this policy, docu
 contract, strengthen the few major expert boundaries, mark obvious internals, and coordinate
 first-party Studio dependencies. Do not add annotations or move packages until a concrete tool or
 compatibility workflow benefits from them.
+
+The finalized scene-loading boundary is an architectural rule: before `SceneLoadPhase.READY`, the
+Runtime acquires declared resources and performs required persistent preparation; after READY,
+normal gameplay uses that prepared state rather than initiating resource loading or preparation.
