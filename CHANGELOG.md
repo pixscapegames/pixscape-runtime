@@ -12,6 +12,7 @@
 * Particle effects now always follow their owning entity at `TransformComponent.x/y`; transform origin is no longer applied to emitter positioning.
 * Spatial actors now require an explicitly authored physics footprint; ordinary circle fixtures are no longer inferred automatically.
 * Removed Tiled layer lookup by Studio display name from `TiledAPI`; Runtime tiled layers must now be accessed by exported layer index, entity ID or stable ID.
+* Runtime no longer lazily acquires or prepares undeclared scene resources after READY. Particle effects, prefab fragments and other resources used only dynamically must be declared through Runtime Availability before scene loading completes.
 
 ### Added
 
@@ -25,12 +26,16 @@
 * Added progressive scene loading through `SceneLoadHandle`, with phase, progress and runtime-ready state for custom loading screens.
 * Added `PixscapeEngine#setAssetManager(...)` for applications that provide and manage a shared LibGDX `AssetManager`.
 * Added exact resource discovery for the selected scene, including its scene data, atlas pages and declared particle effects.
-* Added a high-level Physics API for runtime state, pixels-per-meter, parallax conversion and native Box2D world/body access.* Added advanced render hooks for custom extraction, submission and integration around the Runtime render pipeline.
+* Added a high-level Physics API for runtime state, pixels-per-meter, parallax conversion and native Box2D world/body access.
+* Added advanced render hooks for custom extraction, submission and integration around the Runtime render pipeline.
 * Added animation state and query controls, plus repeatable sprite creation and mutation through the public Runtime API.
+* Added Runtime Availability support for declared prefab fragments, including progressive file acquisition during scene loading.
+* Added a formal Runtime API support policy defining `HIGH_LEVEL`, `SUPPORTED_EXPERT` and `INTERNAL` compatibility levels.
 
 ### Changed
 
-* Deferred transient lazy particle preparation during atlas replacement and prevented repeated attempts until the relevant published atlas changes.
+* Scene READY now guarantees acquisition and required heavyweight preparation of known scene dependencies and declared Runtime Availability resources; normal gameplay no longer performs implicit scene-resource loading or particle preparation after READY.
+* Particle spawning and effect replacement now require the requested effect to have been prepared before READY and reject unavailable resources before mutating ECS state.
 * Reduced Spatial query and frame-preparation overhead by avoiding full scene-layer and inactive slot-range scans.
 * Box2D bodies are now built from validated compiled fixtures instead of legacy fixture data.
 * Scene loading and prefab spawning now rebuild derived physics state from persistent authored shapes.
@@ -82,7 +87,7 @@
 * Added regression coverage for runtime render-order mutation, z-index boundaries, index-only Tiled access and authored-layer isolation from rendered actors.
 * Added grouped coverage for progressive loading, exact availability, shared `AssetManager` reuse and runtime-ready completion across particles, physics, Tiled, Spatial and rendering.
 * Added grouped facade identity and failure-contract coverage, with forced GWT compilation and Java 8 compatibility validation.
-
+* Added regression coverage for declared prefab availability, strict pre-READY particle preparation and deferred HTML resource delivery without post-READY gameplay loading.
 
 ## [0.1.8]
 
