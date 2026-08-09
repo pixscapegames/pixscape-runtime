@@ -64,7 +64,7 @@ public class ParticleRuntimeAvailabilityTest {
     }
 
     @Test
-    public void dynamicPostReadyDependencyStillUsesLazyFallback() throws Exception {
+    public void unpreparedGameplayObtainFailsWithoutPreparingResource() throws Exception {
         File root = temporaryFolder.newFolder("dynamic-effects");
         writeEffect(new FileHandle(new File(root, "dynamic.p")));
 
@@ -74,15 +74,16 @@ public class ParticleRuntimeAvailabilityTest {
                 new ParticleRuntimeAvailability(atlases, new FileHandle(root));
 
         Assert.assertFalse(availability.isPrepared("main", "dynamic.p"));
-        ParticleEffectPool.PooledEffect effect =
-                availability.obtain("main", "dynamic.p");
-        effect.free();
+        IllegalStateException failure = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> availability.obtain("main", "dynamic.p"));
 
-        Assert.assertTrue(availability.isPrepared("main", "dynamic.p"));
-        Assert.assertEquals(1, availability.fileParseCount());
-        Assert.assertEquals(1, availability.templateConstructionCount());
-        Assert.assertEquals(1, availability.poolConstructionCount());
-        Assert.assertEquals(1, availability.obtainCount());
+        Assert.assertTrue(failure.getMessage().contains("Runtime Availability"));
+        Assert.assertFalse(availability.isPrepared("main", "dynamic.p"));
+        Assert.assertEquals(0, availability.fileParseCount());
+        Assert.assertEquals(0, availability.templateConstructionCount());
+        Assert.assertEquals(0, availability.poolConstructionCount());
+        Assert.assertEquals(0, availability.obtainCount());
     }
 
     @Test

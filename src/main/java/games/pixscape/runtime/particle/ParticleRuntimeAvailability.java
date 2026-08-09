@@ -26,9 +26,17 @@ public final class ParticleRuntimeAvailability {
         pool(atlasTag, effectPath);
     }
 
-    /** Obtains an instance, lazily preparing only dynamic post-READY dependencies. */
+    /** Obtains an instance from a pool prepared before READY or by an explicit authoring rebuild. */
     public ParticleEffectPool.PooledEffect obtain(String atlasTag, String effectPath) {
-        ParticleEffectPool.PooledEffect effect = pool(atlasTag, effectPath).obtain();
+        String normalizedAtlasTag = requireText(atlasTag, "atlasTag");
+        String normalizedEffectPath = ParticleEffectPath.normalize(effectPath);
+        ParticleEffectPool prepared = pools.get(key(normalizedAtlasTag, normalizedEffectPath));
+        if (prepared == null) {
+            throw new IllegalStateException("Particle effect is not prepared: '"
+                    + normalizedEffectPath + "' with atlas '" + normalizedAtlasTag
+                    + "'. Add it to Runtime Availability before scene loading.");
+        }
+        ParticleEffectPool.PooledEffect effect = prepared.obtain();
         obtainCount++;
         effect.setEmittersCleanUpBlendFunction(false);
         return effect;

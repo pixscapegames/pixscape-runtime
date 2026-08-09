@@ -8,6 +8,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
@@ -15,6 +16,10 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
+import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.After;
 import org.junit.Assert;
@@ -23,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.lang.reflect.Proxy;
+import java.lang.reflect.Field;
 
 public class EntityRefIdentitySafetyTest {
     private Application previousApp;
@@ -227,10 +233,13 @@ public class EntityRefIdentitySafetyTest {
     }
 
     @Test
-    public void factoryRefCapturesCurrentIncarnationBeforeWorldProcessing() {
+    public void factoryRefCapturesCurrentIncarnationBeforeWorldProcessing() throws Exception {
         PixscapeEngine engine = new PixscapeEngine();
         try {
             engine.initEmptyRuntime();
+            prepareParticlePool(
+                    engine.getWorld().getSystem(RenderParticleSyncSystem.class),
+                    "main", "effects/smoke.p");
 
             ParticleRef particle = engine.api().particles().spawn("effects/smoke", 3f, 4f);
 
@@ -241,6 +250,23 @@ public class EntityRefIdentitySafetyTest {
         } finally {
             engine.dispose();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void prepareParticlePool(
+            RenderParticleSyncSystem system, String atlasTag, String effectPath)
+            throws Exception {
+        Field availabilityField = RenderParticleSyncSystem.class
+                .getDeclaredField("particleAvailability");
+        availabilityField.setAccessible(true);
+        ParticleRuntimeAvailability availability =
+                (ParticleRuntimeAvailability) availabilityField.get(system);
+        Field poolsField = ParticleRuntimeAvailability.class.getDeclaredField("pools");
+        poolsField.setAccessible(true);
+        ObjectMap<String, ParticleEffectPool> pools =
+                (ObjectMap<String, ParticleEffectPool>) poolsField.get(availability);
+        pools.put(atlasTag + "|" + effectPath,
+                new ParticleEffectPool(new ParticleEffect(), 0, 4));
     }
 
     private static TiledMapLayerData tiled(World world, int entityId, int width) {

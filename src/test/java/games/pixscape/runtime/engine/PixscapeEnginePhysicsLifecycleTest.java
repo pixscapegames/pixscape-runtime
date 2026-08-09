@@ -12,6 +12,7 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.assets.AssetDescriptor;
+import com.badlogic.gdx.assets.AssetLoaderParameters;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.assets.loaders.SynchronousAssetLoader;
@@ -39,6 +40,8 @@ import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.loading.SceneLoadPhase;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -49,6 +52,7 @@ import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,6 +60,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.OutputStream;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -273,6 +278,35 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void readyIncludesDeclaredPrefabAndSpawnNeverRequestsUndeclaredPrefab()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        try {
+            SceneLoadHandle load = fixture.engine.beginLoadScene("A");
+            while (!load.isReady() && !load.isFailed()) load.update();
+
+            Assert.assertTrue(load.isReady());
+            Assert.assertEquals(0,
+                    fixture.engine.spawnPrefab("declared", 0f, 0f)
+                            .createdEntityIds().size());
+            RenderParticleSyncSystem particles = fixture.engine.getWorld()
+                    .getSystem(RenderParticleSyncSystem.class);
+            particles.requirePrepared("a", "declared.p");
+            Assert.assertTrue(fixture.engine.api().particles()
+                    .spawn("declared.p", 0f, 0f).entity().exists());
+
+            int requestsAtReady = fixture.assetManager.loadCalls;
+            RuntimeException missing = Assert.assertThrows(
+                    RuntimeException.class,
+                    () -> fixture.engine.spawnPrefab("undeclared", 0f, 0f));
+            Assert.assertTrue(missing.getMessage().contains("Prefab fragment not found"));
+            Assert.assertEquals(requestsAtReady, fixture.assetManager.loadCalls);
+        } finally {
+            fixture.engine.dispose();
+        }
+    }
+
+    @Test
     public void failedReplacementDiscardsCandidateAndAllowsRetry()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
@@ -454,6 +488,10 @@ public class PixscapeEnginePhysicsLifecycleTest {
         projectDir.mkdirs();
         FileHandle scenesDir = projectDir.child("scenes");
         scenesDir.mkdirs();
+        FileHandle prefabsDir = projectDir.child("prefabs");
+        prefabsDir.mkdirs();
+        FileHandle effectsDir = projectDir.child("effects");
+        effectsDir.mkdirs();
 
         projectDir.child("project.json").writeString(
                 projectJson(), false, "UTF-8");
@@ -461,12 +499,16 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("b.json"), true, false);
         writeScene(scenesDir.child("c.json"), false, true);
         writeLinkedScene(scenesDir.child("d.json"));
+        writeEmptyPrefab(prefabsDir.child("declared.pixfragment.json"));
+        writeEmptyEffect(effectsDir.child("declared.p"));
 
+        final CountingAssetManager[] createdManager = new CountingAssetManager[1];
         PixscapeEngine engine = new PixscapeEngine(new PixscapeEngine.AssetManagerFactory() {
             @Override
             public AssetManager create(FileHandleResolver resolver) {
-                AssetManager manager = new AssetManager(resolver);
+                CountingAssetManager manager = new CountingAssetManager(resolver);
                 manager.setLoader(TextureAtlas.class, new EmptyAtlasLoader(resolver));
+                createdManager[0] = manager;
                 return manager;
             }
         });
@@ -488,7 +530,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
         return new EngineFixture(
                 engine, config, sceneA, projectDir, atlasService,
-                metricsBatch, worldProbe);
+                metricsBatch, worldProbe, createdManager[0]);
     }
 
     private static String projectJson() {
@@ -502,7 +544,10 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"name\":\"A\","
                 + "\"file\":\"a.json\","
                 + "\"nextEntityStableId\":8,"
-                + "\"nextPhysicsShapeId\":1"
+                + "\"nextPhysicsShapeId\":1,"
+                + "\"runtimeAvailability\":{"
+                + "\"prefabs\":[\"declared\"],"
+                + "\"particles\":[\"declared.p\"]}"
                 + "},"
                 + "\"B\":{"
                 + "\"sceneSchemaVersion\":2,"
@@ -655,6 +700,30 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
+    private static void writeEmptyPrefab(FileHandle file) throws Exception {
+        World source = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            WorldSerializationManager serialization =
+                    source.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(
+                    new JsonArtemisSerializer(source).setUsePrototypes(false));
+            try (OutputStream output = file.write(false)) {
+                serialization.save(output, new RuntimePrefabFragment());
+            }
+        } finally {
+            source.dispose();
+        }
+    }
+
+    private static void writeEmptyEffect(FileHandle file) throws Exception {
+        ParticleEffect effect = new ParticleEffect();
+        effect.getEmitters().add(new ParticleEmitter());
+        StringWriter writer = new StringWriter();
+        effect.save(writer);
+        file.writeString(writer.toString(), false, "UTF-8");
+    }
+
     private static void apply(
             PixscapeEngine engine, SceneMetaRuntime meta, boolean activate)
             throws Exception {
@@ -736,6 +805,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         private final AtlasRuntimeService atlasService;
         private final MetricsBatch metricsBatch;
         private final CandidateWorldProbe worldProbe;
+        private final CountingAssetManager assetManager;
 
         private EngineFixture(
                 PixscapeEngine engine,
@@ -744,7 +814,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 FileHandle projectDir,
                 AtlasRuntimeService atlasService,
                 MetricsBatch metricsBatch,
-                CandidateWorldProbe worldProbe) {
+                CandidateWorldProbe worldProbe,
+                CountingAssetManager assetManager) {
             this.engine = engine;
             this.config = config;
             this.sceneA = sceneA;
@@ -752,6 +823,22 @@ public class PixscapeEnginePhysicsLifecycleTest {
             this.atlasService = atlasService;
             this.metricsBatch = metricsBatch;
             this.worldProbe = worldProbe;
+            this.assetManager = assetManager;
+        }
+    }
+
+    private static final class CountingAssetManager extends AssetManager {
+        private int loadCalls;
+
+        private CountingAssetManager(FileHandleResolver resolver) {
+            super(resolver);
+        }
+
+        @Override
+        public synchronized <T> void load(
+                String fileName, Class<T> type, AssetLoaderParameters<T> parameters) {
+            loadCalls++;
+            super.load(fileName, type, parameters);
         }
     }
 

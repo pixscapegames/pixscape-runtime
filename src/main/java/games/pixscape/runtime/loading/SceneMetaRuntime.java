@@ -21,6 +21,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public int nextEntityStableId = 1;
     /** Explicit particle files exported in this scene's runtimeAvailability. */
     public final Array<String> runtimeParticleEffectPaths = new Array<>();
+    /** Explicit prefab IDs exported in this scene's runtimeAvailability. */
+    public final Array<String> runtimePrefabIds = new Array<>();
 
     // Physics
     public boolean physicsEnabled = false;
@@ -116,6 +118,13 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
                 if (particle.isString()) meta.runtimeParticleEffectPaths.add(particle.asString());
             }
         }
+        JsonValue prefabs = availability != null && availability.isObject()
+                ? availability.get("prefabs") : null;
+        if (prefabs != null && prefabs.isArray()) {
+            for (JsonValue prefab = prefabs.child; prefab != null; prefab = prefab.next) {
+                if (prefab.isString()) meta.runtimePrefabIds.add(prefab.asString());
+            }
+        }
         return meta;
     }
 
@@ -159,6 +168,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.nextEntityStableId = other.nextEntityStableId;
         this.runtimeParticleEffectPaths.clear();
         this.runtimeParticleEffectPaths.addAll(other.runtimeParticleEffectPaths);
+        this.runtimePrefabIds.clear();
+        this.runtimePrefabIds.addAll(other.runtimePrefabIds);
         this.physicsEnabled = other.physicsEnabled;
         this.pixelsPerMeter = other.pixelsPerMeter;
         this.gravityX = other.gravityX;

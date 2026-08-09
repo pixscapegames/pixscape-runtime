@@ -1,14 +1,17 @@
 package games.pixscape.runtime.api;
 
 import com.artemis.BaseSystem;
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectIntMap;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
@@ -23,6 +26,10 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
+import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -31,6 +38,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.DirtyFlushSystem;
 import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.RenderSpriteSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.system.TiledAnimationSystem;
 import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
@@ -1430,6 +1438,24 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void particlesSpawnRejectsUndeclaredResourceWithoutCreatingEntity()
+            throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entitiesBefore = world.getAspectSubscriptionManager()
+                .get(Aspect.all()).getEntities().size();
+
+        IllegalStateException unavailable = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> engine.api().particles().spawn("undeclared.p", 0f, 0f));
+
+        Assert.assertTrue(unavailable.getMessage().contains("Runtime Availability"));
+        Assert.assertEquals(entitiesBefore,
+                world.getAspectSubscriptionManager()
+                        .get(Aspect.all()).getEntities().size());
+    }
+
+    @Test
     public void particlesOneshotCreatesNonLoopingParticleEntity() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         ParticleRef ref = engine.api().particles().oneshot("impact.p", 1f, 2f);
@@ -1484,9 +1510,12 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(world.getMapper(TransformComponent.class).has(arbitrary));
         Assert.assertFalse(world.getMapper(ParticleEmitterComponent.class).has(arbitrary));
 
-        facade.setEffect("unavailable-but-well-formed.p", "missing-atlas");
-        Assert.assertEquals("unavailable-but-well-formed.p", emitter.effectPath);
-        Assert.assertEquals("missing-atlas", emitter.atlasTag);
+        IllegalStateException unavailable = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> facade.setEffect("unavailable-but-well-formed.p", "missing-atlas"));
+        Assert.assertTrue(unavailable.getMessage().contains("Runtime Availability"));
+        Assert.assertEquals("live-a.p", emitter.effectPath);
+        Assert.assertEquals("atlas-a", emitter.atlasTag);
         Assert.assertTrue(facade.exists());
     }
 
@@ -2018,7 +2047,12 @@ public class PixscapeApiV1Test {
 
     private static PixscapeEngine setupEngineWithWorld(ProcessCounterSystem processCounter) throws Exception {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
-        WorldConfigurationBuilder builder = new WorldConfigurationBuilder().with(dirty);
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), null);
+        prepareParticlePool(particles, "main", "impact.p");
+        prepareParticlePool(particles, "main", "fire.p");
+        WorldConfigurationBuilder builder = new WorldConfigurationBuilder().with(dirty, particles);
         if (processCounter != null) {
             builder.with(processCounter);
         }
@@ -2028,6 +2062,23 @@ public class PixscapeApiV1Test {
         engine.getIdentityRegistry().bind(world, new SceneMetaRuntime());
         engine.getTagRegistry().bind(world);
         return engine;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void prepareParticlePool(
+            RenderParticleSyncSystem system, String atlasTag, String effectPath)
+            throws Exception {
+        Field availabilityField = RenderParticleSyncSystem.class
+                .getDeclaredField("particleAvailability");
+        availabilityField.setAccessible(true);
+        ParticleRuntimeAvailability availability =
+                (ParticleRuntimeAvailability) availabilityField.get(system);
+        Field poolsField = ParticleRuntimeAvailability.class.getDeclaredField("pools");
+        poolsField.setAccessible(true);
+        ObjectMap<String, ParticleEffectPool> pools =
+                (ObjectMap<String, ParticleEffectPool>) poolsField.get(availability);
+        pools.put(atlasTag + "|" + effectPath,
+                new ParticleEffectPool(new ParticleEffect(), 0, 4));
     }
 
     private static void setField(Object target, String fieldName, Object value) throws Exception {

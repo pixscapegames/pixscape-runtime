@@ -10,12 +10,11 @@ public interface ParticleFacade {
     /**
      * Changes the authored particle resource request.
      *
-     * <p>Runtime realizes the request during synchronization, so it may not become live
-     * immediately. If preparation fails, the previous pooled effect remains active and Runtime
-     * retries while the authored and live identities differ. Successful replacement is atomic;
-     * the caller never owns or disposes the pooled effect.</p>
+     * <p>The replacement must already be prepared by scene Runtime Availability. Successful
+     * replacement remains atomic; the caller never owns or disposes the pooled effect.</p>
      *
      * @throws IllegalArgumentException when the effect path or atlas tag is blank
+     * @throws IllegalStateException when the requested effect was not prepared before READY
      */
     ParticleFacade setEffect(String effectPath, String atlasTag);
 

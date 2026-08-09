@@ -27,6 +27,7 @@ import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -573,6 +574,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         World world = requireWorld(engine);
+        String effectPath = normalizeEffectPath(effectPathOrName);
+        String atlasTag = currentAtlasTag(engine);
+        requirePreparedParticle(world, effectPath, atlasTag);
         int e = world.create();
 
         TransformComponent transform = world.edit(e).create(TransformComponent.class);
@@ -586,8 +590,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         visibility.inView = true;
 
         ParticleEmitterComponent emitter = world.edit(e).create(ParticleEmitterComponent.class);
-        emitter.effectPath = normalizeEffectPath(effectPathOrName);
-        emitter.atlasTag = currentAtlasTag(engine);
+        emitter.effectPath = effectPath;
+        emitter.atlasTag = atlasTag;
         emitter.looping = looping;
         emitter.autoRemoveWhenComplete = !looping;
         emitter.autoStart = true;
@@ -596,6 +600,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         markSpawnDirty(world, e);
         return e;
+    }
+
+    private static void requirePreparedParticle(
+            World world, String effectPath, String atlasTag) {
+        RenderParticleSyncSystem particles = world.getSystem(RenderParticleSyncSystem.class);
+        if (particles == null) {
+            throw new IllegalStateException(
+                    "Required Runtime particle availability system is missing.");
+        }
+        particles.requirePrepared(atlasTag, effectPath);
     }
 
     private static String normalizeEffectPath(String effectPathOrName) {
@@ -1707,16 +1721,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ParticleFacade setEffect(String effectPath, String atlasTag) {
-            if (handle.world() == null) return this;
+            World world = handle.world();
+            if (world == null) return this;
             if (isBlank(effectPath)) {
                 throw new IllegalArgumentException("Particle effect path must not be blank.");
             }
             if (isBlank(atlasTag)) {
                 throw new IllegalArgumentException("Particle atlas tag must not be blank.");
             }
+            String normalizedEffectPath = ParticleEffectPath.normalize(effectPath);
+            requirePreparedParticle(world, normalizedEffectPath, atlasTag);
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
-                c.effectPath = ParticleEffectPath.normalize(effectPath);
+                c.effectPath = normalizedEffectPath;
                 c.atlasTag = atlasTag;
             }
             return this;

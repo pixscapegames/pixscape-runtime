@@ -8,9 +8,9 @@ package games.pixscape.runtime.loading;
  * worker thread and Pixscape does not render a loading screen.</p>
  *
  * <p>{@link SceneLoadPhase#READY READY} means the requested scene is active and every known
- * dependency in its load plan has completed heavyweight Runtime preparation. Normal per-frame
- * simulation/render work remains, and dependencies introduced dynamically after READY may still
- * use their documented lazy paths.</p>
+ * dependency and explicitly declared Runtime Availability resource has completed acquisition and
+ * heavyweight preparation. After READY, normal gameplay uses that prepared state and does not
+ * implicitly load or prepare scene resources.</p>
  *
  * <p>On failure, {@link #failure()} retains the original throwable, progress remains below one,
  * and later {@code update()} calls have no effect. A failure before scene construction leaves an

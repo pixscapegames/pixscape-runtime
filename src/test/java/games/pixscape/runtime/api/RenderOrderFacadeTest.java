@@ -4,6 +4,8 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -12,10 +14,15 @@ import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
+import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -398,13 +405,34 @@ public class RenderOrderFacadeTest {
 
     private static Fixture fixture() throws Exception {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
-        World world = new World(new WorldConfigurationBuilder().with(dirty).build());
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                new AtlasRuntimeService(), null);
+        prepareParticlePool(particles, "main", "Flame.p");
+        World world = new World(new WorldConfigurationBuilder().with(dirty, particles).build());
         PixscapeEngine engine = new PixscapeEngine();
         setField(engine, "world", world);
         SceneMetaRuntime meta = new SceneMetaRuntime();
         engine.getIdentityRegistry().bind(world, meta);
         engine.getTagRegistry().bind(world);
         return new Fixture(engine, world, dirty);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void prepareParticlePool(
+            RenderParticleSyncSystem system, String atlasTag, String effectPath)
+            throws Exception {
+        Field availabilityField = RenderParticleSyncSystem.class
+                .getDeclaredField("particleAvailability");
+        availabilityField.setAccessible(true);
+        ParticleRuntimeAvailability availability =
+                (ParticleRuntimeAvailability) availabilityField.get(system);
+        Field poolsField = ParticleRuntimeAvailability.class.getDeclaredField("pools");
+        poolsField.setAccessible(true);
+        ObjectMap<String, ParticleEffectPool> pools =
+                (ObjectMap<String, ParticleEffectPool>) poolsField.get(availability);
+        pools.put(atlasTag + "|" + effectPath,
+                new ParticleEffectPool(new ParticleEffect(), 0, 4));
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {
