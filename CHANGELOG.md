@@ -186,6 +186,7 @@
 
 * Fixed spatial tiled anchor interleaving that could make actors render on the wrong side of isometric walls.
 * Fixed false spatial ordering conflicts caused by shared corner/junction tiles expanding block anchor intervals.
+* Particle effect replacement is failure-atomic and keeps the previous valid effect when replacement fails.
 
 
 ## [0.1.5]
