@@ -21,6 +21,23 @@ public final class AnimationRegistry {
         if (def == null) {
             throw new IllegalArgumentException("def must not be null");
         }
+
+        AnimationDef byAssetId = defsByAssetId.get(def.assetId());
+        AnimationDef byName = defsByName.get(def.name());
+        if (byAssetId == def && byName == def) {
+            return;
+        }
+        if (byAssetId != null) {
+            throw new IllegalArgumentException(
+                    "Animation asset id " + def.assetId() + " is already registered as '"
+                            + byAssetId.name() + "'.");
+        }
+        if (byName != null) {
+            throw new IllegalArgumentException(
+                    "Animation name '" + def.name() + "' is already registered for asset id "
+                            + byName.assetId() + ".");
+        }
+
         defsByAssetId.put(def.assetId(), def);
         defsByName.put(def.name(), def);
     }

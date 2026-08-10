@@ -10,7 +10,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationClipDef;
 import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
@@ -512,28 +512,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return e;
     }
 
-    private static void configureDefaultAnimation(
-            PixscapeEngine engine,
-            int entityId,
-            AtlasAssetBinding binding) {
-        World world = requireWorld(engine);
-        AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
-                ? world.getMapper(AnimationComponent.class).get(entityId)
-                : world.getMapper(AnimationComponent.class).create(entityId);
-
-        int frameCount = binding.regionCount();
-
-        animation.clips.clear();
-        animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, frameCount - 1)));
-        animation.currentClip = "default";
-        animation.fps = 12f;
-        animation.playing = true;
-        animation.loop = true;
-        animation.frame = -1;
-        animation.stateTime = 0f;
-        markSpawnDirty(world, entityId);
-    }
-
     private static void configureAnimationFromDef(PixscapeEngine engine, int entityId, AnimationDef def) {
         if (def == null) {
             throw new IllegalArgumentException("def must not be null");
@@ -543,23 +521,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
                 ? world.getMapper(AnimationComponent.class).get(entityId)
                 : world.getMapper(AnimationComponent.class).create(entityId);
+        world.getMapper(AssetRefComponent.class).get(entityId).assetId = def.assetId();
 
-        animation.clips.clear();
-        Array<AnimationClipDefData> clips = def.clips();
-        for (int i = 0, n = clips.size; i < n; i++) {
-            AnimationClipDefData source = clips.get(i);
-            if (source == null || isBlank(source.name)) continue;
-            AnimationComponent.Clip clip = new AnimationComponent.Clip(source.start, source.end);
-            clip.flipX = source.flipX;
-            animation.clips.put(source.name, clip);
-        }
-
-        if (animation.clips.size == 0) {
-            animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, def.frameCount() - 1)));
-            animation.currentClip = "default";
-        } else {
-            animation.currentClip = !isBlank(def.currentClip()) ? def.currentClip() : clips.first().name;
-        }
+        animation.animationAssetIds.clear();
+        animation.animationAssetIds.add(def.assetId());
+        animation.currentClip = def.currentClip();
         animation.fps = def.fps();
         animation.playing = true;
         animation.loop = true;
@@ -880,7 +846,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AnimationFacade animation() {
-            if (animation == null) animation = new AnimationFacadeImpl(handle);
+            if (animation == null) animation = new AnimationFacadeImpl(engine, handle);
             return animation;
         }
 
@@ -1533,9 +1499,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class AnimationFacadeImpl implements AnimationFacade {
+        private final PixscapeEngine engine;
         private final EntityHandle handle;
 
-        AnimationFacadeImpl(EntityHandle handle) {
+        AnimationFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
+            this.engine = engine;
             this.handle = handle;
         }
 
@@ -1552,8 +1520,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean hasClip(String clipName) {
-            AnimationComponent a = anim();
-            return a != null && !isBlank(clipName) && a.clips.containsKey(clipName);
+            if (anim() == null) return false;
+            AnimationDef def = activeDef();
+            return def != null && def.clip(clipName) != null;
         }
 
         @Override
@@ -1610,7 +1579,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public AnimationFacade play(String clipName) {
             AnimationComponent a = anim();
             if (a == null) return this;
-            requireClip(a, clipName);
+            requireClip(activeDef(), clipName);
             selectClip(a, clipName);
             a.playing = true;
             return this;
@@ -1620,7 +1589,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public AnimationFacade setClip(String clipName) {
             AnimationComponent a = anim();
             if (a == null) return this;
-            requireClip(a, clipName);
+            requireClip(activeDef(), clipName);
             selectClip(a, clipName);
             return this;
         }
@@ -1677,7 +1646,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public boolean isFinished() {
             AnimationComponent a = anim();
-            return a != null && a.isFinished();
+            if (a == null || a.loop || a.fps <= 0f) return false;
+            AnimationDef def = activeDef();
+            AnimationClipDef clip = def != null ? def.clip(a.currentClip) : null;
+            if (clip == null) return false;
+            int start = Math.max(0, clip.start());
+            int end = Math.max(0, clip.end());
+            int count = Math.abs(end - start) + 1;
+            return count > 0 && a.stateTime >= count / a.fps;
         }
 
         private AnimationComponent anim() {
@@ -1686,8 +1662,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return world.getMapper(AnimationComponent.class).get(handle.entityId);
         }
 
-        private static void requireClip(AnimationComponent animation, String clipName) {
-            if (isBlank(clipName) || !animation.clips.containsKey(clipName)) {
+        private AnimationDef activeDef() {
+            World world = animationCapabilityWorld(handle);
+            if (world == null) return null;
+            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).get(handle.entityId);
+            return engine.getAnimationRegistry().getByAssetId(assetRef.assetId);
+        }
+
+        private static void requireClip(AnimationDef def, String clipName) {
+            if (def == null || def.clip(clipName) == null) {
                 throw new IllegalArgumentException(
                         "Unknown or blank animation clip: '" + clipName + "'.");
             }
@@ -2267,37 +2250,31 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public AnimationRef spawn(int assetId, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
-            if (def != null) {
-                AtlasAssetBinding binding = assets.requireById(def.assetId());
-                SpriteRef sprite = sprites.spawn(binding, x, y);
-                configureAnimationFromDef(engine, sprite.entityId(), def);
-                return new AnimationRefImpl(sprite.entity());
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
             }
-
-            AtlasAssetBinding binding = assets.requireById(assetId);
+            AtlasAssetBinding binding = assets.requireById(def.assetId());
             SpriteRef sprite = sprites.spawn(binding, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), binding);
+            configureAnimationFromDef(engine, sprite.entityId(), def);
             return new AnimationRefImpl(sprite.entity());
         }
 
         @Override
         public AnimationRef spawn(String name, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByName(name);
-            if (def != null) {
-                AtlasAssetBinding binding = assets.resolveById(def.assetId());
-                if (binding == null) {
-                    throw new IllegalArgumentException(
-                            "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
-                    );
-                }
-                SpriteRef sprite = sprites.spawn(binding, x, y);
-                configureAnimationFromDef(engine, sprite.entityId(), def);
-                return new AnimationRefImpl(sprite.entity());
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + name + "'.");
             }
-
-            AtlasAssetBinding binding = assets.requireByName(name);
+            AtlasAssetBinding binding = assets.resolveById(def.assetId());
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
             SpriteRef sprite = sprites.spawn(binding, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), binding);
+            configureAnimationFromDef(engine, sprite.entityId(), def);
             return new AnimationRefImpl(sprite.entity());
         }
 

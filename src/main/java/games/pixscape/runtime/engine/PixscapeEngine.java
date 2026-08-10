@@ -549,6 +549,7 @@ public final class PixscapeEngine {
                         meta,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
                         preRenderSystemCustomizer,
@@ -647,6 +648,7 @@ public final class PixscapeEngine {
      */
     public void dispose() {
         disposeWorldAndRuntime();
+        animationRegistry.clear();
         releasePendingSceneAvailability();
         releaseActiveSceneAvailability();
         if (fileAvailability != null) {
@@ -1119,6 +1121,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
                         preRenderCustomizer,
@@ -1145,6 +1148,7 @@ public final class PixscapeEngine {
     public PixscapeEngine initEmptyRuntime() {
         applyConfiguredLogLevel();
         disposeWorldAndRuntime();
+        animationRegistry.clear();
         this.cfg = new RuntimeConfig();
 
         ShaderRegistry.initDefaults(platformTarget, null, null);
@@ -1192,6 +1196,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
                         preRenderSystemCustomizer,
@@ -1246,6 +1251,7 @@ public final class PixscapeEngine {
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
                         preRenderSystemCustomizer,

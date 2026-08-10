@@ -6,6 +6,9 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -26,6 +29,7 @@ public class AnimationSystemIndexedBindingTest {
         World world = world(atlas);
         int entity = animatedEntity(world, 1);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entity);
+        animation.animationAssetIds.add(2);
         AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).get(entity);
         TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).get(entity);
 
@@ -57,7 +61,7 @@ public class AnimationSystemIndexedBindingTest {
     }
 
     @Test
-    public void repeatedEntitiesAndMissesPerformOneBindingLookupPerProcessing() {
+    public void repeatedEntitiesResolveBindingsAndMissingDefinitionsSkipBindingLookup() {
         MutableAtlas atlas = new MutableAtlas();
         atlas.assetA = AtlasBindingTestFactory.frames(
                 1, "shared__a1", 2, 10, 16, 16);
@@ -74,19 +78,40 @@ public class AnimationSystemIndexedBindingTest {
 
         MutableAtlas missingAtlas = new MutableAtlas();
         World missingWorld = world(missingAtlas);
-        animatedEntity(missingWorld, 99);
+        int missingEntity = animatedEntity(missingWorld, 99);
+        int missingClipEntity = animatedEntity(missingWorld, 1);
+        AnimationComponent missingAnimation =
+                missingWorld.getMapper(AnimationComponent.class).get(missingEntity);
+        AnimationComponent missingClipAnimation =
+                missingWorld.getMapper(AnimationComponent.class).get(missingClipEntity);
+        TextureRegionComponent missingRegion =
+                missingWorld.getMapper(TextureRegionComponent.class).get(missingEntity);
+        missingAnimation.stateTime = 0.5f;
+        missingAnimation.frame = 4;
+        missingRegion.u1 = 0.25f;
+        missingClipAnimation.currentClip = "missing";
+        missingClipAnimation.stateTime = 0.75f;
+        missingClipAnimation.frame = 6;
         missingWorld.setDelta(0.1f);
         for (int i = 0; i < 2000; i++) {
             missingWorld.process();
         }
-        Assert.assertEquals(2000, missingAtlas.resolveCalls);
+        Assert.assertEquals(0, missingAtlas.resolveCalls);
+        Assert.assertEquals(0.5f, missingAnimation.stateTime, 0f);
+        Assert.assertEquals(4, missingAnimation.frame);
+        Assert.assertEquals(0.25f, missingRegion.u1, 0f);
+        Assert.assertEquals(0.75f, missingClipAnimation.stateTime, 0f);
+        Assert.assertEquals(6, missingClipAnimation.frame);
     }
 
     private static World world(AtlasRuntimeService atlas) {
+        AnimationRegistry animations = new AnimationRegistry();
+        animations.put(animationDef(1));
+        animations.put(animationDef(2));
         return new World(new WorldConfigurationBuilder()
                 .with(
                         new DirtyTrackerSystem(32),
-                        new AnimationSystem(atlas))
+                        new AnimationSystem(animations, atlas))
                 .build());
     }
 
@@ -94,7 +119,7 @@ public class AnimationSystemIndexedBindingTest {
         int entity = world.create();
         AnimationComponent animation =
                 world.edit(entity).create(AnimationComponent.class);
-        animation.clips.put("default", new AnimationComponent.Clip(0, 10));
+        animation.animationAssetIds.add(assetId);
         animation.currentClip = "default";
         animation.fps = 1f;
         animation.playing = true;
@@ -108,6 +133,21 @@ public class AnimationSystemIndexedBindingTest {
         world.edit(entity).create(TextureRegionComponent.class);
         world.edit(entity).create(RenderMaterialComponent.class);
         return entity;
+    }
+
+    private static AnimationDefData animationDef(int assetId) {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = assetId;
+        def.name = "asset-" + assetId;
+        def.fps = 1f;
+        def.currentClip = "default";
+        def.frameCount = 11;
+        AnimationClipDefData clip = new AnimationClipDefData();
+        clip.name = "default";
+        clip.start = 0;
+        clip.end = 10;
+        def.clips.add(clip);
+        return def;
     }
 
     private static void resetAnimation(AnimationComponent animation) {

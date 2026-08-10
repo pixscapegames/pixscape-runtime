@@ -1,7 +1,7 @@
 package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
 import java.util.ArrayList;
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class PrefabAsset {
-    public static final int PREFAB_VERSION = 1;
+    public static final int PREFAB_VERSION = 2;
 
     public String type = "pixscape-prefab";
     public int version = PREFAB_VERSION;
@@ -96,26 +96,12 @@ public final class PrefabAsset {
     }
 
     public static final class AnimationData {
-        public String name;
+        public IntArray animationAssetIds = new IntArray();
         public float fps;
         public boolean playing, loop;
         public float stateTime;
         public int frame;
         public String currentClip;
-        public ObjectMap<String, AnimationClipData> clips = new ObjectMap<>();
-    }
-
-    public static final class AnimationClipData {
-        public int start;
-        public int end;
-
-        public AnimationClipData() {
-        }
-
-        public AnimationClipData(int start, int end) {
-            this.start = start;
-            this.end = end;
-        }
     }
 
     public static final class ShaderParamsData {

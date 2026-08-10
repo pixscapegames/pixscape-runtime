@@ -12,6 +12,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.animation.AnimationClipDef;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
@@ -1391,6 +1392,7 @@ public class PixscapeApiV1Test {
     public void highLevelRefsRemoveThroughEntityRefAndAreIdempotent() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
+        engine.getAnimationRegistry().put(animationDef(42, "hero"));
         World world = engine.getWorld();
 
         SpriteRef sprite = engine.api().sprites().spawn(42, 0f, 0f);
@@ -1589,9 +1591,14 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void animationsSpawnCreatesAnimatedEntity() throws Exception {
+    public void animationsSpawnCreatesAnimatedEntityFromAuthoredDefinition() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
+        AnimationDefData definition = animationDef(42, "hero");
+        definition.currentClip = "default";
+        definition.clips.clear();
+        definition.clips.add(animationClip("default", 0, 7, false));
+        engine.getAnimationRegistry().put(definition);
         AnimationRef ref = engine.api().animations().spawn(42, 7f, 8f)
                 .fps(18f)
                 .loop(false)
@@ -1601,7 +1608,8 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(world.getMapper(AnimationComponent.class).has(ref.entityId()));
         AnimationComponent animation = world.getMapper(AnimationComponent.class).get(ref.entityId());
         Assert.assertEquals("default", animation.currentClip);
-        Assert.assertNotNull(animation.clips.get("default"));
+        Assert.assertArrayEquals(new int[]{42}, animation.animationAssetIds.toArray());
+        Assert.assertNotNull(engine.getAnimationRegistry().getByAssetId(42).clip("default"));
         Assert.assertEquals(18f, animation.fps, 0.0001f);
         Assert.assertFalse(animation.loop);
         Assert.assertTrue(animation.playing);
@@ -1613,12 +1621,28 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void animationsSpawnRejectsUnknownAnimationAssetsWithoutAtlasFallback() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
+
+        assertUnknownAnimationRejected(new Runnable() {
+            @Override public void run() { engine.api().animations().spawn(42, 0f, 0f); }
+        }, "id: 42");
+        assertUnknownAnimationRejected(new Runnable() {
+            @Override public void run() { engine.api().animations().spawn("hero", 0f, 0f); }
+        }, "name: 'hero'");
+
+        Assert.assertEquals(0, engine.getAnimationRegistry().size());
+    }
+
+    @Test
     public void animationClipSelectionIsStrictAndFailureAtomic() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int entity = createAnimatedSprite(world, "idle", 0, 2);
+        int entity = createAnimatedSprite(
+                engine, world, "idle", 0, 2,
+                animationClip("walk", 3, 5, false));
         AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entity);
-        animation.clips.put("walk", new AnimationComponent.Clip(3, 5));
         animation.currentClip = "idle";
         animation.frame = 2;
         animation.stateTime = 1.5f;
@@ -1655,7 +1679,7 @@ public class PixscapeApiV1Test {
     public void animationFpsAcceptsZeroAndRejectsInvalidValuesAtomically() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int entity = createAnimatedSprite(world, "idle", 0, 2);
+        int entity = createAnimatedSprite(engine, world, "idle", 0, 2);
         world.process();
         AnimationFacade facade = engine.api().entities().ofEntityId(entity).animation();
 
@@ -1716,12 +1740,15 @@ public class PixscapeApiV1Test {
     @Test
     public void animationFacadeQueriesRuntimeStateAndCompletionBoundaries() throws Exception {
         FixedFramesAtlasRuntimeService atlas = new FixedFramesAtlasRuntimeService(3);
-        World world = new World(new WorldConfigurationBuilder()
-                .with(new DirtyTrackerSystem(64), new AnimationSystem(atlas))
-                .build());
         PixscapeEngine engine = new PixscapeEngine();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64),
+                        new AnimationSystem(engine.getAnimationRegistry(), atlas))
+                .build());
         setField(engine, "world", world);
-        int entity = createAnimatedSprite(world, "forward", 0, 2);
+        int entity = createAnimatedSprite(
+                engine, world, "forward", 0, 2,
+                animationClip("reverse", 2, 0, false));
         AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
 
         Assert.assertEquals("forward", animation.clip());
@@ -1751,7 +1778,6 @@ public class PixscapeApiV1Test {
         Assert.assertTrue("Playback after the boundary remains finished", animation.isFinished());
 
         AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
-        component.clips.put("reverse", new AnimationComponent.Clip(2, 0));
         component.currentClip = "reverse";
         component.stateTime = 1.5f;
         Assert.assertTrue("Reverse clips use the same inclusive frame count", animation.isFinished());
@@ -1779,10 +1805,10 @@ public class PixscapeApiV1Test {
     public void authoredSceneActorAnimationDoesNotRequireLayerComponent() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int entity = createAnimatedSprite(world, "run_000", 0, 19);
+        int entity = createAnimatedSprite(
+                engine, world, "run_000", 0, 19,
+                animationClip("run_090", 40, 59, false));
         world.getMapper(LayerComponent.class).remove(entity);
-        AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
-        component.clips.put("run_090", new AnimationComponent.Clip(40, 59));
         world.process();
 
         AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
@@ -1804,10 +1830,12 @@ public class PixscapeApiV1Test {
         AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
         Assert.assertEquals("idle", animation.currentClip);
         Assert.assertEquals(12f, animation.fps, 0.0001f);
-        Assert.assertNotNull(animation.clips.get("attack"));
-        Assert.assertEquals(4, animation.clips.get("attack").start);
-        Assert.assertEquals(7, animation.clips.get("attack").end);
-        Assert.assertTrue(animation.clips.get("attack").flipX);
+        Assert.assertArrayEquals(new int[]{42}, animation.animationAssetIds.toArray());
+        AnimationClipDef attack = engine.getAnimationRegistry().getByAssetId(42).clip("attack");
+        Assert.assertNotNull(attack);
+        Assert.assertEquals(4, attack.start());
+        Assert.assertEquals(7, attack.end());
+        Assert.assertTrue(attack.flipX());
     }
 
     @Test
@@ -1821,7 +1849,8 @@ public class PixscapeApiV1Test {
         AnimationComponent animation = engine.getWorld().getMapper(AnimationComponent.class).get(ref.entityId());
         Assert.assertEquals("attack", animation.currentClip);
         Assert.assertTrue(animation.playing);
-        Assert.assertEquals(4, animation.clips.get("attack").start);
+        Assert.assertEquals(4, engine.getAnimationRegistry()
+                .getByAssetId(42).clip("attack").start());
     }
 
     @Test
@@ -1860,6 +1889,15 @@ public class PixscapeApiV1Test {
             Assert.fail("Expected invalid facade input to fail");
         } catch (IllegalArgumentException expected) {
             // expected
+        }
+    }
+
+    private static void assertUnknownAnimationRejected(Runnable action, String identity) {
+        try {
+            action.run();
+            Assert.fail("Expected unknown Animation asset to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(identity));
         }
     }
 
@@ -2063,13 +2101,29 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(expectedFlags, state.repeatFlags[slot]);
     }
 
-    private static int createAnimatedSprite(World world,
+    private static int createAnimatedSprite(PixscapeEngine engine,
+                                            World world,
                                             String clipName,
                                             int start,
-                                            int end) {
+                                            int end,
+                                            AnimationClipDefData... additionalClips) {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = 1;
+        def.name = "test-animation";
+        def.fps = 2f;
+        def.currentClip = clipName;
+        def.frameCount = Math.max(Math.max(start, end) + 1, 1);
+        def.clips.add(animationClip(clipName, start, end, false));
+        for (int i = 0; i < additionalClips.length; i++) {
+            AnimationClipDefData clip = additionalClips[i];
+            def.clips.add(clip);
+            def.frameCount = Math.max(def.frameCount, Math.max(clip.start, clip.end) + 1);
+        }
+        engine.getAnimationRegistry().put(def);
+
         int entity = createRenderableSprite(world);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entity);
-        animation.clips.put(clipName, new AnimationComponent.Clip(start, end));
+        animation.animationAssetIds.add(1);
         animation.currentClip = clipName;
         animation.fps = 2f;
         animation.loop = false;

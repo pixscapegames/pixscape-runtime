@@ -1,6 +1,6 @@
 package games.pixscape.runtime.animation;
 
-import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ObjectMap;
 
 public final class AnimationDef {
 
@@ -9,7 +9,7 @@ public final class AnimationDef {
     private final float fps;
     private final String currentClip;
     private final int frameCount;
-    private final Array<AnimationClipDefData> clips;
+    private final ObjectMap<String, AnimationClipDef> clipsByName;
 
     public AnimationDef(AnimationDefData source) {
         if (source == null) {
@@ -24,33 +24,34 @@ public final class AnimationDef {
 
         this.assetId = source.assetId;
         this.name = source.name;
-        this.fps = source.fps > 0f ? source.fps : 12f;
-        this.frameCount = Math.max(1, source.frameCount);
-        this.clips = new Array<>(AnimationClipDefData[]::new);
-
-        if (source.clips != null) {
-            for (int i = 0, n = source.clips.size; i < n; i++) {
-                AnimationClipDefData clip = source.clips.get(i);
-                if (clip == null) continue;
-                addClipCopy(clip);
-            }
+        if (source.fps <= 0f || Float.isNaN(source.fps) || Float.isInfinite(source.fps)) {
+            throw new IllegalArgumentException("fps must be finite and > 0");
+        }
+        if (source.frameCount <= 0) {
+            throw new IllegalArgumentException("frameCount must be > 0");
+        }
+        if (source.clips == null || source.clips.size == 0) {
+            throw new IllegalArgumentException("at least one clip is required");
         }
 
-        if (clips.size == 0) {
-            AnimationClipDefData fallback = new AnimationClipDefData();
-            fallback.name = "default";
-            fallback.start = 0;
-            fallback.end = Math.max(0, this.frameCount - 1);
-            fallback.flipX = false;
-            clips.add(fallback);
+        this.fps = source.fps;
+        this.frameCount = source.frameCount;
+        this.clipsByName = new ObjectMap<>();
+
+        for (int i = 0, n = source.clips.size; i < n; i++) {
+            AnimationClipDefData clip = source.clips.get(i);
+            if (clip == null) {
+                throw new IllegalArgumentException("clip at index " + i + " must not be null");
+            }
+            addClipCopy(clip);
         }
 
         String requestedClip = source.currentClip;
-        if (!isBlank(requestedClip) && hasClip(requestedClip)) {
-            this.currentClip = requestedClip;
-        } else {
-            this.currentClip = clips.first().name;
+        if (isBlank(requestedClip) || !hasClip(requestedClip)) {
+            throw new IllegalArgumentException(
+                    "currentClip must name a registered clip, got '" + requestedClip + "'");
         }
+        this.currentClip = requestedClip;
     }
 
     public int assetId() {
@@ -73,37 +74,38 @@ public final class AnimationDef {
         return frameCount;
     }
 
-    public Array<AnimationClipDefData> clips() {
-        return clips;
+    public int clipCount() {
+        return clipsByName.size;
     }
 
     public boolean hasClip(String clipName) {
-        if (isBlank(clipName)) return false;
-        for (int i = 0, n = clips.size; i < n; i++) {
-            AnimationClipDefData clip = clips.get(i);
-            if (clip != null && clipName.equals(clip.name)) {
-                return true;
-            }
-        }
-        return false;
+        return clip(clipName) != null;
+    }
+
+    /** Returns the registry-owned clip in O(1) average time, or {@code null}. */
+    public AnimationClipDef clip(String clipName) {
+        if (isBlank(clipName)) return null;
+        return clipsByName.get(clipName);
     }
 
     private void addClipCopy(AnimationClipDefData source) {
         if (isBlank(source.name)) {
             throw new IllegalArgumentException("clip name must not be blank");
         }
-        int start = Math.max(0, source.start);
-        int end = Math.max(start, source.end);
-        if (frameCount > 0) {
-            end = Math.min(end, frameCount - 1);
+        if (source.start < 0 || source.start >= frameCount
+                || source.end < 0 || source.end >= frameCount) {
+            throw new IllegalArgumentException(
+                    "clip '" + source.name + "' range [" + source.start + ", " + source.end
+                            + "] must stay within frameCount " + frameCount);
         }
 
-        AnimationClipDefData copy = new AnimationClipDefData();
-        copy.name = source.name;
-        copy.start = start;
-        copy.end = end;
-        copy.flipX = source.flipX;
-        clips.add(copy);
+        if (clipsByName.containsKey(source.name)) {
+            throw new IllegalArgumentException("duplicate clip name: '" + source.name + "'");
+        }
+
+        AnimationClipDef copy = new AnimationClipDef(
+                source.name, source.start, source.end, source.flipX);
+        clipsByName.put(copy.name(), copy);
     }
 
     private static boolean isBlank(String s) {

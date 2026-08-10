@@ -62,8 +62,8 @@ public class RuntimeProjectIOTest {
 
         Assert.assertEquals(1, registry.size());
         Assert.assertNotNull(registry.getByName("hero"));
-        Assert.assertEquals(2, registry.getByAssetId(123).clips().size);
-        Assert.assertTrue(registry.getByAssetId(123).clips().get(1).flipX);
+        Assert.assertEquals(2, registry.getByAssetId(123).clipCount());
+        Assert.assertTrue(registry.getByAssetId(123).clip("attack").flipX());
     }
 
     @Test

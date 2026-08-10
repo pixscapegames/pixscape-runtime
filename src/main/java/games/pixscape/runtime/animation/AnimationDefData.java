@@ -2,6 +2,10 @@ package games.pixscape.runtime.animation;
 
 import com.badlogic.gdx.utils.Array;
 
+/**
+ * Authored animation input. An omitted fps uses the schema default of 12; identity, frame count,
+ * clips, and current clip must otherwise be supplied and valid.
+ */
 public class AnimationDefData {
     public int assetId;
     public String name;

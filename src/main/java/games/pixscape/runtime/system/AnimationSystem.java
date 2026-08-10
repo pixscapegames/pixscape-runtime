@@ -9,6 +9,8 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.animation.AnimationClipDef;
+import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -16,6 +18,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
@@ -31,18 +34,25 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
     private DirtyTrackerSystem dirty;
 
     private final AtlasRuntimeService atlasRuntimeService;
+    private final AnimationRegistry animationRegistry;
 
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
 
-    public AnimationSystem(AtlasRuntimeService atlasRuntimeService) {
+    public AnimationSystem(
+            AnimationRegistry animationRegistry,
+            AtlasRuntimeService atlasRuntimeService) {
         super(Aspect.all(AnimationComponent.class,
                 TextureRegionComponent.class,
                 RenderMaterialComponent.class,
                 AssetRefComponent.class));
 
         this.atlasRuntimeService = atlasRuntimeService;
+        if (animationRegistry == null) {
+            throw new IllegalArgumentException("animationRegistry must not be null");
+        }
+        this.animationRegistry = animationRegistry;
     }
 
     @Override
@@ -58,7 +68,9 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         AnimationComponent a = mAnim.get(e);
         if (!a.playing || a.fps <= 0f) return;
 
-        AnimationComponent.Clip clip = a.getClip();
+        AssetRefComponent src = mSrc.get(e);
+        AnimationDef def = animationRegistry.getByAssetId(src.assetId);
+        AnimationClipDef clip = def != null ? def.clip(a.currentClip) : null;
         if (clip == null) return;
 
 
@@ -67,10 +79,10 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         int regionCount = binding.regionCount();
         if (regionCount == 0) return;
 
-        int start = Math.max(0, clip.start);
-        int end = Math.max(0, clip.end);
+        int start = Math.max(0, clip.start());
+        int end = Math.max(0, clip.end());
         int dir = (end >= start) ? 1 : -1;
-        int count = AnimationComponent.frameCount(clip);
+        int count = frameCount(clip);
         if (count <= 0) return;
 
         a.stateTime += world.getDelta();
@@ -105,7 +117,12 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         return atlasRuntimeService.resolveBinding(src.assetId, atlasTag);
     }
 
-    private void applyFrame(int e, AnimationComponent.Clip clip, TextureAtlas.AtlasRegion region) {
+    private static int frameCount(AnimationClipDef clip) {
+        if (clip == null) return 0;
+        return Math.abs(Math.max(0, clip.end()) - Math.max(0, clip.start())) + 1;
+    }
+
+    private void applyFrame(int e, AnimationClipDef clip, TextureAtlas.AtlasRegion region) {
         TextureRegionComponent tr = mTR.get(e);
         RenderMaterialComponent mat = mMat.get(e);
         if (region == null) return;
@@ -115,7 +132,7 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         float u2 = region.getU2();
         float v2 = region.getV2();
 
-        if (clip != null && clip.flipX) {
+        if (clip != null && clip.flipX()) {
             float tmp = u1;
             u1 = u2;
             u2 = tmp;

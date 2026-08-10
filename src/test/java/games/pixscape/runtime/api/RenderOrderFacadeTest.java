@@ -6,6 +6,8 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -316,6 +318,7 @@ public class RenderOrderFacadeTest {
         Fixture fixture = fixture();
         fixture.layer(4, LayerComponent.TYPE_CLASSIC);
         setField(fixture.engine, "atlasRuntimeService", new TestAtlasRuntimeService());
+        fixture.engine.getAnimationRegistry().put(animationDefinition());
 
         ParticleRef flame = fixture.engine.api().particles().spawn("Flame", 10f, 20f);
         flame.entity().renderOrder().layerIndex(4).zIndex(5);
@@ -416,6 +419,21 @@ public class RenderOrderFacadeTest {
         engine.getIdentityRegistry().bind(world, meta);
         engine.getTagRegistry().bind(world);
         return new Fixture(engine, world, dirty);
+    }
+
+    private static AnimationDefData animationDefinition() {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = 42;
+        def.name = "test-animation";
+        def.fps = 12f;
+        def.currentClip = "default";
+        def.frameCount = 1;
+        AnimationClipDefData clip = new AnimationClipDefData();
+        clip.name = "default";
+        clip.start = 0;
+        clip.end = 0;
+        def.clips.add(clip);
+        return def;
     }
 
     @SuppressWarnings("unchecked")

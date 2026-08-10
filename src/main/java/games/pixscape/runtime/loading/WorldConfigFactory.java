@@ -11,6 +11,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.*;
@@ -56,6 +57,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             Consumer<WorldConfigurationBuilder> customizer
     ) {
         return buildWorld(
@@ -74,7 +76,7 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
-                null,
+                animationRegistry,
                 null,
                 customizer
         );
@@ -142,6 +144,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
@@ -161,6 +164,8 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
+                animationRegistry,
+                null,
                 null,
                 preRenderCustomizer,
                 postRenderCustomizer
@@ -183,6 +188,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             SystemProfiler systemProfiler,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
@@ -203,6 +209,7 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
+                animationRegistry,
                 null,
                 systemProfiler,
                 preRenderCustomizer,
@@ -226,6 +233,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
@@ -245,6 +253,9 @@ public final class WorldConfigFactory {
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
+        if (animationRegistry == null) {
+            throw new IllegalArgumentException("animationRegistry must not be null");
+        }
         SpatialLayerRuntimeRegistry spatialRuntimeRegistry = new SpatialLayerRuntimeRegistry();
         addCoreSyncSystems(
                 builder,
@@ -261,6 +272,7 @@ public final class WorldConfigFactory {
                 vfxStart,
                 vfxEnd,
                 effectiveAnimatedTileRegistry,
+                animationRegistry,
                 tilesetProfiles,
                 systemProfiler,
                 spatialRuntimeRegistry
@@ -322,6 +334,7 @@ public final class WorldConfigFactory {
             int vfxStartIndex,
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler,
             SpatialLayerRuntimeRegistry spatialRuntimeRegistry
@@ -335,7 +348,7 @@ public final class WorldConfigFactory {
                                 ? meta.pixelsPerMeter
                                 : DEFAULT_PIXELS_PER_METER), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
-                profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
+                profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
                 profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
                 profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),

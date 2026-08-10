@@ -8,7 +8,7 @@ import java.io.File;
 
 public class PrefabLoaderVersionTest {
     @Test
-    public void versionOneRoundTripPreservesPhysicsData() throws Exception {
+    public void versionTwoRoundTripPreservesPhysicsAndAnimationData() throws Exception {
         PrefabAsset asset = new PrefabAsset();
         asset.name = "body";
         PrefabAsset.PrefabEntityData entity = new PrefabAsset.PrefabEntityData();
@@ -20,6 +20,15 @@ public class PrefabLoaderVersionTest {
         entity.joint.type = 3;
         entity.joint.aEid = 4;
         entity.joint.bEid = 7;
+        entity.animation = new PrefabAsset.AnimationData();
+        entity.animation.animationAssetIds.add(12);
+        entity.animation.animationAssetIds.add(34);
+        entity.animation.currentClip = "walk";
+        entity.animation.fps = 18f;
+        entity.animation.playing = true;
+        entity.animation.loop = false;
+        entity.animation.stateTime = 1.25f;
+        entity.animation.frame = 5;
         asset.entities.add(entity);
         FileHandle file = new FileHandle(
                 File.createTempFile("pixscape-prefab", ".json"));
@@ -28,7 +37,7 @@ public class PrefabLoaderVersionTest {
         loader.save(file, asset);
         PrefabAsset restored = loader.load(file);
 
-        Assert.assertEquals(1, restored.version);
+        Assert.assertEquals(2, restored.version);
         Assert.assertEquals(2, restored.entities.get(0).physicsBody.type);
         Assert.assertTrue(restored.entities.get(0).physicsBody.fixedRotation);
         Assert.assertEquals(
@@ -36,6 +45,14 @@ public class PrefabLoaderVersionTest {
         Assert.assertEquals(3, restored.entities.get(0).joint.type);
         Assert.assertEquals(4, restored.entities.get(0).joint.aEid);
         Assert.assertEquals(7, restored.entities.get(0).joint.bEid);
+        PrefabAsset.AnimationData animation = restored.entities.get(0).animation;
+        Assert.assertArrayEquals(new int[]{12, 34}, animation.animationAssetIds.toArray());
+        Assert.assertEquals("walk", animation.currentClip);
+        Assert.assertEquals(18f, animation.fps, 0f);
+        Assert.assertTrue(animation.playing);
+        Assert.assertFalse(animation.loop);
+        Assert.assertEquals(1.25f, animation.stateTime, 0f);
+        Assert.assertEquals(5, animation.frame);
     }
 
     @Test
@@ -46,13 +63,13 @@ public class PrefabLoaderVersionTest {
     @Test
     public void differentVersionIsRejected() throws Exception {
         assertLoadRejected(
-                "{\"type\":\"pixscape-prefab\",\"version\":2,\"entities\":[]}");
+                "{\"type\":\"pixscape-prefab\",\"version\":1,\"entities\":[]}");
     }
 
     @Test
     public void unknownFieldIsRejected() throws Exception {
         assertLoadRejected(
-                "{\"type\":\"pixscape-prefab\",\"version\":1,"
+                "{\"type\":\"pixscape-prefab\",\"version\":2,"
                         + "\"entities\":[],\"unexpected\":true}");
     }
 
