@@ -8,6 +8,20 @@ package games.pixscape.runtime.api;
  */
 public interface AnimationsAPI {
     /**
+     * Returns read-only authored metadata for a registered animation.
+     *
+     * @throws IllegalArgumentException when the animation is unknown
+     */
+    AnimationDefinition definition(int assetId);
+
+    /**
+     * Returns read-only authored metadata for a registered animation.
+     *
+     * @throws IllegalArgumentException when the animation name is blank or unknown
+     */
+    AnimationDefinition definition(String name);
+
+    /**
      * Creates an animated entity from a registered animation asset id.
      *
      * @param assetId registered animation asset id

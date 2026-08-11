@@ -1576,6 +1576,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public AnimationFacade setAnimation(int assetId) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(assetId), null, false);
+        }
+
+        @Override
+        public AnimationFacade setAnimation(String animationName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationName), null, false);
+        }
+
+        @Override
         public AnimationFacade play(String clipName) {
             AnimationComponent a = anim();
             if (a == null) return this;
@@ -1583,6 +1595,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             selectClip(a, clipName);
             a.playing = true;
             return this;
+        }
+
+        @Override
+        public AnimationFacade play(int animationAssetId, String clipName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationAssetId), clipName, true);
+        }
+
+        @Override
+        public AnimationFacade play(String animationName, String clipName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationName), clipName, true);
         }
 
         @Override
@@ -1667,6 +1691,54 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (world == null) return null;
             AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).get(handle.entityId);
             return engine.getAnimationRegistry().getByAssetId(assetRef.assetId);
+        }
+
+        private AnimationDef requireDefinition(int assetId) {
+            AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
+            }
+            return def;
+        }
+
+        private AnimationDef requireDefinition(String animationName) {
+            AnimationDef def = engine.getAnimationRegistry().getByName(animationName);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + animationName + "'.");
+            }
+            return def;
+        }
+
+        private AnimationFacade applyAnimation(
+                AnimationDef def, String requestedClip, boolean startPlaying) {
+            World world = animationCapabilityWorld(handle);
+            if (world == null) return this;
+
+            AnimationComponent animation = world.getMapper(AnimationComponent.class)
+                    .get(handle.entityId);
+            if (!animation.animationAssetIds.contains(def.assetId())) {
+                throw new IllegalArgumentException(
+                        "Animation entity " + handle.entityId + " does not own Animation asset #"
+                                + def.assetId() + " ('" + def.name() + "').");
+            }
+
+            String clipName = requestedClip != null ? requestedClip : def.currentClip();
+            requireClip(def, clipName);
+
+            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class)
+                    .get(handle.entityId);
+            requireSpriteBinding(engine, def.assetId(), assetRef.atlasTag);
+
+            assetRef.assetId = def.assetId();
+            animation.currentClip = clipName;
+            animation.fps = def.fps();
+            animation.stateTime = 0f;
+            animation.frame = -1;
+            if (startPlaying) animation.playing = true;
+            markMaterial();
+            return this;
         }
 
         private static void requireClip(AnimationDef def, String clipName) {
@@ -2245,6 +2317,26 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             this.entities = entities;
             this.assets = assets;
             this.sprites = sprites;
+        }
+
+        @Override
+        public AnimationDefinition definition(int assetId) {
+            AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
+            }
+            return def;
+        }
+
+        @Override
+        public AnimationDefinition definition(String name) {
+            AnimationDef def = engine.getAnimationRegistry().getByName(name);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + name + "'.");
+            }
+            return def;
         }
 
         @Override

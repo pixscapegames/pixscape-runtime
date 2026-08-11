@@ -1,8 +1,9 @@
 package games.pixscape.runtime.animation;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.api.AnimationDefinition;
 
-public final class AnimationDef {
+public final class AnimationDef implements AnimationDefinition {
 
     private final int assetId;
     private final String name;

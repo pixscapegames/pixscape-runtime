@@ -1868,6 +1868,137 @@ public class PixscapeApiV1Test {
         }
     }
 
+    @Test
+    public void animationSwitchByIdAndNameRestoresAuthoredDefaultsAndFps() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new TwoAssetAtlasRuntimeService());
+        World world = engine.getWorld();
+        int entity = createMultiAnimationEntity(engine, world);
+        AnimationComponent state = world.getMapper(AnimationComponent.class).get(entity);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+
+        state.playing = false;
+        state.loop = false;
+        state.stateTime = 2f;
+        state.frame = 3;
+        animation.setFps(30f).setAnimation(43);
+
+        assertAnimationState(asset, state, 43, "attack", 18f, false, false, 0f, -1);
+
+        animation.setAnimation("idle-animation");
+        assertAnimationState(asset, state, 42, "idle", 6f, false, false, 0f, -1);
+    }
+
+    @Test
+    public void animationSwitchRejectsUnknownUnauthorizedAndUnavailableTargetsAtomically()
+            throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new TwoAssetAtlasRuntimeService());
+        World world = engine.getWorld();
+        int entity = createMultiAnimationEntity(engine, world);
+        AnimationComponent state = world.getMapper(AnimationComponent.class).get(entity);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+        state.playing = false;
+        state.loop = false;
+        state.stateTime = 2f;
+        state.frame = 3;
+
+        engine.getAnimationRegistry().put(singleClipAnimation(44, "unauthorized", 24f, "cast"));
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { animation.setAnimation(44); }
+        });
+        assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { animation.setAnimation("missing"); }
+        });
+        assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
+
+        state.animationAssetIds.add(45);
+        engine.getAnimationRegistry().put(singleClipAnimation(45, "unavailable", 30f, "jump"));
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { animation.setAnimation(45); }
+        });
+        assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
+    }
+
+    @Test
+    public void animationSwitchAndPlayIsStrictToTargetAndFailureAtomic() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        setField(engine, "atlasRuntimeService", new TwoAssetAtlasRuntimeService());
+        World world = engine.getWorld();
+        int entity = createMultiAnimationEntity(engine, world);
+        AnimationComponent state = world.getMapper(AnimationComponent.class).get(entity);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+        state.playing = false;
+        state.loop = false;
+        state.stateTime = 2f;
+        state.frame = 3;
+
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { animation.play(43, "walk"); }
+        });
+        assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
+
+        animation.play("attack-animation", "attack_alt");
+        assertAnimationState(asset, state, 43, "attack_alt", 18f, true, false, 0f, -1);
+    }
+
+    @Test
+    public void animationDefinitionsAreReadOnlyMetadataResolvedByIdAndName() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        AnimationDefData def = singleClipAnimation(42, "hero", 18f, "attack");
+        def.frameCount = 4;
+        def.clips.clear();
+        def.clips.add(animationClip("attack", 0, 3, false));
+        engine.getAnimationRegistry().put(def);
+
+        AnimationDefinition byId = engine.api().animations().definition(42);
+        AnimationDefinition byName = engine.api().animations().definition("hero");
+        Assert.assertSame(byId, byName);
+        Assert.assertEquals(42, byId.assetId());
+        Assert.assertEquals("hero", byId.name());
+        Assert.assertEquals(18f, byId.fps(), 0f);
+        Assert.assertEquals("attack", byId.currentClip());
+        Assert.assertEquals(4, byId.frameCount());
+        Assert.assertEquals(1, byId.clipCount());
+        Assert.assertTrue(byId.hasClip("attack"));
+        Assert.assertFalse(byId.hasClip("missing"));
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { engine.api().animations().definition(99); }
+        });
+        assertIllegalArgument(new Runnable() {
+            @Override public void run() { engine.api().animations().definition("missing"); }
+        });
+    }
+
+    @Test
+    public void pausedAnimationSwitchResolvesNewVisualOnNextUpdate() throws Exception {
+        TwoAssetAtlasRuntimeService atlas = new TwoAssetAtlasRuntimeService();
+        PixscapeEngine engine = new PixscapeEngine();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64),
+                        new AnimationSystem(engine.getAnimationRegistry(), atlas))
+                .build());
+        setField(engine, "world", world);
+        setField(engine, "atlasRuntimeService", atlas);
+        int entity = createMultiAnimationEntity(engine, world);
+        AnimationComponent state = world.getMapper(AnimationComponent.class).get(entity);
+        state.playing = false;
+        state.frame = 0;
+
+        engine.api().entities().ofEntityId(entity).animation().setAnimation(43);
+        world.process();
+
+        Assert.assertFalse(state.playing);
+        Assert.assertEquals(0, state.frame);
+        Assert.assertNotEquals(7,
+                world.getMapper(RenderMaterialComponent.class).get(entity).textureHandle);
+    }
+
     private static PixscapeEngine setupEngineWithWorld() throws Exception {
         return setupEngineWithWorld(null);
     }
@@ -2208,6 +2339,62 @@ public class PixscapeApiV1Test {
         def.clips.add(animationClip("idle", 0, 3, false));
         def.clips.add(animationClip("attack", 4, 7, true));
         return def;
+    }
+
+    private static AnimationDefData singleClipAnimation(
+            int assetId, String name, float fps, String clipName) {
+        AnimationDefData def = new AnimationDefData();
+        def.assetId = assetId;
+        def.name = name;
+        def.fps = fps;
+        def.currentClip = clipName;
+        def.frameCount = 1;
+        def.clips.add(animationClip(clipName, 0, 0, false));
+        return def;
+    }
+
+    private static int createMultiAnimationEntity(
+            PixscapeEngine engine, World world) {
+        AnimationDefData idle = singleClipAnimation(42, "idle-animation", 6f, "idle");
+        idle.clips.add(animationClip("walk", 0, 0, false));
+        AnimationDefData attack = singleClipAnimation(43, "attack-animation", 18f, "attack");
+        attack.clips.add(animationClip("attack_alt", 0, 0, false));
+        engine.getAnimationRegistry().put(idle);
+        engine.getAnimationRegistry().put(attack);
+
+        int entity = createRenderableSprite(world);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
+        asset.assetId = 42;
+        asset.atlasTag = "main";
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entity);
+        animation.animationAssetIds.add(42);
+        animation.animationAssetIds.add(43);
+        animation.currentClip = "idle";
+        animation.fps = 6f;
+        animation.playing = true;
+        animation.loop = true;
+        animation.stateTime = 0f;
+        animation.frame = -1;
+        return entity;
+    }
+
+    private static void assertAnimationState(
+            AssetRefComponent asset,
+            AnimationComponent animation,
+            int expectedAssetId,
+            String expectedClip,
+            float expectedFps,
+            boolean expectedPlaying,
+            boolean expectedLoop,
+            float expectedStateTime,
+            int expectedFrame) {
+        Assert.assertEquals(expectedAssetId, asset.assetId);
+        Assert.assertEquals(expectedClip, animation.currentClip);
+        Assert.assertEquals(expectedFps, animation.fps, 0f);
+        Assert.assertEquals(expectedPlaying, animation.playing);
+        Assert.assertEquals(expectedLoop, animation.loop);
+        Assert.assertEquals(expectedStateTime, animation.stateTime, 0f);
+        Assert.assertEquals(expectedFrame, animation.frame);
     }
 
     private static AnimationClipDefData animationClip(String name, int start, int end, boolean flipX) {

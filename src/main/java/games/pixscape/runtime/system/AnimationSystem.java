@@ -66,7 +66,7 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
     @Override
     protected void process(int e) {
         AnimationComponent a = mAnim.get(e);
-        if (!a.playing || a.fps <= 0f) return;
+        if (a.fps <= 0f || (!a.playing && a.frame >= 0)) return;
 
         AssetRefComponent src = mSrc.get(e);
         AnimationDef def = animationRegistry.getByAssetId(src.assetId);
@@ -85,7 +85,7 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         int count = frameCount(clip);
         if (count <= 0) return;
 
-        a.stateTime += world.getDelta();
+        if (a.playing) a.stateTime += world.getDelta();
 
         float frameDur = 1f / a.fps;
         int local = (int) (a.stateTime / frameDur);

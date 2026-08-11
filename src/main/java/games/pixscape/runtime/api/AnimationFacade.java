@@ -42,12 +42,46 @@ public interface AnimationFacade {
     AnimationFacade restart();
 
     /**
+     * Atomically selects an animation owned by this entity, restoring the definition's authored
+     * default clip and fps while preserving playback and loop state.
+     *
+     * @throws IllegalArgumentException when the animation is unknown, unavailable, or not owned
+     * by this entity; the previous animation state remains unchanged
+     */
+    AnimationFacade setAnimation(int assetId);
+
+    /**
+     * Atomically selects an animation owned by this entity, restoring the definition's authored
+     * default clip and fps while preserving playback and loop state.
+     *
+     * @throws IllegalArgumentException when the animation is unknown, unavailable, or not owned
+     * by this entity; the previous animation state remains unchanged
+     */
+    AnimationFacade setAnimation(String animationName);
+
+    /**
      * Selects and starts an existing clip.
      *
      * @throws IllegalArgumentException when the clip name is blank or unknown; the previous
      * animation state remains unchanged
      */
     AnimationFacade play(String clipName);
+
+    /**
+     * Atomically selects an owned animation and starts one of its clips.
+     *
+     * @throws IllegalArgumentException when the animation or clip is unknown, the animation is
+     * unavailable, or the animation is not owned by this entity; previous state remains unchanged
+     */
+    AnimationFacade play(int animationAssetId, String clipName);
+
+    /**
+     * Atomically selects an owned animation and starts one of its clips.
+     *
+     * @throws IllegalArgumentException when the animation or clip is unknown, the animation is
+     * unavailable, or the animation is not owned by this entity; previous state remains unchanged
+     */
+    AnimationFacade play(String animationName, String clipName);
 
     /**
      * Selects an existing clip and resets its frame and playback time.
