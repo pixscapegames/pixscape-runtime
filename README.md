@@ -37,7 +37,7 @@ This runtime repository is also available separately for developers who want dir
 - **Runtime asset availability system**
 - **Tileset-profile-aware tiled placement**
 - **Efficient repeated renderables**
-- **Prefab loading support**
+- **Runtime Availability and prefab spawning**
 - **Animation and particle runtime support**
 - **Shader and light pipeline**
 - **Box2D physics integration**
@@ -97,6 +97,9 @@ Spatial V3 supports:
 - Runtime animation metadata
 - Horizontal flip metadata
 - Dynamic animation spawning
+- Multiple authored animations per animation entity
+- Atomic animation switching by asset ID or name
+- Read-only animation definition queries
 
 ### Physics
 
@@ -104,6 +107,7 @@ Spatial V3 supports:
 - Runtime physics synchronization
 - Physics-based actor footprint support for Spatial ordering
 - Mouse/touch drag helper system
+- High-level Physics API for runtime state, scale, parallax and Box2D body/world access
 
 ### Platforms
 
@@ -125,7 +129,7 @@ Pixscape Runtime is available from Maven Central.
 
 ```gradle
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.1.8"
+    implementation "games.pixscape:pixscape-runtime:0.1.9"
 }
 ```
 
@@ -135,7 +139,7 @@ dependencies {
 <dependency>
     <groupId>games.pixscape</groupId>
     <artifactId>pixscape-runtime</artifactId>
-    <version>0.1.8</version>
+    <version>0.1.9</version>
 </dependency>
 ```
 
