@@ -13,6 +13,7 @@
 * Spatial actors now require an explicitly authored physics footprint; ordinary circle fixtures are no longer inferred automatically.
 * Removed Tiled layer lookup by Studio display name from `TiledAPI`; Runtime tiled layers must now be accessed by exported layer index, entity ID or stable ID.
 * Runtime no longer lazily acquires or prepares undeclared scene resources after READY. Particle effects, prefab fragments and other resources used only dynamically must be declared through Runtime Availability before scene loading completes.
+* Animation spawning now requires a registered Animation definition; direct atlas assets are no longer accepted as implicit animations.
 
 ### Added
 
@@ -31,6 +32,7 @@
 * Added animation state and query controls, plus repeatable sprite creation and mutation through the public Runtime API.
 * Added Runtime Availability support for declared prefab fragments, including progressive file acquisition during scene loading.
 * Added a formal Runtime API support policy defining `HIGH_LEVEL`, `SUPPORTED_EXPERT` and `INTERNAL` compatibility levels.
+* Added atomic animation switching by asset ID or name, animation-and-clip playback, and read-only authored animation definition queries.
 
 ### Changed
 
@@ -77,6 +79,7 @@
 * Fixed particle extraction to preserve premultiplied-alpha blend semantics.
 * Fixed Spatial participation and invalid typed Tiled references across removal, replacement and scene transitions.
 * Fixed stale facade and render-order access after entity removal or world replacement.
+* Fixed Runtime Availability prefab spawning on HTML/WebGL by including Runtime prefab types in GWT reflection.
 
 ### Tests
 

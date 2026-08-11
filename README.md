@@ -14,7 +14,7 @@
 📘 **Documentation:** https://pixscape.games/docs  
 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-![Pixscape Studio Free](docs/images/pixscape-studio.png)
+![Pixscape Studio Free](assets/readme/pixscape-studio-free.png)
 
 ## What is Pixscape Runtime?
 
