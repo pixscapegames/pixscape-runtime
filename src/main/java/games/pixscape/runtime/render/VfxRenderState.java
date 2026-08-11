@@ -1,10 +1,12 @@
 package games.pixscape.runtime.render;
 
 /**
- * Frame-local SOA for particle/VFX draw data.
+ * {@code SUPPORTED_EXPERT} borrowed frame-local SOA for particle/VFX draw data.
  * <p>
  * The state owns VFX render data independently. Clearing a frame only resets
- * the active count; arrays are reused until capacity needs to grow.
+ * the active count; arrays are reused until capacity needs to grow. This is engine-owned derived
+ * state; mutation is phase-sensitive and backing arrays must not be retained across growth or
+ * World rebuilds.
  */
 public final class VfxRenderState {
     private static final int MIN_CAPACITY = 16;

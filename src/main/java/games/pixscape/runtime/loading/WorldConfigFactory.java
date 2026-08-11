@@ -6,16 +6,12 @@ import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.FrameRenderQueue;
-import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.VfxRenderState;
-import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfiler;
+import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.*;
@@ -24,6 +20,10 @@ import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. It assembles the engine's ordered Artemis system pipeline.
+ */
 public final class WorldConfigFactory {
 
     public static final int DEFAULT_VFX_BUDGET = 16384;
@@ -57,6 +57,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             Consumer<WorldConfigurationBuilder> customizer
     ) {
         return buildWorld(
@@ -75,7 +76,7 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
-                null,
+                animationRegistry,
                 null,
                 customizer
         );
@@ -143,6 +144,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
@@ -162,6 +164,8 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
+                animationRegistry,
+                null,
                 null,
                 preRenderCustomizer,
                 postRenderCustomizer
@@ -184,6 +188,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             SystemProfiler systemProfiler,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
@@ -204,6 +209,7 @@ public final class WorldConfigFactory {
                 meta,
                 tiledBudget,
                 animatedTileRegistry,
+                animationRegistry,
                 null,
                 systemProfiler,
                 preRenderCustomizer,
@@ -227,6 +233,7 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             int tiledBudget,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler,
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
@@ -242,9 +249,13 @@ public final class WorldConfigFactory {
         configureRenderStorageCapacities(dynamicEntityState, drawList, frameQueue, vfxState, tiledState, ecsEnd);
 
         WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
+        builder.register(new SceneLoadingInvocationStrategy());
 
         TileAnimationRegistry effectiveAnimatedTileRegistry =
                 animatedTileRegistry != null ? animatedTileRegistry : new TileAnimationRegistry();
+        if (animationRegistry == null) {
+            throw new IllegalArgumentException("animationRegistry must not be null");
+        }
         SpatialLayerRuntimeRegistry spatialRuntimeRegistry = new SpatialLayerRuntimeRegistry();
         addCoreSyncSystems(
                 builder,
@@ -261,6 +272,7 @@ public final class WorldConfigFactory {
                 vfxStart,
                 vfxEnd,
                 effectiveAnimatedTileRegistry,
+                animationRegistry,
                 tilesetProfiles,
                 systemProfiler,
                 spatialRuntimeRegistry
@@ -322,6 +334,7 @@ public final class WorldConfigFactory {
             int vfxStartIndex,
             int vfxEndIndex,
             TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler,
             SpatialLayerRuntimeRegistry spatialRuntimeRegistry
@@ -330,8 +343,12 @@ public final class WorldConfigFactory {
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
+                profiled(new PhysicsSpatialFootprintSyncSystem(
+                        meta != null && meta.pixelsPerMeter > 0f
+                                ? meta.pixelsPerMeter
+                                : DEFAULT_PIXELS_PER_METER), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
-                profiled(new AnimationSystem(atlasRuntimeService), systemProfiler),
+                profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
                 profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
                 profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),
@@ -411,9 +428,6 @@ public final class WorldConfigFactory {
                         dynamicEntityState,
                         tiledState,
                         drawList,
-                        meta != null && meta.pixelsPerMeter > 0f
-                                ? meta.pixelsPerMeter
-                                : DEFAULT_PIXELS_PER_METER,
                         spatialRuntimeRegistry
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(

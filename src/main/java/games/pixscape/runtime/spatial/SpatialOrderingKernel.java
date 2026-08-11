@@ -44,5 +44,6 @@ public final class SpatialOrderingKernel {
     }
 
     public int unresolvedConstraintCount() { return planner.unresolvedConstraintCount(); }
+    public int actorOrderingFallbackCount() { return planner.actorOrderingFallbackCount(); }
 
 }

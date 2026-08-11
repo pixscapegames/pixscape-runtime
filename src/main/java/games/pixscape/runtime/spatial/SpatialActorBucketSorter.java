@@ -1,30 +1,54 @@
 package games.pixscape.runtime.spatial;
 
 public final class SpatialActorBucketSorter {
+    private int[] mergeScratch = new int[0];
+
     public void sort(SpatialActorCollector actors,
                      int[] actorOrder,
                      int[] bucketStarts,
                      int[] bucketCounts,
                      int bucketCount) {
         if (actors == null || actorOrder == null || bucketStarts == null || bucketCounts == null) return;
+        ensureMergeCapacity(actorOrder.length);
         for (int bucket = 0; bucket < bucketCount; bucket++) {
-            insertionSortBucket(actors, actorOrder, bucketStarts[bucket], bucketCounts[bucket]);
+            mergeSortBucket(actors, actorOrder, bucketStarts[bucket], bucketCounts[bucket]);
         }
     }
 
-    private static void insertionSortBucket(SpatialActorCollector actors,
-                                            int[] actorOrder,
-                                            int start,
-                                            int count) {
-        for (int i = 1; i < count; i++) {
-            int actor = actorOrder[start + i];
-            int j = start + i - 1;
-            while (j >= start && compareActors(actors, actor, actorOrder[j]) < 0) {
-                actorOrder[j + 1] = actorOrder[j];
-                j--;
+    private void mergeSortBucket(SpatialActorCollector actors,
+                                 int[] actorOrder,
+                                 int start,
+                                 int count) {
+        int end = start + count;
+        int[] source = actorOrder;
+        int[] target = mergeScratch;
+        for (int width = 1; width < count; width <<= 1) {
+            for (int run = start; run < end; run += width << 1) {
+                int middle = Math.min(run + width, end);
+                int runEnd = Math.min(run + (width << 1), end);
+                int left = run;
+                int right = middle;
+                for (int write = run; write < runEnd; write++) {
+                    if (left < middle && (right >= runEnd
+                            || compareActors(actors, source[left], source[right]) <= 0)) {
+                        target[write] = source[left++];
+                    } else {
+                        target[write] = source[right++];
+                    }
+                }
             }
-            actorOrder[j + 1] = actor;
+            int[] swap = source;
+            source = target;
+            target = swap;
         }
+        if (source != actorOrder) System.arraycopy(source, start, actorOrder, start, count);
+    }
+
+    private void ensureMergeCapacity(int required) {
+        if (required <= mergeScratch.length) return;
+        int next = Math.max(8, mergeScratch.length);
+        while (next < required) next <<= 1;
+        mergeScratch = new int[next];
     }
 
     static int compareActors(SpatialActorCollector actors, int left, int right) {

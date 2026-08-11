@@ -1,7 +1,6 @@
 package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.SpatialBlockData;
 import org.junit.Assert;
 import org.junit.Test;
 

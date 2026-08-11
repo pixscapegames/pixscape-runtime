@@ -10,21 +10,28 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
- * Simple runtime index for Pixscape identity lookups.
+ * {@code SUPPORTED_EXPERT} World-scoped identity index and stable-ID allocator.
  * <p>
- * Source of truth = {@link PixscapeIdentityComponent}.
- * This registry is only a cache / lookup index.
+ * {@link PixscapeIdentityComponent} stores assigned identities, while
+ * {@link SceneMetaRuntime#nextEntityStableId} stores the persistent high-water mark.
+ * This registry maintains the World indexes and allocates new IDs from that mark.
+ * It must be rebound after World replacement and is not thread-safe.
+ *
+ * <p>Single lookups are O(1) average after binding/rebuild. Collection-returning lookup methods
+ * return caller-owned snapshots; overloads accepting an output collection reuse caller storage.</p>
  */
 public final class IdentityRegistry {
 
     public static final int UNASSIGNED_STABLE_ID = -1;
     public static final String DEFAULT_NAME = "unnamed";
 
-    private static final ObjectMap<World, Array<IdentityRegistry>> REGISTRIES_BY_WORLD = new ObjectMap<>();
+    private static final ObjectMap<World, IdentityRegistry> REGISTRIES_BY_WORLD = new ObjectMap<>();
 
     private World world;
+    private SceneMetaRuntime sceneMeta;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener subscriptionListener;
@@ -45,17 +52,16 @@ public final class IdentityRegistry {
     private final IntMap<Integer> stableIdByEntity = new IntMap<>();
     private final IntMap<String> nameByEntity = new IntMap<>();
 
-    /**
-     * Next candidate for stable id allocation.
-     */
-    private int nextStableId = 1;
-
     public IdentityRegistry() {
     }
 
-    public void bind(World world) {
-        if (this.world == world) return;
+    public void bind(World world, SceneMetaRuntime sceneMeta) {
+        if (this.world == world && this.sceneMeta == sceneMeta) return;
 
+        requireWorldAvailable(world);
+        if (world == null && sceneMeta != null) {
+            throw new IllegalArgumentException("Scene metadata cannot be bound without a World.");
+        }
         detachSubscriptionListener();
         unregisterBoundWorld();
 
@@ -63,9 +69,9 @@ public final class IdentityRegistry {
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1;
 
         this.world = world;
+        this.sceneMeta = sceneMeta;
         this.mIdentity = null;
         this.subscription = null;
         this.subscriptionListener = null;
@@ -108,24 +114,29 @@ public final class IdentityRegistry {
     }
 
     private void registerBoundWorld(World world) {
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
-        if (registries == null) {
-            registries = new Array<>();
-            REGISTRIES_BY_WORLD.put(world, registries);
+        IdentityRegistry existing = REGISTRIES_BY_WORLD.get(world);
+        if (existing != null && existing != this) {
+            throw new IllegalStateException(
+                    "World already has a different IdentityRegistry bound.");
         }
-        if (!registries.contains(this, true)) {
-            registries.add(this);
+        REGISTRIES_BY_WORLD.put(world, this);
+    }
+
+    private void requireWorldAvailable(World world) {
+        if (world == null) return;
+
+        IdentityRegistry existing = REGISTRIES_BY_WORLD.get(world);
+        if (existing != null && existing != this) {
+            throw new IllegalStateException(
+                    "World already has a different IdentityRegistry bound.");
         }
     }
 
     private void unregisterBoundWorld() {
         if (this.world == null) return;
 
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(this.world);
-        if (registries == null) return;
-
-        registries.removeValue(this, true);
-        if (registries.size == 0) {
+        IdentityRegistry registered = REGISTRIES_BY_WORLD.get(this.world);
+        if (registered == this) {
             REGISTRIES_BY_WORLD.remove(this.world);
         }
     }
@@ -133,14 +144,9 @@ public final class IdentityRegistry {
     public static void unindexEntityImmediately(World world, int eid) {
         if (world == null || eid < 0) return;
 
-        Array<IdentityRegistry> registries = REGISTRIES_BY_WORLD.get(world);
-        if (registries == null || registries.size == 0) return;
-
-        for (int i = 0; i < registries.size; i++) {
-            IdentityRegistry registry = registries.get(i);
-            if (registry != null) {
-                registry.unindexEntityImmediately(eid);
-            }
+        IdentityRegistry registry = REGISTRIES_BY_WORLD.get(world);
+        if (registry != null) {
+            registry.unindexEntityImmediately(eid);
         }
     }
 
@@ -149,8 +155,6 @@ public final class IdentityRegistry {
         byName.clear();
         stableIdByEntity.clear();
         nameByEntity.clear();
-        nextStableId = 1;
-
         if (world == null || subscription == null) return;
 
         IntBag bag = subscription.getEntities();
@@ -161,15 +165,13 @@ public final class IdentityRegistry {
             indexEntityFromComponent(eid);
         }
 
-        advanceNextStableId();
     }
 
     public int allocateStableId() {
-        advanceNextStableId();
-
-        int allocated = nextStableId;
-        nextStableId++;
-
+        requireSceneMeta();
+        int allocated = sceneMeta.nextEntityStableId;
+        validateAllocatableStableId(allocated);
+        sceneMeta.nextEntityStableId++;
         return allocated;
     }
 
@@ -180,15 +182,13 @@ public final class IdentityRegistry {
         int current = c.stableId;
 
         if (current != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(current);
             Integer existing = byStableId.get(current);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(current, eid, existing));
             }
             byStableId.put(current, eid);
             stableIdByEntity.put(eid, current);
-            if (current >= nextStableId) {
-                nextStableId = current + 1;
-            }
             return current;
         }
 
@@ -307,6 +307,7 @@ public final class IdentityRegistry {
         }
 
         if (stableId != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(stableId);
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -320,9 +321,6 @@ public final class IdentityRegistry {
         if (stableId != UNASSIGNED_STABLE_ID) {
             byStableId.put(stableId, eid);
             stableIdByEntity.put(eid, stableId);
-            if (stableId >= nextStableId) {
-                nextStableId = stableId + 1;
-            }
         }
     }
 
@@ -345,6 +343,7 @@ public final class IdentityRegistry {
         int oldStableId = c.stableId;
         if (oldStableId != stableId) {
             if (stableId != UNASSIGNED_STABLE_ID) {
+                validateRestoredStableId(stableId);
                 Integer existing = byStableId.get(stableId);
                 if (existing != null && existing.intValue() != eid) {
                     throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -355,9 +354,6 @@ public final class IdentityRegistry {
             if (stableId != UNASSIGNED_STABLE_ID) {
                 byStableId.put(stableId, eid);
                 stableIdByEntity.put(eid, stableId);
-                if (stableId >= nextStableId) {
-                    nextStableId = stableId + 1;
-                }
             }
         }
 
@@ -390,6 +386,7 @@ public final class IdentityRegistry {
         unindexEntity(eid);
 
         if (stableId != UNASSIGNED_STABLE_ID) {
+            validateRestoredStableId(stableId);
             Integer existing = byStableId.get(stableId);
             if (existing != null && existing.intValue() != eid) {
                 throw new IllegalStateException(duplicateStableIdMessage(stableId, eid, existing));
@@ -398,9 +395,6 @@ public final class IdentityRegistry {
             byStableId.put(stableId, eid);
             stableIdByEntity.put(eid, stableId);
 
-            if (stableId >= nextStableId) {
-                nextStableId = stableId + 1;
-            }
         }
 
         nameByEntity.put(eid, normalizedName);
@@ -491,13 +485,26 @@ public final class IdentityRegistry {
         }
     }
 
-    private void advanceNextStableId() {
-        if (nextStableId < 1) {
-            nextStableId = 1;
+    private void requireSceneMeta() {
+        if (sceneMeta == null) {
+            throw new IllegalStateException("Scene metadata is required to allocate entity stable IDs.");
         }
+    }
 
-        while (byStableId.containsKey(nextStableId)) {
-            nextStableId++;
+    private void validateAllocatableStableId(int stableId) {
+        if (stableId <= 0 || stableId == Integer.MAX_VALUE) {
+            throw new IllegalStateException("nextEntityStableId must be positive and allocatable, got " + stableId + ".");
+        }
+        if (byStableId.containsKey(stableId)) {
+            throw new IllegalStateException("nextEntityStableId " + stableId + " is already assigned.");
+        }
+    }
+
+    private void validateRestoredStableId(int stableId) {
+        requireSceneMeta();
+        if (stableId <= 0 || stableId >= sceneMeta.nextEntityStableId) {
+            throw new IllegalArgumentException("Restored entity stableId " + stableId
+                    + " must be positive and lower than nextEntityStableId " + sceneMeta.nextEntityStableId + ".");
         }
     }
 

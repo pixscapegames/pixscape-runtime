@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.MouseJoint;
 import com.badlogic.gdx.physics.box2d.joints.MouseJointDef;
+import games.pixscape.runtime.api.PhysicsAPI;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
@@ -16,6 +17,7 @@ import games.pixscape.runtime.system.Box2dSyncSystem;
 public final class PhysicsMouseDragSystem extends BaseSystem {
 
     private final OrthographicCamera camera;
+    private final PhysicsAPI physics;
     private LayerStateSOA layerState;
     private Box2dSyncSystem box2dSync;
     private Box2dWorldService box2d;
@@ -72,18 +74,27 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     };
 
     public PhysicsMouseDragSystem(OrthographicCamera camera) {
-        this.camera = camera;
+        this(camera, null);
     }
 
     /**
-     * Optional late binding for parallax-aware runtime/Preview picking.
-     * <p>
-     * This is not constructor-required because external developers may create the
-     * drag system before the engine exists. When unset, physics parallax defaults
-     * to {@code 1f}, preserving old behavior and avoiding NPEs. Runtime/Preview
-     * hosts should inject the real engine {@link LayerStateSOA} after engine
-     * creation when parallax-aware mouse picking is desired.
+     * Creates a parallax-aware mouse drag system backed by the public Runtime physics API.
+     *
+     * @param camera world camera used to unproject pointer coordinates
+     * @param physics Runtime physics facade used for lifecycle, parallax and scale conversion
      */
+    public PhysicsMouseDragSystem(OrthographicCamera camera, PhysicsAPI physics) {
+        this.camera = camera;
+        this.physics = physics;
+    }
+
+    /**
+     * Legacy late binding for parallax-aware runtime/Preview picking.
+     * <p>
+     * Prefer {@link #PhysicsMouseDragSystem(OrthographicCamera, PhysicsAPI)}. When this
+     * legacy binding is unset, physics parallax defaults to {@code 1f}.
+     */
+    @Deprecated
     public void setLayerState(LayerStateSOA layerState) {
         this.layerState = layerState;
     }
@@ -117,7 +128,21 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
-        if (camera == null || box2dSync == null) return;
+        if (camera == null) return;
+
+        if (physics != null) {
+            World currentWorld = physics.box2dWorld();
+            if (!physics.isRunning() || currentWorld == null) {
+                clearStateForMissingWorld(currentWorld);
+                wasPressed = false;
+                return;
+            }
+            bindWorld(currentWorld);
+            processInput();
+            return;
+        }
+
+        if (box2dSync == null) return;
 
         Box2dWorldService current = box2dSync.getBox2d();
         if (current == null || current.world == null || current.isDisposed() || !box2dSync.isEnabled()) {
@@ -126,12 +151,18 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
             return;
         }
 
-        if (current != box2d || current.world != lastWorld) {
-            resetJointState();
-            box2d = current;
-            lastWorld = current.world;
-        }
+        box2d = current;
+        bindWorld(current.world);
+        processInput();
+    }
 
+    private void bindWorld(World currentWorld) {
+        if (currentWorld == lastWorld) return;
+        resetJointState();
+        lastWorld = currentWorld;
+    }
+
+    private void processInput() {
         if (Gdx.input.isTouched(1)) {
             destroyJoint();
             wasPressed = false;
@@ -153,7 +184,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     }
 
     private void tryBeginDrag() {
-        if (box2d == null || box2d.world == null) return;
+        if (lastWorld == null) return;
         if (!updateTargetFromCursor()) return;
 
         Body hit = pickBodyAtCursor();
@@ -169,22 +200,23 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         def.maxForce = maxForce * hit.getMass();
         def.frequencyHz = frequencyHz;
         def.dampingRatio = dampingRatio;
-        mouseJoint = (MouseJoint) box2d.world.createJoint(def);
+        mouseJoint = (MouseJoint) lastWorld.createJoint(def);
     }
 
     private boolean updateTargetFromCursor() {
-        if (box2d == null || box2d.world == null) return false;
+        if (lastWorld == null) return false;
         tmpScreen.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         camera.unproject(tmpScreen);
-        float parallaxX = physicsParallaxX();
-        float parallaxY = physicsParallaxY();
-        float offsetX = (1f - parallaxX) * camera.position.x;
-        float offsetY = (1f - parallaxY) * camera.position.y;
-        float logicalX = tmpScreen.x - offsetX;
-        float logicalY = tmpScreen.y - offsetY;
-        float xM = box2d.pxToM(logicalX);
-        float yM = box2d.pxToM(logicalY);
-        tmpTarget.set(xM, yM);
+        tmpTarget.set(tmpScreen.x, tmpScreen.y);
+        if (physics != null) {
+            toPhysicsMeters(physics, camera, tmpTarget, tmpTarget);
+        } else {
+            float logicalX = toLogicalPhysicsWorld(
+                    tmpTarget.x, camera.position.x, physicsParallaxX());
+            float logicalY = toLogicalPhysicsWorld(
+                    tmpTarget.y, camera.position.y, physicsParallaxY());
+            tmpTarget.set(box2d.pxToM(logicalX), box2d.pxToM(logicalY));
+        }
         if (mouseJoint != null) {
             mouseJoint.setTarget(tmpTarget);
         }
@@ -198,7 +230,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
 
         queryPoint.set(tmpTarget);
         float r = grabRadiusMeters;
-        box2d.world.QueryAABB(pickCallback, queryPoint.x - r, queryPoint.y - r, queryPoint.x + r, queryPoint.y + r);
+        lastWorld.QueryAABB(pickCallback, queryPoint.x - r, queryPoint.y - r, queryPoint.x + r, queryPoint.y + r);
         return pickedBody;
     }
 
@@ -219,18 +251,27 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         return renderedWorld - (1f - factor) * cameraPosition;
     }
 
+    static Vector2 toPhysicsMeters(
+            PhysicsAPI physics,
+            OrthographicCamera camera,
+            Vector2 renderedWorldPosition,
+            Vector2 out) {
+        physics.removeParallax(renderedWorldPosition, camera, out);
+        return out.scl(1f / physics.pixelsPerMeter());
+    }
+
     private void ensureGroundBody() {
-        if (box2d == null || box2d.world == null) return;
+        if (lastWorld == null) return;
         if (groundBody != null) return;
         BodyDef def = new BodyDef();
         def.type = BodyDef.BodyType.StaticBody;
-        groundBody = box2d.world.createBody(def);
+        groundBody = lastWorld.createBody(def);
     }
 
     private void destroyJoint() {
         if (mouseJoint == null) return;
-        if (box2d != null && box2d.world != null && !box2d.isDisposed()) {
-            box2d.world.destroyJoint(mouseJoint);
+        if (lastWorld != null) {
+            lastWorld.destroyJoint(mouseJoint);
         }
         mouseJoint = null;
     }
@@ -242,14 +283,18 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     }
 
     private void clearStateForMissingWorld(Box2dWorldService current) {
-        if (box2d != null && box2d.world != null && mouseJoint != null && !box2d.isDisposed()) {
-            box2d.world.destroyJoint(mouseJoint);
+        clearStateForMissingWorld(current != null ? current.world : null);
+        box2d = current;
+    }
+
+    private void clearStateForMissingWorld(World currentWorld) {
+        if (mouseJoint != null && lastWorld != null && lastWorld == currentWorld) {
+            lastWorld.destroyJoint(mouseJoint);
         }
         mouseJoint = null;
         groundBody = null;
         pickedBody = null;
-        box2d = current;
-        lastWorld = (current != null) ? current.world : null;
+        lastWorld = currentWorld;
     }
 
     private static float distanceSquared(Vector2 a, Vector2 b) {

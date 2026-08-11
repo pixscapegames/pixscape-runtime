@@ -1,5 +1,9 @@
 package games.pixscape.runtime.render.batch.performance;
 
+/**
+ * {@code SUPPORTED_EXPERT} mutable rolling frame-stat accumulator.
+ * Instances are not thread-safe; engine-provided instances are borrowed and lifecycle-owned.
+ */
 public final class RenderStatsSink {
     private final float periodSec;
     private float acc;

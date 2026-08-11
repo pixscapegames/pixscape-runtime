@@ -5,23 +5,24 @@ import com.artemis.ComponentMapper;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.animation.AnimationClipDef;
+import games.pixscape.runtime.animation.AnimationDef;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
- * Updates animated sprite UVs using atlas frame groups (atlas.findRegions(animation)).
- * Resolution is cached (binding cache), never looked up in draw loop.
+ * Updates animated sprite UVs using pre-indexed atlas frame groups.
  */
 public final class AnimationSystem extends IteratingSystem implements ProfiledSystem {
 
@@ -33,23 +34,25 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
     private DirtyTrackerSystem dirty;
 
     private final AtlasRuntimeService atlasRuntimeService;
+    private final AnimationRegistry animationRegistry;
 
-    private static final class AnimationBinding {
-        final Array<TextureAtlas.AtlasRegion> frames = new Array<>();
-    }
-
-    private final ObjectMap<String, AnimationBinding> bindingCache = new ObjectMap<>();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
 
-    public AnimationSystem(AtlasRuntimeService atlasRuntimeService) {
+    public AnimationSystem(
+            AnimationRegistry animationRegistry,
+            AtlasRuntimeService atlasRuntimeService) {
         super(Aspect.all(AnimationComponent.class,
                 TextureRegionComponent.class,
                 RenderMaterialComponent.class,
                 AssetRefComponent.class));
 
         this.atlasRuntimeService = atlasRuntimeService;
+        if (animationRegistry == null) {
+            throw new IllegalArgumentException("animationRegistry must not be null");
+        }
+        this.animationRegistry = animationRegistry;
     }
 
     @Override
@@ -63,22 +66,26 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
     @Override
     protected void process(int e) {
         AnimationComponent a = mAnim.get(e);
-        if (!a.playing || a.fps <= 0f) return;
+        if (a.fps <= 0f || (!a.playing && a.frame >= 0)) return;
 
-        AnimationComponent.Clip clip = a.getClip();
+        AssetRefComponent src = mSrc.get(e);
+        AnimationDef def = animationRegistry.getByAssetId(src.assetId);
+        AnimationClipDef clip = def != null ? def.clip(a.currentClip) : null;
         if (clip == null) return;
 
 
-        AnimationBinding binding = resolveBinding(e);
-        if (binding == null || binding.frames.size == 0) return;
+        AtlasAssetBinding binding = resolveBinding(e);
+        if (binding == null) return;
+        int regionCount = binding.regionCount();
+        if (regionCount == 0) return;
 
-        int start = Math.max(0, clip.start);
-        int end = Math.max(0, clip.end);
+        int start = Math.max(0, clip.start());
+        int end = Math.max(0, clip.end());
         int dir = (end >= start) ? 1 : -1;
-        int count = Math.abs(end - start) + 1;
+        int count = frameCount(clip);
         if (count <= 0) return;
 
-        a.stateTime += world.getDelta();
+        if (a.playing) a.stateTime += world.getDelta();
 
         float frameDur = 1f / a.fps;
         int local = (int) (a.stateTime / frameDur);
@@ -86,53 +93,36 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
 
         int frameIndex = start + local * dir;
         if (frameIndex < 0) frameIndex = 0;
-        if (frameIndex >= binding.frames.size) frameIndex = binding.frames.size - 1;
+        if (frameIndex >= regionCount) frameIndex = regionCount - 1;
 
         if (frameIndex != a.frame) {
             a.frame = frameIndex;
-            applyFrame(e, clip, binding.frames.get(frameIndex));
+            applyFrame(e, clip, binding.regionAt(frameIndex));
         }
     }
 
-    private AnimationBinding resolveBinding(int e) {
+    private AtlasAssetBinding resolveBinding(int e) {
 
         AssetRefComponent src = mSrc.get(e);
 
-        if (src.assetId < 0)
+        if (src.assetId <= 0)
             throw new IllegalStateException(
-                    "AssetRefComponent.assetId not set for entity " + e);
+                    "AssetRefComponent.assetId must be > 0 for entity " + e
+                            + ", got " + src.assetId + ".");
 
         String atlasTag = (src.atlasTag != null) ? src.atlasTag : "";
         if (atlasTag.isEmpty())
             return null;
 
-        String cacheKey = atlasTag + "|__a" + src.assetId;
-        AnimationBinding cached = bindingCache.get(cacheKey);
-        if (cached != null)
-            return cached;
-
-        AtlasRuntimeService.CachedRegion cachedRegion =
-                atlasRuntimeService.resolveCached(src.assetId, atlasTag);
-
-        if (cachedRegion == null || cachedRegion.regionName == null || cachedRegion.regionName.isEmpty())
-            return null;
-
-        TextureAtlas atlas = atlasRuntimeService.getAtlas(atlasTag);
-        if (atlas == null) return null;
-
-        Array<TextureAtlas.AtlasRegion> regions = atlas.findRegions(cachedRegion.regionName);
-
-        if (regions == null || regions.size == 0)
-            return null;
-
-        AnimationBinding created = new AnimationBinding();
-        created.frames.addAll(regions);
-
-        bindingCache.put(cacheKey, created);
-        return created;
+        return atlasRuntimeService.resolveBinding(src.assetId, atlasTag);
     }
 
-    private void applyFrame(int e, AnimationComponent.Clip clip, TextureAtlas.AtlasRegion region) {
+    private static int frameCount(AnimationClipDef clip) {
+        if (clip == null) return 0;
+        return Math.abs(Math.max(0, clip.end()) - Math.max(0, clip.start())) + 1;
+    }
+
+    private void applyFrame(int e, AnimationClipDef clip, TextureAtlas.AtlasRegion region) {
         TextureRegionComponent tr = mTR.get(e);
         RenderMaterialComponent mat = mMat.get(e);
         if (region == null) return;
@@ -142,7 +132,7 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         float u2 = region.getU2();
         float v2 = region.getV2();
 
-        if (clip != null && clip.flipX) {
+        if (clip != null && clip.flipX()) {
             float tmp = u1;
             u1 = u2;
             u2 = tmp;
@@ -160,10 +150,6 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         mat.textureHandle = TextureRegistry.handleOf(pageTex);
 
         if (dirty != null) dirty.mark(e, DirtyBits.MATERIAL);
-    }
-
-    public void clearBindingCache() {
-        bindingCache.clear();
     }
 
     @Override

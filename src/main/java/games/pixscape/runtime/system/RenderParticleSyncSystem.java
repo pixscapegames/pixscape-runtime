@@ -6,24 +6,23 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.annotations.All;
 import com.artemis.utils.IntBag;
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.particle.ParticleEmitter.Particle;
+import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -51,7 +50,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
     // cache : entityId -> ParticleEffect
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
-    private final ObjectMap<String, ParticleEffectPool> effectPools = new ObjectMap<>();
+    private final IntMap<String> effectPaths = new IntMap<>();
+    private final IntMap<String> effectAtlasTags = new IntMap<>();
+    private final IntIntMap appliedLooping = new IntIntMap();
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
     private ComponentMapper<TransformComponent> mTransform;
@@ -67,7 +68,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     // default “material” params
     private final int defaultShaderIdx;
     private final AtlasRuntimeService atlasRuntimeService;
-    private FileHandle effectsRoot;
+    private ParticleRuntimeAvailability particleAvailability;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderParticleSyncSystem(VfxRenderState vfxState,
@@ -79,17 +80,57 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         this.camera = camera;
         this.defaultShaderIdx = defaultShaderIdx;
         this.atlasRuntimeService = atlasRuntimeService;
-        this.effectsRoot = effectsRoot;
-    }
-
-    private static String effectPoolKey(ParticleEmitterComponent emitter) {
-        String atlasTag = (emitter.atlasTag != null) ? emitter.atlasTag : "";
-        String effectPath = (emitter.effectPath != null) ? emitter.effectPath : "";
-        return atlasTag + "|" + effectPath;
+        this.particleAvailability =
+                new ParticleRuntimeAvailability(atlasRuntimeService, effectsRoot);
     }
 
     public void setEffectsRoot(FileHandle effectsRoot) {
-        this.effectsRoot = effectsRoot;
+        this.particleAvailability =
+                new ParticleRuntimeAvailability(atlasRuntimeService, effectsRoot);
+    }
+
+    /** Strictly prepares every authored and explicitly declared scene dependency. */
+    public void prepareRuntimeAvailability(
+            String defaultAtlasTag, Array<String> declaredEffectPaths) {
+        prepareAuthoredParticles();
+        if (declaredEffectPaths == null) return;
+        for (int i = 0; i < declaredEffectPaths.size; i++) {
+            particleAvailability.prepare(defaultAtlasTag, declaredEffectPaths.get(i));
+        }
+    }
+
+    private void prepareAuthoredParticles() {
+        IntBag entities = subscription.getEntities();
+        int[] data = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            ParticleEmitterComponent emitter = mEmitter.get(data[i]);
+            if (emitter == null || emitter.effectPath == null
+                    || emitter.effectPath.length() == 0) continue;
+            particleAvailability.prepare(emitter.atlasTag, emitter.effectPath);
+        }
+    }
+
+    ParticleRuntimeAvailability particleAvailability() {
+        return particleAvailability;
+    }
+
+    /**
+     * INTERNAL authoring-integration query for already prepared particle state.
+     * This method never loads, prepares, mutates, or logs.
+     */
+    public boolean isPrepared(String atlasTag, String effectPath) {
+        if (atlasTag == null || atlasTag.trim().length() == 0) return false;
+        if (effectPath == null || effectPath.trim().length() == 0) return false;
+        return particleAvailability.isPrepared(atlasTag, effectPath);
+    }
+
+    /** Fails unless scene loading or an explicit authoring publication prepared this resource. */
+    public void requirePrepared(String atlasTag, String effectPath) {
+        if (!particleAvailability.isPrepared(atlasTag, effectPath)) {
+            throw new IllegalStateException("Particle effect is unavailable: '"
+                    + ParticleEffectPath.normalize(effectPath) + "' with atlas '"
+                    + atlasTag + "'. Add it to Runtime Availability before scene loading.");
+        }
     }
 
     @Override
@@ -98,12 +139,12 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 Aspect.all(ParticleEmitterComponent.class, TransformComponent.class)
         );
         layerSubscription = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class));
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
 
         subscription.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
             @Override
             public void inserted(IntBag entities) {
-                // lazy-load effects in processSystem
+                // Resources are prepared before READY or by an explicit authoring publication.
             }
 
             @Override
@@ -112,6 +153,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int e = data[i];
                     ParticleEffectPool.PooledEffect fx = effects.remove(e);
+                    effectPaths.remove(e);
+                    effectAtlasTags.remove(e);
+                    appliedLooping.remove(e, 0);
                     if (fx != null) {
                         fx.free();
                     }
@@ -149,41 +193,59 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         for (int i = 0; i < count; i++) {
             int e = data[i];
 
+            ParticleEmitterComponent comp = mEmitter.get(e);
+            TransformComponent t = mTransform.get(e);
+            if (comp == null || t == null) continue;
+
+            ParticleEffectPool.PooledEffect fx = effects.get(e);
+            if (fx != null && !matchesAuthoredEffect(e, comp)) {
+                ParticleEffectPool.PooledEffect replacement = createEffect(comp);
+                if (replacement != null) {
+                    boolean preservePlaying = !comp.paused && !fx.isComplete();
+                    applyLooping(e, replacement, comp.looping);
+                    if (comp.autoStart) replacement.start();
+
+                    ParticleEffectPool.PooledEffect previous = fx;
+                    fx = replacement;
+                    effects.put(e, replacement);
+                    effectPaths.put(e, normalized(comp.effectPath));
+                    effectAtlasTags.put(e, normalized(comp.atlasTag));
+                    if (preservePlaying) {
+                        comp.playRequested = true;
+                    }
+                    previous.free();
+                }
+            }
+
+            synchronizeLooping(e, fx, comp.looping);
+
             if (mVis != null && mVis.has(e) && !mVis.get(e).isVisible()) {
                 continue;
             }
             if (!isLayerVisible(e)) continue;
 
-            ParticleEmitterComponent comp = mEmitter.get(e);
-            TransformComponent t = mTransform.get(e);
-            if (comp == null || t == null) continue;
-
             ParticleOverridesComponent ov = (mOverrides != null) ? mOverrides.getSafe(e, null) : null;
 
-            ParticleEffectPool.PooledEffect fx = effects.get(e);
             if (fx == null) {
                 fx = createEffect(comp);
                 if (fx == null) continue;
                 effects.put(e, fx);
-                applyLooping(fx, comp.looping);
+                effectPaths.put(e, normalized(comp.effectPath));
+                effectAtlasTags.put(e, normalized(comp.atlasTag));
+                applyLooping(e, fx, comp.looping);
 
                 if (comp.autoStart) fx.start();
             }
 
-            // follow Transform (localSpace)
-            if (comp.localSpace) {
-                float px = t.x + t.originX;
-                float py = t.y + t.originY;
-                fx.setPosition(px, py);
-            }
+            positionEffect(fx, t);
 
             if (comp.restartRequested) {
-                applyLooping(fx, comp.looping);
+                applyLooping(e, fx, comp.looping);
                 fx.reset(true, true);
                 comp.restartRequested = false;
             }
             if (comp.playRequested) {
-                applyLooping(fx, comp.looping);
+                applyLooping(e, fx, comp.looping);
                 fx.start();
                 comp.playRequested = false;
             }
@@ -196,6 +258,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
 
             if (comp.autoRemoveWhenComplete && fx.isComplete()) {
                 effects.remove(e);
+                effectPaths.remove(e);
+                effectAtlasTags.remove(e);
+                appliedLooping.remove(e, 0);
                 fx.free();
                 world.delete(e);
                 continue;
@@ -222,56 +287,37 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     // Helpers
     // ------------------------------------------------------------------------
 
+    static void positionEffect(ParticleEffect fx, TransformComponent transform) {
+        fx.setPosition(transform.x, transform.y);
+    }
+
+    private boolean matchesAuthoredEffect(int entityId, ParticleEmitterComponent emitter) {
+        return normalized(emitter.effectPath).equals(effectPaths.get(entityId))
+                && normalized(emitter.atlasTag).equals(effectAtlasTags.get(entityId));
+    }
+
+    private static String normalized(String value) {
+        return value != null ? value : "";
+    }
+
     private ParticleEffectPool.PooledEffect createEffect(ParticleEmitterComponent emitter) {
         if (emitter.effectPath == null || emitter.effectPath.isEmpty()) return null;
-
-        if (effectsRoot == null) {
-            Gdx.app.error("RenderParticleSyncSystem", "effectsRoot is null");
-            return null;
-        }
-
-        FileHandle effectFile = effectsRoot.child(emitter.effectPath);
-        if (!effectFile.exists()) {
-            Gdx.app.error("RenderParticleSyncSystem",
-                    "Effect file not found: " + effectFile.path()
-                            + " (emitter.effectPath=" + emitter.effectPath + ")");
-            return null;
-        }
 
         if (atlasRuntimeService == null ||
                 emitter.atlasTag == null ||
                 emitter.atlasTag.isEmpty()) {
             return null;
         }
-
-        String key = effectPoolKey(emitter);
-        ParticleEffectPool pool = effectPools.get(key);
-
-        if (pool == null) {
-            TextureAtlas atlas = atlasRuntimeService.getAtlas(emitter.atlasTag);
-            if (atlas == null) {
-                return null;
-            }
-
-            ParticleEffect template = new ParticleEffect();
-            try {
-                template.load(effectFile, atlas);
-                template.setEmittersCleanUpBlendFunction(false);
-            } catch (Exception ex) {
-                template.dispose();
-                return null;
-            }
-
-            pool = new ParticleEffectPool(template, 1, 16);
-            effectPools.put(key, pool);
-        }
-
-        ParticleEffectPool.PooledEffect fx = pool.obtain();
-        fx.setEmittersCleanUpBlendFunction(false);
-        return fx;
+        if (!particleAvailability.isPrepared(emitter.atlasTag, emitter.effectPath)) return null;
+        return particleAvailability.obtain(emitter.atlasTag, emitter.effectPath);
     }
 
-    private void applyLooping(ParticleEffect fx, boolean looping) {
+    private void synchronizeLooping(int entityId, ParticleEffect fx, boolean looping) {
+        if (fx == null || appliedLooping.get(entityId, -1) == (looping ? 1 : 0)) return;
+        applyLooping(entityId, fx, looping);
+    }
+
+    private void applyLooping(int entityId, ParticleEffect fx, boolean looping) {
         if (fx == null) return;
         Array<ParticleEmitter> emitters = fx.getEmitters();
         for (int i = 0, n = emitters.size; i < n; i++) {
@@ -280,6 +326,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 emitter.setContinuous(looping);
             }
         }
+        appliedLooping.put(entityId, looping ? 1 : 0);
     }
 
     private boolean isEffectVisible(ParticleEffect fx) {
@@ -307,6 +354,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return overlapX && overlapY;
     }
 
+    /** Invalidates particle instances and prepared pools without preparing resources. */
     public void invalidateAllEffects() {
         for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
             IntMap.Entry<ParticleEffectPool.PooledEffect> entry = it.next();
@@ -317,7 +365,10 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         }
 
         effects.clear();
-        effectPools.clear();
+        effectPaths.clear();
+        effectAtlasTags.clear();
+        appliedLooping.clear();
+        particleAvailability.clear();
         lastTex = null;
         lastTexHandle = 0;
     }
@@ -331,11 +382,16 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
 
-            int blendId = emitter.isAdditive()
-                    ? BlendMode.ADDITIVE_ALPHA.id
-                    : BlendMode.ALPHA.id;
+            int blendId;
+            if (emitter.isPremultipliedAlpha()) {
+                blendId = BlendMode.PREMULT_ALPHA.id;
+            } else if (emitter.isAdditive()) {
+                blendId = BlendMode.ADDITIVE_ALPHA.id;
+            } else {
+                blendId = BlendMode.ALPHA.id;
+            }
 
-            Particle[] particles = emitter.particles;
+            Particle[] particles = emitter.getParticles();
             boolean[] active = emitter.getActiveArray();
             if (particles == null || active == null) continue;
 
@@ -477,7 +533,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return index != null ? index.getLayerIndex() : 0;
     }
 
-    private boolean isLayerVisible(int entityId) {
+    boolean isLayerVisible(int entityId) {
         EntityIndexComponent index = mEntityIndex.getSafe(entityId, null);
         if (index == null) return true;
 

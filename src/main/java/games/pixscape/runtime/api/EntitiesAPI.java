@@ -8,27 +8,39 @@ package games.pixscape.runtime.api;
  */
 public interface EntitiesAPI {
     /**
-     * Returns a reference bound to the provided runtime {@code entityId}.
+     * Returns a tolerant reference bound to the current incarnation of the provided
+     * runtime {@code entityId}. An absent or later-stale reference is inert.
      */
     EntityRef ofEntityId(int entityId);
 
     /**
-     * Returns a reference resolved from a persistent/public {@code stableId}.
+     * Returns a tolerant reference bound to the entity currently resolved from a
+     * persistent/public {@code stableId}. It does not follow later reuse or replacement.
      */
     EntityRef ofStableId(int stableId);
 
     /**
-     * Same as {@link #ofEntityId(int)} but throws when the entity does not exist.
+     * Same as {@link #ofEntityId(int)} but throws when the entity does not exist at
+     * acquisition time. The returned reference can later become stale and inert.
      */
     EntityRef requireEntityId(int entityId);
 
     /**
-     * Same as {@link #ofStableId(int)} but throws when not found.
+     * Same as {@link #ofStableId(int)} but throws when not found at acquisition time.
+     * The returned reference can later become stale and inert.
      */
     EntityRef requireStableId(int stableId);
 
+    /**
+     * Strictly resolves the entity currently indexed by {@code tag}.
+     * The returned reference can later become stale and inert.
+     */
     EntityRef requireTag(String tag);
 
+    /**
+     * Strictly resolves the entity currently indexed by {@code name}.
+     * The returned reference can later become stale and inert.
+     */
     EntityRef requireName(String name);
 
     /**

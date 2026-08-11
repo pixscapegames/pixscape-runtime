@@ -1,5 +1,11 @@
 package games.pixscape.runtime.spatial;
 
+/**
+ * {@code SUPPORTED_EXPERT} mutable value describing a world-space footprint and vertical span.
+ *
+ * <p>Instances returned by query methods are caller-owned snapshots. Reuse them through output
+ * parameters when allocation matters; they are not live views of authored or compiled state.</p>
+ */
 public final class SpatialVolume {
     public float worldX;
     public float worldY;

@@ -1,6 +1,6 @@
 package games.pixscape.runtime.api;
 
-import com.artemis.io.SaveFileFormat;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.SpawnResult;
 
 /**
@@ -25,12 +25,12 @@ public interface PrefabsAPI {
     /**
      * Spawns an already loaded prefab fragment at the given world offset.
      *
-     * @param fragment Artemis save fragment to instantiate
+     * @param fragment runtime prefab fragment to instantiate
      * @param x        world-space X offset applied to every spawned transform
      * @param y        world-space Y offset applied to every spawned transform
      * @return result containing all created entity IDs
      */
-    SpawnResult spawnFragment(SaveFileFormat fragment, float x, float y);
+    SpawnResult spawnFragment(RuntimePrefabFragment fragment, float x, float y);
 
     /**
      * Spawns a prefab and returns a reference to the first created entity.

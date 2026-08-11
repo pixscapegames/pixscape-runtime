@@ -2,8 +2,17 @@ package games.pixscape.runtime.api;
 
 /**
  * High-level sprite/material access for one entity.
+ *
+ * <p>Operations affect an existing complete authored sprite capability only.
+ * They do not convert an arbitrary entity into a sprite.</p>
  */
 public interface SpriteFacade {
+    /**
+     * Returns whether the minimum complete authored sprite capability exists.
+     * This does not imply that the sprite is visible, currently resolvable, or submitted.
+     */
+    boolean exists();
+
     /**
      * Returns the current sprite asset id, or {@code -1} when the entity has no asset reference.
      */
@@ -12,8 +21,9 @@ public interface SpriteFacade {
     /**
      * Changes the sprite asset within the current atlas tag.
      *
-     * <p>The new asset should be part of Runtime Availability for the current scene. If it is
-     * missing, the sprite region becomes invalid until a resolvable asset is assigned.</p>
+     * <p>The new asset must be available in the current atlas tag. An unavailable or invalid
+     * asset causes {@link IllegalArgumentException} before mutation, preserving the previous
+     * authored asset and live render binding.</p>
      *
      * @param assetId asset id to assign
      * @return this facade for chaining
@@ -23,8 +33,9 @@ public interface SpriteFacade {
     /**
      * Changes the sprite asset and atlas tag.
      *
-     * <p>The asset should exist in the requested atlas tag. A blank tag resolves to {@code main}.
-     * Missing assets make the sprite region invalid until a resolvable asset is assigned.</p>
+     * <p>The asset must exist in the requested atlas tag. A blank tag resolves to {@code main}.
+     * An unavailable or invalid asset causes {@link IllegalArgumentException} before mutation,
+     * preserving the previous authored asset and live render binding.</p>
      *
      * @param assetId asset id to assign
      * @param atlasTag atlas tag to resolve against, or blank for {@code main}
@@ -50,6 +61,7 @@ public interface SpriteFacade {
      * @param b blue channel
      * @param a alpha channel
      * @return this facade for chaining
+     * @throws IllegalArgumentException when any channel is NaN or infinite
      */
     SpriteFacade setTint(float r, float g, float b, float a);
 
@@ -60,15 +72,41 @@ public interface SpriteFacade {
      *
      * @param alpha alpha channel value
      * @return this facade for chaining
+     * @throws IllegalArgumentException when alpha is NaN or infinite
      */
     SpriteFacade setAlpha(float alpha);
 
     /**
      * Sets the sprite render size in world units.
+     * Zero and negative finite dimensions retain their existing Runtime semantics.
      *
      * @param width render width in world units
      * @param height render height in world units
      * @return this facade for chaining
+     * @throws IllegalArgumentException when either dimension is NaN or infinite
      */
     SpriteFacade setSize(float width, float height);
+
+    /**
+     * Returns whether horizontal repeat is configured for this sprite.
+     */
+    boolean repeatsX();
+
+    /**
+     * Returns whether vertical repeat is configured for this sprite.
+     */
+    boolean repeatsY();
+
+    /**
+     * Configures axis-aligned Repeat V1 rendering on the X and Y axes.
+     *
+     * <p>Repeat configuration is effective only for non-animated, axis-aligned
+     * sprites. Animated sprites retain the configuration but Runtime does not
+     * submit repeated draws for them. Rotated sprites fall back to one draw.</p>
+     *
+     * @param repeatX whether to repeat horizontally
+     * @param repeatY whether to repeat vertically
+     * @return this facade for chaining
+     */
+    SpriteFacade setRepeat(boolean repeatX, boolean repeatY);
 }

@@ -3,6 +3,8 @@ package games.pixscape.runtime.api;
 /**
  * Per-cell playback control for animated tiles in one tiled layer.
  *
+ * <p>Operations affect existing tiled map data only and never create a tiled layer.</p>
+ *
  * <p>These operations control runtime playback state for one cell. They do not modify the global
  * animated tile definition registry.</p>
  *

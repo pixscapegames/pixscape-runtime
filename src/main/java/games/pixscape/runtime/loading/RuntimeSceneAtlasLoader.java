@@ -2,10 +2,14 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.configuration.RuntimeConfig;
-import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API.
+ */
 public final class RuntimeSceneAtlasLoader {
 
     private RuntimeSceneAtlasLoader() {
@@ -14,7 +18,8 @@ public final class RuntimeSceneAtlasLoader {
     public static void loadSceneAtlas(RuntimeConfig cfg,
                                       String sceneName,
                                       FileHandle projectDir,
-                                      AtlasRuntimeService atlasRuntimeService) {
+                                      AtlasRuntimeService atlasRuntimeService,
+                                      TextureAtlas availableAtlas) {
         if (cfg == null || sceneName == null || sceneName.isEmpty()) {
             Gdx.app.error("RuntimeSceneAtlasLoader", "Invalid cfg/sceneName, skip atlas load.");
             return;
@@ -32,18 +37,13 @@ public final class RuntimeSceneAtlasLoader {
             return;
         }
 
-        FileHandle atlasesRoot = projectDir.child(cfg.atlasesDir);
-        FileHandle atlasFile = atlasesRoot.child(RuntimeFs.withExt(sceneDirName, RuntimeFs.EXT_ATLAS));
-
-        if (!atlasFile.exists()) {
-            Gdx.app.log("RuntimeSceneAtlasLoader",
-                    "No atlas file for scene '" + sceneName + "'. Scene atlas sprites will stay invalid.");
-            return;
+        if (availableAtlas == null) {
+            throw new IllegalArgumentException(
+                    "Manager-owned scene atlas is required for '" + sceneName + "'.");
         }
-
         atlasRuntimeService.unload(sceneDirName);
-        atlasRuntimeService.load(sceneDirName, atlasFile);
+        atlasRuntimeService.loadBorrowed(sceneDirName, availableAtlas);
         Gdx.app.log("RuntimeSceneAtlasLoader",
-                "Scene atlas loaded for '" + sceneName + "'.");
+                "Manager-owned scene atlas reused for '" + sceneName + "'.");
     }
 }

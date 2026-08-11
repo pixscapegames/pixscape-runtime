@@ -5,24 +5,15 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
-import games.pixscape.runtime.component.SpatialHeightComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderKind;
-import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -89,7 +80,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void differentLayersRemainLayerOrdered() {
+    public void differentSpatialLayersUseGlobalGeometricOrderWhenYAgrees() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
@@ -102,6 +93,41 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
+    public void differentSpatialLayersUseOneGlobalGeometricOrder() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(1, true);
+        fixture.createLayer(2, true);
+        int lowerLayer = fixture.createActor(10f, 20f, 0, 1, true);
+        int higherLayer = fixture.createActor(10f, 40f, 0, 2, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{higherLayer, lowerLayer}, fixture.drawOrder());
+    }
+
+    @Test
+    public void multipleSpatialPhysicsLayersShareOneDomainAroundTiledAnchors() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(1, LayerComponent.TYPE_PHYSICS, true);
+        fixture.createLayer(2, LayerComponent.TYPE_PHYSICS, true);
+        TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
+        fixture.createSpatialTiledLayerWithMap(0, map);
+        int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
+        int higher = fixture.createActor(10f, 10f, 0, 1, true);
+        fixture.setSortOrder(higher, 1, 0, 20);
+        int lower = fixture.createActor(10f, 30f, 0, 2, true);
+        fixture.setSortOrder(lower, 2, 0, 30);
+        int tileB = fixture.createLinkedTile(map, 1, 0, 102, 0, 40);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{tileA, tileB, lower, higher}, fixture.drawOrder());
+        assertSameTiledSubsequence(new int[]{tileA, tileB, higher, lower},
+                fixture.drawOrder(), tileA, tileB);
+        Assert.assertEquals(0, fixture.spatial.actorOrderingFallbackCount());
+    }
+
+    @Test
     public void nonSpatialLayerKeepsLegacyOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, false);
@@ -111,6 +137,34 @@ public class SpatialRenderOrderSystemTest {
         fixture.process();
 
         Assert.assertArrayEquals(new int[]{first, second}, fixture.drawOrder());
+    }
+
+    @Test
+    public void actorLayerMetadataCannotActivateSpatialOrderingForItsLayer() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(6, false);
+        int higher = fixture.createActor(10f, 20f, 0, 6, true);
+        int lower = fixture.createActor(10f, 40f, 0, 6, true);
+        fixture.setActorLayerMetadata(higher, 6, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{higher, lower}, fixture.drawOrder());
+    }
+
+    @Test
+    public void renderedActorCannotEnterAuthoredTiledBlockLayerSubscription() {
+        Fixture fixture = new Fixture(512);
+        int actor = fixture.createActor(10f, 20f, 0, 6, true);
+        LayerComponent layer = fixture.world.getMapper(LayerComponent.class).create(actor);
+        layer.layerIndex = 6;
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.spatialEnabled = true;
+        fixture.world.getMapper(TiledLayerComponent.class).create(actor);
+
+        fixture.process();
+
+        Assert.assertEquals(0, fixture.spatial.tiledLayerEntityCount());
     }
 
     @Test
@@ -222,7 +276,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void spatialActorsDoNotSortAcrossTileAnchorWithoutBlockRelation() {
+    public void unconstrainedSpatialActorsSortAcrossOrdinaryTileAnchor() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
         TiledMapLayerData map = fixture.createBlockMap(3, 1, 16, 16, 300);
@@ -237,7 +291,7 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{tileA, higher, tileB, lower, tileC}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{tileA, lower, higher, tileB, tileC}, fixture.drawOrder());
         assertSameTiledSubsequence(new int[]{tileA, higher, tileB, lower, tileC}, fixture.drawOrder(), tileA, tileB, tileC);
     }
 
@@ -1617,27 +1671,28 @@ public class SpatialRenderOrderSystemTest {
         }
 
         void setActorCircleFootprint(int actor, float radiusPx, float offsetXPx, float offsetYPx) {
-            PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).get(actor);
-            if (fixtures == null) return;
-            fixtures.fixtures.clear();
-            FixtureDefData fixture = new FixtureDefData();
-            fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
-            fixture.radius = radiusPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixture.offsetX = offsetXPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixture.offsetY = offsetYPx / SpatialRenderOrderSystemTest.Fixture.PIXELS_PER_METER;
-            fixtures.fixtures.add(fixture);
+            SpatialPhysicsFootprintComponent footprint =
+                    world.getMapper(SpatialPhysicsFootprintComponent.class)
+                            .getSafe(actor, null);
+            if (footprint == null) return;
+            footprint.valid = true;
+            footprint.radiusPx = radiusPx;
+            footprint.localOffsetXPx = offsetXPx;
+            footprint.localOffsetYPx = offsetYPx;
         }
 
         void addPhysicsCircleFootprint(int actor, float radiusPx) {
-            world.getMapper(PhysicsBodyComponent.class).create(actor);
-            world.getMapper(PhysicsFixturesComponent.class).create(actor);
+            world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
             setActorCircleFootprint(actor, radiusPx);
         }
 
         void clearActorPhysicsFootprint(int actor) {
-            PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).get(actor);
-            if (fixtures != null) {
-                fixtures.fixtures.clear();
+            SpatialPhysicsFootprintComponent footprint =
+                    world.getMapper(SpatialPhysicsFootprintComponent.class)
+                            .getSafe(actor, null);
+            if (footprint != null) {
+                footprint.valid = false;
+                footprint.radiusPx = 0f;
             }
         }
 
@@ -1679,6 +1734,12 @@ public class SpatialRenderOrderSystemTest {
 
             enableActorSlot(entity, entity, layerIndex, z, entity);
             return entity;
+        }
+
+        void setActorLayerMetadata(int actor, int layerIndex, boolean spatialEnabled) {
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(actor);
+            layer.layerIndex = layerIndex;
+            layer.spatialEnabled = spatialEnabled;
         }
 
         int createActorInRenderSlot(float x, float y, int z, int layerIndex, int slot) {

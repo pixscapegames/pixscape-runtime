@@ -3,8 +3,9 @@ package games.pixscape.runtime.api;
 /**
  * Runtime spatial render-order API.
  *
- * <p>This API exposes spatial participation and vertical volume only.
- * Occluders and authored spatial blocks remain internal runtime details.</p>
+ * <p>This high-level API exposes spatial participation and vertical volume only.
+ * Authored blocks and compiler/query types remain available separately through the
+ * {@code SUPPORTED_EXPERT} Spatial surface; they are not exposed by this facade.</p>
  */
 public interface SpatialAPI {
     /**

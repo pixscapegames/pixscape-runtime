@@ -3,7 +3,7 @@
 <h1>Pixscape Runtime</h1>
 
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.1.8-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.1.9-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -14,7 +14,7 @@
 📘 **Documentation:** https://pixscape.games/docs  
 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-![Pixscape Studio Free](docs/images/pixscape-studio.png)
+![Pixscape Studio Free](assets/readme/pixscape-studio-free.png)
 
 ## What is Pixscape Runtime?
 
@@ -37,7 +37,7 @@ This runtime repository is also available separately for developers who want dir
 - **Runtime asset availability system**
 - **Tileset-profile-aware tiled placement**
 - **Efficient repeated renderables**
-- **Prefab loading support**
+- **Runtime Availability and prefab spawning**
 - **Animation and particle runtime support**
 - **Shader and light pipeline**
 - **Box2D physics integration**
@@ -97,6 +97,9 @@ Spatial V3 supports:
 - Runtime animation metadata
 - Horizontal flip metadata
 - Dynamic animation spawning
+- Multiple authored animations per animation entity
+- Atomic animation switching by asset ID or name
+- Read-only animation definition queries
 
 ### Physics
 
@@ -104,6 +107,7 @@ Spatial V3 supports:
 - Runtime physics synchronization
 - Physics-based actor footprint support for Spatial ordering
 - Mouse/touch drag helper system
+- High-level Physics API for runtime state, scale, parallax and Box2D body/world access
 
 ### Platforms
 
@@ -125,7 +129,7 @@ Pixscape Runtime is available from Maven Central.
 
 ```gradle
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.1.8"
+    implementation "games.pixscape:pixscape-runtime:0.1.9"
 }
 ```
 
@@ -135,7 +139,7 @@ dependencies {
 <dependency>
     <groupId>games.pixscape</groupId>
     <artifactId>pixscape-runtime</artifactId>
-    <version>0.1.8</version>
+    <version>0.1.9</version>
 </dependency>
 ```
 
@@ -144,6 +148,10 @@ dependencies {
 Full documentation is available on the official website:
 
 📘 https://pixscape.games/docs
+
+Runtime Java APIs are divided into `HIGH_LEVEL`, `SUPPORTED_EXPERT`, and
+`INTERNAL` support levels. See [RUNTIME_API_SUPPORT_POLICY.md](RUNTIME_API_SUPPORT_POLICY.md)
+for compatibility, lifecycle, and ownership expectations.
 
 ## Download Pixscape Studio Free
 

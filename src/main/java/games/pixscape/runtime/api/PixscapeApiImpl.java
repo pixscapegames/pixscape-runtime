@@ -1,26 +1,34 @@
 package games.pixscape.runtime.api;
 
 import com.artemis.*;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationClipDef;
 import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
+import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.ShaderRegistry;
-import games.pixscape.runtime.service.TagRegistry;
+import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -29,7 +37,162 @@ import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 
+/**
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API. Applications obtain the supported facade through
+ * {@link PixscapeEngine#api()}.
+ */
 public final class PixscapeApiImpl implements PixscapeAPI {
+
+    private static final class EntityReferenceTracker
+            implements EntitySubscription.SubscriptionListener {
+        private static final int INITIAL_CAPACITY = 64;
+
+        private final PixscapeEngine engine;
+        private World world;
+        private EntitySubscription subscription;
+        private int worldGeneration;
+        private int[] entityGenerations = new int[INITIAL_CAPACITY];
+
+        EntityReferenceTracker(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        EntityHandle capture(int entityId) {
+            bindCurrentWorld();
+            int entityGeneration = 0;
+            if (isActive(world, entityId)) {
+                ensureCapacity(entityId);
+                entityGeneration = entityGenerations[entityId];
+                if (entityGeneration == 0) {
+                    entityGeneration = 1;
+                    entityGenerations[entityId] = entityGeneration;
+                }
+            }
+            return new EntityHandle(
+                    this, entityId, worldGeneration, entityGeneration);
+        }
+
+        World world(EntityHandle handle) {
+            bindCurrentWorld();
+            if (handle.worldGeneration != worldGeneration
+                    || handle.entityGeneration == 0
+                    || !isActive(world, handle.entityId)
+                    || handle.entityId >= entityGenerations.length
+                    || entityGenerations[handle.entityId] != handle.entityGeneration) {
+                return null;
+            }
+            return world;
+        }
+
+        @Override
+        public void inserted(IntBag entities) {
+            int[] ids = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                int entityId = ids[i];
+                ensureCapacity(entityId);
+                if (entityGenerations[entityId] == 0) {
+                    entityGenerations[entityId] = 1;
+                }
+            }
+        }
+
+        @Override
+        public void removed(IntBag entities) {
+            int[] ids = entities.getData();
+            for (int i = 0, n = entities.size(); i < n; i++) {
+                int entityId = ids[i];
+                ensureCapacity(entityId);
+                int next = entityGenerations[entityId] + 1;
+                entityGenerations[entityId] = next != 0 ? next : 1;
+            }
+        }
+
+        private void bindCurrentWorld() {
+            World current = engine.getWorld();
+            if (current == world) return;
+
+            if (subscription != null) {
+                subscription.removeSubscriptionListener(this);
+                subscription = null;
+            }
+            world = current;
+            worldGeneration++;
+            if (worldGeneration == 0) worldGeneration = 1;
+            entityGenerations = new int[INITIAL_CAPACITY];
+            if (world != null) {
+                subscription = world.getAspectSubscriptionManager().get(Aspect.all());
+                subscription.addSubscriptionListener(this);
+            }
+        }
+
+        private void ensureCapacity(int entityId) {
+            if (entityId < entityGenerations.length) return;
+            int capacity = entityGenerations.length;
+            while (capacity <= entityId) capacity <<= 1;
+            int[] grown = new int[capacity];
+            System.arraycopy(entityGenerations, 0, grown, 0, entityGenerations.length);
+            entityGenerations = grown;
+        }
+
+        private static boolean isActive(World world, int entityId) {
+            if (world == null || entityId < 0) return false;
+            try {
+                return world.getEntity(entityId) != null
+                        && world.getEntityManager().isActive(entityId);
+            } catch (IndexOutOfBoundsException ignored) {
+                return false;
+            }
+        }
+    }
+
+    private static final class EntityHandle {
+        private final EntityReferenceTracker tracker;
+        private final int entityId;
+        private final int worldGeneration;
+        private final int entityGeneration;
+
+        EntityHandle(EntityReferenceTracker tracker,
+                     int entityId,
+                     int worldGeneration,
+                     int entityGeneration) {
+            this.tracker = tracker;
+            this.entityId = entityId;
+            this.worldGeneration = worldGeneration;
+            this.entityGeneration = entityGeneration;
+        }
+
+        World world() {
+            return tracker.world(this);
+        }
+
+        boolean exists() {
+            return world() != null;
+        }
+    }
+
+    private static World spriteCapabilityWorld(EntityHandle handle) {
+        World world = handle.world();
+        if (world == null) return null;
+        int entityId = handle.entityId;
+        return world.getMapper(TransformComponent.class).has(entityId)
+                && world.getMapper(DimensionsComponent.class).has(entityId)
+                && world.getMapper(AssetRefComponent.class).has(entityId)
+                && world.getMapper(VisibilityComponent.class).has(entityId)
+                && world.getMapper(EntityIndexComponent.class).has(entityId)
+                && world.getMapper(TintComponent.class).has(entityId)
+                ? world : null;
+    }
+
+    private static World animationCapabilityWorld(EntityHandle handle) {
+        World world = spriteCapabilityWorld(handle);
+        if (world == null) return null;
+        int entityId = handle.entityId;
+        return world.getMapper(AnimationComponent.class).has(entityId)
+                && world.getMapper(TextureRegionComponent.class).has(entityId)
+                && world.getMapper(RenderMaterialComponent.class).has(entityId)
+                ? world : null;
+    }
 
     private static boolean isBlank(String s) {
         if (s == null || s.length() == 0) return true;
@@ -43,27 +206,53 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return true;
     }
 
+    private static boolean isFinite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
+    }
+
+    private static void requireFinite(String operation, float value) {
+        if (!isFinite(value)) {
+            throw new IllegalArgumentException(
+                    operation + " requires a finite value, got " + value + ".");
+        }
+    }
+
+    private static void requireFinite(String operation, float first, float second) {
+        if (!isFinite(first) || !isFinite(second)) {
+            throw new IllegalArgumentException(
+                    operation + " requires finite values, got " + first + ", " + second + ".");
+        }
+    }
+
     private final PixscapeEngine engine;
+    private final EntityReferenceTracker entityReferences;
+    private final SceneLayerResolver sceneLayers;
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
     private final SpatialAPI spatial;
     private final PrefabsAPI prefabs;
-    private final AssetsAPI assets;
-    private final SpritesAPI sprites;
+    private final AssetsApiImpl assets;
+    private final SpritesApiImpl sprites;
     private final AnimationsAPI animations;
     private final ParticlesAPI particles;
+    private final PhysicsAPI physics;
 
     public PixscapeApiImpl(PixscapeEngine engine) {
         this.engine = engine;
+        this.entityReferences = new EntityReferenceTracker(engine);
+        this.sceneLayers = new SceneLayerResolver();
         this.ecs = new EcsApiImpl(engine);
-        this.entities = new EntitiesApiImpl(engine, ecs);
-        this.tiled = new TiledApiImpl(engine, ecs, entities);
-        this.spatial = new SpatialApiImpl(engine);
+        this.entities = new EntitiesApiImpl(
+                engine, ecs, sceneLayers, entityReferences);
+        this.tiled = new TiledApiImpl(
+                engine, ecs, entities, sceneLayers, entityReferences);
+        this.spatial = new SpatialApiImpl(engine, sceneLayers);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
+        this.physics = new PhysicsApiImpl(engine);
         this.prefabs = new PrefabsApiImpl(engine, entities);
     }
 
@@ -108,19 +297,133 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     @Override
+    public PhysicsAPI physics() {
+        return physics;
+    }
+
+    @Override
     public PrefabsAPI prefabs() {
         return prefabs;
+    }
+
+    static final class PhysicsApiImpl implements PhysicsAPI {
+        private static final float DEFAULT_PIXELS_PER_METER = 100f;
+        private final PixscapeEngine engine;
+
+        PhysicsApiImpl(PixscapeEngine engine) {
+            this.engine = engine;
+        }
+
+        @Override
+        public boolean isRunning() {
+            World ecsWorld = engine.getWorld();
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            Box2dWorldService service = engine.getBox2dWorldService();
+            Box2dSyncSystem sync = engine.getBox2dSyncSystem();
+            return ecsWorld != null
+                    && meta != null
+                    && meta.physicsEnabled
+                    && service != null
+                    && !service.isDisposed()
+                    && service.world != null
+                    && sync != null
+                    && sync.isEnabled()
+                    && sync.isStepEnabled()
+                    && sync.getBox2d() == service;
+        }
+
+        @Override
+        public float pixelsPerMeter() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            Box2dWorldService service = engine.getBox2dWorldService();
+            Box2dSyncSystem sync = engine.getBox2dSyncSystem();
+            if (meta != null && meta.physicsEnabled
+                    && service != null && !service.isDisposed() && service.world != null
+                    && sync != null && sync.getBox2d() == service
+                    && isValidScale(service.ppm)) {
+                return service.ppm;
+            }
+            if (meta != null && isValidScale(meta.pixelsPerMeter)) {
+                return meta.pixelsPerMeter;
+            }
+            return DEFAULT_PIXELS_PER_METER;
+        }
+
+        @Override
+        public float parallaxX() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            return meta == null || Float.isNaN(meta.physicsParallaxX)
+                    ? 1f : meta.physicsParallaxX;
+        }
+
+        @Override
+        public float parallaxY() {
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            return meta == null || Float.isNaN(meta.physicsParallaxY)
+                    ? 1f : meta.physicsParallaxY;
+        }
+
+        @Override
+        public Vector2 removeParallax(Vector2 renderedWorldPosition,
+                                      OrthographicCamera camera,
+                                      Vector2 out) {
+            if (renderedWorldPosition == null) {
+                throw new IllegalArgumentException("renderedWorldPosition must not be null");
+            }
+            if (camera == null) {
+                throw new IllegalArgumentException("camera must not be null");
+            }
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            float renderedX = renderedWorldPosition.x;
+            float renderedY = renderedWorldPosition.y;
+            return out.set(
+                    renderedX - (1f - parallaxX()) * camera.position.x,
+                    renderedY - (1f - parallaxY()) * camera.position.y);
+        }
+
+        @Override
+        public com.badlogic.gdx.physics.box2d.World box2dWorld() {
+            Box2dWorldService service = engine.getBox2dWorldService();
+            if (service == null || service.isDisposed()) return null;
+            return service.world;
+        }
+
+        @Override
+        public Body body(EntityRef entity) {
+            if (entity == null || !entity.exists()) return null;
+            World world = engine.getWorld();
+            int entityId = entity.entityId();
+            if (world == null || !isActive(world, entityId)) {
+                return null;
+            }
+            PhysicsRuntimeBodyComponent runtimeBody = world
+                    .getMapper(PhysicsRuntimeBodyComponent.class)
+                    .getSafe(entityId, null);
+            Body body = runtimeBody != null ? runtimeBody.body : null;
+            com.badlogic.gdx.physics.box2d.World nativeWorld = box2dWorld();
+            return body != null && nativeWorld != null && body.getWorld() == nativeWorld
+                    ? body : null;
+        }
+
+        private static boolean isValidScale(float value) {
+            return value > 0f && !Float.isNaN(value) && !Float.isInfinite(value);
+        }
+
+        private static boolean isActive(World world, int entityId) {
+            if (entityId < 0) return false;
+            try {
+                return world.getEntityManager().isActive(entityId);
+            } catch (IndexOutOfBoundsException ignored) {
+                return false;
+            }
+        }
     }
 
     private static String currentAtlasTag(PixscapeEngine engine) {
         String tag = engine != null ? engine.getCurrentSceneAtlasTag() : null;
         return isBlank(tag) ? "main" : tag;
-    }
-
-    private static TextureAtlas.AtlasRegion firstRegion(AtlasRuntimeService atlasService, int assetId, String atlasTag) {
-        if (atlasService == null) return null;
-        com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
-        return regions != null && regions.size > 0 ? regions.first() : null;
     }
 
     private static int assetIdFromRegionName(String regionName) {
@@ -172,12 +475,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     private static int createSpriteEntity(PixscapeEngine engine,
-                                          int assetId,
+                                          AtlasAssetBinding binding,
                                           String atlasTag,
                                           float x,
-                                          float y,
-                                          float width,
-                                          float height) {
+                                          float y) {
         World world = requireWorld(engine);
         int e = world.create();
 
@@ -186,8 +487,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         transform.y = y;
 
         DimensionsComponent dimensions = world.edit(e).create(DimensionsComponent.class);
-        dimensions.width = width;
-        dimensions.height = height;
+        dimensions.width = binding.metadata().pixelWidth();
+        dimensions.height = binding.metadata().pixelHeight();
 
         world.edit(e).create(OrientedBoundsComponent.class);
         world.edit(e).create(AABBComponent.class);
@@ -200,45 +501,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         world.edit(e).create(TintComponent.class);
 
         AssetRefComponent assetRef = world.edit(e).create(AssetRefComponent.class);
-        assetRef.assetId = assetId;
+        assetRef.assetId = binding.assetId();
         assetRef.atlasTag = atlasTag;
 
         TextureRegionComponent textureRegion = world.edit(e).create(TextureRegionComponent.class);
         RenderMaterialComponent material = world.edit(e).create(RenderMaterialComponent.class);
 
-        resolveSpriteRegion(engine, assetRef, textureRegion, material);
+        applySpriteBinding(binding, atlasTag, textureRegion, material);
         markSpawnDirty(world, e);
         return e;
-    }
-
-    private static void configureDefaultAnimation(PixscapeEngine engine, int entityId, int assetId) {
-        World world = requireWorld(engine);
-        AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
-                ? world.getMapper(AnimationComponent.class).get(entityId)
-                : world.getMapper(AnimationComponent.class).create(entityId);
-
-        // TODO 0.1.4 Studio integration:
-        // When animation assets export clip metadata, load exported clips here instead of
-        // creating a single default clip across every atlas frame.
-        int frameCount = 1;
-        AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
-        String atlasTag = currentAtlasTag(engine);
-        if (atlasService != null) {
-            com.badlogic.gdx.utils.Array<TextureAtlas.AtlasRegion> regions = atlasService.resolve(assetId, atlasTag);
-            if (regions != null && regions.size > 0) {
-                frameCount = regions.size;
-            }
-        }
-
-        animation.clips.clear();
-        animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, frameCount - 1)));
-        animation.currentClip = "default";
-        animation.fps = 12f;
-        animation.playing = true;
-        animation.loop = true;
-        animation.frame = -1;
-        animation.stateTime = 0f;
-        markSpawnDirty(world, entityId);
     }
 
     private static void configureAnimationFromDef(PixscapeEngine engine, int entityId, AnimationDef def) {
@@ -250,23 +521,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         AnimationComponent animation = world.getMapper(AnimationComponent.class).has(entityId)
                 ? world.getMapper(AnimationComponent.class).get(entityId)
                 : world.getMapper(AnimationComponent.class).create(entityId);
+        world.getMapper(AssetRefComponent.class).get(entityId).assetId = def.assetId();
 
-        animation.clips.clear();
-        Array<AnimationClipDefData> clips = def.clips();
-        for (int i = 0, n = clips.size; i < n; i++) {
-            AnimationClipDefData source = clips.get(i);
-            if (source == null || isBlank(source.name)) continue;
-            AnimationComponent.Clip clip = new AnimationComponent.Clip(source.start, source.end);
-            clip.flipX = source.flipX;
-            animation.clips.put(source.name, clip);
-        }
-
-        if (animation.clips.size == 0) {
-            animation.clips.put("default", new AnimationComponent.Clip(0, Math.max(0, def.frameCount() - 1)));
-            animation.currentClip = "default";
-        } else {
-            animation.currentClip = !isBlank(def.currentClip()) ? def.currentClip() : clips.first().name;
-        }
+        animation.animationAssetIds.clear();
+        animation.animationAssetIds.add(def.assetId());
+        animation.currentClip = def.currentClip();
         animation.fps = def.fps();
         animation.playing = true;
         animation.loop = true;
@@ -281,6 +540,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         World world = requireWorld(engine);
+        String effectPath = normalizeEffectPath(effectPathOrName);
+        String atlasTag = currentAtlasTag(engine);
+        requirePreparedParticle(world, effectPath, atlasTag);
         int e = world.create();
 
         TransformComponent transform = world.edit(e).create(TransformComponent.class);
@@ -294,8 +556,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         visibility.inView = true;
 
         ParticleEmitterComponent emitter = world.edit(e).create(ParticleEmitterComponent.class);
-        emitter.effectPath = normalizeEffectPath(effectPathOrName);
-        emitter.atlasTag = currentAtlasTag(engine);
+        emitter.effectPath = effectPath;
+        emitter.atlasTag = atlasTag;
         emitter.looping = looping;
         emitter.autoRemoveWhenComplete = !looping;
         emitter.autoStart = true;
@@ -306,9 +568,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return e;
     }
 
+    private static void requirePreparedParticle(
+            World world, String effectPath, String atlasTag) {
+        RenderParticleSyncSystem particles = world.getSystem(RenderParticleSyncSystem.class);
+        if (particles == null) {
+            throw new IllegalStateException(
+                    "Required Runtime particle availability system is missing.");
+        }
+        particles.requirePrepared(atlasTag, effectPath);
+    }
+
     private static String normalizeEffectPath(String effectPathOrName) {
-        String value = effectPathOrName.trim().replace('\\', '/');
-        return value.endsWith(".p") ? value : value + ".p";
+        return ParticleEffectPath.normalize(effectPathOrName);
     }
 
     private static World requireWorld(PixscapeEngine engine) {
@@ -323,29 +594,47 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                                             AssetRefComponent assetRef,
                                             TextureRegionComponent textureRegion,
                                             RenderMaterialComponent material) {
+        AtlasAssetBinding binding = requireSpriteBinding(
+                engine, assetRef.assetId, assetRef.atlasTag);
+        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
+    }
+
+    private static AtlasAssetBinding requireSpriteBinding(PixscapeEngine engine,
+                                                           int assetId,
+                                                           String atlasTag) {
         AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
         if (atlasService == null) {
             throw new IllegalArgumentException(
-                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                    "Asset #" + assetId + " is not available in current scene atlas. "
+                            + "Add it to Runtime Availability before export."
             );
         }
 
-        AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetRef.assetId, assetRef.atlasTag);
-        if (cached == null) {
+        AtlasAssetBinding binding = atlasService.resolveBinding(assetId, atlasTag);
+        if (binding == null) {
             throw new IllegalArgumentException(
-                    "Asset #" + assetRef.assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                    "Asset #" + assetId + " is not available in current scene atlas. "
+                            + "Add it to Runtime Availability before export."
             );
         }
+        return binding;
+    }
 
-        textureRegion.u1 = cached.u1;
-        textureRegion.v1 = cached.v1;
-        textureRegion.u2 = cached.u2;
-        textureRegion.v2 = cached.v2;
-        textureRegion.pixW = cached.pixW;
-        textureRegion.pixH = cached.pixH;
+    private static void applySpriteBinding(
+            AtlasAssetBinding binding,
+            String atlasTag,
+            TextureRegionComponent textureRegion,
+            RenderMaterialComponent material) {
+        AtlasRegionMetadata metadata = binding.metadata();
+        textureRegion.u1 = metadata.u1();
+        textureRegion.v1 = metadata.v1();
+        textureRegion.u2 = metadata.u2();
+        textureRegion.v2 = metadata.v2();
+        textureRegion.pixW = metadata.pixelWidth();
+        textureRegion.pixH = metadata.pixelHeight();
         textureRegion.valid = true;
-        material.textureHandle = cached.textureHandle;
-        material.debugAtlasTag = assetRef.atlasTag;
+        material.textureHandle = metadata.textureHandle();
+        material.debugAtlasTag = atlasTag;
     }
 
     private static void markSpawnDirty(World world, int entityId) {
@@ -356,26 +645,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         dirty.color(entityId);
         dirty.order(entityId);
         dirty.layer(entityId);
-    }
-
-    static final class ResolvedAsset {
-        final int assetId;
-        final String name;
-        final String atlasTag;
-        final AtlasRuntimeService.CachedRegion cached;
-        final TextureRegion region;
-
-        ResolvedAsset(int assetId,
-                      String name,
-                      String atlasTag,
-                      AtlasRuntimeService.CachedRegion cached,
-                      TextureRegion region) {
-            this.assetId = assetId;
-            this.name = name;
-            this.atlasTag = atlasTag;
-            this.cached = cached;
-            this.region = region;
-        }
     }
 
     static final class EcsApiImpl implements ECSAPI {
@@ -414,15 +683,22 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class EntitiesApiImpl implements EntitiesAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityReferenceTracker entityReferences;
 
-        EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs) {
+        EntitiesApiImpl(PixscapeEngine engine, ECSAPI ecs,
+                        SceneLayerResolver sceneLayers,
+                        EntityReferenceTracker entityReferences) {
             this.engine = engine;
             this.ecs = ecs;
+            this.sceneLayers = sceneLayers;
+            this.entityReferences = entityReferences;
         }
 
         @Override
         public EntityRef ofEntityId(int entityId) {
-            return new EntityRefImpl(engine, ecs, entityId);
+            return new EntityRefImpl(
+                    engine, ecs, sceneLayers, entityReferences.capture(entityId));
         }
 
         @Override
@@ -500,7 +776,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public void destroy(EntityRef ref) {
             if (ref == null) return;
-            destroyEntityId(ref.entityId());
+            ref.remove();
         }
 
         @Override
@@ -519,7 +795,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class EntityRefImpl implements EntityRef {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
-        private final int entityId;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityHandle handle;
         private TransformFacade transform;
         private SpriteFacade sprite;
         private AnimationFacade animation;
@@ -527,69 +804,83 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private ShaderFacade shader;
         private LightFacade light;
         private SpatialEntityFacade spatial;
+        private RenderOrderFacade renderOrder;
 
-        EntityRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
+        EntityRefImpl(PixscapeEngine engine, ECSAPI ecs,
+                      SceneLayerResolver sceneLayers,
+                      EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
-            this.entityId = entityId;
+            this.sceneLayers = sceneLayers;
+            this.handle = handle;
         }
 
         @Override
         public int entityId() {
-            return entityId;
+            return handle.entityId;
         }
 
         @Override
-        public long stableId() {
-            return engine.getIdentityRegistry().getStableId(entityId);
+        public int stableId() {
+            return handle.exists()
+                    ? engine.getIdentityRegistry().getStableId(handle.entityId)
+                    : -1;
         }
 
         @Override
         public boolean exists() {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId);
+            return handle.exists();
         }
 
         @Override
         public TransformFacade transform() {
-            if (transform == null) transform = new TransformFacadeImpl(engine, entityId);
+            if (transform == null) transform = new TransformFacadeImpl(handle);
             return transform;
         }
 
         @Override
         public SpriteFacade sprite() {
-            if (sprite == null) sprite = new SpriteFacadeImpl(engine, entityId);
+            if (sprite == null) sprite = new SpriteFacadeImpl(engine, handle);
             return sprite;
         }
 
         @Override
         public AnimationFacade animation() {
-            if (animation == null) animation = new AnimationFacadeImpl(engine, entityId);
+            if (animation == null) animation = new AnimationFacadeImpl(engine, handle);
             return animation;
         }
 
         @Override
         public ParticleFacade particles() {
-            if (particles == null) particles = new ParticleFacadeImpl(engine, entityId);
+            if (particles == null) particles = new ParticleFacadeImpl(handle);
             return particles;
         }
 
         @Override
         public ShaderFacade shader() {
-            if (shader == null) shader = new ShaderFacadeImpl(engine, entityId);
+            if (shader == null) shader = new ShaderFacadeImpl(handle);
             return shader;
         }
 
         @Override
         public LightFacade light() {
-            if (light == null) light = new LightFacadeImpl(engine, entityId);
+            if (light == null) light = new LightFacadeImpl(handle);
             return light;
         }
 
         @Override
         public SpatialEntityFacade spatial() {
-            if (spatial == null) spatial = new SpatialEntityFacadeImpl(engine, entityId);
+            if (spatial == null) spatial = new SpatialEntityFacadeImpl(sceneLayers, handle);
             return spatial;
+        }
+
+        @Override
+        public RenderOrderFacade renderOrder() {
+            if (renderOrder == null) {
+                renderOrder = new RenderOrderFacadeImpl(
+                        sceneLayers, handle);
+            }
+            return renderOrder;
         }
 
         @Override
@@ -599,19 +890,119 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public void remove() {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
-            world.delete(entityId);
+            World world = handle.world();
+            if (world != null) world.delete(handle.entityId);
         }
     }
 
-    static final class TransformFacadeImpl implements TransformFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+    static final class RenderOrderFacadeImpl implements RenderOrderFacade {
+        private final SceneLayerResolver sceneLayers;
+        private final EntityHandle handle;
+        private LayerComponent validatedLayer;
+        private EntityIndexComponent validatedEntityIndex;
 
-        TransformFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        RenderOrderFacadeImpl(SceneLayerResolver sceneLayers,
+                              EntityHandle handle) {
+            this.sceneLayers = sceneLayers;
+            this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return resolveComponents();
+        }
+
+        @Override
+        public int layerIndex() {
+            return resolveComponents() ? validatedEntityIndex.layerIndex : -1;
+        }
+
+        @Override
+        public int zIndex() {
+            return resolveComponents() ? validatedEntityIndex.zIndex : 0;
+        }
+
+        @Override
+        public RenderOrderFacade layerIndex(int layerIndex) {
+            if (!resolveComponents()) return this;
+            validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
+            int resolved = layers().requireLayerIndex(layerIndex);
+            apply(resolved, validatedEntityIndex.zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade zIndex(int zIndex) {
+            if (!resolveComponents()) return this;
+            validateZIndex(zIndex, "zIndex(int)");
+            apply(validatedEntityIndex.layerIndex, zIndex);
+            return this;
+        }
+
+        @Override
+        public RenderOrderFacade set(int layerIndex, int zIndex) {
+            if (!resolveComponents()) return this;
+            int resolved = layers().requireLayerIndex(layerIndex);
+            validateZIndex(zIndex, "set(int, int)");
+            apply(resolved, zIndex);
+            return this;
+        }
+
+        private boolean resolveComponents() {
+            World world = handle.world();
+            if (world == null) {
+                validatedLayer = null;
+                validatedEntityIndex = null;
+                return false;
+            }
+            validatedLayer = world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
+            validatedEntityIndex = world.getMapper(EntityIndexComponent.class)
+                    .getSafe(handle.entityId, null);
+            return validatedLayer != null && validatedEntityIndex != null;
+        }
+
+        private SceneLayerResolver layers() {
+            sceneLayers.bind(handle.world());
+            return sceneLayers;
+        }
+
+        private void validateZIndex(int zIndex, String operation) {
+            if (zIndex < SortKey64.MIN_Z || zIndex > SortKey64.MAX_Z) {
+                throw new IllegalArgumentException("zIndex " + zIndex
+                        + " is outside the supported range [" + SortKey64.MIN_Z
+                        + ", " + SortKey64.MAX_Z + "] for render-order operation "
+                        + operation + ".");
+            }
+        }
+
+        private void apply(int layerIndex, int zIndex) {
+            boolean layerChanged = validatedEntityIndex.layerIndex != layerIndex
+                    || validatedLayer.layerIndex != layerIndex;
+            boolean orderChanged = validatedEntityIndex.zIndex != zIndex;
+            if (!layerChanged && !orderChanged) return;
+
+            validatedLayer.layerIndex = layerIndex;
+            validatedEntityIndex.layerIndex = layerIndex;
+            validatedEntityIndex.zIndex = zIndex;
+
+            World world = handle.world();
+            DirtyTrackerSystem dirty = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (dirty == null) return;
+            if (layerChanged) {
+                dirty.layer(handle.entityId);
+                dirty.order(handle.entityId);
+            } else if (orderChanged) {
+                dirty.order(handle.entityId);
+            }
+        }
+
+    }
+
+    static final class TransformFacadeImpl implements TransformFacade {
+        private final EntityHandle handle;
+
+        TransformFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -646,6 +1037,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setPosition(float x, float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform position", x, y);
             TransformComponent t = t(true);
             if (t == null) return this;
             if (t.x != x || t.y != y) {
@@ -658,6 +1051,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setX(float x) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform x", x);
             TransformComponent t = t(true);
             if (t != null && t.x != x) {
                 t.x = x;
@@ -668,6 +1063,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setY(float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform y", y);
             TransformComponent t = t(true);
             if (t != null && t.y != y) {
                 t.y = y;
@@ -678,11 +1075,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade moveBy(float dx, float dy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform movement", dx, dy);
             if (dx != 0f || dy != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
-                    t.x += dx;
-                    t.y += dy;
+                    float x = t.x + dx;
+                    float y = t.y + dy;
+                    requireFinite("Transform position", x, y);
+                    t.x = x;
+                    t.y = y;
                     markGeometry(GeometryDirty.POSITION);
                 }
             }
@@ -691,6 +1093,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setRotationRad(float radians) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform rotation", radians);
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
                 t.rotationRad = radians;
@@ -701,10 +1105,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade rotateByRad(float radians) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform rotation delta", radians);
             if (radians != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
-                    t.rotationRad += radians;
+                    float rotation = t.rotationRad + radians;
+                    requireFinite("Transform rotation", rotation);
+                    t.rotationRad = rotation;
                     markGeometry(GeometryDirty.ROTATION);
                 }
             }
@@ -718,6 +1126,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScale(float sx, float sy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale", sx, sy);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -729,6 +1139,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScaleX(float sx) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale x", sx);
             TransformComponent t = t(true);
             if (t != null && t.scaleX != sx) {
                 t.scaleX = sx;
@@ -739,6 +1151,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScaleY(float sy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform scale y", sy);
             TransformComponent t = t(true);
             if (t != null && t.scaleY != sy) {
                 t.scaleY = sy;
@@ -749,6 +1163,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setOrigin(float ox, float oy) {
+            if (handle.world() == null) return this;
+            requireFinite("Transform origin", ox, oy);
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
                 t.originX = ox;
@@ -759,66 +1175,59 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TransformComponent t(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<TransformComponent> mapper = world.getMapper(TransformComponent.class);
-            if (create) return mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId);
-            return mapper.getSafe(entityId, null);
+            if (create) {
+                return mapper.has(handle.entityId)
+                        ? mapper.get(handle.entityId)
+                        : mapper.create(handle.entityId);
+            }
+            return mapper.getSafe(handle.entityId, null);
         }
 
         private void markGeometry(int subMask) {
-            DirtyTrackerSystem dirty = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (dirty != null) dirty.geometry(entityId, subMask);
+            World world = handle.world();
+            DirtyTrackerSystem dirty = world != null
+                    ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (dirty != null) dirty.geometry(handle.entityId, subMask);
         }
     }
 
     static final class SpatialApiImpl implements SpatialAPI {
         private final PixscapeEngine engine;
+        private final SceneLayerResolver sceneLayers;
 
-        SpatialApiImpl(PixscapeEngine engine) {
+        SpatialApiImpl(PixscapeEngine engine, SceneLayerResolver sceneLayers) {
             this.engine = engine;
+            this.sceneLayers = sceneLayers;
         }
 
         @Override
         public boolean isLayerEnabled(int layerIndex) {
             World world = engine.getWorld();
             if (world == null) return false;
-            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class))
-                    .getEntities();
-            int[] data = entities.getData();
-            for (int i = 0, n = entities.size(); i < n; i++) {
-                LayerComponent layer = mapper.get(data[i]);
-                if (layer.layerIndex == layerIndex && layer.spatialEnabled) return true;
-            }
-            return false;
+            sceneLayers.bind(world);
+            return sceneLayers.isLayerSpatialEnabled(layerIndex);
         }
 
         @Override
         public SpatialAPI setLayerEnabled(int layerIndex, boolean enabled) {
             World world = engine.getWorld();
             if (world == null) return this;
-            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            IntBag entities = world.getAspectSubscriptionManager()
-                    .get(Aspect.all(LayerComponent.class))
-                    .getEntities();
-            int[] data = entities.getData();
-            for (int i = 0, n = entities.size(); i < n; i++) {
-                LayerComponent layer = mapper.get(data[i]);
-                if (layer.layerIndex == layerIndex) layer.spatialEnabled = enabled;
-            }
+            sceneLayers.bind(world);
+            sceneLayers.setLayerSpatialEnabled(layerIndex, enabled);
             return this;
         }
     }
 
     static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityHandle handle;
 
-        SpatialEntityFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        SpatialEntityFacadeImpl(SceneLayerResolver sceneLayers, EntityHandle handle) {
+            this.sceneLayers = sceneLayers;
+            this.handle = handle;
         }
 
         @Override
@@ -834,10 +1243,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade disable() {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return this;
+            World world = handle.world();
+            if (world == null) return this;
             ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
-            if (mapper.has(entityId)) mapper.remove(entityId);
+            if (mapper.has(handle.entityId)) mapper.remove(handle.entityId);
             return this;
         }
 
@@ -855,6 +1264,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setAltitude(float altitude) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial altitude", altitude);
             SpatialHeightComponent c = comp(true);
             if (c != null) c.altitude = altitude;
             return this;
@@ -862,6 +1273,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setHeight(float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial height", height);
             SpatialHeightComponent c = comp(true);
             if (c != null) c.height = Math.max(0f, height);
             return this;
@@ -869,6 +1282,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade setVolume(float altitude, float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial volume", altitude, height);
             SpatialHeightComponent c = comp(true);
             if (c != null) {
                 c.altitude = altitude;
@@ -879,25 +1294,41 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean participatesInRenderOrder() {
-            SpatialHeightComponent c = comp(false);
-            return c != null && c.height > 0f;
+            World world = handle.world();
+            if (world == null) return false;
+            SpatialRenderOrderSystem system = world.getSystem(SpatialRenderOrderSystem.class);
+            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
+                    .getSafe(handle.entityId, null);
+            if (system == null || index == null) return false;
+            sceneLayers.bind(world);
+            return system.participatesInRenderOrder(
+                    handle.entityId,
+                    sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
         }
 
         private SpatialHeightComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
             ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
     }
 
     static final class SpriteFacadeImpl implements SpriteFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        SpriteFacadeImpl(PixscapeEngine engine, int entityId) {
+        SpriteFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return spriteCapabilityWorld(handle) != null;
         }
 
         @Override
@@ -908,35 +1339,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpriteFacade setAssetId(int assetId) {
-            AssetRefComponent src = src(true);
-            if (src == null) return this;
-            if (src.assetId != assetId) {
-                src.assetId = assetId;
-                resolveRegion(src);
-                markMaterial();
-            }
-            return this;
+            AssetRefComponent src = src(false);
+            return src != null ? assignAsset(assetId, src.atlasTag) : this;
         }
 
         @Override
         public SpriteFacade setAsset(int assetId, String atlasTag) {
-            AssetRefComponent src = src(true);
-            if (src == null) return this;
-            boolean changed = false;
-            if (src.assetId != assetId) {
-                src.assetId = assetId;
-                changed = true;
-            }
             String normalizedTag = isBlank(atlasTag) ? "main" : atlasTag;
-            if (!normalizedTag.equals(src.atlasTag)) {
-                src.atlasTag = normalizedTag;
-                changed = true;
-            }
-            if (changed) {
-                resolveRegion(src);
-                markMaterial();
-            }
-            return this;
+            return assignAsset(assetId, normalizedTag);
         }
 
         @Override
@@ -950,6 +1360,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setTint(float r, float g, float b, float a) {
             TintComponent c = tint(true);
             if (c == null) return this;
+            requireFinite("Sprite tint red", r);
+            requireFinite("Sprite tint green", g);
+            requireFinite("Sprite tint blue", b);
+            requireFinite("Sprite tint alpha", a);
             c.rgba = Color.rgba8888(clamp01(r), clamp01(g), clamp01(b), clamp01(a));
             markColor();
             return this;
@@ -959,6 +1373,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setAlpha(float alpha) {
             TintComponent c = tint(true);
             if (c == null) return this;
+            requireFinite("Sprite alpha", alpha);
             int nextA = (int) (clamp01(alpha) * 255f + 0.5f);
             int currentA = c.rgba & 0xFF;
             if (currentA != nextA) {
@@ -972,6 +1387,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade setSize(float width, float height) {
             DimensionsComponent d = dim(true);
             if (d == null) return this;
+            requireFinite("Sprite size", width, height);
             if (d.width != width || d.height != height) {
                 d.width = width;
                 d.height = height;
@@ -980,38 +1396,54 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private void resolveRegion(AssetRefComponent src) {
-            World world = engine.getWorld();
-            if (world == null) return;
-            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).has(entityId)
-                    ? world.getMapper(TextureRegionComponent.class).get(entityId)
-                    : world.getMapper(TextureRegionComponent.class).create(entityId);
-            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).has(entityId)
-                    ? world.getMapper(RenderMaterialComponent.class).get(entityId)
-                    : world.getMapper(RenderMaterialComponent.class).create(entityId);
+        @Override
+        public boolean repeatsX() {
+            RenderRepeatComponent repeat = comp(RenderRepeatComponent.class, false);
+            return repeat != null && repeat.repeatX;
+        }
 
-            AtlasRuntimeService atlas = engine.getAtlasRuntimeService();
-            if (atlas == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-                return;
-            }
-            AtlasRuntimeService.CachedRegion cached = atlas.resolveCached(src.assetId, src.atlasTag);
-            if (cached == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-                return;
-            }
+        @Override
+        public boolean repeatsY() {
+            RenderRepeatComponent repeat = comp(RenderRepeatComponent.class, false);
+            return repeat != null && repeat.repeatY;
+        }
 
-            tr.u1 = cached.u1;
-            tr.v1 = cached.v1;
-            tr.u2 = cached.u2;
-            tr.v2 = cached.v2;
-            tr.pixW = cached.pixW;
-            tr.pixH = cached.pixH;
-            tr.valid = true;
-            mat.textureHandle = cached.textureHandle;
-            mat.debugAtlasTag = src.atlasTag;
+        @Override
+        public SpriteFacade setRepeat(boolean repeatX, boolean repeatY) {
+            RenderRepeatComponent repeat = comp(
+                    RenderRepeatComponent.class, repeatX || repeatY);
+            if (repeat == null) return this;
+            if (repeat.repeatX != repeatX || repeat.repeatY != repeatY) {
+                repeat.repeatX = repeatX;
+                repeat.repeatY = repeatY;
+                markMaterial();
+            }
+            return this;
+        }
+
+        private SpriteFacade assignAsset(int assetId, String atlasTag) {
+            World world = spriteCapabilityWorld(handle);
+            if (world == null) return this;
+            AssetRefComponent src = world.getMapper(AssetRefComponent.class).get(handle.entityId);
+            String normalizedTag = isBlank(atlasTag) ? "main" : atlasTag;
+            AtlasAssetBinding binding = requireSpriteBinding(
+                    engine, assetId, normalizedTag);
+            if (src.assetId == assetId && normalizedTag.equals(src.atlasTag)) return this;
+
+            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class)
+                    .has(handle.entityId)
+                    ? world.getMapper(TextureRegionComponent.class).get(handle.entityId)
+                    : world.getMapper(TextureRegionComponent.class).create(handle.entityId);
+            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class)
+                    .has(handle.entityId)
+                    ? world.getMapper(RenderMaterialComponent.class).get(handle.entityId)
+                    : world.getMapper(RenderMaterialComponent.class).create(handle.entityId);
+
+            applySpriteBinding(binding, normalizedTag, tr, mat);
+            src.assetId = assetId;
+            src.atlasTag = normalizedTag;
+            markMaterial();
+            return this;
         }
 
         private static float clamp01(float v) {
@@ -1035,65 +1467,93 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = spriteCapabilityWorld(handle);
+            if (world == null) return null;
             ComponentMapper<T> mapper = world.getMapper(type);
-            if (create) return mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId);
-            return mapper.getSafe(entityId, null);
+            if (create) {
+                return mapper.has(handle.entityId)
+                        ? mapper.get(handle.entityId) : mapper.create(handle.entityId);
+            }
+            return mapper.getSafe(handle.entityId, null);
         }
 
         private void markGeometry(int sub) {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.geometry(entityId, sub);
+            if (d != null) d.geometry(handle.entityId, sub);
         }
 
         private void markMaterial() {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.material(entityId);
+            if (d != null) d.material(handle.entityId);
         }
 
         private void markColor() {
             DirtyTrackerSystem d = dirty();
-            if (d != null) d.color(entityId);
+            if (d != null) d.color(handle.entityId);
         }
 
         private DirtyTrackerSystem dirty() {
-            World w = engine.getWorld();
+            World w = spriteCapabilityWorld(handle);
             return w != null ? w.getSystem(DirtyTrackerSystem.class) : null;
         }
     }
 
     static final class AnimationFacadeImpl implements AnimationFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        AnimationFacadeImpl(PixscapeEngine engine, int entityId) {
+        AnimationFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
         public boolean exists() {
-            return anim(false) != null;
+            return anim() != null;
+        }
+
+        @Override
+        public String clip() {
+            AnimationComponent a = anim();
+            return a != null && a.currentClip != null ? a.currentClip : "";
+        }
+
+        @Override
+        public boolean hasClip(String clipName) {
+            if (anim() == null) return false;
+            AnimationDef def = activeDef();
+            return def != null && def.clip(clipName) != null;
+        }
+
+        @Override
+        public int frame() {
+            AnimationComponent a = anim();
+            return a != null ? a.frame : -1;
+        }
+
+        @Override
+        public float stateTime() {
+            AnimationComponent a = anim();
+            return a != null ? a.stateTime : 0f;
         }
 
         @Override
         public AnimationFacade play() {
-            AnimationComponent a = anim(true);
+            AnimationComponent a = anim();
             if (a != null) a.playing = true;
             return this;
         }
 
         @Override
         public AnimationFacade pause() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             if (a != null) a.playing = false;
             return this;
         }
 
         @Override
         public AnimationFacade stop() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             if (a != null) {
                 a.playing = false;
                 a.stateTime = 0f;
@@ -1105,7 +1565,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AnimationFacade restart() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             if (a != null) {
                 a.stateTime = 0f;
                 a.frame = -1;
@@ -1116,41 +1576,72 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public AnimationFacade setAnimation(int assetId) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(assetId), null, false);
+        }
+
+        @Override
+        public AnimationFacade setAnimation(String animationName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationName), null, false);
+        }
+
+        @Override
         public AnimationFacade play(String clipName) {
-            setClip(clipName);
-            return play();
+            AnimationComponent a = anim();
+            if (a == null) return this;
+            requireClip(activeDef(), clipName);
+            selectClip(a, clipName);
+            a.playing = true;
+            return this;
+        }
+
+        @Override
+        public AnimationFacade play(int animationAssetId, String clipName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationAssetId), clipName, true);
+        }
+
+        @Override
+        public AnimationFacade play(String animationName, String clipName) {
+            if (anim() == null) return this;
+            return applyAnimation(requireDefinition(animationName), clipName, true);
         }
 
         @Override
         public AnimationFacade setClip(String clipName) {
-            AnimationComponent a = anim(true);
-            if (a != null) {
-                a.currentClip = clipName != null ? clipName : "";
-                a.frame = -1;
-                a.stateTime = 0f;
-                markMaterial();
-            }
+            AnimationComponent a = anim();
+            if (a == null) return this;
+            requireClip(activeDef(), clipName);
+            selectClip(a, clipName);
             return this;
         }
 
         @Override
         public AnimationFacade setLoop(boolean loop) {
-            AnimationComponent a = anim(true);
+            AnimationComponent a = anim();
             if (a != null) a.loop = loop;
             return this;
         }
 
         @Override
         public AnimationFacade setFps(float fps) {
-            AnimationComponent a = anim(true);
-            if (a != null) a.fps = fps;
+            AnimationComponent a = anim();
+            if (a == null) return this;
+            if (fps < 0f || Float.isNaN(fps) || Float.isInfinite(fps)) {
+                throw new IllegalArgumentException(
+                        "Animation fps must be finite and >= 0, got " + fps + ".");
+            }
+            a.fps = fps;
             return this;
         }
 
         @Override
         public AnimationFacade setStateTime(float stateTime) {
-            AnimationComponent a = anim(true);
+            AnimationComponent a = anim();
             if (a != null) {
+                requireFinite("Animation state time", stateTime);
                 a.stateTime = Math.max(0f, stateTime);
                 a.frame = -1;
                 markMaterial();
@@ -1160,46 +1651,122 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean isPlaying() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             return a != null && a.playing;
         }
 
         @Override
         public boolean isLooping() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             return a != null && a.loop;
         }
 
         @Override
         public float fps() {
-            AnimationComponent a = anim(false);
+            AnimationComponent a = anim();
             return a != null ? a.fps : 0f;
         }
 
-        private AnimationComponent anim(boolean create) {
-            return comp(AnimationComponent.class, create);
+        @Override
+        public boolean isFinished() {
+            AnimationComponent a = anim();
+            if (a == null || a.loop || a.fps <= 0f) return false;
+            AnimationDef def = activeDef();
+            AnimationClipDef clip = def != null ? def.clip(a.currentClip) : null;
+            if (clip == null) return false;
+            int start = Math.max(0, clip.start());
+            int end = Math.max(0, clip.end());
+            int count = Math.abs(end - start) + 1;
+            return count > 0 && a.stateTime >= count / a.fps;
         }
 
-        private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
-            ComponentMapper<T> mapper = world.getMapper(type);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        private AnimationComponent anim() {
+            World world = animationCapabilityWorld(handle);
+            if (world == null) return null;
+            return world.getMapper(AnimationComponent.class).get(handle.entityId);
+        }
+
+        private AnimationDef activeDef() {
+            World world = animationCapabilityWorld(handle);
+            if (world == null) return null;
+            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).get(handle.entityId);
+            return engine.getAnimationRegistry().getByAssetId(assetRef.assetId);
+        }
+
+        private AnimationDef requireDefinition(int assetId) {
+            AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
+            }
+            return def;
+        }
+
+        private AnimationDef requireDefinition(String animationName) {
+            AnimationDef def = engine.getAnimationRegistry().getByName(animationName);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + animationName + "'.");
+            }
+            return def;
+        }
+
+        private AnimationFacade applyAnimation(
+                AnimationDef def, String requestedClip, boolean startPlaying) {
+            World world = animationCapabilityWorld(handle);
+            if (world == null) return this;
+
+            AnimationComponent animation = world.getMapper(AnimationComponent.class)
+                    .get(handle.entityId);
+            if (!animation.animationAssetIds.contains(def.assetId())) {
+                throw new IllegalArgumentException(
+                        "Animation entity " + handle.entityId + " does not own Animation asset #"
+                                + def.assetId() + " ('" + def.name() + "').");
+            }
+
+            String clipName = requestedClip != null ? requestedClip : def.currentClip();
+            requireClip(def, clipName);
+
+            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class)
+                    .get(handle.entityId);
+            requireSpriteBinding(engine, def.assetId(), assetRef.atlasTag);
+
+            assetRef.assetId = def.assetId();
+            animation.currentClip = clipName;
+            animation.fps = def.fps();
+            animation.stateTime = 0f;
+            animation.frame = -1;
+            if (startPlaying) animation.playing = true;
+            markMaterial();
+            return this;
+        }
+
+        private static void requireClip(AnimationDef def, String clipName) {
+            if (def == null || def.clip(clipName) == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank animation clip: '" + clipName + "'.");
+            }
+        }
+
+        private void selectClip(AnimationComponent animation, String clipName) {
+            animation.currentClip = clipName;
+            animation.frame = -1;
+            animation.stateTime = 0f;
+            markMaterial();
         }
 
         private void markMaterial() {
-            DirtyTrackerSystem d = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (d != null) d.material(entityId);
+            World world = animationCapabilityWorld(handle);
+            DirtyTrackerSystem d = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (d != null) d.material(handle.entityId);
         }
     }
 
     static final class ParticleFacadeImpl implements ParticleFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        ParticleFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        ParticleFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1209,18 +1776,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ParticleFacade setEffect(String effectPath, String atlasTag) {
+            World world = handle.world();
+            if (world == null) return this;
+            if (isBlank(effectPath)) {
+                throw new IllegalArgumentException("Particle effect path must not be blank.");
+            }
+            if (isBlank(atlasTag)) {
+                throw new IllegalArgumentException("Particle atlas tag must not be blank.");
+            }
+            String normalizedEffectPath = ParticleEffectPath.normalize(effectPath);
+            requirePreparedParticle(world, normalizedEffectPath, atlasTag);
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
-                c.effectPath = effectPath != null ? effectPath : "";
-                c.atlasTag = atlasTag != null ? atlasTag : "";
+                c.effectPath = normalizedEffectPath;
+                c.atlasTag = atlasTag;
             }
-            return this;
-        }
-
-        @Override
-        public ParticleFacade setLocalSpace(boolean localSpace) {
-            ParticleEmitterComponent c = emitter(true);
-            if (c != null) c.localSpace = localSpace;
             return this;
         }
 
@@ -1296,35 +1866,49 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private ParticleEmitterComponent emitter(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
+            World world = handle.world();
+            if (world == null) return null;
+            if (create) {
+                ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
+                if (!transforms.has(handle.entityId)) transforms.create(handle.entityId);
+            }
             ComponentMapper<ParticleEmitterComponent> mapper = world.getMapper(ParticleEmitterComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
     }
 
     static final class ShaderFacadeImpl implements ShaderFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        ShaderFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        ShaderFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return renderCapabilityWorld() != null;
         }
 
         @Override
         public String shader() {
-            RenderMaterialComponent m = mat(false);
+            RenderMaterialComponent m = mat();
             if (m == null) return null;
             return ShaderRegistry.getName(m.shaderIdx);
         }
 
         @Override
         public ShaderFacade use(String shaderName) {
+            RenderMaterialComponent m = mat();
+            if (m == null) return this;
+            if (isBlank(shaderName)) {
+                throw new IllegalArgumentException("Shader name must not be blank.");
+            }
             int shaderIdx = ShaderRegistry.indexOf(shaderName);
             if (shaderIdx < 0) throw new IllegalArgumentException("Unknown shader: " + shaderName);
-            RenderMaterialComponent m = mat(true);
-            if (m != null && m.shaderIdx != shaderIdx) {
+            if (m.shaderIdx != shaderIdx) {
                 m.shaderIdx = shaderIdx;
                 markMaterial();
             }
@@ -1333,7 +1917,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ShaderFacade clear() {
-            RenderMaterialComponent m = mat(true);
+            RenderMaterialComponent m = mat();
             if (m != null && m.shaderIdx != 0) {
                 m.shaderIdx = 0;
                 markMaterial();
@@ -1343,7 +1927,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ShaderFacade setFloat(String uniform, float value) {
-            if (uniform == null || isBlank(uniform)) return this;
+            if (renderCapabilityWorld() == null) return this;
+            requireUniformName(uniform);
 
             ShaderParamsComponent params = params(true);
             if (params != null) {
@@ -1395,8 +1980,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public ShaderFacade removeFloat(String uniform) {
+            if (renderCapabilityWorld() == null) return this;
+            requireUniformName(uniform);
             ShaderParamsComponent params = params(false);
-            if (params == null || uniform == null || isBlank(uniform)) return this;
+            if (params == null) return this;
 
             for (int i = params.floats.size - 1; i >= 0; i--) {
                 ShaderFloatParam param = params.floats.get(i);
@@ -1420,34 +2007,49 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private RenderMaterialComponent mat(boolean create) {
-            return comp(RenderMaterialComponent.class, create);
+        private RenderMaterialComponent mat() {
+            World world = renderCapabilityWorld();
+            return world != null
+                    ? world.getMapper(RenderMaterialComponent.class)
+                    .get(handle.entityId) : null;
         }
 
         private ShaderParamsComponent params(boolean create) {
-            return comp(ShaderParamsComponent.class, create);
+            World world = renderCapabilityWorld();
+            if (world == null) return null;
+            ComponentMapper<ShaderParamsComponent> mapper =
+                    world.getMapper(ShaderParamsComponent.class);
+            return create
+                    ? (mapper.has(handle.entityId)
+                    ? mapper.get(handle.entityId) : mapper.create(handle.entityId))
+                    : mapper.getSafe(handle.entityId, null);
         }
 
-        private <T extends Component> T comp(Class<T> type, boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
-            ComponentMapper<T> mapper = world.getMapper(type);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        private World renderCapabilityWorld() {
+            World world = handle.world();
+            if (world == null) return null;
+            return world.getMapper(RenderMaterialComponent.class).has(handle.entityId)
+                    ? world : null;
+        }
+
+        private static void requireUniformName(String uniform) {
+            if (isBlank(uniform)) {
+                throw new IllegalArgumentException("Shader uniform name must not be blank.");
+            }
         }
 
         private void markMaterial() {
-            DirtyTrackerSystem d = engine.getWorld() != null ? engine.getWorld().getSystem(DirtyTrackerSystem.class) : null;
-            if (d != null) d.material(entityId);
+            World world = renderCapabilityWorld();
+            DirtyTrackerSystem d = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (d != null) d.material(handle.entityId);
         }
     }
 
     static final class LightFacadeImpl implements LightFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        LightFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        LightFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
@@ -1461,8 +2063,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private boolean has(Class<? extends Component> type) {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId) && world.getMapper(type).has(entityId);
+            World world = handle.world();
+            return world != null && world.getMapper(type).has(handle.entityId);
         }
     }
 
@@ -1475,24 +2077,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public AssetRegionRef region(String name) {
-            ResolvedAsset asset = resolveByName(name);
-            if (asset == null) {
-                throw new IllegalArgumentException(
-                        "Asset '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
-                );
-            }
-            return new AssetRegionRefImpl(asset);
+            return new AssetRegionRefImpl(requireByName(name));
         }
 
         @Override
         public AssetRegionRef region(int assetId) {
-            ResolvedAsset asset = resolveById(assetId);
-            if (asset == null) {
-                throw new IllegalArgumentException(
-                        "Asset #" + assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
-                );
-            }
-            return new AssetRegionRefImpl(asset);
+            return new AssetRegionRefImpl(requireById(assetId));
         }
 
         @Override
@@ -1506,31 +2096,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean contains(int assetId) {
-            try {
-                return resolveById(assetId) != null;
-            } catch (IllegalStateException ex) {
-                return false;
-            }
+            return resolveById(assetId) != null;
         }
 
-        ResolvedAsset resolveById(int assetId) {
-            if (assetId < 0) return null;
+        AtlasAssetBinding resolveById(int assetId) {
+            if (assetId <= 0) return null;
             AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
             if (atlasService == null) return null;
-            String atlasTag = currentAtlasTag(engine);
-            AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
-            if (cached == null) return null;
-            TextureAtlas.AtlasRegion region = firstRegion(atlasService, assetId, atlasTag);
-            if (region == null) {
-                throw new IllegalStateException(
-                        "Asset '#" + assetId + "' is resolved in the current scene atlas but no TextureRegion could be created."
-                );
-            }
-            String name = region != null ? normalizedName(region.name) : cached.regionName;
-            return new ResolvedAsset(assetId, name, atlasTag, cached, region);
+            return atlasService.resolveBinding(assetId, currentAtlasTag(engine));
         }
 
-        ResolvedAsset resolveByName(String name) {
+        AtlasAssetBinding resolveByName(String name) {
             String normalized = normalizeLookupName(name);
             if (normalized == null) return null;
             AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
@@ -1543,62 +2119,83 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             for (int i = 0; i < regions.size; i++) {
                 TextureAtlas.AtlasRegion region = regions.get(i);
                 int assetId = assetIdFromRegionName(region.name);
-                if (assetId < 0) continue;
+                if (assetId <= 0) continue;
                 String regionName = normalizedName(region.name);
                 if (matchesLookupName(regionName, normalized)) {
-                    AtlasRuntimeService.CachedRegion cached = atlasService.resolveCached(assetId, atlasTag);
-                    if (cached == null) continue;
-                    if (region == null) {
-                        throw new IllegalStateException(
-                                "Asset '" + name + "' is resolved in the current scene atlas but no TextureRegion could be created."
-                        );
-                    }
-                    return new ResolvedAsset(assetId, regionName, atlasTag, cached, region);
+                    return atlasService.resolveBinding(assetId, atlasTag);
                 }
             }
             return null;
         }
+
+        AtlasAssetBinding requireById(int assetId) {
+            AtlasAssetBinding binding = resolveById(assetId);
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Asset #" + assetId + " is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return binding;
+        }
+
+        AtlasAssetBinding requireByName(String name) {
+            AtlasAssetBinding binding = resolveByName(name);
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Asset '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            return binding;
+        }
     }
 
     static final class AssetRegionRefImpl implements AssetRegionRef {
-        private final ResolvedAsset asset;
+        private final int assetId;
+        private final String name;
+        private final TextureRegion region;
+        private final float width;
+        private final float height;
 
-        AssetRegionRefImpl(ResolvedAsset asset) {
-            this.asset = asset;
+        AssetRegionRefImpl(AtlasAssetBinding binding) {
+            this.assetId = binding.assetId();
+            this.name = normalizedName(binding.regionGroup());
+            this.region = new TextureRegion(binding.firstRegion());
+            this.width = binding.metadata().pixelWidth();
+            this.height = binding.metadata().pixelHeight();
         }
 
         @Override
         public int assetId() {
-            return asset.assetId;
+            return assetId;
         }
 
         @Override
         public String name() {
-            return asset.name;
+            return name;
         }
 
         @Override
         public TextureRegion region() {
-            return asset.region;
+            return region;
         }
 
         @Override
         public float width() {
-            return asset.cached.pixW;
+            return width;
         }
 
         @Override
         public float height() {
-            return asset.cached.pixH;
+            return height;
         }
     }
 
     static final class SpritesApiImpl implements SpritesAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
-        private final AssetsAPI assets;
+        private final AssetsApiImpl assets;
 
-        SpritesApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets) {
+        SpritesApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsApiImpl assets) {
             this.engine = engine;
             this.entities = entities;
             this.assets = assets;
@@ -1606,15 +2203,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpriteRef spawn(int assetId, float x, float y) {
-            AssetRegionRef region = assets.region(assetId);
-            int entityId = createSpriteEntity(engine, assetId, currentAtlasTag(engine), x, y, region.width(), region.height());
-            return new SpriteRefImpl(entities.ofEntityId(entityId));
+            return spawn(assets.requireById(assetId), x, y);
         }
 
         @Override
         public SpriteRef spawn(String name, float x, float y) {
-            AssetRegionRef region = assets.region(name);
-            int entityId = createSpriteEntity(engine, region.assetId(), currentAtlasTag(engine), x, y, region.width(), region.height());
+            return spawn(assets.requireByName(name), x, y);
+        }
+
+        SpriteRef spawn(AtlasAssetBinding binding, float x, float y) {
+            int entityId = createSpriteEntity(
+                    engine,
+                    binding,
+                    currentAtlasTag(engine),
+                    x,
+                    y);
             return new SpriteRefImpl(entities.ofEntityId(entityId));
         }
     }
@@ -1702,10 +2305,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class AnimationsApiImpl implements AnimationsAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
-        private final AssetsAPI assets;
-        private final SpritesAPI sprites;
+        private final AssetsApiImpl assets;
+        private final SpritesApiImpl sprites;
 
-        AnimationsApiImpl(PixscapeEngine engine, EntitiesAPI entities, AssetsAPI assets, SpritesAPI sprites) {
+        AnimationsApiImpl(
+                PixscapeEngine engine,
+                EntitiesAPI entities,
+                AssetsApiImpl assets,
+                SpritesApiImpl sprites) {
             this.engine = engine;
             this.entities = entities;
             this.assets = assets;
@@ -1713,35 +2320,53 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public AnimationDefinition definition(int assetId) {
+            AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
+            }
+            return def;
+        }
+
+        @Override
+        public AnimationDefinition definition(String name) {
+            AnimationDef def = engine.getAnimationRegistry().getByName(name);
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + name + "'.");
+            }
+            return def;
+        }
+
+        @Override
         public AnimationRef spawn(int assetId, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByAssetId(assetId);
-            if (def != null) {
-                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
-                configureAnimationFromDef(engine, sprite.entityId(), def);
-                return new AnimationRefImpl(sprite.entity());
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown Animation asset id: " + assetId + ".");
             }
-
-            SpriteRef sprite = sprites.spawn(assetId, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), assetId);
+            AtlasAssetBinding binding = assets.requireById(def.assetId());
+            SpriteRef sprite = sprites.spawn(binding, x, y);
+            configureAnimationFromDef(engine, sprite.entityId(), def);
             return new AnimationRefImpl(sprite.entity());
         }
 
         @Override
         public AnimationRef spawn(String name, float x, float y) {
             AnimationDef def = engine.getAnimationRegistry().getByName(name);
-            if (def != null) {
-                if (!assets.contains(def.assetId())) {
-                    throw new IllegalArgumentException(
-                            "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
-                    );
-                }
-                SpriteRef sprite = sprites.spawn(def.assetId(), x, y);
-                configureAnimationFromDef(engine, sprite.entityId(), def);
-                return new AnimationRefImpl(sprite.entity());
+            if (def == null) {
+                throw new IllegalArgumentException(
+                        "Unknown or blank Animation asset name: '" + name + "'.");
             }
-
-            SpriteRef sprite = sprites.spawn(name, x, y);
-            configureDefaultAnimation(engine, sprite.entityId(), sprite.sprite().assetId());
+            AtlasAssetBinding binding = assets.resolveById(def.assetId());
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Animation '" + name + "' is not available in current scene atlas. Add it to Runtime Availability before export."
+                );
+            }
+            SpriteRef sprite = sprites.spawn(binding, x, y);
+            configureAnimationFromDef(engine, sprite.entityId(), def);
             return new AnimationRefImpl(sprite.entity());
         }
 
@@ -1895,6 +2520,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleRef restart() {
+            particles().restart();
+            return this;
+        }
+
+        @Override
         public ParticleRef stop() {
             particles().stop();
             return this;
@@ -1922,18 +2553,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final EntitiesAPI entities;
+        private final SceneLayerResolver sceneLayers;
+        private final EntityReferenceTracker entityReferences;
         private final TiledAnimationsAPI animations;
 
-        TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities) {
+        TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities,
+                     SceneLayerResolver sceneLayers,
+                     EntityReferenceTracker entityReferences) {
             this.engine = engine;
             this.ecs = ecs;
             this.entities = entities;
+            this.sceneLayers = sceneLayers;
+            this.entityReferences = entityReferences;
             this.animations = new TiledAnimationsApiImpl(engine);
         }
 
         @Override
         public TiledLayerRef ofEntityId(int entityId) {
-            return new TiledLayerRefImpl(engine, ecs, entityId);
+            return new TiledLayerRefImpl(
+                    engine, ecs, entityReferences.capture(entityId));
         }
 
         @Override
@@ -1943,12 +2581,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledLayerRef ofLayerIndex(int layerIndex) {
-            return layer(layerIndex);
-        }
-
-        @Override
-        public TiledLayerRef ofLayerName(String name) {
-            return layer(name);
+            World world = engine.getWorld();
+            if (world == null) return ofEntityId(-1);
+            sceneLayers.bind(world);
+            int entityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (entityId < 0) return ofEntityId(-1);
+            LayerComponent layer = world.getMapper(LayerComponent.class).get(entityId);
+            if (layer.type != LayerComponent.TYPE_TILED
+                    || !world.getMapper(TiledLayerComponent.class).has(entityId)) {
+                return ofEntityId(-1);
+            }
+            TiledLayerRef ref = ofEntityId(entityId);
+            return ref.exists() ? ref : ofEntityId(-1);
         }
 
         @Override
@@ -1960,72 +2604,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
             ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
             ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
-            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(LayerComponent.class)).getEntities();
-            int[] data = bag.getData();
-            boolean foundLayerIndex = false;
-
-            for (int i = 0, n = bag.size(); i < n; i++) {
-                int entityId = data[i];
-                if (!world.getEntityManager().isActive(entityId)) continue;
-
-                LayerComponent layer = layers.get(entityId);
-                if (layer.layerIndex != layerIndex) continue;
-
-                foundLayerIndex = true;
-                if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId)) {
-                    TiledLayerRef ref = ofEntityId(entityId);
-                    if (ref.exists()) return ref;
-                }
+            sceneLayers.bind(world);
+            int entityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (entityId < 0) {
+                throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
             }
 
-            if (foundLayerIndex) {
-                throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
+            LayerComponent layer = layers.get(entityId);
+            TiledLayerRef ref = ofEntityId(entityId);
+            if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId) && ref.exists()) {
+                return ref;
             }
-            throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
-        }
-
-        @Override
-        public TiledLayerRef layer(String name) {
-            String normalizedName = normalizeLookupName(name);
-            if (isBlank(normalizedName)) {
-                throw new IllegalArgumentException("Tiled layer name must not be blank.");
-            }
-
-            World world = engine.getWorld();
-            if (world == null) {
-                throw new IllegalStateException("Cannot resolve tiled layer name '" + name + "': world is not loaded.");
-            }
-
-            ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
-            ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
-            ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-            IntBag bag = world.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities();
-            int[] data = bag.getData();
-            int match = -1;
-            int matchCount = 0;
-
-            for (int i = 0, n = bag.size(); i < n; i++) {
-                int entityId = data[i];
-                if (!world.getEntityManager().isActive(entityId) || !tiledLayers.has(entityId)) continue;
-                if (layers.has(entityId) && layers.get(entityId).type != LayerComponent.TYPE_TILED) continue;
-
-                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
-                String layerName = identity != null ? normalizeLookupName(identity.name) : null;
-                if (!normalizedName.equals(layerName)) continue;
-
-                TiledLayerRef ref = ofEntityId(entityId);
-                if (!ref.exists()) continue;
-
-                match = entityId;
-                matchCount++;
-            }
-
-            if (matchCount == 1) return ofEntityId(match);
-            if (matchCount > 1) {
-                throw new IllegalArgumentException("Tiled layer name '" + name + "' is ambiguous (" + matchCount
-                        + " tiled layers match). Use layer(index) instead.");
-            }
-            throw new IllegalArgumentException("No tiled layer exists for name '" + name + "'.");
+            throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
         }
 
         @Override
@@ -2045,6 +2635,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public TiledLayerRef requireLayerIndex(int layerIndex) {
+            TiledLayerRef ref = ofLayerIndex(layerIndex);
+            if (!ref.exists()) {
+                throw new IllegalStateException(
+                        "Tiled layer does not exist for layerIndex=" + layerIndex);
+            }
+            return ref;
+        }
+
+        @Override
         public TiledAnimationsAPI animations() {
             return animations;
         }
@@ -2053,38 +2653,41 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class TiledLayerRefImpl implements TiledLayerRef {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
-        private final int entityId;
+        private final EntityHandle handle;
         private final TiledMapFacade map;
         private final TileEditFacade tiles;
         private final TiledSpatialFacade spatial;
         private final TileAnimationControlFacade tileAnimations;
 
-        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, int entityId) {
+        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
-            this.entityId = entityId;
-            this.map = new TiledMapFacadeImpl(engine, entityId);
-            this.tiles = new TileEditFacadeImpl(engine, entityId);
-            this.spatial = new TiledSpatialFacadeImpl(engine, entityId);
-            this.tileAnimations = new TileAnimationControlFacadeImpl(engine, entityId);
+            this.handle = handle;
+            this.map = new TiledMapFacadeImpl(engine, handle);
+            this.tiles = new TileEditFacadeImpl(engine, handle);
+            this.spatial = new TiledSpatialFacadeImpl(handle);
+            this.tileAnimations = new TileAnimationControlFacadeImpl(engine, handle);
         }
 
         @Override
         public int entityId() {
-            return entityId;
+            return handle.entityId;
         }
 
         @Override
         public int stableId() {
-            return engine.getIdentityRegistry().getStableId(entityId);
+            return handle.exists()
+                    ? engine.getIdentityRegistry().getStableId(handle.entityId)
+                    : -1;
         }
 
         @Override
         public boolean exists() {
-            World world = engine.getWorld();
-            return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId)
-                    && world.getMapper(TiledLayerComponent.class).has(entityId)
-                    && world.getMapper(TiledLayerComponent.class).get(entityId).data != null;
+            World world = handle.world();
+            return world != null
+                    && world.getMapper(TiledLayerComponent.class).has(handle.entityId)
+                    && world.getMapper(TiledLayerComponent.class)
+                    .get(handle.entityId).data != null;
         }
 
         @Override
@@ -2110,11 +2713,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class TiledMapFacadeImpl implements TiledMapFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TiledMapFacadeImpl(PixscapeEngine engine, int entityId) {
+        TiledMapFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -2160,14 +2763,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean isInside(int x, int y) {
+            TiledMapLayerData d = data();
+            return d != null && d.isInside(x, y);
+        }
+
+        @Override
         public String atlasTag() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             return c != null ? c.atlasTag : "";
         }
 
         @Override
         public TiledMapFacade setAtlasTag(String atlasTag) {
-            TiledLayerComponent c = comp(true);
+            TiledLayerComponent c = comp();
             if (c == null) return this;
             String normalized = isBlank(atlasTag) ? "main" : atlasTag;
             if (!normalized.equals(c.atlasTag)) {
@@ -2202,8 +2811,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledMapFacade setOrigin(float x, float y) {
             TiledMapLayerData d = data();
-            TiledLayerComponent c = comp(false);
-            if (d != null && (d.originX != x || d.originY != y)) {
+            if (d == null) return this;
+            requireFinite("Tiled map origin", x, y);
+            TiledLayerComponent c = comp();
+            if (d.originX != x || d.originY != y) {
                 d.originX = x;
                 d.originY = y;
                 for (IntMap.Values<TileChunk> it = d.getChunks(); it.hasNext(); ) d.updateChunkBounds(it.next());
@@ -2268,8 +2879,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TiledMapFacade resize(int width, int height) {
             TiledMapLayerData d = data();
             if (d != null) {
+                if (width <= 0 || height <= 0) {
+                    throw new IllegalArgumentException(
+                            "Tiled map dimensions must be > 0, got "
+                                    + width + " x " + height + ".");
+                }
                 d.rebuildWithNewSize(width, height);
-                TiledLayerComponent c = comp(false);
+                TiledLayerComponent c = comp();
                 if (c != null) {
                     c.mapWidthCells = d.mapWidth;
                     c.mapHeightCells = d.mapHeight;
@@ -2279,72 +2895,68 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private TiledLayerComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
-            ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        private TiledLayerComponent comp() {
+            World world = handle.world();
+            if (world == null) return null;
+            return world.getMapper(TiledLayerComponent.class).getSafe(handle.entityId, null);
         }
 
         private TiledMapLayerData data() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             return c != null ? c.data : null;
         }
     }
 
     static final class TiledSpatialFacadeImpl implements TiledSpatialFacade {
-        private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TiledSpatialFacadeImpl(PixscapeEngine engine, int entityId) {
-            this.engine = engine;
-            this.entityId = entityId;
+        TiledSpatialFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
         }
 
         @Override
         public boolean enabled() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             TiledMapLayerData d = c != null ? c.data : null;
             return (c != null && c.spatialEnabled) || (d != null && d.spatialEnabled);
         }
 
         @Override
         public TiledSpatialFacade setEnabled(boolean enabled) {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             if (c != null) c.spatialEnabled = enabled;
             TiledMapLayerData d = c != null ? c.data : null;
             if (d != null) d.spatialEnabled = enabled;
-            LayerComponent layer = layer(false);
+            LayerComponent layer = layer();
             if (layer != null) layer.spatialEnabled = enabled;
             return this;
         }
 
         @Override
         public float defaultAltitude() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             TiledMapLayerData d = c != null ? c.data : null;
             return d != null ? d.defaultTileAltitude : (c != null ? c.defaultTileAltitude : 0f);
         }
 
         @Override
         public float defaultHeight() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             TiledMapLayerData d = c != null ? c.data : null;
             return d != null ? d.defaultTileHeight : (c != null ? c.defaultTileHeight : 0f);
         }
 
         @Override
         public TiledSpatialFacade setDefaultVolume(float altitude, float height) {
-            float sanitizedHeight = Math.max(0f, height);
-            TiledLayerComponent c = comp(false);
-            if (c != null) {
+            TiledLayerComponent c = comp();
+            if (c != null && c.data != null) {
+                requireFinite("Tiled default Spatial volume", altitude, height);
+                float sanitizedHeight = Math.max(0f, height);
                 c.defaultTileAltitude = altitude;
                 c.defaultTileHeight = sanitizedHeight;
-                if (c.data != null) {
-                    c.data.defaultTileAltitude = altitude;
-                    c.data.defaultTileHeight = sanitizedHeight;
-                    c.data.markAllChunksContentDirty();
-                }
+                c.data.defaultTileAltitude = altitude;
+                c.data.defaultTileHeight = sanitizedHeight;
+                c.data.markAllChunksContentDirty();
             }
             return this;
         }
@@ -2370,7 +2982,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledSpatialFacade setTileVolume(int x, int y, float altitude, float height) {
             TiledMapLayerData d = data();
-            if (d != null) d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
+            if (d != null && d.isInside(x, y)) {
+                requireFinite("Tiled cell Spatial volume", altitude, height);
+                d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
+            }
             return this;
         }
 
@@ -2381,33 +2996,31 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private TiledLayerComponent comp(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
-            ComponentMapper<TiledLayerComponent> mapper = world.getMapper(TiledLayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        private TiledLayerComponent comp() {
+            World world = handle.world();
+            if (world == null) return null;
+            return world.getMapper(TiledLayerComponent.class).getSafe(handle.entityId, null);
         }
 
-        private LayerComponent layer(boolean create) {
-            World world = engine.getWorld();
-            if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return null;
-            ComponentMapper<LayerComponent> mapper = world.getMapper(LayerComponent.class);
-            return create ? (mapper.has(entityId) ? mapper.get(entityId) : mapper.create(entityId)) : mapper.getSafe(entityId, null);
+        private LayerComponent layer() {
+            World world = handle.world();
+            if (world == null) return null;
+            return world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
         }
 
         private TiledMapLayerData data() {
-            TiledLayerComponent c = comp(false);
+            TiledLayerComponent c = comp();
             return c != null ? c.data : null;
         }
     }
 
     static final class TileEditFacadeImpl implements TileEditFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
 
-        TileEditFacadeImpl(PixscapeEngine engine, int entityId) {
+        TileEditFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -2527,10 +3140,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledMapLayerData data() {
-            World w = engine.getWorld();
-            if (w == null || entityId < 0 || !w.getEntityManager().isActive(entityId)) return null;
+            World w = handle.world();
+            if (w == null) return null;
             ComponentMapper<TiledLayerComponent> mapper = w.getMapper(TiledLayerComponent.class);
-            TiledLayerComponent c = mapper.getSafe(entityId, null);
+            TiledLayerComponent c = mapper.getSafe(handle.entityId, null);
             return c != null ? c.data : null;
         }
     }
@@ -2622,14 +3235,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class TileAnimationControlFacadeImpl implements TileAnimationControlFacade {
         private final PixscapeEngine engine;
-        private final int entityId;
+        private final EntityHandle handle;
         private TileChunk cellChunk;
         private int cellLocalIndex;
         private int cellAssetId;
 
-        TileAnimationControlFacadeImpl(PixscapeEngine engine, int entityId) {
+        TileAnimationControlFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
-            this.entityId = entityId;
+            this.handle = handle;
         }
 
         @Override
@@ -2794,9 +3407,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private TiledMapLayerData data() {
-            World w = engine.getWorld();
-            if (w == null || entityId < 0 || !w.getEntityManager().isActive(entityId)) return null;
-            TiledLayerComponent c = w.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
+            World w = handle.world();
+            if (w == null) return null;
+            TiledLayerComponent c = w.getMapper(TiledLayerComponent.class)
+                    .getSafe(handle.entityId, null);
             return c != null ? c.data : null;
         }
 
@@ -2817,7 +3431,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public SpawnResult spawnFragment(SaveFileFormat fragment, float x, float y) {
+        public SpawnResult spawnFragment(RuntimePrefabFragment fragment, float x, float y) {
             return engine.spawnPrefabFragment(fragment, x, y);
         }
 

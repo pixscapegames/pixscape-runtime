@@ -49,6 +49,12 @@ public interface PixscapeAPI {
     ParticlesAPI particles();
 
     /**
+     * Common physics queries and coordinate conversion with a borrowed native Box2D bridge.
+     * Expert ECS, component, system, and service access remains available separately.
+     */
+    PhysicsAPI physics();
+
+    /**
      * Prefab spawning API.
      */
     PrefabsAPI prefabs();

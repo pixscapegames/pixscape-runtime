@@ -2,14 +2,16 @@ package games.pixscape.runtime.system;
 
 import com.artemis.ComponentMapper;
 import com.artemis.annotations.All;
+import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.utils.IntMap;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
@@ -18,6 +20,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
+@Exclude(EntityIndexComponent.class)
 public final class TiledAnimationSystem extends IteratingSystem implements ProfiledSystem {
 
     private ComponentMapper<LayerComponent> mLayer;

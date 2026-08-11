@@ -16,6 +16,10 @@ public final class SpatialFrameSnapshotBuilder {
     public int[] drawIndexToBucketBefore = new int[0];
     public int[] drawIndexToBucketAfter = new int[0];
     public boolean[] actorSlotMask = new boolean[0];
+    private int[] actorIndexBySlot = new int[0];
+    private int[] previousActorSlots = new int[0];
+    private int previousActorCount;
+    private int lastClearedActorSlotCount;
 
     public void build(DrawList drawList,
                       int slotCapacity,
@@ -47,10 +51,20 @@ public final class SpatialFrameSnapshotBuilder {
         drawSize = sourceSize;
         actorCount = actors.actorCount;
         ensureCapacity(Math.max(slotCapacity, 0), sourceSize, actorCount);
-        Arrays.fill(actorSlotMask, 0, Math.min(actorSlotMask.length, Math.max(slotCapacity, 0)), false);
+        lastClearedActorSlotCount = previousActorCount;
+        for (int actor = 0; actor < previousActorCount; actor++) {
+            int slot = previousActorSlots[actor];
+            actorSlotMask[slot] = false;
+            actorIndexBySlot[slot] = -1;
+        }
+        previousActorCount = 0;
         for (int actor = 0; actor < actors.actorCount; actor++) {
             int slot = actors.actorSlot[actor];
-            if (slot >= 0 && slot < actorSlotMask.length) actorSlotMask[slot] = true;
+            if (slot >= 0 && slot < actorSlotMask.length) {
+                actorSlotMask[slot] = true;
+                actorIndexBySlot[slot] = actor;
+                previousActorSlots[previousActorCount++] = slot;
+            }
         }
 
         nonActorCount = 0;
@@ -59,7 +73,7 @@ public final class SpatialFrameSnapshotBuilder {
             byte domain = sourceDomains[drawIndex];
             drawIndexToBucketBefore[drawIndex] = nonActorCount;
             if (isActorEntry(domain, slot)) {
-                int actor = actorIndexForSlot(actors, slot);
+                int actor = actorIndexForSlot(slot);
                 if (actor >= 0) actorOriginalBucket[actor] = nonActorCount;
             } else {
                 nonActorDomains[nonActorCount] = domain;
@@ -78,20 +92,25 @@ public final class SpatialFrameSnapshotBuilder {
         return domain == RenderSourceDomain.SOURCE_ECS && isActorSlot(slot);
     }
 
-    private static int actorIndexForSlot(SpatialActorCollector actors, int slot) {
-        for (int actor = 0; actor < actors.actorCount; actor++) {
-            if (actors.actorSlot[actor] == slot) return actor;
-        }
-        return -1;
+    private int actorIndexForSlot(int slot) {
+        return slot >= 0 && slot < actorIndexBySlot.length
+                ? actorIndexBySlot[slot] : -1;
+    }
+
+    int lastClearedActorSlotCount() {
+        return lastClearedActorSlotCount;
     }
 
     private void ensureCapacity(int slotCapacity, int drawCapacity, int actorCapacity) {
         if (slotCapacity > actorSlotMask.length) {
+            int oldCapacity = actorSlotMask.length;
             int next = Math.max(8, actorSlotMask.length);
             while (slotCapacity > next) next <<= 1;
             boolean[] expanded = new boolean[next];
             System.arraycopy(actorSlotMask, 0, expanded, 0, actorSlotMask.length);
             actorSlotMask = expanded;
+            actorIndexBySlot = grow(actorIndexBySlot, next);
+            Arrays.fill(actorIndexBySlot, oldCapacity, next, -1);
         }
         if (drawCapacity > drawIndexToBucketBefore.length) {
             int next = Math.max(8, drawIndexToBucketBefore.length);
@@ -105,6 +124,7 @@ public final class SpatialFrameSnapshotBuilder {
             int next = Math.max(8, actorOriginalBucket.length);
             while (actorCapacity > next) next <<= 1;
             actorOriginalBucket = grow(actorOriginalBucket, next);
+            previousActorSlots = grow(previousActorSlots, next);
         }
     }
 

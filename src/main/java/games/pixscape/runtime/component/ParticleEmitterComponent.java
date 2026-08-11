@@ -4,8 +4,9 @@ import com.artemis.PooledComponent;
 
 /**
  * Describes a particle emitter based on a LibGDX .p file.
- * This component is serializable (only simple types).
- * Runtime is responsible for creating actual ParticleEffect objects from this.
+ * The effect always follows the owning entity's {@link TransformComponent}
+ * position. This component is serializable (only simple types), while Runtime
+ * is responsible for creating the actual ParticleEffect objects.
  */
 public final class ParticleEmitterComponent extends PooledComponent {
 
@@ -18,11 +19,6 @@ public final class ParticleEmitterComponent extends PooledComponent {
      * Atlas tag to use for particle sprites (e.g.: "MainScene" or "Particles").
      */
     public String atlasTag;
-
-    /**
-     * Whether the emitter follows the entity (Transform).
-     */
-    public boolean localSpace = true;
 
     /**
      * Automatically start when the entity appears.
@@ -50,7 +46,6 @@ public final class ParticleEmitterComponent extends PooledComponent {
     protected void reset() {
         effectPath = "";
         atlasTag = "";
-        localSpace = true;
         looping = true;
         autoRemoveWhenComplete = false;
         autoStart = true;

@@ -6,13 +6,23 @@ import com.badlogic.gdx.physics.box2d.Box2D;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Array;
 
+/**
+ * {@code SUPPORTED_EXPERT} owner/coordinator for one derived native Box2D {@link World}.
+ *
+ * <p>When obtained from {@code PixscapeEngine}, the service and its public {@link #world} are
+ * borrowed and engine-owned: callers may perform supported native queries/operations but must not
+ * dispose the world or step it independently of Runtime. Reacquire the service after scene/World
+ * rebuilds. The service is not thread-safe and is normally used on the LibGDX render thread.</p>
+ *
+ * <p>Pixels-per-meter converts Pixscape world units to Box2D meters. Step metrics and native
+ * counts describe the most recent {@link #step(float)} call and are mutable diagnostics, not
+ * authored scene state.</p>
+ */
 public final class Box2dWorldService {
     public World world;
     private boolean disposed;
 
-    /**
-     * Scale: pixels -> meters (ex: 100px = 1m). Ajuste selon ton moteur.
-     */
+    /** Pixscape world units/pixels per Box2D meter. */
     public float ppm;
     private boolean doSleep = true;
     private final Vector2 gravity = new Vector2();

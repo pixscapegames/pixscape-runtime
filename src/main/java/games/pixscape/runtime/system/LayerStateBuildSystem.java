@@ -1,10 +1,14 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
+import com.artemis.utils.IntBag;
 import com.artemis.annotations.All;
+import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -24,6 +28,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
  * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
  */
 @All(LayerComponent.class)
+@Exclude(EntityIndexComponent.class)
 public final class LayerStateBuildSystem extends IteratingSystem implements ProfiledSystem {
 
     private static final String TAG = "LayerStateBuild";
@@ -137,6 +142,19 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
                 break;
             }
         }
+    }
+
+    /** Builds persistent layer state without running the normal render pipeline. */
+    public void prepareRuntimeAvailability() {
+        begin();
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class))
+                .getEntities();
+        int[] data = entities.getData();
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            process(data[i]);
+        }
+        end();
     }
 
     @Override

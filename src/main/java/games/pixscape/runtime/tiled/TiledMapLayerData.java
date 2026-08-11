@@ -1,8 +1,8 @@
 package games.pixscape.runtime.tiled;
 
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class TiledMapLayerData {

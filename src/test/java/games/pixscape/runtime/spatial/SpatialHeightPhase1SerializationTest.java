@@ -7,9 +7,14 @@ import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -237,12 +242,16 @@ public class SpatialHeightPhase1SerializationTest {
         shapes.shapes.add(shape);
         targetWorld.process();
 
-        SaveFileFormat request = new SaveFileFormat();
+        RuntimePrefabFragment request = new RuntimePrefabFragment();
         request.entities.add(entity);
         byte[] fragmentBytes = save(targetWorld, request);
-        SaveFileFormat fragment = load(targetWorld, fragmentBytes);
+        RuntimePrefabFragment fragment =
+                loadRuntimeFragment(targetWorld, fragmentBytes);
 
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(new IdentityRegistry());
+        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+                new IdentityRegistry(),
+                new games.pixscape.runtime.loading.SceneMetaRuntime(),
+                new AtlasRuntimeService());
         SpawnResult result = spawner.spawn(targetWorld, fragment, 0f, 0f);
 
         IntBag created = result.createdEntityIds();
@@ -284,6 +293,16 @@ public class SpatialHeightPhase1SerializationTest {
         SaveFileFormat loaded = wsm.load(new ByteArrayInputStream(bytes), SaveFileFormat.class);
         world.process();
         return loaded;
+    }
+
+    private static RuntimePrefabFragment loadRuntimeFragment(
+            World world, byte[] bytes) {
+        WorldSerializationManager wsm =
+                world.getSystem(WorldSerializationManager.class);
+        wsm.setSerializer(new JsonArtemisSerializer(world));
+        return wsm.load(
+                new ByteArrayInputStream(bytes),
+                RuntimePrefabFragment.class);
     }
 
     private static World serializationWorld() {

@@ -17,7 +17,9 @@ public interface AssetRegionRef {
     String name();
 
     /**
-     * Returns the libGDX texture region backing this asset.
+     * Returns this reference's defensive texture-region snapshot.
+     *
+     * <p>Mutating the returned object does not modify the indexed atlas binding.</p>
      */
     TextureRegion region();
 

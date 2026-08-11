@@ -1,23 +1,26 @@
 package games.pixscape.runtime.loading;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.World;
+import com.artemis.*;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.physics.PhysicsShapeIdentityValidator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
 public final class SceneLoader {
@@ -34,29 +37,194 @@ public final class SceneLoader {
      */
     public static SaveFileFormat loadScene(World world,
                                            FileHandle inFile,
-                                           boolean clearContentFirst) {
-
-        WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
-        if (wsm.getSerializer() == null || !(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
-            wsm.setSerializer(new JsonArtemisSerializer(world));
+                                           boolean clearContentFirst,
+                                           SceneMetaRuntime sceneMeta) {
+        if (!inFile.exists()) {
+            throw new RuntimeException("Scene file not found: " + inFile.path());
         }
+
+        String serialized = inFile.readString("UTF-8");
+        SceneMetaRuntime.validateSceneSchemaVersion(
+                sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
+                sceneMeta != null ? sceneMeta.name : inFile.path());
+        validateSerializedScene(serialized, sceneMeta, inFile);
 
         if (clearContentFirst) {
             clearWorldContent(world);
         }
 
-        if (!inFile.exists()) {
-            throw new RuntimeException("Scene file not found: " + inFile.path());
+        WorldSerializationManager wsm =
+                world.getSystem(WorldSerializationManager.class);
+        if (wsm.getSerializer() == null
+                || !(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
+            wsm.setSerializer(new JsonArtemisSerializer(world));
         }
 
-        try (InputStream in = inFile.read()) {
+        try (InputStream in = new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
-
+            refreshTransformCaches(format, world);
             return format;
 
         } catch (Exception e) {
-            throw new RuntimeException("Error while loading scene: " + inFile.path(), e);
+            if (clearContentFirst) clearWorldContent(world);
+            String detail = e.getMessage();
+            throw new RuntimeException(
+                    "Error while loading scene: " + inFile.path()
+                            + (detail != null && !detail.isEmpty() ? ": " + detail : ""),
+                    e);
         }
+    }
+
+    private static void refreshTransformCaches(
+            SaveFileFormat format, World world) {
+        ComponentMapper<TransformComponent> transforms =
+                world.getMapper(TransformComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            TransformComponent transform =
+                    transforms.getSafe(entityIds[i], null);
+            if (transform != null) transform.refreshCaches();
+        }
+    }
+
+    private static void validateSerializedScene(String serialized, SceneMetaRuntime sceneMeta,
+            FileHandle sceneFile) {
+        World validationWorld = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            WorldSerializationManager validationSerialization =
+                    validationWorld.getSystem(WorldSerializationManager.class);
+            validationSerialization.setSerializer(
+                    new JsonArtemisSerializer(validationWorld));
+            try (InputStream in =
+                         new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
+                SaveFileFormat format =
+                        validationSerialization.load(in, SaveFileFormat.class);
+                validatePersistentIdentities(
+                        format, validationWorld, sceneMeta, sceneFile);
+                validatePhysicsSchema(
+                        format, validationWorld, sceneMeta, sceneFile);
+            }
+        } catch (Exception e) {
+            String detail = e.getMessage();
+            throw new RuntimeException(
+                    "Error while loading scene: " + sceneFile.path()
+                            + (detail != null && !detail.isEmpty()
+                            ? ": " + detail
+                            : ""),
+                    e);
+        } finally {
+            validationWorld.dispose();
+        }
+    }
+
+    private static void validatePhysicsSchema(SaveFileFormat format, World world,
+            SceneMetaRuntime sceneMeta,
+            FileHandle sceneFile) {
+        if (sceneMeta.physicsEnabled) return;
+
+        PhysicsService.requireNoAuthoredPhysics(
+                world,
+                format.entities,
+                "Scene '" + sceneFile.path() + "'");
+    }
+
+    private static void validatePersistentIdentities(SaveFileFormat format, World world,
+            SceneMetaRuntime sceneMeta, FileHandle sceneFile) {
+        if (sceneMeta == null) {
+            throw new IllegalArgumentException("Scene metadata is required to validate persistent identities: "
+                    + sceneFile.path());
+        }
+        if (format == null || format.entities == null) {
+            throw new IllegalArgumentException("Serialized entity list is missing: " + sceneFile.path());
+        }
+        if (sceneMeta.nextEntityStableId <= 0) {
+            throw identityFailure(sceneFile, "entityStableId", -1, -1, sceneMeta.nextEntityStableId,
+                    "high-water must be positive");
+        }
+
+        ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
+        ComponentMapper<TransformComponent> transforms = world.getMapper(TransformComponent.class);
+        ComponentMapper<SpatialBlocksComponent> spatialBlocks = world.getMapper(SpatialBlocksComponent.class);
+        IntSet stableIds = new IntSet();
+        int maxStableId = 0;
+        int[] data = format.entities.getData();
+        for (int i = 0; i < format.entities.size(); i++) {
+            int entityId = data[i];
+            TransformComponent transform = transforms.getSafe(entityId, null);
+            if (transform != null) transform.refreshCaches();
+            PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+            if (identity != null) {
+                if (identity.stableId <= 0) {
+                    throw identityFailure(sceneFile, "entityStableId", entityId,
+                            identity.stableId, sceneMeta.nextEntityStableId, "ID must be positive");
+                }
+                if (!stableIds.add(identity.stableId)) {
+                    throw identityFailure(sceneFile, "entityStableId", entityId,
+                            identity.stableId, sceneMeta.nextEntityStableId, "duplicate ID");
+                }
+                maxStableId = Math.max(maxStableId, identity.stableId);
+            }
+
+            validateSpatialBlockIdentities(spatialBlocks.getSafe(entityId, null), identity, sceneFile, entityId);
+        }
+        if (sceneMeta.nextEntityStableId <= maxStableId) {
+            throw identityFailure(sceneFile, "entityStableId", -1, maxStableId, sceneMeta.nextEntityStableId,
+                    "high-water must be greater than max ID");
+        }
+
+        try {
+            PhysicsShapeIdentityValidator.validateEntities(
+                    world, format.entities, sceneMeta);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Scene '" + sceneFile.path()
+                    + "', domain physicsShapeId, high-water " + sceneMeta.nextPhysicsShapeId
+                    + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    private static void validateSpatialBlockIdentities(SpatialBlocksComponent component,
+            PixscapeIdentityComponent ownerIdentity, FileHandle sceneFile, int entityId) {
+        if (component == null) return;
+        if (ownerIdentity == null || ownerIdentity.stableId <= 0) {
+            throw identityFailure(sceneFile, "spatialOwnerStableId", entityId,
+                    ownerIdentity != null ? ownerIdentity.stableId : -1, component.nextSpatialBlockId,
+                    "owner has no positive entityStableId");
+        }
+        if (component.nextSpatialBlockId <= 0) {
+            throw identityFailure(sceneFile, "spatialBlockId", entityId, ownerIdentity.stableId,
+                    component.nextSpatialBlockId, "high-water must be positive");
+        }
+        IntSet ids = new IntSet();
+        int max = 0;
+        if (component.blocks != null) {
+            for (int i = 0; i < component.blocks.size; i++) {
+                SpatialBlockData block = component.blocks.get(i);
+                if (block == null) {
+                    throw identityFailure(sceneFile, "spatialBlockId", entityId, -1, component.nextSpatialBlockId,
+                            "null block");
+                }
+                if (block.id <= 0) {
+                    throw identityFailure(sceneFile, "spatialBlockId", entityId, block.id, component.nextSpatialBlockId,
+                            "ID must be positive");
+                }
+                if (!ids.add(block.id)) {
+                    throw identityFailure(sceneFile, "spatialBlockId", entityId, block.id, component.nextSpatialBlockId,
+                            "duplicate ID");
+                }
+                max = Math.max(max, block.id);
+            }
+        }
+        if (component.nextSpatialBlockId <= max) {
+            throw identityFailure(sceneFile, "spatialBlockId", entityId, max, component.nextSpatialBlockId,
+                    "high-water must be greater than max ID");
+        }
+    }
+
+    private static IllegalArgumentException identityFailure(FileHandle sceneFile, String domain, int entityId,
+            int badId, int highWater, String reason) {
+        return new IllegalArgumentException("Scene '" + sceneFile.path() + "', domain " + domain + ", entity "
+                + entityId + ", bad/max ID " + badId + ", high-water " + highWater + ": " + reason + ".");
     }
 
     private static void clearWorldContent(World world) {

@@ -1,10 +1,6 @@
 package games.pixscape.runtime.loading;
 
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.FrameRenderQueue;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.render.*;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -2,11 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.render.*;
 import org.junit.Assert;
 import org.junit.Test;
 

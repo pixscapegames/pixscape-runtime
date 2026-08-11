@@ -16,6 +16,14 @@ import games.pixscape.runtime.render.ShaderRole;
 import games.pixscape.runtime.render.ShaderVariant;
 import games.pixscape.runtime.render.batch.GLCaps;
 
+/**
+ * {@code SUPPORTED_EXPERT} process-wide shader lookup and project shader lifecycle boundary.
+ *
+ * <p>The registry follows Pixscape's one-active-engine/graphics-context contract and is not
+ * thread-safe. Registration transfers disposal ownership of the {@link ShaderProgram} to the
+ * registry. Returned programs are borrowed; do not dispose them. Project reload or
+ * {@link #disposeAll()} invalidates previously returned programs and indexes.</p>
+ */
 public final class ShaderRegistry {
 
     private static boolean isBlank(String s) {
@@ -295,7 +303,11 @@ public final class ShaderRegistry {
     }
 
     public static void initDefaults(FileHandle projectDir, String shadersDir) {
-        setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
+        initDefaults(PlatformTarget.AUTO, projectDir, shadersDir);
+    }
+
+    public static void initDefaults(PlatformTarget target, FileHandle projectDir, String shadersDir) {
+        setProjectContext(target, projectDir, shadersDir);
         initDefaults();
     }
 

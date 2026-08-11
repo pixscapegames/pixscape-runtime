@@ -8,10 +8,13 @@ import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.TagRegistry;
 
 /**
- * Expert ECS access escape hatch.
+ * {@code SUPPORTED_EXPERT} ECS access escape hatch.
  *
  * <p>This low-level path coexists with the high-level API and does not replace
- * regular high-level runtime usage.</p>
+ * regular high-level runtime usage. Returned Artemis objects are borrowed from the current
+ * Runtime World, are not thread-safe, and must be reacquired after scene/World replacement.
+ * Authored component mutations must follow the component's validation and dirty/invalidation
+ * contract; direct access does not bypass Runtime synchronization requirements.</p>
  */
 public interface ECSAPI {
     /**

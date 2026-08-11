@@ -5,6 +5,16 @@ import com.badlogic.gdx.math.Matrix4;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
+/**
+ * {@code SUPPORTED_EXPERT} data-oriented Pixscape submission batch; this is not a LibGDX immediate-mode
+ * {@code Batch} API.
+ *
+ * <p>When obtained from {@link games.pixscape.runtime.engine.PixscapeEngine#getMetricsBatch()},
+ * the object is borrowed and engine-owned. Default submission controls its per-frame
+ * {@link #begin(Matrix4, RenderStats) begin}/{@link #end(RenderStats) end} lifecycle, and the
+ * engine closes it during disposal. Expert custom submitters may drive that lifecycle but
+ * must leave the batch ended and must not close it.</p>
+ */
 public interface MetricsBatch extends AutoCloseable {
     void begin(Matrix4 combined, RenderStats stats);
 

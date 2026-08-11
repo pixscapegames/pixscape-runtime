@@ -4,8 +4,11 @@ import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 
 /**
- * Render context passed to extensions and FX passes.
- * Yor can enrich it progressively.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API.
+ *
+ * <p>Internal aggregate of borrowed render-pipeline state. Supported custom submission should
+ * consume {@link FrameRenderQueue} and the documented engine getters instead.</p>
  */
 public final class RenderContext {
 
@@ -16,7 +19,7 @@ public final class RenderContext {
     public final VfxRenderState vfxState;
     public final TiledMapRenderState tiledState;
 
-    public final MetricsBatch batch; // or interface plus abstraite
+    public final MetricsBatch batch;
     public final GLCaps glCaps;
 
     public RenderContext(DynamicEntityRenderState dynamicEntityState,
@@ -36,6 +39,4 @@ public final class RenderContext {
         this.batch = batch;
         this.glCaps = glCaps;
     }
-
-    // Helpers to add (bindFbo, bindShader, drawFullscreenQuad, etc.)
 }

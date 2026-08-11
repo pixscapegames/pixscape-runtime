@@ -1,19 +1,14 @@
 package games.pixscape.runtime.component;
 
 import com.artemis.PooledComponent;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.IntArray;
 
 public class AnimationComponent extends PooledComponent {
 
-    /**
-     * Animation group name resolved via atlas.findRegions(animation).
-     * Example: "hero" -> hero_0001, hero_0002, ...
-     */
-    public String animation = "";
-
-    public ObjectMap<String, Clip> clips = new ObjectMap<>();
+    public IntArray animationAssetIds = new IntArray();
     public String currentClip = "";
 
+    /** Pooled playback baseline; authored spawns replace this with {@code AnimationDef.fps()}. */
     public float fps = 12f;
     public float stateTime = 0f;
 
@@ -27,32 +22,12 @@ public class AnimationComponent extends PooledComponent {
 
     @Override
     protected void reset() {
-        animation = "";
-        clips.clear();
+        animationAssetIds.clear();
         currentClip = "";
         fps = 12f;
         stateTime = 0f;
         playing = true;
         loop = true;
         frame = -1;
-    }
-
-    public static class Clip {
-        public int start;
-        public int end;
-        public boolean flipX = false;
-
-        public Clip() {
-        }
-
-        public Clip(int start, int end) {
-            this.start = start;
-            this.end = end;
-        }
-    }
-
-    public Clip getClip() {
-        if (currentClip == null || currentClip.isEmpty()) return null;
-        return clips.get(currentClip);
     }
 }

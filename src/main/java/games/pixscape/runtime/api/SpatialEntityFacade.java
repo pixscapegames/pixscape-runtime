@@ -3,8 +3,14 @@ package games.pixscape.runtime.api;
 /**
  * Spatial render-order settings for one runtime entity.
  *
+ * <p>Volume setters may establish authored spatial-height intent even when the
+ * entity does not yet participate in effective Spatial render ordering.</p>
+ *
  * <p>Actor footprint geometry is derived from the entity physics circle fixture.
  * This facade only exposes the vertical volume used by the spatial renderer.</p>
+ *
+ * <p>Altitude and height must be finite. Negative finite heights retain the documented
+ * zero-clamping behavior.</p>
  */
 public interface SpatialEntityFacade {
     /**
@@ -52,10 +58,8 @@ public interface SpatialEntityFacade {
     SpatialEntityFacade setVolume(float altitude, float height);
 
     /**
-     * Returns whether this entity has a positive-height spatial volume.
-     *
-     * <p>Layer participation and physics fixture presence are still required by
-     * the renderer for actor sorting.</p>
+     * Returns whether the entity currently satisfies the Runtime conditions for
+     * Spatial actor render ordering.
      */
     boolean participatesInRenderOrder();
 }

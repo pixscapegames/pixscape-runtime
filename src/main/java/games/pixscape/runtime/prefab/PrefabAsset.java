@@ -1,8 +1,8 @@
 package games.pixscape.runtime.prefab;
 
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,8 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 public final class PrefabAsset {
+    public static final int PREFAB_VERSION = 2;
+
     public String type = "pixscape-prefab";
-    public int version = 1;
+    public int version = PREFAB_VERSION;
     public String name;
     public List<PrefabEntityData> entities = new ArrayList<>();
 
@@ -31,8 +33,8 @@ public final class PrefabAsset {
         public AnimationData animation;
         public ShaderParamsData shaderParams;
         public PhysicsBodyData physicsBody;
-        public Array<FixtureDefData> fixtures = new Array<>(FixtureDefData[]::new);
-        public PhysicsAuthoringData physicsAuthoring;
+        public Array<PhysicsShapeData> physicsShapes =
+                new Array<>(true, 4, PhysicsShapeData.class);
         public JointBaseData joint;
         public DistanceJointData distanceJoint;
         public RevoluteJointData revoluteJoint;
@@ -94,26 +96,12 @@ public final class PrefabAsset {
     }
 
     public static final class AnimationData {
-        public String name;
+        public IntArray animationAssetIds = new IntArray();
         public float fps;
         public boolean playing, loop;
         public float stateTime;
         public int frame;
         public String currentClip;
-        public ObjectMap<String, AnimationClipData> clips = new ObjectMap<>();
-    }
-
-    public static final class AnimationClipData {
-        public int start;
-        public int end;
-
-        public AnimationClipData() {
-        }
-
-        public AnimationClipData(int start, int end) {
-            this.start = start;
-            this.end = end;
-        }
     }
 
     public static final class ShaderParamsData {
@@ -122,33 +110,8 @@ public final class PrefabAsset {
 
     public static final class PhysicsBodyData {
         public int type;
-        public boolean fixedRotation, bullet, allowSleep, awake, enabled;
+        public boolean fixedRotation, bullet, allowSleep, awake;
         public float gravityScale, linearDamping, angularDamping;
-    }
-
-    public static final class PhysicsAuthoringData {
-        public List<AuthoredPolygonDto> polygons = new ArrayList<>();
-    }
-
-    public static final class AuthoredPolygonDto {
-        public long authoringId;
-        public float[] sourceVerts;
-        public int sourceCount;
-        public int decompositionAlgorithmVersion;
-        public long sourceHash;
-        public List<ConvexPolygonPartDto> convexParts = new ArrayList<>();
-
-        public int[] generatedFixtureIds;
-
-        public float density, friction, restitution;
-        public boolean isSensor;
-        public short categoryBits, maskBits, groupIndex;
-        public float offsetX, offsetY, angleDeg;
-    }
-
-    public static final class ConvexPolygonPartDto {
-        public float[] verts;
-        public int count;
     }
 
     public static final class JointBaseData {

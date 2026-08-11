@@ -3,30 +3,43 @@ package games.pixscape.runtime.api;
 /**
  * Factory and facade access API for sprite animations.
  *
- * <p>Animation spawning resolves either a registered animation definition or a direct atlas
- * asset. In both cases, the backing asset must be present in the current scene atlas through
- * Runtime Availability.</p>
+ * <p>Animation spawning requires a registered animation definition whose backing visual asset
+ * is present in the current scene atlas through Runtime Availability.</p>
  */
 public interface AnimationsAPI {
     /**
-     * Creates an animated entity from a registered animation asset id, or from a direct atlas asset.
+     * Returns read-only authored metadata for a registered animation.
      *
-     * @param assetId registered animation asset id or atlas asset id
+     * @throws IllegalArgumentException when the animation is unknown
+     */
+    AnimationDefinition definition(int assetId);
+
+    /**
+     * Returns read-only authored metadata for a registered animation.
+     *
+     * @throws IllegalArgumentException when the animation name is blank or unknown
+     */
+    AnimationDefinition definition(String name);
+
+    /**
+     * Creates an animated entity from a registered animation asset id.
+     *
+     * @param assetId registered animation asset id
      * @param x initial world x position
      * @param y initial world y position
      * @return fluent reference to the created animation entity
-     * @throws IllegalArgumentException when the backing asset is not available in the current scene atlas
+     * @throws IllegalArgumentException when the animation is unknown or unavailable
      */
     AnimationRef spawn(int assetId, float x, float y);
 
     /**
-     * Creates an animated entity from a registered animation name, or from a direct atlas asset name.
+     * Creates an animated entity from a registered animation name.
      *
-     * @param name registered animation name or atlas asset name
+     * @param name registered animation name
      * @param x initial world x position
      * @param y initial world y position
      * @return fluent reference to the created animation entity
-     * @throws IllegalArgumentException when the backing asset is not available in the current scene atlas
+     * @throws IllegalArgumentException when the animation is unknown or unavailable
      */
     AnimationRef spawn(String name, float x, float y);
 

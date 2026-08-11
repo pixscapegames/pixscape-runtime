@@ -13,15 +13,13 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
-import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
-import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
-import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
-import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
+import games.pixscape.runtime.tiled.profile.*;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,6 +29,28 @@ public class RenderTiledSyncSystemTest {
     @BeforeClass
     public static void loadNatives() {
         GdxNativesLoader.load();
+    }
+
+    @Test
+    public void runtimeAvailabilityCompilesAllPersistentChunksBeforeFirstPan() {
+        Fixture fixture = createTwoChunksFixture();
+        fixture.world.process();
+        fixture.map.markAllChunksContentDirty();
+
+        fixture.tiledSync.prepareRuntimeAvailability();
+
+        Assert.assertEquals(2, fixture.tiledSync.preparedPersistentChunkCount());
+        for (IntMap.Values<TileChunk> chunks =
+                fixture.map.getChunks(); chunks.hasNext(); ) {
+            Assert.assertEquals(TileChunk.DirtyState.CLEAN,
+                    chunks.next().dirtyState);
+        }
+        int compilations = fixture.tiledSync.persistentChunkCompilationCount();
+
+        fixture.camera.position.set(48f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals(compilations,
+                fixture.tiledSync.persistentChunkCompilationCount());
     }
 
     @Test
@@ -1249,10 +1269,11 @@ public class RenderTiledSyncSystemTest {
         int resolveCalls = 0;
 
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1 || assetId == 2 || assetId == 3) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tile-" + assetId,
                         0f,
                         0f,
@@ -1269,10 +1290,11 @@ public class RenderTiledSyncSystemTest {
 
     private static final class TallCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tall-tile",
                         0f,
                         0f,
@@ -1297,10 +1319,11 @@ public class RenderTiledSyncSystemTest {
         }
 
         @Override
-        public CachedRegion resolveCached(int assetId, String tag) {
+        public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
             if (assetId == 1) {
-                return new CachedRegion(
+                return AtlasBindingTestFactory.single(
+                        assetId,
                         "tile-" + assetId,
                         0f,
                         0f,

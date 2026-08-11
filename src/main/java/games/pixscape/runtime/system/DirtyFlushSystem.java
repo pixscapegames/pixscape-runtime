@@ -1,10 +1,10 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 
 /**
  * Explicit dirty flush at end of frame, to remove dependency on implicit ordering.
@@ -31,6 +31,11 @@ public final class DirtyFlushSystem extends BaseSystem implements ProfiledSystem
 
     private void processSystemInternal() {
         if (dirty != null) dirty.clearFrame();
+    }
+
+    /** Clears load-time dirty state after every persistent consumer has prepared. */
+    public void finishRuntimeAvailability() {
+        processSystemInternal();
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

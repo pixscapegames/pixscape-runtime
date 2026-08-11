@@ -1,10 +1,11 @@
 package games.pixscape.runtime.render;
 
 /**
- * Flat domain-aware list of render sources to draw for the current frame.
+ * Runtime implementation detail. Public Java visibility does not make this type part of the
+ * supported compatibility API.
  * <p>
- * The list is a SOA: each entry carries its render source domain and the
- * slot/index within that domain.
+ * This frame-local SOA is the pipeline workspace between render-source synchronization, sorting,
+ * Spatial composition, and frame-queue extraction.
  */
 public final class DrawList {
 

@@ -1,15 +1,11 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.render.*;
 
 /**
  * Trie drawList par sortKey de chaque source render.

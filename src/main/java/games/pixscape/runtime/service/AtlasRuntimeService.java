@@ -5,18 +5,28 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
-import com.badlogic.gdx.graphics.Texture.TextureWrap;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
-import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
-import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectIntMap;
+import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 
 
+/**
+ * {@code SUPPORTED_EXPERT} scene-atlas publication, indexed lookup, and texture-array service.
+ *
+ * <p>Published atlas bindings are engine/scene derived state and all successful and failed asset
+ * lookups are indexed. Returned atlases, bindings, metadata, textures, and bundles are borrowed;
+ * do not dispose them and reacquire them after atlas publication or scene/Runtime rebuilds.</p>
+ *
+ * <p>{@link #load(String, FileHandle)} creates and owns its atlas. {@link #loadBorrowed(String,
+ * TextureAtlas)} retains caller ownership, so the caller must keep that atlas alive until unload.
+ * Loading, rebuilding, and disposal are GL/lifecycle operations and must run at an explicit safe
+ * point on the LibGDX GL thread, never from render submission or asset lookup.</p>
+ */
 public class AtlasRuntimeService {
 
     private static boolean isBlank(String s) {
@@ -39,7 +49,11 @@ public class AtlasRuntimeService {
 
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
-    private final ObjectMap<String, IntMap<CachedRegion>> regionCache = new ObjectMap<>();
+    private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
+    private final ObjectIntMap<String> publicationRevisions = new ObjectIntMap<>();
+    private final ObjectSet<String> pendingPublications = new ObjectSet<>();
+    private final ObjectSet<String> ownedAtlasTags = new ObjectSet<>();
+    private int nextPublicationRevision;
     private static final boolean DEBUG_BUNDLE_LIFECYCLE = false;
 
     public AtlasRuntimeService() {
@@ -48,104 +62,163 @@ public class AtlasRuntimeService {
     // ---------------- load/unload ----------------
 
     public void load(String tag, FileHandle atlasFile) {
-        if (atlases.containsKey(tag)) unload(tag);
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        Array<Texture> pageTextures = getPageTextures(atlas);
-        for (int i = 0, n = pageTextures.size; i < n; i++) {
-            Texture t = pageTextures.get(i);
-            t.setFilter(TextureFilter.Linear, TextureFilter.Linear);
-        }
-        atlases.put(tag, atlas);
-        bundles.remove(tag);
-        clearRegionCache();
+        load(tag, atlas, true);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
+    /** Publishes an already-created atlas and transfers its ownership to this service. */
+    protected final void publishOwnedAtlas(String tag, TextureAtlas atlas) {
+        load(tag, atlas, true);
+    }
+
+    /**
+     * Uses an externally owned atlas without taking disposal ownership.
+     *
+     * <p>This is the object-reuse seam for AssetManager integration. The owner
+     * must keep the atlas alive until it is unloaded from this service.</p>
+     */
+    public void loadBorrowed(String tag, TextureAtlas atlas) {
+        load(tag, atlas, false);
+    }
+
+    private void load(String tag, TextureAtlas atlas, boolean owned) {
+        if (atlas == null) {
+            throw new IllegalArgumentException(
+                    "Atlas '" + tag + "' must not be null.");
+        }
+        AtlasAssetIndex index;
+        try {
+            index = AtlasAssetIndexBuilder.build(tag, atlas);
+            Array<Texture> pageTextures = getPageTextures(atlas);
+            for (int i = 0, n = pageTextures.size; i < n; i++) {
+                Texture texture = pageTextures.get(i);
+                texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
+            }
+        } catch (RuntimeException failure) {
+            if (owned) atlas.dispose();
+            throw failure;
+        }
+
+        TextureAtlas previousAtlas = atlases.get(tag);
+        boolean ownedPreviousAtlas = ownedAtlasTags.contains(tag);
+        TextureArrayBundle previousBundle = bundles.remove(tag);
+        indexesByTag.put(tag, index);
+        atlases.put(tag, atlas);
+        publicationRevisions.put(tag, nextPublicationRevision());
+        pendingPublications.remove(tag);
+        if (owned) {
+            ownedAtlasTags.add(tag);
+        } else {
+            ownedAtlasTags.remove(tag);
+        }
+
+        if (previousAtlas != null && previousAtlas != atlas && ownedPreviousAtlas) {
+            previousAtlas.dispose();
+        }
+        if (previousBundle != null) {
+            logBundleEvent("dispose", tag, previousBundle.textureArray);
+            previousBundle.textureArray.dispose();
+        }
+    }
+
     public void unload(String tag) {
+        indexesByTag.remove(tag);
+        boolean ownedAtlas = ownedAtlasTags.remove(tag);
         TextureAtlas a = atlases.remove(tag);
-        if (a != null) a.dispose();
+        if (a != null && ownedAtlas) a.dispose();
         TextureArrayBundle b = bundles.remove(tag);
         if (b != null) {
             logBundleEvent("dispose", tag, b.textureArray);
             b.textureArray.dispose();
         }
-        clearRegionCache();
     }
 
     public void unloadAll() {
-        for (ObjectMap.Values<TextureAtlas> it = atlases.values(); it.hasNext(); ) {
-            it.next().dispose();
+        for (ObjectMap.Entries<String, TextureAtlas> it = atlases.entries(); it.hasNext(); ) {
+            ObjectMap.Entry<String, TextureAtlas> entry = it.next();
+            if (ownedAtlasTags.contains(entry.key)) entry.value.dispose();
         }
         atlases.clear();
+        ownedAtlasTags.clear();
         for (ObjectMap.Values<TextureArrayBundle> it = bundles.values(); it.hasNext(); ) {
             TextureArrayBundle b = it.next();
             logBundleEvent("dispose", "__all__", b.textureArray);
             b.textureArray.dispose();
         }
         bundles.clear();
-        clearRegionCache();
+        indexesByTag.clear();
+        pendingPublications.clear();
         flushDeferredDisposals();
     }
 
     // ---------------- access ----------------
-    public CachedRegion resolveCached(int assetId, String tag) {
-        if (tag == null || isBlank(tag) || assetId < 0) return null;
-
-        IntMap<CachedRegion> tagCache = regionCache.get(tag);
-        if (tagCache == null) {
-            tagCache = new IntMap<>();
-            regionCache.put(tag, tagCache);
-        }
-
-        CachedRegion cr = tagCache.get(assetId);
-        if (cr != null) return cr;
-
-        Array<AtlasRegion> regions = resolve(assetId, tag);
-        if (regions == null || regions.size == 0)
-            return null;
-
-        AtlasRegion ar = regions.first();
-
-        cr = new CachedRegion(
-                ar.name,
-                ar.getU(), ar.getV(),
-                ar.getU2(), ar.getV2(),
-                TextureRegistry.handleOf(ar.getTexture()),
-                ar.getRegionWidth(),
-                ar.getRegionHeight()
-        );
-
-        tagCache.put(assetId, cr);
-        return cr;
-    }
-
-    public void clearRegionCache() {
-        regionCache.clear();
+    /**
+     * Returns the precomputed first-region metadata in O(1) average time.
+     */
+    public AtlasRegionMetadata resolveCached(int assetId, String tag) {
+        requirePositiveAssetId(assetId);
+        if (tag == null || isBlank(tag)) return null;
+        AtlasAssetBinding binding = resolveBinding(assetId, tag);
+        return binding != null ? binding.metadata() : null;
     }
 
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
     }
 
-    public Array<TextureAtlas.AtlasRegion> resolve(int assetId, String tag) {
-        if (assetId < 0) {
-            throw new IllegalStateException("Asset id must be >= 0.");
+    /** Returns whether at least one successfully published atlas is currently usable. */
+    public boolean hasPublishedAtlases() {
+        return atlases.size > 0;
+    }
+
+    /**
+     * Returns the revision of the latest successfully published atlas for {@code tag}.
+     * Zero means that this service has not published that atlas tag yet.
+     */
+    public int publicationRevision(String tag) {
+        return tag != null ? publicationRevisions.get(tag, 0) : 0;
+    }
+
+    /** Marks that a replacement atlas publication has been requested for {@code tag}. */
+    public void markPublicationPending(String tag) {
+        if (tag == null || isBlank(tag)) {
+            throw new IllegalArgumentException("Atlas tag is blank.");
         }
+        pendingPublications.add(tag);
+    }
+
+    /** Returns whether a requested replacement has not yet been successfully published. */
+    public boolean isPublicationPending(String tag) {
+        return tag != null && pendingPublications.contains(tag);
+    }
+
+    private int nextPublicationRevision() {
+        nextPublicationRevision++;
+        if (nextPublicationRevision == 0) nextPublicationRevision++;
+        return nextPublicationRevision;
+    }
+
+    /**
+     * Resolves the complete binding for an asset in O(1) average time.
+     */
+    public AtlasAssetBinding resolveBinding(int assetId, String tag) {
+        requirePositiveAssetId(assetId);
         if (tag == null || isBlank(tag)) return null;
+        AtlasAssetIndex index = indexesByTag.get(tag);
+        return index != null ? index.get(assetId) : null;
+    }
 
-        TextureAtlas atlas = atlases.get(tag);
-        if (atlas == null) return null;
-
-        String suffix = "__a" + assetId;
-        Array<TextureAtlas.AtlasRegion> regions = atlas.getRegions();
-        for (int i = 0, n = regions.size; i < n; i++) {
-            TextureAtlas.AtlasRegion region = regions.get(i);
-            if (region != null && region.name != null && region.name.endsWith(suffix)) {
-                return atlas.findRegions(region.name);
-            }
+    private static void requirePositiveAssetId(int assetId) {
+        if (assetId <= 0) {
+            throw new IllegalArgumentException(
+                    "Asset id must be > 0, got " + assetId + ".");
         }
+    }
 
-        return null;
+    int indexBuildRegionVisits(String tag) {
+        AtlasAssetIndex index = indexesByTag.get(tag);
+        return index != null ? index.buildRegionVisits() : -1;
     }
 
     /**
@@ -185,7 +258,7 @@ public class AtlasRuntimeService {
     }
 
     /**
-     * Builds a {@link TextureArrayBundle} from atlas page textures using libGDX texture-array data.
+     * Builds a {@link TextureArrayBundle} from atlas page textures.
      *
      * @param textures atlas page textures in stable order
      * @return texture-array bundle with a {@code textureHandle -> layer} mapping
@@ -205,74 +278,43 @@ public class AtlasRuntimeService {
             }
         }
 
-        // 1) Copy each source texture to a pixmap (atlas size is fixed).
         Array<Pixmap> srcs = new Array<>(sources.size);
-        for (int i = 0; i < sources.size; i++) {
-            Texture t = sources.get(i);
-            Pixmap pm = obtainPixmapCopy(t);
-            validateAtlasPageSize(pm, t);
-            srcs.add(pm);
+        Array<Pixmap> uploadLayers = new Array<>(1 + sources.size);
+        TextureArray textureArray = null;
+        boolean completed = false;
+        boolean uploadOwnershipTransferred = false;
+        try {
+            // Copy each source texture before normalizing it to the fixed atlas size.
+            for (int i = 0; i < sources.size; i++) {
+                Texture texture = sources.get(i);
+                Pixmap pixmap = obtainPixmapCopy(texture);
+                srcs.add(pixmap);
+                validateAtlasPageSize(pixmap, texture);
+            }
+
+            // Layer 0 is the fixed-size internal white texture.
+            Pixmap white = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
+            uploadLayers.add(white);
+            white.setBlending(Pixmap.Blending.None);
+            white.setColor(1f, 1f, 1f, 1f);
+            white.fill();
+
+            for (int i = 0; i < srcs.size; i++) {
+                uploadLayers.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
+            }
+
+            uploadOwnershipTransferred = true;
+            textureArray = TextureArrayUploads.uploadOwned(uploadLayers);
+
+            IntIntMap handle2layer = buildHandleToLayer(sources);
+
+            completed = true;
+            return new TextureArrayBundle(textureArray, handle2layer);
+        } finally {
+            disposePixmaps(srcs);
+            if (!uploadOwnershipTransferred) disposePixmaps(uploadLayers);
+            if (!completed && textureArray != null) textureArray.dispose();
         }
-
-        // 2) White pixmap (layer 0) in fixed atlas size (required by TextureArray)
-        Pixmap whitePm = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
-        whitePm.setBlending(Pixmap.Blending.None);
-        whitePm.setColor(1f, 1f, 1f, 1f);
-        whitePm.fill();
-
-        // 3) Normalize all pages to the fixed atlas size.
-        Array<Pixmap> normalized = new Array<>(srcs.size);
-        for (int i = 0; i < srcs.size; i++) {
-            normalized.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
-        }
-
-        // 4) TextureData[]: index 0 = white (WxH), then normalized pages (WxH).
-        TextureData[] data = new TextureData[1 + normalized.size];
-
-        data[0] = new PixmapTextureData(
-                whitePm,
-                Format.RGBA8888,
-                false,
-                true // dispose whitePm
-        );
-
-        for (int i = 0; i < normalized.size; i++) {
-            data[i + 1] = new PixmapTextureData(
-                    normalized.get(i),
-                    Format.RGBA8888,
-                    false,
-                    true // dispose normalized[i]
-            );
-        }
-
-        // 5) Build TextureArray
-        TextureArrayData tad = new FileTextureArrayData(Format.RGBA8888, false, data);
-        TextureArray ta = new TextureArray(tad);
-        ta.setFilter(TextureFilter.Linear, TextureFilter.Linear);
-        ta.setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
-
-        // 6) Build map: handle -> layer.
-        IntIntMap handle2layer = new IntIntMap();
-
-        int whiteHandle = InternalTextures.whiteHandle();
-        handle2layer.put(whiteHandle, 0);
-
-        // Layers 1..N map to sources[i].
-        for (int i = 0; i < sources.size; i++) {
-            Texture page = sources.get(i);
-            int handle = TextureRegistry.handleOf(page);
-
-            int layer = i + 1;
-            handle2layer.put(handle, layer);
-        }
-
-        // 7) Dispose temporary source pixmaps (copies).
-        for (int i = 0; i < srcs.size; i++) {
-            srcs.get(i).dispose();
-        }
-        // normalized pixmaps and whitePm are disposed by PixmapTextureData.
-
-        return new TextureArrayBundle(ta, handle2layer);
     }
 
 
@@ -306,7 +348,6 @@ public class AtlasRuntimeService {
         TextureArrayBundle previous = bundles.get(tag);
         TextureArrayBundle rebuilt = buildTextureArrayFromAtlas(atlas);
         bundles.put(tag, rebuilt);
-        clearRegionCache();
         logBundleEvent(previous == null ? "build" : "rebuild", tag, rebuilt.textureArray);
         return rebuilt;
     }
@@ -341,21 +382,47 @@ public class AtlasRuntimeService {
         if (!td.isPrepared()) td.prepare();
 
         Pixmap src = td.consumePixmap();
-        Pixmap copy = new Pixmap(src.getWidth(), src.getHeight(), src.getFormat());
-        copy.setBlending(Pixmap.Blending.None);
-        copy.drawPixmap(src, 0, 0);
+        Pixmap copy = null;
+        boolean completed = false;
+        try {
+            copy = new Pixmap(src.getWidth(), src.getHeight(), src.getFormat());
+            copy.setBlending(Pixmap.Blending.None);
+            copy.drawPixmap(src, 0, 0);
+            completed = true;
+            return copy;
+        } finally {
+            if (td.disposePixmap()) src.dispose();
+            if (!completed && copy != null) copy.dispose();
+        }
+    }
 
-        if (td.disposePixmap()) src.dispose();
-        return copy;
+    static IntIntMap buildHandleToLayer(Array<Texture> sources) {
+        IntIntMap handle2layer = new IntIntMap();
+        handle2layer.put(InternalTextures.whiteHandle(), 0);
+        for (int i = 0; i < sources.size; i++) {
+            handle2layer.put(TextureRegistry.handleOf(sources.get(i)), i + 1);
+        }
+        return handle2layer;
     }
 
     private static Pixmap normalizeTo(Pixmap pm, int W, int H) {
-        // Always create a new pixmap with size (W, H).
         Pixmap out = new Pixmap(W, H, Format.RGBA8888);
-        out.setBlending(Pixmap.Blending.None);
-        out.drawPixmap(pm, 0, 0);
-        // Do not dispose here: disposal is centralized later.
-        return out;
+        boolean completed = false;
+        try {
+            out.setBlending(Pixmap.Blending.None);
+            out.drawPixmap(pm, 0, 0);
+            completed = true;
+            return out;
+        } finally {
+            if (!completed) out.dispose();
+        }
+    }
+
+    private static void disposePixmaps(Array<Pixmap> pixmaps) {
+        for (int i = 0; i < pixmaps.size; i++) {
+            Pixmap pixmap = pixmaps.get(i);
+            if (pixmap != null) pixmap.dispose();
+        }
     }
 
     private static void validateAtlasPageSize(Pixmap pm, Texture sourceTexture) {
@@ -384,21 +451,4 @@ public class AtlasRuntimeService {
                 + " textureArray@" + System.identityHashCode(textureArray));
     }
 
-    public static final class CachedRegion {
-        public final String regionName;
-        public final float u1, v1, u2, v2;
-        public final int textureHandle;
-        public final int pixW, pixH;
-
-        public CachedRegion(String regionName, float u1, float v1, float u2, float v2, int textureHandle, int pixW, int pixH) {
-            this.regionName = regionName;
-            this.u1 = u1;
-            this.v1 = v1;
-            this.u2 = u2;
-            this.v2 = v2;
-            this.textureHandle = textureHandle;
-            this.pixW = pixW;
-            this.pixH = pixH;
-        }
-    }
 }

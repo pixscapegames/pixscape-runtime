@@ -10,10 +10,10 @@ import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
@@ -310,7 +310,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         float viewportMinY = cam.position.y - viewportH * 0.5f;
         float viewportMaxY = cam.position.y + viewportH * 0.5f;
 
-        boolean hasVisibleCopies = RenderRepeatMath.calculateVisibleRange(
+        boolean hasVisibleCopies = RenderRepeatRangeCalculator.calculateVisibleRange(
                 viewportMinX,
                 viewportMaxX,
                 viewportMinY,

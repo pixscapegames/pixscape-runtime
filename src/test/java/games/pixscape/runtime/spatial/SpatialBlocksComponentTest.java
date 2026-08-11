@@ -8,11 +8,10 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -45,7 +44,6 @@ public class SpatialBlocksComponentTest {
         Assert.assertEquals(0f, block.altitude, 0.0001f);
         Assert.assertEquals(SpatialBlockData.DEFAULT_HEIGHT, block.height, 0.0001f);
         Assert.assertTrue(block.actorOccluder);
-        Assert.assertFalse(block.physicsCollision);
         Assert.assertFalse(block.lightOccluder);
         Assert.assertFalse(block.shadowCaster);
         Assert.assertFalse(block.particleOccluder);
@@ -87,7 +85,6 @@ public class SpatialBlocksComponentTest {
         source.altitude = 11f;
         source.height = 64f;
         source.actorOccluder = false;
-        source.physicsCollision = true;
         source.lightOccluder = true;
         source.shadowCaster = true;
         source.particleOccluder = true;
@@ -139,7 +136,6 @@ public class SpatialBlocksComponentTest {
         Assert.assertTrue(world.getMapper(LayerComponent.class).has(entity));
         Assert.assertTrue(world.getMapper(SpatialBlocksComponent.class).has(entity));
         Assert.assertFalse(world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).has(entity));
-        Assert.assertFalse(world.getMapper(games.pixscape.runtime.component.physics.PhysicsFixturesComponent.class).has(entity));
     }
 
     @Test
@@ -244,7 +240,6 @@ public class SpatialBlocksComponentTest {
         block.y = 2f;
         block.width = 3f;
         block.depth = 4f;
-        block.physicsCollision = true;
         blocks.blocks.add(block);
         return entity;
     }
@@ -260,7 +255,6 @@ public class SpatialBlocksComponentTest {
         Assert.assertEquals(expected.altitude, actual.altitude, 0.0001f);
         Assert.assertEquals(expected.height, actual.height, 0.0001f);
         Assert.assertEquals(expected.actorOccluder, actual.actorOccluder);
-        Assert.assertEquals(expected.physicsCollision, actual.physicsCollision);
         Assert.assertEquals(expected.lightOccluder, actual.lightOccluder);
         Assert.assertEquals(expected.shadowCaster, actual.shadowCaster);
         Assert.assertEquals(expected.particleOccluder, actual.particleOccluder);

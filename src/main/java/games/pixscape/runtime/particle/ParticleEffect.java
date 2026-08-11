@@ -1,3 +1,19 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
+
 package games.pixscape.runtime.particle;
 
 import com.badlogic.gdx.files.FileHandle;
@@ -11,22 +27,29 @@ import com.badlogic.gdx.utils.*;
 import java.io.*;
 
 /*
- * Adapted from libGDX ParticleEmitter / ParticleEffect internals.
- * Original project: libGDX
- * Original license: Apache License 2.0
+ * Derived from libGDX ParticleEffect and modified by Pixscape: relocated to
+ * the Runtime particle package, uses Pixscape's emitter fork, and avoids
+ * iterator allocation in Runtime-sensitive loops.
+ */
+/**
+ * {@code SUPPORTED_EXPERT} LibGDX-compatible 2D particle effect fork.
  *
- * Modifications:
- * - moved into games.pixscape.runtime.particle
- * - exposed particle arrays for Pixscape SOA runtime extraction
- * - adapted for Pixscape runtime rendering pipeline
+ * <p>The familiar emitter lifecycle, standard {@code .p} parser/writer, atlas-prefix lookup,
+ * standalone {@link Batch} drawing, and scaling behavior are supported. Pixscape Runtime uses
+ * the same model but updates effects and extracts emitter sprite state into its render pipeline.
+ * Prefer the high-level particle facades for ordinary gameplay.</p>
+ *
+ * <p>Atlas-based loads borrow atlas textures. Directory-based image loads create textures owned
+ * by this effect, which are released by {@link #dispose()}. Callers must not dispose borrowed
+ * Runtime/Studio effects or mutate an effect while its owning runtime pipeline is processing it.</p>
  */
 public class ParticleEffect implements Disposable {
     private final Array<ParticleEmitter> emitters;
-    public BoundingBox bounds;
-    public boolean ownsTexture;
-    public float xSizeScale = 1f;
-    public float ySizeScale = 1f;
-    public float motionScale = 1f;
+    private BoundingBox bounds;
+    private boolean ownsTexture;
+    protected float xSizeScale = 1f;
+    protected float ySizeScale = 1f;
+    protected float motionScale = 1f;
 
     public ParticleEffect() {
         emitters = new Array<>(8);
@@ -210,7 +233,7 @@ public class ParticleEffect implements Disposable {
                 if (lastDotIndex != -1) imageName = imageName.substring(0, lastDotIndex);
                 if (atlasPrefix != null) imageName = atlasPrefix + imageName;
                 Sprite sprite = atlas.createSprite(imageName);
-                if (sprite == null) throw new IllegalArgumentException("Atlas is missing region: " + imageName);
+                if (sprite == null) throw new MissingParticleAtlasRegionException(imageName);
                 sprites.add(sprite);
             }
             emitter.setSprites(sprites);
@@ -247,7 +270,7 @@ public class ParticleEffect implements Disposable {
         return new ParticleEmitter(emitter);
     }
 
-    public Texture loadTexture(FileHandle file) {
+    protected Texture loadTexture(FileHandle file) {
         return new Texture(file, false);
     }
 

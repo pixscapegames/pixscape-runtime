@@ -1,11 +1,11 @@
 package games.pixscape.runtime.engine;
 
 import com.artemis.*;
-import com.artemis.io.JsonArtemisSerializer;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
@@ -18,6 +18,7 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
 import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -29,18 +30,36 @@ import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.system.AnimationSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.DirtyFlushSystem;
+import games.pixscape.runtime.system.LayerStateBuildSystem;
+import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.RenderSpriteSyncSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+import games.pixscape.runtime.system.RenderTiledSyncSystem;
+import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 
+/**
+ * Primary {@code HIGH_LEVEL} Runtime lifecycle and gameplay entry point.
+ *
+ * <p>Pixscape supports one active engine per application/LibGDX graphics context. Disposing one
+ * engine and later creating another is supported; concurrent independent engines sharing the
+ * same graphics context are not. Lifecycle methods and built-in systems run synchronously on the
+ * calling thread, normally the LibGDX render thread, and the engine is not thread-safe.</p>
+ *
+ * <p>Scene and Runtime World rebuilds invalidate borrowed ECS, render, physics, atlas, and other
+ * derived objects. Reacquire those objects from this engine after a rebuild.</p>
+ */
 public final class PixscapeEngine {
 
     public static final String RUNTIME_DIR_NAME = RuntimeFs.DIR_RUNTIME_PROJECT;
@@ -49,10 +68,18 @@ public final class PixscapeEngine {
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
+    private AssetManager suppliedAssetManager;
+    private FileAvailabilityService fileAvailability;
+    private SceneAvailabilityPlan activeSceneAvailability;
+    private SceneAvailabilityPlan pendingSceneAvailability;
+    private SceneLoadHandleImpl activeSceneLoad;
+    private boolean assetManagerConfigurationLocked;
+    private final AssetManagerFactory assetManagerFactory;
 
     private RuntimeConfig cfg;
     private boolean loaded;
     private boolean sceneLoaded;
+    private SceneMetaRuntime activeSceneMeta;
     private int configuredLogLevel = Application.LOG_INFO;
 
     // World + rendering
@@ -85,7 +112,9 @@ public final class PixscapeEngine {
     private PixscapeAPI publicApi;
 
 
-    private Consumer<WorldConfigurationBuilder> configurationCustomizer;
+    private Consumer<WorldConfigurationBuilder> preRenderSystemCustomizer;
+    private Consumer<WorldConfigurationBuilder> postRenderSystemCustomizer;
+    private Supplier<BaseSystem> renderSubmitSystemSupplier;
 
     // Box2D (lazy)
     private Box2dWorldService box2dWorldService;
@@ -93,10 +122,167 @@ public final class PixscapeEngine {
 
 
     public PixscapeEngine() {
+        this(new AssetManagerFactory() {
+            @Override
+            public AssetManager create(FileHandleResolver resolver) {
+                return new AssetManager(resolver);
+            }
+        });
     }
 
+    PixscapeEngine(AssetManagerFactory assetManagerFactory) {
+        if (assetManagerFactory == null) throw new IllegalArgumentException("assetManagerFactory is null");
+        this.assetManagerFactory = assetManagerFactory;
+    }
+
+    interface AssetManagerFactory {
+        AssetManager create(FileHandleResolver resolver);
+    }
+
+    /**
+     * Selects the AssetManager used for Pixscape project/scene resources.
+     *
+     * <p>Configure this before {@link #loadProject(FileHandle)} or scene loading begins.
+     * A supplied manager is borrowed: Pixscape queues, gets, and unloads only the
+     * references it acquires, and never globally clears or disposes the manager. This
+     * permits application, splash, and Pixscape assets to share one normal LibGDX loading
+     * queue. Applications may instead keep independent managers. Passing {@code null}
+     * before loading restores the default internally owned manager behavior.</p>
+     *
+     * @param assetManager borrowed application manager, or {@code null} for an internal one
+     * @return this engine
+     */
+    public PixscapeEngine setAssetManager(AssetManager assetManager) {
+        if (assetManagerConfigurationLocked) {
+            throw new IllegalStateException(
+                    "AssetManager must be configured before Pixscape project/scene loading begins.");
+        }
+        this.suppliedAssetManager = assetManager;
+        return this;
+    }
+
+    /**
+     * Configures the existing general system extension point after Pixscape rendering.
+     *
+     * <p>This source-compatible method has the same phase and replacement semantics as
+     * {@link #setPostRenderSystemCustomizer(Consumer)}. Systems added by the most recent
+     * call to either method run after render submission and {@link games.pixscape.runtime.system.DirtyFlushSystem},
+     * but before the synchronous {@link World#process()} call returns.</p>
+     *
+     * <p>The callback must add fresh system instances on every invocation. Artemis systems
+     * belong to exactly one World and cannot be reused after that World is disposed.</p>
+     *
+     * @param customizer builder callback invoked while each application World is configured,
+     *                   or {@code null} to clear the post-render callback
+     * @return this engine
+     */
     public PixscapeEngine setConfigurationCustomizer(Consumer<WorldConfigurationBuilder> customizer) {
-        this.configurationCustomizer = customizer;
+        return setPostRenderSystemCustomizer(customizer);
+    }
+
+    /**
+     * Adds advanced render-integration systems after Pixscape core synchronization and
+     * before draw-list construction, sorting, Spatial composition, frame-queue extraction,
+     * and default or custom submission.
+     *
+     * <pre>
+     * core runtime sync
+     *     -&gt; pre-render custom systems
+     *     -&gt; draw-list build -&gt; sort -&gt; Spatial composition -&gt; queue extraction
+     *     -&gt; submit -&gt; dirty flush -&gt; post-render custom systems
+     * </pre>
+     *
+     * <p>The core synchronization already includes the normal sprite, tiled, and VFX
+     * authored-ECS-to-derived-state work for this frame. A pre-render system can affect the
+     * current frame when it intentionally produces data in the supported derived/frame
+     * render source structures consumed by the later pipeline. Mutating an ordinary authored
+     * component here does not rerun earlier synchronization systems and must not be assumed
+     * to update every derived structure in the same frame. This is not a general gameplay
+     * update hook.</p>
+     *
+     * <p>The callback is invoked while each candidate Artemis World is being configured.
+     * That candidate is not yet published by {@link #getWorld()}, which may still return the
+     * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
+     * argument to register fresh system instances. The project bootstrap World created by
+     * {@link #loadProject(FileHandle)} does not invoke application customizers. Setting this
+     * callback does not insert systems into an already-built
+     * World; it applies on the next
+     * runtime/scene World build.
+     * Added systems execute synchronously on the thread calling {@link #render()}, normally
+     * the LibGDX render thread; no thread-safety guarantee is provided.</p>
+     *
+     * @param customizer builder callback for pre-render systems, or {@code null} to clear it
+     * @return this engine
+     */
+    public PixscapeEngine setPreRenderSystemCustomizer(
+            Consumer<WorldConfigurationBuilder> customizer) {
+        this.preRenderSystemCustomizer = customizer;
+        return this;
+    }
+
+    /**
+     * Adds integration systems after render submission and dirty flushing, but before
+     * {@link World#process()} returns.
+     *
+     * <p>This phase is appropriate for overlays, diagnostics, picking, gizmos,
+     * application/editor integration, inspection, and mutations intended for a subsequent
+     * frame. Current-frame Pixscape queue extraction and submission are already complete;
+     * this hook must not be used to alter that submitted frame.</p>
+     *
+     * <p>The callback is invoked while each candidate Artemis World is being configured.
+     * That candidate is not yet published by {@link #getWorld()}, which may still return the
+     * previous World or {@code null}; use the callback's {@link WorldConfigurationBuilder}
+     * argument to register fresh system instances. Artemis systems belong to exactly one
+     * World and cannot be reused after disposal. The project bootstrap World created by
+     * {@link #loadProject(FileHandle)} does not invoke application customizers. This method and
+     * {@link #setConfigurationCustomizer(Consumer)} configure the same
+     * post-render callback slot, so the most recent call replaces the previous callback.
+     * Setting it does not insert systems into an already-built World; it applies on the next
+     * runtime/scene World build.
+     * Added systems execute synchronously on the thread calling {@link #render()}, normally
+     * the LibGDX render thread; no thread-safety guarantee is provided.</p>
+     *
+     * @param customizer builder callback for post-render systems, or {@code null} to clear it
+     * @return this engine
+     */
+    public PixscapeEngine setPostRenderSystemCustomizer(
+            Consumer<WorldConfigurationBuilder> customizer) {
+        this.postRenderSystemCustomizer = customizer;
+        return this;
+    }
+
+    /**
+     * Replaces Pixscape's default GPU submission system with an expert Artemis system.
+     *
+     * <p>Pixscape still performs synchronization, culling, draw-list construction, sorting,
+     * Spatial composition, and {@link games.pixscape.runtime.system.RenderExtractFrameQueueSystem}
+     * before the supplied system runs. The custom system runs after queue extraction and
+     * before dirty flushing. It owns submission of that frame's engine-owned
+     * {@link FrameRenderQueue}; Pixscape does not also run {@link RenderSubmitSystem}.</p>
+     *
+     * <p>The custom system is responsible for its GPU calls, any batch begin/end lifecycle,
+     * and any render-stat reporting it requires. Engine getters provide borrowed access to
+     * the queue, camera, layer state, internal {@link MetricsBatch}, and metrics; ownership
+     * remains with Pixscape, so the custom system must not dispose those objects.</p>
+     *
+     * <p>The supplier is invoked while each candidate World is configured and may be invoked
+     * again whenever scene/runtime lifecycle rebuilds the Artemis World. It must return a
+     * non-null system suitable for the new World; callers must not assume that one system
+     * instance can be reused across Worlds. The candidate World is not yet published through
+     * {@link #getWorld()} when configuration occurs. Systems execute synchronously during
+     * {@link #render()}, normally on the LibGDX render thread.</p>
+     *
+     * <p>Changing the supplier does not replace the submit system in an already-built World;
+     * the selection applies on the next runtime/scene World build.</p>
+     *
+     * <p>Passing {@code null} restores the default {@link RenderSubmitSystem} for subsequent
+     * World builds.</p>
+     *
+     * @param supplier supplier of a fresh custom submit system, or {@code null} for default submission
+     * @return this engine
+     */
+    public PixscapeEngine setRenderSubmitSystemSupplier(Supplier<BaseSystem> supplier) {
+        this.renderSubmitSystemSupplier = supplier;
         return this;
     }
 
@@ -148,6 +334,7 @@ public final class PixscapeEngine {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         this.userRootDir = userRootDir;
         this.runtimeProjectDir = userRootDir.child(RUNTIME_DIR_NAME);
+        ensureFileAvailability();
 
         if (loaded) return this;
 
@@ -167,7 +354,7 @@ public final class PixscapeEngine {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
-        initRuntime(cfg, runtimeProjectDir);
+        initRuntime(cfg, runtimeProjectDir, false);
 
         loaded = true;
 
@@ -175,35 +362,83 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Loads a scene and rebuilds world state for that scene.
+     * Loads a scene through the complete FILES, SCENE and RUNTIME readiness pipeline.
+     *
+     * <p>This is a blocking convenience where the platform can block. HTML cannot
+     * synchronously wait for outstanding lazy network downloads; use
+     * {@link #beginLoadScene(String)} there. On return, the scene is active and all
+     * known heavyweight Runtime preparation is complete.</p>
+     *
+     * <p>Loading uses the same pipeline as {@link #beginLoadScene(String)}. If failure occurs
+     * after scene construction starts, the failed candidate is discarded and no scene remains
+     * active; the previously active scene is not restored.</p>
+     *
+     * @param sceneName configured scene name; blank resolves through the current/default scene
+     * @return this engine after the requested scene is active and ready
+     * @throws IllegalArgumentException if the resolved scene is unknown
+     * @throws RuntimeException if file, scene, or Runtime preparation fails
      */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
-
-        String resolved = resolveSceneName(sceneName);
-        SceneMetaRuntime meta = cfg.getSceneMeta(resolved);
-        if (meta == null)
-            throw new IllegalArgumentException("Unknown scene: " + resolved);
-
-        FileHandle sceneFile = runtimeProjectDir
-                .child(cfg.scenesDir)
-                .child(RuntimeFs.withExt(RuntimeConfig.sceneDirName(meta), RuntimeFs.EXT_JSON));
-
-        rebuildWorld(cfg, runtimeProjectDir, meta);
-
-        loadSceneInternal(resolved);
-
-        sceneLoaded = true;
+        SceneLoadHandleImpl handle = (SceneLoadHandleImpl) beginLoadScene(sceneName);
+        handle.update();
+        if (isWebGlApplication() && handle.phase() == SceneLoadPhase.FILES
+                && !handle.isFailed()) {
+            IllegalStateException failure = new IllegalStateException(
+                    "HTML cannot synchronously wait for outstanding scene downloads. "
+                            + "Use beginLoadScene(...) and call SceneLoadHandle.update() "
+                            + "from the render loop.");
+            handle.fail(failure);
+        }
+        while (!handle.isReady() && !handle.isFailed()) handle.update();
+        if (handle.isFailed()) throwSceneLoadFailure(handle.failure());
         return this;
+    }
+
+    /**
+     * Starts a complete progressive scene load.
+     *
+     * <p>The operation includes exact file availability, scene construction and
+     * Runtime availability. Call {@link SceneLoadHandle#update()} from the normal
+     * application loop. Pixscape does not render a loading screen. This is the normal
+     * HTML path when scene resources require deferred network downloads.</p>
+     *
+     * <p>Only one non-terminal handle may exist at a time. The handle advances synchronously on
+     * the thread calling {@link SceneLoadHandle#update()}, normally the LibGDX render thread.
+     * Reaching {@link SceneLoadPhase#READY} means the requested scene has already been published
+     * as the active scene.</p>
+     *
+     * <p>Before the SCENE phase starts, a failure leaves any active scene untouched. Once scene
+     * construction starts, the old Runtime World is retired; a later failure discards the failed
+     * World and leaves the engine project-loaded with no active scene.</p>
+     *
+     * @param sceneName configured scene name; blank resolves through the current/default scene
+     * @return the new engine-owned load handle
+     * @throws IllegalStateException if the project is not loaded or another load is active
+     * @throws IllegalArgumentException if the resolved scene is unknown
+     */
+    public SceneLoadHandle beginLoadScene(String sceneName) {
+        if (!loaded) throw new IllegalStateException("loadProject() must be called before scene loading.");
+        if (activeSceneLoad != null
+                && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) {
+            throw new IllegalStateException("Another scene load is already active.");
+        }
+        String resolved = resolveSceneName(sceneName);
+        if (cfg.getSceneMeta(resolved) == null) {
+            throw new IllegalArgumentException("Unknown scene: " + resolved);
+        }
+        releasePendingSceneAvailability();
+        pendingSceneAvailability = new SceneAvailabilityPlan(
+                fileAvailability, cfg, runtimeProjectDir, resolved);
+        activeSceneLoad = new SceneLoadHandleImpl(pendingSceneAvailability);
+        return activeSceneLoad;
     }
 
     /**
      * Spawns an in-memory prefab fragment into the currently loaded scene.
      *
-     * <p>The fragment is deserialized into the active Artemis world. All spawned
-     * transforms are offset by {@code offsetX}/{@code offsetY}, spawned identities
-     * receive fresh stable IDs, and asset references are resolved against the
-     * currently loaded runtime atlases.</p>
+     * <p>The fragment is staged and validated before its prepared entities are
+     * published into the active Artemis world.</p>
      *
      * @param fragment prefab fragment to instantiate
      * @param offsetX  world-space X offset applied to spawned transforms
@@ -211,12 +446,19 @@ public final class PixscapeEngine {
      * @return result containing all created entity IDs
      * @throws IllegalStateException if no world is initialized
      */
-    public SpawnResult spawnPrefabFragment(SaveFileFormat fragment, float offsetX, float offsetY) {
-        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(identityRegistry);
-        SpawnResult result = spawner.spawn(world, fragment, offsetX, offsetY);
-        resolveAssetRefsForEntities(world, atlasRuntimeService, result.createdEntityIds());
-        return result;
+    public SpawnResult spawnPrefabFragment(
+            RuntimePrefabFragment fragment, float offsetX, float offsetY) {
+        if (world == null || !sceneLoaded) {
+            throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
+        }
+        if (activeSceneMeta == null) {
+            throw new IllegalStateException(
+                    "Active scene metadata is required to allocate physics shape IDs.");
+        }
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(
+                        identityRegistry, activeSceneMeta, atlasRuntimeService);
+        return spawner.spawn(world, fragment, offsetX, offsetY);
     }
 
     /**
@@ -245,10 +487,10 @@ public final class PixscapeEngine {
         }
 
         JsonValue root = new JsonReader().parse(fragmentFile);
-        JsonArtemisSerializer serializer = new JsonArtemisSerializer(world);
-        SaveFileFormat fragment = serializer.load(root, SaveFileFormat.class);
-
-        return spawnPrefabFragment(fragment, offsetX, offsetY);
+        RuntimePrefabFragmentSpawner spawner =
+                new RuntimePrefabFragmentSpawner(
+                        identityRegistry, activeSceneMeta, atlasRuntimeService);
+        return spawner.spawn(world, root, offsetX, offsetY);
     }
 
     private void rebuildWorld(RuntimeConfig config,
@@ -266,6 +508,7 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
+        identityRegistry.bind(null, null);
         if (world != null) {
             world.dispose();
             world = null;
@@ -302,28 +545,19 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         meta,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
         if (box2dSyncSystem != null) {
@@ -334,7 +568,12 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Updates ECS delta time; call once per frame before {@link #render()}.
+     * Sets the active Artemis World's delta time for the next processing pass.
+     *
+     * <p>This method does not call {@link World#process()} and does not by itself advance
+     * the complete Runtime simulation. Normal usage calls it once before {@link #render()}.</p>
+     *
+     * @param dt frame delta time in seconds
      */
     public void update(float dt) {
         if (world == null) return;
@@ -342,10 +581,47 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Processes the ECS world and flushes deferred atlas disposals.
+     * Synchronously processes the configured Artemis World and then flushes deferred atlas
+     * disposals.
+     *
+     * <p>Despite its name, this is more than a stateless GPU draw call. Depending on Runtime
+     * configuration, the {@link World#process()} pass includes physics/runtime systems,
+     * animation, geometry and render synchronization, culling, custom pre-render systems,
+     * draw-list construction, sorting, Spatial composition, frame-queue extraction,
+     * default or custom submission, dirty flushing, and custom post-render systems. All
+     * systems run synchronously on the calling thread, normally the LibGDX render thread;
+     * the engine and its render integration objects are not thread-safe.</p>
+     *
+     * <p>Ordinary LibGDX rendering does not require a system hook:</p>
+     * <pre>{@code
+     * engine.update(delta);
+     *
+     * // Optional application rendering before Pixscape.
+     * // Begin and end the application's own Batch normally.
+     *
+     * engine.render();
+     *
+     * // Optional application rendering after Pixscape.
+     * // Begin and end the application's own Batch normally.
+     * }</pre>
+     *
+     * <p>With default submission, Pixscape calls {@link MetricsBatch#begin} and
+     * {@link MetricsBatch#end} and the internal batch is ended before this method returns
+     * normally. Pixscape owns and closes that batch; callers must not dispose it. External
+     * callers own their separate LibGDX batches and may use them before or after Pixscape once
+     * each batch's own begin/end lifecycle is respected.</p>
+     *
+     * <p>Pixscape does not capture and restore the caller's complete OpenGL state. Submission
+     * binds shader programs and textures and changes blending; concrete internal batches may
+     * also select texture unit zero and change depth-mask state. Framebuffer, viewport,
+     * scissor, culling, depth state, and color mask are not preserved as a caller-state
+     * snapshot. External rendering after this call must establish every GL state it relies
+     * on rather than assuming the pre-Pixscape state was restored.</p>
      */
     public void render() {
         if (world == null) return;
+        if (activeSceneLoad != null
+                && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
         processWorld();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
@@ -353,7 +629,11 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Resizes the runtime camera viewport.
+     * Sets the borrowed Runtime camera's viewport dimensions and immediately calls
+     * {@link OrthographicCamera#update()}.
+     *
+     * <p>Pixscape does not own or dispose a camera supplied through
+     * {@link #setWorldCamera(OrthographicCamera)}.</p>
      */
     public void resize(int w, int h) {
         if (worldCamera != null) {
@@ -368,29 +648,68 @@ public final class PixscapeEngine {
      */
     public void dispose() {
         disposeWorldAndRuntime();
+        animationRegistry.clear();
+        releasePendingSceneAvailability();
+        releaseActiveSceneAvailability();
+        if (fileAvailability != null) {
+            fileAvailability.dispose();
+            fileAvailability = null;
+        }
 
         loaded = false;
         sceneLoaded = false;
+        activeSceneMeta = null;
+        activeSceneLoad = null;
+        assetManagerConfigurationLocked = false;
     }
 
+    /**
+     * Supplies the camera borrowed by subsequently built Runtime Worlds.
+     *
+     * <p>The configured engine field changes immediately, but systems in an already-built
+     * World retain the camera reference captured when that World was constructed. Configure
+     * the camera before runtime initialization or a World rebuild when possible; a late
+     * replacement is used by systems after the next World build and does not retroactively
+     * rewire existing systems. Pixscape keeps
+     * the reference rather than cloning it, does not dispose it, reads it during culling and
+     * rendering, and default submission calls {@link OrthographicCamera#update()}. The
+     * application may mutate the camera between frames; {@link #resize(int, int)} changes its
+     * viewport and updates it. Passing {@code null} allows a later build to create the default
+     * camera.</p>
+     *
+     * @param cam borrowed application camera, or {@code null} for a later default
+     * @return this engine
+     */
     public PixscapeEngine setWorldCamera(OrthographicCamera cam) {
         this.worldCamera = cam;
         return this;
     }
 
+    /** Returns the borrowed expert physics service for the current World, or {@code null}. */
     public Box2dWorldService getBox2dWorldService() {
         return box2dWorldService;
     }
 
+    /** Returns the borrowed expert physics synchronization system for the current World. */
     public Box2dSyncSystem getBox2dSyncSystem() {
         return box2dSyncSystem;
     }
 
+    /**
+     * Returns a borrowed mapper from the current World.
+     *
+     * @throws IllegalStateException if no World is active
+     */
     public <T extends Component> ComponentMapper<T> mapper(Class<T> type) {
         if (world == null) throw new IllegalStateException("World is not initialized.");
         return world.getMapper(type);
     }
 
+    /**
+     * Returns a borrowed system from the current World.
+     *
+     * @throws IllegalStateException if no World is active
+     */
     public <T extends BaseSystem> T system(Class<T> type) {
         if (world == null) throw new IllegalStateException("World is not initialized.");
         return world.getSystem(type);
@@ -491,8 +810,14 @@ public final class PixscapeEngine {
     // Getters
     // ---------------------------------------------------------------------
 
+    /** Returns the borrowed expert project configuration owned by this engine. */
     public RuntimeConfig config() {
         return cfg;
+    }
+
+    /** Returns borrowed metadata for the active scene, or {@code null} when none is active. */
+    public SceneMetaRuntime getActiveSceneMeta() {
+        return activeSceneMeta;
     }
 
     public FileHandle userRootDir() {
@@ -503,46 +828,116 @@ public final class PixscapeEngine {
         return runtimeProjectDir;
     }
 
+    /**
+     * Returns the borrowed current Artemis World, or {@code null} when no scene is active.
+     * Callers must reacquire it after scene replacement and must not dispose or process it.
+     */
     public World getWorld() {
         return world;
     }
 
+    /**
+     * Returns the camera borrowed by the current Runtime configuration.
+     *
+     * <p>This is the camera currently configured on the engine. After a late
+     * {@link #setWorldCamera(OrthographicCamera)} call, it can differ from the reference held
+     * by systems in an already-built World until the next World build. The application owns a
+     * supplied camera; Pixscape never disposes it. Pixscape reads captured camera references
+     * during core rendering and default submission updates them; callers must not assume
+     * exclusive mutation during {@link #render()}.</p>
+     */
     public OrthographicCamera getCamera() {
         return worldCamera;
     }
 
+    /**
+     * Returns the engine-owned derived SOA for synchronized dynamic ECS render sources.
+     *
+     * <p>Core synchronization writes it before the pre-render phase. Expert mutation is
+     * phase-sensitive and must preserve its invariants; it is not authored scene state.
+     * Reacquire it after scene/runtime World rebuilds, and never dispose it.</p>
+     */
     public DynamicEntityRenderState getDynamicEntityRenderState() {
         return dynamicEntityState;
     }
 
+    /**
+     * Returns engine-owned derived layer render state built from authored layer components.
+     *
+     * <p>It is current after core synchronization and is consumed by later render phases.
+     * Expert mutation is phase-sensitive. Reacquire it after lifecycle rebuilds and do not
+     * dispose it.</p>
+     */
     public LayerStateSOA getLayerState() {
         return layerState;
     }
 
+    /**
+     * Returns the engine-owned frame-local draw-list workspace.
+     *
+     * <p>Pixscape builds, sorts, and Spatially composes this list after pre-render systems,
+     * then extracts the frame queue from it. It is derived data, is reset each frame, and
+     * must not be retained as persistent scene state or disposed. Direct mutation outside
+     * the owning pipeline phases is unsupported.</p>
+     */
     public DrawList getDrawList() {
         return drawList;
     }
 
+    /**
+     * Returns the engine-owned, frame-local submit queue.
+     *
+     * <p>{@link games.pixscape.runtime.system.RenderExtractFrameQueueSystem} populates this
+     * derived queue after build, sort, and Spatial composition. A default or custom submit
+     * system sees it immediately after extraction. Its entries are not authored or persistent
+     * scene state and may change on every frame. Mutation is an expert, phase-sensitive
+     * operation; callers must not dispose the queue or retain entry assumptions across
+     * scene/runtime World rebuilds.</p>
+     */
     public FrameRenderQueue getFrameQueue() {
         return frameQueue;
     }
 
+    /**
+     * Returns the engine-owned frame-local VFX render-source SOA.
+     *
+     * <p>Core VFX synchronization clears and populates it before pre-render systems, and the
+     * draw-list pipeline consumes it afterward. Expert current-frame production is
+     * phase-sensitive. It is derived data; do not retain entries across frames/rebuilds or
+     * dispose it.</p>
+     */
     public VfxRenderState getVfxState() {
         return vfxState;
     }
 
+    /**
+     * Returns Pixscape's borrowed expert view of the engine-owned internal batch.
+     *
+     * <p>Default submission owns its begin/end lifecycle and the engine closes it during
+     * disposal. A custom submitter that elects to use it assumes responsibility for a correct
+     * per-frame begin/end sequence and must leave it ended before returning. Callers must not
+     * close or dispose it and should reacquire it after runtime reinitialization.</p>
+     */
     public MetricsBatch getMetricsBatch() {
         return metricsBatch;
     }
 
+    /**
+     * Returns engine-owned mutable metrics for the current rendering lifecycle.
+     *
+     * <p>Render systems update this derived diagnostic object. It is not scene state, is not
+     * thread-safe, may be replaced during runtime reinitialization, and must not be disposed.</p>
+     */
     public RenderStats getRenderStats() {
         return stats;
     }
 
+    /** Returns the borrowed expert rolling render-statistics sink owned by this engine. */
     public RenderStatsSink getRenderStatsSink() {
         return statsSink;
     }
 
+    /** Returns the borrowed expert atlas service; published atlas contents are lifecycle-bound. */
     public AtlasRuntimeService getAtlasRuntimeService() {
         return atlasRuntimeService;
     }
@@ -562,10 +957,33 @@ public final class PixscapeEngine {
     // Internal init / reset
     // ---------------------------------------------------------------------
 
+    private Supplier<BaseSystem> createRenderSubmitSystemSupplier() {
+        if (renderSubmitSystemSupplier != null) {
+            return renderSubmitSystemSupplier;
+        }
+        return createDefaultRenderSubmitSystemSupplier();
+    }
+
+    private Supplier<BaseSystem> createDefaultRenderSubmitSystemSupplier() {
+        return () -> new RenderSubmitSystem(
+                layerState,
+                frameQueue,
+                worldCamera,
+                ambientMulR,
+                ambientMulG,
+                ambientMulB,
+                metricsBatch,
+                stats,
+                statsSink
+        );
+    }
+
     /**
      * Disposes world and GPU-side runtime resources.
      */
     private void disposeWorldAndRuntime() {
+        identityRegistry.bind(null, null);
+
         // World first (systems may touch services)
         if (world != null) {
             world.dispose();
@@ -597,14 +1015,54 @@ public final class PixscapeEngine {
         stats = null;
         statsSink = null;
         defaultShaderName = null;
-        identityRegistry.bind(null);
         tagRegistry.bind(null);
+        ShaderRegistry.disposeAll();
+    }
+
+    private void discardFailedSceneLoad() {
+        sceneLoaded = false;
+        activeSceneMeta = null;
+        identityRegistry.bind(null, null);
+
+        if (box2dSyncSystem != null) {
+            box2dSyncSystem.setStepEnabled(false);
+            box2dSyncSystem.setEnabled(false);
+            box2dSyncSystem.setBox2d(null);
+        }
+        box2dSyncSystem = null;
+
+        if (world != null) {
+            world.dispose();
+            world = null;
+        }
+
+        if (box2dWorldService != null) {
+            box2dWorldService.dispose();
+            box2dWorldService = null;
+        }
+
+        tagRegistry.bind(null);
+
+        if (layerState != null) {
+            layerState.clear();
+            layerState.physicsParallaxX = Float.NaN;
+            layerState.physicsParallaxY = Float.NaN;
+        }
+
+        dynamicEntityState = new DynamicEntityRenderState();
+        drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
+
+        applyAmbientFromMeta(null);
     }
 
     /**
      * Fully initializes runtime resources and creates an empty world.
      */
-    private void initRuntime(RuntimeConfig config, FileHandle projectDir) {
+    private void initRuntime(
+            RuntimeConfig config, FileHandle projectDir, boolean includeApplicationSystems) {
         applyConfiguredLogLevel();
         disposeWorldAndRuntime();
 
@@ -613,7 +1071,7 @@ public final class PixscapeEngine {
 
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
-        ShaderRegistry.initDefaults(projectDir, config.shadersDir);
+        ShaderRegistry.initDefaults(platformTarget, projectDir, config.shadersDir);
 
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
@@ -638,7 +1096,13 @@ public final class PixscapeEngine {
         applyAmbientFromMeta(meta);
 
         int defaultShaderIdx = ShaderRegistry.indexOf(defaultShaderName);
-        FileHandle effectsRoot = resolveEffectsRoot(projectDir, config);
+        Supplier<BaseSystem> submitSupplier = includeApplicationSystems
+                ? createRenderSubmitSystemSupplier()
+                : createDefaultRenderSubmitSystemSupplier();
+        Consumer<WorldConfigurationBuilder> preRenderCustomizer = includeApplicationSystems
+                ? preRenderSystemCustomizer : null;
+        Consumer<WorldConfigurationBuilder> postRenderCustomizer = includeApplicationSystems
+                ? postRenderSystemCustomizer : null;
 
         WorldBootstrapResult result =
                 WorldConfigFactory.buildWorld(
@@ -653,28 +1117,19 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        submitSupplier,
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderCustomizer,
+                        postRenderCustomizer
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
         rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -692,9 +1147,11 @@ public final class PixscapeEngine {
      */
     public PixscapeEngine initEmptyRuntime() {
         applyConfiguredLogLevel();
+        disposeWorldAndRuntime();
+        animationRegistry.clear();
         this.cfg = new RuntimeConfig();
 
-        ShaderRegistry.initDefaults(null, null);
+        ShaderRegistry.initDefaults(platformTarget, null, null);
 
         if (worldCamera == null) {
             worldCamera = new OrthographicCamera();
@@ -735,28 +1192,19 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         null,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(null);
         rebuildRuntimeRegistries();
 
         logRuntimeInitialized(caps);
@@ -775,9 +1223,11 @@ public final class PixscapeEngine {
         if (dynamicEntityState == null || layerState == null || drawList == null || frameQueue == null || vfxState == null
                 || tiledState == null
                 || metricsBatch == null || stats == null || statsSink == null) {
-            initRuntime(config, projectDir);
+            initRuntime(config, projectDir, true);
             return;
         }
+
+        identityRegistry.bind(null, null);
 
         SceneMetaRuntime meta = config.getCurrentSceneMeta();
         applyAmbientFromMeta(meta);
@@ -797,28 +1247,19 @@ public final class PixscapeEngine {
                         defaultShaderIdx,
                         atlasRuntimeService,
                         effectsRoot,
-                        () -> new RenderSubmitSystem(
-                                layerState,
-                                frameQueue,
-                                worldCamera,
-                                ambientMulR,
-                                ambientMulG,
-                                ambientMulB,
-                                metricsBatch,
-                                stats,
-                                statsSink
-                        ),
+                        createRenderSubmitSystemSupplier(),
                         null,
                         0,
                         animatedTileRegistry,
+                        animationRegistry,
                         tilesetProfiles,
                         systemProfiler,
-                        null,
-                        configurationCustomizer
+                        preRenderSystemCustomizer,
+                        postRenderSystemCustomizer
                 );
 
         world = result.getWorld();
-        bindRuntimeRegistries();
+        bindRuntimeRegistries(meta);
         rebuildRuntimeRegistries();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
@@ -837,36 +1278,159 @@ public final class PixscapeEngine {
     // Scene loading
     // ---------------------------------------------------------------------
 
-    private void loadSceneInternal(String sceneName) {
-        if (world == null) return;
-        if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
-
-        String resolvedName = resolveSceneName(sceneName);
-        SceneMetaRuntime meta = cfg.getSceneMeta(resolvedName);
-        if (meta == null) throw new IllegalArgumentException("Unknown scene: " + resolvedName);
-
-        String sceneTag = RuntimeConfig.sceneDirName(meta);
-        if (sceneTag == null || isBlank(sceneTag)) {
-            throw new IllegalStateException("Cannot resolve logical scene name for: " + resolvedName);
+    private void constructScene(SceneAvailabilityPlan candidate) {
+        if (candidate == null || !candidate.isComplete()) {
+            throw new IllegalStateException("Scene file availability is not complete.");
         }
-        applyPhysicsFromScene(meta);
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        sceneLoaded = false;
+        activeSceneMeta = null;
+        rebuildWorld(cfg, runtimeProjectDir, meta);
+        retireActiveSceneAvailability();
 
-        FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir).child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON));
+        FileHandle sceneFile = runtimeProjectDir.child(cfg.scenesDir)
+                .child(RuntimeFs.withExt(candidate.sceneTag(), RuntimeFs.EXT_JSON));
+        SceneLoader.loadScene(world, sceneFile, false, meta);
+        SceneLoadingInvocationStrategy invocation =
+                (SceneLoadingInvocationStrategy) world.getInvocationStrategy();
+        invocation.synchronizeEntitySubscriptions();
+    }
 
-        SceneLoader.loadScene(world, sceneFile, false);
-        processWorld();
+    private void prepareSceneRuntime(
+            SceneAvailabilityPlan candidate, int step) {
+        if (world == null) throw new IllegalStateException("Candidate World is unavailable.");
+        if (cfg == null) throw new IllegalStateException("loadProject() must be called before loadScene().");
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        if (meta == null) throw new IllegalArgumentException(
+                "Unknown scene: " + candidate.sceneName());
 
+        switch (step) {
+            case 0:
+                rebuildRuntimeRegistries();
+                rebuildTiledLayersRuntime(meta);
+                RuntimeSceneAtlasLoader.loadSceneAtlas(
+                        cfg,
+                        candidate.sceneName(),
+                        runtimeProjectDir,
+                        atlasRuntimeService,
+                        candidate.atlas());
+                rebindAtlas(candidate.sceneTag());
+                forceFullDirtyAfterLoad();
+                return;
+            case 1:
+                requireSystem(RenderParticleSyncSystem.class)
+                        .prepareRuntimeAvailability(
+                                candidate.sceneTag(), meta.runtimeParticleEffectPaths);
+                return;
+            case 2:
+                requireSystem(RenderTiledSyncSystem.class)
+                        .prepareRuntimeAvailability();
+                return;
+            case 3:
+                preparePhysicsRuntime(meta);
+                return;
+            case 4:
+                preparePersistentRenderAndRegistries();
+                return;
+            default:
+                throw new IllegalArgumentException("Unknown Runtime availability step: " + step);
+        }
+    }
+
+    private void preparePhysicsRuntime(SceneMetaRuntime meta) {
+        PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
+        applyPhysicsFromScene(meta, false);
+        PhysicsSpatialFootprintSyncSystem footprints =
+                requireSystem(PhysicsSpatialFootprintSyncSystem.class);
+        footprints.prepareRuntimeAvailability();
+        if (meta.physicsEnabled) {
+            box2dSyncSystem.prepareRuntimeAvailability();
+        }
+    }
+
+    private void preparePersistentRenderAndRegistries() {
+        requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
+        requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
+        requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
-        rebuildTiledLayersRuntime(meta);
+        requireSystem(DirtyFlushSystem.class).finishRuntimeAvailability();
+    }
 
-        RuntimeSceneAtlasLoader.loadSceneAtlas(
-                cfg,
-                resolvedName,
-                runtimeProjectDir,
-                atlasRuntimeService
-        );
-        rebindAtlas(sceneTag);
-        forceFullDirtyAfterLoad();
+    private void publishReadyScene(SceneAvailabilityPlan candidate) {
+        SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
+        if (meta.physicsEnabled) {
+            box2dSyncSystem.setStepEnabled(true);
+        }
+        activeSceneAvailability = candidate;
+        pendingSceneAvailability = null;
+        activeSceneMeta = meta;
+        cfg.currentSceneName = candidate.sceneName();
+        sceneLoaded = true;
+    }
+
+    private void failSceneLoad(
+            SceneAvailabilityPlan candidate, boolean constructionStarted) {
+        if (constructionStarted) {
+            discardFailedSceneLoad();
+            if (atlasRuntimeService != null && candidate != null) {
+                atlasRuntimeService.unload(candidate.sceneTag());
+            }
+            retireActiveSceneAvailability();
+        }
+        releasePendingSceneAvailability();
+    }
+
+    private <T extends BaseSystem> T requireSystem(Class<T> type) {
+        T system = world != null ? world.getSystem(type) : null;
+        if (system == null) {
+            throw new IllegalStateException(
+                    "Required Runtime availability system is missing: " + type.getName());
+        }
+        return system;
+    }
+
+    private void ensureFileAvailability() {
+        assetManagerConfigurationLocked = true;
+        if (fileAvailability != null) return;
+        if (suppliedAssetManager != null) {
+            fileAvailability = new FileAvailabilityService(suppliedAssetManager, false);
+        } else {
+            final FileHandle projectRoot = runtimeProjectDir;
+            FileHandleResolver resolver = new FileHandleResolver() {
+                @Override
+                public FileHandle resolve(String fileName) {
+                    String normalized = FileAvailabilityService.normalizePath(fileName);
+                    String rootPath = FileAvailabilityService.normalizePath(projectRoot.path());
+                    if (normalized.equals(rootPath)) return projectRoot;
+                    String prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
+                    if (normalized.startsWith(prefix)) {
+                        return projectRoot.child(normalized.substring(prefix.length()));
+                    }
+                    return Gdx.files.internal(normalized);
+                }
+            };
+            fileAvailability = new FileAvailabilityService(assetManagerFactory.create(resolver), true);
+        }
+    }
+
+    private void retireActiveSceneAvailability() {
+        if (activeSceneAvailability == null) return;
+        if (atlasRuntimeService != null) {
+            atlasRuntimeService.unload(activeSceneAvailability.sceneTag());
+        }
+        releaseActiveSceneAvailability();
+    }
+
+    private void releaseActiveSceneAvailability() {
+        if (activeSceneAvailability == null) return;
+        activeSceneAvailability.release();
+        activeSceneAvailability = null;
+    }
+
+    private void releasePendingSceneAvailability() {
+        if (pendingSceneAvailability == null) return;
+        pendingSceneAvailability.release();
+        pendingSceneAvailability = null;
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
@@ -972,7 +1536,6 @@ public final class PixscapeEngine {
         if (atlas == null) {
             throw new IllegalStateException("No atlas loaded for scene: " + sceneTag);
         }
-        atlasRuntimeService.clearRegionCache();
         AtlasRuntimeService.TextureArrayBundle previous = atlasRuntimeService.bundle(sceneTag);
         AtlasRuntimeService.TextureArrayBundle bundle = atlasRuntimeService.rebuildBundle(sceneTag);
 
@@ -982,11 +1545,6 @@ public final class PixscapeEngine {
 
         if (atlasRuntimeService != null && previous != null && previous != bundle) {
             atlasRuntimeService.deferDispose(previous);
-        }
-
-        AnimationSystem animationSystem = world.getSystem(AnimationSystem.class);
-        if (animationSystem != null) {
-            animationSystem.clearBindingCache();
         }
 
         rebuildSceneAssets(sceneTag);
@@ -1034,80 +1592,38 @@ public final class PixscapeEngine {
             TextureRegionComponent tr = mTR.get(e);
             RenderMaterialComponent mat = mMat.get(e);
 
-            if (src.assetId < 0)
+            if (src.assetId <= 0)
                 throw new IllegalStateException(
-                        "AssetRef entity without assetId during rebuild: e=" + e);
+                        "AssetRef assetId must be > 0 during rebuild: e=" + e
+                                + ", got " + src.assetId);
 
             String atlasTag = src.atlasTag;
             if (isBlank(atlasTag)) {
                 throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
             }
 
-            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
+            AtlasAssetBinding binding =
+                    atlasRuntimeService.resolveBinding(src.assetId, atlasTag);
 
-            if (region == null) {
+            if (binding == null) {
                 tr.valid = false;
                 mat.textureHandle = 0;
                 continue;
             }
+            AtlasRegionMetadata region = binding.metadata();
 
-            tr.u1 = region.u1;
-            tr.v1 = region.v1;
-            tr.u2 = region.u2;
-            tr.v2 = region.v2;
-            tr.pixW = region.pixW;
-            tr.pixH = region.pixH;
+            tr.u1 = region.u1();
+            tr.v1 = region.v1();
+            tr.u2 = region.u2();
+            tr.v2 = region.v2();
+            tr.pixW = region.pixelWidth();
+            tr.pixH = region.pixelHeight();
             tr.valid = true;
 
-            mat.textureHandle = region.textureHandle;
+            mat.textureHandle = region.textureHandle();
 
             if (dirty != null) {
                 dirty.material(e);
-            }
-        }
-    }
-
-    static void resolveAssetRefsForEntities(World world, AtlasRuntimeService atlasRuntimeService, IntBag entityIds) {
-        if (world == null || atlasRuntimeService == null || entityIds == null || entityIds.isEmpty()) return;
-
-        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
-        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-
-        for (int i = 0; i < entityIds.size(); i++) {
-            int e = entityIds.get(i);
-
-            AssetRefComponent src = mSrc.getSafe(e, null);
-            TextureRegionComponent tr = mTR.getSafe(e, null);
-            RenderMaterialComponent mat = mMat.getSafe(e, null);
-            if (src == null || tr == null || mat == null) continue;
-
-            if (src.assetId < 0) {
-                throw new IllegalStateException("AssetRef entity without assetId during prefab resolve: e=" + e);
-            }
-            String atlasTag = src.atlasTag;
-            if (isBlank(atlasTag)) {
-                throw new IllegalStateException("AssetRef atlasTag not set for entity " + e);
-            }
-
-            AtlasRuntimeService.CachedRegion region = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
-            if (region == null) {
-                tr.valid = false;
-                mat.textureHandle = 0;
-            } else {
-                tr.u1 = region.u1;
-                tr.v1 = region.v1;
-                tr.u2 = region.u2;
-                tr.v2 = region.v2;
-                tr.pixW = region.pixW;
-                tr.pixH = region.pixH;
-                tr.valid = true;
-                mat.textureHandle = region.textureHandle;
-            }
-
-            if (dirty != null) {
-                dirty.mark(e, DirtyBits.MATERIAL | DirtyBits.GEOMETRY | DirtyBits.LAYER | DirtyBits.ORDER);
             }
         }
     }
@@ -1136,7 +1652,7 @@ public final class PixscapeEngine {
         ambientMulB = meta.ambientMulB;
     }
 
-    private void applyPhysicsFromScene(SceneMetaRuntime meta) {
+    private void applyPhysicsFromScene(SceneMetaRuntime meta, boolean activate) {
         if (box2dSyncSystem == null) {
             Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: box2dSyncSystem missing");
             return;
@@ -1145,12 +1661,23 @@ public final class PixscapeEngine {
         if (meta == null || !meta.physicsEnabled) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
+            if (activate && box2dWorldService != null) {
+                if (box2dWorldService.world != null
+                        && (box2dWorldService.world.getBodyCount() != 0
+                        || box2dWorldService.world.getJointCount() != 0)) {
+                    throw new IllegalStateException(
+                            "Cannot dispose Box2D before native physics teardown.");
+                }
+                box2dSyncSystem.setBox2d(null);
+                box2dWorldService.dispose();
+                box2dWorldService = null;
+            }
             Gdx.app.debug(PHYSICS_LOG_TAG, "applyPhysicsFromScene: physics disabled (meta=" + (meta != null) + ")");
             return;
         }
 
+        float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
         if (box2dWorldService == null || box2dWorldService.isDisposed() || box2dWorldService.world == null) {
-            float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
             box2dWorldService = new Box2dWorldService(
                     ppm,
                     new Vector2(meta.gravityX, meta.gravityY),
@@ -1158,15 +1685,22 @@ public final class PixscapeEngine {
             );
             box2dSyncSystem.setBox2d(box2dWorldService);
         } else {
-            float ppm = meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
             box2dWorldService.setPpm(ppm);
             box2dWorldService.setGravity(meta.gravityX, meta.gravityY);
             box2dWorldService.setDoSleep(meta.doSleep);
         }
+        PhysicsSpatialFootprintSyncSystem footprintSync =
+                world.getSystem(PhysicsSpatialFootprintSyncSystem.class);
+        if (footprintSync == null) {
+            throw new IllegalStateException(
+                    "PhysicsSpatialFootprintSyncSystem is required "
+                            + "to apply scene pixelsPerMeter.");
+        }
+        footprintSync.setPixelsPerMeter(ppm);
 
         box2dSyncSystem.setSceneMeta(meta);
-        box2dSyncSystem.setEnabled(true);
-        box2dSyncSystem.setStepEnabled(true);
+        box2dSyncSystem.setEnabled(activate);
+        box2dSyncSystem.setStepEnabled(activate);
         Gdx.app.debug(
                 PHYSICS_LOG_TAG,
                 "applyPhysicsFromScene: enabled ppm=" + meta.pixelsPerMeter
@@ -1203,8 +1737,8 @@ public final class PixscapeEngine {
         );
     }
 
-    private void bindRuntimeRegistries() {
-        identityRegistry.bind(world);
+    private void bindRuntimeRegistries(SceneMetaRuntime sceneMeta) {
+        identityRegistry.bind(world, sceneMeta);
         tagRegistry.bind(world);
     }
 
@@ -1238,6 +1772,115 @@ public final class PixscapeEngine {
         }
 
         return true;
+    }
+
+    private static boolean isWebGlApplication() {
+        return Gdx.app != null
+                && Gdx.app.getType() == Application.ApplicationType.WebGL;
+    }
+
+    private static void throwSceneLoadFailure(Throwable failure) {
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        if (failure instanceof Error) {
+            throw (Error) failure;
+        }
+        throw new RuntimeException("Scene loading failed.", failure);
+    }
+
+    private final class SceneLoadHandleImpl implements SceneLoadHandle {
+        private static final int RUNTIME_STEP_COUNT = 5;
+        private final SceneAvailabilityPlan candidate;
+        private SceneLoadPhase phase = SceneLoadPhase.FILES;
+        private float progress;
+        private int runtimeStep;
+        private Throwable failure;
+        private boolean constructionStarted;
+
+        private SceneLoadHandleImpl(SceneAvailabilityPlan candidate) {
+            this.candidate = candidate;
+        }
+
+        @Override
+        public void update() {
+            if (isReady() || isFailed()) return;
+            try {
+                switch (phase) {
+                    case FILES:
+                        boolean available = candidate.update();
+                        setProgress(0.60f * candidate.progress());
+                        if (available) {
+                            phase = SceneLoadPhase.SCENE;
+                            setProgress(0.60f);
+                        }
+                        return;
+                    case SCENE:
+                        constructionStarted = true;
+                        constructScene(candidate);
+                        phase = SceneLoadPhase.RUNTIME;
+                        setProgress(0.70f);
+                        return;
+                    case RUNTIME:
+                        prepareSceneRuntime(candidate, runtimeStep);
+                        runtimeStep++;
+                        setProgress(0.70f + 0.29f
+                                * ((float) runtimeStep / (float) RUNTIME_STEP_COUNT));
+                        if (runtimeStep == RUNTIME_STEP_COUNT) {
+                            publishReadyScene(candidate);
+                            phase = SceneLoadPhase.READY;
+                            progress = 1f;
+                        }
+                        return;
+                    case READY:
+                        return;
+                    default:
+                        throw new IllegalStateException("Unknown scene load phase: " + phase);
+                }
+            } catch (RuntimeException loadFailure) {
+                fail(loadFailure);
+            }
+        }
+
+        private void fail(Throwable loadFailure) {
+            if (failure != null || phase == SceneLoadPhase.READY) return;
+            failure = loadFailure != null
+                    ? loadFailure : new IllegalStateException("Scene loading failed.");
+            try {
+                failSceneLoad(candidate, constructionStarted);
+            } catch (RuntimeException ignoredCleanupFailure) {
+                // Preserve the original failure exposed by the public handle.
+            }
+        }
+
+        private void setProgress(float value) {
+            if (value > progress) progress = Math.min(value, 0.99f);
+        }
+
+        @Override
+        public float progress() {
+            return progress;
+        }
+
+        @Override
+        public SceneLoadPhase phase() {
+            return phase;
+        }
+
+        @Override
+        public boolean isReady() {
+            return phase == SceneLoadPhase.READY && failure == null;
+        }
+
+        @Override
+        public boolean isFailed() {
+            return failure != null;
+        }
+
+        @Override
+        public Throwable failure() {
+            return failure;
+        }
     }
 
     public boolean isLoaded() {
