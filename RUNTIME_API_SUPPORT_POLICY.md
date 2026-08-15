@@ -1,10 +1,6 @@
 # Pixscape Runtime API Support Policy
 
-Policy date: 2026-08-08
-
-## 1. Executive policy
-
-Pixscape Runtime exposes three support levels:
+Pixscape Runtime exposes three API support levels:
 
 ```text
 HIGH_LEVEL
@@ -12,351 +8,207 @@ SUPPORTED_EXPERT
 INTERNAL
 ```
 
-The high-level API is the normal gameplay surface. The supported expert API deliberately preserves
-Artemis, LibGDX, Box2D, rendering, diagnostics, loading, and tooling escape hatches. Internal
-implementation types remain free to evolve even when Java visibility makes them technically
-accessible.
+These levels describe which parts of the Runtime are intended for application developers, how much compatibility they provide, and which parts remain free to evolve with the implementation.
 
-Java `public` is therefore necessary for both supported layers but is not, by itself, a support or
-compatibility promise. Classification follows intended use, lifecycle contract, and sustainable
-extension value rather than package name or technical depth.
+Java visibility alone does not define the supported API. A `public` class may still be an internal Runtime detail when public visibility is required by Artemis, serialization, tooling, testing, or other technical constraints.
 
-The policy objective is:
+Support levels describe API compatibility and maintenance intent. They do not define a support SLA or a commercial support commitment.
 
-```text
-simple high-level API
-+ deliberately powerful expert API
-+ implementation freedom underneath
-```
-
-## 2. The three API levels
+## 1. API levels
 
 ### `HIGH_LEVEL`
 
-The high-level API is intended for ordinary game development. It is discoverable from
-`PixscapeEngine` and `PixscapeAPI`, uses facades/factories/refs, and has documented identity,
-absence, failure, ownership, and mutation behavior. Ordinary use should not require knowledge of
-component aspects, dirty bits, render slots, SOA stores, compiler caches, or system order.
+`HIGH_LEVEL` is the primary API for normal game development.
 
-This level includes the engine's normal lifecycle and the domain APIs under
-`games.pixscape.runtime.api`, except the explicitly expert `ECSAPI` and the internal
-`PixscapeApiImpl`. Some high-level types contain expert overloads or getters; those members inherit
-the expert contract stated in their own Javadocs rather than promoting their returned internals to
-high-level status.
+It includes `PixscapeEngine`, `PixscapeAPI`, scene loading, entity and asset references, and the domain APIs exposed through `games.pixscape.runtime.api`.
+
+The high-level API is designed to hide Runtime implementation details such as render storage, synchronization systems, dirty tracking, compiler caches, and internal ECS state.
+
+Use this level whenever it provides the functionality you need.
 
 ### `SUPPORTED_EXPERT`
 
-The supported expert API is intended for experienced LibGDX/Artemis users, custom renderers,
-tooling, diagnostics, and advanced gameplay systems. It is intentionally public and supported. It
-may expose authored ECS layout, borrowed native/derived objects, phase ordering, allocation
-constraints, or stronger preconditions.
+`SUPPORTED_EXPERT` provides deliberate access to lower-level Runtime features for experienced LibGDX and Artemis users.
 
-Expert support is not “use at your own risk.” Pixscape treats these integration points seriously,
-but preserves less structural compatibility than for high-level facades. Lifecycle, ownership,
-authored-versus-derived authority, and observable integration semantics are the contract; every
-mutable field or implementation class is not automatically frozen.
+Typical expert use includes:
+
+- custom Artemis systems and ECS access;
+- authored component access;
+- custom render integration;
+- diagnostics and profiling;
+- advanced physics integration;
+- native Box2D access;
+- Tiled and Spatial tooling or queries;
+- Runtime loaders, registries, compilers, and authoring tools intended for extension.
+
+These APIs are supported integration points, not accidental implementation leaks.
+
+They may expose stronger lifecycle, ownership, ordering, mutation, or performance constraints than the high-level API. Their documented behavior is part of the contract, but their internal layout may evolve more freely.
 
 ### `INTERNAL`
 
-Internal implementation types express pipeline choreography, transient caches, atomic-publication
-candidates, renderer construction, synchronization bookkeeping, or other replaceable machinery.
-They may remain Java-public for Artemis, serialization, testing, first-party tooling, or package
-access reasons, but they are not consumer compatibility contracts.
+`INTERNAL` covers replaceable Runtime implementation machinery.
 
-External code can technically reference them; such use is outside the supported API and may require
-changes on any Runtime upgrade. `INTERNAL` is a support classification, not an instruction to change
-visibility in this policy pass.
+This includes, for example:
 
-## 3. Stability and compatibility expectations
+- synchronization and pipeline systems;
+- temporary or derived render storage;
+- cache and publication intermediates;
+- renderer construction details;
+- internal loading and preparation machinery;
+- implementation-specific Spatial, Tiled, physics, and rendering helpers.
 
-Before Runtime 1.0, all three levels may receive deliberate breaking changes. High-level changes
-should already be requirement-driven, documented, and tested; expert changes should identify
-lifecycle or migration impact; internal changes need no external compatibility shim.
+Some of these types are Java-public for technical or first-party tooling reasons. That does not make them part of the supported compatibility API.
 
-After 1.0:
+Applications may technically reference them, but such code can require changes on any Runtime upgrade.
 
-| Level | Compatibility expectation |
+## 2. Compatibility
+
+Before Runtime 1.0, breaking changes may still occur in supported APIs while the architecture matures.
+
+Changes to `HIGH_LEVEL` APIs should be kept deliberate, documented, and limited to cases where the design genuinely needs to evolve.
+
+Changes to `SUPPORTED_EXPERT` APIs may occur more often, especially when required by architecture or performance work. When they affect a documented integration point, the change should be called out and migration guidance provided when practical.
+
+`INTERNAL` APIs carry no compatibility guarantee.
+
+After Runtime 1.0:
+
+| Level | Compatibility |
 |---|---|
-| `HIGH_LEVEL` | Strongest SemVer surface. Preserve source and documented behavior whenever reasonably possible. Normally deprecate before removal and provide migration guidance for unavoidable breaks. |
-| `SUPPORTED_EXPERT` | Compatibility is taken seriously, especially lifecycle, ownership, phase, and integration behavior. Architecture- or performance-driven breaks may occur, but must be intentional, called out in release notes, and accompanied by practical migration guidance when feasible. Exact mutable layouts receive a weaker promise than named expert boundaries. |
-| `INTERNAL` | Excluded from compatibility guarantees. Types may be renamed, moved, reshaped, or removed between releases, regardless of Java visibility. |
+| `HIGH_LEVEL` | Strongest SemVer compatibility. Deprecation should normally precede removal, and unavoidable breaking changes should include migration guidance. |
+| `SUPPORTED_EXPERT` | Documented integration behavior is maintained seriously, but structural changes remain possible when justified. |
+| `INTERNAL` | No compatibility guarantee. Types may be renamed, moved, changed, or removed between releases. |
 
-SemVer should describe supported API, not every accessible class file. A change to an internal type
-is not automatically a public API break; a silent break to a supported expert integration point is
-not automatically acceptable merely because the type is low-level.
+Semantic versioning applies to the supported API, not to every Java-public class in the Runtime.
 
-## 4. Current public surface classification
+## 3. Main supported boundaries
 
-The following inventory groups types only where they share a real policy. Member-level exceptions
-are explicit.
+The following table summarizes the intended API surface. It is not an exhaustive class inventory; Javadoc on individual types or members may define more specific rules.
 
-| Type / package / family | Current visibility | Support level | Why | Compatibility expectation | Action before 1.0 |
-|---|---|---|---|---|---|
-| `PixscapeEngine`, `PixscapeAPI`, `SceneLoadHandle`, `SceneLoadPhase` | Public | `HIGH_LEVEL` | Primary lifecycle, progressive scene loading, and gameplay entry points | Strongest | Link this policy; document one-engine rule on `PixscapeEngine` |
-| Domain APIs, refs, facades, and views in `runtime.api` (`Assets`, `Entities`, sprites, animations, particles, prefabs, Tiled, Spatial, physics, transform, order, shader, light) | Public | `HIGH_LEVEL` | Normal safe gameplay path | Strongest | Keep facade/failure rules as design policy |
-| `PlatformTarget`, `SpawnResult` | Public | `HIGH_LEVEL` | Normal configuration/result values | Strongest | Normal Javadoc maintenance |
-| `ECSAPI`; `PixscapeEngine.getWorld/mapper/system` | Public | `SUPPORTED_EXPERT` | Canonical Artemis escape hatch for custom systems and components | Serious expert compatibility | Add one concise expert-boundary reference |
-| `PixscapeEngine` pre/post customizers and submit-system supplier | Public | `SUPPORTED_EXPERT` | Deliberate phase and submission integration points | Preserve phase/ownership semantics | Already strong; link from policy/docs |
-| `PixscapeApiImpl` | Public | `INTERNAL` | Engine-owned facade implementation; consumers should use cached interfaces | None | Add internal-status Javadoc; consider visibility separately after consumer check |
-| `RuntimeConfig`, `SceneMetaRuntime` | Public | `SUPPORTED_EXPERT` | Mutable lifecycle/authored configuration needed by tools and advanced bootstrap | Preserve schema meaning more strongly than layout | Document mutation/build timing |
-| `RuntimeProjectIO`, `SceneLoader`, public prefab/animation DTOs and loader results | Public | `SUPPORTED_EXPERT` | Legitimate import/export and first-party/third-party tooling surface | Intentional changes with migration | Separate DTO/schema guarantees from loader implementation |
-| `WorldConfigFactory`, `RuntimeSceneAtlasLoader`, `RuntimePrefabFragmentSpawner` | Public | `INTERNAL` | Engine bootstrap/loading choreography now has supported engine hooks/facades | None | Mark internal; do not move yet |
-| `FileAvailabilityService`, `SceneAvailabilityPlan`, `ParticleRuntimeAvailability`, and resource-availability preparation machinery | Public or implementation-visible | `INTERNAL` | Requesting, retaining, preparing, invalidating, and releasing resources implement the supported `PixscapeEngine` / `SceneLoadHandle` / `SceneLoadPhase.READY` contract | None | Keep implementation machinery out of the supported consumer surface |
-| `IdentityRegistry`, `TagRegistry`, animation/tile-animation registries, `AtlasRuntimeService` and its binding/index metadata, `ShaderRegistry` | Public and exposed by engine | `SUPPORTED_EXPERT` | Legitimate indexed lookup, tooling, and custom-render integration | Preserve lookup/lifecycle contracts; layouts may evolve | Strengthen borrowed/rebuild/thread Javadocs |
-| `TextureRegistry`, `ShaderSourcePreprocessor`, atlas index builders | Public | `INTERNAL` | Resource-loading implementation rather than the supported lookup boundary | None | Mark internal after checking first-party tooling |
-| Profiling package and `RenderStats`/`RenderStatsSink` | Public | `SUPPORTED_EXPERT` | Deliberate diagnostics and profiling extension surface | Preserve metric meaning where documented | Document reset/lifetime/thread behavior |
-| `PhysicsService` authoring/query operations | Public | `SUPPORTED_EXPERT` | Complete advanced ECS physics authoring/tooling service | Preserve authored semantics and atomicity | Identify its internal preparation/publication members in Javadoc |
-| `Box2dWorldService`, `Box2dSyncSystem` | Public and exposed by engine | `SUPPORTED_EXPERT` | Intentional low-level physics lifecycle/configuration access | Preserve lifecycle and rebuild contract | Cross-reference `PhysicsAPI`; document borrowing/ownership |
-| `PhysicsAPI` borrowed Box2D `World`/`Body` results | Public bridge to native types | `HIGH_LEVEL` bridge; native API is standard expert use | Safe acquisition without hiding LibGDX/Box2D power | Preserve null/lifetime semantics | No wrapper hierarchy needed |
-| Physics authored data, validators, polygon tools, and compiler results | Public | `SUPPORTED_EXPERT` | Legitimate custom authoring, validation, import, and diagnostics | Intentional changes with migration | Document authored units and ownership |
-| Prepared physics candidates and cache publishers | Public | `INTERNAL` | Atomic-publication transaction intermediates | None | Mark internal; visibility change only in later task |
-| Tiled logical data, chunks, flags/packing helpers, animation definitions/lookup, and tileset profiles | Public | `SUPPORTED_EXPERT` | Advanced map tooling, queries, import, and runtime extensions | Preserve logical semantics; storage layout may evolve | Document mutation/dirty and frame/rebuild rules |
-| Tiled animation resolver/state-sync helpers | Public | `INTERNAL` | Playback/synchronization implementation behind facades and definitions | None | Mark internal |
-| Spatial authored data, query service/results, `SpatialStructureCompiler`, `CompiledSpatialStructure`, and stable geometry diagnostics | Public | `SUPPORTED_EXPERT` | Useful advanced Spatial queries and Studio/tooling compilation without a fork | Preserve authored/compiled semantics; migration for structural breaks | Document allocation and immutable/borrowed result contracts |
-| Spatial cache owners, planners, collectors, composers, frame builders, ordering kernels, and runtime registries | Public | `INTERNAL` | Replaceable implementation-specific pipeline intermediates | None | Mark obvious families internal; retain compiled outputs/query services |
-| `ParticleEffect`, `ParticleEmitter`, `ParticleEffectPool` | Public | `SUPPORTED_EXPERT` | Deliberate LibGDX-compatible effect authoring/tooling surface used by Runtime and Studio extraction | Preserve `.p`, pooling, and documented borrowed-storage semantics; structural evolution remains possible | Keep fork provenance and expert ownership constraints explicit |
-| Pure public geometry/color/parallax/tile helpers | Public | `SUPPORTED_EXPERT` when domain-neutral | Useful allocation-aware building blocks for tools/custom systems | Preserve documented calculation semantics | Add docs only where ownership/units are unclear |
-| `RuntimeFs` and engine-specific construction helpers | Public | `INTERNAL` | Loading/bootstrap convenience rather than a durable integration boundary | None | Mark internal if no public tool contract is declared |
-
-## 5. Components classification
-
-Artemis support requires a deliberate authored-component expert layer. Component support is based
-on authority, not merely on the `component` package.
-
-| Component family | Classification | Contract |
-|---|---|---|
-| Authored gameplay/render state: `TransformComponent`, `DimensionsComponent`, `AssetRefComponent`, `AnimationComponent`, particle emitter/overrides, visibility, tint, repeat, layer/index/parallax, identity/tag, light components | `SUPPORTED_EXPERT` | Experts may inspect and deliberately mutate authored state, then follow required validation and dirty/invalidation rules. High-level facades remain preferred for ordinary use. |
-| Authored physics body/shapes/joint components and their authored data | `SUPPORTED_EXPERT` | ECS is authoritative. Mutations must use valid IDs/units and trigger the documented rebuild/dirty lifecycle. Native objects are derived. |
-| Authored Spatial blocks/shapes/height components | `SUPPORTED_EXPERT` | Authored data is authoritative; compiled faces, footprints, and ordering are derived. Atomic publication and identity rules apply. |
-| `TiledLayerComponent` and its logical `TiledMapLayerData` | `SUPPORTED_EXPERT` | Advanced tools may inspect/mutate logical map state while preserving chunk dirty and registry contracts. |
-| `RenderMaterialComponent` | `SUPPORTED_EXPERT`, mixed authority | Shader/blend selection is authored expert state; transient texture/debug bindings are derived and caller read/write compatibility is not promised. |
-| `AABBComponent`, `OrientedBoundsComponent` | `SUPPORTED_EXPERT` read/diagnostic view | Bounds are useful to custom systems, but engine systems own derivation. Direct writes are phase-sensitive and unsupported unless a documented extension phase says otherwise. |
-| `TextureRegionComponent`, `PhysicsCompiledFixturesComponent`, runtime body/joint components, `SpatialPhysicsFootprintComponent` | `INTERNAL` | These are transient synchronization/cache storage. Use `AssetRegionRef`, `PhysicsAPI`, native bridges, stable compiler results, or frame queues instead. |
-
-Support for an authored component does not freeze every public field forever. Its authored meaning,
-serialization role, units, identity rules, and mutation propagation are the expert contract.
-Derived fields embedded in an otherwise supported component must be explicitly labeled.
-
-Directly changing a `ParticleEmitterComponent` effect identity after `SceneLoadPhase.READY` does not
-authorize Runtime resource acquisition or preparation. The referenced particle resource must
-already belong to the prepared scene availability set. First-party tooling may explicitly rebuild
-availability at an authoring publication boundary.
-
-## 6. Systems classification
-
-Public Artemis visibility does not make every core system an extension point.
-
-| System / family | Support level | Reason |
-|---|---|---|
-| User-supplied `BaseSystem` instances registered through pre/post hooks | `SUPPORTED_EXPERT` | Deliberate custom-system integration contract |
-| `DirtyTrackerSystem` and its dirty/submask constants | `SUPPORTED_EXPERT` | Required propagation bridge for expert authored ECS mutation |
-| `Box2dSyncSystem` | `SUPPORTED_EXPERT` | Intentionally exposed physics enable/step/rebuild coordination |
-| `SpatialRenderOrderSystem` public query/diagnostic methods | `SUPPORTED_EXPERT` | Provides effective participation and ordering diagnostics; construction remains pipeline-owned |
-| `PhysicsMouseDragSystem` | `SUPPORTED_EXPERT` | Optional, configurable gameplay/tooling integration used by the demo |
-| Animation, geometry, layer-build, culling, parallax, Tiled/VFX/sprite sync, Spatial-footprint sync | `INTERNAL` | Core authored-to-derived synchronization choreography; `RenderParticleSyncSystem` availability/preparation machinery is not a supported consumer extension point |
-| Draw-list build/sort, queue extraction, default `RenderSubmitSystem`, `DirtyFlushSystem` | `INTERNAL` | Replaceable pipeline stages; the supported boundary is hooks plus `FrameRenderQueue`/custom submission |
-
-System lookup remains technically available for all Artemis systems. For internal systems, lookup is
-useful for Runtime tests and first-party diagnostics but does not promise constructor, order,
-enable/disable, or state compatibility. The authoritative built-in order remains an architecture
-contract for Runtime maintainers; it does not turn every stage into consumer API.
-
-## 7. Render / Physics / Tiled / Spatial expert boundaries
-
-**Render.** `setPreRenderSystemCustomizer(...)`, `setPostRenderSystemCustomizer(...)`, and
-`setRenderSubmitSystemSupplier(...)` are supported expert integration points. `FrameRenderQueue`,
-source-domain/kind metadata, `MetricsBatch`, render stats, profiling, `DynamicEntityRenderState`,
-`VfxRenderState`, and `LayerStateSOA` are supported borrowed expert objects with their documented
-phase and rebuild constraints. The queue is the standard custom-submission contract. `DrawList`,
-`TiledMapRenderState`, concrete mesh batches/factories, `RenderContext`, `InternalTextures`, and the
-individual build/sort/extract/submit implementations remain internal; exposing one supported queue
-does not freeze the renderer underneath it.
-
-**Physics.** `PhysicsAPI` is the high-level bridge and its Box2D `World`/`Body` values are borrowed
-native objects. Authored physics ECS, `PhysicsService`, `Box2dWorldService`, `Box2dSyncSystem`, shape
-identity/validation/compiler utilities, and polygon tooling are supported expert surfaces. Runtime
-native components, compiled-cache components, candidate containers, and cache publishers are
-internal. Experts should acquire native objects through `PhysicsAPI` rather than couple to runtime
-component storage.
-
-**Tiled.** Facades are high-level. Logical map data, chunks, flags, animation definitions/lookups,
-and tileset profiles are supported expert tooling/query surfaces. Chunk mutation must honor dirty
-and playback rules. Render-state SOAs and synchronization helpers are internal; custom rendering
-consumes `FrameRenderQueue` instead of raw tiled render storage.
-
-**Spatial.** Facades are high-level. Authored blocks/shapes/volumes, `SpatialQueryService`, stable
-query/result types, the deterministic structure compiler, compiled structures, and their indexed
-diagnostics are supported expert surfaces. Compiled footprints, layer cache owners, broad-phase
-grids, planners, actor collectors/sorters, snapshot builders, relation solvers used only by the
-pipeline, and draw-list composers are internal. This preserves advanced Spatial work without
-freezing every optimization intermediate.
-
-## 8. Lifecycle and one-engine contract
-
-Pixscape supports **one active `PixscapeEngine` per application / LibGDX graphics context**. A
-Runtime application may rebuild the engine's Artemis `World`, load another scene, or otherwise use
-the supported lifecycle on that engine. World replacement is supported: entity and typed refs are
-bound to World/entity generations and become stale safely.
-
-Running multiple independent engines simultaneously against the same LibGDX graphics context is
-outside the supported contract. Static/shared shader, texture, GL, and application services are not
-designed as isolated per-engine namespaces. This policy does not forbid disposing one engine and
-later creating another; it does not promise concurrent isolation or make cross-engine refs valid.
-
-The authoritative wording should live in `PixscapeEngine` class Javadoc. This policy and README
-should link to it rather than duplicate lifecycle details. No static-service redesign is justified
-for unsupported simultaneous engines.
-
-Borrowed engine-owned objects must be reacquired after documented scene/Runtime rebuilds when their
-Javadocs require it. Runtime APIs and built-in systems execute synchronously on the thread calling
-the lifecycle methods, normally the LibGDX render thread; no general thread-safety guarantee exists.
-
-### READY and Runtime Availability
-
-Direct scene dependencies and explicitly declared Runtime Availability resources are acquired
-before `SceneLoadPhase.READY`. Resource types requiring persistent Runtime preparation are also
-prepared before READY. After READY, normal gameplay consumes prepared resources and does not
-implicitly load or prepare undeclared scene resources. A resource intended for dynamic gameplay
-use must therefore be declared through Runtime Availability unless it is already a direct scene
-dependency.
-
-Deferred transport is distinct from gameplay lazy loading. Platform transport, including GWT
-delivery, may defer and progressively acquire a declared resource during `SceneLoadHandle`
-processing, but `SceneLoadPhase.READY` still waits for its acquisition and required preparation.
-The guarantee concerns resource acquisition and persistent preparation, not the elimination of all
-later CPU or GPU work; normal gameplay operations such as prefab entity instantiation and
-deserialization may still perform their intrinsic work.
-
-Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring publication
-such as atlas replacement. This is a first-party authoring publication boundary, not normal Runtime
-gameplay loading behavior.
-
-## 9. External consumer evidence
-
-The current `tiled-iso-demo` uses the intended layering:
-
-| Direct usage | Classification | Assessment |
-|---|---|---|
-| `PixscapeEngine`, `PixscapeAPI`, entity/animation/particle/physics facades | `HIGH_LEVEL` | Normal gameplay path |
-| `loadProject(...)`, `beginLoadScene(...)`, `SceneLoadHandle` | `HIGH_LEVEL` | Canonical progressive loading path, validated through `SceneLoadPhase.READY` |
-| Native Box2D forces, velocities, queries, contacts reached through `PhysicsAPI` | `SUPPORTED_EXPERT` native integration | Deliberate LibGDX/Box2D use |
-| Custom Artemis control/follow/trigger systems and `PixscapeIdentityComponent` mappers | `SUPPORTED_EXPERT` | Legitimate expert ECS gameplay |
-| `setPostRenderSystemCustomizer(...)` | `SUPPORTED_EXPERT` | Correct named phase for next-frame gameplay/custom systems |
-| `PhysicsMouseDragSystem` and `engine.getLayerState()` | `SUPPORTED_EXPERT` | Optional expert system plus borrowed derived layer state; lifecycle coupling should be documented |
-
-No `tiled-iso-demo` dependency was found on a type classified `INTERNAL`. In particular, ordinary
-demo physics no longer maps runtime-body components or accesses synchronization services.
-
-The locally available Studio sources use many supported authored components, services, registries,
-loaders, compilers, and diagnostics, confirming real tooling value in the expert layer. They also
-reference internal candidates such as prepared physics candidates, Spatial cache owners, concrete
-render construction/state types, `InternalTextures`, and sync systems. Studio is first-party
-tooling that can co-evolve with Runtime and may use the explicit authoring publication boundary;
-those dependencies and authoring behavior do not create a third-party compatibility promise, but
-releases must coordinate them before internal changes land. Some Studio source hits are
-historical/stale names, so this policy does not treat every textual import as a current supported
-dependency.
-
-## 10. Documentation mechanism
-
-Use the lightest maintainable mechanism:
-
-1. Keep this document as the authoritative support-level policy and link it from README/consumer
-   documentation.
-2. Put focused Javadoc on `PixscapeEngine`, expert entry methods, and individually important expert
-   types. Javadoc is where ownership, phase, lifetime, and invalidation are most useful in an IDE.
-3. Add the short internal statement from this policy to obvious public internal types during a
-   focused documentation batch.
-4. Use `package-info.java` only for genuinely homogeneous packages. Current `api`, `component`,
-   `system`, `render`, `service`, `physics`, `spatial`, and `tiled` packages intentionally mix
-   levels, so a package-wide label would mislead.
-
-Do not add `@ExpertApi`/`@InternalApi` now. Annotations would repeat a still-maturing per-type table,
-provide no enforcement by themselves, and add maintenance noise across a large mixed surface. Add
-lightweight Java 8/GWT-compatible annotations later only if release tooling, generated API reports,
-or compatibility checks will consume them. Do not perform broad package moves merely to encode
-support status.
-
-For internal-but-public types, use this consistent sentence:
-
-> Runtime implementation detail. Public Java visibility does not make this type part of the
-> supported compatibility API.
-
-## 11. Recommended pre-1.0 cleanup
-
-| Priority | Action |
+| Area | Level |
 |---|---|
-| `P0` | None. No correctness blocker was found in the support-policy pass. |
-| `P1_BEFORE_1_0` | Publish/link this policy and make `PixscapeEngine` Javadoc the authority for the one-active-engine rule. |
-| `P1_BEFORE_1_0` | Add/complete expert Javadocs for ECS/dirty tracking, render hooks and borrowed states, `PhysicsService`/Box2D lifecycle, registries, Tiled mutation, and Spatial compiler/query boundaries. |
-| `P1_BEFORE_1_0` | Mark the most obvious public internal types consistently: `PixscapeApiImpl`, render construction/context/internal textures, pipeline systems, prepared physics/cache publishers, Tiled sync helpers, and Spatial cache/planner/composer families. |
-| `COMPLETE` | Classify standalone particle effect/emitter/pool types as `SUPPORTED_EXPERT`; preserve `.p`, pooling, and Runtime/Studio extraction contracts. |
-| `COMPLETE` | Define and enforce `SceneLoadPhase.READY` / Runtime Availability gameplay loading semantics. |
-| `P1_BEFORE_1_0` | Audit active Studio dependencies before changing internal visibility; coordinate first-party migrations without promoting implementation types to supported API. |
-| `P2_BEFORE_1_0` | Reduce `PhysicsMouseDragSystem`'s manual `LayerStateSOA` wiring if a simple self-binding path exists; current expert use remains supported. |
-| `P2_BEFORE_1_0` | Add field-level authored/derived notes to mixed components such as `RenderMaterialComponent`. |
-| `DEFER` | Support annotations, broad package reorganization, immutable diagnostic snapshots, and visibility changes without a demonstrated compatibility/tooling benefit. |
-| `DROP` | Making everything outside `runtime.api` internal; treating every public class as supported; mass package moves; redesigning shared services for simultaneous engines. |
+| `PixscapeEngine`, `PixscapeAPI`, scene lifecycle and loading handles | `HIGH_LEVEL` |
+| Domain APIs, facades, factories, refs and views under `runtime.api` | `HIGH_LEVEL` |
+| `ECSAPI` and direct Artemis World/component/system access exposed by the engine | `SUPPORTED_EXPERT` |
+| Custom system and render integration hooks exposed by `PixscapeEngine` | `SUPPORTED_EXPERT` |
+| Authored ECS components and authored physics, Tiled and Spatial data | `SUPPORTED_EXPERT` |
+| Registries, diagnostics, profiling and supported query/compiler tools | `SUPPORTED_EXPERT` |
+| Native Box2D objects obtained through supported Runtime APIs | `SUPPORTED_EXPERT` |
+| Supported particle authoring and pooling types | `SUPPORTED_EXPERT` |
+| Pipeline synchronization systems, transient caches and derived Runtime storage | `INTERNAL` |
+| Renderer construction and implementation-specific render state | `INTERNAL` |
+| Resource preparation, cache publication and other engine choreography | `INTERNAL` |
 
-## 12. Consumer-facing policy text
+A supported type can contain individual members with a different contract. In particular, a high-level API may expose an expert getter or native object without making the returned implementation high-level.
 
-> Pixscape Runtime exposes three API levels.
->
-> **`HIGH_LEVEL`** is the primary surface for normal game development. It provides the strongest
-> source and behavioral compatibility promise through `PixscapeEngine`, `PixscapeAPI`, and the
-> documented domain facades, factories, refs, and lifecycle methods.
->
-> **`SUPPORTED_EXPERT`** is intended for advanced LibGDX/Artemis integration, custom rendering,
-> tooling, diagnostics, and native Box2D access. These APIs are deliberately public and supported,
-> but expose lower-level ownership, phase, lifetime, and performance constraints and may evolve
-> more often than the high-level API.
->
-> **`INTERNAL`** includes replaceable Runtime machinery. Some internal types remain
-> Java-public for technical or first-party integration reasons, but they are not compatibility
-> contracts and may change between releases.
->
-> Scene loading defines a resource-readiness boundary. Direct scene dependencies and Runtime
-> Availability resources are acquired and prepared before `SceneLoadPhase.READY`. Normal gameplay
-> does not implicitly load undeclared resources after READY. Deferred platform transport during
-> loading, including GWT delivery, does not change this guarantee.
->
-> High-level convenience does not remove expert access. Use the highest-level API that meets the
-> need, and cross into the expert layer deliberately when lower-level control is required.
+## 4. ECS and component access
 
-## 13. Expert API documentation checklist
+Pixscape intentionally keeps Artemis available as an expert extension layer.
 
-For each supported expert type, document only the applicable items:
+Authored components may be inspected and deliberately modified by expert code. Such changes must respect the documented validation, dirty/invalidation, identity, unit, and lifecycle rules.
 
-- whether the data is authored, derived, frame-local, native, or diagnostic;
-- who owns it, who may mutate it, and who disposes it;
-- lifetime and whether it must be reacquired after World/scene/engine rebuild;
-- expected thread and pipeline phase/order;
-- mutation publication, dirty/invalidation, and failure semantics;
-- units, identifier domain, and identity/reuse rules where relevant;
-- borrowed versus copied results and retention rules;
-- allocation/complexity or hot-path restrictions when material;
-- which high-level API should be preferred for ordinary use.
+Authored state and derived Runtime state are not equivalent.
 
-Not every type needs every item. A small precise contract is better than restating implementation
-details that are free to change.
+For example:
 
-## 14. Final recommendations
+- authored transform, animation, physics, Tiled, Spatial, visibility, tint, layer, identity, and similar gameplay state can form part of the expert API;
+- runtime bodies, compiled fixture caches, texture-region synchronization state, render caches, and similar derived data remain implementation details.
 
-Adopt the three-level policy now. Treat the high-level facade/failure architecture as complete and
-avoid another convenience-API project. Preserve the ECS, authored data, native physics, render
-integration, diagnostics, compiler/query, and tooling boundaries as deliberate expert power while
-labeling replaceable pipeline machinery as internal support-wise.
+A component being public does not imply that every field is caller-owned or safe to mutate.
 
-The standalone particle implementation trio is `SUPPORTED_EXPERT`: it retains the familiar
-LibGDX effect/emitter/pool model for tooling and preview while Pixscape adds its allocation-free
-Runtime/Studio extraction bridge. Public mutable storage is borrowed, emitter-owned state rather
-than caller-owned persistent data.
+When a high-level facade exists, it remains the preferred API for ordinary gameplay code.
 
-Before 1.0, prioritize communication over refactoring: publish this policy, document the one-engine
-contract, strengthen the few major expert boundaries, mark obvious internals, and coordinate
-first-party Studio dependencies. Do not add annotations or move packages until a concrete tool or
-compatibility workflow benefits from them.
+## 5. Expert lifecycle and ownership
 
-The finalized scene-loading boundary is an architectural rule: before `SceneLoadPhase.READY`, the
-Runtime acquires declared resources and performs required persistent preparation; after READY,
-normal gameplay uses that prepared state rather than initiating resource loading or preparation.
+Expert APIs may expose borrowed, native, frame-local, or engine-owned objects.
+
+Their Javadocs define the applicable rules, including:
+
+- ownership and mutation rights;
+- lifetime;
+- rebuild or invalidation behavior;
+- required pipeline phase;
+- thread expectations;
+- dirty or publication requirements;
+- borrowed versus copied results;
+- allocation or hot-path constraints where relevant.
+
+Borrowed Runtime objects should not be assumed to survive a World, scene, renderer, physics, or other documented rebuild.
+
+Runtime lifecycle methods and built-in systems execute synchronously on the calling thread, normally the LibGDX render thread. Pixscape Runtime does not provide a general thread-safety guarantee.
+
+## 6. Rendering
+
+High-level rendering behavior is accessed through the normal Pixscape APIs.
+
+Advanced rendering remains intentionally extensible. The engine's documented pre/post system hooks, custom submission integration, render queue access, diagnostics, and supported borrowed render state form the expert boundary.
+
+Internal draw-list construction, sorting, synchronization, renderer construction, concrete batching machinery, and other pipeline stages are not compatibility contracts.
+
+Supporting custom rendering does not require freezing the renderer's internal architecture.
+
+## 7. Physics
+
+`PhysicsAPI` is the normal bridge from gameplay code to Runtime physics.
+
+It may return borrowed native Box2D objects such as `World` and `Body`. Using those objects directly is supported expert integration and follows normal Box2D rules together with Pixscape's documented lifecycle constraints.
+
+Authored physics ECS data, supported physics authoring/query services, validation tools, and compiler utilities also belong to the expert surface.
+
+Runtime body components, compiled caches, preparation candidates, and publication machinery remain internal.
+
+Native objects should normally be acquired through supported APIs rather than by coupling application code to Runtime storage components.
+
+## 8. Tiled and Spatial
+
+High-level Tiled and Spatial functionality is exposed through their normal Runtime APIs.
+
+For expert tooling and custom systems, supported surfaces include authored logical data and documented query, compiler, definition, lookup, and diagnostic types.
+
+Derived render storage, synchronization helpers, cache owners, planners, collectors, ordering intermediates, and similar pipeline implementation details remain internal.
+
+Expert mutation of authored data must follow the documented dirty, rebuild, identity, and playback rules.
+
+## 9. Engine lifecycle
+
+Pixscape supports **one active `PixscapeEngine` per application / LibGDX graphics context**.
+
+An application may rebuild the engine's Artemis `World`, load another scene, or otherwise use the supported lifecycle on that engine.
+
+Disposing an engine and later creating another is supported.
+
+Running multiple independent Pixscape engines concurrently against the same LibGDX graphics context is outside the supported contract.
+
+Entity references, typed references, borrowed ECS objects, render state, physics objects, and other derived objects may become stale after the corresponding World, scene, or Runtime rebuild. Reacquire them as documented.
+
+The `PixscapeEngine` Javadoc is the authoritative reference for engine lifecycle details.
+
+## 10. Scene readiness and Runtime Availability
+
+`SceneLoadPhase.READY` is the Runtime resource-readiness boundary.
+
+Before READY, direct scene dependencies and resources declared through Runtime Availability are acquired. Resource types requiring persistent Runtime preparation are also prepared before the scene becomes ready.
+
+After READY, normal gameplay uses prepared resources and does not implicitly load or prepare undeclared scene resources.
+
+Resources intended for dynamic gameplay use must therefore either:
+
+- already be direct scene dependencies; or
+- be declared through Runtime Availability.
+
+Platform delivery may itself be asynchronous or progressive. This includes GWT resource delivery. That does not change the READY contract: the scene becomes ready only after the required declared resources have been acquired and prepared.
+
+READY does not mean that every later gameplay operation is free of CPU or GPU work. Operations such as prefab instantiation or deserialization still perform their normal runtime work.
+
+First-party authoring tools such as Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring change. That behavior is separate from normal gameplay resource loading.
+
+## 11. Choosing an API level
+
+Use the highest-level API that meets the requirement.
+
+Move into `SUPPORTED_EXPERT` when direct ECS, LibGDX, Box2D, rendering, tooling, diagnostics, or other lower-level integration provides a real benefit.
+
+Avoid dependencies on `INTERNAL` types in application code.
+
+Pixscape deliberately keeps powerful expert access available without turning every implementation detail into a permanent compatibility obligation.
