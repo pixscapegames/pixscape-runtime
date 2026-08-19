@@ -41,6 +41,14 @@ public interface EntityRef {
     LightFacade light();
 
     /**
+     * Returns a non-null, read-only view of this entity's custom properties.
+     *
+     * <p>An entity without custom properties, or a stale entity reference, behaves like an empty
+     * property set.</p>
+     */
+    CustomProperties properties();
+
+    /**
      * Spatial render-order settings for this entity.
      */
     SpatialEntityFacade spatial();

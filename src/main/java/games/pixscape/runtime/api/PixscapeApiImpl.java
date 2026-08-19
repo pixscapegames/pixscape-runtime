@@ -22,6 +22,8 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
@@ -803,6 +805,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private ParticleFacade particles;
         private ShaderFacade shader;
         private LightFacade light;
+        private CustomProperties properties;
         private SpatialEntityFacade spatial;
         private RenderOrderFacade renderOrder;
 
@@ -869,6 +872,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public CustomProperties properties() {
+            if (properties == null) properties = new CustomPropertiesImpl(handle);
+            return properties;
+        }
+
+        @Override
         public SpatialEntityFacade spatial() {
             if (spatial == null) spatial = new SpatialEntityFacadeImpl(sceneLayers, handle);
             return spatial;
@@ -892,6 +901,90 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public void remove() {
             World world = handle.world();
             if (world != null) world.delete(handle.entityId);
+        }
+    }
+
+    static final class CustomPropertiesImpl implements CustomProperties {
+        private final EntityHandle handle;
+
+        CustomPropertiesImpl(EntityHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public int size() {
+            PropertySet properties = properties();
+            return properties != null ? properties.size() : 0;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return size() == 0;
+        }
+
+        @Override
+        public boolean contains(String name) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null && properties.contains(name);
+        }
+
+        @Override
+        public PropertyType typeOf(String name) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null ? properties.typeOf(name) : null;
+        }
+
+        @Override
+        public String getString(String name, String fallback) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null ? properties.getString(name, fallback) : fallback;
+        }
+
+        @Override
+        public boolean getBoolean(String name, boolean fallback) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null ? properties.getBoolean(name, fallback) : fallback;
+        }
+
+        @Override
+        public int getInt(String name, int fallback) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null ? properties.getInt(name, fallback) : fallback;
+        }
+
+        @Override
+        public float getFloat(String name, float fallback) {
+            requirePropertyName(name);
+            PropertySet properties = properties();
+            return properties != null ? properties.getFloat(name, fallback) : fallback;
+        }
+
+        private PropertySet properties() {
+            World world = handle.world();
+            if (world == null) return null;
+            CustomPropertiesComponent component = world
+                    .getMapper(CustomPropertiesComponent.class)
+                    .getSafe(handle.entityId, null);
+            return component != null ? component.properties : null;
+        }
+
+        private static void requirePropertyName(String name) {
+            if (name == null) {
+                throw new IllegalArgumentException("Property name must not be null.");
+            }
+            if (name.length() == 0) {
+                throw new IllegalArgumentException("Property name must not be empty.");
+            }
+            for (int i = 0; i < name.length(); i++) {
+                if (!Character.isWhitespace(name.charAt(i))) return;
+            }
+            throw new IllegalArgumentException(
+                    "Property name must not contain only whitespace.");
         }
     }
 
