@@ -924,42 +924,36 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean contains(String name) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null && properties.contains(name);
         }
 
         @Override
         public PropertyType typeOf(String name) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null ? properties.typeOf(name) : null;
         }
 
         @Override
         public String getString(String name, String fallback) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null ? properties.getString(name, fallback) : fallback;
         }
 
         @Override
         public boolean getBoolean(String name, boolean fallback) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null ? properties.getBoolean(name, fallback) : fallback;
         }
 
         @Override
         public int getInt(String name, int fallback) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null ? properties.getInt(name, fallback) : fallback;
         }
 
         @Override
         public float getFloat(String name, float fallback) {
-            requirePropertyName(name);
             PropertySet properties = properties();
             return properties != null ? properties.getFloat(name, fallback) : fallback;
         }
@@ -973,19 +967,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return component != null ? component.properties : null;
         }
 
-        private static void requirePropertyName(String name) {
-            if (name == null) {
-                throw new IllegalArgumentException("Property name must not be null.");
-            }
-            if (name.length() == 0) {
-                throw new IllegalArgumentException("Property name must not be empty.");
-            }
-            for (int i = 0; i < name.length(); i++) {
-                if (!Character.isWhitespace(name.charAt(i))) return;
-            }
-            throw new IllegalArgumentException(
-                    "Property name must not contain only whitespace.");
-        }
     }
 
     static final class RenderOrderFacadeImpl implements RenderOrderFacade {

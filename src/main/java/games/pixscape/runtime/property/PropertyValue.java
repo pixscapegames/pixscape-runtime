@@ -88,6 +88,22 @@ public final class PropertyValue {
         return copy;
     }
 
+    String stringValue() {
+        return stringValue;
+    }
+
+    boolean booleanValue() {
+        return booleanValue;
+    }
+
+    int integerValue() {
+        return integerValue;
+    }
+
+    float floatValue() {
+        return floatValue;
+    }
+
     void validateState() {
         if (type == null) {
             throw new IllegalStateException("Property value type must not be null.");
@@ -102,7 +118,6 @@ public final class PropertyValue {
     }
 
     private void requireType(PropertyType expected) {
-        validateState();
         if (type != expected) {
             throw new IllegalStateException(
                     "Property value has type " + type + ", not " + expected + ".");

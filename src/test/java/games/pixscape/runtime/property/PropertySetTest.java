@@ -1,7 +1,10 @@
 package games.pixscape.runtime.property;
 
+import com.badlogic.gdx.utils.ObjectMap;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.lang.reflect.Field;
 
 public class PropertySetTest {
     @Test
@@ -120,6 +123,62 @@ public class PropertySetTest {
         Assert.assertEquals(20, copy.getInt("damage", 0));
     }
 
+    @Test
+    public void defaultAndKnownSizeConstructionAvoidOversizedObjectMapAllocation()
+            throws Exception {
+        int libGdxDefaultCapacity = backingCapacity(new ObjectMap<String, PropertyValue>());
+
+        PropertySet empty = new PropertySet();
+        PropertySet knownSize = new PropertySet(3)
+                .putString("a", "one")
+                .putBoolean("b", true)
+                .putInt("c", 3);
+
+        Assert.assertTrue(backingCapacity(empty) < libGdxDefaultCapacity);
+        Assert.assertTrue(backingCapacity(knownSize) < libGdxDefaultCapacity);
+        Assert.assertEquals(3, knownSize.size());
+    }
+
+    @Test
+    public void copyUsesCapacityBasedOnSourceSize() throws Exception {
+        PropertySet source = new PropertySet(2)
+                .putString("name", "source")
+                .putInt("damage", 20);
+
+        PropertySet copy = source.copy();
+
+        Assert.assertTrue(backingCapacity(copy)
+                < backingCapacity(new ObjectMap<String, PropertyValue>()));
+        Assert.assertEquals("source", copy.getString("name", ""));
+        Assert.assertEquals(20, copy.getInt("damage", 0));
+    }
+
+    @Test
+    public void negativeExpectedSizeIsRejected() {
+        try {
+            new PropertySet(-1);
+            Assert.fail("Expected negative size to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("negative"));
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void copyRejectsCorruptedSourceInsteadOfPublishingPartialState() throws Exception {
+        PropertySet source = new PropertySet().putInt("valid", 1);
+        Field values = PropertySet.class.getDeclaredField("values");
+        values.setAccessible(true);
+        ((ObjectMap<String, PropertyValue>) values.get(source)).put("broken", null);
+
+        try {
+            new PropertySet().copyFrom(source);
+            Assert.fail("Expected corrupted source to fail validation");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("broken"));
+        }
+    }
+
     private static void assertInvalidName(String name) {
         try {
             new PropertySet().putInt(name, 1);
@@ -136,5 +195,19 @@ public class PropertySetTest {
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains("finite"));
         }
+    }
+
+    private static int backingCapacity(Object owner) throws Exception {
+        ObjectMap<?, ?> map;
+        if (owner instanceof PropertySet) {
+            Field values = PropertySet.class.getDeclaredField("values");
+            values.setAccessible(true);
+            map = (ObjectMap<?, ?>) values.get(owner);
+        } else {
+            map = (ObjectMap<?, ?>) owner;
+        }
+        Field keyTable = ObjectMap.class.getDeclaredField("keyTable");
+        keyTable.setAccessible(true);
+        return ((Object[]) keyTable.get(map)).length;
     }
 }

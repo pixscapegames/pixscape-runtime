@@ -11,9 +11,21 @@ import com.badlogic.gdx.utils.ObjectMap;
  * property is absent and throw when an existing property has a different type.</p>
  */
 public final class PropertySet {
-    private ObjectMap<String, PropertyValue> values = new ObjectMap<String, PropertyValue>();
+    private ObjectMap<String, PropertyValue> values;
 
     public PropertySet() {
+        this(0);
+    }
+
+    /**
+     * Creates an empty property set sized for the expected authored property count.
+     */
+    public PropertySet(int expectedSize) {
+        if (expectedSize < 0) {
+            throw new IllegalArgumentException(
+                    "Expected property count must not be negative: " + expectedSize + ".");
+        }
+        values = new ObjectMap<String, PropertyValue>(expectedSize);
     }
 
     public PropertySet(PropertySet source) {
@@ -21,16 +33,15 @@ public final class PropertySet {
     }
 
     public int size() {
-        return values().size;
+        return values.size;
     }
 
     public boolean isEmpty() {
-        return values().size == 0;
+        return values.size == 0;
     }
 
     public boolean contains(String name) {
-        requireName(name);
-        return values().containsKey(name);
+        return values.containsKey(name);
     }
 
     /**
@@ -47,7 +58,8 @@ public final class PropertySet {
             throw new IllegalArgumentException("Property value must not be null.");
         }
         value.validateState();
-        values().put(name, value.copy());
+        requireBackingMap();
+        values.put(name, value.copy());
         return this;
     }
 
@@ -71,32 +83,33 @@ public final class PropertySet {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.STRING);
-        return value.asString();
+        return value.stringValue();
     }
 
     public boolean getBoolean(String name, boolean fallback) {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.BOOLEAN);
-        return value.asBoolean();
+        return value.booleanValue();
     }
 
     public int getInt(String name, int fallback) {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.INTEGER);
-        return value.asInt();
+        return value.integerValue();
     }
 
     public float getFloat(String name, float fallback) {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.FLOAT);
-        return value.asFloat();
+        return value.floatValue();
     }
 
     public void clear() {
-        values().clear();
+        if (values == null) values = new ObjectMap<String, PropertyValue>(0);
+        else values.clear();
     }
 
     public PropertySet copy() {
@@ -109,30 +122,46 @@ public final class PropertySet {
         }
         if (source == this) return this;
 
-        ObjectMap<String, PropertyValue> copied = new ObjectMap<String, PropertyValue>();
-        for (ObjectMap.Entry<String, PropertyValue> entry : source.values()) {
-            requireName(entry.key);
-            if (entry.value == null) {
-                throw new IllegalStateException(
-                        "Property '" + entry.key + "' must not have a null value.");
-            }
-            entry.value.validateState();
+        source.validate();
+        ObjectMap<String, PropertyValue> copied =
+                new ObjectMap<String, PropertyValue>(source.values.size);
+        for (ObjectMap.Entry<String, PropertyValue> entry : source.values) {
             copied.put(entry.key, entry.value.copy());
         }
         values = copied;
         return this;
     }
 
-    private PropertyValue value(String name) {
-        requireName(name);
-        PropertyValue value = values().get(name);
-        if (value != null) value.validateState();
-        return value;
+    /**
+     * Validates the complete authored representation after construction or deserialization.
+     */
+    public void validate() {
+        requireBackingMap();
+        for (ObjectMap.Entry<String, PropertyValue> entry : values) {
+            requireName(entry.key);
+            if (entry.value == null) {
+                throw new IllegalStateException(
+                        "Property '" + entry.key + "' must not have a null value.");
+            }
+            entry.value.validateState();
+        }
     }
 
-    private ObjectMap<String, PropertyValue> values() {
-        if (values == null) values = new ObjectMap<String, PropertyValue>();
-        return values;
+    /**
+     * Shrinks deserialized backing storage to the current property count.
+     */
+    public void compact() {
+        values.shrink(values.size);
+    }
+
+    private PropertyValue value(String name) {
+        return values.get(name);
+    }
+
+    private void requireBackingMap() {
+        if (values == null) {
+            throw new IllegalStateException("PropertySet backing map must not be null.");
+        }
     }
 
     private static void requireName(String name) {

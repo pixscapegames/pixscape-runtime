@@ -62,6 +62,7 @@ public final class SceneLoader {
 
         try (InputStream in = new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
+            compactCustomProperties(format, world);
             refreshTransformCaches(format, world);
             return format;
 
@@ -100,6 +101,7 @@ public final class SceneLoader {
                          new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
                 SaveFileFormat format =
                         validationSerialization.load(in, SaveFileFormat.class);
+                validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
@@ -116,6 +118,49 @@ public final class SceneLoader {
         } finally {
             validationWorld.dispose();
         }
+    }
+
+    private static void validateCustomProperties(
+            SaveFileFormat format, World world, FileHandle sceneFile) {
+        ComponentMapper<CustomPropertiesComponent> customProperties =
+                world.getMapper(CustomPropertiesComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            int entityId = entityIds[i];
+            CustomPropertiesComponent component =
+                    customProperties.getSafe(entityId, null);
+            if (component == null) continue;
+            if (component.properties == null) {
+                throw customPropertiesFailure(
+                        sceneFile, entityId, "PropertySet must not be null.", null);
+            }
+            try {
+                component.properties.validate();
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                throw customPropertiesFailure(sceneFile, entityId, ex.getMessage(), ex);
+            }
+        }
+    }
+
+    private static void compactCustomProperties(SaveFileFormat format, World world) {
+        ComponentMapper<CustomPropertiesComponent> customProperties =
+                world.getMapper(CustomPropertiesComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            CustomPropertiesComponent component =
+                    customProperties.getSafe(entityIds[i], null);
+            if (component != null) component.properties.compact();
+        }
+    }
+
+    private static IllegalArgumentException customPropertiesFailure(
+            FileHandle sceneFile, int entityId, String detail, Throwable cause) {
+        String message = "Scene '" + sceneFile.path()
+                + "' has invalid custom properties on entityId=" + entityId
+                + ": " + detail;
+        return cause != null
+                ? new IllegalArgumentException(message, cause)
+                : new IllegalArgumentException(message);
     }
 
     private static void validatePhysicsSchema(SaveFileFormat format, World world,
