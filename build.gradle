@@ -100,8 +100,9 @@ def isMavenLocalPublish = gradle.startParameter.taskNames.any {
   it.toLowerCase().contains('mavenlocal')
 }
 
-signing {
-  required = { !isMavenLocalPublish }
-  useGpgCmd()
-  sign publishing.publications.mavenJava
+if (!isMavenLocalPublish) {
+  signing {
+    useGpgCmd()
+    sign publishing.publications.mavenJava
+  }
 }
