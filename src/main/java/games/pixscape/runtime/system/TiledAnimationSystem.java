@@ -17,6 +17,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
+import games.pixscape.runtime.tiled.animation.TileAnimationPlaybackStepper;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
 @All({LayerComponent.class, TiledLayerComponent.class})
@@ -46,6 +47,8 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
+    private final TileAnimationPlaybackStepper.Result stepResult =
+            new TileAnimationPlaybackStepper.Result();
 
     public TiledAnimationSystem() {
         this(null);
@@ -182,34 +185,19 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
             return false;
         }
 
-        int elapsedMs = chunk.getAnimFrameElapsedMs(localIndex) + frameDeltaMs;
-        int newFrameIndex = currentFrameIndex;
-        boolean finished = false;
+        TileAnimationPlaybackStepper.advance(
+                def,
+                playbackState,
+                playbackMode,
+                chunk.isAnimFinished(localIndex),
+                chunk.isAnimHoldLastFrame(localIndex),
+                currentFrameIndex,
+                chunk.getAnimFrameElapsedMs(localIndex),
+                frameDeltaMs,
+                stepResult);
 
-        while (true) {
-            int frameDurationMs = def.frameDurationMs(newFrameIndex);
-            if (frameDurationMs <= 0 || elapsedMs < frameDurationMs) {
-                break;
-            }
-
-            elapsedMs -= frameDurationMs;
-
-            if (playbackMode == TileAnimationPlayback.MODE_PLAY_ONCE) {
-                if (newFrameIndex >= frameCount - 1) {
-                    newFrameIndex = frameCount - 1;
-                    elapsedMs = 0;
-                    finished = true;
-                    break;
-                }
-                newFrameIndex++;
-            } else {
-                newFrameIndex = TileAnimationResolver.nextFrameIndex(newFrameIndex, frameCount);
-            }
-        }
-
-        if (finished) {
-            boolean holdLastFrame = chunk.isAnimHoldLastFrame(localIndex);
-            int terminalFrameIndex = holdLastFrame ? frameCount - 1 : 0;
+        if (stepResult.finished) {
+            int terminalFrameIndex = stepResult.frameIndex;
             int terminalVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                     assetId,
                     terminalFrameIndex,
@@ -218,12 +206,12 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
 
             chunk.setAnimationState(
                     localIndex,
-                    holdLastFrame ? TileAnimationPlayback.PAUSED : TileAnimationPlayback.NONE,
-                    TileAnimationPlayback.MODE_PLAY_ONCE,
+                    stepResult.playbackState,
+                    stepResult.playbackMode,
                     true,
-                    holdLastFrame,
+                    stepResult.holdLastFrame,
                     terminalFrameIndex,
-                    0
+                    stepResult.frameElapsedMs
             );
 
             if (terminalVisualAssetId != currentVisualAssetId) {
@@ -234,10 +222,10 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
         }
 
         boolean visualAssetChanged = false;
-        if (newFrameIndex != currentFrameIndex) {
+        if (stepResult.frameIndex != currentFrameIndex) {
             int newVisualAssetId = TileAnimationResolver.resolveVisualAssetId(
                     assetId,
-                    newFrameIndex,
+                    stepResult.frameIndex,
                     tileAnimationLookup
             );
 
@@ -247,8 +235,8 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
             }
         }
 
-        chunk.animFrameIndex[localIndex] = (short) newFrameIndex;
-        chunk.animFrameElapsedMs[localIndex] = elapsedMs;
+        chunk.animFrameIndex[localIndex] = (short) stepResult.frameIndex;
+        chunk.animFrameElapsedMs[localIndex] = stepResult.frameElapsedMs;
         return visualAssetChanged;
     }
 
