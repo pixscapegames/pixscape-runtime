@@ -958,6 +958,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return properties != null ? properties.getFloat(name, fallback) : fallback;
         }
 
+        @Override
+        public ClassProperty getClassValue(String name) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getClassValue(name) : null;
+        }
+
         private PropertySet properties() {
             World world = handle.world();
             if (world == null) return null;

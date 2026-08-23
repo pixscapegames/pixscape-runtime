@@ -4,6 +4,7 @@ import com.artemis.World;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -74,6 +75,52 @@ public class CustomPropertiesApiTest {
     }
 
     @Test
+    public void entityRefExposesReadOnlyNestedClassValues() throws Exception {
+        World world = new World();
+        PixscapeEngine engine = engineWithWorld(world);
+        int entity = world.create();
+        PropertySet modifier = new PropertySet().putBoolean("critical", true);
+        PropertySet attack = new PropertySet()
+                .putInt("damage", 10)
+                .putClass("modifier", "Critical", modifier);
+        world.getMapper(CustomPropertiesComponent.class).create(entity).properties
+                .putClass("attack", "Attack", attack);
+        world.process();
+
+        CustomProperties properties = engine.api().entities().ofEntityId(entity).properties();
+        ClassProperty classValue = properties.getClassValue("attack");
+
+        Assert.assertNotNull(classValue);
+        Assert.assertEquals("Attack", classValue.typeName());
+        Assert.assertEquals(10, classValue.properties().getInt("damage", 0));
+        ClassProperty nested = classValue.properties().getClassValue("modifier");
+        Assert.assertEquals("Critical", nested.typeName());
+        Assert.assertTrue(nested.properties().getBoolean("critical", false));
+        Assert.assertNull(properties.getClassValue("missing"));
+        Assert.assertSame(classValue, properties.getClassValue("attack"));
+        world.dispose();
+    }
+
+    @Test
+    public void classGetterRejectsPrimitiveProperties() throws Exception {
+        World world = new World();
+        PixscapeEngine engine = engineWithWorld(world);
+        int entity = world.create();
+        world.getMapper(CustomPropertiesComponent.class).create(entity).properties
+                .putInt("attack", 10);
+        world.process();
+
+        try {
+            engine.api().entities().ofEntityId(entity).properties().getClassValue("attack");
+            Assert.fail("Expected a type mismatch");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("attack"));
+            Assert.assertTrue(expected.getMessage().contains("CLASS"));
+        }
+        world.dispose();
+    }
+
+    @Test
     public void cachedViewDoesNotFollowARecycledEntityId() throws Exception {
         World world = new World();
         PixscapeEngine engine = engineWithWorld(world);
@@ -109,6 +156,11 @@ public class CustomPropertiesApiTest {
             Class<?> returnType = method.getReturnType();
             Assert.assertFalse(returnType.getName().startsWith("com.artemis"));
             Assert.assertFalse(returnType.getName().startsWith("com.badlogic.gdx.utils"));
+            Assert.assertFalse(returnType.getName().endsWith("PropertySet"));
+            Assert.assertFalse(returnType.getName().endsWith("CustomPropertiesComponent"));
+        }
+        for (Method method : ClassProperty.class.getMethods()) {
+            Class<?> returnType = method.getReturnType();
             Assert.assertFalse(returnType.getName().endsWith("PropertySet"));
             Assert.assertFalse(returnType.getName().endsWith("CustomPropertiesComponent"));
         }

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.component;
 
 import com.artemis.World;
+import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,7 +30,8 @@ public class CustomPropertiesComponentTest {
         CustomPropertiesComponent firstComponent = world
                 .getMapper(CustomPropertiesComponent.class)
                 .create(first);
-        firstComponent.properties.putString("owner", "first").putInt("damage", 20);
+        firstComponent.properties.putString("owner", "first").putInt("damage", 20)
+                .putClass("attack", "Attack", new PropertySet().putInt("damage", 30));
         world.process();
 
         world.delete(first);
@@ -46,6 +48,7 @@ public class CustomPropertiesComponentTest {
         Assert.assertTrue(recycled.properties.isEmpty());
         Assert.assertFalse(recycled.properties.contains("owner"));
         Assert.assertEquals(0, recycled.properties.getInt("damage", 0));
+        Assert.assertNull(recycled.properties.getClassValue("attack"));
         world.dispose();
     }
 }

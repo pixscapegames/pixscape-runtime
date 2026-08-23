@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.api.ClassProperty;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,6 +59,81 @@ public class CustomPropertiesSerializationTest {
 
         source.dispose();
         target.dispose();
+    }
+
+    @Test
+    public void artemisAndSceneLoaderRoundTripRecursiveClassValues() throws Exception {
+        World source = serializationWorld();
+        int entity = source.create();
+        PropertySet critical = new PropertySet().putBoolean("enabled", true);
+        PropertySet attack = new PropertySet()
+                .putFloat("range", 80f)
+                .putInt("damage", 10)
+                .putClass("modifier", "Critical", critical);
+        source.getMapper(CustomPropertiesComponent.class).create(entity).properties
+                .putClass("empty", "Marker", new PropertySet())
+                .putClass("attack", "Attack", attack);
+        byte[] bytes = saveEntity(source, entity);
+        FileHandle sceneFile = new FileHandle(temporaryFolder.newFile("class-round-trip.json"));
+        sceneFile.writeBytes(bytes, false);
+
+        World target = serializationWorld();
+        SaveFileFormat loaded = SceneLoader.loadScene(
+                target, sceneFile, true, new SceneMetaRuntime("class", sceneFile.path()));
+        PropertySet properties = target.getMapper(CustomPropertiesComponent.class)
+                .get(loaded.entities.get(0)).properties;
+
+        Assert.assertEquals(PropertyType.CLASS, properties.typeOf("attack"));
+        Assert.assertTrue(properties.getClassValue("empty").properties().isEmpty());
+        ClassProperty loadedAttack = properties.getClassValue("attack");
+        Assert.assertEquals("Attack", loadedAttack.typeName());
+        Assert.assertEquals(80f, loadedAttack.properties().getFloat("range", 0f), 0f);
+        Assert.assertEquals(10, loadedAttack.properties().getInt("damage", 0));
+        ClassProperty modifier = loadedAttack.properties().getClassValue("modifier");
+        Assert.assertEquals("Critical", modifier.typeName());
+        Assert.assertTrue(modifier.properties().getBoolean("enabled", false));
+
+        source.dispose();
+        target.dispose();
+    }
+
+    @Test
+    public void sceneLoaderRejectsNullClassName() throws Exception {
+        assertMalformedClassRejected("null-class-name", new ClassCorruptor() {
+            @Override public void corrupt(PropertyValue value) throws Exception {
+                setField(value, "className", null);
+            }
+        }, "type name must not be null");
+    }
+
+    @Test
+    public void sceneLoaderRejectsBlankClassName() throws Exception {
+        assertMalformedClassRejected("blank-class-name", new ClassCorruptor() {
+            @Override public void corrupt(PropertyValue value) throws Exception {
+                setField(value, "className", "  ");
+            }
+        }, "type name must not be blank");
+    }
+
+    @Test
+    public void sceneLoaderRejectsNullClassMembers() throws Exception {
+        assertMalformedClassRejected("null-class-members", new ClassCorruptor() {
+            @Override public void corrupt(PropertyValue value) throws Exception {
+                setField(value, "classProperties", null);
+            }
+        }, "members must not be null");
+    }
+
+    @Test
+    public void sceneLoaderRejectsMalformedNestedClassMember() throws Exception {
+        assertMalformedClassRejected("malformed-class-member", new ClassCorruptor() {
+            @Override public void corrupt(PropertyValue value) throws Exception {
+                PropertySet members = classMembers(value);
+                PropertyValue invalid = PropertyValue.ofFloat(1f);
+                setField(invalid, "floatValue", Float.NaN);
+                propertyMap(members).put("rate", invalid);
+            }
+        }, "must be finite");
     }
 
     @Test
@@ -299,6 +375,18 @@ public class CustomPropertiesSerializationTest {
         }
     }
 
+    private void assertMalformedClassRejected(
+            String fileName, ClassCorruptor corruptor, String expectedDetail) throws Exception {
+        assertMalformedSceneRejected(fileName, new Corruptor() {
+            @Override
+            public void corrupt(PropertySet properties) throws Exception {
+                PropertyValue value = PropertyValue.ofClass("Attack", new PropertySet());
+                corruptor.corrupt(value);
+                propertyMap(properties).put("attack", value);
+            }
+        }, expectedDetail);
+    }
+
     @SuppressWarnings("unchecked")
     private static ObjectMap<String, PropertyValue> propertyMap(PropertySet properties)
             throws Exception {
@@ -323,7 +411,17 @@ public class CustomPropertiesSerializationTest {
         field.set(target, value);
     }
 
+    private static PropertySet classMembers(PropertyValue value) throws Exception {
+        Field field = PropertyValue.class.getDeclaredField("classProperties");
+        field.setAccessible(true);
+        return (PropertySet) field.get(value);
+    }
+
     private interface Corruptor {
         void corrupt(PropertySet properties) throws Exception;
+    }
+
+    private interface ClassCorruptor {
+        void corrupt(PropertyValue value) throws Exception;
     }
 }

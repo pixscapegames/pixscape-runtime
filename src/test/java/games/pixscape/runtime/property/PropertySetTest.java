@@ -1,6 +1,7 @@
 package games.pixscape.runtime.property;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.api.ClassProperty;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -28,6 +29,84 @@ public class PropertySetTest {
         Assert.assertTrue(properties.getBoolean("locked", false));
         Assert.assertEquals(-20, properties.getInt("damage", 0));
         Assert.assertEquals(0.5f, properties.getFloat("spawnRate", 0f), 0f);
+    }
+
+    @Test
+    public void storesEmptyPrimitiveAndRecursivelyNestedClassValues() {
+        PropertySet nested = new PropertySet().putBoolean("critical", true);
+        PropertySet attack = new PropertySet()
+                .putFloat("range", 80f)
+                .putInt("damage", 10)
+                .putClass("modifier", "Critical", nested);
+        PropertySet properties = new PropertySet()
+                .putClass("empty", "Marker", new PropertySet())
+                .putClass("attack", "Attack", attack);
+
+        ClassProperty empty = properties.getClassValue("empty");
+        ClassProperty value = properties.getClassValue("attack");
+
+        Assert.assertEquals(PropertyType.CLASS, properties.typeOf("attack"));
+        Assert.assertEquals("Marker", empty.typeName());
+        Assert.assertTrue(empty.properties().isEmpty());
+        Assert.assertEquals("Attack", value.typeName());
+        Assert.assertEquals(80f, value.properties().getFloat("range", 0f), 0f);
+        Assert.assertEquals(10, value.properties().getInt("damage", 0));
+        ClassProperty modifier = value.properties().getClassValue("modifier");
+        Assert.assertEquals("Critical", modifier.typeName());
+        Assert.assertTrue(modifier.properties().getBoolean("critical", false));
+        Assert.assertSame(value, properties.getClassValue("attack"));
+        Assert.assertSame(modifier, value.properties().getClassValue("modifier"));
+    }
+
+    @Test
+    public void classValuesDeepCopyAcrossEveryOwnershipBoundaryAndReplaceNormally() {
+        PropertySet authoredMembers = new PropertySet().putInt("damage", 10);
+        PropertySet source = new PropertySet().putClass("attack", "Attack", authoredMembers);
+        authoredMembers.putInt("damage", 99).putString("late", "ignored");
+
+        PropertySet copy = source.copy();
+        source.putClass("attack", "Replacement", new PropertySet().putInt("damage", 25));
+
+        Assert.assertEquals("Replacement", source.getClassValue("attack").typeName());
+        Assert.assertEquals(25,
+                source.getClassValue("attack").properties().getInt("damage", 0));
+        Assert.assertEquals("Attack", copy.getClassValue("attack").typeName());
+        Assert.assertEquals(10, copy.getClassValue("attack").properties().getInt("damage", 0));
+        Assert.assertFalse(copy.getClassValue("attack").properties().contains("late"));
+    }
+
+    @Test
+    public void classConstructionRejectsInvalidTypeNamesAndNullMembers() {
+        assertInvalidClass(null, new PropertySet(), "null");
+        assertInvalidClass(" \t", new PropertySet(), "blank");
+        assertInvalidClass("Attack", null, "members");
+    }
+
+    @Test
+    public void classGetterUsesNormalMissingAndTypeMismatchSemantics() {
+        PropertySet properties = new PropertySet().putInt("damage", 10);
+
+        Assert.assertNull(properties.getClassValue("missing"));
+        try {
+            properties.getClassValue("damage");
+            Assert.fail("Expected a type mismatch");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("damage"));
+            Assert.assertTrue(expected.getMessage().contains("CLASS"));
+        }
+    }
+
+    @Test
+    public void recursiveValidationRejectsPathologicalDepth() {
+        PropertySet nested = new PropertySet();
+        try {
+            for (int i = 0; i < 70; i++) {
+                nested = new PropertySet().putClass("next", "Node", nested);
+            }
+            Assert.fail("Expected excessive nesting to fail");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("maximum depth"));
+        }
     }
 
     @Test
@@ -194,6 +273,17 @@ public class PropertySetTest {
             Assert.fail("Expected non-finite float to fail: " + value);
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains("finite"));
+        }
+    }
+
+    private static void assertInvalidClass(String className,
+                                           PropertySet members,
+                                           String expectedText) {
+        try {
+            new PropertySet().putClass("value", className, members);
+            Assert.fail("Expected invalid class value to fail");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(expectedText));
         }
     }
 

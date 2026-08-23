@@ -1,16 +1,19 @@
 package games.pixscape.runtime.property;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.api.ClassProperty;
 
 /**
  * Case-sensitive collection of named, typed Pixscape custom properties.
  *
- * <p>V1 supports string, boolean, signed 32-bit integer, and finite float values.</p>
+ * <p>Supports string, boolean, signed 32-bit integer, finite float, and recursively nested
+ * class values.</p>
  *
  * <p>Names are preserved exactly as supplied. Typed getters return their fallback only when a
  * property is absent and throw when an existing property has a different type.</p>
  */
 public final class PropertySet {
+    private static final int MAX_NESTED_CLASS_DEPTH = 64;
     private ObjectMap<String, PropertyValue> values;
 
     public PropertySet() {
@@ -79,6 +82,14 @@ public final class PropertySet {
         return put(name, PropertyValue.ofFloat(value));
     }
 
+    public PropertySet putClass(String name, String className, PropertySet members) {
+        requireName(name);
+        PropertyValue value = PropertyValue.ofClass(className, members);
+        requireBackingMap();
+        values.put(name, value);
+        return this;
+    }
+
     public String getString(String name, String fallback) {
         PropertyValue value = value(name);
         if (value == null) return fallback;
@@ -105,6 +116,13 @@ public final class PropertySet {
         if (value == null) return fallback;
         requireType(name, value, PropertyType.FLOAT);
         return value.floatValue();
+    }
+
+    public ClassProperty getClassValue(String name) {
+        PropertyValue value = value(name);
+        if (value == null) return null;
+        requireType(name, value, PropertyType.CLASS);
+        return value.asClass();
     }
 
     public void clear() {
@@ -136,6 +154,15 @@ public final class PropertySet {
      * Validates the complete authored representation after construction or deserialization.
      */
     public void validate() {
+        validate(0);
+    }
+
+    void validate(int depth) {
+        if (depth > MAX_NESTED_CLASS_DEPTH) {
+            throw new IllegalStateException(
+                    "Custom property nesting exceeds the maximum depth of "
+                            + MAX_NESTED_CLASS_DEPTH + ".");
+        }
         requireBackingMap();
         for (ObjectMap.Entry<String, PropertyValue> entry : values) {
             requireName(entry.key);
@@ -143,7 +170,7 @@ public final class PropertySet {
                 throw new IllegalStateException(
                         "Property '" + entry.key + "' must not have a null value.");
             }
-            entry.value.validateState();
+            entry.value.validateState(depth);
         }
     }
 
@@ -152,6 +179,9 @@ public final class PropertySet {
      */
     public void compact() {
         values.shrink(values.size);
+        for (ObjectMap.Entry<String, PropertyValue> entry : values) {
+            if (entry.value != null) entry.value.compactNested();
+        }
     }
 
     private PropertyValue value(String name) {
