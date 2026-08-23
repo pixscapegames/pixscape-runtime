@@ -122,6 +122,13 @@ public final class PropertySet {
         return put(name, PropertyValue.ofColorRgba8888(value));
     }
 
+    /**
+     * Stores a persistent Pixscape entity stable ID. {@code -1} represents no referenced entity.
+     */
+    public PropertySet putObjectStableId(String name, int stableId) {
+        return put(name, PropertyValue.ofObjectStableId(stableId));
+    }
+
     public PropertySet putClass(String name, String className, PropertySet members) {
         requireName(name);
         PropertyValue value = PropertyValue.ofClass(className, members);
@@ -165,6 +172,17 @@ public final class PropertySet {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.COLOR);
+        return value.integerValue();
+    }
+
+    /**
+     * Returns an OBJECT property's persistent Pixscape entity stable ID, or {@code fallback}
+     * when absent. {@code -1} represents no referenced entity.
+     */
+    public int getObjectStableId(String name, int fallback) {
+        PropertyValue value = value(name);
+        if (value == null) return fallback;
+        requireType(name, value, PropertyType.OBJECT);
         return value.integerValue();
     }
 

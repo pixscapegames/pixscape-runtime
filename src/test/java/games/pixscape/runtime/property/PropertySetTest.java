@@ -18,9 +18,10 @@ public class PropertySetTest {
                 .putBoolean("locked", true)
                 .putInt("damage", -20)
                 .putFloat("spawnRate", 0.5f)
-                .putColorRgba8888("tint", 0x80FF0066);
+                .putColorRgba8888("tint", 0x80FF0066)
+                .putObjectStableId("target", 42);
 
-        Assert.assertEquals(5, properties.size());
+        Assert.assertEquals(6, properties.size());
         Assert.assertTrue(properties.contains("Name"));
         Assert.assertFalse(properties.contains("name"));
         Assert.assertEquals(PropertyType.STRING, properties.typeOf("Name"));
@@ -28,11 +29,13 @@ public class PropertySetTest {
         Assert.assertEquals(PropertyType.INTEGER, properties.typeOf("damage"));
         Assert.assertEquals(PropertyType.FLOAT, properties.typeOf("spawnRate"));
         Assert.assertEquals(PropertyType.COLOR, properties.typeOf("tint"));
+        Assert.assertEquals(PropertyType.OBJECT, properties.typeOf("target"));
         Assert.assertEquals("first\nsecond", properties.getString("Name", "fallback"));
         Assert.assertTrue(properties.getBoolean("locked", false));
         Assert.assertEquals(-20, properties.getInt("damage", 0));
         Assert.assertEquals(0.5f, properties.getFloat("spawnRate", 0f), 0f);
         Assert.assertEquals(0x80FF0066, properties.getColorRgba8888("tint", 0));
+        Assert.assertEquals(42, properties.getObjectStableId("target", -1));
     }
 
     @Test
@@ -128,6 +131,24 @@ public class PropertySetTest {
         Assert.assertEquals(10, properties.getInt("missing", 10));
         Assert.assertEquals(2.5f, properties.getFloat("missing", 2.5f), 0f);
         Assert.assertEquals(0x12345678, properties.getColorRgba8888("missing", 0x12345678));
+        Assert.assertEquals(-1, properties.getObjectStableId("missing", -1));
+    }
+
+    @Test
+    public void objectPropertiesUseOnlyNoTargetOrPositiveStableIds() {
+        PropertySet properties = new PropertySet()
+                .putObjectStableId("none", -1)
+                .putObjectStableId("target", 42);
+        Assert.assertEquals(-1, properties.valueCopy("none").asObjectStableId());
+        Assert.assertEquals(42, properties.getObjectStableId("target", -1));
+        assertInvalidObjectStableId(0);
+        assertInvalidObjectStableId(-2);
+        try {
+            properties.getInt("target", 0);
+            Assert.fail("Expected OBJECT/INTEGER type mismatch");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains("OBJECT"));
+        }
     }
 
     @Test
@@ -339,6 +360,15 @@ public class PropertySetTest {
             Assert.fail("Expected invalid class value to fail");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(expectedText));
+        }
+    }
+
+    private static void assertInvalidObjectStableId(int stableId) {
+        try {
+            PropertyValue.ofObjectStableId(stableId);
+            Assert.fail("Expected invalid OBJECT stable ID: " + stableId);
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains("stableId"));
         }
     }
 

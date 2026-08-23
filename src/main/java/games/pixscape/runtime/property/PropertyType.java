@@ -9,5 +9,6 @@ public enum PropertyType {
     INTEGER,
     FLOAT,
     COLOR,
+    OBJECT,
     CLASS
 }

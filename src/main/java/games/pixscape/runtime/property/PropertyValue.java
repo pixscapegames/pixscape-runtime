@@ -70,6 +70,17 @@ public final class PropertyValue {
         return property;
     }
 
+    /**
+     * Creates an OBJECT property containing a persistent Pixscape entity stable ID.
+     * {@code -1} represents no referenced entity.
+     */
+    public static PropertyValue ofObjectStableId(int stableId) {
+        requireObjectStableId(stableId);
+        PropertyValue property = new PropertyValue(PropertyType.OBJECT);
+        property.integerValue = stableId;
+        return property;
+    }
+
     public static PropertyValue ofClass(String className, PropertySet members) {
         requireClassName(className);
         if (members == null) {
@@ -111,6 +122,14 @@ public final class PropertyValue {
      */
     public int asColorRgba8888() {
         requireType(PropertyType.COLOR);
+        return integerValue;
+    }
+
+    /**
+     * Returns this OBJECT value as a persistent Pixscape entity stable ID.
+     */
+    public int asObjectStableId() {
+        requireType(PropertyType.OBJECT);
         return integerValue;
     }
 
@@ -179,6 +198,9 @@ public final class PropertyValue {
             throw new IllegalStateException(
                     "Float property value must be finite, got " + floatValue + ".");
         }
+        if (type == PropertyType.OBJECT) {
+            requireObjectStableIdState(integerValue);
+        }
         if (type == PropertyType.CLASS) {
             requireClassNameState(className);
             if (classProperties == null) {
@@ -210,6 +232,18 @@ public final class PropertyValue {
         if (value.trim().isEmpty()) {
             throw new IllegalArgumentException("Class property type name must not be blank.");
         }
+    }
+
+    private static void requireObjectStableId(int stableId) {
+        if (stableId == -1 || stableId > 0) return;
+        throw new IllegalArgumentException(
+                "OBJECT property stableId must be -1 or positive, got " + stableId + ".");
+    }
+
+    private static void requireObjectStableIdState(int stableId) {
+        if (stableId == -1 || stableId > 0) return;
+        throw new IllegalStateException(
+                "OBJECT property stableId must be -1 or positive, got " + stableId + ".");
     }
 
     private static void requireClassNameState(String value) {
@@ -266,6 +300,9 @@ public final class PropertyValue {
         }
         @Override public int getColorRgba8888(String name, int fallback) {
             return properties.getColorRgba8888(name, fallback);
+        }
+        @Override public int getObjectStableId(String name, int fallback) {
+            return properties.getObjectStableId(name, fallback);
         }
         @Override public ClassProperty getClassValue(String name) {
             return properties.getClassValue(name);

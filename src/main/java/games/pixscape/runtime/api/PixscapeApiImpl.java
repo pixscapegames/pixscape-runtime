@@ -965,6 +965,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public int getObjectStableId(String name, int fallbackStableId) {
+            PropertySet properties = properties();
+            return properties != null
+                    ? properties.getObjectStableId(name, fallbackStableId)
+                    : fallbackStableId;
+        }
+
+        @Override
         public ClassProperty getClassValue(String name) {
             PropertySet properties = properties();
             return properties != null ? properties.getClassValue(name) : null;
