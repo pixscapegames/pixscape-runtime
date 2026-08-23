@@ -102,6 +102,22 @@ public final class PropertyValue {
         return classView;
     }
 
+    /**
+     * Returns the CLASS type name. The returned string is immutable.
+     */
+    public String className() {
+        requireType(PropertyType.CLASS);
+        return className;
+    }
+
+    /**
+     * Returns an independent copy of the CLASS members for authoring workflows.
+     */
+    public PropertySet classPropertiesCopy() {
+        requireType(PropertyType.CLASS);
+        return classProperties.copy();
+    }
+
     public PropertyValue copy() {
         validateState();
         PropertyValue copy = new PropertyValue(type);

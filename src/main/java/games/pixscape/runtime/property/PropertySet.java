@@ -1,6 +1,7 @@
 package games.pixscape.runtime.property;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.api.ClassProperty;
 
 /**
@@ -45,6 +46,38 @@ public final class PropertySet {
 
     public boolean contains(String name) {
         return values.containsKey(name);
+    }
+
+    /**
+     * Copies the current property names into {@code out}. The returned names do not expose the
+     * backing map and preserve their authored spelling.
+     */
+    public void copyNamesTo(Array<String> out) {
+        if (out == null) {
+            throw new IllegalArgumentException("Output names array must not be null.");
+        }
+        requireBackingMap();
+        out.clear();
+        out.ensureCapacity(values.size);
+        for (ObjectMap.Entry<String, PropertyValue> entry : values) {
+            out.add(entry.key);
+        }
+    }
+
+    /**
+     * Returns an independent copy of a property value, or {@code null} when it is absent.
+     */
+    public PropertyValue valueCopy(String name) {
+        PropertyValue value = value(name);
+        return value != null ? value.copy() : null;
+    }
+
+    /**
+     * Removes a property when present. Missing names are a deterministic no-op.
+     */
+    public boolean remove(String name) {
+        if (name == null || values == null) return false;
+        return values.remove(name) != null;
     }
 
     /**

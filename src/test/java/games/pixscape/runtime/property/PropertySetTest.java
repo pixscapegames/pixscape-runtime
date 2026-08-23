@@ -1,6 +1,7 @@
 package games.pixscape.runtime.property;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.api.ClassProperty;
 import org.junit.Assert;
 import org.junit.Test;
@@ -200,6 +201,52 @@ public class PropertySetTest {
         Assert.assertEquals(2, copy.size());
         Assert.assertEquals("source", copy.getString("name", ""));
         Assert.assertEquals(20, copy.getInt("damage", 0));
+    }
+
+    @Test
+    public void authoringAccessorsEnumerateExactNamesAndDoNotExposeValues() {
+        PropertySet source = new PropertySet()
+                .putString("Health", "first")
+                .putInt("health", 20);
+        Array<String> names = new Array<>();
+
+        source.copyNamesTo(names);
+        Assert.assertEquals(2, names.size);
+        Assert.assertTrue(names.contains("Health", false));
+        Assert.assertTrue(names.contains("health", false));
+        names.clear();
+
+        Assert.assertEquals(2, source.size());
+        PropertyValue copy = source.valueCopy("Health");
+        Assert.assertNotNull(copy);
+        Assert.assertEquals("first", copy.asString());
+        Assert.assertNull(source.valueCopy("missing"));
+    }
+
+    @Test
+    public void authoringRemovalIsDeterministicForPresentAndMissingNames() {
+        PropertySet source = new PropertySet().putInt("damage", 20);
+
+        Assert.assertFalse(source.remove("missing"));
+        Assert.assertTrue(source.remove("damage"));
+        Assert.assertFalse(source.remove("damage"));
+        Assert.assertFalse(source.remove(null));
+        Assert.assertTrue(source.isEmpty());
+    }
+
+    @Test
+    public void classAuthoringCopiesAreDeepAndDoNotMutateTheOriginal() {
+        PropertySet source = new PropertySet().putClass(
+                "attack", "Attack", new PropertySet().putInt("damage", 20));
+
+        PropertyValue copiedValue = source.valueCopy("attack");
+        PropertySet copiedMembers = copiedValue.classPropertiesCopy();
+        copiedMembers.putInt("damage", 99).putString("extra", "local");
+
+        Assert.assertEquals("Attack", copiedValue.className());
+        Assert.assertEquals(20,
+                source.getClassValue("attack").properties().getInt("damage", 0));
+        Assert.assertFalse(source.getClassValue("attack").properties().contains("extra"));
     }
 
     @Test
