@@ -60,6 +60,16 @@ public final class PropertyValue {
         return property;
     }
 
+    /**
+     * Creates a COLOR property stored as packed RGBA8888 ({@code 0xRRGGBBAA}).
+     * Every {@code int} bit pattern is a valid color value.
+     */
+    public static PropertyValue ofColorRgba8888(int value) {
+        PropertyValue property = new PropertyValue(PropertyType.COLOR);
+        property.integerValue = value;
+        return property;
+    }
+
     public static PropertyValue ofClass(String className, PropertySet members) {
         requireClassName(className);
         if (members == null) {
@@ -94,6 +104,14 @@ public final class PropertyValue {
     public float asFloat() {
         requireType(PropertyType.FLOAT);
         return floatValue;
+    }
+
+    /**
+     * Returns this COLOR value as packed RGBA8888 ({@code 0xRRGGBBAA}).
+     */
+    public int asColorRgba8888() {
+        requireType(PropertyType.COLOR);
+        return integerValue;
     }
 
     public ClassProperty asClass() {
@@ -245,6 +263,9 @@ public final class PropertyValue {
         }
         @Override public float getFloat(String name, float fallback) {
             return properties.getFloat(name, fallback);
+        }
+        @Override public int getColorRgba8888(String name, int fallback) {
+            return properties.getColorRgba8888(name, fallback);
         }
         @Override public ClassProperty getClassValue(String name) {
             return properties.getClassValue(name);

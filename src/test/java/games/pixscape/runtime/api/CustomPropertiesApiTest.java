@@ -21,12 +21,13 @@ public class CustomPropertiesApiTest {
                 .putString("name", "door")
                 .putBoolean("locked", true)
                 .putInt("damage", 20)
-                .putFloat("rate", 0.5f);
+                .putFloat("rate", 0.5f)
+                .putColorRgba8888("tint", 0xFF000080);
         world.process();
 
         CustomProperties properties = engine.api().entities().ofEntityId(entity).properties();
 
-        Assert.assertEquals(4, properties.size());
+        Assert.assertEquals(5, properties.size());
         Assert.assertFalse(properties.isEmpty());
         Assert.assertTrue(properties.contains("damage"));
         Assert.assertEquals(PropertyType.INTEGER, properties.typeOf("damage"));
@@ -34,6 +35,7 @@ public class CustomPropertiesApiTest {
         Assert.assertTrue(properties.getBoolean("locked", false));
         Assert.assertEquals(20, properties.getInt("damage", 0));
         Assert.assertEquals(0.5f, properties.getFloat("rate", 0f), 0f);
+        Assert.assertEquals(0xFF000080, properties.getColorRgba8888("tint", 0));
         world.dispose();
     }
 
@@ -53,6 +55,7 @@ public class CustomPropertiesApiTest {
         Assert.assertTrue(properties.getBoolean("missing", true));
         Assert.assertEquals(10, properties.getInt("missing", 10));
         Assert.assertEquals(2f, properties.getFloat("missing", 2f), 0f);
+        Assert.assertEquals(0x12345678, properties.getColorRgba8888("missing", 0x12345678));
         world.dispose();
     }
 
@@ -79,7 +82,9 @@ public class CustomPropertiesApiTest {
         World world = new World();
         PixscapeEngine engine = engineWithWorld(world);
         int entity = world.create();
-        PropertySet modifier = new PropertySet().putBoolean("critical", true);
+        PropertySet modifier = new PropertySet()
+                .putBoolean("critical", true)
+                .putColorRgba8888("flash", 0x01020304);
         PropertySet attack = new PropertySet()
                 .putInt("damage", 10)
                 .putClass("modifier", "Critical", modifier);
@@ -96,6 +101,8 @@ public class CustomPropertiesApiTest {
         ClassProperty nested = classValue.properties().getClassValue("modifier");
         Assert.assertEquals("Critical", nested.typeName());
         Assert.assertTrue(nested.properties().getBoolean("critical", false));
+        Assert.assertEquals(0x01020304,
+                nested.properties().getColorRgba8888("flash", 0));
         Assert.assertNull(properties.getClassValue("missing"));
         Assert.assertSame(classValue, properties.getClassValue("attack"));
         world.dispose();

@@ -17,24 +17,29 @@ public class PropertySetTest {
         properties.putString("Name", "first\nsecond")
                 .putBoolean("locked", true)
                 .putInt("damage", -20)
-                .putFloat("spawnRate", 0.5f);
+                .putFloat("spawnRate", 0.5f)
+                .putColorRgba8888("tint", 0x80FF0066);
 
-        Assert.assertEquals(4, properties.size());
+        Assert.assertEquals(5, properties.size());
         Assert.assertTrue(properties.contains("Name"));
         Assert.assertFalse(properties.contains("name"));
         Assert.assertEquals(PropertyType.STRING, properties.typeOf("Name"));
         Assert.assertEquals(PropertyType.BOOLEAN, properties.typeOf("locked"));
         Assert.assertEquals(PropertyType.INTEGER, properties.typeOf("damage"));
         Assert.assertEquals(PropertyType.FLOAT, properties.typeOf("spawnRate"));
+        Assert.assertEquals(PropertyType.COLOR, properties.typeOf("tint"));
         Assert.assertEquals("first\nsecond", properties.getString("Name", "fallback"));
         Assert.assertTrue(properties.getBoolean("locked", false));
         Assert.assertEquals(-20, properties.getInt("damage", 0));
         Assert.assertEquals(0.5f, properties.getFloat("spawnRate", 0f), 0f);
+        Assert.assertEquals(0x80FF0066, properties.getColorRgba8888("tint", 0));
     }
 
     @Test
     public void storesEmptyPrimitiveAndRecursivelyNestedClassValues() {
-        PropertySet nested = new PropertySet().putBoolean("critical", true);
+        PropertySet nested = new PropertySet()
+                .putBoolean("critical", true)
+                .putColorRgba8888("flash", 0xFF000080);
         PropertySet attack = new PropertySet()
                 .putFloat("range", 80f)
                 .putInt("damage", 10)
@@ -55,6 +60,8 @@ public class PropertySetTest {
         ClassProperty modifier = value.properties().getClassValue("modifier");
         Assert.assertEquals("Critical", modifier.typeName());
         Assert.assertTrue(modifier.properties().getBoolean("critical", false));
+        Assert.assertEquals(0xFF000080,
+                modifier.properties().getColorRgba8888("flash", 0));
         Assert.assertSame(value, properties.getClassValue("attack"));
         Assert.assertSame(modifier, value.properties().getClassValue("modifier"));
     }
@@ -120,6 +127,7 @@ public class PropertySetTest {
         Assert.assertTrue(properties.getBoolean("missing", true));
         Assert.assertEquals(10, properties.getInt("missing", 10));
         Assert.assertEquals(2.5f, properties.getFloat("missing", 2.5f), 0f);
+        Assert.assertEquals(0x12345678, properties.getColorRgba8888("missing", 0x12345678));
     }
 
     @Test

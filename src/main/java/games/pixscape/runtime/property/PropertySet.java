@@ -7,8 +7,8 @@ import games.pixscape.runtime.api.ClassProperty;
 /**
  * Case-sensitive collection of named, typed Pixscape custom properties.
  *
- * <p>Supports string, boolean, signed 32-bit integer, finite float, and recursively nested
- * class values.</p>
+ * <p>Supports string, boolean, signed 32-bit integer, finite float, packed RGBA8888 color,
+ * and recursively nested class values.</p>
  *
  * <p>Names are preserved exactly as supplied. Typed getters return their fallback only when a
  * property is absent and throw when an existing property has a different type.</p>
@@ -115,6 +115,13 @@ public final class PropertySet {
         return put(name, PropertyValue.ofFloat(value));
     }
 
+    /**
+     * Stores a packed RGBA8888 color ({@code 0xRRGGBBAA}).
+     */
+    public PropertySet putColorRgba8888(String name, int value) {
+        return put(name, PropertyValue.ofColorRgba8888(value));
+    }
+
     public PropertySet putClass(String name, String className, PropertySet members) {
         requireName(name);
         PropertyValue value = PropertyValue.ofClass(className, members);
@@ -149,6 +156,16 @@ public final class PropertySet {
         if (value == null) return fallback;
         requireType(name, value, PropertyType.FLOAT);
         return value.floatValue();
+    }
+
+    /**
+     * Returns a packed RGBA8888 color ({@code 0xRRGGBBAA}), or {@code fallback} when absent.
+     */
+    public int getColorRgba8888(String name, int fallback) {
+        PropertyValue value = value(name);
+        if (value == null) return fallback;
+        requireType(name, value, PropertyType.COLOR);
+        return value.integerValue();
     }
 
     public ClassProperty getClassValue(String name) {

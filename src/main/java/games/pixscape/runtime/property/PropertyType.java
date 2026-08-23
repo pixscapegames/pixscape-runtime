@@ -8,5 +8,6 @@ public enum PropertyType {
     BOOLEAN,
     INTEGER,
     FLOAT,
+    COLOR,
     CLASS
 }

@@ -959,6 +959,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public int getColorRgba8888(String name, int fallback) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getColorRgba8888(name, fallback) : fallback;
+        }
+
+        @Override
         public ClassProperty getClassValue(String name) {
             PropertySet properties = properties();
             return properties != null ? properties.getClassValue(name) : null;

@@ -35,7 +35,8 @@ public class CustomPropertiesSerializationTest {
         properties.putString("Display Name", "first line\nsecond line")
                 .putBoolean("locked", true)
                 .putInt("damage", -20)
-                .putFloat("spawnRate", 0.5f);
+                .putFloat("spawnRate", 0.5f)
+                .putColorRgba8888("tint", 0x80FF0066);
 
         byte[] bytes = saveEntity(source, entity);
         World target = serializationWorld();
@@ -46,16 +47,18 @@ public class CustomPropertiesSerializationTest {
                 .getMapper(CustomPropertiesComponent.class)
                 .get(loaded.entities.get(0));
         Assert.assertNotNull(component);
-        Assert.assertEquals(4, component.properties.size());
+        Assert.assertEquals(5, component.properties.size());
         Assert.assertEquals(PropertyType.STRING, component.properties.typeOf("Display Name"));
         Assert.assertEquals(PropertyType.BOOLEAN, component.properties.typeOf("locked"));
         Assert.assertEquals(PropertyType.INTEGER, component.properties.typeOf("damage"));
         Assert.assertEquals(PropertyType.FLOAT, component.properties.typeOf("spawnRate"));
+        Assert.assertEquals(PropertyType.COLOR, component.properties.typeOf("tint"));
         Assert.assertEquals("first line\nsecond line",
                 component.properties.getString("Display Name", ""));
         Assert.assertTrue(component.properties.getBoolean("locked", false));
         Assert.assertEquals(-20, component.properties.getInt("damage", 0));
         Assert.assertEquals(0.5f, component.properties.getFloat("spawnRate", 0f), 0f);
+        Assert.assertEquals(0x80FF0066, component.properties.getColorRgba8888("tint", 0));
 
         source.dispose();
         target.dispose();
@@ -65,7 +68,9 @@ public class CustomPropertiesSerializationTest {
     public void artemisAndSceneLoaderRoundTripRecursiveClassValues() throws Exception {
         World source = serializationWorld();
         int entity = source.create();
-        PropertySet critical = new PropertySet().putBoolean("enabled", true);
+        PropertySet critical = new PropertySet()
+                .putBoolean("enabled", true)
+                .putColorRgba8888("flash", 0xFF000080);
         PropertySet attack = new PropertySet()
                 .putFloat("range", 80f)
                 .putInt("damage", 10)
@@ -92,6 +97,8 @@ public class CustomPropertiesSerializationTest {
         ClassProperty modifier = loadedAttack.properties().getClassValue("modifier");
         Assert.assertEquals("Critical", modifier.typeName());
         Assert.assertTrue(modifier.properties().getBoolean("enabled", false));
+        Assert.assertEquals(0xFF000080,
+                modifier.properties().getColorRgba8888("flash", 0));
 
         source.dispose();
         target.dispose();
