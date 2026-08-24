@@ -36,4 +36,10 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.light"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.property"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.property"/>
+
+    <!-- These are Studio-generated runtime artifacts and are stripped during Runtime export. -->
+    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent"/>
+    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent"/>
+    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent"/>
+    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent"/>
 </module>
