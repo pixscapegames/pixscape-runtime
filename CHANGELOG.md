@@ -1,6 +1,42 @@
 # Changelog
 
 
+## [0.1.10]
+
+### Added
+
+* Added typed custom properties for Runtime entities, with String, Boolean, Integer, Float, Color, Object and recursively nested Class values.
+* Added read-only high-level custom-property access through `EntityRef#properties()`.
+* Added persistent authored polygon and polyline geometry.
+* Added read-only authored geometry access through `EntityRef#geometry()` for rectangles, polygons and polylines.
+* Added direct quad deformation support and the high-level `EntityRef#quadDeform()` API.
+* Added Runtime playback support for Tiled animations attached to regular entities.
+* Added `EntitiesAPI#findAllByTag(String)` for retrieving all entities sharing a tag.
+
+### Changed
+
+* Updated the prefab asset format to version 3 to persist quad deformation; version 2 prefabs remain supported and are migrated when loaded.
+* Quad deformation and sprite Repeat are now mutually exclusive when non-zero deformation is active.
+* Extended the public API support contracts for authored geometry, custom properties and related expert ECS components.
+
+### Improved
+
+* Improved custom-property validation, copying and storage for Studio authoring and Runtime access.
+* Shared Tiled animation stepping logic between tiled cells and animated Tiled entities.
+
+### Fixed
+
+* Fixed HTML/GWT reflection coverage for Runtime prefab fragments and newly authored Runtime data types.
+
+### Tests
+
+* Added regression coverage for custom-property storage, serialization and high-level access.
+* Added regression coverage for Color, Object and nested Class properties.
+* Added regression coverage for authored polygon/polyline serialization and geometry access.
+* Added regression coverage for direct quad deformation, prefab persistence and Runtime prefab spawning.
+* Added regression coverage for animated Tiled entities and shared-tag queries.
+
+
 ## [0.1.9]
 
 ### Breaking changes
