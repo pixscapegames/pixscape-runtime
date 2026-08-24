@@ -20,26 +20,20 @@
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.physics.box2d.Body"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.physics.box2d.Joint"/>
 
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.tiled"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.prefab"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.prefab"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.spatial"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.physics"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.physics"/>
+    <!-- Artemis needs all pooled components, including live Runtime caches. -->
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.physics"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.physics"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.component.light"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component.light"/>
+    <!-- Persistent nested values reached from authored Artemis components. -->
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockData"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialShapeData"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.physics.PhysicsShapeData"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.physics.PhysicsGeometryData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.property"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.property"/>
 
-    <!-- These are Studio-generated runtime artifacts and are stripped during Runtime export. -->
-    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent"/>
-    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent"/>
-    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent"/>
-    <extend-configuration-property name="artemis.reflect.exclude" value="games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent"/>
 </module>

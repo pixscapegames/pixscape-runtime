@@ -5,6 +5,10 @@ import com.artemis.WorldConfigurationBuilder;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -12,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class AuthoredGeometryComponentTest {
 
@@ -63,6 +68,23 @@ public class AuthoredGeometryComponentTest {
         } finally {
             source.dispose();
             target.dispose();
+        }
+    }
+
+    @Test
+    public void runtimeAndAuthoredComponentsRemainCreatableInTheSameWorld() {
+        World world = world();
+        try {
+            int entity = world.create();
+
+            assertNotNull(world.getMapper(PolygonComponent.class).create(entity));
+            assertNotNull(world.getMapper(PolylineComponent.class).create(entity));
+            assertNotNull(world.getMapper(PhysicsRuntimeBodyComponent.class).create(entity));
+            assertNotNull(world.getMapper(PhysicsRuntimeJointComponent.class).create(entity));
+            assertNotNull(world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity));
+            assertNotNull(world.getMapper(SpatialPhysicsFootprintComponent.class).create(entity));
+        } finally {
+            world.dispose();
         }
     }
 
