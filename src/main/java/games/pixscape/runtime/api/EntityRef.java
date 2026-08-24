@@ -37,6 +37,11 @@ public interface EntityRef {
      */
     QuadDeformFacade quadDeform();
 
+    /**
+     * Read-only authored local rectangle, polygon or polyline geometry.
+     */
+    AuthoredGeometryFacade geometry();
+
     AnimationFacade animation();
 
     ParticleFacade particles();

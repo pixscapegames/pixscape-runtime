@@ -1,7 +1,8 @@
 package games.pixscape.runtime.api;
 
 /**
- * Read-only Runtime view of one typed nested custom-property value.
+ * {@code HIGH_LEVEL} read-only Runtime view of one typed nested
+ * custom-property value.
  */
 public interface ClassProperty {
     /** The authored class/type name. */

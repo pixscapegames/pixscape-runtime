@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.animation.AnimationClipDef;
 import games.pixscape.runtime.animation.AnimationDef;
@@ -754,6 +755,18 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public EntityRef[] findAllByTag(String tag) {
+            IntArray entityIds = engine.getTagRegistry().get(tag);
+            EntityRef[] refs = new EntityRef[entityIds.size];
+            for (int i = 0; i < entityIds.size; i++) {
+                refs[i] = new EntityRefImpl(
+                        engine, ecs, sceneLayers,
+                        entityReferences.capture(entityIds.get(i)));
+            }
+            return refs;
+        }
+
+        @Override
         public EntityRef requireName(String name) {
             int entityId = engine.firstEntityByName(name);
             if (entityId < 0) {
@@ -821,6 +834,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private TransformFacade transform;
         private SpriteFacade sprite;
         private QuadDeformFacade quadDeform;
+        private AuthoredGeometryFacade geometry;
         private AnimationFacade animation;
         private ParticleFacade particles;
         private ShaderFacade shader;
@@ -871,6 +885,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public QuadDeformFacade quadDeform() {
             if (quadDeform == null) quadDeform = new QuadDeformFacadeImpl(handle);
             return quadDeform;
+        }
+
+        @Override
+        public AuthoredGeometryFacade geometry() {
+            if (geometry == null) geometry = new AuthoredGeometryFacadeImpl(handle);
+            return geometry;
         }
 
         @Override
@@ -1836,6 +1856,117 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private void markQuadDirty(World world) {
             DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
             if (dirty != null) dirty.geometry(handle.entityId, GeometryDirty.QUAD);
+        }
+    }
+
+    static final class AuthoredGeometryFacadeImpl implements AuthoredGeometryFacade {
+        private final EntityHandle handle;
+
+        AuthoredGeometryFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return kind() != AuthoredGeometryKind.NONE;
+        }
+
+        @Override
+        public AuthoredGeometryKind kind() {
+            World world = handle.world();
+            if (world == null) return AuthoredGeometryKind.NONE;
+            int entityId = handle.entityId;
+            if (world.getMapper(PolygonComponent.class).has(entityId)) {
+                return AuthoredGeometryKind.POLYGON;
+            }
+            if (world.getMapper(PolylineComponent.class).has(entityId)) {
+                return AuthoredGeometryKind.POLYLINE;
+            }
+            if (world.getMapper(DimensionsComponent.class).has(entityId)) {
+                return AuthoredGeometryKind.RECTANGLE;
+            }
+            return AuthoredGeometryKind.NONE;
+        }
+
+        @Override
+        public float width() {
+            DimensionsComponent dimensions = dimensions();
+            return dimensions != null ? dimensions.width : 0f;
+        }
+
+        @Override
+        public float height() {
+            DimensionsComponent dimensions = dimensions();
+            return dimensions != null ? dimensions.height : 0f;
+        }
+
+        @Override
+        public int vertexCount() {
+            AuthoredGeometryKind kind = kind();
+            if (kind == AuthoredGeometryKind.RECTANGLE) return 4;
+            float[] vertices = vertices(kind);
+            return vertices != null ? vertices.length / 2 : 0;
+        }
+
+        @Override
+        public float localX(int vertexIndex) {
+            return localCoordinate(vertexIndex, 0);
+        }
+
+        @Override
+        public float localY(int vertexIndex) {
+            return localCoordinate(vertexIndex, 1);
+        }
+
+        @Override
+        public boolean closed() {
+            AuthoredGeometryKind kind = kind();
+            return kind == AuthoredGeometryKind.RECTANGLE
+                    || kind == AuthoredGeometryKind.POLYGON;
+        }
+
+        private float localCoordinate(int vertexIndex, int axis) {
+            AuthoredGeometryKind kind = kind();
+            int count = vertexCount();
+            if (vertexIndex < 0 || vertexIndex >= count) {
+                throw new IndexOutOfBoundsException(
+                        "Authored geometry vertex index " + vertexIndex
+                                + " is outside [0, " + count + ").");
+            }
+            if (kind == AuthoredGeometryKind.RECTANGLE) {
+                DimensionsComponent dimensions = dimensions();
+                float width = dimensions != null ? dimensions.width : 0f;
+                float height = dimensions != null ? dimensions.height : 0f;
+                if (axis == 0) {
+                    return vertexIndex == 1 || vertexIndex == 2 ? width : 0f;
+                }
+                return vertexIndex >= 2 ? height : 0f;
+            }
+            return vertices(kind)[vertexIndex * 2 + axis];
+        }
+
+        private DimensionsComponent dimensions() {
+            World world = handle.world();
+            return world != null
+                    ? world.getMapper(DimensionsComponent.class)
+                    .getSafe(handle.entityId, null)
+                    : null;
+        }
+
+        private float[] vertices(AuthoredGeometryKind kind) {
+            World world = handle.world();
+            if (world == null) return null;
+            if (kind == AuthoredGeometryKind.POLYGON) {
+                PolygonComponent polygon = world.getMapper(PolygonComponent.class)
+                        .getSafe(handle.entityId, null);
+                return polygon != null ? polygon.vertices : null;
+            }
+            if (kind == AuthoredGeometryKind.POLYLINE) {
+                PolylineComponent polyline = world.getMapper(PolylineComponent.class)
+                        .getSafe(handle.entityId, null);
+                return polyline != null ? polyline.vertices : null;
+            }
+            return null;
         }
     }
 

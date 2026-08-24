@@ -4,7 +4,8 @@ import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.api.CustomProperties;
 
 /**
- * Concrete typed value stored in a {@link PropertySet}.
+ * {@code SUPPORTED_EXPERT} concrete typed value stored in a
+ * {@link PropertySet}.
  *
  * <p>The representation is deliberately non-polymorphic so it can be serialized consistently
  * on Desktop, Android, and GWT. Accessors never coerce between property types.</p>

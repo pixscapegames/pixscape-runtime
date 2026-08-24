@@ -3,6 +3,7 @@ package games.pixscape.runtime.api;
 import com.artemis.World;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
@@ -105,6 +106,49 @@ public class CustomPropertiesApiTest {
                 nested.properties().getColorRgba8888("flash", 0));
         Assert.assertNull(properties.getClassValue("missing"));
         Assert.assertSame(classValue, properties.getClassValue("attack"));
+        world.dispose();
+    }
+
+    @Test
+    public void objectPropertiesExposeStableIdsAndNestedReferencesWithoutFollowingEntityIdReuse()
+            throws Exception {
+        World world = new World();
+        PixscapeEngine engine = engineWithWorld(world);
+        engine.getIdentityRegistry().bind(world, new SceneMetaRuntime());
+        int target = world.create();
+        int targetStableId = engine.api().entities().ensureStableId(target);
+        Assert.assertTrue(targetStableId > 0);
+
+        int owner = world.create();
+        PropertySet nested = new PropertySet()
+                .putObjectStableId("target", targetStableId);
+        world.getMapper(CustomPropertiesComponent.class).create(owner).properties
+                .putObjectStableId("target", targetStableId)
+                .putObjectStableId("optionalTarget", -1)
+                .putClass("links", "Links", nested);
+        world.process();
+
+        CustomProperties properties =
+                engine.api().entities().ofEntityId(owner).properties();
+        Assert.assertEquals(PropertyType.OBJECT, properties.typeOf("target"));
+        Assert.assertEquals(targetStableId,
+                properties.getObjectStableId("target", -1));
+        Assert.assertEquals(-1,
+                properties.getObjectStableId("optionalTarget", 99));
+        Assert.assertEquals(targetStableId, properties.getClassValue("links")
+                .properties().getObjectStableId("target", -1));
+
+        EntityRef resolved = engine.api().entities().ofStableId(
+                properties.getObjectStableId("target", -1));
+        Assert.assertTrue(resolved.exists());
+        Assert.assertEquals(target, resolved.entityId());
+
+        world.delete(target);
+        world.process();
+        int replacement = world.create();
+        Assert.assertEquals(target, replacement);
+        Assert.assertFalse(resolved.exists());
+        Assert.assertFalse(engine.api().entities().ofStableId(targetStableId).exists());
         world.dispose();
     }
 

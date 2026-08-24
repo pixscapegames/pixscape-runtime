@@ -3,7 +3,8 @@ package games.pixscape.runtime.component;
 import com.artemis.PooledComponent;
 
 /**
- * Makes a regular renderable ECS entity play a shared Tiled animation definition.
+ * {@code SUPPORTED_EXPERT} authored capability that makes a regular renderable
+ * ECS entity play a shared Tiled animation definition automatically.
  *
  * <p>The persistent {@link #animationId} is authored scene state and identifies the logical
  * {@code TileAnimationDef} played by this entity. The remaining fields intentionally live in the
@@ -16,6 +17,12 @@ import com.artemis.PooledComponent;
  * playback at frame zero and forces that frame to be applied again. Frame asset ids and exact
  * frame durations remain owned by the shared {@code TileAnimationDef}; they are never duplicated
  * into an entity component.</p>
+ *
+ * <p>This component represents an animated tile object imported as an ordinary
+ * entity. It is distinct from tiled layer-cell animation controlled through
+ * {@link games.pixscape.runtime.api.TiledLayerRef#tileAnimations()} and from a
+ * normal sprite {@link AnimationComponent} controlled through
+ * {@link games.pixscape.runtime.api.EntityRef#animation()}.</p>
  */
 public final class TiledAnimationComponent extends PooledComponent {
 

@@ -5,10 +5,12 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.api.ClassProperty;
 
 /**
- * Case-sensitive collection of named, typed Pixscape custom properties.
+ * {@code SUPPORTED_EXPERT} case-sensitive collection of named, typed Pixscape
+ * custom properties.
  *
- * <p>Supports string, boolean, signed 32-bit integer, finite float, packed RGBA8888 color,
- * and recursively nested class values.</p>
+ * <p>Supports string, boolean, signed 32-bit integer, finite float, packed
+ * RGBA8888 color, persistent Pixscape stable-ID object references, and
+ * recursively nested class values.</p>
  *
  * <p>Names are preserved exactly as supplied. Typed getters return their fallback only when a
  * property is absent and throw when an existing property has a different type.</p>

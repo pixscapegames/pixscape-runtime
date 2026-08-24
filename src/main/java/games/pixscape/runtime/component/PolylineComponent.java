@@ -5,7 +5,14 @@ import com.artemis.PooledComponent;
 import java.util.Arrays;
 
 /**
- * Generic authored open geometry stored as local-space XY vertex pairs.
+ * {@code SUPPORTED_EXPERT} authored open geometry stored as local-space XY
+ * vertex pairs.
+ *
+ * <p>Ordinary read-only gameplay access should prefer
+ * {@link games.pixscape.runtime.api.EntityRef#geometry()}.
+ * {@link #setVertices(float[])} copies its input and {@link #verticesCopy()}
+ * returns caller-owned data. Direct access to the public backing array is
+ * expert-level access; mutations change authored geometry state.</p>
  */
 public final class PolylineComponent extends PooledComponent {
     public float[] vertices = new float[0];

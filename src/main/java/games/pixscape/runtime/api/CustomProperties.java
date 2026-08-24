@@ -3,7 +3,7 @@ package games.pixscape.runtime.api;
 import games.pixscape.runtime.property.PropertyType;
 
 /**
- * Read-only custom properties of a Runtime entity.
+ * {@code HIGH_LEVEL} read-only custom properties of a Runtime entity.
  *
  * <p>V1 supports {@link PropertyType#STRING}, {@link PropertyType#BOOLEAN},
  * {@link PropertyType#INTEGER}, {@link PropertyType#FLOAT}, {@link PropertyType#COLOR}, and
