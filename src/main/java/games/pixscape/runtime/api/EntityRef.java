@@ -32,6 +32,11 @@ public interface EntityRef {
 
     SpriteFacade sprite();
 
+    /**
+     * Authored local-space corner deformation for this entity's sprite capability.
+     */
+    QuadDeformFacade quadDeform();
+
     AnimationFacade animation();
 
     ParticleFacade particles();

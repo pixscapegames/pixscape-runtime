@@ -196,6 +196,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 ? world : null;
     }
 
+    private static World quadDeformCapabilityWorld(EntityHandle handle) {
+        World world = spriteCapabilityWorld(handle);
+        if (world == null) return null;
+        int entityId = handle.entityId;
+        return world.getMapper(OrientedBoundsComponent.class).has(entityId)
+                && world.getMapper(AABBComponent.class).has(entityId)
+                && world.getMapper(TextureRegionComponent.class).has(entityId)
+                && world.getMapper(RenderMaterialComponent.class).has(entityId)
+                ? world : null;
+    }
+
+    private static boolean hasQuadDeformation(QuadDeformComponent component) {
+        return component != null
+                && (component.blX != 0f || component.blY != 0f
+                || component.brX != 0f || component.brY != 0f
+                || component.trX != 0f || component.trY != 0f
+                || component.tlX != 0f || component.tlY != 0f);
+    }
+
     private static boolean isBlank(String s) {
         if (s == null || s.length() == 0) return true;
 
@@ -801,6 +820,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final EntityHandle handle;
         private TransformFacade transform;
         private SpriteFacade sprite;
+        private QuadDeformFacade quadDeform;
         private AnimationFacade animation;
         private ParticleFacade particles;
         private ShaderFacade shader;
@@ -845,6 +865,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpriteFacade sprite() {
             if (sprite == null) sprite = new SpriteFacadeImpl(engine, handle);
             return sprite;
+        }
+
+        @Override
+        public QuadDeformFacade quadDeform() {
+            if (quadDeform == null) quadDeform = new QuadDeformFacadeImpl(handle);
+            return quadDeform;
         }
 
         @Override
@@ -1504,6 +1530,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpriteFacade setRepeat(boolean repeatX, boolean repeatY) {
+            World world = spriteCapabilityWorld(handle);
+            if (world == null) return this;
+            if (repeatX || repeatY) {
+                QuadDeformComponent quad = world.getMapper(QuadDeformComponent.class)
+                        .getSafe(handle.entityId, null);
+                if (hasQuadDeformation(quad)) {
+                    throw repeatQuadConflict();
+                }
+            }
             RenderRepeatComponent repeat = comp(
                     RenderRepeatComponent.class, repeatX || repeatY);
             if (repeat == null) return this;
@@ -1590,6 +1625,223 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World w = spriteCapabilityWorld(handle);
             return w != null ? w.getSystem(DirtyTrackerSystem.class) : null;
         }
+    }
+
+    static final class QuadDeformFacadeImpl implements QuadDeformFacade {
+        private final EntityHandle handle;
+
+        QuadDeformFacadeImpl(EntityHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public boolean exists() {
+            return quadDeformCapabilityWorld(handle) != null;
+        }
+
+        @Override
+        public boolean isDeformed() {
+            return hasQuadDeformation(component());
+        }
+
+        @Override
+        public float bottomLeftX() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.blX : 0f;
+        }
+
+        @Override
+        public float bottomLeftY() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.blY : 0f;
+        }
+
+        @Override
+        public float bottomRightX() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.brX : 0f;
+        }
+
+        @Override
+        public float bottomRightY() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.brY : 0f;
+        }
+
+        @Override
+        public float topRightX() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.trX : 0f;
+        }
+
+        @Override
+        public float topRightY() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.trY : 0f;
+        }
+
+        @Override
+        public float topLeftX() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.tlX : 0f;
+        }
+
+        @Override
+        public float topLeftY() {
+            QuadDeformComponent quad = component();
+            return quad != null ? quad.tlY : 0f;
+        }
+
+        @Override
+        public QuadDeformFacade setBottomLeft(float x, float y) {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            requireFinite("Quad deformation bottom-left", x, y);
+            QuadDeformComponent quad = component(world);
+            return apply(world, x, y,
+                    quad != null ? quad.brX : 0f, quad != null ? quad.brY : 0f,
+                    quad != null ? quad.trX : 0f, quad != null ? quad.trY : 0f,
+                    quad != null ? quad.tlX : 0f, quad != null ? quad.tlY : 0f);
+        }
+
+        @Override
+        public QuadDeformFacade setBottomRight(float x, float y) {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            requireFinite("Quad deformation bottom-right", x, y);
+            QuadDeformComponent quad = component(world);
+            return apply(world,
+                    quad != null ? quad.blX : 0f, quad != null ? quad.blY : 0f,
+                    x, y,
+                    quad != null ? quad.trX : 0f, quad != null ? quad.trY : 0f,
+                    quad != null ? quad.tlX : 0f, quad != null ? quad.tlY : 0f);
+        }
+
+        @Override
+        public QuadDeformFacade setTopRight(float x, float y) {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            requireFinite("Quad deformation top-right", x, y);
+            QuadDeformComponent quad = component(world);
+            return apply(world,
+                    quad != null ? quad.blX : 0f, quad != null ? quad.blY : 0f,
+                    quad != null ? quad.brX : 0f, quad != null ? quad.brY : 0f,
+                    x, y,
+                    quad != null ? quad.tlX : 0f, quad != null ? quad.tlY : 0f);
+        }
+
+        @Override
+        public QuadDeformFacade setTopLeft(float x, float y) {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            requireFinite("Quad deformation top-left", x, y);
+            QuadDeformComponent quad = component(world);
+            return apply(world,
+                    quad != null ? quad.blX : 0f, quad != null ? quad.blY : 0f,
+                    quad != null ? quad.brX : 0f, quad != null ? quad.brY : 0f,
+                    quad != null ? quad.trX : 0f, quad != null ? quad.trY : 0f,
+                    x, y);
+        }
+
+        @Override
+        public QuadDeformFacade set(
+                float blX, float blY,
+                float brX, float brY,
+                float trX, float trY,
+                float tlX, float tlY) {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            requireFinite("Quad deformation BL", blX, blY);
+            requireFinite("Quad deformation BR", brX, brY);
+            requireFinite("Quad deformation TR", trX, trY);
+            requireFinite("Quad deformation TL", tlX, tlY);
+            return apply(world, blX, blY, brX, brY, trX, trY, tlX, tlY);
+        }
+
+        @Override
+        public QuadDeformFacade reset() {
+            World world = quadDeformCapabilityWorld(handle);
+            if (world == null) return this;
+            ComponentMapper<QuadDeformComponent> mapper =
+                    world.getMapper(QuadDeformComponent.class);
+            QuadDeformComponent quad = mapper.getSafe(handle.entityId, null);
+            if (quad == null) return this;
+            boolean changed = hasQuadDeformation(quad);
+            mapper.remove(handle.entityId);
+            if (changed) markQuadDirty(world);
+            return this;
+        }
+
+        private QuadDeformFacade apply(
+                World world,
+                float blX, float blY,
+                float brX, float brY,
+                float trX, float trY,
+                float tlX, float tlY) {
+            ComponentMapper<QuadDeformComponent> mapper =
+                    world.getMapper(QuadDeformComponent.class);
+            QuadDeformComponent quad = mapper.getSafe(handle.entityId, null);
+            boolean allZero = blX == 0f && blY == 0f
+                    && brX == 0f && brY == 0f
+                    && trX == 0f && trY == 0f
+                    && tlX == 0f && tlY == 0f;
+            boolean changed = quad == null
+                    ? !allZero
+                    : quad.blX != blX || quad.blY != blY
+                    || quad.brX != brX || quad.brY != brY
+                    || quad.trX != trX || quad.trY != trY
+                    || quad.tlX != tlX || quad.tlY != tlY;
+
+            if (!changed) {
+                if (allZero && quad != null) mapper.remove(handle.entityId);
+                return this;
+            }
+            if (allZero) {
+                mapper.remove(handle.entityId);
+                markQuadDirty(world);
+                return this;
+            }
+            if (isRepeatActive(world)) {
+                throw repeatQuadConflict();
+            }
+            if (quad == null) quad = mapper.create(handle.entityId);
+            quad.blX = blX;
+            quad.blY = blY;
+            quad.brX = brX;
+            quad.brY = brY;
+            quad.trX = trX;
+            quad.trY = trY;
+            quad.tlX = tlX;
+            quad.tlY = tlY;
+            markQuadDirty(world);
+            return this;
+        }
+
+        private QuadDeformComponent component() {
+            World world = quadDeformCapabilityWorld(handle);
+            return world != null ? component(world) : null;
+        }
+
+        private QuadDeformComponent component(World world) {
+            return world.getMapper(QuadDeformComponent.class)
+                    .getSafe(handle.entityId, null);
+        }
+
+        private boolean isRepeatActive(World world) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class)
+                    .getSafe(handle.entityId, null);
+            return repeat != null && (repeat.repeatX || repeat.repeatY);
+        }
+
+        private void markQuadDirty(World world) {
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) dirty.geometry(handle.entityId, GeometryDirty.QUAD);
+        }
+    }
+
+    private static IllegalStateException repeatQuadConflict() {
+        return new IllegalStateException(
+                "Quad deformation and sprite Repeat cannot be active together.");
     }
 
     static final class AnimationFacadeImpl implements AnimationFacade {

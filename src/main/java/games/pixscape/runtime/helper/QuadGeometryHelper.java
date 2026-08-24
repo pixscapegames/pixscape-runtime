@@ -5,7 +5,12 @@ import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
 
 /**
- * Produces final world-space sprite corners in BL, BR, TR, TL order.
+ * Runtime implementation detail used to derive final world-space sprite
+ * geometry from authored state in BL, BR, TR and TL order.
+ *
+ * <p>This is an {@code INTERNAL} API. Java-public visibility supports Runtime
+ * and first-party tooling use; this helper is not part of the normal
+ * high-level gameplay API.</p>
  */
 public final class QuadGeometryHelper {
     private QuadGeometryHelper() {
