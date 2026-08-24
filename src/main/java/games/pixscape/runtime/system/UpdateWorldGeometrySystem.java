@@ -6,8 +6,9 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
+import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -18,7 +19,7 @@ import games.pixscape.runtime.render.GeometryDirty;
  * Recompute world geometry (axes/oriented bounds/AABB) ONLY for entities
  * marked GEOMETRY dirty via DirtyTrackerSystem (outside components).
  * <p>
- * - Reads GeometryDirty submask (pos/origin/rot/scale/size) to avoid unnecessary trig recomputation.
+ * - Reads GeometryDirty submask (pos/origin/rot/scale/size/quad) to avoid unnecessary trig recomputation.
  * - Does not consume/remove: DirtyFlushSystem flushes at end of frame.
  */
 public final class UpdateWorldGeometrySystem extends BaseSystem implements ProfiledSystem {
@@ -29,6 +30,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
     private ComponentMapper<DimensionsComponent> mD;
     private ComponentMapper<OrientedBoundsComponent> mB;
     private ComponentMapper<AABBComponent> mA;
+    private ComponentMapper<QuadDeformComponent> mQuad;
 
     private final float[] tmpCorners = new float[8];
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -108,7 +110,7 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
                 b.cx = pivotWorldX + b.ux * dx + b.vx * dy;
                 b.cy = pivotWorldY + b.uy * dx + b.vy * dy;
 
-                OrientedBoundsHelper.toCorners(b, tmpCorners);
+                QuadGeometryHelper.toWorldCorners(b, t, mQuad.getSafe(e, null), tmpCorners);
 
                 float x1 = tmpCorners[0], y1 = tmpCorners[1];
                 float x2 = tmpCorners[2], y2 = tmpCorners[3];
