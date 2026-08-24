@@ -33,6 +33,31 @@ import java.util.Set;
 public class RuntimePrefabFragmentSpawnTest {
 
     @Test
+    public void fragmentSerializationAndSpawnPreserveQuadDeformation() {
+        World world = runtimeWorld();
+        int source = world.create();
+        sourceWorldQuadComponents(world, source);
+        QuadDeformComponent sourceQuad =
+                world.getMapper(QuadDeformComponent.class).create(source);
+        setQuad(sourceQuad, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f);
+        world.process();
+        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        fragment.entities.add(source);
+
+        SpawnResult result = new RuntimePrefabFragmentSpawner(
+                new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService())
+                .spawn(world, fragment, 0f, 0f);
+
+        Assert.assertEquals(1, result.createdEntityIds().size());
+        int spawned = result.createdEntityIds().get(0);
+        QuadDeformComponent restored =
+                world.getMapper(QuadDeformComponent.class).getSafe(spawned, null);
+        assertQuad(restored, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f);
+        Assert.assertTrue(world.getSystem(DirtyTrackerSystem.class)
+                .isDirty(spawned, DirtyBits.GEOMETRY));
+    }
+
+    @Test
     public void schemaVersionTwoJsonFragmentIsAccepted() {
         World world = runtimeWorld();
         RuntimePrefabFragmentSpawner spawner =
@@ -732,6 +757,44 @@ public class RuntimePrefabFragmentSpawnTest {
         if (sentinel != null) builder.with(sentinel);
         return new World(builder
                 .build());
+    }
+
+    private static void sourceWorldQuadComponents(World world, int entityId) {
+        world.getMapper(TransformComponent.class).create(entityId);
+        world.getMapper(DimensionsComponent.class).create(entityId);
+        world.getMapper(OrientedBoundsComponent.class).create(entityId);
+        world.getMapper(AABBComponent.class).create(entityId);
+    }
+
+    private static void setQuad(QuadDeformComponent quad,
+                                float blX, float blY,
+                                float brX, float brY,
+                                float trX, float trY,
+                                float tlX, float tlY) {
+        quad.blX = blX;
+        quad.blY = blY;
+        quad.brX = brX;
+        quad.brY = brY;
+        quad.trX = trX;
+        quad.trY = trY;
+        quad.tlX = tlX;
+        quad.tlY = tlY;
+    }
+
+    private static void assertQuad(QuadDeformComponent quad,
+                                   float blX, float blY,
+                                   float brX, float brY,
+                                   float trX, float trY,
+                                   float tlX, float tlY) {
+        Assert.assertNotNull(quad);
+        Assert.assertEquals(blX, quad.blX, 0f);
+        Assert.assertEquals(blY, quad.blY, 0f);
+        Assert.assertEquals(brX, quad.brX, 0f);
+        Assert.assertEquals(brY, quad.brY, 0f);
+        Assert.assertEquals(trX, quad.trX, 0f);
+        Assert.assertEquals(trY, quad.trY, 0f);
+        Assert.assertEquals(tlX, quad.tlX, 0f);
+        Assert.assertEquals(tlY, quad.tlY, 0f);
     }
 
     private static final class SentinelSystem extends BaseSystem {

@@ -26,8 +26,11 @@ public final class PrefabLoader {
 
         String serialized = file.readString("UTF-8");
         JsonValue root = new JsonReader().parse(serialized);
-        requireCurrentVersion(root, file);
+        int sourceVersion = requireSupportedVersion(root, file);
         PrefabAsset asset = json.fromJson(PrefabAsset.class, serialized);
+        if (sourceVersion == 2) {
+            asset.version = PREFAB_VERSION;
+        }
         validate(asset, file);
         return asset;
     }
@@ -71,7 +74,7 @@ public final class PrefabLoader {
         return json;
     }
 
-    private static void requireCurrentVersion(JsonValue root, FileHandle file) {
+    private static int requireSupportedVersion(JsonValue root, FileHandle file) {
         JsonValue version = root != null && root.isObject()
                 ? root.get("version")
                 : null;
@@ -80,10 +83,12 @@ public final class PrefabLoader {
                     "Prefab requires numeric version " + PREFAB_VERSION
                             + ": " + pathOf(file));
         }
-        if (version.asInt() != PREFAB_VERSION) {
+        int value = version.asInt();
+        if (value != 2 && value != PREFAB_VERSION) {
             throw new IllegalArgumentException(
-                    "Unsupported prefab version: " + version.asInt());
+                    "Unsupported prefab version: " + value);
         }
+        return value;
     }
 
     private static String pathOf(FileHandle file) {
