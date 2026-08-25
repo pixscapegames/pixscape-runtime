@@ -10,6 +10,47 @@ import org.junit.Test;
 public class UpdateWorldGeometrySystemTest {
 
     @Test
+    public void quadDirtyRecomputesDeformedAabbWithoutChangingObb() {
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+        UpdateWorldGeometrySystem geometry = new UpdateWorldGeometrySystem();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(dirty, geometry, new DirtyFlushSystem())
+                .build());
+
+        int entityId = world.create();
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entityId);
+        OrientedBoundsComponent bounds = world.getMapper(OrientedBoundsComponent.class).create(entityId);
+        AABBComponent aabb = world.getMapper(AABBComponent.class).create(entityId);
+        QuadDeformComponent deform = world.getMapper(QuadDeformComponent.class).create(entityId);
+        dimensions.width = 10f;
+        dimensions.height = 10f;
+
+        world.process();
+        dirty.geometry(entityId, GeometryDirty.ALL);
+        world.process();
+
+        float normalCenterX = bounds.cx;
+        float normalCenterY = bounds.cy;
+        float normalHalfWidth = bounds.hx;
+        float normalHalfHeight = bounds.hy;
+        deform.trX = 4f;
+        deform.trY = 3f;
+        dirty.geometry(entityId, GeometryDirty.QUAD);
+
+        world.process();
+
+        Assert.assertEquals(0f, aabb.minX, 0.0001f);
+        Assert.assertEquals(0f, aabb.minY, 0.0001f);
+        Assert.assertEquals(14f, aabb.maxX, 0.0001f);
+        Assert.assertEquals(13f, aabb.maxY, 0.0001f);
+        Assert.assertEquals(normalCenterX, bounds.cx, 0.0001f);
+        Assert.assertEquals(normalCenterY, bounds.cy, 0.0001f);
+        Assert.assertEquals(normalHalfWidth, bounds.hx, 0.0001f);
+        Assert.assertEquals(normalHalfHeight, bounds.hy, 0.0001f);
+    }
+
+    @Test
     public void spritePositionUsesBottomLeftAtCreation() {
         // Test: a sprite's position matches the bottom-left corner on creation.
         // Arrange

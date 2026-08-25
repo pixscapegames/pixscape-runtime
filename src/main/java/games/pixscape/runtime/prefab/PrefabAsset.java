@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class PrefabAsset {
-    public static final int PREFAB_VERSION = 2;
+    public static final int PREFAB_VERSION = 3;
 
     public String type = "pixscape-prefab";
     public int version = PREFAB_VERSION;
@@ -26,6 +26,7 @@ public final class PrefabAsset {
         public VisibilityData visibility;
         public BoundsFlagsData boundsFlags;
         public DimensionsData dimensions;
+        public QuadDeformData quadDeform;
         public TextureRegionData textureRegion;
         public RenderMaterialData renderMaterial;
         public AssetRefData assetRef;
@@ -73,6 +74,13 @@ public final class PrefabAsset {
 
     public static final class DimensionsData {
         public float width, height;
+    }
+
+    public static final class QuadDeformData {
+        public float blX, blY;
+        public float brX, brY;
+        public float trX, trY;
+        public float tlX, tlY;
     }
 
     public static final class TextureRegionData {

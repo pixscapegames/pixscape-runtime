@@ -13,7 +13,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.helper.ColorHelper;
-import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -39,6 +39,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TintComponent> mTint;
     private ComponentMapper<RenderRepeatComponent> mRepeat;
+    private ComponentMapper<QuadDeformComponent> mQuad;
 
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
@@ -237,7 +238,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
             // --- GEOMETRY: corners ---
             if ((mask & DirtyBits.GEOMETRY) != 0) {
-                OrientedBoundsHelper.toCorners(b, tmpCorners);
+                QuadGeometryHelper.toWorldCorners(b, t, mQuad.getSafe(e, null), tmpCorners);
 
                 float blx = tmpCorners[0];
                 float bly = tmpCorners[1];

@@ -3,7 +3,7 @@
 <h1>Pixscape Runtime</h1>
 
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.1.9-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.1.10-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -42,7 +42,10 @@ This runtime repository is also available separately for developers who want dir
 - **Shader and light pipeline**
 - **Box2D physics integration**
 - **Spatial V3 deterministic 2.5D ordering**
-- **Desktop, Android and HTML5/WebGL2 deployment**
+- **Desktop, Android and HTML5/WebGL2 deployment**- Typed entity custom properties
+- **Authored rectangle, polygon and polyline geometry**
+- **Direct quad deformation**
+- **Animated Tiled object entities**
 
 ## Spatial V3 — Deterministic 2.5D Ordering
 
@@ -129,7 +132,7 @@ Pixscape Runtime is available from Maven Central.
 
 ```gradle
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.1.9"
+    implementation "games.pixscape:pixscape-runtime:0.1.10"
 }
 ```
 
@@ -139,7 +142,7 @@ dependencies {
 <dependency>
     <groupId>games.pixscape</groupId>
     <artifactId>pixscape-runtime</artifactId>
-    <version>0.1.9</version>
+    <version>0.1.10</version>
 </dependency>
 ```
 
@@ -157,7 +160,7 @@ for compatibility, lifecycle, and ownership expectations.
 
 Pixscape Studio Free builds are available here:
 
-➡️ https://github.com/pixscapegames/pixscape-studio-releases
+➡️ https://pixscape.games/
 
 ## Changelog
 

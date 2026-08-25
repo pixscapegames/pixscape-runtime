@@ -49,6 +49,41 @@ public class DynamicEntityRenderStateSystemTest {
     }
 
     @Test
+    public void spriteSyncPublishesDeformedCornersInRenderOrder() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(
+                        new DirtyTrackerSystem(16),
+                        new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state),
+                        new DirtyFlushSystem()
+                )
+                .build());
+
+        int entity = createRenderableSprite(world);
+        QuadDeformComponent deform = world.getMapper(QuadDeformComponent.class).create(entity);
+        deform.blX = 1f;
+        deform.brY = 2f;
+        deform.trX = 3f;
+        deform.trY = 4f;
+        deform.tlX = -2f;
+        deform.tlY = 1f;
+
+        world.process();
+
+        int renderSlot = state.renderSlotForEntity(entity);
+        Assert.assertNotEquals(DynamicEntityRenderState.NO_SLOT, renderSlot);
+        Assert.assertEquals(-4f, state.x1[renderSlot], 0.0001f);
+        Assert.assertEquals(-5f, state.y1[renderSlot], 0.0001f);
+        Assert.assertEquals(-7f, state.x2[renderSlot], 0.0001f);
+        Assert.assertEquals(6f, state.y2[renderSlot], 0.0001f);
+        Assert.assertEquals(8f, state.x3[renderSlot], 0.0001f);
+        Assert.assertEquals(9f, state.y3[renderSlot], 0.0001f);
+        Assert.assertEquals(5f, state.x4[renderSlot], 0.0001f);
+        Assert.assertEquals(-3f, state.y4[renderSlot], 0.0001f);
+    }
+
+    @Test
     public void cullingUpdatesDenseRenderSlotWhenEntityIdDiffersFromSlot() {
         DynamicEntityRenderState state = new DynamicEntityRenderState(4);
         OrthographicCamera camera = new OrthographicCamera(100f, 100f);

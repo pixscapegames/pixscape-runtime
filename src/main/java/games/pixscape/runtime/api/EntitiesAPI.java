@@ -32,10 +32,23 @@ public interface EntitiesAPI {
     EntityRef requireStableId(int stableId);
 
     /**
-     * Strictly resolves the entity currently indexed by {@code tag}.
+     * Strictly resolves one entity currently indexed by {@code tag}.
+     *
+     * <p>When several entities share the tag, no particular match is promised.
+     * Use {@link #findAllByTag(String)} when all current matches are required.</p>
      * The returned reference can later become stale and inert.
      */
     EntityRef requireTag(String tag);
+
+    /**
+     * Returns a caller-owned snapshot of all entities currently indexed by
+     * {@code tag}, with no ordering guarantee.
+     *
+     * <p>Missing, null and blank tags return an empty array. Each reference is
+     * bound to the captured entity incarnation and becomes stale rather than
+     * retargeting a recycled Runtime entity ID.</p>
+     */
+    EntityRef[] findAllByTag(String tag);
 
     /**
      * Strictly resolves the entity currently indexed by {@code name}.

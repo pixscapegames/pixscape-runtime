@@ -18,8 +18,9 @@ public final class GeometryDirty {
     public static final int ROTATION = 1 << 2; // rotationRad (cos/sin + axes)
     public static final int SCALE = 1 << 3; // scaleX/scaleY (half extents + AABB)
     public static final int SIZE = 1 << 4; // Dimensions (width/height)
+    public static final int QUAD = 1 << 5; // authored per-corner deformation
 
-    public static final int ALL = POSITION | ORIGIN | ROTATION | SCALE | SIZE;
+    public static final int ALL = POSITION | ORIGIN | ROTATION | SCALE | SIZE | QUAD;
 
     /**
      * Recalc trig/axes/half-extents.
@@ -29,5 +30,5 @@ public final class GeometryDirty {
     /**
      * Recalc center + AABB corners.
      */
-    public static final int AABB_MASK = POSITION | ORIGIN | ROTATION | SCALE | SIZE;
+    public static final int AABB_MASK = POSITION | ORIGIN | ROTATION | SCALE | SIZE | QUAD;
 }

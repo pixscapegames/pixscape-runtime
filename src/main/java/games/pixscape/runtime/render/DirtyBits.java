@@ -15,14 +15,14 @@ public final class DirtyBits {
     public static final int CAMERA = 1 << 5;
 
     // geometry submask packing
-    public static final int GEOM_SUB_BITS = 5;
-    public static final int GEOM_SUB_SHIFT = 7; // bits 7..11
+    public static final int GEOM_SUB_BITS = 6;
+    public static final int GEOM_SUB_SHIFT = 7; // bits 7..12
 
     private static final int GEOM_SUB_MASK = ((1 << GEOM_SUB_BITS) - 1) << GEOM_SUB_SHIFT;
 
     // coarse bits AFTER geom-sub area
-    public static final int PHYSICS = 1 << (GEOM_SUB_SHIFT + GEOM_SUB_BITS);       // 1<<12
-    public static final int JOINTS = 1 << (GEOM_SUB_SHIFT + GEOM_SUB_BITS + 1);   // 1<<13 ✅
+    public static final int PHYSICS = 1 << (GEOM_SUB_SHIFT + GEOM_SUB_BITS);     // 1<<13
+    public static final int JOINTS = 1 << (GEOM_SUB_SHIFT + GEOM_SUB_BITS + 1); // 1<<14
 
     public static final int EVERYTHING =
             GEOMETRY | MATERIAL | COLOR | ORDER | LAYER | CAMERA | PHYSICS | JOINTS;

@@ -102,11 +102,14 @@ public interface SpriteFacade {
      *
      * <p>Repeat configuration is effective only for non-animated, axis-aligned
      * sprites. Animated sprites retain the configuration but Runtime does not
-     * submit repeated draws for them. Rotated sprites fall back to one draw.</p>
+     * submit repeated draws for them. Rotated sprites fall back to one draw.
+     * Repeat cannot be activated while non-zero authored quad deformation is
+     * present.</p>
      *
      * @param repeatX whether to repeat horizontally
      * @param repeatY whether to repeat vertically
      * @return this facade for chaining
+     * @throws IllegalStateException when activating Repeat on a deformed quad
      */
     SpriteFacade setRepeat(boolean repeatX, boolean repeatY);
 }

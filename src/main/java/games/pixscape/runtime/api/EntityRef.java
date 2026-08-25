@@ -32,6 +32,16 @@ public interface EntityRef {
 
     SpriteFacade sprite();
 
+    /**
+     * Authored local-space corner deformation for this entity's sprite capability.
+     */
+    QuadDeformFacade quadDeform();
+
+    /**
+     * Read-only authored local rectangle, polygon or polyline geometry.
+     */
+    AuthoredGeometryFacade geometry();
+
     AnimationFacade animation();
 
     ParticleFacade particles();
@@ -39,6 +49,14 @@ public interface EntityRef {
     ShaderFacade shader();
 
     LightFacade light();
+
+    /**
+     * Returns a non-null, read-only view of this entity's custom properties.
+     *
+     * <p>An entity without custom properties, or a stale entity reference, behaves like an empty
+     * property set.</p>
+     */
+    CustomProperties properties();
 
     /**
      * Spatial render-order settings for this entity.

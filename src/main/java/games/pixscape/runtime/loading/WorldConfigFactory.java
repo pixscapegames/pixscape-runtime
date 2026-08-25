@@ -349,6 +349,7 @@ public final class WorldConfigFactory {
                                 : DEFAULT_PIXELS_PER_METER), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
+                profiled(new TiledEntityAnimationSystem(animatedTileRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
                 profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
                 profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),

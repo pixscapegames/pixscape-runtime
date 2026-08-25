@@ -10,6 +10,21 @@ import org.junit.Test;
 public class DirtyTrackerSystemTest {
 
     @Test
+    public void quadDirtyAffectsAabbButNotAxes() {
+        Assert.assertNotEquals(0, GeometryDirty.ALL & GeometryDirty.QUAD);
+        Assert.assertNotEquals(0, GeometryDirty.AABB_MASK & GeometryDirty.QUAD);
+        Assert.assertEquals(0, GeometryDirty.AXES_MASK & GeometryDirty.QUAD);
+
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+        World world = new World(new WorldConfigurationBuilder().with(dirty).build());
+        int entityId = world.create();
+        world.process();
+        dirty.geometry(entityId, GeometryDirty.QUAD);
+
+        Assert.assertEquals(GeometryDirty.QUAD, dirty.geomSub(entityId));
+    }
+
+    @Test
     public void clearFrameResetsPackedBitsForGeometry() {
         // Arrange
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
