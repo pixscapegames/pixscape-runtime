@@ -182,6 +182,18 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
+    public void unsupportedSpatialEnabledLayerTypeDoesNotSortActors() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(2, 99, true);
+        int first = fixture.createActor(10f, 20f, 0, 2, true);
+        int second = fixture.createActor(10f, 40f, 0, 2, true);
+
+        fixture.process();
+
+        Assert.assertArrayEquals(new int[]{first, second}, fixture.drawOrder());
+    }
+
+    @Test
     public void nonSpatialActorKeepsLegacyPosition() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);

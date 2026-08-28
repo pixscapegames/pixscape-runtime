@@ -107,7 +107,7 @@ final class SceneLayerResolver {
             lastSpatialLookupVisitCount++;
             LayerComponent layer = layers.getSafe(matches.get(i), null);
             if (layer != null
-                    && layer.type != LayerComponent.TYPE_TILED
+                    && layer.type == LayerComponent.TYPE_CLASSIC
                     && layer.spatialEnabled) {
                 return true;
             }

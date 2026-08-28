@@ -248,8 +248,12 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         for (int i = 0, n = layers.size(); i < n; i++) {
             int entity = data[i];
             LayerComponent layer = mLayer.getSafe(entity, null);
-            if (layer == null || layer.layerIndex < 0 || !layer.spatialEnabled) continue;
-            if (layer.type == LayerComponent.TYPE_TILED) continue;
+            if (layer == null
+                    || layer.layerIndex < 0
+                    || layer.type != LayerComponent.TYPE_CLASSIC
+                    || !layer.spatialEnabled) {
+                continue;
+            }
 
             ensureSpatialLayerCapacity(layer.layerIndex + 1);
             if (!spatialLayers[layer.layerIndex]) {
