@@ -9,6 +9,8 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.Box2dWorldService;
@@ -192,6 +194,42 @@ public class DynamicEntityRenderStateSystemTest {
         box2d.dispose();
     }
 
+    @Test
+    public void classicLayerMixedSpritesAndLightsReachPipelineInAuthoredZOrder() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(8);
+        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        LayerStateSOA layers = new LayerStateSOA(1);
+        layers.enabled[0] = true;
+        DrawList drawList = new DrawList(8);
+        RenderStats stats = new RenderStats();
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(
+                        new DirtyTrackerSystem(32),
+                        new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state),
+                        new RenderBuildDrawListSystem(
+                                state, tiledState, layers, drawList, stats, 32, -1, -1),
+                        new RenderSortSystem(state, tiledState, drawList),
+                        new DirtyFlushSystem()
+                )
+                .build());
+
+        int point = createRenderableLight(world, false, 2);
+        int sprite = createRenderableSprite(world);
+        world.getMapper(EntityIndexComponent.class).get(sprite).zIndex = 1;
+        int cone = createRenderableLight(world, true, 3);
+        world.process();
+
+        Assert.assertEquals(3, drawList.size);
+        Assert.assertEquals(sprite, state.entityIdForSlot(drawList.get(0)));
+        Assert.assertEquals(point, state.entityIdForSlot(drawList.get(1)));
+        Assert.assertEquals(cone, state.entityIdForSlot(drawList.get(2)));
+        Assert.assertNotEquals(DynamicEntityRenderState.NO_SLOT, state.renderSlotForEntity(point));
+        Assert.assertNotEquals(DynamicEntityRenderState.NO_SLOT, state.renderSlotForEntity(cone));
+        world.dispose();
+    }
+
     private static int createRenderableSprite(World world) {
         int entity = world.create();
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
@@ -210,6 +248,28 @@ public class DynamicEntityRenderStateSystemTest {
         region.v2 = 1f;
         RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).create(entity);
         material.textureHandle = 7;
+        return entity;
+    }
+
+    private static int createRenderableLight(World world, boolean cone, int zIndex) {
+        int entity = world.create();
+        world.getMapper(TransformComponent.class).create(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entity);
+        dimensions.width = 100f;
+        dimensions.height = 100f;
+        world.getMapper(OrientedBoundsComponent.class).create(entity);
+        world.getMapper(AABBComponent.class).create(entity);
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
+        index.layerIndex = 0;
+        index.zIndex = zIndex;
+        world.getMapper(VisibilityComponent.class).create(entity);
+        RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).create(entity);
+        material.shaderIdx = cone ? 5 : 4;
+        if (cone) {
+            world.getMapper(ConeLightComponent.class).create(entity).radius = 50f;
+        } else {
+            world.getMapper(PointLightComponent.class).create(entity).radius = 50f;
+        }
         return entity;
     }
 

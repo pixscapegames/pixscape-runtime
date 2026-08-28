@@ -49,13 +49,11 @@ public class RenderOrderFacadeTest {
         Fixture fixture = fixture();
         fixture.layer(1, LayerComponent.TYPE_CLASSIC);
         fixture.layer(2, LayerComponent.TYPE_PHYSICS);
-        fixture.layer(3, LayerComponent.TYPE_LIGHT);
         fixture.layer(4, LayerComponent.TYPE_TILED);
         EntityRef entity = fixture.target(0, 9);
 
         Assert.assertEquals(1, entity.renderOrder().layerIndex(1).layerIndex());
         Assert.assertEquals(2, entity.renderOrder().layerIndex(2).layerIndex());
-        Assert.assertEquals(3, entity.renderOrder().layerIndex(3).layerIndex());
         Assert.assertEquals(4, entity.renderOrder().layerIndex(4).layerIndex());
         Assert.assertEquals(9, entity.renderOrder().zIndex());
     }
@@ -64,7 +62,7 @@ public class RenderOrderFacadeTest {
     public void unknownDuplicateAndActorOnlyLayerIndicesFail() throws Exception {
         Fixture fixture = fixture();
         fixture.layer(2, LayerComponent.TYPE_CLASSIC);
-        fixture.layer(2, LayerComponent.TYPE_LIGHT);
+        fixture.layer(2, LayerComponent.TYPE_CLASSIC);
         fixture.actorMetadata(8, true);
         EntityRef entity = fixture.target(0, 3);
 
@@ -97,7 +95,7 @@ public class RenderOrderFacadeTest {
         EntityRef entity = fixture.target(0, 3);
         LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
         EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(entity.entityId());
-        layer.type = LayerComponent.TYPE_LIGHT;
+        layer.type = LayerComponent.TYPE_PHYSICS;
         layer.spatialEnabled = true;
         fixture.dirty.clearAll();
 
@@ -106,7 +104,7 @@ public class RenderOrderFacadeTest {
         Assert.assertEquals(4, layer.layerIndex);
         Assert.assertEquals(4, index.layerIndex);
         Assert.assertEquals(3, index.zIndex);
-        Assert.assertEquals(LayerComponent.TYPE_LIGHT, layer.type);
+        Assert.assertEquals(LayerComponent.TYPE_PHYSICS, layer.type);
         Assert.assertTrue(layer.spatialEnabled);
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));

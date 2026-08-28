@@ -54,17 +54,17 @@ public class LayerStateBuildSystemTest {
         Entity sceneLayer = world.createEntity();
         LayerComponent sceneLayerComponent = sceneLayer.edit().create(LayerComponent.class);
         sceneLayerComponent.layerIndex = 1;
-        sceneLayerComponent.type = LayerComponent.TYPE_LIGHT;
+        sceneLayerComponent.type = LayerComponent.TYPE_CLASSIC;
 
         Entity actor = world.createEntity();
         LayerComponent actorLayer = actor.edit().create(LayerComponent.class);
         actorLayer.layerIndex = 1;
-        actorLayer.type = LayerComponent.TYPE_CLASSIC;
+        actorLayer.type = LayerComponent.TYPE_PHYSICS;
         actor.edit().create(EntityIndexComponent.class).layerIndex = 1;
 
         world.process();
 
         Assert.assertEquals(sceneLayer.getId(), layerState.entityId[1]);
-        Assert.assertEquals(LayerComponent.TYPE_LIGHT, layerState.type[1]);
+        Assert.assertEquals(LayerComponent.TYPE_CLASSIC, layerState.type[1]);
     }
 }

@@ -24,7 +24,6 @@ import games.pixscape.runtime.render.LayerStateSOA;
  * Pixscape business rules:
  * - TYPE_CLASSIC: parallax is read from LayerParallaxComponent when present; otherwise NaN
  * - TYPE_TILED:   parallax is read from LayerParallaxComponent when present; otherwise NaN
- * - TYPE_LIGHT:   parallax is read from LayerParallaxComponent when present; otherwise NaN
  * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
  */
 @All(LayerComponent.class)
@@ -94,7 +93,6 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
     private int normalizeType(int type, int entityId, int layerIdx) {
         if (type == LayerComponent.TYPE_CLASSIC ||
                 type == LayerComponent.TYPE_PHYSICS ||
-                type == LayerComponent.TYPE_LIGHT ||
                 type == LayerComponent.TYPE_TILED) {
             return type;
         }
@@ -123,7 +121,6 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
             }
 
             case LayerComponent.TYPE_CLASSIC:
-            case LayerComponent.TYPE_LIGHT:
             case LayerComponent.TYPE_TILED: {
                 LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
                 if (lp != null) {

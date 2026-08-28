@@ -860,8 +860,7 @@ public class PixscapeApiV1Test {
         PixscapeEngine engine = setupEngineWithWorld();
         final int[] types = {
                 LayerComponent.TYPE_CLASSIC,
-                LayerComponent.TYPE_PHYSICS,
-                LayerComponent.TYPE_LIGHT
+                LayerComponent.TYPE_PHYSICS
         };
 
         for (int i = 0; i < types.length; i++) {
