@@ -74,11 +74,7 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
             return;
         }
 
-        final int type = normalizeType(lc.type, e, idx);
-
         layerState.touchLayerIndex(idx);
-        layerState.entityId[idx] = e;
-        layerState.type[idx] = type;
 
         // enabled
         VisibilityComponent vis = mVis.getSafe(e, null);
@@ -86,17 +82,6 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
 
         applyParallax(idx, e);
 
-    }
-
-    private int normalizeType(int type, int entityId, int layerIdx) {
-        if (type == LayerComponent.TYPE_CLASSIC || type == LayerComponent.TYPE_TILED) {
-            return type;
-        }
-
-        Gdx.app.error(TAG,
-                "Invalid layer type=" + type + " for entity=" + entityId +
-                        " layerIndex=" + layerIdx + ". Forcing TYPE_CLASSIC.");
-        return LayerComponent.TYPE_CLASSIC;
     }
 
     private void applyParallax(int layerIdx, int entityId) {

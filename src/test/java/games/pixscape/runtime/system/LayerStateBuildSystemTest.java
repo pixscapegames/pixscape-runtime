@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.LayerStateSOA;
 import org.junit.Assert;
@@ -66,10 +67,11 @@ public class LayerStateBuildSystemTest {
         actorLayer.layerIndex = 1;
         actorLayer.type = LayerComponent.TYPE_CLASSIC;
         actor.edit().create(EntityIndexComponent.class).layerIndex = 1;
+        actor.edit().create(VisibilityComponent.class).visible = false;
 
         world.process();
 
-        Assert.assertEquals(sceneLayer.getId(), layerState.entityId[1]);
-        Assert.assertEquals(LayerComponent.TYPE_CLASSIC, layerState.type[1]);
+        Assert.assertEquals(1, layerState.maxLayerIndex());
+        Assert.assertTrue(layerState.enabled[1]);
     }
 }

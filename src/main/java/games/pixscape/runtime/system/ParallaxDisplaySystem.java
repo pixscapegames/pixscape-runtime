@@ -25,7 +25,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
  * parallax.
  * <p>
  * Pipeline:
- * - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill dynamic ECS render state &amp; {@code LayerStateSOA}
+ * - {@link RenderSpriteSyncSystem} and {@link LayerStateBuildSystem} build the dynamic render state
  * - {@code ParallaxDisplaySystem} fills dynamic ECS {@code offsetX/offsetY}
  * - Culling / Gizmo / Picking / RenderSubmit use {@code xN + offsetX}, {@code yN + offsetY}
  */
