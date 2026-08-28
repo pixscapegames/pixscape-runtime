@@ -48,7 +48,7 @@ public class RenderOrderFacadeTest {
     public void layerIndexAcceptsEveryExportedSceneLayerType() throws Exception {
         Fixture fixture = fixture();
         fixture.layer(1, LayerComponent.TYPE_CLASSIC);
-        fixture.layer(2, LayerComponent.TYPE_PHYSICS);
+        fixture.layer(2, LayerComponent.TYPE_CLASSIC);
         fixture.layer(4, LayerComponent.TYPE_TILED);
         EntityRef entity = fixture.target(0, 9);
 
@@ -95,7 +95,7 @@ public class RenderOrderFacadeTest {
         EntityRef entity = fixture.target(0, 3);
         LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
         EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(entity.entityId());
-        layer.type = LayerComponent.TYPE_PHYSICS;
+        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = true;
         fixture.dirty.clearAll();
 
@@ -104,7 +104,7 @@ public class RenderOrderFacadeTest {
         Assert.assertEquals(4, layer.layerIndex);
         Assert.assertEquals(4, index.layerIndex);
         Assert.assertEquals(3, index.zIndex);
-        Assert.assertEquals(LayerComponent.TYPE_PHYSICS, layer.type);
+        Assert.assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         Assert.assertTrue(layer.spatialEnabled);
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
@@ -134,7 +134,7 @@ public class RenderOrderFacadeTest {
     @Test
     public void setUpdatesBothValuesAtomicallyAndUnchangedValuesPublishNothing() throws Exception {
         Fixture fixture = fixture();
-        fixture.layer(5, LayerComponent.TYPE_PHYSICS);
+        fixture.layer(5, LayerComponent.TYPE_CLASSIC);
         EntityRef entity = fixture.target(0, 1);
 
         entity.renderOrder().set(5, 10);

@@ -106,10 +106,10 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void multipleSpatialPhysicsLayersShareOneDomainAroundTiledAnchors() {
+    public void multipleSpatialEnabledLayersShareOneDomainAroundTiledAnchors() {
         Fixture fixture = new Fixture(512);
-        fixture.createLayer(1, LayerComponent.TYPE_PHYSICS, true);
-        fixture.createLayer(2, LayerComponent.TYPE_PHYSICS, true);
+        fixture.createLayer(1, LayerComponent.TYPE_CLASSIC, true);
+        fixture.createLayer(2, LayerComponent.TYPE_CLASSIC, true);
         TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
@@ -168,9 +168,9 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void spatialEnabledPhysicsLayerSortsActors() {
+    public void spatialEnabledOrdinaryLayerSortsActors() {
         Fixture fixture = new Fixture(512);
-        fixture.createLayer(2, LayerComponent.TYPE_PHYSICS, true);
+        fixture.createLayer(2, LayerComponent.TYPE_CLASSIC, true);
         int behind = fixture.createActor(10f, 20f, 0, 2, true);
         int front = fixture.createActor(10f, 40f, 0, 2, true);
         fixture.setSortOrder(behind, 2, 0, 20);

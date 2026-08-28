@@ -858,10 +858,7 @@ public class PixscapeApiV1Test {
     @Test
     public void tiledLayerIndexRejectsEveryNonTiledAuthoredLayerType() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
-        final int[] types = {
-                LayerComponent.TYPE_CLASSIC,
-                LayerComponent.TYPE_PHYSICS
-        };
+        final int[] types = {LayerComponent.TYPE_CLASSIC};
 
         for (int i = 0; i < types.length; i++) {
             int layerIndex = 3 + i;

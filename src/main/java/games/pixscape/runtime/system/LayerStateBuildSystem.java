@@ -21,10 +21,9 @@ import games.pixscape.runtime.render.LayerStateSOA;
 /**
  * Builds LayerStateSOA from layer entities.
  * <p>
- * Pixscape business rules:
- * - TYPE_CLASSIC: parallax is read from LayerParallaxComponent when present; otherwise NaN
- * - TYPE_TILED:   parallax is read from LayerParallaxComponent when present; otherwise NaN
- * - TYPE_PHYSICS: parallax is read from SceneMetaRuntime.physicsParallaxX/Y and is shared by all physics layers
+ * Layer parallax is read from {@link LayerParallaxComponent} when present; otherwise it is disabled.
+ * Scene Physics parallax is published separately for entity-driven resolution by
+ * {@link ParallaxDisplaySystem}.
  */
 @All(LayerComponent.class)
 @Exclude(EntityIndexComponent.class)
@@ -85,15 +84,12 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
         VisibilityComponent vis = mVis.getSafe(e, null);
         layerState.enabled[idx] = (vis == null) || vis.isVisible();
 
-        // parallax (selon type)
-        applyParallax(idx, type, e);
+        applyParallax(idx, e);
 
     }
 
     private int normalizeType(int type, int entityId, int layerIdx) {
-        if (type == LayerComponent.TYPE_CLASSIC ||
-                type == LayerComponent.TYPE_PHYSICS ||
-                type == LayerComponent.TYPE_TILED) {
+        if (type == LayerComponent.TYPE_CLASSIC || type == LayerComponent.TYPE_TILED) {
             return type;
         }
 
@@ -103,41 +99,14 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
         return LayerComponent.TYPE_CLASSIC;
     }
 
-    private void applyParallax(int layerIdx, int type, int entityId) {
-        switch (type) {
-            case LayerComponent.TYPE_PHYSICS: {
-                float px = Float.NaN;
-                float py = Float.NaN;
-
-                if (sceneMeta != null) {
-                    px = sceneMeta.physicsParallaxX;
-                    py = sceneMeta.physicsParallaxY;
-                }
-
-                layerState.parallaxX[layerIdx] = px;
-                layerState.parallaxY[layerIdx] = py;
-
-                break;
-            }
-
-            case LayerComponent.TYPE_CLASSIC:
-            case LayerComponent.TYPE_TILED: {
-                LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
-                if (lp != null) {
-                    layerState.parallaxX[layerIdx] = lp.factorX;
-                    layerState.parallaxY[layerIdx] = lp.factorY;
-                } else {
-                    layerState.parallaxX[layerIdx] = Float.NaN;
-                    layerState.parallaxY[layerIdx] = Float.NaN;
-                }
-                break;
-            }
-
-            default: {
-                layerState.parallaxX[layerIdx] = Float.NaN;
-                layerState.parallaxY[layerIdx] = Float.NaN;
-                break;
-            }
+    private void applyParallax(int layerIdx, int entityId) {
+        LayerParallaxComponent lp = mParallax.getSafe(entityId, null);
+        if (lp != null) {
+            layerState.parallaxX[layerIdx] = lp.factorX;
+            layerState.parallaxY[layerIdx] = lp.factorY;
+        } else {
+            layerState.parallaxX[layerIdx] = Float.NaN;
+            layerState.parallaxY[layerIdx] = Float.NaN;
         }
     }
 

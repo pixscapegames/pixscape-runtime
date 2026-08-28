@@ -11,6 +11,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.Box2dWorldService;
@@ -153,6 +154,67 @@ public class DynamicEntityRenderStateSystemTest {
     }
 
     @Test
+    public void authoredPhysicsBodyUsesSceneParallaxInsteadOfOwningLayerParallax() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        LayerStateSOA layers = new LayerStateSOA(2);
+        layers.enabled[0] = true;
+        layers.parallaxX[0] = 0.5f;
+        layers.parallaxY[0] = 0.25f;
+        layers.physicsParallaxX = 0.8f;
+        layers.physicsParallaxY = 0.6f;
+        OrthographicCamera camera = new OrthographicCamera(100f, 100f);
+        camera.position.set(20f, 40f, 0f);
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new ParallaxDisplaySystem(state, layers, camera))
+                .build());
+
+        int ordinary = createParallaxRenderable(world, state, 0, false);
+        int physical = createParallaxRenderable(world, state, 0, true);
+
+        world.process();
+
+        int ordinarySlot = state.renderSlotForEntity(ordinary);
+        int physicalSlot = state.renderSlotForEntity(physical);
+        Assert.assertEquals(10f, state.offsetX[ordinarySlot], 0.0001f);
+        Assert.assertEquals(30f, state.offsetY[ordinarySlot], 0.0001f);
+        Assert.assertEquals(4f, state.offsetX[physicalSlot], 0.0001f);
+        Assert.assertEquals(16f, state.offsetY[physicalSlot], 0.0001f);
+    }
+
+    @Test
+    public void authoredPhysicsBodiesInDifferentLayersShareSceneParallax() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        LayerStateSOA layers = new LayerStateSOA(2);
+        layers.enabled[0] = true;
+        layers.enabled[1] = true;
+        layers.parallaxX[0] = 0.25f;
+        layers.parallaxY[0] = 0.5f;
+        layers.parallaxX[1] = 1.5f;
+        layers.parallaxY[1] = 1.25f;
+        layers.physicsParallaxX = 0.75f;
+        layers.physicsParallaxY = 0.8f;
+        OrthographicCamera camera = new OrthographicCamera(100f, 100f);
+        camera.position.set(20f, 40f, 0f);
+
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new ParallaxDisplaySystem(state, layers, camera))
+                .build());
+
+        int first = createParallaxRenderable(world, state, 0, true);
+        int second = createParallaxRenderable(world, state, 1, true);
+
+        world.process();
+
+        int firstSlot = state.renderSlotForEntity(first);
+        int secondSlot = state.renderSlotForEntity(second);
+        Assert.assertEquals(state.offsetX[firstSlot], state.offsetX[secondSlot], 0.0001f);
+        Assert.assertEquals(state.offsetY[firstSlot], state.offsetY[secondSlot], 0.0001f);
+        Assert.assertEquals(5f, state.offsetX[firstSlot], 0.0001f);
+        Assert.assertEquals(8f, state.offsetY[firstSlot], 0.0001f);
+    }
+
+    @Test
     public void addingAndRemovingPhysicsPreservesSpriteRenderDomainRecord() {
         DynamicEntityRenderState state = new DynamicEntityRenderState(4);
         TiledMapRenderState tiledState = new TiledMapRenderState(4);
@@ -248,6 +310,25 @@ public class DynamicEntityRenderStateSystemTest {
         region.v2 = 1f;
         RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).create(entity);
         material.textureHandle = 7;
+        return entity;
+    }
+
+    private static int createParallaxRenderable(World world,
+                                                DynamicEntityRenderState state,
+                                                int layerIndex,
+                                                boolean physical) {
+        int entity = world.create();
+        world.getMapper(OrientedBoundsComponent.class).create(entity);
+        world.getMapper(RenderMaterialComponent.class).create(entity);
+        world.getMapper(EntityIndexComponent.class).create(entity).layerIndex = layerIndex;
+        world.getMapper(VisibilityComponent.class).create(entity);
+        world.getMapper(TextureRegionComponent.class).create(entity).valid = true;
+        if (physical) world.getMapper(PhysicsBodyComponent.class).create(entity);
+
+        int renderSlot = state.acquireSlotForEntity(entity);
+        state.kind[renderSlot] = RenderKind.SPRITE;
+        state.enabled[renderSlot] = true;
+        state.layerIndex[renderSlot] = layerIndex;
         return entity;
     }
 

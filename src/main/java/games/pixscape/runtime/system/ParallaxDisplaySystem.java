@@ -2,6 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
+import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -9,6 +10,7 @@ import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.helper.ParallaxHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -18,8 +20,9 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
 
 /**
- * Computes display-space {@code offsetX/offsetY} for each renderable entity,
- * based on editor camera position and layer parallax.
+ * Computes display-space {@code offsetX/offsetY} for each renderable entity.
+ * Authored Physics bodies use scene Physics parallax; other entities use their owning layer
+ * parallax.
  * <p>
  * Pipeline:
  * - {@code UpdateWorldGeometrySystemOld} / {@code ECS->SOA} systems fill dynamic ECS render state &amp; {@code LayerStateSOA}
@@ -32,6 +35,7 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     private final LayerStateSOA layerState;
     private final OrthographicCamera worldCam;
     private EntitySubscription spriteSubscription;
+    private ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
 
     private final Vector2 tmpOffset = new Vector2();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -119,15 +123,16 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
                 continue;
             }
 
-            // parallax disabled on this layer?
-            if (!layerState.hasParallax(layerIdx)) {
+            int entityId = renderState.entityIdForSlot(renderSlot);
+            boolean physical = entityId >= 0 && mPhysicsBody.has(entityId);
+            float px = physical ? layerState.physicsParallaxX : layerState.parallaxX[layerIdx];
+            float py = physical ? layerState.physicsParallaxY : layerState.parallaxY[layerIdx];
+
+            if (Float.isNaN(px) && Float.isNaN(py)) {
                 renderState.offsetX[renderSlot] = 0f;
                 renderState.offsetY[renderSlot] = 0f;
                 continue;
             }
-
-            float px = layerState.parallaxX[layerIdx];
-            float py = layerState.parallaxY[layerIdx];
 
             ParallaxHelper.computeParallaxOffset(camX, camY, px, py, tmpOffset);
 

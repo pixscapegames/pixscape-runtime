@@ -13,7 +13,12 @@ import org.junit.Test;
 public class LayerStateBuildSystemTest {
 
     @Test
-    public void physicsLayerUsesSceneParallax() {
+    public void tiledSerializedTypeRemainsThree() {
+        Assert.assertEquals(3, LayerComponent.TYPE_TILED);
+    }
+
+    @Test
+    public void scenePhysicsParallaxRemainsGloballyAvailable() {
         // Arrange
         LayerStateSOA layerState = new LayerStateSOA(4);
         SceneMetaRuntime sceneMeta = new SceneMetaRuntime();
@@ -25,22 +30,22 @@ public class LayerStateBuildSystemTest {
         Entity entity = world.createEntity();
         LayerComponent layer = entity.edit().create(LayerComponent.class);
         layer.layerIndex = 1;
-        layer.type = LayerComponent.TYPE_PHYSICS;
+        layer.type = LayerComponent.TYPE_CLASSIC;
 
         // Act
         world.process();
 
         // Assert
         Assert.assertEquals(
-                "Physics layer should use scene parallax X",
+                "Scene Physics parallax X should remain globally available",
                 sceneMeta.physicsParallaxX,
-                layerState.parallaxX[1],
+                layerState.physicsParallaxX,
                 0.0001f
         );
         Assert.assertEquals(
-                "Physics layer should use scene parallax Y",
+                "Scene Physics parallax Y should remain globally available",
                 sceneMeta.physicsParallaxY,
-                layerState.parallaxY[1],
+                layerState.physicsParallaxY,
                 0.0001f
         );
     }
@@ -59,7 +64,7 @@ public class LayerStateBuildSystemTest {
         Entity actor = world.createEntity();
         LayerComponent actorLayer = actor.edit().create(LayerComponent.class);
         actorLayer.layerIndex = 1;
-        actorLayer.type = LayerComponent.TYPE_PHYSICS;
+        actorLayer.type = LayerComponent.TYPE_CLASSIC;
         actor.edit().create(EntityIndexComponent.class).layerIndex = 1;
 
         world.process();
