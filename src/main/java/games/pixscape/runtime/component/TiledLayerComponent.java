@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.ByteArray;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
@@ -15,8 +16,12 @@ public final class TiledLayerComponent extends PooledComponent {
 
     public String atlasTag = "main";
 
-    public int mapWidthCells = 100;
-    public int mapHeightCells = 100;
+    public TiledProjection projection;
+    public int tileWidth;
+    public int tileHeight;
+    public int mapWidthCells;
+    public int mapHeightCells;
+    public int chunkSize;
     public float originX = 0;
     public float originY = 0;
     public boolean spatialEnabled = false;
@@ -79,6 +84,27 @@ public final class TiledLayerComponent extends PooledComponent {
         return false;
     }
 
+    /** Builds transient map data exclusively from this map's authored configuration. */
+    public TiledMapLayerData createMapData() {
+        validateMapConfiguration();
+        TiledMapLayerData result = new TiledMapLayerData(
+                mapWidthCells, mapHeightCells, tileWidth, tileHeight, chunkSize, projection);
+        result.originX = originX;
+        result.originY = originY;
+        result.spatialEnabled = spatialEnabled;
+        result.defaultTileAltitude = defaultTileAltitude;
+        result.defaultTileHeight = defaultTileHeight;
+        return result;
+    }
+
+    public void validateMapConfiguration() {
+        if (projection == null || tileWidth <= 0 || tileHeight <= 0
+                || mapWidthCells <= 0 || mapHeightCells <= 0 || chunkSize <= 0) {
+            throw new IllegalArgumentException(
+                    "Tiled map configuration requires a projection and positive tile, map, and chunk dimensions.");
+        }
+    }
+
     public void ensureSparseSpatialStorage() {
         if (tileAltitudes == null) tileAltitudes = new float[0];
         if (tileHeights == null) tileHeights = new float[0];
@@ -112,8 +138,12 @@ public final class TiledLayerComponent extends PooledComponent {
         tileHeights = null;
         if (tileSpatialFlags != null) tileSpatialFlags.clear();
         if (tileSpatialOverrides != null) tileSpatialOverrides.clear();
-        mapWidthCells = 100;
-        mapHeightCells = 100;
+        projection = null;
+        tileWidth = 0;
+        tileHeight = 0;
+        mapWidthCells = 0;
+        mapHeightCells = 0;
+        chunkSize = 0;
         originX = 0;
         originY = 0;
         spatialEnabled = false;

@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -161,7 +162,7 @@ public class RenderTiledSyncCanonicalRankTest {
         tiled.atlasTag = "main";
         tiled.spatialEnabled = spatial;
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 8, 2,
-                SceneMetaRuntime.TiledProjection.ISO);
+                TiledProjection.ISO);
         map.spatialEnabled = spatial;
         for (int i = 0; i < occupiedCells.length; i++) {
             map.setTile(occupiedCells[i][0], occupiedCells[i][1], 1);
@@ -175,7 +176,7 @@ public class RenderTiledSyncCanonicalRankTest {
         profile.tilesetId = 1;
         profile.referenceCellWidth = 16;
         profile.referenceCellHeight = 8;
-        profile.projection = SceneMetaRuntime.TiledProjection.ISO;
+        profile.projection = TiledProjection.ISO;
         profile.anchor = RuntimeTilesetAnchor.TOP_CENTER;
         profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
         profile.tileAssetIds = new int[]{1};

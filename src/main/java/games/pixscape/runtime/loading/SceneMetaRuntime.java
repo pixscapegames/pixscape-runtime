@@ -13,7 +13,7 @@ import games.pixscape.runtime.physics.PhysicsShapeIdState;
  */
 public class SceneMetaRuntime implements PhysicsShapeIdState {
 
-    public static final int CURRENT_SCENE_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCENE_SCHEMA_VERSION = 3;
 
     public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;
@@ -38,18 +38,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public float ambientMulR = 1f;
     public float ambientMulG = 1f;
     public float ambientMulB = 1f;
-
-    // Tiled
-    public enum TiledProjection {
-        ORTHO,
-        ISO
-    }
-
-    public boolean tiledEnabled = false;
-    public TiledProjection tiledProjection = TiledProjection.ORTHO;
-    public float tileWidth = 32f;
-    public float tileHeight = 32f;
-    public int chunkSize = 16;
 
     // PostFX
     public boolean mainCameraOffscreen = false;
@@ -97,18 +85,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
-        meta.tiledEnabled = json.getBoolean("tiledEnabled", meta.tiledEnabled);
-
-        String projection = json.getString("tiledProjection", meta.tiledProjection.name());
-        try {
-            meta.tiledProjection = TiledProjection.valueOf(projection.trim().toUpperCase());
-        } catch (Exception ignored) {
-            meta.tiledProjection = TiledProjection.ORTHO;
-        }
-
-        meta.tileWidth = json.getFloat("tileWidth", meta.tileWidth);
-        meta.tileHeight = json.getFloat("tileHeight", meta.tileHeight);
-        meta.chunkSize = json.getInt("chunkSize", meta.chunkSize);
         meta.mainCameraOffscreen = json.getBoolean("mainCameraOffscreen", meta.mainCameraOffscreen);
         JsonValue availability = json.get("runtimeAvailability");
         JsonValue particles = availability != null && availability.isObject()
@@ -181,11 +157,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.ambientMulR = other.ambientMulR;
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
-        this.tiledEnabled = other.tiledEnabled;
-        this.tiledProjection = other.tiledProjection;
-        this.tileWidth = other.tileWidth;
-        this.tileHeight = other.tileHeight;
-        this.chunkSize = other.chunkSize;
         this.mainCameraOffscreen = other.mainCameraOffscreen;
     }
 

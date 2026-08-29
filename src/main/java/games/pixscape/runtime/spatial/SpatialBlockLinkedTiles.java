@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class SpatialBlockLinkedTiles {
     private static final float EPSILON = 0.0001f;
@@ -112,7 +112,7 @@ public final class SpatialBlockLinkedTiles {
 
     public static void writeTileBaseSegment(TiledMapLayerData map, int gx, int gy, float[] out4) {
         if (map == null || out4 == null || out4.length < 4) return;
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+        if (map.projection == TiledProjection.ISO) {
             out4[0] = map.tileToWorldX(gx + 1f, gy);
             out4[1] = map.tileToWorldY(gx + 1f, gy);
             out4[2] = map.tileToWorldX(gx, gy + 1f);

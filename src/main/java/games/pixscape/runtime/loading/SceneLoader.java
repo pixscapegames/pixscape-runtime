@@ -106,6 +106,7 @@ public final class SceneLoader {
                         format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
+                validateTiledMapConfigurations(format, validationWorld, sceneFile);
             }
         } catch (Exception e) {
             String detail = e.getMessage();
@@ -117,6 +118,26 @@ public final class SceneLoader {
                     e);
         } finally {
             validationWorld.dispose();
+        }
+    }
+
+    private static void validateTiledMapConfigurations(
+            SaveFileFormat format, World world, FileHandle sceneFile) {
+        ComponentMapper<TiledLayerComponent> tiledMaps =
+                world.getMapper(TiledLayerComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            int entityId = entityIds[i];
+            TiledLayerComponent tiled = tiledMaps.getSafe(entityId, null);
+            if (tiled == null) continue;
+            try {
+                tiled.validateMapConfiguration();
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        "Scene '" + sceneFile.path()
+                                + "' has invalid Tiled map configuration on entityId="
+                                + entityId + ": " + ex.getMessage(), ex);
+            }
         }
     }
 

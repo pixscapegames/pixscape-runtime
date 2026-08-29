@@ -426,7 +426,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
@@ -478,7 +478,7 @@ public class RenderTiledSyncSystemTest {
     public void missingProfileDisablesTileWithoutCrash() {
         Fixture fixture = createProfilePlacementFixture(
                 RuntimeTilesetProfiles.empty(),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                 64,
                 32,
                 64,
@@ -503,11 +503,11 @@ public class RenderTiledSyncSystemTest {
                 32,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO
         ));
         Fixture fixture = createProfilePlacementFixture(
                 profiles,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                 64,
                 32,
                 64,
@@ -532,11 +532,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -561,11 +561,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -594,11 +594,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 10,
                 -20,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -623,11 +623,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(unrelatedProfile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -653,11 +653,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -686,11 +686,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -737,7 +737,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2,
                         3
@@ -792,7 +792,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
@@ -848,7 +848,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
@@ -895,7 +895,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
@@ -942,7 +942,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1
                 )
         );
@@ -984,7 +984,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        games.pixscape.runtime.tiled.TiledProjection.ISO,
                         1
                 )
         );
@@ -1001,7 +1001,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
+                games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(1, 1, 1);
         tiled.data = map;
 
@@ -1033,7 +1033,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         64,
                         32,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        games.pixscape.runtime.tiled.TiledProjection.ISO,
                         1
                 )
         );
@@ -1051,7 +1051,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
+                games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
 
@@ -1059,7 +1059,7 @@ public class RenderTiledSyncSystemTest {
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
-                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         games.pixscape.runtime.tiled.TiledProjection projection,
                                                          int cellWidth,
                                                          int cellHeight,
                                                          int spriteWidth,
@@ -1083,7 +1083,7 @@ public class RenderTiledSyncSystemTest {
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
-                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         games.pixscape.runtime.tiled.TiledProjection projection,
                                                          int cellWidth,
                                                          int cellHeight,
                                                          int spriteWidth,
@@ -1151,7 +1151,7 @@ public class RenderTiledSyncSystemTest {
                                                  int referenceCellHeight,
                                                  int offsetX,
                                                  int offsetY,
-                                                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
+                                                 games.pixscape.runtime.tiled.TiledProjection projection) {
         RuntimeTilesetProfile profile = new RuntimeTilesetProfile();
         profile.tilesetId = 1;
         profile.referenceCellWidth = referenceCellWidth;
@@ -1173,7 +1173,7 @@ public class RenderTiledSyncSystemTest {
 
     private static RuntimeTilesetProfiles topCenterProfiles(int referenceCellWidth,
                                                             int referenceCellHeight,
-                                                            games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                            games.pixscape.runtime.tiled.TiledProjection projection,
                                                             int... tileAssetIds) {
         RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
         for (int tileAssetId : tileAssetIds) {

@@ -1308,7 +1308,7 @@ public final class PixscapeEngine {
         switch (step) {
             case 0:
                 rebuildRuntimeRegistries();
-                rebuildTiledLayersRuntime(meta);
+                rebuildTiledLayersRuntime();
                 RuntimeSceneAtlasLoader.loadSceneAtlas(
                         cfg,
                         candidate.sceneName(),
@@ -1434,7 +1434,7 @@ public final class PixscapeEngine {
         pendingSceneAvailability = null;
     }
 
-    private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
+    private void rebuildTiledLayersRuntime() {
         TiledMapOwnership.validateTransitionalWorld(world);
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
@@ -1458,19 +1458,7 @@ public final class PixscapeEngine {
 
             tiled.ensureSparseTileStorageConsistency();
 
-            tiled.data = new TiledMapLayerData(
-                    tiled.mapWidthCells,
-                    tiled.mapHeightCells,
-                    (int) meta.tileWidth,
-                    (int) meta.tileHeight,
-                    meta.chunkSize,
-                    meta.tiledProjection
-            );
-            tiled.data.originX = tiled.originX;
-            tiled.data.originY = tiled.originY;
-            tiled.data.spatialEnabled = tiled.spatialEnabled;
-            tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
-            tiled.data.defaultTileHeight = tiled.defaultTileHeight;
+            tiled.data = tiled.createMapData();
 
             tiled.data.beginContentMutation();
             try {

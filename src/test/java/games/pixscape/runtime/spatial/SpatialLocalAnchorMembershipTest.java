@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -271,7 +272,7 @@ public final class SpatialLocalAnchorMembershipTest {
     private static Fixture auditedFixture() { return auditedFixture(false, 0); }
 
     private static Fixture auditedFixture(boolean reverse, int idOffset) {
-        TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
         SpatialBlockData[] walls = new SpatialBlockData[]{
                 wall(1 + idOffset, 1, 1f, 4f, .29454708f, 25f, 154.57202f, vertical(1, 4, 28)),
                 wall(2 + idOffset, 1, 1f, 28.705452f, 12f, .29454708f, 154.57202f, horizontal(1, 12, 28)),

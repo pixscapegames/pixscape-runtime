@@ -3,7 +3,6 @@ package games.pixscape.runtime.tiled;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class TiledMapLayerData {
 
@@ -12,7 +11,7 @@ public final class TiledMapLayerData {
     /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and elevation. */
     public void projectSpatialPoint(float gx, float gy, float elevation, float[] out, int offset) {
         if (out == null || offset < 0 || offset + 1 >= out.length) return;
-        float cellOffsetX = projection == SceneMetaRuntime.TiledProjection.ISO ? tileWidth * 0.5f : 0f;
+        float cellOffsetX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
         out[offset] = tileToWorldX(gx, gy) + cellOffsetX;
         out[offset + 1] = tileToWorldY(gx, gy) + elevation;
     }
@@ -35,8 +34,7 @@ public final class TiledMapLayerData {
 
     public int chunkSize;
 
-    public SceneMetaRuntime.TiledProjection projection =
-            SceneMetaRuntime.TiledProjection.ORTHO;
+    public TiledProjection projection = TiledProjection.ORTHO;
 
     // =========================
     // CHUNK GRID
@@ -81,7 +79,7 @@ public final class TiledMapLayerData {
                              int tileHeight,
                              int chunkSize) {
         this(mapWidth, mapHeight, tileWidth, tileHeight, chunkSize,
-                SceneMetaRuntime.TiledProjection.ORTHO);
+                TiledProjection.ORTHO);
     }
 
     public TiledMapLayerData(int mapWidth,
@@ -89,16 +87,18 @@ public final class TiledMapLayerData {
                              int tileWidth,
                              int tileHeight,
                              int chunkSize,
-                             SceneMetaRuntime.TiledProjection projection) {
-
+                             TiledProjection projection) {
+        if (projection == null || mapWidth <= 0 || mapHeight <= 0
+                || tileWidth <= 0 || tileHeight <= 0 || chunkSize <= 0) {
+            throw new IllegalArgumentException(
+                    "Tiled map data requires a projection and positive tile, map, and chunk dimensions.");
+        }
         this.mapWidth = mapWidth;
         this.mapHeight = mapHeight;
         this.tileWidth = tileWidth;
         this.tileHeight = tileHeight;
         this.chunkSize = chunkSize;
-        this.projection = projection != null
-                ? projection
-                : SceneMetaRuntime.TiledProjection.ORTHO;
+        this.projection = projection;
         initializeChunks();
     }
 
@@ -156,7 +156,7 @@ public final class TiledMapLayerData {
         int gx1 = gx0 + chunk.chunkWidth - 1;
         int gy1 = gy0 + chunk.chunkHeight - 1;
 
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             float worldX = originX + gx0 * tileWidth;
             float worldY = originY + gy0 * tileHeight;
             float worldW = chunk.chunkWidth * tileWidth;
@@ -594,7 +594,7 @@ public final class TiledMapLayerData {
      * For ISO, callers should use worldToTileX(worldX, worldY).
      */
     public int worldToTileX(float worldX) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return (int) Math.floor((worldX - originX) / tileWidth);
         }
         return worldToTileX(worldX, 0f);
@@ -605,7 +605,7 @@ public final class TiledMapLayerData {
      * For ISO, callers should use worldToTileY(worldX, worldY).
      */
     public int worldToTileY(float worldY) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return (int) Math.floor((worldY - originY) / tileHeight);
         }
         return worldToTileY(0f, worldY);
@@ -624,7 +624,7 @@ public final class TiledMapLayerData {
      * For ISO this inverts the logical top-left tile transform, not cell containment.
      */
     public float projectWorldToTileX(float worldX, float worldY) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return (worldX - originX) / Math.max(tileWidth, EPSILON);
         }
 
@@ -642,7 +642,7 @@ public final class TiledMapLayerData {
      * For ISO this inverts the logical top-left tile transform, not cell containment.
      */
     public float projectWorldToTileY(float worldX, float worldY) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return (worldY - originY) / Math.max(tileHeight, EPSILON);
         }
 
@@ -656,7 +656,7 @@ public final class TiledMapLayerData {
     }
 
     private long worldToTilePacked(float worldX, float worldY) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             int gx = (int) Math.floor((worldX - originX) / tileWidth);
             int gy = (int) Math.floor((worldY - originY) / tileHeight);
             return packTile(gx, gy);
@@ -730,7 +730,7 @@ public final class TiledMapLayerData {
      * Top-left of render rect.
      */
     public float tileToWorldX(int gx, int gy) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return originX + gx * tileWidth;
         }
 
@@ -742,7 +742,7 @@ public final class TiledMapLayerData {
      * Continuous tile-space variant of {@link #tileToWorldX(int, int)}.
      */
     public float tileToWorldX(float gx, float gy) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return originX + gx * tileWidth;
         }
 
@@ -754,7 +754,7 @@ public final class TiledMapLayerData {
      * Top-left of render rect.
      */
     public float tileToWorldY(int gx, int gy) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return originY + gy * tileHeight;
         }
 
@@ -766,7 +766,7 @@ public final class TiledMapLayerData {
      * Continuous tile-space variant of {@link #tileToWorldY(int, int)}.
      */
     public float tileToWorldY(float gx, float gy) {
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             return originY + gy * tileHeight;
         }
 
@@ -803,7 +803,7 @@ public final class TiledMapLayerData {
         float x = tileToWorldX(gx, gy);
         float y = tileToWorldY(gx, gy);
 
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             float x2 = x + tileWidth;
             float y2 = y + tileHeight;
 
@@ -834,7 +834,7 @@ public final class TiledMapLayerData {
     public boolean isPointInsideCell(int gx, int gy, float worldX, float worldY) {
         if (!isInside(gx, gy)) return false;
 
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (projection == TiledProjection.ORTHO) {
             float x = tileToWorldX(gx, gy);
             float y = tileToWorldY(gx, gy);
             return worldX >= x

@@ -16,7 +16,6 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -40,6 +39,7 @@ import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 
 @All({EntityIndexComponent.class, TiledLayerComponent.class})
@@ -166,7 +166,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         TiledMapLayerData map = tiled.data;
         currentTileOrder = null;
         currentMapEntity = e;
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO
+        if (map.projection == TiledProjection.ISO
                 && (tiled.spatialEnabled || map.spatialEnabled)) {
             ensureAllChunkRenderRefs(map);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(e, null);
@@ -287,7 +287,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             currentMapEntity = entityId;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
-            if (map.projection == SceneMetaRuntime.TiledProjection.ISO
+            if (map.projection == TiledProjection.ISO
                     && (tiled.spatialEnabled || map.spatialEnabled)) {
                 SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entityId, null);
                 SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
@@ -789,7 +789,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         // Tiled-compatible isometric depth: farther cells must render first,
         // so depth is the negative diagonal index.
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+        if (map.projection == TiledProjection.ISO) {
             z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
         }

@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,7 +41,7 @@ public class SpatialTileOrderPerformanceTest {
 
     private static TiledMapLayerData filledMap(int width, int height) {
         TiledMapLayerData map = new TiledMapLayerData(width, height, 32, 16, 32,
-                SceneMetaRuntime.TiledProjection.ISO);
+                TiledProjection.ISO);
         map.beginContentMutation();
         for (int gy = 0; gy < height; gy++) for (int gx = 0; gx < width; gx++) map.setTile(gx, gy, 1);
         map.endContentMutation();

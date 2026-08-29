@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -242,7 +243,7 @@ public class SpatialTileOrderCompilerTest {
     }
 
     private static TiledMapLayerData map(int width, int height) {
-        return new TiledMapLayerData(width, height, 32, 16, 4, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(width, height, 32, 16, 4, TiledProjection.ISO);
     }
 
     private static SpatialBlocksComponent component(SpatialBlockData... walls) {

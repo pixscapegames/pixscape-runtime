@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
@@ -14,7 +14,7 @@ public final class SpatialTileOrderCache {
     private SpatialBlocksComponent sourceBlocks;
     private int sourceBlocksRevision = Integer.MIN_VALUE;
     private int sourceCompiledRevision = Integer.MIN_VALUE;
-    private SceneMetaRuntime.TiledProjection projection;
+    private TiledProjection projection;
     private int mapWidth;
     private int mapHeight;
     private int tileWidth;

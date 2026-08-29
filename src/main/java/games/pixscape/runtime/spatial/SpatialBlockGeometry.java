@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class SpatialBlockGeometry {
     private SpatialBlockGeometry() {
@@ -47,7 +47,7 @@ public final class SpatialBlockGeometry {
     }
 
     private static float cellOriginOffsetX(TiledMapLayerData map) {
-        if (map == null || map.projection != SceneMetaRuntime.TiledProjection.ISO) return 0f;
+        if (map == null || map.projection != TiledProjection.ISO) return 0f;
         return map.tileWidth * 0.5f;
     }
 

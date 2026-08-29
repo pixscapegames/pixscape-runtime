@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
@@ -52,7 +53,7 @@ public class RenderTiledSyncSpatialEditTest {
         TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.spatialEnabled = true;
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 8, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 8, 4, TiledProjection.ISO);
         map.spatialEnabled = true;
         map.setTile(2, 2, 1);
         map.setTile(3, 2, 1);
@@ -115,7 +116,7 @@ public class RenderTiledSyncSpatialEditTest {
             profile.tilesetId = i + 1;
             profile.referenceCellWidth = 16;
             profile.referenceCellHeight = 8;
-            profile.projection = SceneMetaRuntime.TiledProjection.ISO;
+            profile.projection = TiledProjection.ISO;
             profile.anchor = RuntimeTilesetAnchor.TOP_CENTER;
             profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
             profile.tileAssetIds = new int[]{assetIds[i]};

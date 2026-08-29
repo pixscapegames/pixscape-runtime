@@ -42,6 +42,7 @@ import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.loading.SceneLoadPhase;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
@@ -418,8 +419,15 @@ public class PixscapeEnginePhysicsLifecycleTest {
             World world = engine.getWorld();
             int owner = engine.findEntityByStableId(11);
             Assert.assertTrue(owner >= 0);
-            Assert.assertNotNull(world.getMapper(
-                    TiledLayerComponent.class).get(owner).data);
+            TiledLayerComponent tiledMap = world.getMapper(
+                    TiledLayerComponent.class).get(owner);
+            Assert.assertNotNull(tiledMap.data);
+            Assert.assertEquals(TiledProjection.ISO, tiledMap.data.projection);
+            Assert.assertEquals(64, tiledMap.data.tileWidth);
+            Assert.assertEquals(32, tiledMap.data.tileHeight);
+            Assert.assertEquals(8, tiledMap.data.chunkSize);
+            Assert.assertEquals(5f, tiledMap.data.originX, 0f);
+            Assert.assertEquals(7f, tiledMap.data.originY, 0f);
             PhysicsCompiledFixturesComponent compiled = world.getMapper(
                     PhysicsCompiledFixturesComponent.class).get(owner);
             Assert.assertNotNull(compiled);
@@ -542,7 +550,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"currentSceneName\":\"A\","
                 + "\"scenes\":{"
                 + "\"A\":{"
-                + "\"sceneSchemaVersion\":2,"
+                + "\"sceneSchemaVersion\":3,"
                 + "\"name\":\"A\","
                 + "\"file\":\"a.json\","
                 + "\"nextEntityStableId\":8,"
@@ -552,7 +560,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"particles\":[\"declared.p\"]}"
                 + "},"
                 + "\"B\":{"
-                + "\"sceneSchemaVersion\":2,"
+                + "\"sceneSchemaVersion\":3,"
                 + "\"name\":\"B\","
                 + "\"file\":\"b.json\","
                 + "\"nextEntityStableId\":10,"
@@ -564,7 +572,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"doSleep\":false"
                 + "},"
                 + "\"C\":{"
-                + "\"sceneSchemaVersion\":2,"
+                + "\"sceneSchemaVersion\":3,"
                 + "\"name\":\"C\","
                 + "\"file\":\"c.json\","
                 + "\"nextEntityStableId\":10,"
@@ -572,17 +580,17 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"physicsEnabled\":true"
                 + "},"
                 + "\"D\":{"
-                + "\"sceneSchemaVersion\":2,"
+                + "\"sceneSchemaVersion\":3,"
                 + "\"name\":\"D\","
                 + "\"file\":\"d.json\","
                 + "\"nextEntityStableId\":12,"
                 + "\"nextPhysicsShapeId\":32,"
                 + "\"physicsEnabled\":true,"
                 + "\"pixelsPerMeter\":64,"
-                + "\"tileWidth\":64,"
-                + "\"tileHeight\":32,"
-                + "\"chunkSize\":8,"
-                + "\"tiledProjection\":\"ISO\""
+                + "\"tileWidth\":16,"
+                + "\"tileHeight\":16,"
+                + "\"chunkSize\":4,"
+                + "\"tiledProjection\":\"ORTHO\""
                 + "}"
                 + "}}";
     }
@@ -669,8 +677,12 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             TiledLayerComponent tiled = source.getMapper(
                     TiledLayerComponent.class).create(owner);
+            tiled.projection = TiledProjection.ISO;
+            tiled.tileWidth = 64;
+            tiled.tileHeight = 32;
             tiled.mapWidthCells = 20;
             tiled.mapHeightCells = 20;
+            tiled.chunkSize = 8;
             tiled.originX = 5f;
             tiled.originY = 7f;
 

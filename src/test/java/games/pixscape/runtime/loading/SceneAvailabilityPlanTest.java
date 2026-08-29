@@ -89,7 +89,7 @@ public class SceneAvailabilityPlanTest {
     @Test
     public void oldProjectWithoutRuntimeAvailabilityHasEmptyParticleDefaults() {
         com.badlogic.gdx.utils.JsonValue json = new com.badlogic.gdx.utils.JsonReader().parse(
-                "{\"sceneSchemaVersion\":2,\"name\":\"A\",\"file\":\"A.json\","
+                "{\"sceneSchemaVersion\":3,\"name\":\"A\",\"file\":\"A.json\","
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}");
         SceneMetaRuntime meta = SceneMetaRuntime.fromJson(json, "A");
         assertTrue(meta.runtimeParticleEffectPaths.isEmpty());
@@ -99,7 +99,7 @@ public class SceneAvailabilityPlanTest {
     @Test
     public void runtimeAvailabilityPrefabsAreParsedFromExportedSceneMetadata() {
         com.badlogic.gdx.utils.JsonValue json = new com.badlogic.gdx.utils.JsonReader().parse(
-                "{\"sceneSchemaVersion\":2,\"name\":\"A\",\"file\":\"A.json\","
+                "{\"sceneSchemaVersion\":3,\"name\":\"A\",\"file\":\"A.json\","
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1,"
                         + "\"runtimeAvailability\":{\"prefabs\":[\"enemy\",\"pickup\"]}}"
         );

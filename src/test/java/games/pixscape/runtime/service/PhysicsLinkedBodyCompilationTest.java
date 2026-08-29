@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -200,7 +201,7 @@ public class PhysicsLinkedBodyCompilationTest {
 
     private static TiledMapLayerData tiledData() {
         return new TiledMapLayerData(
-                20, 20, 32, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
+                20, 20, 32, 16, 8, TiledProjection.ORTHO);
     }
 
     private static SpatialBlockData block(int id, float x) {

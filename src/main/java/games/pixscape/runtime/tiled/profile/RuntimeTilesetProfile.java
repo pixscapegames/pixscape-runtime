@@ -1,6 +1,6 @@
 package games.pixscape.runtime.tiled.profile;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class RuntimeTilesetProfile {
     public int tilesetId;
@@ -9,7 +9,7 @@ public final class RuntimeTilesetProfile {
     public int tileHeight;
     public int referenceCellWidth;
     public int referenceCellHeight;
-    public SceneMetaRuntime.TiledProjection projection = SceneMetaRuntime.TiledProjection.ORTHO;
+    public TiledProjection projection = TiledProjection.ORTHO;
     public RuntimeTilesetAnchor anchor = RuntimeTilesetAnchor.TOP_CENTER;
     public int offsetX;
     public int offsetY;

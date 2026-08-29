@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 /** Flat projected actor-occluder faces and canonical layer-local tile anchors. */
 public final class SpatialProjectedFaceCache {
@@ -38,7 +38,7 @@ public final class SpatialProjectedFaceCache {
     private int[] rawAnchorGy = new int[0];
     private int faceAnchorIndexTotal;
     private int compiledRevision = Integer.MIN_VALUE;
-    private SceneMetaRuntime.TiledProjection projection;
+    private TiledProjection projection;
     private int tileWidth;
     private int tileHeight;
     private float originX;

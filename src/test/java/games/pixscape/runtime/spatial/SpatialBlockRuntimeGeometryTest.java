@@ -3,6 +3,7 @@ package games.pixscape.runtime.spatial;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -37,7 +38,7 @@ public class SpatialBlockRuntimeGeometryTest {
                 90,
                 30,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         map.originX = 10f;
         map.originY = 20f;
@@ -64,7 +65,7 @@ public class SpatialBlockRuntimeGeometryTest {
                 90,
                 30,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         SpatialBlockData block = block(8, 8f, 9f, 1f, 1f);
         float[] blockFootprint = new float[8];
@@ -87,7 +88,7 @@ public class SpatialBlockRuntimeGeometryTest {
                 90,
                 30,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         SpatialBlockData block = block(9, 9.003479f, 10.03523f, 3.035983f, 0.21065998f);
         float[] footprint = new float[8];

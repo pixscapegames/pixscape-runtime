@@ -13,6 +13,7 @@ import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -312,12 +313,12 @@ public final class RuntimeProjectIO {
         return profile;
     }
 
-    private static SceneMetaRuntime.TiledProjection parseTiledProjection(String raw, String path) {
+    private static TiledProjection parseTiledProjection(String raw, String path) {
         if ("isometric".equalsIgnoreCase(raw) || "ISO".equalsIgnoreCase(raw)) {
-            return SceneMetaRuntime.TiledProjection.ISO;
+            return TiledProjection.ISO;
         }
         if ("orthogonal".equalsIgnoreCase(raw) || "ORTHO".equalsIgnoreCase(raw)) {
-            return SceneMetaRuntime.TiledProjection.ORTHO;
+            return TiledProjection.ORTHO;
         }
         throw new GdxRuntimeException("Unsupported tileset projection: " + raw + " in " + path);
     }
