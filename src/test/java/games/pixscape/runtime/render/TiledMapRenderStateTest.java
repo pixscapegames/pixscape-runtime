@@ -57,6 +57,33 @@ public class TiledMapRenderStateTest {
     }
 
     @Test
+    public void visibleMapGroupKeepsDerivedIdentityOrderAndContiguousRefRange() {
+        TiledMapRenderState state = new TiledMapRenderState(4);
+        int refStart = state.registerRefs(2);
+        state.addVisibleRef(refStart);
+        state.addVisibleRef(refStart + 1);
+
+        state.addVisibleMap(42, 3, 17, 99L, 0, 2);
+
+        Assert.assertEquals(1, state.getVisibleMapCount());
+        Assert.assertEquals(42, state.visibleMapEntityId(0));
+        Assert.assertEquals(3, state.visibleMapLayerIndex(0));
+        Assert.assertEquals(17, state.visibleMapZIndex(0));
+        Assert.assertEquals(99L, state.visibleMapCompositionKey(0));
+        Assert.assertEquals(0, state.visibleMapRefStart(0));
+        Assert.assertEquals(2, state.visibleMapRefCount(0));
+
+        state.clearVisibleRefs();
+        Assert.assertEquals(0, state.getVisibleMapCount());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void visibleMapGroupRejectsRangeOutsidePublishedRefs() {
+        TiledMapRenderState state = new TiledMapRenderState(4);
+        state.addVisibleMap(42, 0, 0, 0L, 0, 1);
+    }
+
+    @Test
     public void ensureCapacityPreservesVisibleRefsAndRenderData() {
         TiledMapRenderState state = new TiledMapRenderState(2);
         int refA = state.registerRef();

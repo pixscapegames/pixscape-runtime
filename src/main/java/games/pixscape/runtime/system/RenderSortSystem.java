@@ -25,6 +25,8 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     // scratch buffers (reused)
     private int[] tmpSlots = new int[0];
     private byte[] tmpDomains = new byte[0];
+    private long[] tmpKeys = new long[0];
+    private int[] tmpTiledRefs = new int[0];
     private final int[] count = new int[256]; // 8 bits
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
@@ -66,6 +68,104 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     }
 
     private void processSystemInternal() {
+        RenderCompositionList composition = drawList.composition();
+        if (composition.size > 0) {
+            sortComposition(composition);
+            flattenComposition(composition);
+            return;
+        }
+
+        sortFlatDrawList();
+    }
+
+    private void sortComposition(RenderCompositionList composition) {
+        final int n = composition.size;
+        ensureTmpCapacity(n);
+
+        for (int pass = 0; pass < 8; pass++) {
+            final int shift = pass * 8;
+            for (int i = 0; i < 256; i++) count[i] = 0;
+
+            for (int i = 0; i < n; i++) {
+                count[(int) ((composition.sortKey[i] >>> shift) & 0xFFL)]++;
+            }
+
+            int sum = 0;
+            for (int bucket = 0; bucket < 256; bucket++) {
+                int bucketCount = count[bucket];
+                count[bucket] = sum;
+                sum += bucketCount;
+            }
+
+            for (int i = 0; i < n; i++) {
+                long key = composition.sortKey[i];
+                int target = count[(int) ((key >>> shift) & 0xFFL)]++;
+                tmpDomains[target] = composition.sourceDomain[i];
+                tmpSlots[target] = composition.sourceIndex[i];
+                tmpKeys[target] = key;
+            }
+
+            System.arraycopy(tmpDomains, 0, composition.sourceDomain, 0, n);
+            System.arraycopy(tmpSlots, 0, composition.sourceIndex, 0, n);
+            System.arraycopy(tmpKeys, 0, composition.sortKey, 0, n);
+        }
+    }
+
+    private void flattenComposition(RenderCompositionList composition) {
+        drawList.clearEntries();
+        int[] visibleRefs = tiledState != null ? tiledState.getVisibleRefs() : null;
+
+        for (int i = 0; i < composition.size; i++) {
+            byte domain = composition.sourceDomain[i];
+            int source = composition.sourceIndex[i];
+            if (domain != RenderSourceDomain.SOURCE_TILED) {
+                drawList.add(domain, source);
+                continue;
+            }
+
+            if (tiledState == null || source < 0 || source >= tiledState.getVisibleMapCount()) {
+                continue;
+            }
+            int start = tiledState.visibleMapRefStart(source);
+            int refCount = tiledState.visibleMapRefCount(source);
+            sortTiledRefSlice(visibleRefs, start, refCount);
+            for (int refOffset = 0; refOffset < refCount; refOffset++) {
+                int ref = visibleRefs[start + refOffset];
+                if (tiledState.isRenderableRef(ref)) drawList.addTiledSlot(ref);
+            }
+        }
+    }
+
+    private void sortTiledRefSlice(int[] refs, int start, int refCount) {
+        if (refs == null || refCount <= 1) return;
+        ensureTiledTmpCapacity(refCount);
+
+        for (int pass = 0; pass < 8; pass++) {
+            int shift = pass * 8;
+            for (int i = 0; i < 256; i++) count[i] = 0;
+
+            for (int i = 0; i < refCount; i++) {
+                long key = tiledState.sortKey[refs[start + i]];
+                count[(int) ((key >>> shift) & 0xFFL)]++;
+            }
+
+            int sum = 0;
+            for (int bucket = 0; bucket < 256; bucket++) {
+                int bucketCount = count[bucket];
+                count[bucket] = sum;
+                sum += bucketCount;
+            }
+
+            for (int i = 0; i < refCount; i++) {
+                int ref = refs[start + i];
+                long key = tiledState.sortKey[ref];
+                tmpTiledRefs[count[(int) ((key >>> shift) & 0xFFL)]++] = ref;
+            }
+            System.arraycopy(tmpTiledRefs, 0, refs, start, refCount);
+        }
+    }
+
+    private void sortFlatDrawList() {
         final int n = drawList.size;
         if (n <= 1) return;
 
@@ -135,6 +235,14 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             int next = Math.max(n, tmpSlots.length * 2 + 16);
             tmpSlots = new int[next];
             tmpDomains = new byte[next];
+            tmpKeys = new long[next];
+        }
+    }
+
+    private void ensureTiledTmpCapacity(int n) {
+        if (tmpTiledRefs.length < n) {
+            int next = Math.max(n, tmpTiledRefs.length * 2 + 16);
+            tmpTiledRefs = new int[next];
         }
     }
 

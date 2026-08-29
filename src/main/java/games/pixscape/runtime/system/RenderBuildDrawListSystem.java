@@ -96,12 +96,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     private void processSystemInternal() {
+        RenderCompositionList composition = drawList.composition();
+        int extractedQuads = 0;
         int activeEcsSlots = ecsState != null ? ecsState.activeCount : 0;
         for (int slot = 0; slot < activeEcsSlots; slot++) {
             boolean renderable = isRenderableSlot(slot);
             if (renderable) {
-                drawList.addEcsSlot(slot);
+                composition.add(RenderSourceDomain.SOURCE_ECS, slot, ecsState.sortKey[slot]);
                 stats.ecsEmittedRenderSlots++;
+                extractedQuads++;
             }
         }
         stats.buildDrawListScannedEcsSlots = activeEcsSlots;
@@ -112,14 +115,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         int tiledVisibleRefCount = tiledState.getVisibleRefCount();
-        int[] tiledVisibleRefs = tiledState.getVisibleRefs();
-        for (int i = 0; i < tiledVisibleRefCount; i++) {
-            int tiledRenderRef = tiledVisibleRefs[i];
-
-            boolean renderable = isRenderableTiledRef(tiledRenderRef);
-            if (renderable) {
-                drawList.addTiledSlot(tiledRenderRef);
-            }
+        int visibleMapCount = tiledState.getVisibleMapCount();
+        for (int group = 0; group < visibleMapCount; group++) {
+            if (!isRenderableTiledGroup(group)) continue;
+            composition.add(
+                    RenderSourceDomain.SOURCE_TILED,
+                    group,
+                    tiledState.visibleMapCompositionKey(group)
+            );
+            extractedQuads += tiledState.visibleMapRefCount(group);
         }
 
         if (vfxState != null && vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
@@ -127,7 +131,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
 
             for (int i = 0; i < count; i++) {
                 if (isRenderableVfxIndex(i)) {
-                    drawList.addVfxSlot(i);
+                    composition.add(RenderSourceDomain.SOURCE_VFX, i, vfxState.sortKey[i]);
+                    extractedQuads++;
                 }
             }
         }
@@ -140,7 +145,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         stats.tiledRenderableRefsConsidered = tiledState.cullingRenderableRefsConsidered;
         stats.tiledRenderableRefsVisible = tiledState.cullingRenderableRefsVisible;
         stats.tiledRenderableRefsCulled = tiledState.cullingRenderableRefsCulled;
-        stats.extractedQuads = drawList.size;
+        stats.extractedQuads = extractedQuads;
         if (vfxState != null) {
             vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());
             stats.vfxActiveParticles = vfxState.activeCount;
@@ -213,21 +218,16 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         stats.ecsFirstSkippedComponentFlags = flags;
     }
 
-    private boolean isRenderableTiledRef(int tiledRenderRef) {
-        if (!tiledState.isRenderableRef(tiledRenderRef)) return false;
+    private boolean isRenderableTiledGroup(int groupIndex) {
+        int refCount = tiledState.visibleMapRefCount(groupIndex);
+        if (refCount <= 0) return false;
 
         if (layerState != null) {
-            int layerIdx = tiledState.layerIndex[tiledRenderRef];
-
-            if (layerIdx < 0 || layerIdx >= layerState.enabled.length) {
-                return false;
-            }
-
-            if (!layerState.enabled[layerIdx]) {
+            int layerIdx = tiledState.visibleMapLayerIndex(groupIndex);
+            if (layerIdx < 0 || layerIdx >= layerState.enabled.length || !layerState.enabled[layerIdx]) {
                 return false;
             }
         }
-
         return true;
     }
 

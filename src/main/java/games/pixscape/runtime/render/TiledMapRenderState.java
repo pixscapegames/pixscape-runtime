@@ -16,6 +16,14 @@ public final class TiledMapRenderState {
     private int[] visibleRefs;
     private int visibleRefCount;
 
+    private int[] visibleMapEntityId;
+    private int[] visibleMapLayerIndex;
+    private int[] visibleMapZIndex;
+    private long[] visibleMapCompositionKey;
+    private int[] visibleMapRefStart;
+    private int[] visibleMapRefCount;
+    private int visibleMapCount;
+
     private int refCount;
 
     public int cullingChunksTested;
@@ -57,6 +65,7 @@ public final class TiledMapRenderState {
 
         allocate(newCapacity, false);
         visibleRefCount = 0;
+        visibleMapCount = 0;
         refCount = 0;
         growthCount = 0;
     }
@@ -82,6 +91,7 @@ public final class TiledMapRenderState {
 
     public void clearVisibleRefs() {
         visibleRefCount = 0;
+        visibleMapCount = 0;
     }
 
     public void addVisibleRef(int tiledRenderRef) {
@@ -107,6 +117,26 @@ public final class TiledMapRenderState {
         ensureCapacity(refStart + count);
         refCount += count;
         return refStart;
+    }
+
+    public void addVisibleMap(int mapEntityId,
+                              int layerIndex,
+                              int zIndex,
+                              long compositionKey,
+                              int visibleRefStart,
+                              int visibleRefCount) {
+        if (mapEntityId < 0 || visibleRefStart < 0 || visibleRefCount <= 0
+                || visibleRefStart + visibleRefCount > this.visibleRefCount) {
+            throw new IllegalArgumentException("Visible Tiled Map group must reference a valid non-empty ref range.");
+        }
+        ensureVisibleMapCapacity(visibleMapCount + 1);
+        visibleMapEntityId[visibleMapCount] = mapEntityId;
+        visibleMapLayerIndex[visibleMapCount] = layerIndex;
+        visibleMapZIndex[visibleMapCount] = zIndex;
+        visibleMapCompositionKey[visibleMapCount] = compositionKey;
+        visibleMapRefStart[visibleMapCount] = visibleRefStart;
+        visibleMapRefCount[visibleMapCount] = visibleRefCount;
+        visibleMapCount++;
     }
 
     public void setRenderDataForRef(int tiledRenderRef,
@@ -189,6 +219,34 @@ public final class TiledMapRenderState {
 
     public int getVisibleRefCount() {
         return visibleRefCount;
+    }
+
+    public int getVisibleMapCount() {
+        return visibleMapCount;
+    }
+
+    public int visibleMapEntityId(int groupIndex) {
+        return visibleMapEntityId[groupIndex];
+    }
+
+    public int visibleMapLayerIndex(int groupIndex) {
+        return visibleMapLayerIndex[groupIndex];
+    }
+
+    public int visibleMapZIndex(int groupIndex) {
+        return visibleMapZIndex[groupIndex];
+    }
+
+    public long visibleMapCompositionKey(int groupIndex) {
+        return visibleMapCompositionKey[groupIndex];
+    }
+
+    public int visibleMapRefStart(int groupIndex) {
+        return visibleMapRefStart[groupIndex];
+    }
+
+    public int visibleMapRefCount(int groupIndex) {
+        return visibleMapRefCount[groupIndex];
     }
 
     public int getRefCount() {
@@ -299,6 +357,32 @@ public final class TiledMapRenderState {
         }
 
         capacity = newCapacity;
+    }
+
+    private void ensureVisibleMapCapacity(int required) {
+        if (visibleMapEntityId != null && required <= visibleMapEntityId.length) return;
+        int current = visibleMapEntityId != null ? visibleMapEntityId.length : 0;
+        int next = Math.max(4, current);
+        while (next < required) next <<= 1;
+
+        visibleMapEntityId = grow(visibleMapEntityId, next, visibleMapCount);
+        visibleMapLayerIndex = grow(visibleMapLayerIndex, next, visibleMapCount);
+        visibleMapZIndex = grow(visibleMapZIndex, next, visibleMapCount);
+        visibleMapCompositionKey = grow(visibleMapCompositionKey, next, visibleMapCount);
+        visibleMapRefStart = grow(visibleMapRefStart, next, visibleMapCount);
+        visibleMapRefCount = grow(visibleMapRefCount, next, visibleMapCount);
+    }
+
+    private static int[] grow(int[] source, int capacity, int count) {
+        int[] target = new int[capacity];
+        if (source != null && count > 0) System.arraycopy(source, 0, target, 0, count);
+        return target;
+    }
+
+    private static long[] grow(long[] source, int capacity, int count) {
+        long[] target = new long[capacity];
+        if (source != null && count > 0) System.arraycopy(source, 0, target, 0, count);
+        return target;
     }
 
     private static void copy(int[] source, int[] target, int count) {

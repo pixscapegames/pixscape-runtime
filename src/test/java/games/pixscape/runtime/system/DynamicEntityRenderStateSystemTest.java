@@ -234,6 +234,7 @@ public class DynamicEntityRenderStateSystemTest {
                         new RenderSpriteSyncSystem(state),
                         new CullingSystem(camera, state),
                         new RenderBuildDrawListSystem(state, tiledState, layers, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(state, tiledState, drawList),
                         new DirtyFlushSystem()
                 )
                 .build());

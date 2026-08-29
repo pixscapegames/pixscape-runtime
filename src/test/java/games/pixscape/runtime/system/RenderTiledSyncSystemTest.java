@@ -1,8 +1,10 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.Entity;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntMap;
@@ -12,6 +14,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasAssetBinding;
@@ -52,6 +55,75 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
         Assert.assertEquals(compilations,
                 fixture.tiledSync.persistentChunkCompilationCount());
+    }
+
+    @Test
+    public void visibleRefsFromMultipleChunksPublishOneContiguousMapGroup() {
+        Fixture fixture = createTwoChunksFixture();
+        fixture.camera.viewportWidth = 64f;
+        fixture.camera.position.set(32f, 16f, 0f);
+        fixture.camera.update();
+
+        fixture.world.process();
+
+        Assert.assertEquals(2, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(0, fixture.tiledState.visibleMapRefStart(0));
+        Assert.assertEquals(2, fixture.tiledState.visibleMapRefCount(0));
+        Assert.assertEquals(onlyMapEntity(fixture.world),
+                fixture.tiledState.visibleMapEntityId(0));
+    }
+
+    @Test
+    public void mapZChangeUpdatesOnlyGroupOrderAndDoesNotRecompileChunks() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.process();
+        int mapEntity = onlyMapEntity(fixture.world);
+        int compilations = fixture.tiledSync.persistentChunkCompilationCount();
+        int firstRef = fixture.tiledState.getVisibleRefs()[0];
+        long internalKey = fixture.tiledState.sortKey[firstRef];
+
+        fixture.world.getMapper(EntityIndexComponent.class).get(mapEntity).zIndex = 25;
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(mapEntity, fixture.tiledState.visibleMapEntityId(0));
+        Assert.assertEquals(25, fixture.tiledState.visibleMapZIndex(0));
+        Assert.assertEquals(25, SortKey64.unpackZOrdered(
+                fixture.tiledState.visibleMapCompositionKey(0)));
+        Assert.assertEquals(internalKey, fixture.tiledState.sortKey[firstRef]);
+        Assert.assertEquals(compilations, fixture.tiledSync.persistentChunkCompilationCount());
+    }
+
+    @Test
+    public void mapCompositionAcceptsExactZBoundaries() {
+        Fixture fixture = createSingleChunkFixture();
+        int mapEntity = onlyMapEntity(fixture.world);
+        EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(mapEntity);
+
+        index.zIndex = SortKey64.MIN_Z;
+        fixture.world.process();
+        Assert.assertEquals(SortKey64.MIN_Z, fixture.tiledState.visibleMapZIndex(0));
+
+        index.zIndex = SortKey64.MAX_Z;
+        fixture.world.process();
+        Assert.assertEquals(SortKey64.MAX_Z, fixture.tiledState.visibleMapZIndex(0));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void mapCompositionRejectsZBelowSupportedRange() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .get(onlyMapEntity(fixture.world)).zIndex = SortKey64.MIN_Z - 1;
+        fixture.world.process();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void mapCompositionRejectsZAboveSupportedRange() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .get(onlyMapEntity(fixture.world)).zIndex = SortKey64.MAX_Z + 1;
+        fixture.world.process();
     }
 
     @Test
@@ -433,7 +505,12 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))                .build());
+                .with(
+                        tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList)
+                )
+                .build());
 
         Entity layerA = world.createEntity();
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
@@ -747,7 +824,8 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList)
                 )
                 .build());
 
@@ -801,7 +879,8 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1),
+                        new RenderSortSystem(null, tiledState, drawList)
                 )
                 .build());
 
@@ -855,7 +934,9 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -902,7 +983,9 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -948,7 +1031,9 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -990,7 +1075,9 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -1039,7 +1126,9 @@ public class RenderTiledSyncSystemTest {
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -1113,7 +1202,9 @@ public class RenderTiledSyncSystemTest {
                 profiles);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
@@ -1212,6 +1303,13 @@ public class RenderTiledSyncSystemTest {
         int ref = map.tiledRenderRefForTile(gx, gy);
         Assert.assertTrue("tile should have a render ref", ref >= 0);
         return ref;
+    }
+
+    private static int onlyMapEntity(World world) {
+        IntBag maps = world.getAspectSubscriptionManager().get(
+                Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        Assert.assertEquals(1, maps.size());
+        return maps.get(0);
     }
 
     private static Entity createTiledMapEntity(World world, int layerIndex) {

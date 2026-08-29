@@ -1688,6 +1688,7 @@ public class SpatialRenderOrderSystemTest {
             enableSlot(slot, layerIndex, 0, runtimeOrder);
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
+            addSingleRefMapGroup(tiledRenderRef, layerIndex);
             return tiledRenderRef;
         }
 
@@ -1797,6 +1798,7 @@ public class SpatialRenderOrderSystemTest {
             int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
+            addSingleRefMapGroup(tiledRenderRef, layerIndex);
             return tiledRenderRef;
         }
 
@@ -1806,7 +1808,19 @@ public class SpatialRenderOrderSystemTest {
             int tiledRenderRef = slot;
             writeTiledRenderData(tiledRenderRef, slot);
             tiledState.addVisibleRef(tiledRenderRef);
+            addSingleRefMapGroup(tiledRenderRef, layerIndex);
             return tiledRenderRef;
+        }
+
+        private void addSingleRefMapGroup(int tiledRenderRef, int layerIndex) {
+            tiledState.addVisibleMap(
+                    tiledRenderRef,
+                    layerIndex,
+                    0,
+                    tiledState.sortKey[tiledRenderRef],
+                    tiledState.getVisibleRefCount() - 1,
+                    1
+            );
         }
 
         void ensureMapRenderRefs(TiledMapLayerData map) {

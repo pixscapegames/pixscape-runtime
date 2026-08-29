@@ -178,6 +178,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, index.layerIndex, currentTileOrder);
         }
         if (!map.visible) return;
+        validateCompositionZ(e, index.zIndex);
+        int visibleRefStart = tiledState.getVisibleRefCount();
         refreshVisualPaddingIfDirty(map, tiled.atlasTag);
         computeChunkWindow(map, tmpWindow);
         int currentMinCx = tmpWindow[0];
@@ -241,6 +243,36 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         map.previousChunkMaxX = currentMaxCx;
         map.previousChunkMinY = currentMinCy;
         map.previousChunkMaxY = currentMaxCy;
+
+        int visibleRefCount = tiledState.getVisibleRefCount() - visibleRefStart;
+        if (visibleRefCount > 0) {
+            // Texture handle zero is an explicit sentinel: tile materials are internal to the
+            // group and must not participate in global composition ordering.
+            long compositionKey = SortKey64.packForBlend(
+                    defaultShaderIdx,
+                    BlendMode.ALPHA.id,
+                    0,
+                    index.layerIndex,
+                    index.zIndex,
+                    e
+            );
+            tiledState.addVisibleMap(
+                    e,
+                    index.layerIndex,
+                    index.zIndex,
+                    compositionKey,
+                    visibleRefStart,
+                    visibleRefCount
+            );
+        }
+    }
+
+    private static void validateCompositionZ(int mapEntityId, int zIndex) {
+        if (zIndex < SortKey64.MIN_Z || zIndex > SortKey64.MAX_Z) {
+            throw new IllegalStateException("Tiled Map entity " + mapEntityId + " has zIndex "
+                    + zIndex + " outside supported render-order range [" + SortKey64.MIN_Z
+                    + ", " + SortKey64.MAX_Z + "].");
+        }
     }
 
     int getTestedChunkCount() {
