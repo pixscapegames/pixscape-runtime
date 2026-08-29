@@ -138,7 +138,6 @@ public class PixscapeApiV1Test {
         int layerEntity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = 4;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = true;
 
         int actor = world.create();
@@ -219,7 +218,6 @@ public class PixscapeApiV1Test {
         int e = world.create();
         LayerComponent layer = world.edit(e).create(LayerComponent.class);
         layer.layerIndex = 5;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         world.process();
 
         Assert.assertFalse(engine.api().spatial().isLayerEnabled(5));
@@ -385,7 +383,7 @@ public class PixscapeApiV1Test {
     public void tiledSpatialFacadeDoesNotChangeOrdinaryLayerSpatialActors() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int host = createAuthoredLayer(engine, 4, LayerComponent.TYPE_CLASSIC);
+        int host = createAuthoredLayer(engine, 4);
         int map = createTiledMap(world, 4);
         world.process();
 
@@ -422,7 +420,7 @@ public class PixscapeApiV1Test {
     public void tiledSpatialFacadeKeepsMapsIndependentInOrdinaryLayer() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int host = createAuthoredLayer(engine, 5, LayerComponent.TYPE_CLASSIC);
+        int host = createAuthoredLayer(engine, 5);
         int mapA = createTiledMap(world, 5);
         int mapB = createTiledMap(world, 5);
         world.process();
@@ -847,7 +845,7 @@ public class PixscapeApiV1Test {
     public void ordinaryMultiMapLayerRequiresMapIdentityAndNeverChoosesArbitrarily() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
-        int layer = createAuthoredLayer(engine, 6, LayerComponent.TYPE_CLASSIC);
+        int layer = createAuthoredLayer(engine, 6);
         int first = createTiledMap(world, 6);
         int second = createTiledMap(world, 6);
         world.process();
@@ -2132,12 +2130,11 @@ public class PixscapeApiV1Test {
         return engine;
     }
 
-    private static int createAuthoredLayer(PixscapeEngine engine, int layerIndex, int type) {
+    private static int createAuthoredLayer(PixscapeEngine engine, int layerIndex) {
         World world = engine.getWorld();
         int e = world.create();
         LayerComponent layer = world.edit(e).create(LayerComponent.class);
         layer.layerIndex = layerIndex;
-        layer.type = type;
         world.process();
         return e;
     }
@@ -2147,7 +2144,6 @@ public class PixscapeApiV1Test {
         int host = world.create();
         LayerComponent layer = world.edit(host).create(LayerComponent.class);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
 
         int map = world.create();
         EntityIndexComponent index = world.edit(map).create(EntityIndexComponent.class);

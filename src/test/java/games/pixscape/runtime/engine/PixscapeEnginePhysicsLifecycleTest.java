@@ -659,7 +659,6 @@ public class PixscapeEnginePhysicsLifecycleTest {
             int host = source.create();
             LayerComponent hostLayer = source.getMapper(LayerComponent.class).create(host);
             hostLayer.layerIndex = 0;
-            hostLayer.type = LayerComponent.TYPE_CLASSIC;
             int owner = source.create();
             EntityIndexComponent ownerIndex = source.getMapper(
                     EntityIndexComponent.class).create(owner);

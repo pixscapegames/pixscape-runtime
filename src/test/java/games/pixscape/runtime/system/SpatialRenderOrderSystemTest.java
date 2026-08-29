@@ -109,8 +109,8 @@ public class SpatialRenderOrderSystemTest {
     @Test
     public void multipleSpatialEnabledLayersShareOneDomainAroundTiledAnchors() {
         Fixture fixture = new Fixture(512);
-        fixture.createLayer(1, LayerComponent.TYPE_CLASSIC, true);
-        fixture.createLayer(2, LayerComponent.TYPE_CLASSIC, true);
+        fixture.createLayer(1, true);
+        fixture.createLayer(2, true);
         TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
@@ -170,7 +170,7 @@ public class SpatialRenderOrderSystemTest {
     @Test
     public void spatialEnabledOrdinaryLayerSortsActors() {
         Fixture fixture = new Fixture(512);
-        fixture.createLayer(2, LayerComponent.TYPE_CLASSIC, true);
+        fixture.createLayer(2, true);
         int behind = fixture.createActor(10f, 20f, 0, 2, true);
         int front = fixture.createActor(10f, 40f, 0, 2, true);
         fixture.setSortOrder(behind, 2, 0, 20);
@@ -1565,14 +1565,9 @@ public class SpatialRenderOrderSystemTest {
         }
 
         void createLayer(int layerIndex, boolean spatialEnabled) {
-            createLayer(layerIndex, LayerComponent.TYPE_CLASSIC, spatialEnabled);
-        }
-
-        void createLayer(int layerIndex, int type, boolean spatialEnabled) {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = layerIndex;
-            layer.type = type;
             layer.spatialEnabled = spatialEnabled;
         }
 
@@ -1580,7 +1575,6 @@ public class SpatialRenderOrderSystemTest {
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
 
             int entity = createMapEntity(layerIndex);
@@ -1599,7 +1593,6 @@ public class SpatialRenderOrderSystemTest {
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
 
             int entity = createMapEntity(layerIndex);
@@ -1623,7 +1616,6 @@ public class SpatialRenderOrderSystemTest {
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
 
             int entity = createMapEntity(layerIndex);
@@ -1641,7 +1633,6 @@ public class SpatialRenderOrderSystemTest {
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = spatialEnabled;
 
             int entity = createMapEntity(layerIndex);

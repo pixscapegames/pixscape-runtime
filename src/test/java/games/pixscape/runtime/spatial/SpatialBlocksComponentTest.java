@@ -229,7 +229,6 @@ public class SpatialBlocksComponentTest {
     private static int createTiledLayerWithSpatialBlock(World world) {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 3;
         world.getMapper(TiledLayerComponent.class).create(entity);
 

@@ -69,7 +69,6 @@ public class SceneLoaderTiledMapConfigurationTest {
             int layerEntity = source.create();
             LayerComponent layer = source.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 0;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             configuredMap(source, 0, 4, TiledProjection.ISO, 64, 32);
             configuredMap(source, 0, 9, TiledProjection.ORTHO, 32, 32);
             ordinaryEntity(source, 0, 2, true, false);

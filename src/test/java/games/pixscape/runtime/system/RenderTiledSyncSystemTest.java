@@ -514,7 +514,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerA = world.createEntity();
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
-        layerCompA.type = LayerComponent.TYPE_CLASSIC;
         layerCompA.layerIndex = 0;
         TiledLayerComponent tiledA = createTiledMapEntity(world, layerCompA.layerIndex)
                 .edit().create(TiledLayerComponent.class);
@@ -524,7 +523,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerB = world.createEntity();
         LayerComponent layerCompB = layerB.edit().create(LayerComponent.class);
-        layerCompB.type = LayerComponent.TYPE_CLASSIC;
         layerCompB.layerIndex = 1;
         TiledLayerComponent tiledB = createTiledMapEntity(world, layerCompB.layerIndex)
                 .edit().create(TiledLayerComponent.class);
@@ -831,7 +829,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -886,7 +883,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -941,7 +937,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -990,7 +985,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -1038,7 +1032,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -1082,7 +1075,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
                 .edit().create(TiledLayerComponent.class);
@@ -1133,7 +1125,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
@@ -1209,7 +1200,6 @@ public class RenderTiledSyncSystemTest {
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
 
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)

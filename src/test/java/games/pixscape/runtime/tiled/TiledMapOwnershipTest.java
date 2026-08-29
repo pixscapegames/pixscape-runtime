@@ -12,7 +12,7 @@ public class TiledMapOwnershipTest {
     @Test
     public void layerMayOwnMultipleIndependentMaps() {
         World world = new World(new WorldConfiguration());
-        int layerEntity = layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        int layerEntity = layer(world, 2);
         int first = tiledMap(world, 2);
         int second = tiledMap(world, 2);
         world.process();
@@ -38,7 +38,7 @@ public class TiledMapOwnershipTest {
     @Test
     public void mapMustHaveEntityIndex() {
         World world = new World(new WorldConfiguration());
-        layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        layer(world, 2);
         world.getMapper(TiledLayerComponent.class).create(world.create());
         world.process();
 
@@ -51,7 +51,7 @@ public class TiledMapOwnershipTest {
     @Test
     public void mapMustNotAlsoBeALayer() {
         World world = new World(new WorldConfiguration());
-        int entity = layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        int entity = layer(world, 2);
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
         index.layerIndex = 2;
         world.getMapper(TiledLayerComponent.class).create(entity);
@@ -66,8 +66,8 @@ public class TiledMapOwnershipTest {
     @Test
     public void duplicateLayerIndexIsRejected() {
         World world = new World(new WorldConfiguration());
-        layer(world, 2, LayerComponent.TYPE_CLASSIC);
-        layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        layer(world, 2);
+        layer(world, 2);
         world.process();
 
         IllegalArgumentException failure = Assert.assertThrows(
@@ -76,10 +76,9 @@ public class TiledMapOwnershipTest {
         Assert.assertTrue(failure.getMessage().contains("Multiple Pixscape layers"));
     }
 
-    private static int layer(World world, int layerIndex, int type) {
+    private static int layer(World world, int layerIndex) {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
-        layer.type = type;
         layer.layerIndex = layerIndex;
         return entity;
     }

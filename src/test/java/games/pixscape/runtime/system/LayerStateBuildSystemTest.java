@@ -14,11 +14,6 @@ import org.junit.Test;
 public class LayerStateBuildSystemTest {
 
     @Test
-    public void tiledSerializedTypeRemainsThree() {
-        Assert.assertEquals(3, LayerComponent.TYPE_TILED);
-    }
-
-    @Test
     public void scenePhysicsParallaxRemainsGloballyAvailable() {
         // Arrange
         LayerStateSOA layerState = new LayerStateSOA(4);
@@ -31,7 +26,6 @@ public class LayerStateBuildSystemTest {
         Entity entity = world.createEntity();
         LayerComponent layer = entity.edit().create(LayerComponent.class);
         layer.layerIndex = 1;
-        layer.type = LayerComponent.TYPE_CLASSIC;
 
         // Act
         world.process();
@@ -60,12 +54,10 @@ public class LayerStateBuildSystemTest {
         Entity sceneLayer = world.createEntity();
         LayerComponent sceneLayerComponent = sceneLayer.edit().create(LayerComponent.class);
         sceneLayerComponent.layerIndex = 1;
-        sceneLayerComponent.type = LayerComponent.TYPE_CLASSIC;
 
         Entity actor = world.createEntity();
         LayerComponent actorLayer = actor.edit().create(LayerComponent.class);
         actorLayer.layerIndex = 1;
-        actorLayer.type = LayerComponent.TYPE_CLASSIC;
         actor.edit().create(EntityIndexComponent.class).layerIndex = 1;
         actor.edit().create(VisibilityComponent.class).visible = false;
 
