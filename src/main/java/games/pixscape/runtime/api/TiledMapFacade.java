@@ -2,7 +2,7 @@ package games.pixscape.runtime.api;
 
 /**
  * Runtime tiled map/layer properties and coordinate conversion helpers.
- * Operations affect existing tiled map data only and never create a tiled layer.
+ * Operations affect existing Tiled Map data only and never create a Map.
  * Missing or stale capabilities report zero dimensions, an empty atlas tag, a null projection,
  * zero coordinate-conversion results, and {@code false} from {@link #isInside(int, int)}.
  */

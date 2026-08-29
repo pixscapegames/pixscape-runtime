@@ -1,10 +1,10 @@
 package games.pixscape.runtime.api;
 
 /**
- * Handle to one tiled layer entity incarnation in one Runtime World.
+ * Handle to one Tiled Map entity incarnation in one Runtime World.
  * It becomes inert if that entity is removed or the World is replaced.
  */
-public interface TiledLayerRef {
+public interface TiledMapRef {
     int entityId();
 
     int stableId();
@@ -19,12 +19,12 @@ public interface TiledLayerRef {
     TileEditFacade tiles();
 
     /**
-     * Spatial render-order settings for this tiled layer and its cells.
+     * Spatial render-order settings for this Tiled Map and its cells.
      */
     TiledSpatialFacade spatial();
 
     /**
-     * Per-cell animation playback control for this layer.
+     * Per-cell animation playback control for this Map.
      *
      * <p>Global animated tile definitions are managed by {@link TiledAnimationsAPI}.</p>
      */

@@ -91,7 +91,7 @@ public class TiledAnimationSystemTest {
 
         int layerEntity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
-        layer.type = LayerComponent.TYPE_TILED;
+        layer.type = LayerComponent.TYPE_CLASSIC;
         int mapEntity = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);

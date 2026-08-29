@@ -10,7 +10,6 @@ import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
 
 /**
  * Indexed resolver for authored scene-layer entities.
@@ -24,10 +23,7 @@ final class SceneLayerResolver {
     private ComponentMapper<LayerComponent> layers;
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener listener;
-    private EntitySubscription tiledMapsSubscription;
-    private EntitySubscription.SubscriptionListener tiledMapsListener;
     private final IntMap<IntArray> byLayerIndex = new IntMap<IntArray>();
-    private final IntMap<IntArray> tiledMapsByLayerIndex = new IntMap<IntArray>();
     private final IntSet layerEntityIds = new IntSet();
     private int lastSpatialLookupVisitCount;
 
@@ -36,17 +32,11 @@ final class SceneLayerResolver {
         if (subscription != null && listener != null) {
             subscription.removeSubscriptionListener(listener);
         }
-        if (tiledMapsSubscription != null && tiledMapsListener != null) {
-            tiledMapsSubscription.removeSubscriptionListener(tiledMapsListener);
-        }
         this.world = world;
         layers = null;
         subscription = null;
         listener = null;
-        tiledMapsSubscription = null;
-        tiledMapsListener = null;
         byLayerIndex.clear();
-        tiledMapsByLayerIndex.clear();
         layerEntityIds.clear();
         if (world == null) return;
 
@@ -70,39 +60,16 @@ final class SceneLayerResolver {
             }
         };
         subscription.addSubscriptionListener(listener);
-        tiledMapsSubscription = world.getAspectSubscriptionManager().get(
-                Aspect.all(TiledLayerComponent.class, EntityIndexComponent.class)
-                        .exclude(LayerComponent.class));
-        tiledMapsListener = new EntitySubscription.SubscriptionListener() {
-            @Override
-            public void inserted(IntBag entities) {
-                if (SceneLayerResolver.this.world != boundWorld) return;
-                int[] data = entities.getData();
-                for (int i = 0, n = entities.size(); i < n; i++) indexTiledMap(data[i]);
-            }
-
-            @Override
-            public void removed(IntBag entities) {
-                if (SceneLayerResolver.this.world != boundWorld) return;
-                int[] data = entities.getData();
-                for (int i = 0, n = entities.size(); i < n; i++) unindexTiledMap(data[i]);
-            }
-        };
-        tiledMapsSubscription.addSubscriptionListener(tiledMapsListener);
         rebuild();
     }
 
     public void rebuild() {
         byLayerIndex.clear();
-        tiledMapsByLayerIndex.clear();
         layerEntityIds.clear();
         if (world == null || subscription == null) return;
         IntBag entities = subscription.getEntities();
         int[] data = entities.getData();
         for (int i = 0, n = entities.size(); i < n; i++) index(data[i]);
-        IntBag tiledMaps = tiledMapsSubscription.getEntities();
-        int[] tiledData = tiledMaps.getData();
-        for (int i = 0, n = tiledMaps.size(); i < n; i++) indexTiledMap(tiledData[i]);
     }
 
     public int requireLayerIndex(int layerIndex) {
@@ -120,16 +87,6 @@ final class SceneLayerResolver {
         if (matches.size > 1) {
             throw new IllegalArgumentException("Scene layer index " + layerIndex + " is ambiguous ("
                     + matches.size + " authored scene layers match).");
-        }
-        return matches.get(0);
-    }
-
-    int findTiledMapEntityId(int layerIndex) {
-        IntArray matches = tiledMapsByLayerIndex.get(layerIndex);
-        if (matches == null || matches.size == 0) return -1;
-        if (matches.size > 1) {
-            throw new IllegalArgumentException("Tiled host layer index " + layerIndex
-                    + " is ambiguous (" + matches.size + " Tiled maps match).");
         }
         return matches.get(0);
     }
@@ -157,9 +114,7 @@ final class SceneLayerResolver {
         for (int i = 0, n = matches.size; i < n; i++) {
             lastSpatialLookupVisitCount++;
             LayerComponent layer = layers.getSafe(matches.get(i), null);
-            if (layer != null
-                    && layer.type == LayerComponent.TYPE_CLASSIC
-                    && layer.spatialEnabled) {
+            if (layer != null && layer.spatialEnabled) {
                 return true;
             }
         }
@@ -195,16 +150,6 @@ final class SceneLayerResolver {
     private void unindex(int entityId) {
         layerEntityIds.remove(entityId);
         removeEntity(byLayerIndex, entityId);
-    }
-
-    private void indexTiledMap(int entityId) {
-        if (world == null || !world.getEntityManager().isActive(entityId)) return;
-        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).getSafe(entityId, null);
-        if (index != null) add(tiledMapsByLayerIndex, index.layerIndex, entityId);
-    }
-
-    private void unindexTiledMap(int entityId) {
-        removeEntity(tiledMapsByLayerIndex, entityId);
     }
 
     private static void add(IntMap<IntArray> map, int key, int entityId) {

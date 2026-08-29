@@ -15,12 +15,10 @@ public class SceneLayerResolverPerformanceTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = i + 100;
-            layer.type = LayerComponent.TYPE_CLASSIC;
         }
         int targetEntity = world.create();
         LayerComponent target = world.getMapper(LayerComponent.class).create(targetEntity);
         target.layerIndex = 7;
-        target.type = LayerComponent.TYPE_CLASSIC;
         target.spatialEnabled = true;
         world.process();
 
@@ -55,28 +53,11 @@ public class SceneLayerResolverPerformanceTest {
         Assert.assertFalse(resolver.isActorSpatialLayerEnabled(4));
     }
 
-    @Test
-    public void unsupportedSpatialEnabledLayerTypeIsNotAnActorSpatialLayer() {
-        World world = new World(new WorldConfigurationBuilder().build());
-        int entity = world.create();
-        LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
-        layer.layerIndex = 7;
-        layer.type = 99;
-        layer.spatialEnabled = true;
-        world.process();
-        SceneLayerResolver resolver = new SceneLayerResolver();
-        resolver.bind(world);
-
-        Assert.assertFalse(resolver.isActorSpatialLayerEnabled(7));
-        Assert.assertEquals(1, resolver.lastSpatialLookupVisitCount());
-    }
-
     private static World worldWithSpatialLayer(int layerIndex, boolean enabled) {
         World world = new World(new WorldConfigurationBuilder().build());
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = enabled;
         world.process();
         return world;

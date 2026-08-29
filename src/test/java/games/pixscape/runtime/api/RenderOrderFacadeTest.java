@@ -49,7 +49,7 @@ public class RenderOrderFacadeTest {
         Fixture fixture = fixture();
         fixture.layer(1, LayerComponent.TYPE_CLASSIC);
         fixture.layer(2, LayerComponent.TYPE_CLASSIC);
-        fixture.layer(4, LayerComponent.TYPE_TILED);
+        fixture.layer(4, LayerComponent.TYPE_CLASSIC);
         EntityRef entity = fixture.target(0, 9);
 
         Assert.assertEquals(1, entity.renderOrder().layerIndex(1).layerIndex());
@@ -368,14 +368,6 @@ public class RenderOrderFacadeTest {
         Assert.assertEquals(8, spawned.renderOrder().zIndex());
     }
 
-    @Test
-    public void existingTiledApiIndexLookupRemainsAvailable() throws Exception {
-        Fixture fixture = fixture();
-        int tiled = fixture.tiledLayer(3);
-
-        Assert.assertEquals(tiled, fixture.engine.api().tiled().layer(3).entityId());
-    }
-
     private static void assertUnchanged(Fixture fixture, EntityRef entity, int layerIndex, int zIndex) {
         Assert.assertEquals(layerIndex, entity.renderOrder().layerIndex());
         Assert.assertEquals(zIndex, entity.renderOrder().zIndex());
@@ -482,7 +474,7 @@ public class RenderOrderFacadeTest {
         }
 
         int tiledLayer(int layerIndex) {
-            layer(layerIndex, LayerComponent.TYPE_TILED);
+            layer(layerIndex, LayerComponent.TYPE_CLASSIC);
             int entityId = world.create();
             world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = layerIndex;
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);

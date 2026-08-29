@@ -6,7 +6,7 @@ public final class SpatialBlockData {
     public static final float DEFAULT_HEIGHT = 128f;
 
     public int id = 0;
-    /** Positive identity of the connected authored-wall structure in the owning tiled layer. */
+    /** Positive identity of the connected authored-wall structure in the owning Tiled Map. */
     public int structureId = 0;
     public String name = null;
 

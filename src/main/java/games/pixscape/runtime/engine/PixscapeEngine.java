@@ -1435,7 +1435,7 @@ public final class PixscapeEngine {
     }
 
     private void rebuildTiledLayersRuntime() {
-        TiledMapOwnership.validateTransitionalWorld(world);
+        TiledMapOwnership.validateWorld(world);
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
         ComponentMapper<EntityIndexComponent> mEntityIndex =

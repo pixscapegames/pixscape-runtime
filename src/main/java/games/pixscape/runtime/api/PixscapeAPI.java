@@ -10,7 +10,7 @@ public interface PixscapeAPI {
     EntitiesAPI entities();
 
     /**
-     * Runtime tiled layer access and tile animation APIs.
+     * Runtime Tiled Map access and tile animation APIs.
      */
     TiledAPI tiled();
 

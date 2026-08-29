@@ -248,7 +248,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             LayerComponent layer = mLayer.getSafe(entity, null);
             if (layer == null
                     || layer.layerIndex < 0
-                    || layer.type != LayerComponent.TYPE_CLASSIC
                     || !layer.spatialEnabled) {
                 continue;
             }

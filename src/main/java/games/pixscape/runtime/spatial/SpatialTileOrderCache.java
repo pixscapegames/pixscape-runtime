@@ -6,7 +6,7 @@ import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
-/** Runtime-owned canonical rank lookup for one spatial tiled layer. */
+/** Runtime-owned canonical rank lookup for one spatial Tiled Map. */
 public final class SpatialTileOrderCache {
     private final SpatialTileOrderCompiler compiler = new SpatialTileOrderCompiler();
     private TiledMapLayerData sourceMap;

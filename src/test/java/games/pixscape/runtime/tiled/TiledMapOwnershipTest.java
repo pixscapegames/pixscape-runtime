@@ -10,41 +10,14 @@ import org.junit.Test;
 
 public class TiledMapOwnershipTest {
     @Test
-    public void transitionalWorldRequiresDistinctUniqueMapForTiledHost() {
-        World world = new World(new WorldConfiguration());
-        int host = tiledHost(world, 4);
-        int map = tiledMap(world, 4);
-        world.process();
-
-        TiledMapOwnership.validateTransitionalWorld(world);
-        Assert.assertNotEquals(host, map);
-        Assert.assertFalse(world.getMapper(LayerComponent.class).has(map));
-        Assert.assertTrue(world.getMapper(EntityIndexComponent.class).has(map));
-    }
-
-    @Test
-    public void transitionalWorldRejectsSecondMapInSameHost() {
-        World world = new World(new WorldConfiguration());
-        tiledHost(world, 1);
-        tiledMap(world, 1);
-        tiledMap(world, 1);
-        world.process();
-
-        IllegalArgumentException failure = Assert.assertThrows(
-                IllegalArgumentException.class,
-                () -> TiledMapOwnership.validateTransitionalWorld(world));
-        Assert.assertTrue(failure.getMessage().contains("exactly one"));
-    }
-
-    @Test
-    public void ordinaryLayerMayOwnMultipleIndependentMaps() {
+    public void layerMayOwnMultipleIndependentMaps() {
         World world = new World(new WorldConfiguration());
         int layerEntity = layer(world, 2, LayerComponent.TYPE_CLASSIC);
         int first = tiledMap(world, 2);
         int second = tiledMap(world, 2);
         world.process();
 
-        TiledMapOwnership.validateTransitionalWorld(world);
+        TiledMapOwnership.validateWorld(world);
 
         Assert.assertNotEquals(first, second);
         Assert.assertTrue(world.getMapper(LayerComponent.class).has(layerEntity));
@@ -58,12 +31,49 @@ public class TiledMapOwnershipTest {
 
         IllegalArgumentException failure = Assert.assertThrows(
                 IllegalArgumentException.class,
-                () -> TiledMapOwnership.validateTransitionalWorld(world));
+                () -> TiledMapOwnership.validateWorld(world));
         Assert.assertTrue(failure.getMessage().contains("Pixscape layerIndex=9"));
     }
 
-    private static int tiledHost(World world, int layerIndex) {
-        return layer(world, layerIndex, LayerComponent.TYPE_TILED);
+    @Test
+    public void mapMustHaveEntityIndex() {
+        World world = new World(new WorldConfiguration());
+        layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        world.getMapper(TiledLayerComponent.class).create(world.create());
+        world.process();
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> TiledMapOwnership.validateWorld(world));
+        Assert.assertTrue(failure.getMessage().contains("EntityIndexComponent"));
+    }
+
+    @Test
+    public void mapMustNotAlsoBeALayer() {
+        World world = new World(new WorldConfiguration());
+        int entity = layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
+        index.layerIndex = 2;
+        world.getMapper(TiledLayerComponent.class).create(entity);
+        world.process();
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> TiledMapOwnership.validateWorld(world));
+        Assert.assertTrue(failure.getMessage().contains("must not also be a Pixscape layer"));
+    }
+
+    @Test
+    public void duplicateLayerIndexIsRejected() {
+        World world = new World(new WorldConfiguration());
+        layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        world.process();
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> TiledMapOwnership.validateWorld(world));
+        Assert.assertTrue(failure.getMessage().contains("Multiple Pixscape layers"));
     }
 
     private static int layer(World world, int layerIndex, int type) {

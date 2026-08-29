@@ -1,9 +1,9 @@
 package games.pixscape.runtime.api;
 
 /**
- * Logical tile editing operations for one tiled layer.
+ * Logical tile editing operations for one Tiled Map.
  *
- * <p>Operations affect existing tiled map data only and never create a tiled layer.</p>
+ * <p>Operations affect existing Tiled Map data only and never create a Map.</p>
  *
  * <p>Mutations keep per-cell tile animation playback state in sync with the logical tile value.
  * Out-of-bounds or missing-capability getters return {@code 0} or

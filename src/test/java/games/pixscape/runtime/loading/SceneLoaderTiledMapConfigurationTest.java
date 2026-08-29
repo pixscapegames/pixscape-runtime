@@ -83,7 +83,7 @@ public class SceneLoaderTiledMapConfigurationTest {
         World target = world();
         try {
             SceneLoader.loadScene(target, file, false, new SceneMetaRuntime());
-            TiledMapOwnership.validateTransitionalWorld(target);
+            TiledMapOwnership.validateWorld(target);
             Assert.assertEquals(2, target.getAspectSubscriptionManager()
                     .get(Aspect.all(TiledLayerComponent.class)).getEntities().size());
             Assert.assertEquals(1, target.getAspectSubscriptionManager()
