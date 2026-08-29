@@ -27,6 +27,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -646,7 +648,15 @@ public class PixscapeEnginePhysicsLifecycleTest {
         World source = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
         try {
+            int host = source.create();
+            LayerComponent hostLayer = source.getMapper(LayerComponent.class).create(host);
+            hostLayer.layerIndex = 0;
+            hostLayer.type = LayerComponent.TYPE_TILED;
             int owner = source.create();
+            EntityIndexComponent ownerIndex = source.getMapper(
+                    EntityIndexComponent.class).create(owner);
+            ownerIndex.layerIndex = 0;
+            ownerIndex.zIndex = 0;
             PixscapeIdentityComponent identity = source.getMapper(
                     PixscapeIdentityComponent.class).create(owner);
             identity.stableId = 11;

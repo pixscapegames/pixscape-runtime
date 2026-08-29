@@ -42,6 +42,7 @@ import games.pixscape.runtime.system.RenderTiledSyncSystem;
 import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
@@ -1434,10 +1435,11 @@ public final class PixscapeEngine {
     }
 
     private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
+        TiledMapOwnership.validateTransitionalWorld(world);
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer =
-                world.getMapper(LayerComponent.class);
+        ComponentMapper<EntityIndexComponent> mEntityIndex =
+                world.getMapper(EntityIndexComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -1449,7 +1451,10 @@ public final class PixscapeEngine {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
-            LayerComponent layer = mLayer.getSafe(e, null);
+            if (!mEntityIndex.has(e)) {
+                throw new IllegalArgumentException(
+                        "Tiled map entity " + e + " has no EntityIndexComponent.");
+            }
 
             tiled.ensureSparseTileStorageConsistency();
 
@@ -1463,7 +1468,7 @@ public final class PixscapeEngine {
             );
             tiled.data.originX = tiled.originX;
             tiled.data.originY = tiled.originY;
-            tiled.data.spatialEnabled = tiled.spatialEnabled || (layer != null && layer.spatialEnabled);
+            tiled.data.spatialEnabled = tiled.spatialEnabled;
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 

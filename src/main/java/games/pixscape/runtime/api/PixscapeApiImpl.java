@@ -3047,8 +3047,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledLayerRef ofEntityId(int entityId) {
+            World world = engine.getWorld();
+            if (world != null) sceneLayers.bind(world);
+            LayerComponent host = world != null && sceneLayers.isLayerEntityId(entityId)
+                    ? world.getMapper(LayerComponent.class).getSafe(entityId, null)
+                    : null;
+            if (host != null) {
+                if (host.type == LayerComponent.TYPE_TILED) {
+                    sceneLayers.bind(world);
+                    entityId = sceneLayers.findTiledMapEntityId(host.layerIndex);
+                }
+            }
             return new TiledLayerRefImpl(
-                    engine, ecs, entityReferences.capture(entityId));
+                    engine, ecs, sceneLayers, entityReferences.capture(entityId));
         }
 
         @Override
@@ -3061,14 +3072,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = engine.getWorld();
             if (world == null) return ofEntityId(-1);
             sceneLayers.bind(world);
-            int entityId = sceneLayers.findLayerEntityId(layerIndex);
-            if (entityId < 0) return ofEntityId(-1);
-            LayerComponent layer = world.getMapper(LayerComponent.class).get(entityId);
-            if (layer.type != LayerComponent.TYPE_TILED
-                    || !world.getMapper(TiledLayerComponent.class).has(entityId)) {
+            int hostEntityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (hostEntityId < 0) return ofEntityId(-1);
+            LayerComponent layer = world.getMapper(LayerComponent.class).get(hostEntityId);
+            if (layer.type != LayerComponent.TYPE_TILED) {
                 return ofEntityId(-1);
             }
-            TiledLayerRef ref = ofEntityId(entityId);
+            int mapEntityId = sceneLayers.findTiledMapEntityId(layerIndex);
+            if (mapEntityId < 0) return ofEntityId(-1);
+            TiledLayerRef ref = ofEntityId(mapEntityId);
             return ref.exists() ? ref : ofEntityId(-1);
         }
 
@@ -3080,16 +3092,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             }
 
             ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-            ComponentMapper<TiledLayerComponent> tiledLayers = world.getMapper(TiledLayerComponent.class);
             sceneLayers.bind(world);
-            int entityId = sceneLayers.findLayerEntityId(layerIndex);
-            if (entityId < 0) {
+            int hostEntityId = sceneLayers.findLayerEntityId(layerIndex);
+            if (hostEntityId < 0) {
                 throw new IllegalArgumentException("No tiled layer exists for layer index " + layerIndex + ".");
             }
 
-            LayerComponent layer = layers.get(entityId);
-            TiledLayerRef ref = ofEntityId(entityId);
-            if (layer.type == LayerComponent.TYPE_TILED && tiledLayers.has(entityId) && ref.exists()) {
+            LayerComponent layer = layers.get(hostEntityId);
+            int mapEntityId = sceneLayers.findTiledMapEntityId(layerIndex);
+            TiledLayerRef ref = ofEntityId(mapEntityId);
+            if (layer.type == LayerComponent.TYPE_TILED && ref.exists()) {
                 return ref;
             }
             throw new IllegalArgumentException("Layer index " + layerIndex + " does not designate a tiled layer.");
@@ -3136,13 +3148,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final TiledSpatialFacade spatial;
         private final TileAnimationControlFacade tileAnimations;
 
-        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, EntityHandle handle) {
+        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs,
+                          SceneLayerResolver sceneLayers, EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
             this.handle = handle;
             this.map = new TiledMapFacadeImpl(engine, handle);
             this.tiles = new TileEditFacadeImpl(engine, handle);
-            this.spatial = new TiledSpatialFacadeImpl(handle);
+            this.spatial = new TiledSpatialFacadeImpl(sceneLayers, handle);
             this.tileAnimations = new TileAnimationControlFacadeImpl(engine, handle);
         }
 
@@ -3385,9 +3398,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class TiledSpatialFacadeImpl implements TiledSpatialFacade {
+        private final SceneLayerResolver sceneLayers;
         private final EntityHandle handle;
 
-        TiledSpatialFacadeImpl(EntityHandle handle) {
+        TiledSpatialFacadeImpl(SceneLayerResolver sceneLayers, EntityHandle handle) {
+            this.sceneLayers = sceneLayers;
             this.handle = handle;
         }
 
@@ -3481,8 +3496,13 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         private LayerComponent layer() {
             World world = handle.world();
-            if (world == null) return null;
-            return world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
+            if (world == null || sceneLayers == null) return null;
+            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
+                    .getSafe(handle.entityId, null);
+            if (index == null) return null;
+            sceneLayers.bind(world);
+            int hostEntityId = sceneLayers.findLayerEntityId(index.layerIndex);
+            return world.getMapper(LayerComponent.class).getSafe(hostEntityId, null);
         }
 
         private TiledMapLayerData data() {

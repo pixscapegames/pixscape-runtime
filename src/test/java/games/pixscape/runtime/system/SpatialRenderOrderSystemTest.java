@@ -1589,12 +1589,13 @@ public class SpatialRenderOrderSystemTest {
         }
 
         void createSpatialTiledLayer(int layerIndex) {
-            int entity = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            int host = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
             layer.type = LayerComponent.TYPE_TILED;
             layer.spatialEnabled = true;
 
+            int entity = createMapEntity(layerIndex);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
             tiled.spatialEnabled = true;
             tiled.defaultTileAltitude = 0f;
@@ -1607,12 +1608,13 @@ public class SpatialRenderOrderSystemTest {
 
         int createBlockTiledLayer(int layerIndex, TiledMapLayerData map, SpatialBlockData... blocks) {
             ensureMapRenderRefs(map);
-            int entity = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            int host = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
             layer.type = LayerComponent.TYPE_TILED;
             layer.spatialEnabled = true;
 
+            int entity = createMapEntity(layerIndex);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
             tiled.spatialEnabled = true;
             tiled.data = map;
@@ -1630,12 +1632,13 @@ public class SpatialRenderOrderSystemTest {
 
         int createSpatialTiledLayerWithMap(int layerIndex, TiledMapLayerData map) {
             ensureMapRenderRefs(map);
-            int entity = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            int host = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
             layer.type = LayerComponent.TYPE_TILED;
             layer.spatialEnabled = true;
 
+            int entity = createMapEntity(layerIndex);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
             tiled.spatialEnabled = true;
             tiled.data = map;
@@ -1647,18 +1650,27 @@ public class SpatialRenderOrderSystemTest {
 
         int createTiledLayerWithMap(int layerIndex, TiledMapLayerData map, boolean spatialEnabled) {
             ensureMapRenderRefs(map);
-            int entity = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            int host = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
             layer.layerIndex = layerIndex;
             layer.type = LayerComponent.TYPE_TILED;
             layer.spatialEnabled = spatialEnabled;
 
+            int entity = createMapEntity(layerIndex);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
             tiled.spatialEnabled = spatialEnabled;
             tiled.data = map;
             if (tiled.data != null) {
                 tiled.data.spatialEnabled = spatialEnabled;
             }
+            return entity;
+        }
+
+        private int createMapEntity(int layerIndex) {
+            int entity = world.create();
+            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
+            index.layerIndex = layerIndex;
+            index.zIndex = 0;
             return entity;
         }
 

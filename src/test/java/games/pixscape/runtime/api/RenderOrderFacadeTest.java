@@ -482,7 +482,9 @@ public class RenderOrderFacadeTest {
         }
 
         int tiledLayer(int layerIndex) {
-            int entityId = layer(layerIndex, LayerComponent.TYPE_TILED);
+            layer(layerIndex, LayerComponent.TYPE_TILED);
+            int entityId = world.create();
+            world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = layerIndex;
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
             tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
             world.process();

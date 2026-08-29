@@ -3,6 +3,7 @@ package games.pixscape.runtime.system;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -91,7 +92,9 @@ public class TiledAnimationSystemTest {
         int layerEntity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.type = LayerComponent.TYPE_TILED;
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerEntity);
+        int mapEntity = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
         tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
         tiled.data.setTile(0, 0, 10);
         TileChunk chunk = tiled.data.getChunk(0, 0);

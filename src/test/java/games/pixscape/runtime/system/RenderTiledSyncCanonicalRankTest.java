@@ -6,6 +6,7 @@ import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -127,8 +128,8 @@ public class RenderTiledSyncCanonicalRankTest {
         } catch (SpatialTileSyncInvariantException expected) {
             String message = expected.getMessage();
             Assert.assertTrue(message.contains("cell=(1,1)"));
-            Assert.assertTrue(message.contains("layerEntity=" + fixture.entityId));
-            Assert.assertTrue(message.contains("layerName=canonical-rank-layer"));
+            Assert.assertTrue(message.contains("mapEntity=" + fixture.entityId));
+            Assert.assertTrue(message.contains("mapName=canonical-rank-layer"));
             Assert.assertTrue(message.contains("projection=ISO"));
             Assert.assertTrue(message.contains("mapRevision="));
             Assert.assertTrue(message.contains("canonicalRankState=" + lookupState));
@@ -151,7 +152,12 @@ public class RenderTiledSyncCanonicalRankTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 3;
         layer.spatialEnabled = spatial;
-        TiledLayerComponent tiled = entity.edit().create(TiledLayerComponent.class);
+        Entity mapEntity = world.createEntity();
+        mapEntity.edit().create(EntityIndexComponent.class).layerIndex = 3;
+        PixscapeIdentityComponent mapIdentity = mapEntity.edit()
+                .create(PixscapeIdentityComponent.class);
+        mapIdentity.name = "canonical-rank-layer";
+        TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         tiled.spatialEnabled = spatial;
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 8, 2,
@@ -161,7 +167,7 @@ public class RenderTiledSyncCanonicalRankTest {
             map.setTile(occupiedCells[i][0], occupiedCells[i][1], 1);
         }
         tiled.data = map;
-        return new Fixture(world, state, registry, map, entity.getId());
+        return new Fixture(world, state, registry, map, mapEntity.getId());
     }
 
     private static RuntimeTilesetProfiles profiles() {

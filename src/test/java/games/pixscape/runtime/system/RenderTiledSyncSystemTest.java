@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
@@ -438,7 +439,8 @@ public class RenderTiledSyncSystemTest {
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
         layerCompA.type = LayerComponent.TYPE_TILED;
         layerCompA.layerIndex = 0;
-        TiledLayerComponent tiledA = layerA.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiledA = createTiledMapEntity(world, layerCompA.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiledA.atlasTag = "main";
         tiledA.data = new TiledMapLayerData(4, 2, 16, 16, 2);
         tiledA.data.setTile(0, 0, 1);
@@ -447,7 +449,8 @@ public class RenderTiledSyncSystemTest {
         LayerComponent layerCompB = layerB.edit().create(LayerComponent.class);
         layerCompB.type = LayerComponent.TYPE_TILED;
         layerCompB.layerIndex = 1;
-        TiledLayerComponent tiledB = layerB.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiledB = createTiledMapEntity(world, layerCompB.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiledB.atlasTag = "main";
         tiledB.data = new TiledMapLayerData(4, 2, 16, 16, 2);
         tiledB.data.originX = 128f;
@@ -753,7 +756,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
@@ -806,7 +810,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 2, 16, 16, 2);
@@ -858,7 +863,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(10, 10, 16, 16, 2);
@@ -904,7 +910,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 1, 16, 16, 4);
@@ -949,7 +956,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         tiled.data = new TiledMapLayerData(2, 2, 16, 16, 2);
 
@@ -989,7 +997,8 @@ public class RenderTiledSyncSystemTest {
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2,
                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
@@ -1038,7 +1047,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
@@ -1111,7 +1121,8 @@ public class RenderTiledSyncSystemTest {
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(1, 1, cellWidth, cellHeight, 1, projection);
@@ -1201,6 +1212,14 @@ public class RenderTiledSyncSystemTest {
         int ref = map.tiledRenderRefForTile(gx, gy);
         Assert.assertTrue("tile should have a render ref", ref >= 0);
         return ref;
+    }
+
+    private static Entity createTiledMapEntity(World world, int layerIndex) {
+        Entity mapEntity = world.createEntity();
+        EntityIndexComponent index = mapEntity.edit().create(EntityIndexComponent.class);
+        index.layerIndex = layerIndex;
+        index.zIndex = 0;
+        return mapEntity;
     }
 
     private static boolean containsVisibleRef(TiledMapRenderState state, int ref) {

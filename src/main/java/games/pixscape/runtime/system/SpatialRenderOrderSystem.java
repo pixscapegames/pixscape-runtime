@@ -83,8 +83,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         layersSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
         blockLayersSub = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class)
-                        .exclude(EntityIndexComponent.class));
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
+                        .exclude(LayerComponent.class));
     }
 
     @Override
@@ -151,12 +151,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         int[] data = layers.getData();
         for (int i = 0, n = layers.size(); i < n; i++) {
             int entity = data[i];
-            LayerComponent layer = mLayer.getSafe(entity, null);
             TiledLayerComponent tiled = mTiled.getSafe(entity, null);
-            if (layer == null || tiled == null) continue;
-            if (layer.type != LayerComponent.TYPE_TILED) continue;
+            if (tiled == null) continue;
             if (tiled.data == null) continue;
-            if (!isSpatialTiledLayer(layer, tiled)) continue;
+            if (!isSpatialTiledMap(tiled)) continue;
 
             ensureFaceLayerCapacity(faceLayerCount + 1);
             faceLayerEntities[faceLayerCount] = entity;
@@ -264,9 +262,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
     }
 
-    private boolean isSpatialTiledLayer(LayerComponent layer, TiledLayerComponent tiled) {
-        return (layer != null && layer.spatialEnabled)
-                || (tiled != null && tiled.spatialEnabled)
+    private boolean isSpatialTiledMap(TiledLayerComponent tiled) {
+        return (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
     }
 

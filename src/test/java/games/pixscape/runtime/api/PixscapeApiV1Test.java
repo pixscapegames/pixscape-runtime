@@ -358,7 +358,10 @@ public class PixscapeApiV1Test {
         int e = createTiledLayer(engine, 3);
         World world = engine.getWorld();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(e);
-        LayerComponent layer = world.getMapper(LayerComponent.class).get(e);
+        SceneLayerResolver resolver = new SceneLayerResolver();
+        resolver.bind(world);
+        LayerComponent layer = world.getMapper(LayerComponent.class)
+                .get(resolver.findLayerEntityId(3));
         TiledLayerRef ref = engine.api().tiled().layer(3);
 
         Assert.assertFalse(ref.spatial().enabled());
@@ -2138,16 +2141,20 @@ public class PixscapeApiV1Test {
 
     private static int createTiledLayer(PixscapeEngine engine, int layerIndex) {
         World world = engine.getWorld();
-        int e = world.create();
-        LayerComponent layer = world.edit(e).create(LayerComponent.class);
+        int host = world.create();
+        LayerComponent layer = world.edit(host).create(LayerComponent.class);
         layer.layerIndex = layerIndex;
         layer.type = LayerComponent.TYPE_TILED;
 
-        TiledLayerComponent tiled = world.edit(e).create(TiledLayerComponent.class);
+        int map = world.create();
+        EntityIndexComponent index = world.edit(map).create(EntityIndexComponent.class);
+        index.layerIndex = layerIndex;
+        index.zIndex = 0;
+        TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
         tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
 
         world.process();
-        return e;
+        return map;
     }
 
     private static int createActorLayer(PixscapeEngine engine, int layerIndex,
