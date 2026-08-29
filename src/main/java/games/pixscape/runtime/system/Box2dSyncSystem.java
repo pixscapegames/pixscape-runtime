@@ -9,6 +9,7 @@ import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -43,6 +44,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
+    private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<PhysicsBodyComponent> mBodyDef;
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
     private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
@@ -132,6 +134,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     protected void initialize() {
         mT = world.getMapper(TransformComponent.class);
         mIdentity = world.getMapper(PixscapeIdentityComponent.class);
+        mTiled = world.getMapper(TiledLayerComponent.class);
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
@@ -580,7 +583,14 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private boolean isWantedEntity(int e) {
-        return hasAuthoredBody(e) && hasMaterializableCompiledCache(e);
+        return hasAuthoredBody(e)
+                && isTiledCollisionEnabled(e)
+                && hasMaterializableCompiledCache(e);
+    }
+
+    private boolean isTiledCollisionEnabled(int e) {
+        TiledLayerComponent tiled = mTiled.getSafe(e, null);
+        return tiled == null || tiled.data == null || tiled.data.collisionEnabled;
     }
 
     private boolean hasAuthoredBody(int e) {

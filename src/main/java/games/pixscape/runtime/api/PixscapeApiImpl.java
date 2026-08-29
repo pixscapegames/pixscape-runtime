@@ -26,6 +26,7 @@ import games.pixscape.runtime.prefab.SpawnResult;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -3294,7 +3295,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledMapFacade setCollisionEnabled(boolean enabled) {
             TiledMapLayerData d = data();
-            if (d != null) d.collisionEnabled = enabled;
+            if (d == null) return this;
+            SceneMetaRuntime scene = engine.getActiveSceneMeta();
+            if (enabled && scene != null && !scene.physicsEnabled) {
+                throw new IllegalStateException(
+                        "Cannot enable Tiled map collisions while scene physics is disabled.");
+            }
+            if (d.collisionEnabled != enabled) {
+                d.collisionEnabled = enabled;
+                World world = handle.world();
+                DirtyTrackerSystem dirty = world != null
+                        ? world.getSystem(DirtyTrackerSystem.class) : null;
+                if (dirty != null) dirty.physics(handle.entityId, PhysicsDirtyBits.ALL);
+            }
             return this;
         }
 

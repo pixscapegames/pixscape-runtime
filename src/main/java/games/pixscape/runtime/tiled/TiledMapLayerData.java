@@ -61,6 +61,7 @@ public final class TiledMapLayerData {
     private transient IntIntMap atomicIndexByCell = new IntIntMap();
 
     public boolean visible = true;
+    /** Runtime-only gate for native Box2D materialization; authored physics remains in ECS. */
     public boolean collisionEnabled = true;
     public boolean hasPreviousChunkWindow = false;
     public int previousChunkMinX = 0;

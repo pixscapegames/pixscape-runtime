@@ -35,6 +35,19 @@ public interface TiledMapFacade {
 
     TiledMapFacade setVisible(boolean visible);
 
+    /**
+     * Controls native collision participation for this loaded map.
+     *
+     * <p>Disabling collisions removes the map's native Box2D body and fixtures while preserving
+     * its authored physics body, shapes, settings, links, and persistent shape identities.
+     * Enabling collisions allows the normal physics synchronization path to recreate native
+     * state from those existing authored components. This runtime-only toggle never creates or
+     * deletes authored physics, changes Spatial data or owning-layer state, affects another map,
+     * or enables global scene physics.</p>
+     *
+     * @throws IllegalStateException when enabling collisions while the active scene explicitly
+     *                               has physics disabled
+     */
     TiledMapFacade setCollisionEnabled(boolean enabled);
 
     /**
