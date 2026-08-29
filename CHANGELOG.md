@@ -1,6 +1,55 @@
 # Changelog
 
 
+## [0.1.11]
+
+### Breaking changes
+
+* Removed the legacy Layer type system. `LayerComponent` now represents a universal Layer with only its composition index and optional Spatial Actor capability.
+* Removed dedicated Light, Physics and Tiled Layer semantics. Lights, physical entities and Tiled Maps now belong to ordinary Layers.
+* Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledMapRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
+* Tiled Map configuration is no longer stored as scene-global metadata. Projection, tile size, map dimensions, chunk size and origin are now owned by each Tiled Map.
+* Schema 3 scenes using the obsolete `LayerComponent.type` representation are rejected and must be re-exported with a compatible Studio version.
+
+### Added
+
+* Added first-class Tiled Map entities with their own identity, Layer placement, z-index and Map configuration.
+* Added support for multiple independently configured Tiled Maps in the same Scene and in the same Layer.
+* Added Map-level render composition so a Tiled Map participates in global Layer/z ordering as one atomic composition block.
+* Added strict Runtime validation for Tiled Map ownership, Layer references and obsolete Layer representations.
+
+### Changed
+
+* Spatial Actor participation is now an ordinary Layer property instead of a dedicated Layer type.
+* Tiled Map Spatial Depth is now fully independent from ordinary Layer Spatial Actor participation.
+* Tiled Maps can coexist with sprites, animations, lights and other ordinary entities inside the same Layer.
+* Tiled rendering now preserves each Map's internal canonical tile ordering while positioning the complete Map through its Layer and z-index in global composition.
+* Layer visibility and parallax now apply uniformly to ordinary content, including Tiled Maps and lights where applicable.
+* Physics is now exclusively scene configuration plus entity components; Runtime no longer relies on dedicated Physics Layers.
+* Tiled Map collision enable/disable now controls native Box2D activation without removing authored physics bodies, shapes, settings or identities.
+* Simplified `SceneMetaRuntime` by removing obsolete Tiled scene metadata and unused Runtime state.
+
+### Improved
+
+* Simplified Layer-state construction and rendering by removing special-case Layer categories.
+* Reduced coupling between Tiled, Spatial, Physics and Layer systems through explicit Map ownership.
+* Improved support for mixed-content Layers and multiple Maps without changing the internal ordering rules of individual Tiled Maps.
+
+### Fixed
+
+* Fixed Tiled Map Spatial Depth changes incorrectly affecting ordinary Layer Spatial Actor state.
+* Fixed Runtime Tiled collision toggling so disabling collisions preserves authored collision data and enabling them recreates native Box2D state when allowed.
+* Prevented ambiguous Tiled Map lookup through Layer indices when multiple Maps share the same Layer.
+
+### Tests
+
+* Added regression coverage for universal Layers and removal of legacy Layer types.
+* Added ownership and persistence coverage for independently configured Tiled Maps.
+* Added render-composition coverage for mixed ordinary entities and Map blocks across Layer/z ordering.
+* Added regression coverage for Map Spatial isolation and Runtime collision activation.
+* Added schema validation coverage for obsolete schema 3 Layer representations.
+
+
 ## [0.1.10]
 
 ### Added
