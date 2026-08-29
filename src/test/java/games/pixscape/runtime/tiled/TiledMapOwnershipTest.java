@@ -36,10 +36,40 @@ public class TiledMapOwnershipTest {
         Assert.assertTrue(failure.getMessage().contains("exactly one"));
     }
 
+    @Test
+    public void ordinaryLayerMayOwnMultipleIndependentMaps() {
+        World world = new World(new WorldConfiguration());
+        int layerEntity = layer(world, 2, LayerComponent.TYPE_CLASSIC);
+        int first = tiledMap(world, 2);
+        int second = tiledMap(world, 2);
+        world.process();
+
+        TiledMapOwnership.validateTransitionalWorld(world);
+
+        Assert.assertNotEquals(first, second);
+        Assert.assertTrue(world.getMapper(LayerComponent.class).has(layerEntity));
+    }
+
+    @Test
+    public void mapMustResolveToARealPixscapeLayer() {
+        World world = new World(new WorldConfiguration());
+        tiledMap(world, 9);
+        world.process();
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> TiledMapOwnership.validateTransitionalWorld(world));
+        Assert.assertTrue(failure.getMessage().contains("Pixscape layerIndex=9"));
+    }
+
     private static int tiledHost(World world, int layerIndex) {
+        return layer(world, layerIndex, LayerComponent.TYPE_TILED);
+    }
+
+    private static int layer(World world, int layerIndex, int type) {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
-        layer.type = LayerComponent.TYPE_TILED;
+        layer.type = type;
         layer.layerIndex = layerIndex;
         return entity;
     }

@@ -9,20 +9,21 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 
-/** Transitional host-to-map ownership validation used while Tiled remains a layer type. */
+/** Activation-time validation for Tiled map ownership during the mixed host transition. */
 public final class TiledMapOwnership {
     private TiledMapOwnership() {
     }
 
     /**
-     * Validates the Stage 1 invariant: every Tiled host owns exactly one map and every map belongs
-     * to one Tiled host. This is intentionally a cold activation-time traversal.
+     * Validates that every map belongs to a real Pixscape layer. Transitional TYPE_TILED hosts
+     * must still own exactly one map; ordinary layers may own any number of maps.
      */
     public static void validateTransitionalWorld(World world) {
         if (world == null) throw new IllegalArgumentException("World is required.");
 
         ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
         ComponentMapper<EntityIndexComponent> indexes = world.getMapper(EntityIndexComponent.class);
+        IntIntMap layersByIndex = new IntIntMap();
         IntIntMap tiledHostsByLayer = new IntIntMap();
         IntIntMap mapCountsByLayer = new IntIntMap();
 
@@ -32,12 +33,14 @@ public final class TiledMapOwnership {
         for (int i = 0; i < hostEntities.size(); i++) {
             int entityId = hostData[i];
             LayerComponent layer = layers.get(entityId);
-            if (layer.type != LayerComponent.TYPE_TILED) continue;
-            if (tiledHostsByLayer.containsKey(layer.layerIndex)) {
+            if (layersByIndex.containsKey(layer.layerIndex)) {
                 throw new IllegalArgumentException(
-                        "Multiple TYPE_TILED hosts use layerIndex=" + layer.layerIndex + ".");
+                        "Multiple Pixscape layers use layerIndex=" + layer.layerIndex + ".");
             }
-            tiledHostsByLayer.put(layer.layerIndex, entityId);
+            layersByIndex.put(layer.layerIndex, entityId);
+            if (layer.type == LayerComponent.TYPE_TILED) {
+                tiledHostsByLayer.put(layer.layerIndex, entityId);
+            }
         }
 
         IntBag mapEntities = world.getAspectSubscriptionManager().get(
@@ -47,10 +50,10 @@ public final class TiledMapOwnership {
         for (int i = 0; i < mapEntities.size(); i++) {
             int entityId = mapData[i];
             int layerIndex = indexes.get(entityId).layerIndex;
-            if (!tiledHostsByLayer.containsKey(layerIndex)) {
+            if (!layersByIndex.containsKey(layerIndex)) {
                 throw new IllegalArgumentException(
                         "Tiled map entity " + entityId
-                                + " does not belong to a TYPE_TILED host layerIndex=" + layerIndex + ".");
+                                + " does not belong to a Pixscape layerIndex=" + layerIndex + ".");
             }
             mapCountsByLayer.put(layerIndex, mapCountsByLayer.get(layerIndex, 0) + 1);
         }

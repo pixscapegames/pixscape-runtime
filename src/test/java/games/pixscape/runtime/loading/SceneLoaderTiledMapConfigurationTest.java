@@ -8,6 +8,11 @@ import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,6 +61,40 @@ public class SceneLoaderTiledMapConfigurationTest {
         }
     }
 
+    @Test
+    public void multipleDifferentlyConfiguredMapsSurviveInOneOrdinaryLayer() throws Exception {
+        World source = world();
+        FileHandle file;
+        try {
+            int layerEntity = source.create();
+            LayerComponent layer = source.getMapper(LayerComponent.class).create(layerEntity);
+            layer.layerIndex = 0;
+            layer.type = LayerComponent.TYPE_CLASSIC;
+            configuredMap(source, 0, 4, TiledProjection.ISO, 64, 32);
+            configuredMap(source, 0, 9, TiledProjection.ORTHO, 32, 32);
+            ordinaryEntity(source, 0, 2, true, false);
+            ordinaryEntity(source, 0, 7, false, true);
+            source.process();
+            file = save(source);
+        } finally {
+            source.dispose();
+        }
+
+        World target = world();
+        try {
+            SceneLoader.loadScene(target, file, false, new SceneMetaRuntime());
+            TiledMapOwnership.validateTransitionalWorld(target);
+            Assert.assertEquals(2, target.getAspectSubscriptionManager()
+                    .get(Aspect.all(TiledLayerComponent.class)).getEntities().size());
+            Assert.assertEquals(1, target.getAspectSubscriptionManager()
+                    .get(Aspect.all(TextureRegionComponent.class)).getEntities().size());
+            Assert.assertEquals(1, target.getAspectSubscriptionManager()
+                    .get(Aspect.all(PointLightComponent.class)).getEntities().size());
+        } finally {
+            target.dispose();
+        }
+    }
+
     private static FileHandle writeScene(boolean complete) throws Exception {
         World source = world();
         try {
@@ -86,6 +125,43 @@ public class SceneLoaderTiledMapConfigurationTest {
         } finally {
             source.dispose();
         }
+    }
+
+    private static void configuredMap(World world, int layerIndex, int zIndex,
+                                      TiledProjection projection, int tileWidth, int tileHeight) {
+        int entity = world.create();
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
+        index.layerIndex = layerIndex;
+        index.zIndex = zIndex;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entity);
+        tiled.projection = projection;
+        tiled.tileWidth = tileWidth;
+        tiled.tileHeight = tileHeight;
+        tiled.mapWidthCells = 12;
+        tiled.mapHeightCells = 8;
+        tiled.chunkSize = 4;
+    }
+
+    private static void ordinaryEntity(World world, int layerIndex, int zIndex,
+                                       boolean sprite, boolean light) {
+        int entity = world.create();
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
+        index.layerIndex = layerIndex;
+        index.zIndex = zIndex;
+        if (sprite) world.getMapper(TextureRegionComponent.class).create(entity);
+        if (light) world.getMapper(PointLightComponent.class).create(entity);
+    }
+
+    private static FileHandle save(World source) throws Exception {
+        WorldSerializationManager serialization = source.getSystem(WorldSerializationManager.class);
+        serialization.setSerializer(new JsonArtemisSerializer(source));
+        SaveFileFormat format = new SaveFileFormat(
+                source.getAspectSubscriptionManager().get(Aspect.all()).getEntities());
+        FileHandle file = new FileHandle(File.createTempFile("pixscape-multi-map-", ".json"));
+        try (OutputStream output = file.write(false)) {
+            serialization.save(output, format);
+        }
+        return file;
     }
 
     private static World world() {

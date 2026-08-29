@@ -18,14 +18,15 @@ public interface TiledAPI {
     TiledLayerRef ofStableId(int stableId);
 
     /**
-     * Returns a tolerant tiled view for an authored layer index.
-     * Missing and non-tiled layers produce an inert reference whose
+     * Returns a tolerant tiled view for a transitional TYPE_TILED host layer index.
+     * Ordinary layers, including layers containing one or more Maps, produce an inert reference;
+     * callers must use Map entity/stable identity for those Maps. Missing and non-tiled layers produce an inert reference whose
      * {@link TiledLayerRef#exists()} returns {@code false}.
      */
     TiledLayerRef ofLayerIndex(int layerIndex);
 
     /**
-     * Strict compatibility lookup for an authored tiled layer index.
+     * Strict compatibility lookup for a transitional TYPE_TILED host layer index.
      * Prefer {@link #requireLayerIndex(int)} when strict acquisition is intended.
      *
      * @throws IllegalArgumentException when the layer is missing, ambiguous, or not tiled

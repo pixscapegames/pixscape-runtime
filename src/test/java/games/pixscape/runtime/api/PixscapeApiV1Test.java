@@ -801,6 +801,21 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void ordinaryMultiMapLayerRequiresMapIdentityAndNeverChoosesArbitrarily() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        createAuthoredLayer(engine, 6, LayerComponent.TYPE_CLASSIC);
+        int first = createTiledMap(world, 6);
+        int second = createTiledMap(world, 6);
+        world.process();
+
+        Assert.assertTrue(engine.api().tiled().ofEntityId(first).exists());
+        Assert.assertTrue(engine.api().tiled().ofEntityId(second).exists());
+        Assert.assertFalse(engine.api().tiled().ofLayerIndex(6).exists());
+        assertRequiredTiledLayerFails(engine, 6);
+    }
+
+    @Test
     public void tiledMapIsInsideDistinguishesEmptyCellsFromInvalidCoordinates() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         int entity = createTiledLayer(engine, 3);
@@ -2154,6 +2169,15 @@ public class PixscapeApiV1Test {
         tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
 
         world.process();
+        return map;
+    }
+
+    private static int createTiledMap(World world, int layerIndex) {
+        int map = world.create();
+        EntityIndexComponent index = world.edit(map).create(EntityIndexComponent.class);
+        index.layerIndex = layerIndex;
+        TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
         return map;
     }
 
