@@ -25,6 +25,22 @@ public class RuntimeProjectIOTest {
     }
 
     @Test
+    public void removedMainCameraOffscreenMetadataIsIgnored() throws Exception {
+        FileHandle projectDir = projectDirectory(projectJson(
+                "\"sceneSchemaVersion\":3,\"mainCameraOffscreen\":true,"));
+
+        RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
+
+        Assert.assertNotNull(config.getCurrentSceneMeta());
+        try {
+            SceneMetaRuntime.class.getDeclaredField("mainCameraOffscreen");
+            Assert.fail("Removed runtime metadata must not remain declared.");
+        } catch (NoSuchFieldException expected) {
+            // Expected: stale exported JSON remains forward-compatible input only.
+        }
+    }
+
+    @Test
     public void missingSceneSchemaVersionIsRejected() throws Exception {
         assertRejected("");
     }

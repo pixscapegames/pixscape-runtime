@@ -39,9 +39,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public float ambientMulG = 1f;
     public float ambientMulB = 1f;
 
-    // PostFX
-    public boolean mainCameraOffscreen = false;
-
     public String getName() {
         return name;
     }
@@ -85,7 +82,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
-        meta.mainCameraOffscreen = json.getBoolean("mainCameraOffscreen", meta.mainCameraOffscreen);
         JsonValue availability = json.get("runtimeAvailability");
         JsonValue particles = availability != null && availability.isObject()
                 ? availability.get("particles") : null;
@@ -157,7 +153,6 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.ambientMulR = other.ambientMulR;
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
-        this.mainCameraOffscreen = other.mainCameraOffscreen;
     }
 
     @Override
