@@ -3420,7 +3420,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             TiledMapLayerData d = c != null ? c.data : null;
             if (d != null) d.spatialEnabled = enabled;
             LayerComponent layer = layer();
-            if (layer != null) layer.spatialEnabled = enabled;
+            if (layer != null && layer.type == LayerComponent.TYPE_TILED) {
+                layer.spatialEnabled = enabled;
+            }
             return this;
         }
 

@@ -386,6 +386,85 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(ref.spatial().hasTileOverride(1, 1));
         Assert.assertEquals(2f, ref.spatial().tileAltitude(1, 1), 0.0001f);
         Assert.assertEquals(5f, ref.spatial().tileHeight(1, 1), 0.0001f);
+
+        ref.spatial().setEnabled(false);
+        Assert.assertFalse(layer.spatialEnabled);
+        Assert.assertFalse(tiled.spatialEnabled);
+        Assert.assertFalse(tiled.data.spatialEnabled);
+    }
+
+    @Test
+    public void tiledSpatialFacadeDoesNotChangeOrdinaryLayerSpatialActors() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int host = createAuthoredLayer(engine, 4, LayerComponent.TYPE_CLASSIC);
+        int map = createTiledMap(world, 4);
+        world.process();
+
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(host);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(map);
+        TiledSpatialFacade spatial = engine.api().tiled().requireEntityId(map).spatial();
+
+        layer.spatialEnabled = false;
+        spatial.setEnabled(true);
+        Assert.assertTrue(tiled.spatialEnabled);
+        Assert.assertTrue(tiled.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
+
+        spatial.setEnabled(false);
+        Assert.assertFalse(tiled.spatialEnabled);
+        Assert.assertFalse(tiled.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
+
+        layer.spatialEnabled = true;
+        spatial.setEnabled(true);
+        spatial.setEnabled(false);
+        Assert.assertFalse(tiled.spatialEnabled);
+        Assert.assertFalse(tiled.data.spatialEnabled);
+        Assert.assertTrue(layer.spatialEnabled);
+
+        layer.spatialEnabled = false;
+        spatial.setEnabled(true);
+        Assert.assertTrue(tiled.spatialEnabled);
+        Assert.assertTrue(tiled.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
+    }
+
+    @Test
+    public void tiledSpatialFacadeKeepsMapsIndependentInOrdinaryLayer() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int host = createAuthoredLayer(engine, 5, LayerComponent.TYPE_CLASSIC);
+        int mapA = createTiledMap(world, 5);
+        int mapB = createTiledMap(world, 5);
+        world.process();
+
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(host);
+        TiledLayerComponent tiledA = world.getMapper(TiledLayerComponent.class).get(mapA);
+        TiledLayerComponent tiledB = world.getMapper(TiledLayerComponent.class).get(mapB);
+        TiledSpatialFacade spatialA = engine.api().tiled().requireEntityId(mapA).spatial();
+        TiledSpatialFacade spatialB = engine.api().tiled().requireEntityId(mapB).spatial();
+
+        spatialA.setEnabled(true);
+        Assert.assertTrue(tiledA.spatialEnabled);
+        Assert.assertTrue(tiledA.data.spatialEnabled);
+        Assert.assertFalse(tiledB.spatialEnabled);
+        Assert.assertFalse(tiledB.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
+
+        spatialB.setEnabled(true);
+        Assert.assertTrue(tiledA.spatialEnabled);
+        Assert.assertTrue(tiledA.data.spatialEnabled);
+        Assert.assertTrue(tiledB.spatialEnabled);
+        Assert.assertTrue(tiledB.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
+
+        spatialA.setEnabled(false);
+        Assert.assertFalse(tiledA.spatialEnabled);
+        Assert.assertFalse(tiledA.data.spatialEnabled);
+        Assert.assertTrue(tiledB.spatialEnabled);
+        Assert.assertTrue(tiledB.data.spatialEnabled);
+        Assert.assertFalse(layer.spatialEnabled);
     }
 
     @Test
