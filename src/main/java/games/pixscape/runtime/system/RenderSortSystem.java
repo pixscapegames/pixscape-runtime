@@ -1,6 +1,11 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
+import com.artemis.ComponentMapper;
+import com.artemis.annotations.SkipWire;
+import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -28,6 +33,11 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private long[] tmpKeys = new long[0];
     private int[] tmpTiledRefs = new int[0];
     private final int[] count = new int[256]; // 8 bits
+    private final IntArray hierarchyStack = new IntArray(false, 32);
+    private final IntArray childScratch = new IntArray(false, 16);
+    private ComponentMapper<GameObjectComponent> gameObjects;
+    @SkipWire
+    private GameObjectCompositionSystem gameObjectComposition;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderSortSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
@@ -50,6 +60,11 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         this.tiledState = tiledState;
         this.vfxState = vfxState;
         this.drawList = drawList;
+    }
+
+    @Override
+    protected void initialize() {
+        gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
     }
 
     @Override
@@ -118,6 +133,10 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         for (int i = 0; i < composition.size; i++) {
             byte domain = composition.sourceDomain[i];
             int source = composition.sourceIndex[i];
+            if (domain == RenderSourceDomain.SOURCE_GAME_OBJECT) {
+                flattenGameObject(source);
+                continue;
+            }
             if (domain != RenderSourceDomain.SOURCE_TILED) {
                 drawList.add(domain, source);
                 continue;
@@ -133,6 +152,44 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                 int ref = visibleRefs[start + refOffset];
                 if (tiledState.isRenderableRef(ref)) drawList.addTiledSlot(ref);
             }
+        }
+    }
+
+    private void flattenGameObject(int rootEntityId) {
+        if (gameObjectComposition == null || ecsState == null) return;
+        GameObjectCompositionState state = gameObjectComposition.state();
+        if (rootEntityId < 0 || rootEntityId >= state.getEntityCapacity()
+                || !state.hierarchyVisible[rootEntityId]) {
+            return;
+        }
+        hierarchyStack.clear();
+        pushChildrenReverse(rootEntityId, state);
+        while (hierarchyStack.size > 0) {
+            int entityId = hierarchyStack.pop();
+            if (!state.hierarchyVisible[entityId]) continue;
+            if (gameObjects.has(entityId)) {
+                pushChildrenReverse(entityId, state);
+                continue;
+            }
+            int slot = ecsState.renderSlotForEntity(entityId);
+            if (slot != DynamicEntityRenderState.NO_SLOT
+                    && slot < ecsState.activeCount
+                    && ecsState.enabled[slot]
+                    && ecsState.visible[slot]
+                    && ecsState.kind[slot] == RenderKind.SPRITE) {
+                drawList.addEcsSlot(slot);
+            }
+        }
+    }
+
+    private void pushChildrenReverse(int parentEntityId, GameObjectCompositionState state) {
+        childScratch.clear();
+        for (int child = state.orderedFirstChildEntityId[parentEntityId]; child >= 0;
+             child = state.orderedNextSiblingEntityId[child]) {
+            childScratch.add(child);
+        }
+        for (int i = childScratch.size - 1; i >= 0; i--) {
+            hierarchyStack.add(childScratch.get(i));
         }
     }
 

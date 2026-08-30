@@ -9,6 +9,8 @@ import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
@@ -66,6 +68,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private DirtyTrackerSystem dirty;
 
     private EntitySubscription subWanted;   // T + Body
+    private EntitySubscription unsupportedHierarchyPhysics;
     private EntitySubscription subRuntime;  // RuntimeBody
     private EntitySubscription jointsSub;   // JointBase insert/remove only
 
@@ -161,6 +164,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 TransformComponent.class,
                 PhysicsBodyComponent.class
         ));
+        unsupportedHierarchyPhysics = asm.get(Aspect.all(PhysicsBodyComponent.class)
+                .one(GameObjectComponent.class, GameObjectMemberComponent.class));
 
         subRuntime = asm.get(Aspect.all(
                 PhysicsRuntimeBodyComponent.class
@@ -221,6 +226,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private void processSystemInternal() {
         if (box2d == null || box2d.world == null) return;
+        requireNoUnsupportedHierarchyPhysics();
 
         // 1) Gravity
         float gx = (sceneMeta != null) ? sceneMeta.gravityX : 0f;
@@ -586,6 +592,18 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         return hasAuthoredBody(e)
                 && isTiledCollisionEnabled(e)
                 && hasMaterializableCompiledCache(e);
+    }
+
+    private void requireNoUnsupportedHierarchyPhysics() {
+        IntBag unsupported = unsupportedHierarchyPhysics.getEntities();
+        if (unsupported.size() == 0) return;
+        int entityId = unsupported.getData()[0];
+        PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+        String stable = identity != null && identity.stableId > 0
+                ? ", stableId " + identity.stableId : "";
+        throw new IllegalStateException(
+                "Physics hierarchy is unsupported before local/world Box2D writeback integration"
+                        + " at entityId " + entityId + stable + ".");
     }
 
     private boolean isTiledCollisionEnabled(int e) {

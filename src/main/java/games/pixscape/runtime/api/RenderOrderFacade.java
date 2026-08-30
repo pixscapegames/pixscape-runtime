@@ -55,6 +55,8 @@ public interface RenderOrderFacade {
      *
      * @throws IllegalArgumentException when the complete capability exists and the requested
      * layer is missing or ambiguous, or the preserved z-index is outside the supported range
+     * @throws IllegalStateException when the entity is a Game Object member, because its
+     * top-level root owns global layer placement
      */
     RenderOrderFacade layerIndex(int layerIndex);
 
@@ -75,6 +77,8 @@ public interface RenderOrderFacade {
      *
      * @throws IllegalArgumentException when the complete capability exists and the requested
      * layer is missing or ambiguous, or the z-index is outside the supported range
+     * @throws IllegalStateException when the entity is a Game Object member, because its
+     * top-level root owns global layer placement
      */
     RenderOrderFacade set(int layerIndex, int zIndex);
 }

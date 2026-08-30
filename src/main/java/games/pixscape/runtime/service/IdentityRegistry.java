@@ -30,6 +30,11 @@ public final class IdentityRegistry {
 
     private static final ObjectMap<World, IdentityRegistry> REGISTRIES_BY_WORLD = new ObjectMap<>();
 
+    /** Runtime-internal access to the registry already bound to an ECS World. */
+    public static IdentityRegistry boundTo(World world) {
+        return world != null ? REGISTRIES_BY_WORLD.get(world) : null;
+    }
+
     private World world;
     private SceneMetaRuntime sceneMeta;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;

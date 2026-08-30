@@ -16,6 +16,8 @@ import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import org.junit.*;
 
 import java.lang.reflect.Proxy;
@@ -49,6 +51,57 @@ public class DynamicEntityRenderStateSystemTest {
     public void restoreGlProxy() {
         Gdx.gl = previousGl;
         Gdx.graphics = previousGraphics;
+    }
+
+    @Test
+    public void parentedSpritePublishesResolvedWorldPoseWithoutRenderGrouping() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem(16);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(16), hierarchy,
+                        new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state), new DirtyFlushSystem())
+                .build());
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 10;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+
+        int root = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(root).stableId = 1;
+        world.getMapper(GameObjectComponent.class).create(root);
+        world.getMapper(EntityIndexComponent.class).create(root);
+        TransformComponent rootTransform = world.getMapper(TransformComponent.class).create(root);
+        rootTransform.x = 10f;
+        rootTransform.y = 20f;
+        rootTransform.rotationRad = (float) (Math.PI * 0.5);
+        rootTransform.scaleX = rootTransform.scaleY = 2f;
+
+        int child = createRenderableSprite(world);
+        world.getMapper(PixscapeIdentityComponent.class).create(child).stableId = 2;
+        world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = 1;
+        TransformComponent local = world.getMapper(TransformComponent.class).get(child);
+        local.x = 3f;
+        local.y = 0f;
+        local.rotationRad = 0f;
+        local.scaleX = local.scaleY = 1f;
+
+        world.process();
+
+        int slot = state.renderSlotForEntity(child);
+        Assert.assertEquals(10f, state.x1[slot], 0.0001f);
+        Assert.assertEquals(26f, state.y1[slot], 0.0001f);
+        Assert.assertEquals(-10f, state.x2[slot], 0.0001f);
+        Assert.assertEquals(26f, state.y2[slot], 0.0001f);
+        Assert.assertEquals(-10f, state.x3[slot], 0.0001f);
+        Assert.assertEquals(46f, state.y3[slot], 0.0001f);
+        Assert.assertEquals(10f, state.x4[slot], 0.0001f);
+        Assert.assertEquals(46f, state.y4[slot], 0.0001f);
+        Assert.assertEquals(3f, local.x, 0f);
+        Assert.assertEquals(0f, local.y, 0f);
+
+        identities.bind(null, null);
+        world.dispose();
     }
 
     @Test

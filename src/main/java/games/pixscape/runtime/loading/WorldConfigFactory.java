@@ -347,11 +347,13 @@ public final class WorldConfigFactory {
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
                                 : DEFAULT_PIXELS_PER_METER), systemProfiler),
+                new GameObjectHierarchySystem(entityCapacityHint),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new TiledEntityAnimationSystem(animatedTileRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
                 profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
+                new GameObjectCompositionSystem(dynamicEntityState, entityCapacityHint),
                 profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),
                 profiled(new CullingSystem(worldCamera, dynamicEntityState), systemProfiler),
                 profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),

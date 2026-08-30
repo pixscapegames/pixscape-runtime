@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -214,6 +215,31 @@ public class RenderOrderFacadeTest {
         });
         Assert.assertEquals(0, entity.renderOrder().layerIndex());
         Assert.assertEquals(7, entity.renderOrder().zIndex());
+    }
+
+    @Test
+    public void gameObjectMemberCanChangeLocalZButCannotChangeGlobalLayer() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(4);
+        EntityRef entity = fixture.target(0, 7);
+        fixture.world.getMapper(GameObjectMemberComponent.class).create(entity.entityId())
+                .parentStableId = 100;
+        fixture.world.getMapper(LayerComponent.class).get(entity.entityId()).layerIndex = 3;
+
+        entity.renderOrder().zIndex(9);
+        Assert.assertEquals(9, entity.renderOrder().zIndex());
+        Assert.assertEquals(3, fixture.world.getMapper(LayerComponent.class)
+                .get(entity.entityId()).layerIndex);
+
+        IllegalStateException layerFailure = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> entity.renderOrder().layerIndex(4));
+        Assert.assertTrue(layerFailure.getMessage(),
+                layerFailure.getMessage().contains("top-level root"));
+        Assert.assertThrows(IllegalStateException.class,
+                () -> entity.renderOrder().set(4, 10));
+        Assert.assertEquals(0, entity.renderOrder().layerIndex());
+        Assert.assertEquals(9, entity.renderOrder().zIndex());
     }
 
     @Test

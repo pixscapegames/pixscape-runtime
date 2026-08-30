@@ -13,9 +13,11 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator;
 import games.pixscape.runtime.physics.PhysicsShapeIdentityValidator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -105,6 +107,8 @@ public final class SceneLoader {
                 validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
+                validateGameObjectHierarchy(
+                        format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
                 validateTiledMapConfigurations(format, validationWorld, sceneFile);
@@ -119,6 +123,23 @@ public final class SceneLoader {
                     e);
         } finally {
             validationWorld.dispose();
+        }
+    }
+
+    private static void validateGameObjectHierarchy(
+            SaveFileFormat format, World world, SceneMetaRuntime sceneMeta, FileHandle sceneFile) {
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, sceneMeta);
+        try {
+            identities.rebuild();
+            new GameObjectHierarchyValidator(world, identities)
+                    .validateEntities(format.entities);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Scene '" + sceneFile.path() + "' has invalid Game Object hierarchy: "
+                            + ex.getMessage(), ex);
+        } finally {
+            identities.bind(null, null);
         }
     }
 

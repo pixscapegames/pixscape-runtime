@@ -1065,6 +1065,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
             if (!resolveComponents()) return this;
+            requireIndependentLayer("layerIndex(int)");
             validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
@@ -1075,6 +1076,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public RenderOrderFacade zIndex(int zIndex) {
             if (!resolveComponents()) return this;
             validateZIndex(zIndex, "zIndex(int)");
+            if (isGameObjectMember()) {
+                applyLocalZ(zIndex);
+                return this;
+            }
             apply(validatedEntityIndex.layerIndex, zIndex);
             return this;
         }
@@ -1082,6 +1087,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public RenderOrderFacade set(int layerIndex, int zIndex) {
             if (!resolveComponents()) return this;
+            requireIndependentLayer("set(int, int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             validateZIndex(zIndex, "set(int, int)");
             apply(resolved, zIndex);
@@ -1113,6 +1119,28 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                         + ", " + SortKey64.MAX_Z + "] for render-order operation "
                         + operation + ".");
             }
+        }
+
+        private void requireIndependentLayer(String operation) {
+            if (isGameObjectMember()) {
+                throw new IllegalStateException("Render-order operation " + operation
+                        + " cannot change the global layer of a Game Object member; "
+                        + "the top-level root owns effective Layer placement.");
+            }
+        }
+
+        private boolean isGameObjectMember() {
+            World world = handle.world();
+            return world != null && world.getMapper(GameObjectMemberComponent.class)
+                    .has(handle.entityId);
+        }
+
+        private void applyLocalZ(int zIndex) {
+            if (validatedEntityIndex.zIndex == zIndex) return;
+            validatedEntityIndex.zIndex = zIndex;
+            World world = handle.world();
+            DirtyTrackerSystem dirty = world != null ? world.getSystem(DirtyTrackerSystem.class) : null;
+            if (dirty != null) dirty.order(handle.entityId);
         }
 
         private void apply(int layerIndex, int zIndex) {

@@ -2,6 +2,8 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
+import com.artemis.annotations.SkipWire;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
@@ -9,6 +11,7 @@ import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.helper.QuadGeometryHelper;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -25,6 +28,8 @@ import games.pixscape.runtime.render.GeometryDirty;
 public final class UpdateWorldGeometrySystem extends BaseSystem implements ProfiledSystem {
 
     private DirtyTrackerSystem dirty;
+    @SkipWire
+    private GameObjectHierarchySystem hierarchy;
 
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<DimensionsComponent> mD;
@@ -34,6 +39,11 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
 
     private final float[] tmpCorners = new float[8];
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+
+    @Override
+    protected void initialize() {
+        hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+    }
 
     @Override
     protected void processSystem() {
@@ -79,19 +89,26 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
                 continue;
             }
 
+            WorldTransformState worldState = hierarchy != null ? hierarchy.worldTransforms() : null;
+            boolean resolved = worldState != null && worldState.isResolved(e);
+            float worldX = resolved ? worldState.x[e] : t.x;
+            float worldY = resolved ? worldState.y[e] : t.y;
+            float worldRotation = resolved ? worldState.rotationRad[e] : t.rotationRad;
+            float worldScaleX = resolved ? worldState.scaleX[e] : t.scaleX;
+            float worldScaleY = resolved ? worldState.scaleY[e] : t.scaleY;
+
             // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
-                t.refreshCaches();
-                float cos = t.cos;
-                float sin = t.sin;
+                float cos = MathUtils.cos(worldRotation);
+                float sin = MathUtils.sin(worldRotation);
 
                 b.ux = cos;
                 b.uy = sin;
                 b.vx = -sin;
                 b.vy = cos;
 
-                float sx = t.scaleX;
-                float sy = t.scaleY;
+                float sx = worldScaleX;
+                float sy = worldScaleY;
 
                 b.hx = 0.5f * d.width * Math.abs(sx);
                 b.hy = 0.5f * d.height * Math.abs(sy);
@@ -101,16 +118,17 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
             // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB
             if ((sub & GeometryDirty.AABB_MASK) != 0) {
 
-                float pivotWorldX = t.x;
-                float pivotWorldY = t.y;
+                float pivotWorldX = worldX;
+                float pivotWorldY = worldY;
 
-                float dx = (d.width * 0.5f - t.originX) * t.scaleX;
-                float dy = (d.height * 0.5f - t.originY) * t.scaleY;
+                float dx = (d.width * 0.5f - t.originX) * worldScaleX;
+                float dy = (d.height * 0.5f - t.originY) * worldScaleY;
 
                 b.cx = pivotWorldX + b.ux * dx + b.vx * dy;
                 b.cy = pivotWorldY + b.uy * dx + b.vy * dy;
 
-                QuadGeometryHelper.toWorldCorners(b, t, mQuad.getSafe(e, null), tmpCorners);
+                QuadGeometryHelper.toWorldCorners(
+                        b, t, mQuad.getSafe(e, null), worldScaleX, worldScaleY, tmpCorners);
 
                 float x1 = tmpCorners[0], y1 = tmpCorners[1];
                 float x2 = tmpCorners[2], y2 = tmpCorners[3];

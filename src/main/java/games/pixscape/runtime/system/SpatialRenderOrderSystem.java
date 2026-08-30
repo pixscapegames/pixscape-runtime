@@ -4,7 +4,9 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
@@ -17,6 +19,7 @@ import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.spatial.*;
 
 import java.util.Arrays;
@@ -57,6 +60,14 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private int mappedSlotCount;
     private int[] mappedTiledRefs = new int[0];
     private int mappedTiledRefCount;
+    @SkipWire
+    private GameObjectHierarchySystem gameObjectHierarchy;
+    private int[] gameObjectFirstDrawIndex = new int[0];
+    private int[] gameObjectLastDrawIndex = new int[0];
+    private int[] gameObjectNextDrawIndex = new int[0];
+    private int[] atomicSlots = new int[0];
+    private byte[] atomicDomains = new byte[0];
+    private final IntArray touchedGameObjectRoots = new IntArray(false, 16);
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
@@ -80,6 +91,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     @Override
     protected void initialize() {
+        gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         layersSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
         blockLayersSub = world.getAspectSubscriptionManager()
@@ -231,6 +243,72 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
         System.arraycopy(orderingKernel.orderedSlots(), 0, drawList.data(), 0, drawList.size);
         System.arraycopy(orderingKernel.orderedDomains(), 0, drawList.domainData(), 0, drawList.size);
+        restoreGameObjectAtomicity();
+    }
+
+    /**
+     * Spatial ordering is deliberately hierarchy-agnostic in this Runtime stage. If it moves
+     * unrelated actors through a flattened Game Object block, compact the block again while
+     * preserving the member order produced by {@link RenderSortSystem}.
+     */
+    void restoreGameObjectAtomicity() {
+        if (gameObjectHierarchy == null || drawList.size <= 1) return;
+        GameObjectTopologyState topology = gameObjectHierarchy.topology();
+        ensureAtomicEntityCapacity(topology.getEntityCapacity());
+        ensureAtomicDrawCapacity(drawList.size);
+        for (int i = 0; i < touchedGameObjectRoots.size; i++) {
+            int root = touchedGameObjectRoots.get(i);
+            gameObjectFirstDrawIndex[root] = -1;
+            gameObjectLastDrawIndex[root] = -1;
+        }
+        touchedGameObjectRoots.clear();
+        Arrays.fill(gameObjectNextDrawIndex, 0, drawList.size, -1);
+
+        int[] slots = drawList.data();
+        byte[] domains = drawList.domainData();
+        for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
+            int root = gameObjectRoot(domains[drawIndex], slots[drawIndex], topology);
+            if (root < 0) continue;
+            if (gameObjectFirstDrawIndex[root] < 0) {
+                gameObjectFirstDrawIndex[root] = drawIndex;
+                touchedGameObjectRoots.add(root);
+            } else {
+                gameObjectNextDrawIndex[gameObjectLastDrawIndex[root]] = drawIndex;
+            }
+            gameObjectLastDrawIndex[root] = drawIndex;
+        }
+        if (touchedGameObjectRoots.size == 0) return;
+
+        int output = 0;
+        for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
+            int root = gameObjectRoot(domains[drawIndex], slots[drawIndex], topology);
+            if (root < 0) {
+                atomicDomains[output] = domains[drawIndex];
+                atomicSlots[output++] = slots[drawIndex];
+                continue;
+            }
+            if (gameObjectFirstDrawIndex[root] != drawIndex) continue;
+            for (int memberDrawIndex = drawIndex; memberDrawIndex >= 0;
+                 memberDrawIndex = gameObjectNextDrawIndex[memberDrawIndex]) {
+                atomicDomains[output] = domains[memberDrawIndex];
+                atomicSlots[output++] = slots[memberDrawIndex];
+            }
+        }
+        if (output != drawList.size) {
+            throw new IllegalStateException("Game Object atomic compaction changed draw-list size.");
+        }
+        System.arraycopy(atomicSlots, 0, slots, 0, output);
+        System.arraycopy(atomicDomains, 0, domains, 0, output);
+    }
+
+    private int gameObjectRoot(byte domain, int slot, GameObjectTopologyState topology) {
+        if (domain != RenderSourceDomain.SOURCE_ECS || ecsState == null) return -1;
+        int entityId = ecsState.entityIdForSlot(slot);
+        if (entityId < 0 || entityId >= topology.getEntityCapacity()
+                || !topology.parented[entityId]) {
+            return -1;
+        }
+        return topology.rootEntityId[entityId];
     }
 
     private void rebuildSpatialLayers() {
@@ -319,6 +397,26 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         while (required > next) next <<= 1;
         tiledRefToDrawIndex = grow(tiledRefToDrawIndex, next);
         Arrays.fill(tiledRefToDrawIndex, oldLength, next, -1);
+    }
+
+    private void ensureAtomicEntityCapacity(int required) {
+        if (required <= gameObjectFirstDrawIndex.length) return;
+        int oldLength = gameObjectFirstDrawIndex.length;
+        int next = Math.max(16, oldLength);
+        while (required > next) next <<= 1;
+        gameObjectFirstDrawIndex = Arrays.copyOf(gameObjectFirstDrawIndex, next);
+        gameObjectLastDrawIndex = Arrays.copyOf(gameObjectLastDrawIndex, next);
+        Arrays.fill(gameObjectFirstDrawIndex, oldLength, next, -1);
+        Arrays.fill(gameObjectLastDrawIndex, oldLength, next, -1);
+    }
+
+    private void ensureAtomicDrawCapacity(int required) {
+        if (required <= gameObjectNextDrawIndex.length) return;
+        int next = Math.max(16, gameObjectNextDrawIndex.length);
+        while (required > next) next <<= 1;
+        gameObjectNextDrawIndex = Arrays.copyOf(gameObjectNextDrawIndex, next);
+        atomicSlots = Arrays.copyOf(atomicSlots, next);
+        atomicDomains = Arrays.copyOf(atomicDomains, next);
     }
 
     private static int[] grow(int[] source, int next) {
