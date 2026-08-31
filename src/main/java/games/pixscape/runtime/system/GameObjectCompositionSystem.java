@@ -75,6 +75,19 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         return state;
     }
 
+    /** Returns whether the entity currently contributes drawable bounds to its Game Object. */
+    public boolean contributesDrawableBounds(int entityId) {
+        if (entityId < 0 || entityId >= state.hierarchyVisible.length
+                || gameObjects.has(entityId) || !state.hierarchyVisible[entityId]) {
+            return false;
+        }
+        int slot = renderState != null
+                ? renderState.renderSlotForEntity(entityId) : DynamicEntityRenderState.NO_SLOT;
+        return slot != DynamicEntityRenderState.NO_SLOT
+                && renderState.enabled[slot]
+                && bounds.getSafe(entityId, null) != null;
+    }
+
     private void resolveLayerAndVisibility(GameObjectTopologyState topology, IntArray traversal) {
         for (int i = 0, n = traversal.size; i < n; i++) {
             int entityId = traversal.get(i);
@@ -170,12 +183,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                 }
                 continue;
             }
-            if (parentEntityId < 0 || !state.hierarchyVisible[entityId]) continue;
-            int slot = renderState != null
-                    ? renderState.renderSlotForEntity(entityId) : DynamicEntityRenderState.NO_SLOT;
-            if (slot == DynamicEntityRenderState.NO_SLOT || !renderState.enabled[slot]) continue;
+            if (parentEntityId < 0 || !contributesDrawableBounds(entityId)) continue;
             AABBComponent aabb = bounds.getSafe(entityId, null);
-            if (aabb != null) union(parentEntityId, aabb.minX, aabb.minY, aabb.maxX, aabb.maxY);
+            union(parentEntityId, aabb.minX, aabb.minY, aabb.maxX, aabb.maxY);
         }
     }
 

@@ -90,6 +90,10 @@ public class GameObjectRenderCompositionTest {
         Assert.assertEquals(4f, state.maxX[root], 0f);
         Assert.assertEquals(6f, state.maxY[root], 0f);
         Assert.assertFalse(fixture.world.getMapper(AABBComponent.class).has(root));
+        Assert.assertTrue(fixture.composition.contributesDrawableBounds(
+                fixture.entityForSlot(first)));
+        Assert.assertTrue(fixture.composition.contributesDrawableBounds(
+                fixture.entityForSlot(second)));
 
         fixture.indexForEntity(fixture.entityForSlot(first)).zIndex = -30;
         fixture.process();
@@ -103,6 +107,8 @@ public class GameObjectRenderCompositionTest {
         fixture.world.getMapper(VisibilityComponent.class).create(nested).visible = false;
         fixture.process();
         fixture.assertEcsOrder(first, before);
+        Assert.assertFalse(fixture.composition.contributesDrawableBounds(
+                fixture.entityForSlot(second)));
         Assert.assertEquals(1f, state.minX[root], 0f);
         Assert.assertEquals(2f, state.minY[root], 0f);
         Assert.assertEquals(4f, state.maxX[root], 0f);
