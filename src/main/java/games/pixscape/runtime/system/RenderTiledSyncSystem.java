@@ -10,6 +10,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
@@ -21,6 +22,8 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -61,11 +64,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private final int defaultShaderIdx;
     private final RuntimeTilesetProfiles tilesetProfiles;
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
     private SpatialTileOrderCache currentTileOrder;
     private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
 
     private final Rectangle viewBounds = new Rectangle();
+    private final Rectangle mapViewBounds = new Rectangle();
+    private final Vector2 mapDisplayOffset = new Vector2();
     private final float[] tmpQuad = new float[8];
     private final float[] tmpSpriteBounds = new float[4];
     private final int[] tmpWindow = new int[4];
@@ -93,7 +99,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 defaultShaderIdx,
                 null,
                 null,
-                null
+                null,
+                new IdentityLayerDisplayOffsetResolver()
         );
     }
 
@@ -109,7 +116,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 defaultShaderIdx,
                 tileAnimationLookup,
                 null,
-                null
+                null,
+                new IdentityLayerDisplayOffsetResolver()
         );
     }
 
@@ -120,7 +128,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                  TileAnimationLookup tileAnimationLookup,
                                  RuntimeTilesetProfiles tilesetProfiles) {
         this(camera, tiledState, atlasRuntimeService, defaultShaderIdx, tileAnimationLookup,
-                tilesetProfiles, null);
+                tilesetProfiles, null, new IdentityLayerDisplayOffsetResolver());
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
@@ -130,6 +138,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                  TileAnimationLookup tileAnimationLookup,
                                  RuntimeTilesetProfiles tilesetProfiles,
                                  SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
+        this(camera, tiledState, atlasRuntimeService, defaultShaderIdx, tileAnimationLookup,
+                tilesetProfiles, spatialRuntimeRegistry, new IdentityLayerDisplayOffsetResolver());
+    }
+
+    public RenderTiledSyncSystem(OrthographicCamera camera,
+                                 TiledMapRenderState tiledState,
+                                 AtlasRuntimeService atlasRuntimeService,
+                                 int defaultShaderIdx,
+                                 TileAnimationLookup tileAnimationLookup,
+                                 RuntimeTilesetProfiles tilesetProfiles,
+                                 SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+                                 LayerDisplayOffsetResolver displayOffsetResolver) {
 
         this.camera = camera;
         this.tiledState = tiledState;
@@ -139,6 +159,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         this.tilesetProfiles = tilesetProfiles != null ? tilesetProfiles : RuntimeTilesetProfiles.empty();
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -181,6 +202,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         validateCompositionZ(e, index.zIndex);
         int visibleRefStart = tiledState.getVisibleRefCount();
         refreshVisualPaddingIfDirty(map, tiled.atlasTag);
+        computeMapViewBounds(index.layerIndex);
         computeChunkWindow(map, tmpWindow);
         int currentMinCx = tmpWindow[0];
         int currentMaxCx = tmpWindow[1];
@@ -415,6 +437,19 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         );
     }
 
+    private void computeMapViewBounds(int layerIndex) {
+        displayOffsetResolver.resolveLayer(layerIndex, mapDisplayOffset);
+        // Tile refs remain in authored map space until frame extraction shifts
+        // the atomic Map group into display space. Invert that one group offset
+        // once to query authored chunks against the display camera viewport.
+        mapViewBounds.set(
+                viewBounds.x - mapDisplayOffset.x,
+                viewBounds.y - mapDisplayOffset.y,
+                viewBounds.width,
+                viewBounds.height
+        );
+    }
+
     private void hideChunksOutsideCurrentWindow(TiledMapLayerData map,
                                                 int currentMinCx,
                                                 int currentMaxCx,
@@ -450,10 +485,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         int minTy = Integer.MAX_VALUE;
         int maxTy = Integer.MIN_VALUE;
 
-        float queryMinX = viewBounds.x - map.visualPaddingRight;
-        float queryMaxX = viewBounds.x + viewBounds.width + map.visualPaddingLeft;
-        float queryMinY = viewBounds.y - map.visualPaddingTop;
-        float queryMaxY = viewBounds.y + viewBounds.height + map.visualPaddingBottom;
+        float queryMinX = mapViewBounds.x - map.visualPaddingRight;
+        float queryMaxX = mapViewBounds.x + mapViewBounds.width + map.visualPaddingLeft;
+        float queryMinY = mapViewBounds.y - map.visualPaddingTop;
+        float queryMaxY = mapViewBounds.y + mapViewBounds.height + map.visualPaddingBottom;
 
         int tx = map.worldToTileX(queryMinX, queryMinY);
         int ty = map.worldToTileY(queryMinX, queryMinY);
@@ -598,10 +633,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             return CHUNK_OUTSIDE;
         }
 
-        float viewMinX = viewBounds.x;
-        float viewMinY = viewBounds.y;
-        float viewMaxX = viewBounds.x + viewBounds.width;
-        float viewMaxY = viewBounds.y + viewBounds.height;
+        float viewMinX = mapViewBounds.x;
+        float viewMinY = mapViewBounds.y;
+        float viewMaxX = mapViewBounds.x + mapViewBounds.width;
+        float viewMaxY = mapViewBounds.y + mapViewBounds.height;
 
         if (!boundsOverlap(
                 chunk.visualMinX,
@@ -639,10 +674,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         int count = chunk.getRenderableRefCount();
         tiledState.cullingRenderableRefsConsidered += count;
 
-        float viewMinX = viewBounds.x;
-        float viewMinY = viewBounds.y;
-        float viewMaxX = viewBounds.x + viewBounds.width;
-        float viewMaxY = viewBounds.y + viewBounds.height;
+        float viewMinX = mapViewBounds.x;
+        float viewMinY = mapViewBounds.y;
+        float viewMaxX = mapViewBounds.x + mapViewBounds.width;
+        float viewMaxY = mapViewBounds.y + mapViewBounds.height;
 
         for (int i = 0; i < count; i++) {
             int ref = chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i);

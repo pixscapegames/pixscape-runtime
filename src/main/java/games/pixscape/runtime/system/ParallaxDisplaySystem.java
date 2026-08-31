@@ -11,12 +11,13 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.helper.ParallaxHelper;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerParallaxDisplayOffsetResolver;
 import games.pixscape.runtime.render.LayerStateSOA;
 
 /**
@@ -32,8 +33,7 @@ import games.pixscape.runtime.render.LayerStateSOA;
 public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledSystem {
 
     private final DynamicEntityRenderState renderState;
-    private final LayerStateSOA layerState;
-    private final OrthographicCamera worldCam;
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
     private EntitySubscription spriteSubscription;
     private ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
 
@@ -43,9 +43,13 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     public ParallaxDisplaySystem(DynamicEntityRenderState renderState,
                                  LayerStateSOA layerState,
                                  OrthographicCamera worldCam) {
+        this(renderState, new LayerParallaxDisplayOffsetResolver(layerState, worldCam));
+    }
+
+    public ParallaxDisplaySystem(DynamicEntityRenderState renderState,
+                                 LayerDisplayOffsetResolver displayOffsetResolver) {
         this.renderState = renderState;
-        this.layerState = layerState;
-        this.worldCam = worldCam;
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -98,12 +102,7 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     }
 
     private void processSystemInternal() {
-        if (renderState == null || layerState == null) return;
-
-        final float camX = worldCam.position.x;
-        final float camY = worldCam.position.y;
-
-        final int layerCapacity = layerState.parallaxX.length; // or layerState.capacity()
+        if (renderState == null || displayOffsetResolver == null) return;
 
         for (int renderSlot = 0, n = renderState.activeCount; renderSlot < n; renderSlot++) {
             if (!renderState.enabled[renderSlot]) {
@@ -115,26 +114,13 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
             }
 
             int layerIdx = renderState.layerIndex[renderSlot];
-
-            // invalid layer -> no parallax
-            if (layerIdx < 0 || layerIdx >= layerCapacity || !layerState.enabled[layerIdx]) {
-                renderState.offsetX[renderSlot] = 0f;
-                renderState.offsetY[renderSlot] = 0f;
-                continue;
-            }
-
             int entityId = renderState.entityIdForSlot(renderSlot);
             boolean physical = entityId >= 0 && mPhysicsBody.has(entityId);
-            float px = physical ? layerState.physicsParallaxX : layerState.parallaxX[layerIdx];
-            float py = physical ? layerState.physicsParallaxY : layerState.parallaxY[layerIdx];
-
-            if (Float.isNaN(px) && Float.isNaN(py)) {
-                renderState.offsetX[renderSlot] = 0f;
-                renderState.offsetY[renderSlot] = 0f;
-                continue;
+            if (physical) {
+                displayOffsetResolver.resolvePhysics(tmpOffset);
+            } else {
+                displayOffsetResolver.resolveLayer(layerIdx, tmpOffset);
             }
-
-            ParallaxHelper.computeParallaxOffset(camX, camY, px, py, tmpOffset);
 
             renderState.offsetX[renderSlot] = tmpOffset.x;
             renderState.offsetY[renderSlot] = tmpOffset.y;

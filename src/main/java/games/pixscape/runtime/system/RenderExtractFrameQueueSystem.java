@@ -1,6 +1,7 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
+import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -18,6 +19,8 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
     private final DrawList drawList;
     private final FrameRenderQueue frameQueue;
     private final RenderStats stats;
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
+    private final Vector2 displayOffset = new Vector2();
     private int frameQueuePeakCapacity;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
@@ -44,6 +47,44 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.vfxState = vfxState;
+        this.drawList = drawList;
+        this.frameQueue = frameQueue;
+        this.stats = stats;
+        this.displayOffsetResolver = new IdentityLayerDisplayOffsetResolver();
+    }
+
+    /** Extracts all render domains with the owning Layer's display parallax. */
+    public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
+                                         TiledMapRenderState tiledState,
+                                         VfxRenderState vfxState,
+                                         LayerStateSOA layerState,
+                                         com.badlogic.gdx.graphics.OrthographicCamera camera,
+                                         DrawList drawList,
+                                         FrameRenderQueue frameQueue,
+                                         RenderStats stats,
+                                         int ecsEndExclusive,
+                                         int vfxStartInclusive,
+                                         int vfxEndExclusive) {
+        this(ecsState, tiledState, vfxState,
+                new LayerParallaxDisplayOffsetResolver(layerState, camera),
+                drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
+    }
+
+    /** Extracts all render domains using the World's display-space authority. */
+    public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
+                                         TiledMapRenderState tiledState,
+                                         VfxRenderState vfxState,
+                                         LayerDisplayOffsetResolver displayOffsetResolver,
+                                         DrawList drawList,
+                                         FrameRenderQueue frameQueue,
+                                         RenderStats stats,
+                                         int ecsEndExclusive,
+                                         int vfxStartInclusive,
+                                         int vfxEndExclusive) {
+        this.ecsState = ecsState;
+        this.tiledState = tiledState;
+        this.vfxState = vfxState;
+        this.displayOffsetResolver = displayOffsetResolver;
         this.drawList = drawList;
         this.frameQueue = frameQueue;
         this.stats = stats;
@@ -138,6 +179,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
             return;
         }
 
+        resolveLayerDisplayOffset(tiledState.layerIndex[tiledRenderRef]);
         frameQueue.addQuad(
                 tiledState.textureHandle[tiledRenderRef],
                 tiledState.shader[tiledRenderRef],
@@ -146,14 +188,14 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 tiledState.paramsId[tiledRenderRef],
                 tiledState.customParamsId[tiledRenderRef],
                 tiledState.sortKey[tiledRenderRef],
-                tiledState.x1[tiledRenderRef],
-                tiledState.y1[tiledRenderRef],
-                tiledState.x2[tiledRenderRef],
-                tiledState.y2[tiledRenderRef],
-                tiledState.x3[tiledRenderRef],
-                tiledState.y3[tiledRenderRef],
-                tiledState.x4[tiledRenderRef],
-                tiledState.y4[tiledRenderRef],
+                tiledState.x1[tiledRenderRef] + displayOffset.x,
+                tiledState.y1[tiledRenderRef] + displayOffset.y,
+                tiledState.x2[tiledRenderRef] + displayOffset.x,
+                tiledState.y2[tiledRenderRef] + displayOffset.y,
+                tiledState.x3[tiledRenderRef] + displayOffset.x,
+                tiledState.y3[tiledRenderRef] + displayOffset.y,
+                tiledState.x4[tiledRenderRef] + displayOffset.x,
+                tiledState.y4[tiledRenderRef] + displayOffset.y,
                 tiledState.u1[tiledRenderRef],
                 tiledState.v1[tiledRenderRef],
                 tiledState.u2[tiledRenderRef],
@@ -170,6 +212,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         if (vfxState == null || index < 0 || index >= vfxState.activeCount) {
             return;
         }
+        resolveLayerDisplayOffset(vfxState.layerIndex[index]);
         frameQueue.addQuad(
                 vfxState.textureHandle[index],
                 vfxState.shader[index],
@@ -178,14 +221,14 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 vfxState.paramsId[index],
                 vfxState.customParamsId[index],
                 vfxState.sortKey[index],
-                vfxState.x1[index],
-                vfxState.y1[index],
-                vfxState.x2[index],
-                vfxState.y2[index],
-                vfxState.x3[index],
-                vfxState.y3[index],
-                vfxState.x4[index],
-                vfxState.y4[index],
+                vfxState.x1[index] + displayOffset.x,
+                vfxState.y1[index] + displayOffset.y,
+                vfxState.x2[index] + displayOffset.x,
+                vfxState.y2[index] + displayOffset.y,
+                vfxState.x3[index] + displayOffset.x,
+                vfxState.y3[index] + displayOffset.y,
+                vfxState.x4[index] + displayOffset.x,
+                vfxState.y4[index] + displayOffset.y,
                 vfxState.u1[index],
                 vfxState.v1[index],
                 vfxState.u2[index],
@@ -196,6 +239,10 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 index,
                 -1
         );
+    }
+
+    private void resolveLayerDisplayOffset(int layerIndex) {
+        displayOffsetResolver.resolveLayer(layerIndex, displayOffset);
     }
 
     public void setSystemProfiler(SystemProfiler profiler) {

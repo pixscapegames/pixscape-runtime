@@ -6,6 +6,7 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
@@ -13,6 +14,10 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerParallaxDisplayOffsetResolver;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -29,6 +34,23 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+
+    private static final DisplayOffsetResolverCreator RUNTIME_DISPLAY_OFFSETS =
+            new DisplayOffsetResolverCreator() {
+                @Override
+                public LayerDisplayOffsetResolver create(LayerStateSOA layerState,
+                                                         OrthographicCamera camera) {
+                    return new LayerParallaxDisplayOffsetResolver(layerState, camera);
+                }
+            };
+    private static final DisplayOffsetResolverCreator AUTHORED_DISPLAY_OFFSETS =
+            new DisplayOffsetResolverCreator() {
+                @Override
+                public LayerDisplayOffsetResolver create(LayerStateSOA layerState,
+                                                         OrthographicCamera camera) {
+                    return new IdentityLayerDisplayOffsetResolver();
+                }
+            };
 
     @BeforeClass
     public static void loadNatives() {
@@ -547,6 +569,225 @@ public class RenderTiledSyncSystemTest {
 
         Assert.assertFalse("Layer A chunk should now be hidden", aChunk.visibleLastFrame);
         Assert.assertTrue("Layer B chunk should now be visible", bChunk.visibleLastFrame);
+    }
+
+    @Test
+    public void unitParallaxPreservesAuthoredOrthogonalCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                1f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                64f,
+                0f,
+                64f,
+                16f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(64f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(0f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void farParallaxUsesInverseDisplayOffsetForOrthogonalChunkAndTileCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                60f,
+                16f
+        );
+
+        fixture.world.process();
+        Assert.assertEquals("Rendered Map overlaps the display viewport", 1,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(-60f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Moving left moves the far Map out of the display viewport", 0,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(60f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Moving right restores the same clean chunk", 1,
+                fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals("Culling must not mutate the authored Map origin", 0f,
+                fixture.firstMap.originX, 0f);
+    }
+
+    @Test
+    public void tiledExtractionAndCullingShareTheExactDisplayOffsetAuthority() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1.75f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                64f,
+                60f,
+                40f
+        );
+
+        fixture.world.process();
+
+        Vector2 expectedOffset = new Vector2();
+        fixture.displayOffsetResolver.resolveLayer(0, expectedOffset);
+        int ref = fixture.tiledState.getVisibleRefs()[0];
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(fixture.tiledState.x1[ref] + expectedOffset.x,
+                fixture.frameQueue.x1[0], 0.0001f);
+        Assert.assertEquals(fixture.tiledState.y1[ref] + expectedOffset.y,
+                fixture.frameQueue.y1[0], 0.0001f);
+    }
+
+    @Test
+    public void parallaxCullingUsesTheZoomedDisplayViewport() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                50f,
+                0f,
+                100f,
+                16f
+        );
+        fixture.camera.zoom = 2f;
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+    }
+
+    @Test
+    public void asymmetricParallaxUsesBothAxesForChunkAndTileCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .25f,
+                1.75f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                64f,
+                80f,
+                40f
+        );
+
+        fixture.world.process();
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(80f, -40f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Y display offset must participate independently", 0,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(-80f, 40f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("X display offset must participate independently", 0,
+                fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(0f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(64f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void extremeParallaxFactorsKeepVisibleOrthogonalMapsInTheirDisplayRange() {
+        float[] factors = {.1f, .5f, 1f, 2f, 3f};
+        for (float factor : factors) {
+            ParallaxFixture fixture = createParallaxFixture(
+                    games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                    factor,
+                    1f,
+                    RUNTIME_DISPLAY_OFFSETS,
+                    50f * factor,
+                    0f,
+                    50f,
+                    16f
+            );
+
+            fixture.world.process();
+
+            Assert.assertEquals("factor=" + factor, 1, fixture.tiledState.getVisibleRefCount());
+        }
+    }
+
+    @Test
+    public void isometricCullingUsesTheSameInverseDisplayOffsetWithoutChangingProjectionOrder() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
+                2f,
+                2f,
+                RUNTIME_DISPLAY_OFFSETS,
+                64f,
+                64f,
+                30f,
+                30f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO,
+                fixture.firstMap.projection);
+        Assert.assertEquals(64f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(64f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void mapsUseTheirOwnLayerDisplayOffsetsAndSameLayerMapsStayIndependent() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                50f,
+                16f
+        );
+        TiledMapLayerData sameLayerMap = addParallaxMap(
+                fixture.world, 0, 16f, 0f,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO);
+        fixture.layerState.enabled[1] = true;
+        fixture.layerState.parallaxX[1] = 2f;
+        fixture.layerState.parallaxY[1] = 1f;
+        TiledMapLayerData otherLayerMap = addParallaxMap(
+                fixture.world, 1, 96f, 0f,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO);
+
+        fixture.world.process();
+
+        Assert.assertEquals(3, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(3, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(3, fixture.drawList.size);
+        Assert.assertEquals(16f, sameLayerMap.originX, 0f);
+        Assert.assertEquals(96f, otherLayerMap.originX, 0f);
+    }
+
+    @Test
+    public void identityDisplayOffsetsRetainAuthoredMapCullingForAuthoringWorlds() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                AUTHORED_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                50f,
+                16f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(0, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(0, fixture.drawList.size);
     }
 
     @Test
@@ -1343,6 +1584,80 @@ public class RenderTiledSyncSystemTest {
         Assert.assertFalse("visual padding should be cached after processing", map.visualBoundsDirty);
     }
 
+    private static ParallaxFixture createParallaxFixture(
+            games.pixscape.runtime.tiled.TiledProjection projection,
+            float parallaxX,
+            float parallaxY,
+            DisplayOffsetResolverCreator displayOffsetResolverCreator,
+            float originX,
+            float originY,
+            float cameraX,
+            float cameraY) {
+        OrthographicCamera camera = new OrthographicCamera(32f, 32f);
+        camera.position.set(cameraX, cameraY, 0f);
+
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        FrameRenderQueue frameQueue = new FrameRenderQueue(16);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+        layerState.parallaxX[0] = parallaxX;
+        layerState.parallaxY[0] = parallaxY;
+        LayerDisplayOffsetResolver displayOffsetResolver = displayOffsetResolverCreator.create(
+                layerState, camera);
+        DrawList drawList = new DrawList(32);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
+        RuntimeTilesetProfiles profiles = topCenterProfiles(16, 16, projection, 1);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                tiledState,
+                atlas,
+                7,
+                null,
+                profiles,
+                null,
+                displayOffsetResolver
+        );
+        World world = new World(new WorldConfigurationBuilder()
+                .with(
+                        tiledSync,
+                        new RenderBuildDrawListSystem(
+                                new DynamicEntityRenderState(16), tiledState, layerState,
+                                drawList, stats, 16, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList),
+                        new RenderExtractFrameQueueSystem(
+                                new DynamicEntityRenderState(16), tiledState, null,
+                                displayOffsetResolver, drawList, frameQueue, stats,
+                                16, -1, -1)
+                )
+                .build());
+
+        TiledMapLayerData firstMap = addParallaxMap(world, 0, originX, originY, projection);
+        return new ParallaxFixture(
+                world, camera, tiledState, drawList, frameQueue, layerState,
+                displayOffsetResolver, firstMap);
+    }
+
+    private static TiledMapLayerData addParallaxMap(World world,
+                                                     int layerIndex,
+                                                     float originX,
+                                                     float originY,
+                                                     games.pixscape.runtime.tiled.TiledProjection projection) {
+        TiledLayerComponent tiled = createTiledMapEntity(world, layerIndex)
+                .edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+        TiledMapLayerData map = new TiledMapLayerData(1, 1, 16, 16, 1, projection);
+        map.originX = originX;
+        map.originY = originY;
+        map.setTile(0, 0, 1);
+        tiled.data = map;
+        return map;
+    }
+
+    private interface DisplayOffsetResolverCreator {
+        LayerDisplayOffsetResolver create(LayerStateSOA layerState, OrthographicCamera camera);
+    }
+
     private static final class Fixture {
         final World world;
         final OrthographicCamera camera;
@@ -1369,6 +1684,35 @@ public class RenderTiledSyncSystemTest {
             this.map = map;
             this.tiledSync = tiledSync;
             this.stats = stats;
+        }
+    }
+
+    private static final class ParallaxFixture {
+        final World world;
+        final OrthographicCamera camera;
+        final TiledMapRenderState tiledState;
+        final DrawList drawList;
+        final FrameRenderQueue frameQueue;
+        final LayerStateSOA layerState;
+        final LayerDisplayOffsetResolver displayOffsetResolver;
+        final TiledMapLayerData firstMap;
+
+        private ParallaxFixture(World world,
+                                OrthographicCamera camera,
+                                TiledMapRenderState tiledState,
+                                DrawList drawList,
+                                FrameRenderQueue frameQueue,
+                                LayerStateSOA layerState,
+                                LayerDisplayOffsetResolver displayOffsetResolver,
+                                TiledMapLayerData firstMap) {
+            this.world = world;
+            this.camera = camera;
+            this.tiledState = tiledState;
+            this.drawList = drawList;
+            this.frameQueue = frameQueue;
+            this.layerState = layerState;
+            this.displayOffsetResolver = displayOffsetResolver;
+            this.firstMap = firstMap;
         }
     }
 

@@ -24,4 +24,5 @@ public final class ParallaxHelper {
         float offsetY = (1f - factorY) * cameraY;
         out.set(offsetX, offsetY);
     }
+
 }
