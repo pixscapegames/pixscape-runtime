@@ -3892,21 +3892,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public EntityRef first(String name, float x, float y) {
+        public EntityRef root(String name, float x, float y) {
             SpawnResult result = spawn(name, x, y);
-            if (result == null || result.createdEntityIds() == null || result.createdEntityIds().isEmpty()) {
+            if (result == null || result.rootEntityId() < 0) {
                 return entities.ofEntityId(-1);
             }
-            return entities.ofEntityId(result.createdEntityIds().get(0));
+            return entities.ofEntityId(result.rootEntityId());
         }
 
         @Override
-        public EntityRef requireFirst(String name, float x, float y) {
+        public EntityRef requireRoot(String name, float x, float y) {
             SpawnResult result = spawn(name, x, y);
-            if (result == null || result.createdEntityIds() == null || result.createdEntityIds().isEmpty()) {
+            if (result == null || result.rootEntityId() < 0) {
                 throw new IllegalStateException("GameObject spawn created no entities: " + name);
             }
-            return entities.ofEntityId(result.createdEntityIds().get(0));
+            return entities.ofEntityId(result.rootEntityId());
         }
     }
 }

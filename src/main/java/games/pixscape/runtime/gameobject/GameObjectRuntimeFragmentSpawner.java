@@ -1,642 +1,296 @@
 package games.pixscape.runtime.gameobject;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.artemis.WorldConfigurationBuilder;
-import com.artemis.io.JsonArtemisSerializer;
-import com.artemis.managers.WorldSerializationManager;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
-import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.util.List;
+import java.util.Map;
 
-/**
- * Runtime implementation detail. Public Java visibility does not make this type part of the
- * supported compatibility API. Use {@code PixscapeAPI.gameObjects()} for supported spawning.
- */
-public class GameObjectRuntimeFragmentSpawner {
-
+/** Builds a real ECS Game Object hierarchy from authored asset-local data. */
+public final class GameObjectRuntimeFragmentSpawner {
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
     private final AtlasRuntimeService atlasRuntimeService;
-    private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
+    private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
     public GameObjectRuntimeFragmentSpawner(
             IdentityRegistry identityRegistry,
             SceneMetaRuntime sceneMeta,
             AtlasRuntimeService atlasRuntimeService) {
-        if (identityRegistry == null) {
-            throw new IllegalArgumentException("identityRegistry must not be null");
-        }
-        if (atlasRuntimeService == null) {
-            throw new IllegalArgumentException("atlasRuntimeService must not be null");
-        }
+        if (identityRegistry == null) throw new IllegalArgumentException("identityRegistry must not be null");
+        if (atlasRuntimeService == null) throw new IllegalArgumentException("atlasRuntimeService must not be null");
         this.identityRegistry = identityRegistry;
         this.sceneMeta = sceneMeta;
         this.atlasRuntimeService = atlasRuntimeService;
-        this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(sceneMeta);
     }
 
-    public SpawnResult spawn(World world, GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
-        if (world == null) {
-            throw new IllegalArgumentException("world must not be null");
-        }
+    public SpawnResult spawn(
+            World world, GameObjectRuntimeFragment fragment,
+            float rootOffsetX, float rootOffsetY) {
         GameObjectRuntimeFragment.requireCurrentSchema(fragment);
-
-        WorldSerializationManager targetSerialization = prepareTarget(world);
-
-        ByteArrayOutputStream sourceBytes = new ByteArrayOutputStream();
-        targetSerialization.save(sourceBytes, fragment);
-
-        PreparedGameObjectSpawn preparedSpawn = prepareFromBytes(
-                sourceBytes.toByteArray(), offsetX, offsetY);
-        return commit(world, targetSerialization, preparedSpawn);
+        return spawnAsset(world, fragment.toAsset(), fragment.sourceAssetId,
+                rootOffsetX, rootOffsetY);
     }
 
-    public SpawnResult spawn(World world, JsonValue fragmentRoot, float offsetX, float offsetY) {
-        if (world == null) {
-            throw new IllegalArgumentException("world must not be null");
-        }
-        GameObjectRuntimeFragment.requireCurrentSchema(fragmentRoot);
-
-        WorldSerializationManager targetSerialization = prepareTarget(world);
-        PreparedGameObjectSpawn preparedSpawn = prepareFromJson(
-                fragmentRoot, offsetX, offsetY);
-        return commit(world, targetSerialization, preparedSpawn);
-    }
-
-    private WorldSerializationManager prepareTarget(World world) {
-        WorldSerializationManager targetSerialization =
-                world.getSystem(WorldSerializationManager.class);
-        if (targetSerialization == null) {
-            throw new IllegalStateException("WorldSerializationManager is required");
-        }
-        if (!(targetSerialization.getSerializer() instanceof JsonArtemisSerializer)) {
-            targetSerialization.setSerializer(new JsonArtemisSerializer(world));
-        }
+    public SpawnResult spawnAsset(
+            World world, GameObjectAsset asset, String sourceAssetId,
+            float rootOffsetX, float rootOffsetY) {
+        if (world == null) throw new IllegalArgumentException("world must not be null");
+        loader.validate(asset, null);
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
-        return targetSerialization;
-    }
 
-    private PreparedGameObjectSpawn prepareFromBytes(
-            byte[] sourceBytes, float offsetX, float offsetY) {
-        World stagingWorld = new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager())
-                .build());
+        IntIntMap sourceToStable = allocateStableIds(asset.entities);
+        IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
+        IntArray created = new IntArray(false, asset.entities.size());
+        int rootEntityId = -1;
         try {
-            WorldSerializationManager stagingSerialization =
-                    stagingWorld.getSystem(WorldSerializationManager.class);
-            stagingSerialization.setSerializer(new JsonArtemisSerializer(stagingWorld));
-            GameObjectRuntimeFragment staged = stagingSerialization.load(
-                    new ByteArrayInputStream(sourceBytes),
-                    GameObjectRuntimeFragment.class);
-            resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
-            return prepareStaged(
-                    stagingWorld, stagingSerialization, staged, offsetX, offsetY);
-        } finally {
-            stagingWorld.dispose();
+            List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
+            for (int i = 0; i < ordered.size(); i++) {
+                GameObjectAsset.GameObjectEntityData data = ordered.get(i);
+                int entityId = world.create();
+                created.add(entityId);
+                apply(world, entityId, data, asset.rootSourceEntityId,
+                        sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
+                        rootOffsetX, rootOffsetY);
+                if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
+            }
+            markCreatedDirty(world, created);
+            return new SpawnResult(toBag(created), rootEntityId);
+        } catch (RuntimeException failure) {
+            rollback(world, created);
+            throw failure;
+        } catch (Error failure) {
+            rollback(world, created);
+            throw failure;
         }
     }
 
-    private PreparedGameObjectSpawn prepareFromJson(
-            JsonValue fragmentRoot, float offsetX, float offsetY) {
-        World stagingWorld = new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager())
-                .build());
-        try {
-            JsonArtemisSerializer serializer =
-                    new JsonArtemisSerializer(stagingWorld);
-            stagingWorld.getSystem(WorldSerializationManager.class)
-                    .setSerializer(serializer);
-            GameObjectRuntimeFragment staged = serializer.load(
-                    fragmentRoot, GameObjectRuntimeFragment.class);
-            resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
-            return prepareStaged(
-                    stagingWorld,
-                    stagingWorld.getSystem(WorldSerializationManager.class),
-                    staged,
-                    offsetX,
-                    offsetY);
-        } finally {
-            stagingWorld.dispose();
+    private IntIntMap allocateStableIds(List<GameObjectAsset.GameObjectEntityData> entities) {
+        IntIntMap result = new IntIntMap(entities.size());
+        for (int i = 0; i < entities.size(); i++) {
+            GameObjectAsset.GameObjectEntityData data = entities.get(i);
+            result.put(data.sourceEntityId, identityRegistry.allocateStableId());
+        }
+        return result;
+    }
+
+    private IntMap<PreparedAssetBinding> prepareAssetBindings(
+            List<GameObjectAsset.GameObjectEntityData> entities) {
+        IntMap<PreparedAssetBinding> result = new IntMap<PreparedAssetBinding>();
+        for (int i = 0; i < entities.size(); i++) {
+            GameObjectAsset.GameObjectEntityData data = entities.get(i);
+            if (data.assetRef == null) continue;
+            AtlasAssetBinding binding = atlasRuntimeService.resolveBinding(
+                    data.assetRef.assetId, data.assetRef.atlasTag);
+            result.put(data.sourceEntityId, new PreparedAssetBinding(binding));
+        }
+        return result;
+    }
+
+    private static List<GameObjectAsset.GameObjectEntityData> topologicalOrder(GameObjectAsset asset) {
+        java.util.ArrayList<GameObjectAsset.GameObjectEntityData> ordered =
+                new java.util.ArrayList<GameObjectAsset.GameObjectEntityData>(asset.entities.size());
+        IntMap<GameObjectAsset.GameObjectEntityData> byId =
+                new IntMap<GameObjectAsset.GameObjectEntityData>(asset.entities.size());
+        for (int i = 0; i < asset.entities.size(); i++) {
+            GameObjectAsset.GameObjectEntityData data = asset.entities.get(i);
+            byId.put(data.sourceEntityId, data);
+        }
+        appendChildren(asset.rootSourceEntityId, byId, asset.entities, ordered);
+        return ordered;
+    }
+
+    private static void appendChildren(
+            int sourceId, IntMap<GameObjectAsset.GameObjectEntityData> byId,
+            List<GameObjectAsset.GameObjectEntityData> all,
+            List<GameObjectAsset.GameObjectEntityData> ordered) {
+        ordered.add(byId.get(sourceId));
+        for (int i = 0; i < all.size(); i++) {
+            GameObjectAsset.GameObjectEntityData candidate = all.get(i);
+            if (candidate.parentSourceEntityId == sourceId) {
+                appendChildren(candidate.sourceEntityId, byId, all, ordered);
+            }
         }
     }
 
-    private PreparedGameObjectSpawn prepareStaged(
-            World stagingWorld,
-            WorldSerializationManager stagingSerialization,
-            GameObjectRuntimeFragment staged,
-            float offsetX,
-            float offsetY) {
-        Array<PreparedPhysicsBodyCandidate> physicsCandidates =
-                prepareAndValidateStaged(stagingWorld, staged, offsetX, offsetY);
-        boolean[] preparedAssetRefs = new boolean[staged.entities.size()];
-        boolean[] preparedRegionValid = new boolean[staged.entities.size()];
-        float[] preparedUvs = new float[staged.entities.size() * 4];
-        int[] preparedRegionData = new int[staged.entities.size() * 3];
-        capturePreparedAssetState(
-                stagingWorld,
-                staged.entities,
-                preparedAssetRefs,
-                preparedRegionValid,
-                preparedUvs,
-                preparedRegionData);
-
-        ByteArrayOutputStream preparedBytes = new ByteArrayOutputStream();
-        stagingSerialization.save(preparedBytes, staged);
-        byte[] serializedEntities = preparedBytes.toByteArray();
-        validatePreparedPayload(serializedEntities);
-        return new PreparedGameObjectSpawn(
-                serializedEntities,
-                physicsCandidates,
-                preparedAssetRefs,
-                preparedRegionValid,
-                preparedUvs,
-                preparedRegionData);
-    }
-
-    private SpawnResult commit(
-            World world,
-            WorldSerializationManager targetSerialization,
-            PreparedGameObjectSpawn preparedSpawn) {
-        IntBag created = new IntBag();
-        GameObjectRuntimeFragment committed = targetSerialization.load(
-                new ByteArrayInputStream(preparedSpawn.serializedEntities),
-                GameObjectRuntimeFragment.class);
-        for (int i = 0; i < committed.entities.size(); i++) {
-            int entityId = committed.entities.get(i);
-            created.add(entityId);
-            PreparedPhysicsBodyCandidate candidate = preparedSpawn.physicsCandidates.get(i);
-            if (candidate != null) {
-                ComponentMapper<PhysicsShapesComponent> shapesMapper =
-                        world.getMapper(PhysicsShapesComponent.class);
-                PhysicsShapesComponent shapes = shapesMapper.has(entityId)
-                        ? shapesMapper.get(entityId)
-                        : shapesMapper.create(entityId);
-                ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
-                        world.getMapper(PhysicsCompiledFixturesComponent.class);
-                PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
-                        ? compiledMapper.get(entityId)
-                        : compiledMapper.create(entityId);
-                PhysicsService.publishPreparedCandidate(shapes, compiled, candidate);
-            }
-            TransformComponent transform =
-                    world.getMapper(TransformComponent.class).getSafe(entityId, null);
-            if (transform != null) transform.refreshCaches();
-            publishPreparedAssetState(world, entityId, i, preparedSpawn);
+    private static void apply(
+            World world, int entityId, GameObjectAsset.GameObjectEntityData data,
+            int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
+            PreparedAssetBinding preparedBinding, float rootOffsetX, float rootOffsetY) {
+        if (data.transform != null) {
+            TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
+            value.x = data.transform.x + (data.sourceEntityId == rootSourceId ? rootOffsetX : 0f);
+            value.y = data.transform.y + (data.sourceEntityId == rootSourceId ? rootOffsetY : 0f);
+            value.rotationRad = data.transform.rotationRad;
+            value.scaleX = data.transform.scaleX;
+            value.scaleY = data.transform.scaleY;
+            value.originX = data.transform.originX;
+            value.originY = data.transform.originY;
+            value.refreshCaches();
         }
-
-        markCreatedDirty(world, created);
-
-        return new SpawnResult(created);
-    }
-
-    private void resolveAssetRefsForStagedEntities(
-            World stagingWorld, IntBag entityIds) {
-        ComponentMapper<AssetRefComponent> assetRefs =
-                stagingWorld.getMapper(AssetRefComponent.class);
-        ComponentMapper<TextureRegionComponent> regions =
-                stagingWorld.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> materials =
-                stagingWorld.getMapper(RenderMaterialComponent.class);
-
-        for (int i = 0; i < entityIds.size(); i++) {
-            int entityId = entityIds.get(i);
-            AssetRefComponent assetRef = assetRefs.getSafe(entityId, null);
-            TextureRegionComponent region = regions.getSafe(entityId, null);
-            RenderMaterialComponent material = materials.getSafe(entityId, null);
-            if (assetRef == null || region == null || material == null) {
-                continue;
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
+        index.layerIndex = 0;
+        index.zIndex = data.entityIndex != null ? data.entityIndex.zIndex : 0;
+        if (data.sourceEntityId == rootSourceId) {
+            world.getMapper(LayerComponent.class).create(entityId).layerIndex = 0;
+        }
+        PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
+        identity.stableId = sourceToStable.get(data.sourceEntityId, -1);
+        identity.name = data.identity != null && data.identity.name != null ? data.identity.name : "";
+        if (data.gameObject != null) {
+            GameObjectComponent gameObject = world.getMapper(GameObjectComponent.class).create(entityId);
+            gameObject.sourceAssetId = data.sourceEntityId == rootSourceId && sourceAssetId != null
+                    ? sourceAssetId : "";
+        }
+        if (data.parentSourceEntityId != -1) {
+            world.getMapper(GameObjectMemberComponent.class).create(entityId).parentStableId =
+                    sourceToStable.get(data.parentSourceEntityId, -1);
+        }
+        if (data.tags != null) {
+            PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(entityId);
+            for (int i = 0; i < data.tags.values.size(); i++) tags.tags.add(data.tags.values.get(i));
+        }
+        if (data.customProperties != null) {
+            world.getMapper(CustomPropertiesComponent.class).create(entityId).properties =
+                    remapProperties(data.customProperties, sourceToStable);
+        }
+        if (data.visibility != null) world.getMapper(VisibilityComponent.class).create(entityId).visible = data.visibility.visible;
+        if (data.boundsFlags != null) {
+            if (data.boundsFlags.hasAabb) world.getMapper(AABBComponent.class).create(entityId);
+            if (data.boundsFlags.hasObb) world.getMapper(OrientedBoundsComponent.class).create(entityId);
+        }
+        if (data.dimensions != null) {
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entityId);
+            dimensions.width = data.dimensions.width; dimensions.height = data.dimensions.height;
+        }
+        if (data.quadDeform != null) {
+            QuadDeformComponent quad = world.getMapper(QuadDeformComponent.class).create(entityId);
+            quad.blX = data.quadDeform.blX; quad.blY = data.quadDeform.blY;
+            quad.brX = data.quadDeform.brX; quad.brY = data.quadDeform.brY;
+            quad.trX = data.quadDeform.trX; quad.trY = data.quadDeform.trY;
+            quad.tlX = data.quadDeform.tlX; quad.tlY = data.quadDeform.tlY;
+        }
+        RenderMaterialComponent material = null;
+        if (data.renderMaterial != null || data.assetRef != null) {
+            material = world.getMapper(RenderMaterialComponent.class).create(entityId);
+            if (data.renderMaterial != null) {
+                material.shaderIdx = data.renderMaterial.shaderIdx;
+                material.blendModeId = data.renderMaterial.blendModeId;
             }
-
-            if (assetRef.assetId <= 0) {
-                throw new IllegalStateException(
-                        "AssetRef assetId must be > 0 during Game Object resolve: e="
-                                + entityId + ", got " + assetRef.assetId);
+        }
+        if (data.assetRef != null) {
+            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).create(entityId);
+            assetRef.assetId = data.assetRef.assetId; assetRef.atlasTag = data.assetRef.atlasTag;
+            publishBinding(world, entityId, material, preparedBinding);
+        }
+        if (data.tint != null) world.getMapper(TintComponent.class).create(entityId).rgba = data.tint.rgba;
+        if (data.animation != null) {
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
+            animation.animationAssetIds.addAll(data.animation.animationAssetIds);
+            animation.fps = data.animation.fps; animation.playing = data.animation.playing;
+            animation.loop = data.animation.loop; animation.stateTime = data.animation.stateTime;
+            animation.frame = data.animation.frame;
+            animation.currentClip = data.animation.currentClip != null ? data.animation.currentClip : "";
+        }
+        if (data.shaderParams != null) {
+            ShaderParamsComponent params = world.getMapper(ShaderParamsComponent.class).create(entityId);
+            for (Map.Entry<String, Float> entry : data.shaderParams.floats.entrySet()) {
+                params.floats.add(new ShaderFloatParam(entry.getKey(), entry.getValue()));
             }
-            String atlasTag = assetRef.atlasTag;
-            if (isBlank(atlasTag)) {
-                throw new IllegalStateException(
-                        "AssetRef atlasTag not set for entity " + entityId);
-            }
-
-            AtlasAssetBinding binding =
-                    atlasRuntimeService.resolveBinding(assetRef.assetId, atlasTag);
-            if (binding == null) {
-                region.valid = false;
-                material.textureHandle = 0;
-                continue;
-            }
-            AtlasRegionMetadata metadata = binding.metadata();
-
-            region.u1 = metadata.u1();
-            region.v1 = metadata.v1();
-            region.u2 = metadata.u2();
-            region.v2 = metadata.v2();
-            region.pixW = metadata.pixelWidth();
-            region.pixH = metadata.pixelHeight();
-            region.valid = true;
-            material.textureHandle = metadata.textureHandle();
+        }
+        if (data.repeat != null) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
+            repeat.repeatX = data.repeat.repeatX; repeat.repeatY = data.repeat.repeatY;
+        }
+        if (data.pointLight != null) {
+            PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);
+            light.r = data.pointLight.r; light.g = data.pointLight.g; light.b = data.pointLight.b;
+            light.intensity = data.pointLight.intensity; light.radius = data.pointLight.radius;
+            light.falloff = data.pointLight.falloff; light.enabled = data.pointLight.enabled;
+        }
+        if (data.coneLight != null) {
+            ConeLightComponent light = world.getMapper(ConeLightComponent.class).create(entityId);
+            light.r = data.coneLight.r; light.g = data.coneLight.g; light.b = data.coneLight.b;
+            light.intensity = data.coneLight.intensity; light.radius = data.coneLight.radius;
+            light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
+            light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
+            light.enabled = data.coneLight.enabled;
         }
     }
 
-    private static void capturePreparedAssetState(
-            World stagingWorld,
-            IntBag entityIds,
-            boolean[] preparedAssetRefs,
-            boolean[] preparedRegionValid,
-            float[] preparedUvs,
-            int[] preparedRegionData) {
-        ComponentMapper<AssetRefComponent> assetRefs =
-                stagingWorld.getMapper(AssetRefComponent.class);
-        ComponentMapper<TextureRegionComponent> regions =
-                stagingWorld.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> materials =
-                stagingWorld.getMapper(RenderMaterialComponent.class);
-        for (int i = 0; i < entityIds.size(); i++) {
-            int entityId = entityIds.get(i);
-            if (!assetRefs.has(entityId)
-                    || !regions.has(entityId)
-                    || !materials.has(entityId)) {
-                continue;
-            }
-            TextureRegionComponent region = regions.get(entityId);
-            RenderMaterialComponent material = materials.get(entityId);
-            preparedAssetRefs[i] = true;
-            preparedRegionValid[i] = region.valid;
-            int uvOffset = i * 4;
-            preparedUvs[uvOffset] = region.u1;
-            preparedUvs[uvOffset + 1] = region.v1;
-            preparedUvs[uvOffset + 2] = region.u2;
-            preparedUvs[uvOffset + 3] = region.v2;
-            int dataOffset = i * 3;
-            preparedRegionData[dataOffset] = region.pixW;
-            preparedRegionData[dataOffset + 1] = region.pixH;
-            preparedRegionData[dataOffset + 2] = material.textureHandle;
+    private static void publishBinding(World world, int entityId,
+                                       RenderMaterialComponent material,
+                                       PreparedAssetBinding prepared) {
+        TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).create(entityId);
+        if (prepared == null || prepared.binding == null) {
+            region.valid = false; material.textureHandle = 0; return;
+        }
+        AtlasRegionMetadata metadata = prepared.binding.metadata();
+        region.u1 = metadata.u1(); region.v1 = metadata.v1();
+        region.u2 = metadata.u2(); region.v2 = metadata.v2();
+        region.pixW = metadata.pixelWidth(); region.pixH = metadata.pixelHeight();
+        region.valid = true; material.textureHandle = metadata.textureHandle();
+    }
+
+    private static PropertySet remapProperties(PropertySet source, IntIntMap sourceToStable) {
+        PropertySet result = new PropertySet(source.size());
+        Array<String> names = new Array<String>();
+        source.copyNamesTo(names);
+        for (int i = 0; i < names.size; i++) {
+            String name = names.get(i);
+            PropertyValue value = source.valueCopy(name);
+            if (value.type() == PropertyType.OBJECT) {
+                int sourceId = value.asObjectStableId();
+                result.putObjectStableId(name, sourceId == -1 ? -1 : sourceToStable.get(sourceId, -1));
+            } else if (value.type() == PropertyType.CLASS) {
+                result.putClass(name, value.className(), remapProperties(value.classPropertiesCopy(), sourceToStable));
+            } else result.put(name, value);
+        }
+        return result;
+    }
+
+    private static void rollback(World world, IntArray created) {
+        for (int i = created.size - 1; i >= 0; i--) {
+            int entityId = created.get(i);
+            IdentityRegistry.unindexEntityImmediately(world, entityId);
+            if (world.getEntityManager().isActive(entityId)) world.delete(entityId);
         }
     }
 
-    private static void publishPreparedAssetState(
-            World world,
-            int entityId,
-            int preparedIndex,
-            PreparedGameObjectSpawn preparedSpawn) {
-        if (!preparedSpawn.preparedAssetRefs[preparedIndex]) {
-            return;
-        }
-        TextureRegionComponent region =
-                world.getMapper(TextureRegionComponent.class).get(entityId);
-        RenderMaterialComponent material =
-                world.getMapper(RenderMaterialComponent.class).get(entityId);
-        int uvOffset = preparedIndex * 4;
-        region.u1 = preparedSpawn.preparedUvs[uvOffset];
-        region.v1 = preparedSpawn.preparedUvs[uvOffset + 1];
-        region.u2 = preparedSpawn.preparedUvs[uvOffset + 2];
-        region.v2 = preparedSpawn.preparedUvs[uvOffset + 3];
-        int dataOffset = preparedIndex * 3;
-        region.pixW = preparedSpawn.preparedRegionData[dataOffset];
-        region.pixH = preparedSpawn.preparedRegionData[dataOffset + 1];
-        region.valid = preparedSpawn.preparedRegionValid[preparedIndex];
-        material.textureHandle =
-                preparedSpawn.preparedRegionData[dataOffset + 2];
-    }
-
-    private static boolean isBlank(String value) {
-        if (value == null || value.length() == 0) {
-            return true;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (!Character.isWhitespace(value.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Proves that the exact commit payload can be deserialized before the target world is touched.
-     * The later target load therefore contains no data, remapping, or compilation branch that has
-     * not already completed successfully; only unexpected VM/native failures remain outside the
-     * transaction guarantee.
-     */
-    private static void validatePreparedPayload(byte[] serializedEntities) {
-        World validationWorld = new World(new WorldConfigurationBuilder()
-                .with(new WorldSerializationManager())
-                .build());
-        try {
-            WorldSerializationManager serialization =
-                    validationWorld.getSystem(WorldSerializationManager.class);
-            serialization.setSerializer(new JsonArtemisSerializer(validationWorld));
-            serialization.load(
-                    new ByteArrayInputStream(serializedEntities),
-                    GameObjectRuntimeFragment.class);
-        } finally {
-            validationWorld.dispose();
-        }
-    }
-
-    private Array<PreparedPhysicsBodyCandidate> prepareAndValidateStaged(
-            World stagingWorld,
-            GameObjectRuntimeFragment staged,
-            float offsetX,
-            float offsetY) {
-        ComponentMapper<TransformComponent> transforms =
-                stagingWorld.getMapper(TransformComponent.class);
-        ComponentMapper<PixscapeIdentityComponent> identities =
-                stagingWorld.getMapper(PixscapeIdentityComponent.class);
-        ComponentMapper<PhysicsShapesComponent> shapesMapper =
-                stagingWorld.getMapper(PhysicsShapesComponent.class);
-        ComponentMapper<PhysicsBodyComponent> bodiesMapper =
-                stagingWorld.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
-                stagingWorld.getMapper(PhysicsCompiledFixturesComponent.class);
-        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper =
-                stagingWorld.getMapper(SpatialPhysicsFootprintComponent.class);
-        IntSet stagedEntities = new IntSet(Math.max(1, staged.entities.size()));
-        IntSet stableIds = new IntSet(Math.max(1, staged.entities.size()));
-        IntSet physicsShapeIds = new IntSet(Math.max(1, staged.entities.size()));
-        Array<PreparedPhysicsBodyCandidate> physicsCandidates =
-                new Array<>(true, staged.entities.size(), PreparedPhysicsBodyCandidate.class);
-        for (int i = 0; i < staged.entities.size(); i++) {
-            stagedEntities.add(staged.entities.get(i));
-        }
-
-        if (!sceneMeta.physicsEnabled) {
-            PhysicsService.requireNoAuthoredPhysics(
-                    stagingWorld,
-                    staged.entities,
-                    "Runtime Game Object fragment");
-        }
-
-        for (int i = 0; i < staged.entities.size(); i++) {
-            int entityId = staged.entities.get(i);
-            TransformComponent transform = transforms.getSafe(entityId, null);
-            if (transform != null) {
-                transform.x += offsetX;
-                transform.y += offsetY;
-                transform.refreshCaches();
-            }
-
-            PixscapeIdentityComponent identity = identities.has(entityId)
-                    ? identities.get(entityId)
-                    : identities.create(entityId);
-            identity.stableId = identityRegistry.allocateStableId();
-            if (!stableIds.add(identity.stableId)) {
-                throw new IllegalStateException(
-                        "Staged Game Object produced duplicate stableId " + identity.stableId + ".");
-            }
-
-            PhysicsShapesComponent shapes = shapesMapper.getSafe(entityId, null);
-            if (shapes != null && shapes.shapes != null) {
-                for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
-                    PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
-                    if (shape == null) {
-                        throw new IllegalArgumentException(
-                                "GameObject contains a null physics shape for staged entity "
-                                        + entityId + ".");
-                    }
-                    shape.physicsShapeId = physicsShapeIdAllocator.allocateNewPhysicsShapeId();
-                    if (!physicsShapeIds.add(shape.physicsShapeId)) {
-                        throw new IllegalStateException(
-                                "Staged Game Object produced duplicate physicsShapeId "
-                                        + shape.physicsShapeId + ".");
-                    }
-                }
-            }
-            if (bodiesMapper.has(entityId)) {
-                Array<PhysicsShapeData> sources = shapes != null
-                        ? shapes.shapes
-                        : new Array<>(true, 0, PhysicsShapeData.class);
-                physicsCandidates.add(PhysicsService.prepareBodyCandidate(sources));
-            } else {
-                physicsCandidates.add(null);
-            }
-            if (compiledMapper.has(entityId)) {
-                compiledMapper.remove(entityId);
-            }
-            if (spatialFootprintMapper.has(entityId)) {
-                spatialFootprintMapper.remove(entityId);
-            }
-
-        }
-        new StagedJointValidator(stagingWorld, stagedEntities)
-                .validate(staged.entities);
-        return physicsCandidates;
-    }
-
-    private static void markCreatedDirty(World world, IntBag created) {
+    private static void markCreatedDirty(World world, IntArray created) {
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty == null) return;
-        for (int i = 0; i < created.size(); i++) {
-            dirty.mark(
-                    created.get(i),
-                    DirtyBits.GEOMETRY
-                            | DirtyBits.MATERIAL
-                            | DirtyBits.COLOR
-                            | DirtyBits.ORDER
-                            | DirtyBits.LAYER
-                            | DirtyBits.PHYSICS
-                            | DirtyBits.JOINTS);
+        for (int i = 0; i < created.size; i++) {
+            dirty.mark(created.get(i), DirtyBits.GEOMETRY | DirtyBits.MATERIAL
+                    | DirtyBits.COLOR | DirtyBits.ORDER | DirtyBits.LAYER);
         }
     }
 
-    private static final class PreparedGameObjectSpawn {
-        final byte[] serializedEntities;
-        final Array<PreparedPhysicsBodyCandidate> physicsCandidates;
-        final boolean[] preparedAssetRefs;
-        final boolean[] preparedRegionValid;
-        final float[] preparedUvs;
-        final int[] preparedRegionData;
-
-        PreparedGameObjectSpawn(
-                byte[] serializedEntities,
-                Array<PreparedPhysicsBodyCandidate> physicsCandidates,
-                boolean[] preparedAssetRefs,
-                boolean[] preparedRegionValid,
-                float[] preparedUvs,
-                int[] preparedRegionData) {
-            this.serializedEntities = serializedEntities;
-            this.physicsCandidates = physicsCandidates;
-            this.preparedAssetRefs = preparedAssetRefs;
-            this.preparedRegionValid = preparedRegionValid;
-            this.preparedUvs = preparedUvs;
-            this.preparedRegionData = preparedRegionData;
-        }
+    private static com.artemis.utils.IntBag toBag(IntArray values) {
+        com.artemis.utils.IntBag bag = new com.artemis.utils.IntBag(values.size);
+        for (int i = 0; i < values.size; i++) bag.add(values.get(i));
+        return bag;
     }
 
-    private static final class StagedJointValidator {
-        private final IntSet stagedEntities;
-        private final ComponentMapper<PhysicsJointComponent> joints;
-        private final ComponentMapper<PhysicsBodyComponent> bodies;
-        private final ComponentMapper<PhysicsShapesComponent> shapes;
-        private final ComponentMapper<PhysicsDistanceJointComponent> distances;
-        private final ComponentMapper<PhysicsRevoluteJointComponent> revolutes;
-        private final ComponentMapper<PhysicsPrismaticJointComponent> prismatics;
-        private final ComponentMapper<PhysicsWheelJointComponent> wheels;
-        private final ComponentMapper<PhysicsFrictionJointComponent> frictions;
-        private final ComponentMapper<PhysicsMotorJointComponent> motors;
-        private final ComponentMapper<PhysicsWeldJointComponent> welds;
-        private final ComponentMapper<PhysicsPulleyJointComponent> pulleys;
-        private final ComponentMapper<PhysicsGearJointComponent> gears;
-
-        StagedJointValidator(World world, IntSet stagedEntities) {
-            this.stagedEntities = stagedEntities;
-            joints = world.getMapper(PhysicsJointComponent.class);
-            bodies = world.getMapper(PhysicsBodyComponent.class);
-            shapes = world.getMapper(PhysicsShapesComponent.class);
-            distances = world.getMapper(PhysicsDistanceJointComponent.class);
-            revolutes = world.getMapper(PhysicsRevoluteJointComponent.class);
-            prismatics = world.getMapper(PhysicsPrismaticJointComponent.class);
-            wheels = world.getMapper(PhysicsWheelJointComponent.class);
-            frictions = world.getMapper(PhysicsFrictionJointComponent.class);
-            motors = world.getMapper(PhysicsMotorJointComponent.class);
-            welds = world.getMapper(PhysicsWeldJointComponent.class);
-            pulleys = world.getMapper(PhysicsPulleyJointComponent.class);
-            gears = world.getMapper(PhysicsGearJointComponent.class);
-        }
-
-        void validate(IntBag entities) {
-            for (int i = 0; i < entities.size(); i++) {
-                int entityId = entities.get(i);
-                PhysicsJointComponent joint = joints.getSafe(entityId, null);
-                if (joint == null) continue;
-                requireSpecificComponent(entityId, joint.type);
-                requireBodyEndpoint(entityId, joint.aEid, "aEid");
-                requireBodyEndpoint(entityId, joint.bEid, "bEid");
-                if (joint.aEid == joint.bEid) {
-                    throw invalid(entityId, "body endpoints must be distinct.");
-                }
-                if (joint.type == PhysicsJointComponent.TYPE_GEAR) {
-                    validateGear(entityId);
-                }
-            }
-        }
-
-        private void requireSpecificComponent(int entityId, int type) {
-            boolean present;
-            switch (type) {
-                case PhysicsJointComponent.TYPE_DISTANCE:
-                    present = distances.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_REVOLUTE:
-                    present = revolutes.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_PRISMATIC:
-                    present = prismatics.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_WHEEL:
-                    present = wheels.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_FRICTION:
-                    present = frictions.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_MOTOR:
-                    present = motors.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_WELD:
-                    present = welds.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_PULLEY:
-                    present = pulleys.has(entityId);
-                    break;
-                case PhysicsJointComponent.TYPE_GEAR:
-                    present = gears.has(entityId);
-                    break;
-                default:
-                    throw invalid(entityId, "unsupported joint type " + type + ".");
-            }
-            if (!present) {
-                throw invalid(
-                        entityId,
-                        "missing specific component for joint type " + type + ".");
-            }
-        }
-
-        private void requireBodyEndpoint(
-                int jointEntityId, int endpointEntityId, String field) {
-            if (!stagedEntities.contains(endpointEntityId)) {
-                throw invalid(
-                        jointEntityId,
-                        field + " references entity " + endpointEntityId
-                                + " outside the prepared Game Object.");
-            }
-            if (!bodies.has(endpointEntityId)) {
-                throw invalid(
-                        jointEntityId,
-                        field + " entity " + endpointEntityId
-                                + " has no PhysicsBodyComponent.");
-            }
-            PhysicsShapesComponent endpointShapes =
-                    shapes.getSafe(endpointEntityId, null);
-            if (endpointShapes == null
-                    || endpointShapes.shapes == null
-                    || endpointShapes.shapes.size == 0) {
-                throw invalid(
-                        jointEntityId,
-                        field + " entity " + endpointEntityId
-                                + " has no non-empty PhysicsShapesComponent.");
-            }
-        }
-
-        private void validateGear(int gearEntityId) {
-            PhysicsGearJointComponent gear = gears.get(gearEntityId);
-            if (gear.joint1Eid == gear.joint2Eid) {
-                throw invalid(
-                        gearEntityId, "gear joint dependencies must be distinct.");
-            }
-            requireGearSource(gearEntityId, gear.joint1Eid, "joint1Eid");
-            requireGearSource(gearEntityId, gear.joint2Eid, "joint2Eid");
-        }
-
-        private void requireGearSource(
-                int gearEntityId, int sourceEntityId, String field) {
-            if (sourceEntityId == gearEntityId) {
-                throw invalid(
-                        gearEntityId, field + " cannot reference the gear itself.");
-            }
-            if (!stagedEntities.contains(sourceEntityId)) {
-                throw invalid(
-                        gearEntityId,
-                        field + " references entity " + sourceEntityId
-                                + " outside the prepared Game Object.");
-            }
-            PhysicsJointComponent source = joints.getSafe(sourceEntityId, null);
-            if (source == null) {
-                throw invalid(
-                        gearEntityId,
-                        field + " entity " + sourceEntityId
-                                + " has no PhysicsJointComponent.");
-            }
-            if (source.type != PhysicsJointComponent.TYPE_REVOLUTE
-                    && source.type != PhysicsJointComponent.TYPE_PRISMATIC) {
-                throw invalid(
-                        gearEntityId,
-                        field + " entity " + sourceEntityId
-                                + " must be revolute or prismatic, but has type "
-                                + source.type + ".");
-            }
-            requireSpecificComponent(sourceEntityId, source.type);
-        }
-
-        private static IllegalArgumentException invalid(
-                int jointEntityId, String detail) {
-            return new IllegalArgumentException(
-                    "Invalid staged Game Object joint entity "
-                            + jointEntityId + ": " + detail);
-        }
+    private static final class PreparedAssetBinding {
+        final AtlasAssetBinding binding;
+        PreparedAssetBinding(AtlasAssetBinding binding) { this.binding = binding; }
     }
 }

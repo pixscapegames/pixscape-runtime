@@ -46,6 +46,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -289,9 +292,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (!load.isReady() && !load.isFailed()) load.update();
 
             Assert.assertTrue(load.isReady());
-            Assert.assertEquals(0,
-                    fixture.engine.spawnGameObject("declared", 0f, 0f)
-                            .createdEntityIds().size());
+            SpawnResult spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
+            Assert.assertEquals(1, spawned.createdEntityIds().size());
+            Assert.assertTrue(spawned.rootEntityId() >= 0);
             RenderParticleSyncSystem particles = fixture.engine.getWorld()
                     .getSystem(RenderParticleSyncSystem.class);
             particles.requirePrepared("a", "declared.p");
@@ -302,7 +305,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             RuntimeException missing = Assert.assertThrows(
                     RuntimeException.class,
                     () -> fixture.engine.spawnGameObject("undeclared", 0f, 0f));
-            Assert.assertTrue(missing.getMessage().contains("GameObject fragment not found"));
+            Assert.assertTrue(missing.getMessage().contains("Game Object asset not found"));
             Assert.assertEquals(requestsAtReady, fixture.assetManager.loadCalls);
         } finally {
             fixture.engine.dispose();
@@ -509,7 +512,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("b.json"), true, false);
         writeScene(scenesDir.child("c.json"), false, true);
         writeLinkedScene(scenesDir.child("d.json"));
-        writeEmptyGameObject(gameObjectsDir.child("declared.pixfragment.json"));
+        writeEmptyGameObject(gameObjectsDir.child("declared.gameobject"));
         writeEmptyEffect(effectsDir.child("declared.p"));
 
         final CountingAssetManager[] createdManager = new CountingAssetManager[1];
@@ -722,19 +725,17 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     private static void writeEmptyGameObject(FileHandle file) throws Exception {
-        World source = new World(new WorldConfiguration()
-                .setSystem(new WorldSerializationManager()));
-        try {
-            WorldSerializationManager serialization =
-                    source.getSystem(WorldSerializationManager.class);
-            serialization.setSerializer(
-                    new JsonArtemisSerializer(source).setUsePrototypes(false));
-            try (OutputStream output = file.write(false)) {
-                serialization.save(output, new GameObjectRuntimeFragment());
-            }
-        } finally {
-            source.dispose();
-        }
+        GameObjectAsset asset = new GameObjectAsset();
+        asset.rootSourceEntityId = 1;
+        GameObjectAsset.GameObjectEntityData root =
+                new GameObjectAsset.GameObjectEntityData();
+        root.sourceEntityId = 1;
+        root.transform = new GameObjectAsset.TransformData();
+        root.transform.scaleX = 1f;
+        root.transform.scaleY = 1f;
+        root.gameObject = new GameObjectAsset.GameObjectData();
+        asset.entities.add(root);
+        new GameObjectAssetLoader().save(file, asset);
     }
 
     private static void writeEmptyEffect(FileHandle file) throws Exception {

@@ -37,12 +37,12 @@ public class SceneAvailabilityPlanTest {
         write(root, "effects/shared.p", "shared");
         write(root, "effects/onlyA.p", "only-a");
         write(root, "effects/dynamicButDeclaredA.p", "dynamic-a");
-        write(root, "gameobjects/declared.pixfragment.json", "{}");
+        write(root, "gameobjects/declared.gameobject", "{}");
         write(root, "scenes/B.json", "{}");
         write(root, "atlases/B.atlas", "");
         write(root, "effects/onlyB.p", "only-b");
         write(root, "audio/unrelated.ogg", "audio");
-        write(root, "gameobjects/unrelated.pixfragment.json", "{}");
+        write(root, "gameobjects/unrelated.gameobject", "{}");
 
         RuntimeConfig config = config();
         config.getSceneMeta("A").runtimeParticleEffectPaths.add("shared.p");
@@ -69,14 +69,14 @@ public class SceneAvailabilityPlanTest {
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(path(root, "effects/onlyA.p")));
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(path(root, "effects/dynamicButDeclaredA.p")));
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(
-                    path(root, "gameobjects/declared.pixfragment.json")));
+                    path(root, "gameobjects/declared.gameobject")));
             assertTrue(availability.isFileAvailable(
-                    path(root, "gameobjects/declared.pixfragment.json")));
+                    path(root, "gameobjects/declared.gameobject")));
             assertFalse(manager.loadCounts.containsKey(path(root, "scenes/B.json")));
             assertFalse(manager.loadCounts.containsKey(path(root, "atlases/B.atlas")));
             assertFalse(manager.loadCounts.containsKey(path(root, "effects/onlyB.p")));
             assertFalse(manager.loadCounts.containsKey(path(root, "audio/unrelated.ogg")));
-            assertFalse(manager.loadCounts.containsKey(path(root, "gameobjects/unrelated.pixfragment.json")));
+            assertFalse(manager.loadCounts.containsKey(path(root, "gameobjects/unrelated.gameobject")));
             assertEquals(1f, plan.progress(), 0f);
         } finally {
             plan.release();
@@ -191,7 +191,7 @@ public class SceneAvailabilityPlanTest {
         write(root, "scenes/A.json", "{}");
         write(root, "atlases/A.atlas", "");
         FileHandle gameObject = new FileHandle(
-                new File(root, "gameobjects/deferred.pixfragment.json"));
+                new File(root, "gameobjects/deferred.gameobject"));
         RuntimeConfig config = config();
         config.getSceneMeta("A").runtimeGameObjectIds.add("deferred");
         DeferredGameObjectAssetManager manager = new DeferredGameObjectAssetManager(
@@ -209,7 +209,7 @@ public class SceneAvailabilityPlanTest {
         assertFalse(gameObject.exists());
         assertFalse(plan.isComplete());
         assertEquals(Integer.valueOf(1), manager.loadCounts.get(
-                path(root, "gameobjects/deferred.pixfragment.json")));
+                path(root, "gameobjects/deferred.gameobject")));
 
         manager.completeDeferred = true;
         while (!plan.update()) {
@@ -299,7 +299,7 @@ public class SceneAvailabilityPlanTest {
         public synchronized <T> void load(
                 String fileName, Class<T> type, AssetLoaderParameters<T> parameter) {
             if (fileName.replace('\\', '/').endsWith(
-                    "/gameobjects/deferred.pixfragment.json")) {
+                    "/gameobjects/deferred.gameobject")) {
                 String normalized = fileName.replace('\\', '/');
                 Integer count = loadCounts.get(normalized);
                 loadCounts.put(normalized, count == null ? 1 : count + 1);

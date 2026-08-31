@@ -13,45 +13,43 @@ import games.pixscape.runtime.gameobject.SpawnResult;
 public interface GameObjectsAPI {
 
     /**
-     * Spawns an exported Game Object by name at the given world offset.
+     * Spawns a Game Object asset at the given root offset.
      *
-     * @param name Game Object name without the {@code .pixfragment.json} extension
-     * @param x    world-space X offset applied to every spawned transform
-     * @param y    world-space Y offset applied to every spawned transform
+     * @param name Game Object name or canonical logical asset ID
+     * @param x    world-space X offset applied to the real root
+     * @param y    world-space Y offset applied to the real root
      * @return result containing all created entity IDs
      */
     SpawnResult spawn(String name, float x, float y);
 
     /**
-     * Spawns an already loaded Game Object fragment at the given world offset.
+     * Spawns an already loaded real-hierarchy fragment at the given root offset.
      *
      * @param fragment runtime Game Object fragment to instantiate
-     * @param x        world-space X offset applied to every spawned transform
-     * @param y        world-space Y offset applied to every spawned transform
+     * @param x        world-space X offset applied to the real root
+     * @param y        world-space Y offset applied to the real root
      * @return result containing all created entity IDs
      */
     SpawnResult spawnFragment(GameObjectRuntimeFragment fragment, float x, float y);
 
     /**
-     * Spawns a Game Object and returns a reference to the first created entity.
+     * Spawns a Game Object and returns a reference to its real root.
      *
-     * <p>If the Game Object creates no entity, the returned reference targets entity {@code -1}.</p>
-     *
-     * @param name Game Object name without the {@code .pixfragment.json} extension
+     * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X offset
      * @param y    world-space Y offset
-     * @return reference to the first created entity, or an invalid reference
+     * @return reference to the real root, or an invalid reference
      */
-    EntityRef first(String name, float x, float y);
+    EntityRef root(String name, float x, float y);
 
     /**
-     * Spawns a Game Object and returns a reference to the first created entity.
+     * Spawns a Game Object and returns a reference to its real root.
      *
-     * @param name Game Object name without the {@code .pixfragment.json} extension
+     * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X offset
      * @param y    world-space Y offset
-     * @return reference to the first created entity
+     * @return reference to the real root
      * @throws IllegalStateException if the Game Object creates no entity
      */
-    EntityRef requireFirst(String name, float x, float y);
+    EntityRef requireRoot(String name, float x, float y);
 }

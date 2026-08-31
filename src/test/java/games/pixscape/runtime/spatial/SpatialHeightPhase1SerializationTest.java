@@ -220,59 +220,6 @@ public class SpatialHeightPhase1SerializationTest {
         Assert.assertEquals(0f, map.getTileHeight(1, 2), 0.0001f);
     }
 
-    @Test
-    public void gameObjectFragmentPreservesSpatialComponents() {
-        World targetWorld = runtimeWorld();
-
-        int entity = targetWorld.create();
-        targetWorld.getMapper(TransformComponent.class).create(entity);
-        SpatialHeightComponent spatial = targetWorld.getMapper(SpatialHeightComponent.class).create(entity);
-        spatial.altitude = 2f;
-        spatial.height = 9f;
-
-        SpatialShapesComponent shapes = targetWorld.getMapper(SpatialShapesComponent.class).create(entity);
-        SpatialShapeData shape = new SpatialShapeData();
-        shape.shapeType = SpatialShapeData.SHAPE_BOX;
-        shape.halfW = 3f;
-        shape.halfH = 4f;
-        shape.collisionEnabled = true;
-        shape.actorOccluder = true;
-        shape.altitude = 2f;
-        shape.height = 9f;
-        shapes.shapes.add(shape);
-        targetWorld.process();
-
-        GameObjectRuntimeFragment request = new GameObjectRuntimeFragment();
-        request.entities.add(entity);
-        byte[] fragmentBytes = save(targetWorld, request);
-        GameObjectRuntimeFragment fragment =
-                loadRuntimeFragment(targetWorld, fragmentBytes);
-
-        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
-                new IdentityRegistry(),
-                new games.pixscape.runtime.loading.SceneMetaRuntime(),
-                new AtlasRuntimeService());
-        SpawnResult result = spawner.spawn(targetWorld, fragment, 0f, 0f);
-
-        IntBag created = result.createdEntityIds();
-        Assert.assertEquals(1, created.size());
-        int spawned = created.get(0);
-        Assert.assertNotEquals(entity, spawned);
-
-        SpatialHeightComponent spawnedSpatial =
-                targetWorld.getMapper(SpatialHeightComponent.class).get(spawned);
-        Assert.assertEquals(2f, spawnedSpatial.altitude, 0.0001f);
-        Assert.assertEquals(9f, spawnedSpatial.height, 0.0001f);
-
-        SpatialShapesComponent spawnedShapes =
-                targetWorld.getMapper(SpatialShapesComponent.class).get(spawned);
-        Assert.assertEquals(1, spawnedShapes.shapes.size);
-        Assert.assertTrue(spawnedShapes.shapes.get(0).collisionEnabled);
-        Assert.assertTrue(spawnedShapes.shapes.get(0).actorOccluder);
-        Assert.assertEquals(3f, spawnedShapes.shapes.get(0).halfW, 0.0001f);
-        Assert.assertEquals(4f, spawnedShapes.shapes.get(0).halfH, 0.0001f);
-    }
-
     private static byte[] saveEntity(World world, int entity) {
         SaveFileFormat request = new SaveFileFormat();
         request.entities.add(entity);
@@ -293,16 +240,6 @@ public class SpatialHeightPhase1SerializationTest {
         SaveFileFormat loaded = wsm.load(new ByteArrayInputStream(bytes), SaveFileFormat.class);
         world.process();
         return loaded;
-    }
-
-    private static GameObjectRuntimeFragment loadRuntimeFragment(
-            World world, byte[] bytes) {
-        WorldSerializationManager wsm =
-                world.getSystem(WorldSerializationManager.class);
-        wsm.setSerializer(new JsonArtemisSerializer(world));
-        return wsm.load(
-                new ByteArrayInputStream(bytes),
-                GameObjectRuntimeFragment.class);
     }
 
     private static World serializationWorld() {

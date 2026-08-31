@@ -173,7 +173,8 @@ public final class SceneAvailabilityPlan {
 
     private void addGameObject(String gameObjectId) {
         String path = gameObjectsRoot
-                .child(GameObjectAssetId.assetName(gameObjectId) + ".pixfragment.json").path();
+                .child(GameObjectAssetId.assetName(gameObjectId)
+                        + games.pixscape.runtime.gameobject.GameObjectAsset.EXTENSION).path();
         path = FileAvailabilityService.normalizePath(path);
         if (gameObjectPathSet.add(path)) gameObjectPaths.add(path);
     }

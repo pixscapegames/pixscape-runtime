@@ -6,6 +6,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.util.ArrayList;
@@ -29,7 +30,8 @@ public final class ZOrderRuntimeService {
      */
     private List<Integer> entitiesInLayerSorted(int layer) {
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
-        IntBag bag = asm.get(Aspect.all(EntityIndexComponent.class)).getEntities();
+        IntBag bag = asm.get(Aspect.all(EntityIndexComponent.class)
+                .exclude(GameObjectMemberComponent.class)).getEntities();
         int[] data = bag.getData();
 
         // simple bucket-sort by z (typically small n) -> make a copy and sort once

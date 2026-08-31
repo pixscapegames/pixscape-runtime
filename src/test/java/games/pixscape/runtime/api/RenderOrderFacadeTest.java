@@ -16,6 +16,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
@@ -372,15 +373,18 @@ public class RenderOrderFacadeTest {
         engine.getIdentityRegistry().bind(world, meta);
         engine.getTagRegistry().bind(world);
 
-        int source = world.create();
-        world.getMapper(LayerComponent.class).create(source);
-        world.getMapper(EntityIndexComponent.class).create(source);
-        world.getMapper(PixscapeIdentityComponent.class).create(source).stableId = 1;
-        meta.nextEntityStableId = 2;
-        IntBag sourceEntities = new IntBag();
-        sourceEntities.add(source);
-        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment(sourceEntities);
-        world.process();
+        GameObjectAsset.GameObjectEntityData root =
+                new GameObjectAsset.GameObjectEntityData();
+        root.sourceEntityId = 1;
+        root.transform = new GameObjectAsset.TransformData();
+        root.transform.scaleX = 1f;
+        root.transform.scaleY = 1f;
+        root.entityIndex = new GameObjectAsset.EntityIndexData();
+        root.gameObject = new GameObjectAsset.GameObjectData();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
+        fragment.rootSourceEntityId = root.sourceEntityId;
+        fragment.sourceAssetId = "gameobjects/test.gameobject";
+        fragment.entities.add(root);
 
         Fixture fixture = new Fixture(engine, world, dirty);
         fixture.layer(4);

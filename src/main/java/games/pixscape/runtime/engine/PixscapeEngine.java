@@ -20,6 +20,9 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
 import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
@@ -438,8 +441,7 @@ public final class PixscapeEngine {
     /**
      * Spawns an in-memory Game Object fragment into the currently loaded scene.
      *
-     * <p>The fragment is staged and validated before its prepared entities are
-     * published into the active Artemis world.</p>
+     * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
      * @param fragment Game Object fragment to instantiate
      * @param offsetX  world-space X offset applied to spawned transforms
@@ -454,7 +456,7 @@ public final class PixscapeEngine {
         }
         if (activeSceneMeta == null) {
             throw new IllegalStateException(
-                    "Active scene metadata is required to allocate physics shape IDs.");
+                    "Active scene metadata is required to allocate stable identities.");
         }
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
@@ -463,35 +465,36 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Loads and spawns an exported Game Object fragment by name.
+     * Loads and spawns a Game Object asset by name.
      *
-     * <p>The Game Object is resolved from {@code <runtimeProject>/<gameObjectsDir>/<name>.pixfragment.json}
+     * <p>The Game Object is resolved from {@code <runtimeProject>/<gameObjectsDir>/<name>.gameobject}
      * and then spawned into the currently loaded scene.</p>
      *
-     * @param name    Game Object name without the {@code .pixfragment.json} extension
-     * @param offsetX world-space X offset applied to spawned transforms
-     * @param offsetY world-space Y offset applied to spawned transforms
+     * @param name    Game Object name or canonical logical asset ID
+     * @param offsetX world-space X offset applied to the real root
+     * @param offsetY world-space Y offset applied to the real root
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
-     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object fragment file does not exist
+     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
     public SpawnResult spawnGameObject(String name, float offsetX, float offsetY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
-        FileHandle fragmentFile = runtimeProjectDir
+        String logicalId = GameObjectAssetId.normalize(name);
+        FileHandle assetFile = runtimeProjectDir
                 .child(cfg.gameObjectsDir)
-                .child(name + ".pixfragment.json");
+                .child(GameObjectAssetId.assetName(logicalId) + GameObjectAsset.EXTENSION);
 
-        if (!fragmentFile.exists()) {
-            throw new GdxRuntimeException("GameObject fragment not found: " + fragmentFile.path());
+        if (!assetFile.exists()) {
+            throw new GdxRuntimeException("Game Object asset not found: " + assetFile.path());
         }
 
-        JsonValue root = new JsonReader().parse(fragmentFile);
+        GameObjectAsset asset = new GameObjectAssetLoader().load(assetFile);
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        return spawner.spawn(world, root, offsetX, offsetY);
+        return spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
     }
 
     private void rebuildWorld(RuntimeConfig config,
