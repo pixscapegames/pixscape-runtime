@@ -1,4 +1,4 @@
-package games.pixscape.runtime.prefab;
+package games.pixscape.runtime.gameobject;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
@@ -16,7 +16,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class RuntimePrefabJointPrecommitValidationTest {
+public class RuntimeGameObjectJointPrecommitValidationTest {
     @Test
     public void everyInvalidJointGraphFailsBeforeTargetPublication() {
         for (InvalidGraph invalidGraph : InvalidGraph.values()) {
@@ -140,10 +140,10 @@ public class RuntimePrefabJointPrecommitValidationTest {
                         sentinel)
                 .build());
         final SceneMetaRuntime meta = new SceneMetaRuntime();
-        final RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        final GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
-        final RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        final GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         int nextSourceShapeId = 1;
         final int bodyA = createBody();
         final int bodyB = createBody();

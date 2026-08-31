@@ -22,7 +22,7 @@ public class GameObjectSceneLoadingTest {
     public void validHierarchyLoadsThroughCurrentSceneMachinery() throws Exception {
         World authored = world();
         int root = entity(authored, 1);
-        authored.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "prefabs/crate";
+        authored.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "gameobjects/crate.gameobject";
         int child = entity(authored, 2);
         authored.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = 1;
         FileHandle file = save(authored, root, child);
@@ -32,7 +32,7 @@ public class GameObjectSceneLoadingTest {
         try {
             SaveFileFormat format = SceneLoader.loadScene(loaded, file, false, meta);
             int[] entities = format.entities.getData();
-            Assert.assertEquals("prefabs/crate",
+            Assert.assertEquals("gameobjects/crate.gameobject",
                     loaded.getMapper(GameObjectComponent.class).get(entities[0]).sourceAssetId);
             Assert.assertEquals(1,
                     loaded.getMapper(GameObjectMemberComponent.class).get(entities[1]).parentStableId);

@@ -37,18 +37,18 @@ public class SceneAvailabilityPlanTest {
         write(root, "effects/shared.p", "shared");
         write(root, "effects/onlyA.p", "only-a");
         write(root, "effects/dynamicButDeclaredA.p", "dynamic-a");
-        write(root, "prefabs/declared.pixfragment.json", "{}");
+        write(root, "gameobjects/declared.pixfragment.json", "{}");
         write(root, "scenes/B.json", "{}");
         write(root, "atlases/B.atlas", "");
         write(root, "effects/onlyB.p", "only-b");
         write(root, "audio/unrelated.ogg", "audio");
-        write(root, "prefabs/unrelated.pixfragment.json", "{}");
+        write(root, "gameobjects/unrelated.pixfragment.json", "{}");
 
         RuntimeConfig config = config();
         config.getSceneMeta("A").runtimeParticleEffectPaths.add("shared.p");
         config.getSceneMeta("A").runtimeParticleEffectPaths.add("dynamicButDeclaredA.p");
-        config.getSceneMeta("A").runtimePrefabIds.add("declared");
-        config.getSceneMeta("A").runtimePrefabIds.add("declared");
+        config.getSceneMeta("A").runtimeGameObjectIds.add("declared");
+        config.getSceneMeta("A").runtimeGameObjectIds.add("declared");
         RecordingAssetManager manager = manager(root);
         TrackingAtlas realizedAtlas = new TrackingAtlas();
         manager.setLoader(TextureAtlas.class,
@@ -69,14 +69,14 @@ public class SceneAvailabilityPlanTest {
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(path(root, "effects/onlyA.p")));
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(path(root, "effects/dynamicButDeclaredA.p")));
             assertEquals(Integer.valueOf(1), manager.loadCounts.get(
-                    path(root, "prefabs/declared.pixfragment.json")));
+                    path(root, "gameobjects/declared.pixfragment.json")));
             assertTrue(availability.isFileAvailable(
-                    path(root, "prefabs/declared.pixfragment.json")));
+                    path(root, "gameobjects/declared.pixfragment.json")));
             assertFalse(manager.loadCounts.containsKey(path(root, "scenes/B.json")));
             assertFalse(manager.loadCounts.containsKey(path(root, "atlases/B.atlas")));
             assertFalse(manager.loadCounts.containsKey(path(root, "effects/onlyB.p")));
             assertFalse(manager.loadCounts.containsKey(path(root, "audio/unrelated.ogg")));
-            assertFalse(manager.loadCounts.containsKey(path(root, "prefabs/unrelated.pixfragment.json")));
+            assertFalse(manager.loadCounts.containsKey(path(root, "gameobjects/unrelated.pixfragment.json")));
             assertEquals(1f, plan.progress(), 0f);
         } finally {
             plan.release();
@@ -93,22 +93,22 @@ public class SceneAvailabilityPlanTest {
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}");
         SceneMetaRuntime meta = SceneMetaRuntime.fromJson(json, "A");
         assertTrue(meta.runtimeParticleEffectPaths.isEmpty());
-        assertTrue(meta.runtimePrefabIds.isEmpty());
+        assertTrue(meta.runtimeGameObjectIds.isEmpty());
     }
 
     @Test
-    public void runtimeAvailabilityPrefabsAreParsedFromExportedSceneMetadata() {
+    public void runtimeAvailabilityGameObjectsAreParsedFromExportedSceneMetadata() {
         com.badlogic.gdx.utils.JsonValue json = new com.badlogic.gdx.utils.JsonReader().parse(
                 "{\"sceneSchemaVersion\":3,\"name\":\"A\",\"file\":\"A.json\","
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1,"
-                        + "\"runtimeAvailability\":{\"prefabs\":[\"enemy\",\"pickup\"]}}"
+                        + "\"runtimeAvailability\":{\"gameObjects\":[\"enemy\",\"pickup\"]}}"
         );
 
         SceneMetaRuntime meta = SceneMetaRuntime.fromJson(json, "A");
 
-        assertEquals(2, meta.runtimePrefabIds.size);
-        assertEquals("enemy", meta.runtimePrefabIds.get(0));
-        assertEquals("pickup", meta.runtimePrefabIds.get(1));
+        assertEquals(2, meta.runtimeGameObjectIds.size);
+        assertEquals("enemy", meta.runtimeGameObjectIds.get(0));
+        assertEquals("pickup", meta.runtimeGameObjectIds.get(1));
     }
 
     @Test
@@ -156,12 +156,12 @@ public class SceneAvailabilityPlanTest {
     }
 
     @Test
-    public void missingDeclaredPrefabFailsSceneAvailabilityAndReleasesReferences() throws Exception {
-        File root = temp.newFolder("missing-prefab-cleanup");
+    public void missingDeclaredGameObjectFailsSceneAvailabilityAndReleasesReferences() throws Exception {
+        File root = temp.newFolder("missing-gameObject-cleanup");
         write(root, "scenes/A.json", "{}");
         write(root, "atlases/A.atlas", "");
         RuntimeConfig config = config();
-        config.getSceneMeta("A").runtimePrefabIds.add("missing");
+        config.getSceneMeta("A").runtimeGameObjectIds.add("missing");
         RecordingAssetManager manager = manager(root);
         TrackingAtlas atlas = new TrackingAtlas();
         manager.setLoader(TextureAtlas.class,
@@ -172,7 +172,7 @@ public class SceneAvailabilityPlanTest {
 
         assertThrows(RuntimeException.class, () -> {
             while (!plan.update()) {
-                // Drive until the required missing prefab fails.
+                // Drive until the required missing gameObject fails.
             }
         });
         plan.release();
@@ -185,17 +185,17 @@ public class SceneAvailabilityPlanTest {
     }
 
     @Test
-    public void htmlTransportDeferredPrefabIsRequestedAndAvailableBeforeCompletion()
+    public void htmlTransportDeferredGameObjectIsRequestedAndAvailableBeforeCompletion()
             throws Exception {
-        File root = temp.newFolder("html-deferred-prefab");
+        File root = temp.newFolder("html-deferred-gameObject");
         write(root, "scenes/A.json", "{}");
         write(root, "atlases/A.atlas", "");
-        FileHandle prefab = new FileHandle(
-                new File(root, "prefabs/deferred.pixfragment.json"));
+        FileHandle gameObject = new FileHandle(
+                new File(root, "gameobjects/deferred.pixfragment.json"));
         RuntimeConfig config = config();
-        config.getSceneMeta("A").runtimePrefabIds.add("deferred");
-        DeferredPrefabAssetManager manager = new DeferredPrefabAssetManager(
-                resolver(root), prefab);
+        config.getSceneMeta("A").runtimeGameObjectIds.add("deferred");
+        DeferredGameObjectAssetManager manager = new DeferredGameObjectAssetManager(
+                resolver(root), gameObject);
         TrackingAtlas atlas = new TrackingAtlas();
         manager.setLoader(TextureAtlas.class,
                 new StubAtlasLoader(manager.getFileHandleResolver(), atlas));
@@ -206,18 +206,18 @@ public class SceneAvailabilityPlanTest {
         while (!manager.deferredQueued) {
             assertFalse(plan.update());
         }
-        assertFalse(prefab.exists());
+        assertFalse(gameObject.exists());
         assertFalse(plan.isComplete());
         assertEquals(Integer.valueOf(1), manager.loadCounts.get(
-                path(root, "prefabs/deferred.pixfragment.json")));
+                path(root, "gameobjects/deferred.pixfragment.json")));
 
         manager.completeDeferred = true;
         while (!plan.update()) {
             // The deferred transport writes the registered file during AssetManager.update().
         }
 
-        assertTrue(prefab.exists());
-        assertTrue(availability.isFileAvailable(prefab.path()));
+        assertTrue(gameObject.exists());
+        assertTrue(availability.isFileAvailable(gameObject.path()));
         assertEquals(1f, plan.progress(), 0f);
         plan.release();
         availability.dispose();
@@ -281,7 +281,7 @@ public class SceneAvailabilityPlanTest {
         }
     }
 
-    private static final class DeferredPrefabAssetManager extends RecordingAssetManager {
+    private static final class DeferredGameObjectAssetManager extends RecordingAssetManager {
         private final FileHandle deferredFile;
         private String deferredPath;
         private Class<?> deferredType;
@@ -290,7 +290,7 @@ public class SceneAvailabilityPlanTest {
         private boolean completeDeferred;
         private boolean deferredCompleted;
 
-        DeferredPrefabAssetManager(FileHandleResolver resolver, FileHandle deferredFile) {
+        DeferredGameObjectAssetManager(FileHandleResolver resolver, FileHandle deferredFile) {
             super(resolver);
             this.deferredFile = deferredFile;
         }
@@ -299,7 +299,7 @@ public class SceneAvailabilityPlanTest {
         public synchronized <T> void load(
                 String fileName, Class<T> type, AssetLoaderParameters<T> parameter) {
             if (fileName.replace('\\', '/').endsWith(
-                    "/prefabs/deferred.pixfragment.json")) {
+                    "/gameobjects/deferred.pixfragment.json")) {
                 String normalized = fileName.replace('\\', '/');
                 Integer count = loadCounts.get(normalized);
                 loadCounts.put(normalized, count == null ? 1 : count + 1);

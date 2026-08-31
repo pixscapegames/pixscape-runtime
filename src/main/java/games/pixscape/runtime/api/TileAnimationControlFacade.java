@@ -11,7 +11,7 @@ package games.pixscape.runtime.api;
  * <p>One-shot playback is intended for simple visual map interactions, such as a door tile that
  * opens once and optionally holds its final frame. Gameplay-heavy doors with collision changes,
  * sounds, locks, persistence, or changing 2.5D footprints are usually better represented as
- * actors/prefabs, or as a trigger/prefab driving a tiled visual.</p>
+ * actors/gameObjects, or as a trigger/gameObject driving a tiled visual.</p>
  *
  * <p>Tiled animation playback is visual state. By default the runtime advances only chunks that
  * were visible during the previous frame, so authoritative gameplay timers should live in game

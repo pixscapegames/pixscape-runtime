@@ -1,4 +1,4 @@
-package games.pixscape.runtime.prefab;
+package games.pixscape.runtime.gameobject;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
@@ -30,7 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-public class RuntimePrefabFragmentSpawnTest {
+public class GameObjectRuntimeFragmentSpawnTest {
 
     @Test
     public void fragmentSerializationAndSpawnPreserveQuadDeformation() {
@@ -41,10 +41,10 @@ public class RuntimePrefabFragmentSpawnTest {
                 world.getMapper(QuadDeformComponent.class).create(source);
         setQuad(sourceQuad, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
 
-        SpawnResult result = new RuntimePrefabFragmentSpawner(
+        SpawnResult result = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService())
                 .spawn(world, fragment, 0f, 0f);
 
@@ -60,13 +60,13 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void schemaVersionTwoJsonFragmentIsAccepted() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
 
         SpawnResult result = spawner.spawn(
                 world,
-                new JsonReader().parse(buildSourcePrefabJson()),
+                new JsonReader().parse(buildSourceGameObjectJson()),
                 0f,
                 0f);
 
@@ -96,10 +96,10 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void inMemorySchemaVersionZeroIsRejectedWithoutPublishingEntities() {
         World world = runtimeWorld();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.schemaVersion = 0;
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService())
                     .spawn(world, fragment, 0f, 0f);
             Assert.fail("Fragment schema version must be rejected.");
@@ -113,13 +113,13 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void inMemorySchemaVersionOneIsRejectedWithoutPublishingEntities() {
         World world = runtimeWorld();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.schemaVersion = 1;
         games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
         int nextEntityStableId = meta.nextEntityStableId;
         int nextPhysicsShapeId = meta.nextPhysicsShapeId;
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), meta, new AtlasRuntimeService())
                     .spawn(world, fragment, 0f, 0f);
             Assert.fail("Fragment schema version must be rejected.");
@@ -139,15 +139,15 @@ public class RuntimePrefabFragmentSpawnTest {
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.physicsEnabled = false;
         meta.nextEntityStableId = 103;
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
         int activeBefore = activeEntityCount(world);
 
         try {
             spawner.spawn(
                     world,
-                    new JsonReader().parse(buildSourcePrefabJson()),
+                    new JsonReader().parse(buildSourceGameObjectJson()),
                     0f,
                     0f);
             Assert.fail("Physics fragment must be rejected.");
@@ -162,13 +162,13 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void physicsSaveFileFragmentIsRejectedInDisabledScene() {
         World world = runtimeWorld();
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.physicsEnabled = false;
         meta.nextEntityStableId = 103;
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
         int activeBefore = activeEntityCount(world);
 
@@ -184,11 +184,11 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
-    public void prefabSpawnPreservesExplicitSpatialFootprintOwnership() {
+    public void gameObjectSpawnPreservesExplicitSpatialFootprintOwnership() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
         PhysicsShapeData source = world.getMapper(PhysicsShapesComponent.class)
                 .get(fixture.sourceBodyAId).shapes.first();
         source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
@@ -220,13 +220,13 @@ public class RuntimePrefabFragmentSpawnTest {
         int source = world.create();
         world.getMapper(TransformComponent.class).create(source);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.physicsEnabled = false;
 
-        SpawnResult result = new RuntimePrefabFragmentSpawner(
+        SpawnResult result = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), meta, new AtlasRuntimeService())
                 .spawn(world, fragment, 0f, 0f);
 
@@ -248,11 +248,11 @@ public class RuntimePrefabFragmentSpawnTest {
         int activeBefore = activeEntityCount(world);
 
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), meta, new AtlasRuntimeService())
                     .spawn(
                             world,
-                            new JsonReader().parse(buildShapesOnlyPrefabJson()),
+                            new JsonReader().parse(buildShapesOnlyGameObjectJson()),
                             0f,
                             0f);
             Assert.fail("Shapes-only fragment must be rejected.");
@@ -273,7 +273,7 @@ public class RuntimePrefabFragmentSpawnTest {
         int source = world.create();
         world.getMapper(PhysicsMotorJointComponent.class).create(source);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
@@ -283,7 +283,7 @@ public class RuntimePrefabFragmentSpawnTest {
         int activeBefore = activeEntityCount(world);
 
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), meta, new AtlasRuntimeService())
                     .spawn(world, fragment, 0f, 0f);
             Assert.fail("Orphan joint component must be rejected.");
@@ -312,7 +312,7 @@ public class RuntimePrefabFragmentSpawnTest {
         world.process();
         sentinel.processCount = 0;
 
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
@@ -322,7 +322,7 @@ public class RuntimePrefabFragmentSpawnTest {
         int[] activeBefore = activeEntityIds(world);
 
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), meta, new AtlasRuntimeService())
                     .spawn(world, fragment, 0f, 0f);
             Assert.fail("Invalid assetId must reject the fragment.");
@@ -352,12 +352,12 @@ public class RuntimePrefabFragmentSpawnTest {
         int[] activeBefore = activeEntityIds(world);
 
         try {
-            new RuntimePrefabFragmentSpawner(
+            new GameObjectRuntimeFragmentSpawner(
                     new IdentityRegistry(), meta, new AtlasRuntimeService())
                     .spawn(
                             world,
                             new JsonReader().parse(
-                                    buildAssetPrefabJson(17, "   ")),
+                                    buildAssetGameObjectJson(17, "   ")),
                             0f,
                             0f);
             Assert.fail("Blank atlasTag must reject the fragment.");
@@ -384,10 +384,10 @@ public class RuntimePrefabFragmentSpawnTest {
         world.getMapper(TextureRegionComponent.class).create(source);
         world.getMapper(RenderMaterialComponent.class).create(source);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
 
-        SpawnResult result = new RuntimePrefabFragmentSpawner(
+        SpawnResult result = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService())
                 .spawn(world, fragment, 0f, 0f);
 
@@ -400,7 +400,7 @@ public class RuntimePrefabFragmentSpawnTest {
     }
 
     @Test
-    public void bodyOnlyPrefabPublishesEmptyCacheWithoutNativeBody() {
+    public void bodyOnlyGameObjectPublishesEmptyCacheWithoutNativeBody() {
         GdxNativesLoader.load();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2());
         Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
@@ -410,11 +410,11 @@ public class RuntimePrefabFragmentSpawnTest {
         int source = world.create();
         world.getMapper(TransformComponent.class).create(source);
         world.getMapper(PhysicsBodyComponent.class).create(source);
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(source);
 
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
         SpawnResult result = spawner.spawn(world, fragment, 0f, 0f);
         int spawned = result.createdEntityIds().get(0);
@@ -436,9 +436,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnDoesNotClearExistingWorld() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         int existing = world.create();
         world.getMapper(TransformComponent.class).create(existing).x = 42f;
@@ -452,9 +452,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnReturnsOnlyCreatedEntitiesUsingSubscriptionDiff() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         int preExisting = world.create();
         world.process();
@@ -474,9 +474,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnRegeneratesStableIds() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
 
@@ -492,8 +492,8 @@ public class RuntimePrefabFragmentSpawnTest {
             int stableId = identity.stableId;
             Assert.assertNotEquals("Spawn must not keep UNASSIGNED stable id", -1L, stableId);
             Assert.assertTrue("Spawn must regenerate stable ids immediately", stableId > 0L);
-            Assert.assertNotEquals("Spawned stable ids must be regenerated (not prefab id A)", fixture.sourceStableIdA, stableId);
-            Assert.assertNotEquals("Spawned stable ids must be regenerated (not prefab id B)", fixture.sourceStableIdB, stableId);
+            Assert.assertNotEquals("Spawned stable ids must be regenerated (not gameObject id A)", fixture.sourceStableIdA, stableId);
+            Assert.assertNotEquals("Spawned stable ids must be regenerated (not gameObject id B)", fixture.sourceStableIdB, stableId);
             Assert.assertTrue("Spawned stable ids must be unique", spawnedStableIds.add(stableId));
         }
     }
@@ -501,9 +501,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnAppliesTransformOffset() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         float offsetX = 10f;
         float offsetY = 20f;
@@ -532,9 +532,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnPreservesAndRemapsJointReferences() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
 
@@ -561,9 +561,9 @@ public class RuntimePrefabFragmentSpawnTest {
     @Test
     public void spawnMarksRenderAndPhysicsDirty() {
         World world = runtimeWorld();
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), sceneMeta(), new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
@@ -600,10 +600,10 @@ public class RuntimePrefabFragmentSpawnTest {
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
         meta.physicsEnabled = true;
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
 
         SpawnResult result = spawner.spawn(world, fixture.fragment, 0f, 0f);
         Set<Integer> shapeIds = new HashSet<>();
@@ -629,10 +629,10 @@ public class RuntimePrefabFragmentSpawnTest {
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
         meta.physicsEnabled = true;
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
         int activeBefore = activeEntityCount(world);
 
         PhysicsShapeData invalid = world.getMapper(PhysicsShapesComponent.class)
@@ -643,7 +643,7 @@ public class RuntimePrefabFragmentSpawnTest {
 
         try {
             spawner.spawn(world, fixture.fragment, 0f, 0f);
-            Assert.fail("Invalid staged physics must reject the prefab before commit.");
+            Assert.fail("Invalid staged physics must reject the gameObject before commit.");
         } catch (IllegalArgumentException expected) {
             Assert.assertTrue(expected.getMessage().contains("PhysicsShapeData"));
         }
@@ -662,10 +662,10 @@ public class RuntimePrefabFragmentSpawnTest {
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.nextEntityStableId = 103;
         meta.physicsEnabled = true;
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
-        PrefabFixture fixture = buildPrefabFixture(world);
+        GameObjectFixture fixture = buildGameObjectFixture(world);
         sentinel.processCount = 0;
         int activeBefore = activeEntityCount(world);
         PhysicsJointComponent sourceJoint = null;
@@ -720,8 +720,8 @@ public class RuntimePrefabFragmentSpawnTest {
     private static void assertJsonSchemaRejected(String json) {
         World world = runtimeWorld();
         games.pixscape.runtime.loading.SceneMetaRuntime meta = sceneMeta();
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         new IdentityRegistry(), meta, new AtlasRuntimeService());
         int activeBefore = activeEntityCount(world);
         int nextEntityStableId = meta.nextEntityStableId;
@@ -806,17 +806,17 @@ public class RuntimePrefabFragmentSpawnTest {
         }
     }
 
-    private static PrefabFixture buildPrefabFixture(World fragmentOwnerWorld) {
+    private static GameObjectFixture buildGameObjectFixture(World fragmentOwnerWorld) {
         GdxNativesLoader.load();
 
-        String sourceJson = buildSourcePrefabJson();
+        String sourceJson = buildSourceGameObjectJson();
 
         WorldSerializationManager wsm = fragmentOwnerWorld.getSystem(WorldSerializationManager.class);
         wsm.setSerializer(new JsonArtemisSerializer(fragmentOwnerWorld));
 
-        RuntimePrefabFragment fragment = wsm.load(
+        GameObjectRuntimeFragment fragment = wsm.load(
                 new ByteArrayInputStream(sourceJson.getBytes(StandardCharsets.UTF_8)),
-                RuntimePrefabFragment.class
+                GameObjectRuntimeFragment.class
         );
 
         fragmentOwnerWorld.process();
@@ -848,7 +848,7 @@ public class RuntimePrefabFragmentSpawnTest {
         Assert.assertTrue("Fixture body A must be loaded into target world", sourceBodyAId >= 0);
         Assert.assertTrue("Fixture body B must be loaded into target world", sourceBodyBId >= 0);
 
-        return new PrefabFixture(
+        return new GameObjectFixture(
                 fragment,
                 sourceJson,
                 sourceX,
@@ -860,7 +860,7 @@ public class RuntimePrefabFragmentSpawnTest {
         );
     }
 
-    private static String buildSourcePrefabJson() {
+    private static String buildSourceGameObjectJson() {
         World sourceWorld = runtimeWorld();
 
         WorldSerializationManager wsm = sourceWorld.getSystem(WorldSerializationManager.class);
@@ -909,7 +909,7 @@ public class RuntimePrefabFragmentSpawnTest {
 
         sourceWorld.process();
 
-        RuntimePrefabFragment request = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment request = new GameObjectRuntimeFragment();
         request.entities.add(bodyA);
         request.entities.add(bodyB);
         request.entities.add(joint);
@@ -920,7 +920,7 @@ public class RuntimePrefabFragmentSpawnTest {
         return out.toString(StandardCharsets.UTF_8);
     }
 
-    private static String buildShapesOnlyPrefabJson() {
+    private static String buildShapesOnlyGameObjectJson() {
         World sourceWorld = runtimeWorld();
         try {
             WorldSerializationManager serialization =
@@ -937,7 +937,7 @@ public class RuntimePrefabFragmentSpawnTest {
             shapes.shapes.add(shape);
             sourceWorld.process();
 
-            RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+            GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
             fragment.entities.add(entityId);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             serialization.save(out, fragment);
@@ -947,7 +947,7 @@ public class RuntimePrefabFragmentSpawnTest {
         }
     }
 
-    private static String buildAssetPrefabJson(int assetId, String atlasTag) {
+    private static String buildAssetGameObjectJson(int assetId, String atlasTag) {
         World sourceWorld = runtimeWorld();
         try {
             WorldSerializationManager serialization =
@@ -964,7 +964,7 @@ public class RuntimePrefabFragmentSpawnTest {
             sourceWorld.getMapper(RenderMaterialComponent.class).create(entityId);
             sourceWorld.process();
 
-            RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+            GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
             fragment.entities.add(entityId);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             serialization.save(out, fragment);
@@ -1047,8 +1047,8 @@ public class RuntimePrefabFragmentSpawnTest {
         return null;
     }
 
-    private static final class PrefabFixture {
-        final RuntimePrefabFragment fragment;
+    private static final class GameObjectFixture {
+        final GameObjectRuntimeFragment fragment;
         final String sourceJson;
         final float sourceX;
         final float sourceY;
@@ -1057,7 +1057,7 @@ public class RuntimePrefabFragmentSpawnTest {
         final int sourceBodyAId;
         final int sourceBodyBId;
 
-        PrefabFixture(RuntimePrefabFragment fragment,
+        GameObjectFixture(GameObjectRuntimeFragment fragment,
                       String sourceJson,
                       float sourceX,
                       float sourceY,

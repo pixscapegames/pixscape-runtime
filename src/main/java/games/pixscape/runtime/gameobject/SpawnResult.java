@@ -1,4 +1,4 @@
-package games.pixscape.runtime.prefab;
+package games.pixscape.runtime.gameobject;
 
 import com.artemis.utils.IntBag;
 

@@ -15,8 +15,8 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
@@ -358,7 +358,7 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void prefabSpawnedEntityUsesIndexFacade() throws Exception {
+    public void gameObjectSpawnedEntityUsesIndexFacade() throws Exception {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(64);
         World world = new World(new WorldConfigurationBuilder()
                 .with(dirty, new WorldSerializationManager())
@@ -379,12 +379,12 @@ public class RenderOrderFacadeTest {
         meta.nextEntityStableId = 2;
         IntBag sourceEntities = new IntBag();
         sourceEntities.add(source);
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment(sourceEntities);
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment(sourceEntities);
         world.process();
 
         Fixture fixture = new Fixture(engine, world, dirty);
         fixture.layer(4);
-        SpawnResult result = engine.api().prefabs().spawnFragment(fragment, 0f, 0f);
+        SpawnResult result = engine.api().gameObjects().spawnFragment(fragment, 0f, 0f);
         EntityRef spawned = engine.api().entities().ofEntityId(result.createdEntityIds().get(0));
 
         spawned.renderOrder().set(4, 8);

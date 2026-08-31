@@ -15,7 +15,7 @@ public class GameObjectComponentsTest {
     @Test
     public void gameObjectResetClearsSourceAssetId() {
         GameObjectComponent component = new GameObjectComponent();
-        component.sourceAssetId = "prefabs/crate";
+        component.sourceAssetId = "gameobjects/crate.gameobject";
 
         component.reset();
 
@@ -36,7 +36,7 @@ public class GameObjectComponentsTest {
     public void componentsRoundTripThroughArtemisSceneSerialization() throws Exception {
         World source = world();
         int root = source.create();
-        source.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "prefabs/crate";
+        source.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "gameobjects/crate.gameobject";
         int member = source.create();
         source.getMapper(GameObjectMemberComponent.class).create(member).parentStableId = 17;
         source.process();
@@ -64,7 +64,7 @@ public class GameObjectComponentsTest {
             SaveFileFormat loaded = restored.getSystem(WorldSerializationManager.class)
                     .load(new ByteArrayInputStream(bytes), SaveFileFormat.class);
             int[] entities = loaded.entities.getData();
-            Assert.assertEquals("prefabs/crate",
+            Assert.assertEquals("gameobjects/crate.gameobject",
                     restored.getMapper(GameObjectComponent.class).get(entities[0]).sourceAssetId);
             Assert.assertEquals(17,
                     restored.getMapper(GameObjectMemberComponent.class).get(entities[1]).parentStableId);

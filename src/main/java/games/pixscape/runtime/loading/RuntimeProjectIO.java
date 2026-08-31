@@ -57,7 +57,7 @@ public final class RuntimeProjectIO {
         cfg.animationsDir = root.getString("animationsDir", cfg.animationsDir);
         cfg.shadersDir = root.getString("shadersDir", cfg.shadersDir);
         cfg.audioDir = root.getString("audioDir", cfg.audioDir);
-        cfg.prefabsDir = root.getString("prefabsDir", cfg.prefabsDir);
+        cfg.gameObjectsDir = root.getString("gameObjectsDir", cfg.gameObjectsDir);
         cfg.currentSceneName = root.getString("currentSceneName", cfg.currentSceneName);
         cfg.glSamples = root.getInt("glSamples", cfg.glSamples);
 

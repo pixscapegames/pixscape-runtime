@@ -14,8 +14,8 @@ import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import org.junit.Assert;
@@ -25,7 +25,7 @@ import java.lang.reflect.Field;
 
 public class PixscapeEngineActiveScenePhysicsIdentityTest {
     @Test
-    public void explicitActiveSceneOwnsPrefabShapeAllocation() throws Exception {
+    public void explicitActiveSceneOwnsGameObjectShapeAllocation() throws Exception {
         SceneMetaRuntime sceneA = new SceneMetaRuntime("A", "a.json");
         sceneA.nextPhysicsShapeId = 5;
         SceneMetaRuntime sceneB = new SceneMetaRuntime("B", "b.json");
@@ -52,7 +52,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         sourceShape.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
         sourceShapes.shapes.add(sourceShape);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(sourceEntity);
 
         PixscapeEngine engine = new PixscapeEngine();
@@ -62,7 +62,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         set(engine, "activeSceneMeta", sceneB);
         set(engine, "atlasRuntimeService", new AtlasRuntimeService());
 
-        SpawnResult result = engine.spawnPrefabFragment(fragment, 0f, 0f);
+        SpawnResult result = engine.spawnGameObjectFragment(fragment, 0f, 0f);
         PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
                 .get(result.createdEntityIds().get(0)).shapes.first();
 
@@ -73,7 +73,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
     }
 
     @Test
-    public void invalidPrefabAssetIsNotPublishedByPublicEnginePath()
+    public void invalidGameObjectAssetIsNotPublishedByPublicEnginePath()
             throws Exception {
         SceneMetaRuntime scene = new SceneMetaRuntime("A", "a.json");
         scene.physicsEnabled = false;
@@ -90,7 +90,7 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         world.getMapper(TextureRegionComponent.class).create(sourceEntity);
         world.getMapper(RenderMaterialComponent.class).create(sourceEntity);
         world.process();
-        RuntimePrefabFragment fragment = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.entities.add(sourceEntity);
         int activeBefore = world.getAspectSubscriptionManager()
                 .get(Aspect.all()).getEntities().size();
@@ -102,8 +102,8 @@ public class PixscapeEngineActiveScenePhysicsIdentityTest {
         set(engine, "atlasRuntimeService", new AtlasRuntimeService());
 
         try {
-            engine.spawnPrefabFragment(fragment, 0f, 0f);
-            Assert.fail("Invalid prefab asset must be rejected.");
+            engine.spawnGameObjectFragment(fragment, 0f, 0f);
+            Assert.fail("Invalid gameObject asset must be rejected.");
         } catch (IllegalStateException expected) {
             Assert.assertTrue(expected.getMessage().contains("assetId"));
         }

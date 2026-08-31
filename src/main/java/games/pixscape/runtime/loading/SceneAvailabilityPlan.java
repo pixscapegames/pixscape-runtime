@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 
 /** Small staged plan for the exact file/resource needs of one selected scene. */
@@ -17,11 +18,11 @@ public final class SceneAvailabilityPlan {
     private final String scenePath;
     private final String atlasPath;
     private final FileHandle effectsRoot;
-    private final FileHandle prefabsRoot;
+    private final FileHandle gameObjectsRoot;
     private final Array<String> particlePaths = new Array<>();
     private final ObjectSet<String> particlePathSet = new ObjectSet<>();
-    private final Array<String> prefabPaths = new Array<>();
-    private final ObjectSet<String> prefabPathSet = new ObjectSet<>();
+    private final Array<String> gameObjectPaths = new Array<>();
+    private final ObjectSet<String> gameObjectPathSet = new ObjectSet<>();
     private boolean dependenciesExpanded;
     private boolean released;
 
@@ -46,11 +47,11 @@ public final class SceneAvailabilityPlan {
         this.atlasPath = runtimeProjectDir.child(config.atlasesDir)
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS)).path();
         this.effectsRoot = runtimeProjectDir.child(config.effectsDir);
-        this.prefabsRoot = runtimeProjectDir.child(config.prefabsDir);
+        this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
 
         availability.requestFile(scenePath);
         addDeclaredParticles(meta);
-        addDeclaredPrefabs(meta);
+        addDeclaredGameObjects(meta);
     }
 
     public boolean update() {
@@ -74,22 +75,22 @@ public final class SceneAvailabilityPlan {
         for (int i = 0; i < particlePaths.size; i++) {
             if (!availability.isFileAvailable(particlePaths.get(i))) return false;
         }
-        for (int i = 0; i < prefabPaths.size; i++) {
-            if (!availability.isFileAvailable(prefabPaths.get(i))) return false;
+        for (int i = 0; i < gameObjectPaths.size; i++) {
+            if (!availability.isFileAvailable(gameObjectPaths.get(i))) return false;
         }
         return true;
     }
 
     public float progress() {
         requireActive();
-        int total = 2 + particlePaths.size + prefabPaths.size;
+        int total = 2 + particlePaths.size + gameObjectPaths.size;
         int complete = availability.isFileAvailable(scenePath) ? 1 : 0;
         if (dependenciesExpanded && availability.isAvailable(atlasPath, TextureAtlas.class)) complete++;
         for (int i = 0; i < particlePaths.size; i++) {
             if (availability.isFileAvailable(particlePaths.get(i))) complete++;
         }
-        for (int i = 0; i < prefabPaths.size; i++) {
-            if (availability.isFileAvailable(prefabPaths.get(i))) complete++;
+        for (int i = 0; i < gameObjectPaths.size; i++) {
+            if (availability.isFileAvailable(gameObjectPaths.get(i))) complete++;
         }
         return (float) complete / (float) total;
     }
@@ -107,8 +108,8 @@ public final class SceneAvailabilityPlan {
         for (int i = 0; i < particlePaths.size; i++) {
             availability.releaseFile(particlePaths.get(i));
         }
-        for (int i = 0; i < prefabPaths.size; i++) {
-            availability.releaseFile(prefabPaths.get(i));
+        for (int i = 0; i < gameObjectPaths.size; i++) {
+            availability.releaseFile(gameObjectPaths.get(i));
         }
     }
 
@@ -145,8 +146,8 @@ public final class SceneAvailabilityPlan {
         for (int i = 0; i < particlePaths.size; i++) {
             availability.requestFile(particlePaths.get(i));
         }
-        for (int i = 0; i < prefabPaths.size; i++) {
-            availability.requestFile(prefabPaths.get(i));
+        for (int i = 0; i < gameObjectPaths.size; i++) {
+            availability.requestFile(gameObjectPaths.get(i));
         }
         dependenciesExpanded = true;
     }
@@ -157,9 +158,9 @@ public final class SceneAvailabilityPlan {
         }
     }
 
-    private void addDeclaredPrefabs(SceneMetaRuntime meta) {
-        for (int i = 0; i < meta.runtimePrefabIds.size; i++) {
-            addPrefab(meta.runtimePrefabIds.get(i));
+    private void addDeclaredGameObjects(SceneMetaRuntime meta) {
+        for (int i = 0; i < meta.runtimeGameObjectIds.size; i++) {
+            addGameObject(meta.runtimeGameObjectIds.get(i));
         }
     }
 
@@ -170,12 +171,11 @@ public final class SceneAvailabilityPlan {
         if (particlePathSet.add(path)) particlePaths.add(path);
     }
 
-    private void addPrefab(String prefabId) {
-        String path = prefabsRoot
-                .child(RuntimeFs.withExt(prefabId, ".pixfragment.json"))
-                .path();
+    private void addGameObject(String gameObjectId) {
+        String path = gameObjectsRoot
+                .child(GameObjectAssetId.assetName(gameObjectId) + ".pixfragment.json").path();
         path = FileAvailabilityService.normalizePath(path);
-        if (prefabPathSet.add(path)) prefabPaths.add(path);
+        if (gameObjectPathSet.add(path)) gameObjectPaths.add(path);
     }
 
     private void requireActive() {

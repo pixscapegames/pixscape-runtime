@@ -1,4 +1,4 @@
-package games.pixscape.runtime.prefab;
+package games.pixscape.runtime.gameobject;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -25,16 +25,16 @@ import java.io.ByteArrayOutputStream;
 
 /**
  * Runtime implementation detail. Public Java visibility does not make this type part of the
- * supported compatibility API. Use {@code PixscapeAPI.prefabs()} for supported spawning.
+ * supported compatibility API. Use {@code PixscapeAPI.gameObjects()} for supported spawning.
  */
-public class RuntimePrefabFragmentSpawner {
+public class GameObjectRuntimeFragmentSpawner {
 
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
     private final AtlasRuntimeService atlasRuntimeService;
     private final PhysicsShapeIdAllocator physicsShapeIdAllocator;
 
-    public RuntimePrefabFragmentSpawner(
+    public GameObjectRuntimeFragmentSpawner(
             IdentityRegistry identityRegistry,
             SceneMetaRuntime sceneMeta,
             AtlasRuntimeService atlasRuntimeService) {
@@ -50,18 +50,18 @@ public class RuntimePrefabFragmentSpawner {
         this.physicsShapeIdAllocator = new PhysicsShapeIdAllocator(sceneMeta);
     }
 
-    public SpawnResult spawn(World world, RuntimePrefabFragment fragment, float offsetX, float offsetY) {
+    public SpawnResult spawn(World world, GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
         if (world == null) {
             throw new IllegalArgumentException("world must not be null");
         }
-        RuntimePrefabFragment.requireCurrentSchema(fragment);
+        GameObjectRuntimeFragment.requireCurrentSchema(fragment);
 
         WorldSerializationManager targetSerialization = prepareTarget(world);
 
         ByteArrayOutputStream sourceBytes = new ByteArrayOutputStream();
         targetSerialization.save(sourceBytes, fragment);
 
-        PreparedPrefabSpawn preparedSpawn = prepareFromBytes(
+        PreparedGameObjectSpawn preparedSpawn = prepareFromBytes(
                 sourceBytes.toByteArray(), offsetX, offsetY);
         return commit(world, targetSerialization, preparedSpawn);
     }
@@ -70,10 +70,10 @@ public class RuntimePrefabFragmentSpawner {
         if (world == null) {
             throw new IllegalArgumentException("world must not be null");
         }
-        RuntimePrefabFragment.requireCurrentSchema(fragmentRoot);
+        GameObjectRuntimeFragment.requireCurrentSchema(fragmentRoot);
 
         WorldSerializationManager targetSerialization = prepareTarget(world);
-        PreparedPrefabSpawn preparedSpawn = prepareFromJson(
+        PreparedGameObjectSpawn preparedSpawn = prepareFromJson(
                 fragmentRoot, offsetX, offsetY);
         return commit(world, targetSerialization, preparedSpawn);
     }
@@ -92,7 +92,7 @@ public class RuntimePrefabFragmentSpawner {
         return targetSerialization;
     }
 
-    private PreparedPrefabSpawn prepareFromBytes(
+    private PreparedGameObjectSpawn prepareFromBytes(
             byte[] sourceBytes, float offsetX, float offsetY) {
         World stagingWorld = new World(new WorldConfigurationBuilder()
                 .with(new WorldSerializationManager())
@@ -101,9 +101,9 @@ public class RuntimePrefabFragmentSpawner {
             WorldSerializationManager stagingSerialization =
                     stagingWorld.getSystem(WorldSerializationManager.class);
             stagingSerialization.setSerializer(new JsonArtemisSerializer(stagingWorld));
-            RuntimePrefabFragment staged = stagingSerialization.load(
+            GameObjectRuntimeFragment staged = stagingSerialization.load(
                     new ByteArrayInputStream(sourceBytes),
-                    RuntimePrefabFragment.class);
+                    GameObjectRuntimeFragment.class);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld, stagingSerialization, staged, offsetX, offsetY);
@@ -112,7 +112,7 @@ public class RuntimePrefabFragmentSpawner {
         }
     }
 
-    private PreparedPrefabSpawn prepareFromJson(
+    private PreparedGameObjectSpawn prepareFromJson(
             JsonValue fragmentRoot, float offsetX, float offsetY) {
         World stagingWorld = new World(new WorldConfigurationBuilder()
                 .with(new WorldSerializationManager())
@@ -122,8 +122,8 @@ public class RuntimePrefabFragmentSpawner {
                     new JsonArtemisSerializer(stagingWorld);
             stagingWorld.getSystem(WorldSerializationManager.class)
                     .setSerializer(serializer);
-            RuntimePrefabFragment staged = serializer.load(
-                    fragmentRoot, RuntimePrefabFragment.class);
+            GameObjectRuntimeFragment staged = serializer.load(
+                    fragmentRoot, GameObjectRuntimeFragment.class);
             resolveAssetRefsForStagedEntities(stagingWorld, staged.entities);
             return prepareStaged(
                     stagingWorld,
@@ -136,10 +136,10 @@ public class RuntimePrefabFragmentSpawner {
         }
     }
 
-    private PreparedPrefabSpawn prepareStaged(
+    private PreparedGameObjectSpawn prepareStaged(
             World stagingWorld,
             WorldSerializationManager stagingSerialization,
-            RuntimePrefabFragment staged,
+            GameObjectRuntimeFragment staged,
             float offsetX,
             float offsetY) {
         Array<PreparedPhysicsBodyCandidate> physicsCandidates =
@@ -160,7 +160,7 @@ public class RuntimePrefabFragmentSpawner {
         stagingSerialization.save(preparedBytes, staged);
         byte[] serializedEntities = preparedBytes.toByteArray();
         validatePreparedPayload(serializedEntities);
-        return new PreparedPrefabSpawn(
+        return new PreparedGameObjectSpawn(
                 serializedEntities,
                 physicsCandidates,
                 preparedAssetRefs,
@@ -172,11 +172,11 @@ public class RuntimePrefabFragmentSpawner {
     private SpawnResult commit(
             World world,
             WorldSerializationManager targetSerialization,
-            PreparedPrefabSpawn preparedSpawn) {
+            PreparedGameObjectSpawn preparedSpawn) {
         IntBag created = new IntBag();
-        RuntimePrefabFragment committed = targetSerialization.load(
+        GameObjectRuntimeFragment committed = targetSerialization.load(
                 new ByteArrayInputStream(preparedSpawn.serializedEntities),
-                RuntimePrefabFragment.class);
+                GameObjectRuntimeFragment.class);
         for (int i = 0; i < committed.entities.size(); i++) {
             int entityId = committed.entities.get(i);
             created.add(entityId);
@@ -225,7 +225,7 @@ public class RuntimePrefabFragmentSpawner {
 
             if (assetRef.assetId <= 0) {
                 throw new IllegalStateException(
-                        "AssetRef assetId must be > 0 during prefab resolve: e="
+                        "AssetRef assetId must be > 0 during Game Object resolve: e="
                                 + entityId + ", got " + assetRef.assetId);
             }
             String atlasTag = assetRef.atlasTag;
@@ -294,7 +294,7 @@ public class RuntimePrefabFragmentSpawner {
             World world,
             int entityId,
             int preparedIndex,
-            PreparedPrefabSpawn preparedSpawn) {
+            PreparedGameObjectSpawn preparedSpawn) {
         if (!preparedSpawn.preparedAssetRefs[preparedIndex]) {
             return;
         }
@@ -343,7 +343,7 @@ public class RuntimePrefabFragmentSpawner {
             serialization.setSerializer(new JsonArtemisSerializer(validationWorld));
             serialization.load(
                     new ByteArrayInputStream(serializedEntities),
-                    RuntimePrefabFragment.class);
+                    GameObjectRuntimeFragment.class);
         } finally {
             validationWorld.dispose();
         }
@@ -351,7 +351,7 @@ public class RuntimePrefabFragmentSpawner {
 
     private Array<PreparedPhysicsBodyCandidate> prepareAndValidateStaged(
             World stagingWorld,
-            RuntimePrefabFragment staged,
+            GameObjectRuntimeFragment staged,
             float offsetX,
             float offsetY) {
         ComponentMapper<TransformComponent> transforms =
@@ -379,7 +379,7 @@ public class RuntimePrefabFragmentSpawner {
             PhysicsService.requireNoAuthoredPhysics(
                     stagingWorld,
                     staged.entities,
-                    "Runtime prefab fragment");
+                    "Runtime Game Object fragment");
         }
 
         for (int i = 0; i < staged.entities.size(); i++) {
@@ -397,7 +397,7 @@ public class RuntimePrefabFragmentSpawner {
             identity.stableId = identityRegistry.allocateStableId();
             if (!stableIds.add(identity.stableId)) {
                 throw new IllegalStateException(
-                        "Staged prefab produced duplicate stableId " + identity.stableId + ".");
+                        "Staged Game Object produced duplicate stableId " + identity.stableId + ".");
             }
 
             PhysicsShapesComponent shapes = shapesMapper.getSafe(entityId, null);
@@ -406,13 +406,13 @@ public class RuntimePrefabFragmentSpawner {
                     PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
                     if (shape == null) {
                         throw new IllegalArgumentException(
-                                "Prefab contains a null physics shape for staged entity "
+                                "GameObject contains a null physics shape for staged entity "
                                         + entityId + ".");
                     }
                     shape.physicsShapeId = physicsShapeIdAllocator.allocateNewPhysicsShapeId();
                     if (!physicsShapeIds.add(shape.physicsShapeId)) {
                         throw new IllegalStateException(
-                                "Staged prefab produced duplicate physicsShapeId "
+                                "Staged Game Object produced duplicate physicsShapeId "
                                         + shape.physicsShapeId + ".");
                     }
                 }
@@ -454,7 +454,7 @@ public class RuntimePrefabFragmentSpawner {
         }
     }
 
-    private static final class PreparedPrefabSpawn {
+    private static final class PreparedGameObjectSpawn {
         final byte[] serializedEntities;
         final Array<PreparedPhysicsBodyCandidate> physicsCandidates;
         final boolean[] preparedAssetRefs;
@@ -462,7 +462,7 @@ public class RuntimePrefabFragmentSpawner {
         final float[] preparedUvs;
         final int[] preparedRegionData;
 
-        PreparedPrefabSpawn(
+        PreparedGameObjectSpawn(
                 byte[] serializedEntities,
                 Array<PreparedPhysicsBodyCandidate> physicsCandidates,
                 boolean[] preparedAssetRefs,
@@ -572,7 +572,7 @@ public class RuntimePrefabFragmentSpawner {
                 throw invalid(
                         jointEntityId,
                         field + " references entity " + endpointEntityId
-                                + " outside the prepared prefab.");
+                                + " outside the prepared Game Object.");
             }
             if (!bodies.has(endpointEntityId)) {
                 throw invalid(
@@ -612,7 +612,7 @@ public class RuntimePrefabFragmentSpawner {
                 throw invalid(
                         gearEntityId,
                         field + " references entity " + sourceEntityId
-                                + " outside the prepared prefab.");
+                                + " outside the prepared Game Object.");
             }
             PhysicsJointComponent source = joints.getSafe(sourceEntityId, null);
             if (source == null) {
@@ -635,7 +635,7 @@ public class RuntimePrefabFragmentSpawner {
         private static IllegalArgumentException invalid(
                 int jointEntityId, String detail) {
             return new IllegalArgumentException(
-                    "Invalid staged prefab joint entity "
+                    "Invalid staged Game Object joint entity "
                             + jointEntityId + ": " + detail);
         }
     }

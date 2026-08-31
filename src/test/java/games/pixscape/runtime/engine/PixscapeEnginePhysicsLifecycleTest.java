@@ -45,7 +45,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -281,7 +281,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
-    public void readyIncludesDeclaredPrefabAndSpawnNeverRequestsUndeclaredPrefab()
+    public void readyIncludesDeclaredGameObjectAndSpawnNeverRequestsUndeclaredGameObject()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
         try {
@@ -290,7 +290,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
             Assert.assertTrue(load.isReady());
             Assert.assertEquals(0,
-                    fixture.engine.spawnPrefab("declared", 0f, 0f)
+                    fixture.engine.spawnGameObject("declared", 0f, 0f)
                             .createdEntityIds().size());
             RenderParticleSyncSystem particles = fixture.engine.getWorld()
                     .getSystem(RenderParticleSyncSystem.class);
@@ -301,8 +301,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
             int requestsAtReady = fixture.assetManager.loadCalls;
             RuntimeException missing = Assert.assertThrows(
                     RuntimeException.class,
-                    () -> fixture.engine.spawnPrefab("undeclared", 0f, 0f));
-            Assert.assertTrue(missing.getMessage().contains("Prefab fragment not found"));
+                    () -> fixture.engine.spawnGameObject("undeclared", 0f, 0f));
+            Assert.assertTrue(missing.getMessage().contains("GameObject fragment not found"));
             Assert.assertEquals(requestsAtReady, fixture.assetManager.loadCalls);
         } finally {
             fixture.engine.dispose();
@@ -364,10 +364,10 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertThrows(IllegalStateException.class,
                     () -> engine.system(DirtyTrackerSystem.class));
             Assert.assertThrows(IllegalStateException.class,
-                    () -> engine.spawnPrefabFragment(
-                            new RuntimePrefabFragment(), 0f, 0f));
+                    () -> engine.spawnGameObjectFragment(
+                            new GameObjectRuntimeFragment(), 0f, 0f));
             Assert.assertThrows(IllegalStateException.class,
-                    () -> engine.spawnPrefab("unused", 0f, 0f));
+                    () -> engine.spawnGameObject("unused", 0f, 0f));
 
             engine.loadScene("A");
 
@@ -498,8 +498,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
         projectDir.mkdirs();
         FileHandle scenesDir = projectDir.child("scenes");
         scenesDir.mkdirs();
-        FileHandle prefabsDir = projectDir.child("prefabs");
-        prefabsDir.mkdirs();
+        FileHandle gameObjectsDir = projectDir.child("gameobjects");
+        gameObjectsDir.mkdirs();
         FileHandle effectsDir = projectDir.child("effects");
         effectsDir.mkdirs();
 
@@ -509,7 +509,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeScene(scenesDir.child("b.json"), true, false);
         writeScene(scenesDir.child("c.json"), false, true);
         writeLinkedScene(scenesDir.child("d.json"));
-        writeEmptyPrefab(prefabsDir.child("declared.pixfragment.json"));
+        writeEmptyGameObject(gameObjectsDir.child("declared.pixfragment.json"));
         writeEmptyEffect(effectsDir.child("declared.p"));
 
         final CountingAssetManager[] createdManager = new CountingAssetManager[1];
@@ -556,7 +556,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"nextEntityStableId\":8,"
                 + "\"nextPhysicsShapeId\":1,"
                 + "\"runtimeAvailability\":{"
-                + "\"prefabs\":[\"declared\"],"
+                + "\"gameObjects\":[\"declared\"],"
                 + "\"particles\":[\"declared.p\"]}"
                 + "},"
                 + "\"B\":{"
@@ -721,7 +721,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
-    private static void writeEmptyPrefab(FileHandle file) throws Exception {
+    private static void writeEmptyGameObject(FileHandle file) throws Exception {
         World source = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
         try {
@@ -730,7 +730,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             serialization.setSerializer(
                     new JsonArtemisSerializer(source).setUsePrototypes(false));
             try (OutputStream output = file.write(false)) {
-                serialization.save(output, new RuntimePrefabFragment());
+                serialization.save(output, new GameObjectRuntimeFragment());
             }
         } finally {
             source.dispose();

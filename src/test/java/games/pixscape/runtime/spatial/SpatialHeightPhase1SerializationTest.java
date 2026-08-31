@@ -11,9 +11,9 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
-import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -221,7 +221,7 @@ public class SpatialHeightPhase1SerializationTest {
     }
 
     @Test
-    public void prefabFragmentPreservesSpatialComponents() {
+    public void gameObjectFragmentPreservesSpatialComponents() {
         World targetWorld = runtimeWorld();
 
         int entity = targetWorld.create();
@@ -242,13 +242,13 @@ public class SpatialHeightPhase1SerializationTest {
         shapes.shapes.add(shape);
         targetWorld.process();
 
-        RuntimePrefabFragment request = new RuntimePrefabFragment();
+        GameObjectRuntimeFragment request = new GameObjectRuntimeFragment();
         request.entities.add(entity);
         byte[] fragmentBytes = save(targetWorld, request);
-        RuntimePrefabFragment fragment =
+        GameObjectRuntimeFragment fragment =
                 loadRuntimeFragment(targetWorld, fragmentBytes);
 
-        RuntimePrefabFragmentSpawner spawner = new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(),
                 new games.pixscape.runtime.loading.SceneMetaRuntime(),
                 new AtlasRuntimeService());
@@ -295,14 +295,14 @@ public class SpatialHeightPhase1SerializationTest {
         return loaded;
     }
 
-    private static RuntimePrefabFragment loadRuntimeFragment(
+    private static GameObjectRuntimeFragment loadRuntimeFragment(
             World world, byte[] bytes) {
         WorldSerializationManager wsm =
                 world.getSystem(WorldSerializationManager.class);
         wsm.setSerializer(new JsonArtemisSerializer(world));
         return wsm.load(
                 new ByteArrayInputStream(bytes),
-                RuntimePrefabFragment.class);
+                GameObjectRuntimeFragment.class);
     }
 
     private static World serializationWorld() {

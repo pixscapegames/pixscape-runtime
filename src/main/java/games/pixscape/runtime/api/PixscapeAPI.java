@@ -55,7 +55,7 @@ public interface PixscapeAPI {
     PhysicsAPI physics();
 
     /**
-     * Prefab spawning API.
+     * GameObject spawning API.
      */
-    PrefabsAPI prefabs();
+    GameObjectsAPI gameObjects();
 }

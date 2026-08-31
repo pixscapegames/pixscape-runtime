@@ -20,9 +20,9 @@ import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.particle.ParticleEffectPath;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
@@ -254,7 +254,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
     private final SpatialAPI spatial;
-    private final PrefabsAPI prefabs;
+    private final GameObjectsAPI gameObjects;
     private final AssetsApiImpl assets;
     private final SpritesApiImpl sprites;
     private final AnimationsAPI animations;
@@ -275,7 +275,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
         this.physics = new PhysicsApiImpl(engine);
-        this.prefabs = new PrefabsApiImpl(engine, entities);
+        this.gameObjects = new GameObjectsApiImpl(engine, entities);
     }
 
     @Override
@@ -324,8 +324,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     @Override
-    public PrefabsAPI prefabs() {
-        return prefabs;
+    public GameObjectsAPI gameObjects() {
+        return gameObjects;
     }
 
     static final class PhysicsApiImpl implements PhysicsAPI {
@@ -3872,23 +3872,23 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     }
 
-    static final class PrefabsApiImpl implements PrefabsAPI {
+    static final class GameObjectsApiImpl implements GameObjectsAPI {
         private final PixscapeEngine engine;
         private final EntitiesAPI entities;
 
-        PrefabsApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
+        GameObjectsApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
             this.engine = engine;
             this.entities = entities;
         }
 
         @Override
         public SpawnResult spawn(String name, float x, float y) {
-            return engine.spawnPrefab(name, x, y);
+            return engine.spawnGameObject(name, x, y);
         }
 
         @Override
-        public SpawnResult spawnFragment(RuntimePrefabFragment fragment, float x, float y) {
-            return engine.spawnPrefabFragment(fragment, x, y);
+        public SpawnResult spawnFragment(GameObjectRuntimeFragment fragment, float x, float y) {
+            return engine.spawnGameObjectFragment(fragment, x, y);
         }
 
         @Override
@@ -3904,7 +3904,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public EntityRef requireFirst(String name, float x, float y) {
             SpawnResult result = spawn(name, x, y);
             if (result == null || result.createdEntityIds() == null || result.createdEntityIds().isEmpty()) {
-                throw new IllegalStateException("Prefab spawn created no entities: " + name);
+                throw new IllegalStateException("GameObject spawn created no entities: " + name);
             }
             return entities.ofEntityId(result.createdEntityIds().get(0));
         }

@@ -18,9 +18,9 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
-import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -436,19 +436,19 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Spawns an in-memory prefab fragment into the currently loaded scene.
+     * Spawns an in-memory Game Object fragment into the currently loaded scene.
      *
      * <p>The fragment is staged and validated before its prepared entities are
      * published into the active Artemis world.</p>
      *
-     * @param fragment prefab fragment to instantiate
+     * @param fragment Game Object fragment to instantiate
      * @param offsetX  world-space X offset applied to spawned transforms
      * @param offsetY  world-space Y offset applied to spawned transforms
      * @return result containing all created entity IDs
      * @throws IllegalStateException if no world is initialized
      */
-    public SpawnResult spawnPrefabFragment(
-            RuntimePrefabFragment fragment, float offsetX, float offsetY) {
+    public SpawnResult spawnGameObjectFragment(
+            GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
         if (world == null || !sceneLoaded) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
@@ -456,40 +456,40 @@ public final class PixscapeEngine {
             throw new IllegalStateException(
                     "Active scene metadata is required to allocate physics shape IDs.");
         }
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
         return spawner.spawn(world, fragment, offsetX, offsetY);
     }
 
     /**
-     * Loads and spawns an exported prefab fragment by name.
+     * Loads and spawns an exported Game Object fragment by name.
      *
-     * <p>The prefab is resolved from {@code <runtimeProject>/<prefabsDir>/<name>.pixfragment.json}
+     * <p>The Game Object is resolved from {@code <runtimeProject>/<gameObjectsDir>/<name>.pixfragment.json}
      * and then spawned into the currently loaded scene.</p>
      *
-     * @param name    prefab name without the {@code .pixfragment.json} extension
+     * @param name    Game Object name without the {@code .pixfragment.json} extension
      * @param offsetX world-space X offset applied to spawned transforms
      * @param offsetY world-space Y offset applied to spawned transforms
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
-     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the prefab fragment file does not exist
+     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object fragment file does not exist
      */
-    public SpawnResult spawnPrefab(String name, float offsetX, float offsetY) {
+    public SpawnResult spawnGameObject(String name, float offsetX, float offsetY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
         FileHandle fragmentFile = runtimeProjectDir
-                .child(cfg.prefabsDir)
+                .child(cfg.gameObjectsDir)
                 .child(name + ".pixfragment.json");
 
         if (!fragmentFile.exists()) {
-            throw new GdxRuntimeException("Prefab fragment not found: " + fragmentFile.path());
+            throw new GdxRuntimeException("GameObject fragment not found: " + fragmentFile.path());
         }
 
         JsonValue root = new JsonReader().parse(fragmentFile);
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
         return spawner.spawn(world, root, offsetX, offsetY);
     }
