@@ -16,6 +16,7 @@ import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
@@ -31,6 +32,8 @@ import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.runtime.system.PhysicsPoseAuthority;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -1207,6 +1210,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setPosition(float x, float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform position", x, y);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t == null) return this;
             if (t.x != x || t.y != y) {
@@ -1221,6 +1225,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setX(float x) {
             if (handle.world() == null) return this;
             requireFinite("Transform x", x);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && t.x != x) {
                 t.x = x;
@@ -1233,6 +1238,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setY(float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform y", y);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && t.y != y) {
                 t.y = y;
@@ -1245,6 +1251,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade moveBy(float dx, float dy) {
             if (handle.world() == null) return this;
             requireFinite("Transform movement", dx, dy);
+            requirePhysicsMutationAllowed();
             if (dx != 0f || dy != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1263,6 +1270,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setRotationRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation", radians);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
                 t.rotationRad = radians;
@@ -1275,6 +1283,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade rotateByRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation delta", radians);
+            requirePhysicsMutationAllowed();
             if (radians != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1296,6 +1305,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScale(float sx, float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale", sx, sy);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -1309,6 +1319,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleX(float sx) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale x", sx);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && t.scaleX != sx) {
                 t.scaleX = sx;
@@ -1321,6 +1332,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleY(float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale y", sy);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && t.scaleY != sy) {
                 t.scaleY = sy;
@@ -1333,6 +1345,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setOrigin(float ox, float oy) {
             if (handle.world() == null) return this;
             requireFinite("Transform origin", ox, oy);
+            requirePhysicsMutationAllowed();
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
                 t.originX = ox;
@@ -1359,6 +1372,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             DirtyTrackerSystem dirty = world != null
                     ? world.getSystem(DirtyTrackerSystem.class) : null;
             if (dirty != null) dirty.geometry(handle.entityId, subMask);
+        }
+
+        private void requirePhysicsMutationAllowed() {
+            World world = handle.world();
+            if (world == null) return;
+            PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
+            if (authority == null || !authority.isRuntimePhysics()) return;
+
+            boolean directBody = world.getMapper(PhysicsBodyComponent.class).has(handle.entityId);
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (directBody || (hierarchy != null && hierarchy.containsPhysicsInSubtree(handle.entityId))) {
+                throw new IllegalStateException(
+                        "Transform mutation is not allowed while Runtime Physics owns this Body "
+                                + "or a descendant Body.");
+            }
         }
     }
 

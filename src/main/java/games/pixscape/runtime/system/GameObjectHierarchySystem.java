@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
@@ -28,11 +29,13 @@ public final class GameObjectHierarchySystem extends BaseSystem {
     private final WorldTransformState worldTransforms;
     private final IntArray stack = new IntArray(false, 32);
     private final IntArray children = new IntArray(false, 16);
+    private final IntArray subtreeQueryStack = new IntArray(false, 16);
 
     private ComponentMapper<TransformComponent> transforms;
     private ComponentMapper<GameObjectComponent> gameObjects;
     private ComponentMapper<GameObjectMemberComponent> members;
     private ComponentMapper<PixscapeIdentityComponent> identities;
+    private ComponentMapper<PhysicsBodyComponent> physicsBodies;
     private DirtyTrackerSystem dirty;
     private EntitySubscription transformSubscription;
     private EntitySubscription memberSubscription;
@@ -115,6 +118,29 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     public int rebuildCount() {
         return rebuildCount;
+    }
+
+    /**
+     * Returns whether an entity or its current hierarchy subtree has a Physics Body.
+     * This API/command-boundary query is O(subtree size), not a frame-hot path.
+     */
+    public boolean containsPhysicsInSubtree(int entityId) {
+        ensureCurrentTopology();
+        if (entityId < 0) return false;
+        if (physicsBodies.has(entityId)) return true;
+        if (entityId >= topology.getEntityCapacity()) return false;
+
+        subtreeQueryStack.clear();
+        subtreeQueryStack.add(entityId);
+        while (subtreeQueryStack.size > 0) {
+            int current = subtreeQueryStack.pop();
+            for (int child = topology.firstChildEntityId[current]; child >= 0;
+                 child = topology.nextSiblingEntityId[child]) {
+                if (physicsBodies.has(child)) return true;
+                subtreeQueryStack.add(child);
+            }
+        }
+        return false;
     }
 
     /**
