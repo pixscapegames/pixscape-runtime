@@ -24,27 +24,6 @@ import org.junit.Test;
 
 public class Box2dSyncSystemPhysicsContractTest {
     @Test
-    public void parentedPhysicsFailsBeforeBox2dCanOverwriteAuthoredLocalTransform() {
-        Harness harness = new Harness();
-        TransformComponent local = harness.world.getMapper(TransformComponent.class)
-                .get(harness.entityId);
-        local.x = 17f;
-        local.y = -9f;
-        harness.world.getMapper(GameObjectMemberComponent.class)
-                .create(harness.entityId).parentStableId = 1;
-
-        IllegalStateException failure = Assert.assertThrows(
-                IllegalStateException.class, harness.world::process);
-
-        Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("Physics hierarchy is unsupported"));
-        Assert.assertEquals(17f, local.x, 0f);
-        Assert.assertEquals(-9f, local.y, 0f);
-        Assert.assertFalse(harness.world.getMapper(PhysicsRuntimeBodyComponent.class)
-                .has(harness.entityId));
-    }
-
-    @Test
     public void emptyPreparedCacheCreatesNoNativeOrRuntimeBody() {
         Harness harness = new Harness();
         harness.shapes.shapes.clear();

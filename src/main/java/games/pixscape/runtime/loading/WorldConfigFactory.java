@@ -378,12 +378,14 @@ public final class WorldConfigFactory {
         builder.with(
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
+                new PhysicsPoseAuthority(),
+                new GameObjectHierarchySystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
+                new GameObjectPhysicsWritebackSystem(),
                 profiled(new PhysicsSpatialFootprintSyncSystem(
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
                                 : DEFAULT_PIXELS_PER_METER), systemProfiler),
-                new GameObjectHierarchySystem(entityCapacityHint),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new TiledEntityAnimationSystem(animatedTileRegistry, atlasRuntimeService), systemProfiler),

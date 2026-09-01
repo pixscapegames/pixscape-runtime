@@ -65,6 +65,7 @@ public class Box2dSyncSystemSleepTest {
     @Test
     public void nativeMovementPublishesOnlyChangedGeometryAxes() {
         Harness harness = new Harness(true, false);
+        harness.authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
         harness.sync.setStepEnabled(true);
         harness.world.setDelta(1f / 60f);
         harness.world.process();
@@ -148,6 +149,7 @@ public class Box2dSyncSystemSleepTest {
     private static final class Harness {
         final Box2dWorldService box2d;
         final DirtyTrackerSystem dirty;
+        final PhysicsPoseAuthority authority;
         final Box2dSyncSystem sync;
         final World world;
         final int entityId;
@@ -159,6 +161,7 @@ public class Box2dSyncSystemSleepTest {
             GdxNativesLoader.load();
             box2d = new Box2dWorldService(100f, new Vector2(), true);
             dirty = new DirtyTrackerSystem(8);
+            authority = new PhysicsPoseAuthority();
             sync = new Box2dSyncSystem(box2d);
             sync.setTestObserver(new Box2dSyncSystem.TestObserver() {
                 @Override
@@ -196,7 +199,8 @@ public class Box2dSyncSystemSleepTest {
             meta.gravityY = 0f;
             sync.setSceneMeta(meta);
             world = new World(new WorldConfigurationBuilder()
-                    .with(dirty, sync)
+                    .with(dirty, authority, new GameObjectHierarchySystem(8), sync,
+                            new GameObjectPhysicsWritebackSystem())
                     .build());
             entityId = world.create();
             transform = world.getMapper(TransformComponent.class).create(entityId);

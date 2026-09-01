@@ -80,6 +80,7 @@ public final class GameObjectHierarchyValidator {
             }
             current = requireDirectParent(current);
         }
+        if (physicsBodies.has(memberEntityId)) validatePhysicsAncestry(memberEntityId);
     }
 
     /**
@@ -97,10 +98,6 @@ public final class GameObjectHierarchyValidator {
             if (!world.getEntityManager().isActive(entityId)) continue;
             if (gameObjects.has(entityId)) {
                 requireStableIdentity(entityId);
-                if (physicsBodies.has(entityId)) {
-                    throw failure(entityId,
-                            "Physics on a Game Object is unsupported until hierarchy writeback integration");
-                }
                 if (particles.has(entityId)) {
                     throw failure(entityId, "particles cannot be Game Object roots");
                 }
@@ -127,10 +124,6 @@ public final class GameObjectHierarchyValidator {
                 if (!transforms.has(entityId)) {
                     throw failure(entityId, "Game Object member requires TransformComponent");
                 }
-                if (physicsBodies.has(entityId)) {
-                    throw failure(entityId,
-                            "parented Physics is unsupported until hierarchy writeback integration");
-                }
                 if (particles.has(entityId)) {
                     throw failure(entityId, "particles cannot be Game Object members");
                 }
@@ -154,6 +147,13 @@ public final class GameObjectHierarchyValidator {
                 continue;
             }
             validateChainLinear(entityId);
+        }
+
+        for (int i = 0, n = entities.size(); i < n; i++) {
+            int entityId = data[i];
+            if (world.getEntityManager().isActive(entityId) && physicsBodies.has(entityId)) {
+                validatePhysicsAncestry(entityId);
+            }
         }
     }
 
@@ -186,6 +186,21 @@ public final class GameObjectHierarchyValidator {
             current = requireDirectParent(current);
         }
         for (int i = 0; i < path.size; i++) setState(path.get(i), (byte) 2);
+    }
+
+    /** Physics fixtures are Body-local, so every inherited Game Object frame must be unit scale. */
+    private void validatePhysicsAncestry(int bodyEntityId) {
+        int current = bodyEntityId;
+        while (members.has(current)) {
+            int parentEntityId = requireDirectParent(current);
+            TransformComponent parentTransform = transforms.getSafe(parentEntityId, null);
+            try {
+                GameObjectTransformMath.requireUnitParentScale(parentTransform, "Physics");
+            } catch (IllegalArgumentException ex) {
+                throw failure(bodyEntityId, ex.getMessage());
+            }
+            current = parentEntityId;
+        }
     }
 
     private int requireDirectParent(int memberEntityId) {

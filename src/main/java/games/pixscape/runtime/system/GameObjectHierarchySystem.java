@@ -97,9 +97,8 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
-        detectInPlaceStructuralMutation();
-        if (topologyDirty) rebuildTopology();
-        resolveWorldTransforms();
+        ensureCurrentTopology();
+        resolveAllFromCurrentAuthoredTransforms();
     }
 
     public void prepareRuntimeAvailability() {
@@ -116,6 +115,22 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     public int rebuildCount() {
         return rebuildCount;
+    }
+
+    /**
+     * Refreshes the derived hierarchy topology at the cold structural boundary when needed.
+     * Package-private so the post-Physics writeback phase can reuse the single hierarchy authority.
+     */
+    void ensureCurrentTopology() {
+        detectInPlaceStructuralMutation();
+        if (topologyDirty) rebuildTopology();
+    }
+
+    /** Resolves the complete parent-first traversal from current authored transforms. */
+    void resolveAllFromCurrentAuthoredTransforms() {
+        for (int i = 0, n = topology.traversal.size; i < n; i++) {
+            resolveEntityFromCurrentAuthoredTransform(topology.traversal.get(i));
+        }
     }
 
     private void detectInPlaceStructuralMutation() {
@@ -230,93 +245,104 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         rebuildCount++;
     }
 
-    private void resolveWorldTransforms() {
-        for (int i = 0, n = topology.traversal.size; i < n; i++) {
-            int entityId = topology.traversal.get(i);
-            TransformComponent authored = transforms.getSafe(entityId, null);
-            if (authored == null) {
-                worldTransforms.clear(entityId);
-                continue;
-            }
-            if (gameObjects.has(entityId)
-                    && !GameObjectTransformMath.isPositiveUniformParentScale(authored)) {
-                throw topologyFailure(entityId,
-                        "Game Object transform must keep a finite positive uniform scale");
-            }
+    /**
+     * Publishes one entity's resolved frame. Callers must invoke this in {@link
+     * GameObjectTopologyState#traversal} order so a parent frame is already current.
+     */
+    void resolveEntityFromCurrentAuthoredTransform(int entityId) {
+        resolveEntityFromCurrentAuthoredTransform(entityId, true);
+    }
 
-            boolean gameObject = gameObjects.has(entityId);
-            float rotation = authored.rotationRad;
-            float scaleX = authored.scaleX;
-            float scaleY = authored.scaleY;
-            float cos = MathUtils.cos(rotation);
-            float sin = MathUtils.sin(rotation);
-            float localM00 = cos * scaleX;
-            float localM01 = -sin * scaleY;
-            float localM10 = sin * scaleX;
-            float localM11 = cos * scaleY;
-            float localM02 = authored.x;
-            float localM12 = authored.y;
-            if (gameObject) {
-                localM02 = authored.x + authored.originX
-                        - localM00 * authored.originX - localM01 * authored.originY;
-                localM12 = authored.y + authored.originY
-                        - localM10 * authored.originX - localM11 * authored.originY;
+    /**
+     * Publishes one entity's resolved frame, optionally leaving geometry dirtiness to a caller
+     * that has already marked this entity with a more precise authored transform mask.
+     */
+    void resolveEntityFromCurrentAuthoredTransform(int entityId, boolean publishGeometryDirty) {
+        TransformComponent authored = transforms.getSafe(entityId, null);
+        if (authored == null) {
+            worldTransforms.clear(entityId);
+            return;
+        }
+        if (gameObjects.has(entityId)
+                && !GameObjectTransformMath.isPositiveUniformParentScale(authored)) {
+            throw topologyFailure(entityId,
+                    "Game Object transform must keep a finite positive uniform scale");
+        }
+
+        boolean gameObject = gameObjects.has(entityId);
+        float rotation = authored.rotationRad;
+        float scaleX = authored.scaleX;
+        float scaleY = authored.scaleY;
+        float cos = MathUtils.cos(rotation);
+        float sin = MathUtils.sin(rotation);
+        float localM00 = cos * scaleX;
+        float localM01 = -sin * scaleY;
+        float localM10 = sin * scaleX;
+        float localM11 = cos * scaleY;
+        float localM02 = authored.x;
+        float localM12 = authored.y;
+        if (gameObject) {
+            localM02 = authored.x + authored.originX
+                    - localM00 * authored.originX - localM01 * authored.originY;
+            localM12 = authored.y + authored.originY
+                    - localM10 * authored.originX - localM11 * authored.originY;
+        }
+
+        float worldM00 = localM00;
+        float worldM01 = localM01;
+        float worldM02 = localM02;
+        float worldM10 = localM10;
+        float worldM11 = localM11;
+        float worldM12 = localM12;
+        int parentEntityId = topology.parentEntityId[entityId];
+        if (parentEntityId >= 0) {
+            if (!worldTransforms.isResolved(parentEntityId)) {
+                throw topologyFailure(entityId, "parent world transform is unresolved");
             }
+            float p00 = worldTransforms.m00[parentEntityId];
+            float p01 = worldTransforms.m01[parentEntityId];
+            float p02 = worldTransforms.m02[parentEntityId];
+            float p10 = worldTransforms.m10[parentEntityId];
+            float p11 = worldTransforms.m11[parentEntityId];
+            float p12 = worldTransforms.m12[parentEntityId];
+            worldM00 = p00 * localM00 + p01 * localM10;
+            worldM01 = p00 * localM01 + p01 * localM11;
+            worldM02 = p00 * localM02 + p01 * localM12 + p02;
+            worldM10 = p10 * localM00 + p11 * localM10;
+            worldM11 = p10 * localM01 + p11 * localM11;
+            worldM12 = p10 * localM02 + p11 * localM12 + p12;
+            rotation = worldTransforms.rotationRad[parentEntityId] + rotation;
+            float parentScale = worldTransforms.scaleX[parentEntityId];
+            scaleX = parentScale * scaleX;
+            scaleY = parentScale * scaleY;
+        }
 
-            float worldM00 = localM00;
-            float worldM01 = localM01;
-            float worldM02 = localM02;
-            float worldM10 = localM10;
-            float worldM11 = localM11;
-            float worldM12 = localM12;
-            int parentEntityId = topology.parentEntityId[entityId];
-            if (parentEntityId >= 0) {
-                if (!worldTransforms.isResolved(parentEntityId)) {
-                    throw topologyFailure(entityId, "parent world transform is unresolved");
-                }
-                float p00 = worldTransforms.m00[parentEntityId];
-                float p01 = worldTransforms.m01[parentEntityId];
-                float p02 = worldTransforms.m02[parentEntityId];
-                float p10 = worldTransforms.m10[parentEntityId];
-                float p11 = worldTransforms.m11[parentEntityId];
-                float p12 = worldTransforms.m12[parentEntityId];
-                worldM00 = p00 * localM00 + p01 * localM10;
-                worldM01 = p00 * localM01 + p01 * localM11;
-                worldM02 = p00 * localM02 + p01 * localM12 + p02;
-                worldM10 = p10 * localM00 + p11 * localM10;
-                worldM11 = p10 * localM01 + p11 * localM11;
-                worldM12 = p10 * localM02 + p11 * localM12 + p12;
-                rotation = worldTransforms.rotationRad[parentEntityId] + rotation;
-                float parentScale = worldTransforms.scaleX[parentEntityId];
-                scaleX = parentScale * scaleX;
-                scaleY = parentScale * scaleY;
-            }
+        float x = gameObject
+                ? worldM02 - authored.originX
+                + worldM00 * authored.originX + worldM01 * authored.originY
+                : worldM02;
+        float y = gameObject
+                ? worldM12 - authored.originY
+                + worldM10 * authored.originX + worldM11 * authored.originY
+                : worldM12;
 
-            float x = gameObject
-                    ? worldM02 - authored.originX
-                    + worldM00 * authored.originX + worldM01 * authored.originY
-                    : worldM02;
-            float y = gameObject
-                    ? worldM12 - authored.originY
-                    + worldM10 * authored.originX + worldM11 * authored.originY
-                    : worldM12;
-
-            boolean changed = !worldTransforms.isResolved(entityId)
-                    || Float.compare(worldTransforms.x[entityId], x) != 0
-                    || Float.compare(worldTransforms.y[entityId], y) != 0
-                    || Float.compare(worldTransforms.rotationRad[entityId], rotation) != 0
-                    || Float.compare(worldTransforms.scaleX[entityId], scaleX) != 0
-                    || Float.compare(worldTransforms.scaleY[entityId], scaleY) != 0
-                    || Float.compare(worldTransforms.m00[entityId], worldM00) != 0
-                    || Float.compare(worldTransforms.m01[entityId], worldM01) != 0
-                    || Float.compare(worldTransforms.m02[entityId], worldM02) != 0
-                    || Float.compare(worldTransforms.m10[entityId], worldM10) != 0
-                    || Float.compare(worldTransforms.m11[entityId], worldM11) != 0
-                    || Float.compare(worldTransforms.m12[entityId], worldM12) != 0;
-            worldTransforms.setResolvedFrame(
-                    entityId, x, y, rotation, scaleX, scaleY,
-                    worldM00, worldM01, worldM02, worldM10, worldM11, worldM12);
-            if (changed && dirty != null) dirty.geometry(entityId, GeometryDirty.ALL);
+        boolean changed = !worldTransforms.isResolved(entityId)
+                || Float.compare(worldTransforms.x[entityId], x) != 0
+                || Float.compare(worldTransforms.y[entityId], y) != 0
+                || Float.compare(worldTransforms.rotationRad[entityId], rotation) != 0
+                || Float.compare(worldTransforms.scaleX[entityId], scaleX) != 0
+                || Float.compare(worldTransforms.scaleY[entityId], scaleY) != 0
+                || Float.compare(worldTransforms.m00[entityId], worldM00) != 0
+                || Float.compare(worldTransforms.m01[entityId], worldM01) != 0
+                || Float.compare(worldTransforms.m02[entityId], worldM02) != 0
+                || Float.compare(worldTransforms.m10[entityId], worldM10) != 0
+                || Float.compare(worldTransforms.m11[entityId], worldM11) != 0
+                || Float.compare(worldTransforms.m12[entityId], worldM12) != 0;
+        worldTransforms.setResolvedFrame(
+                entityId, x, y, rotation, scaleX, scaleY,
+                worldM00, worldM01, worldM02, worldM10, worldM11, worldM12);
+        if (changed && publishGeometryDirty && dirty != null) {
+            dirty.geometry(entityId, GeometryDirty.ALL);
         }
     }
 

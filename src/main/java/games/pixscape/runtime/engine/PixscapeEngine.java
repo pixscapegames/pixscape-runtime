@@ -37,6 +37,8 @@ import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.DirtyFlushSystem;
 import games.pixscape.runtime.system.LayerStateBuildSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.runtime.system.PhysicsPoseAuthority;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.system.RenderSpriteSyncSystem;
@@ -1342,6 +1344,8 @@ public final class PixscapeEngine {
     }
 
     private void preparePhysicsRuntime(SceneMetaRuntime meta) {
+        setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.AUTHORING);
+        requireSystem(GameObjectHierarchySystem.class).prepareRuntimeAvailability();
         PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
         applyPhysicsFromScene(meta, false);
         PhysicsSpatialFootprintSyncSystem footprints =
@@ -1363,6 +1367,7 @@ public final class PixscapeEngine {
     private void publishReadyScene(SceneAvailabilityPlan candidate) {
         SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
         if (meta.physicsEnabled) {
+            setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
             box2dSyncSystem.setStepEnabled(true);
         }
         activeSceneAvailability = candidate;
@@ -1655,6 +1660,7 @@ public final class PixscapeEngine {
         }
 
         if (meta == null || !meta.physicsEnabled) {
+            setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.AUTHORING);
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
             if (activate && box2dWorldService != null) {
@@ -1704,6 +1710,12 @@ public final class PixscapeEngine {
                         + " doSleep=" + meta.doSleep
                         + " stepEnabled=" + box2dSyncSystem.isStepEnabled()
         );
+    }
+
+    private void setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode mode) {
+        PhysicsPoseAuthority authority = world != null
+                ? world.getSystem(PhysicsPoseAuthority.class) : null;
+        if (authority != null) authority.setMode(mode);
     }
 
     private void applyConfiguredLogLevel() {

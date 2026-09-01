@@ -155,25 +155,40 @@ public class GameObjectHierarchyValidatorTest {
     }
 
     @Test
-    public void parentedPhysicsIsRejectedBeforeWorldWritebackCanCorruptLocalTransform() {
+    public void parentedPhysicsIsValidWithUnitScaleAncestry() {
         gameObject(1);
         int child = member(2, 1, false);
         world.getMapper(PhysicsBodyComponent.class).create(child);
 
-        IllegalArgumentException failure = validateAllFailure();
-
-        Assert.assertTrue(failure.getMessage(), failure.getMessage().contains("parented Physics"));
+        validateAll();
     }
 
     @Test
-    public void physicsOnGameObjectRootIsRejectedUntilPhysicsHierarchyIntegration() {
+    public void physicsOnGameObjectRootIsValidAndOwnScaleRemainsAllowed() {
         int root = gameObject(1);
         world.getMapper(PhysicsBodyComponent.class).create(root);
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(root);
+        transform.scaleX = transform.scaleY = 2f;
 
+        validateAll();
+    }
+
+    @Test
+    public void physicsAncestorMustUseUnitScaleAtEveryDepth() {
+        int root = gameObject(1);
+        int middle = member(2, 1, true);
+        int child = member(3, 2, false);
+        world.getMapper(PhysicsBodyComponent.class).create(child);
+        world.getMapper(TransformComponent.class).get(root).scaleX = 2f;
+        world.getMapper(TransformComponent.class).get(root).scaleY = 2f;
         IllegalArgumentException failure = validateAllFailure();
+        Assert.assertTrue(failure.getMessage(), failure.getMessage().contains("Physics"));
 
-        Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("Physics on a Game Object"));
+        world.getMapper(TransformComponent.class).get(root).scaleX = 1f;
+        world.getMapper(TransformComponent.class).get(root).scaleY = 1f;
+        world.getMapper(TransformComponent.class).get(middle).scaleX = 2f;
+        world.getMapper(TransformComponent.class).get(middle).scaleY = 2f;
+        Assert.assertTrue(validateAllFailure().getMessage().contains("Physics"));
     }
 
     @Test
