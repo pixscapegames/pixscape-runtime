@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -276,6 +277,27 @@ public class GameObjectHierarchySystemTest {
 
         Assert.assertEquals(1001, hierarchy.topology().traversal.size);
         Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+    }
+
+    @Test
+    public void physicsDescendantQueryExcludesOwnBodyAndTraversesOnlyTheTargetSubtree() {
+        int root = entity(1, true, -1);
+        int ownBodyRoot = entity(2, true, -1);
+        int directBody = entity(3, false, 1);
+        int nested = entity(4, true, 1);
+        int deepBody = entity(5, false, 4);
+        int unrelated = entity(6, true, -1);
+        world.getMapper(PhysicsBodyComponent.class).create(ownBodyRoot);
+        world.getMapper(PhysicsBodyComponent.class).create(directBody);
+        world.getMapper(PhysicsBodyComponent.class).create(deepBody);
+
+        world.process();
+
+        Assert.assertTrue(hierarchy.containsPhysicsInSubtree(ownBodyRoot));
+        Assert.assertFalse(hierarchy.containsPhysicsInDescendants(ownBodyRoot));
+        Assert.assertTrue(hierarchy.containsPhysicsInDescendants(root));
+        Assert.assertTrue(hierarchy.containsPhysicsInDescendants(nested));
+        Assert.assertFalse(hierarchy.containsPhysicsInDescendants(unrelated));
     }
 
     @Test

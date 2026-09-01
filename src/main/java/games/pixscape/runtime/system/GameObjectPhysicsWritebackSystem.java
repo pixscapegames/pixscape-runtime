@@ -48,7 +48,6 @@ public final class GameObjectPhysicsWritebackSystem extends BaseSystem {
     private final Affine2 desiredWorldFrame = new Affine2();
     private final Affine2 localFrame = new Affine2();
     private final TransformComponent desiredWorldTransform = new TransformComponent();
-    private final TransformComponent localTransform = new TransformComponent();
 
     @Override
     protected void initialize() {
@@ -140,11 +139,16 @@ public final class GameObjectPhysicsWritebackSystem extends BaseSystem {
             GameObjectTransformMath.toMemberFrame(
                     desiredWorldTransform, gameObjects.has(entityId), desiredWorldFrame);
             GameObjectTransformMath.worldToLocal(parentFrame, desiredWorldFrame, localFrame);
-            GameObjectTransformMath.extract(
-                    localFrame, authored.originX, authored.originY, localTransform);
-            targetX = localTransform.x;
-            targetY = localTransform.y;
-            targetRotation = localTransform.rotationRad;
+            if (gameObjects.has(entityId)) {
+                targetX = localFrame.m02 - authored.originX
+                        + localFrame.m00 * authored.originX + localFrame.m01 * authored.originY;
+                targetY = localFrame.m12 - authored.originY
+                        + localFrame.m10 * authored.originX + localFrame.m11 * authored.originY;
+            } else {
+                targetX = localFrame.m02;
+                targetY = localFrame.m12;
+            }
+            targetRotation = poseRotation[entityId] - worldTransforms.rotationRad[parentEntityId];
         }
 
         int mask = GeometryDirty.NONE;

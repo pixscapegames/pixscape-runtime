@@ -3,6 +3,7 @@ package games.pixscape.runtime.system;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.EntityIndexComponent;
@@ -142,6 +143,9 @@ public class GameObjectPhysicsWritebackSystemTest {
     @Test
     public void nestedGameObjectBodyUsesPivotAwareParentFirstWriteback() {
         int root = entity(1, true, -1, true);
+        TransformComponent rootTransform = transform(root);
+        rootTransform.originX = 7f;
+        rootTransform.originY = 5f;
         int middle = entity(2, true, 1, false);
         TransformComponent middleTransform = transform(middle);
         middleTransform.x = 15f;
@@ -152,7 +156,7 @@ public class GameObjectPhysicsWritebackSystemTest {
         TransformComponent childTransform = transform(child);
         childTransform.originX = 4f;
         childTransform.originY = 2f;
-        childTransform.scaleX = childTransform.scaleY = 1f;
+        childTransform.scaleX = childTransform.scaleY = 0.75f;
         identities.rebuild();
         world.process();
 
@@ -165,6 +169,103 @@ public class GameObjectPhysicsWritebackSystemTest {
         Assert.assertEquals(70f, worldState().y[child], EPSILON);
         Assert.assertEquals(-0.25f, worldState().rotationRad[child], 0.001f);
         Assert.assertEquals(4f, childTransform.originX, 0f);
+        Assert.assertEquals(2f, childTransform.originY, 0f);
+        Assert.assertEquals(0.75f, childTransform.scaleX, 0f);
+        Assert.assertEquals(0.75f, childTransform.scaleY, 0f);
+
+        for (int i = 0; i < 3; i++) world.process();
+
+        Assert.assertEquals(250f, worldState().x[child], EPSILON);
+        Assert.assertEquals(70f, worldState().y[child], EPSILON);
+        Assert.assertEquals(-0.25f, worldState().rotationRad[child], 0.001f);
+        Assert.assertEquals(4f, childTransform.originX, 0f);
+        Assert.assertEquals(2f, childTransform.originY, 0f);
+        Assert.assertEquals(0.75f, childTransform.scaleX, 0f);
+        Assert.assertEquals(0.75f, childTransform.scaleY, 0f);
+    }
+
+    @Test
+    public void ordinaryMemberWritebackPreservesGeometryOnlyOriginAndVisualScaleWithoutDrift() {
+        int root = entity(1, true, -1, false);
+        TransformComponent rootTransform = transform(root);
+        rootTransform.x = 100f;
+        rootTransform.y = 20f;
+        rootTransform.rotationRad = 0.6f;
+        rootTransform.originX = 11f;
+        rootTransform.originY = 7f;
+
+        int child = entity(2, false, 1, true);
+        TransformComponent childTransform = transform(child);
+        childTransform.x = 13f;
+        childTransform.y = -9f;
+        childTransform.originX = 6f;
+        childTransform.originY = 4f;
+        childTransform.scaleX = -1f;
+        childTransform.scaleY = 2f;
+        identities.rebuild();
+        world.process();
+
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        Body body = nativeBody(child);
+        body.setTransform(2.5f, -0.7f, -0.25f);
+        world.process();
+
+        float worldX = 250f;
+        float worldY = -70f;
+        float cos = MathUtils.cos(rootTransform.rotationRad);
+        float sin = MathUtils.sin(rootTransform.rotationRad);
+        float parentFrameX = rootTransform.x + rootTransform.originX
+                - cos * rootTransform.originX + sin * rootTransform.originY;
+        float parentFrameY = rootTransform.y + rootTransform.originY
+                - sin * rootTransform.originX - cos * rootTransform.originY;
+        float dx = worldX - parentFrameX;
+        float dy = worldY - parentFrameY;
+        float expectedLocalX = cos * dx + sin * dy;
+        float expectedLocalY = -sin * dx + cos * dy;
+
+        Assert.assertEquals(worldX, worldState().x[child], EPSILON);
+        Assert.assertEquals(worldY, worldState().y[child], EPSILON);
+        Assert.assertEquals(-0.25f, worldState().rotationRad[child], EPSILON);
+        Assert.assertEquals(expectedLocalX, childTransform.x, EPSILON);
+        Assert.assertEquals(expectedLocalY, childTransform.y, EPSILON);
+        Assert.assertEquals(-0.25f - rootTransform.rotationRad, childTransform.rotationRad, EPSILON);
+        Assert.assertEquals(6f, childTransform.originX, 0f);
+        Assert.assertEquals(4f, childTransform.originY, 0f);
+        Assert.assertEquals(-1f, childTransform.scaleX, 0f);
+        Assert.assertEquals(2f, childTransform.scaleY, 0f);
+
+        for (int i = 0; i < 3; i++) world.process();
+
+        Assert.assertEquals(worldX, worldState().x[child], EPSILON);
+        Assert.assertEquals(worldY, worldState().y[child], EPSILON);
+        Assert.assertEquals(expectedLocalX, childTransform.x, EPSILON);
+        Assert.assertEquals(expectedLocalY, childTransform.y, EPSILON);
+        Assert.assertEquals(-1f, childTransform.scaleX, 0f);
+        Assert.assertEquals(2f, childTransform.scaleY, 0f);
+    }
+
+    @Test
+    public void ordinaryMemberZeroVisualScaleDoesNotAffectPhysicsWriteback() {
+        int root = entity(1, true, -1, false);
+        int child = entity(2, false, 1, true);
+        TransformComponent childTransform = transform(child);
+        childTransform.originX = 3f;
+        childTransform.originY = 2f;
+        childTransform.scaleX = 0f;
+        childTransform.scaleY = 0f;
+        identities.rebuild();
+        world.process();
+
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        nativeBody(child).setTransform(1.1f, -0.4f, 0.9f);
+        world.process();
+
+        Assert.assertEquals(110f, worldState().x[child], EPSILON);
+        Assert.assertEquals(-40f, worldState().y[child], EPSILON);
+        Assert.assertEquals(0.9f, worldState().rotationRad[child], EPSILON);
+        Assert.assertEquals(0f, childTransform.scaleX, 0f);
+        Assert.assertEquals(0f, childTransform.scaleY, 0f);
+        Assert.assertEquals(3f, childTransform.originX, 0f);
         Assert.assertEquals(2f, childTransform.originY, 0f);
     }
 

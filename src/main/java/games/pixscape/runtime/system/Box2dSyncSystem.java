@@ -31,10 +31,12 @@ import java.util.Arrays;
  * {@code SUPPORTED_EXPERT} synchronization boundary from authored physics ECS state to native
  * Box2D state.
  *
- * <p>The Artemis components remain authoritative; native bodies, fixtures, and joints are derived
- * and may be rebuilt. Replacing or re-enabling the bound {@link Box2dWorldService} schedules the
- * required body/fixture bootstrap and joint rebuild before normal stepping. The system is
- * World-owned, phase-sensitive, and not thread-safe.</p>
+ * <p>In authoring mode, the authored ECS hierarchy owns native Body pose. In Runtime Physics mode,
+ * the native Body owns physical world pose and {@link GameObjectPhysicsWritebackSystem} reconstructs
+ * authored world/local transforms. Fixtures and Body definitions remain authored ECS state; native
+ * bodies and joints are derived resources that may be rebuilt. Replacing or re-enabling the bound
+ * {@link Box2dWorldService} schedules the required body/fixture bootstrap and joint rebuild before
+ * normal stepping. The system is World-owned, phase-sensitive, and not thread-safe.</p>
  */
 public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem {
     private static final float TRANSFORM_SYNC_EPSILON = 1e-6f;

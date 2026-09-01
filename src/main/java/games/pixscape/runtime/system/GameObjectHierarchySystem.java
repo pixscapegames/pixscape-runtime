@@ -125,13 +125,29 @@ public final class GameObjectHierarchySystem extends BaseSystem {
      * This API/command-boundary query is O(subtree size), not a frame-hot path.
      */
     public boolean containsPhysicsInSubtree(int entityId) {
+        return containsPhysics(entityId, true);
+    }
+
+    /**
+     * Returns whether a strict hierarchy descendant has a Physics Body; the entity itself is ignored.
+     * This API/command-boundary query is O(subtree size), not a frame-hot path.
+     */
+    public boolean containsPhysicsInDescendants(int entityId) {
+        return containsPhysics(entityId, false);
+    }
+
+    private boolean containsPhysics(int entityId, boolean includeSelf) {
         ensureCurrentTopology();
         if (entityId < 0) return false;
-        if (physicsBodies.has(entityId)) return true;
+        if (includeSelf && physicsBodies.has(entityId)) return true;
         if (entityId >= topology.getEntityCapacity()) return false;
 
         subtreeQueryStack.clear();
-        subtreeQueryStack.add(entityId);
+        for (int child = topology.firstChildEntityId[entityId]; child >= 0;
+             child = topology.nextSiblingEntityId[child]) {
+            if (physicsBodies.has(child)) return true;
+            subtreeQueryStack.add(child);
+        }
         while (subtreeQueryStack.size > 0) {
             int current = subtreeQueryStack.pop();
             for (int child = topology.firstChildEntityId[current]; child >= 0;
