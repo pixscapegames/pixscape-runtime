@@ -12,6 +12,7 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.SortKey64;
 
@@ -105,6 +106,7 @@ public final class GameObjectAssetLoader {
             validateObjectReferences(entity.customProperties, byId, file, entity.sourceEntityId);
         }
         validatePhysics(asset, byId, file);
+        validateJoints(asset, byId, file);
     }
 
     private static void validateAuthoredEntity(
@@ -216,6 +218,129 @@ public final class GameObjectAssetLoader {
                             + " requires every Game Object Physics ancestor scale to be (1,1)");
                 }
                 parentId = parent.parentSourceEntityId;
+            }
+        }
+    }
+
+    private static void validateJoints(GameObjectAsset asset,
+                                       IntMap<GameObjectAsset.GameObjectEntityData> entities,
+                                       FileHandle file) {
+        if (asset.joints == null) throw failure(file, "joints must not be null");
+        IntMap<GameObjectAsset.GameObjectJointData> byJointId = new IntMap<GameObjectAsset.GameObjectJointData>();
+        for (int i = 0; i < asset.joints.size(); i++) {
+            GameObjectAsset.GameObjectJointData joint = asset.joints.get(i);
+            if (joint == null || joint.jointLocalId <= 0 || byJointId.containsKey(joint.jointLocalId)) {
+                throw failure(file, "joints contains an invalid or duplicate jointLocalId");
+            }
+            byJointId.put(joint.jointLocalId, joint);
+            validateJointBase(joint, entities, file);
+            validateJointPayload(joint, file);
+        }
+        for (int i = 0; i < asset.joints.size(); i++) {
+            GameObjectAsset.GameObjectJointData joint = asset.joints.get(i);
+            if (joint.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            GameObjectAsset.GearJointData gear = joint.gear;
+            if (gear.jointALocalId == joint.jointLocalId || gear.jointBLocalId == joint.jointLocalId
+                    || gear.jointALocalId == gear.jointBLocalId) {
+                throw failure(file, "jointLocalId " + joint.jointLocalId
+                        + " has invalid Gear dependency references");
+            }
+            GameObjectAsset.GameObjectJointData sourceA = byJointId.get(gear.jointALocalId);
+            GameObjectAsset.GameObjectJointData sourceB = byJointId.get(gear.jointBLocalId);
+            if (!isGearSource(sourceA) || !isGearSource(sourceB)) {
+                throw failure(file, "jointLocalId " + joint.jointLocalId
+                        + " requires existing Revolute or Prismatic Gear source joints");
+            }
+        }
+    }
+
+    private static void validateJointBase(GameObjectAsset.GameObjectJointData joint,
+                                          IntMap<GameObjectAsset.GameObjectEntityData> entities,
+                                          FileHandle file) {
+        if (!isSupportedJointType(joint.type)) {
+            throw failure(file, "jointLocalId " + joint.jointLocalId + " has unsupported joint type " + joint.type);
+        }
+        if (joint.bodyALocalEntityId == joint.bodyBLocalEntityId) {
+            throw failure(file, "jointLocalId " + joint.jointLocalId + " cannot use the same Body endpoint twice");
+        }
+        GameObjectAsset.GameObjectEntityData bodyA = entities.get(joint.bodyALocalEntityId);
+        GameObjectAsset.GameObjectEntityData bodyB = entities.get(joint.bodyBLocalEntityId);
+        if (bodyA == null || bodyB == null || bodyA.physicsBody == null || bodyB.physicsBody == null) {
+            throw failure(file, "jointLocalId " + joint.jointLocalId
+                    + " requires two asset-local entity endpoints with Physics Bodies");
+        }
+        requireFinite(joint.anchorAx, "joint.anchorAx", joint.jointLocalId, file);
+        requireFinite(joint.anchorAy, "joint.anchorAy", joint.jointLocalId, file);
+        requireFinite(joint.anchorBx, "joint.anchorBx", joint.jointLocalId, file);
+        requireFinite(joint.anchorBy, "joint.anchorBy", joint.jointLocalId, file);
+    }
+
+    private static void validateJointPayload(GameObjectAsset.GameObjectJointData joint, FileHandle file) {
+        int payloads = (joint.distance != null ? 1 : 0) + (joint.revolute != null ? 1 : 0)
+                + (joint.prismatic != null ? 1 : 0) + (joint.pulley != null ? 1 : 0)
+                + (joint.gear != null ? 1 : 0) + (joint.wheel != null ? 1 : 0)
+                + (joint.weld != null ? 1 : 0) + (joint.friction != null ? 1 : 0)
+                + (joint.motor != null ? 1 : 0);
+        if (payloads != 1 || !hasMatchingPayload(joint)) {
+            throw failure(file, "jointLocalId " + joint.jointLocalId
+                    + " requires exactly one matching typed joint payload");
+        }
+        if (joint.distance != null) finite(file, joint.jointLocalId, joint.distance.lengthM,
+                joint.distance.frequencyHz, joint.distance.dampingRatio);
+        if (joint.revolute != null) finite(file, joint.jointLocalId, joint.revolute.lowerAngleRad,
+                joint.revolute.upperAngleRad, joint.revolute.motorSpeedRad, joint.revolute.maxMotorTorque);
+        if (joint.prismatic != null) finite(file, joint.jointLocalId, joint.prismatic.axisX, joint.prismatic.axisY,
+                joint.prismatic.lowerTranslationM, joint.prismatic.upperTranslationM,
+                joint.prismatic.motorSpeedMps, joint.prismatic.maxMotorForce);
+        if (joint.pulley != null) {
+            finite(file, joint.jointLocalId, joint.pulley.groundAnchorALocalX, joint.pulley.groundAnchorALocalY,
+                    joint.pulley.groundAnchorBLocalX, joint.pulley.groundAnchorBLocalY,
+                    joint.pulley.lengthAM, joint.pulley.lengthBM, joint.pulley.ratio);
+            if (joint.pulley.lengthAM <= 0f || joint.pulley.lengthBM <= 0f || joint.pulley.ratio <= 0f) {
+                throw failure(file, "jointLocalId " + joint.jointLocalId + " has invalid Pulley lengths or ratio");
+            }
+        }
+        if (joint.gear != null) finite(file, joint.jointLocalId, joint.gear.ratio);
+        if (joint.wheel != null) finite(file, joint.jointLocalId, joint.wheel.frequencyHz,
+                joint.wheel.dampingRatio, joint.wheel.motorSpeedRad, joint.wheel.maxMotorTorque,
+                joint.wheel.axisX, joint.wheel.axisY);
+        if (joint.weld != null) finite(file, joint.jointLocalId, joint.weld.referenceAngleRad,
+                joint.weld.frequencyHz, joint.weld.dampingRatio);
+        if (joint.friction != null) finite(file, joint.jointLocalId, joint.friction.maxForce, joint.friction.maxTorque);
+        if (joint.motor != null) finite(file, joint.jointLocalId, joint.motor.linearOffsetX,
+                joint.motor.linearOffsetY, joint.motor.angularOffsetRad, joint.motor.maxForce,
+                joint.motor.maxTorque, joint.motor.correctionFactor);
+    }
+
+    private static boolean hasMatchingPayload(GameObjectAsset.GameObjectJointData joint) {
+        switch (joint.type) {
+            case PhysicsJointComponent.TYPE_DISTANCE: return joint.distance != null;
+            case PhysicsJointComponent.TYPE_REVOLUTE: return joint.revolute != null;
+            case PhysicsJointComponent.TYPE_PRISMATIC: return joint.prismatic != null;
+            case PhysicsJointComponent.TYPE_PULLEY: return joint.pulley != null;
+            case PhysicsJointComponent.TYPE_GEAR: return joint.gear != null;
+            case PhysicsJointComponent.TYPE_WHEEL: return joint.wheel != null;
+            case PhysicsJointComponent.TYPE_WELD: return joint.weld != null;
+            case PhysicsJointComponent.TYPE_FRICTION: return joint.friction != null;
+            case PhysicsJointComponent.TYPE_MOTOR: return joint.motor != null;
+            default: return false;
+        }
+    }
+
+    private static boolean isSupportedJointType(int type) {
+        return type >= PhysicsJointComponent.TYPE_DISTANCE && type <= PhysicsJointComponent.TYPE_MOTOR
+                && type != PhysicsJointComponent.TYPE_MOUSE;
+    }
+
+    private static boolean isGearSource(GameObjectAsset.GameObjectJointData joint) {
+        return joint != null && (joint.type == PhysicsJointComponent.TYPE_REVOLUTE
+                || joint.type == PhysicsJointComponent.TYPE_PRISMATIC);
+    }
+
+    private static void finite(FileHandle file, int jointId, float... values) {
+        for (int i = 0; i < values.length; i++) {
+            if (Float.isNaN(values[i]) || Float.isInfinite(values[i])) {
+                throw failure(file, "jointLocalId " + jointId + " has non-finite authored joint data");
             }
         }
     }

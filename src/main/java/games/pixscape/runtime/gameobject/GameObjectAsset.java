@@ -12,11 +12,13 @@ import java.util.Map;
 /** Authored, hierarchical data stored in one {@value #EXTENSION} asset. */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
     public List<GameObjectEntityData> entities = new ArrayList<>();
+    /** Standalone internal Physics joints expressed only through asset-local identities. */
+    public List<GameObjectJointData> joints = new ArrayList<>();
 
     /** One authored entity. IDs and parent references are local to this asset. */
     public static final class GameObjectEntityData {
@@ -98,6 +100,49 @@ public final class GameObjectAsset {
         public boolean sensor;
         public short categoryBits = 0x0001, maskBits = (short) 0xFFFF, groupIndex;
         public boolean enabled = true;
+    }
+    /** One standalone Scene joint definition owned by this asset, not by its transform hierarchy. */
+    public static final class GameObjectJointData {
+        public int jointLocalId;
+        public int type;
+        public int bodyALocalEntityId;
+        public int bodyBLocalEntityId;
+        public boolean collideConnected;
+        public float anchorAx, anchorAy, anchorBx, anchorBy;
+        public DistanceJointData distance;
+        public RevoluteJointData revolute;
+        public PrismaticJointData prismatic;
+        public PulleyJointData pulley;
+        public GearJointData gear;
+        public WheelJointData wheel;
+        public WeldJointData weld;
+        public FrictionJointData friction;
+        public MotorJointData motor;
+    }
+    public static final class DistanceJointData { public float lengthM, frequencyHz, dampingRatio; }
+    public static final class RevoluteJointData {
+        public boolean enableLimit, enableMotor;
+        public float lowerAngleRad, upperAngleRad, motorSpeedRad, maxMotorTorque;
+    }
+    public static final class PrismaticJointData {
+        public float axisX, axisY, lowerTranslationM, upperTranslationM, motorSpeedMps, maxMotorForce;
+        public boolean enableLimit, enableMotor;
+    }
+    /** Ground anchors are root-asset-local meters, never retained Scene world coordinates. */
+    public static final class PulleyJointData {
+        public float groundAnchorALocalX, groundAnchorALocalY;
+        public float groundAnchorBLocalX, groundAnchorBLocalY;
+        public float lengthAM, lengthBM, ratio;
+    }
+    public static final class GearJointData { public int jointALocalId, jointBLocalId; public float ratio; }
+    public static final class WheelJointData {
+        public float frequencyHz, dampingRatio, motorSpeedRad, maxMotorTorque, axisX, axisY;
+        public boolean enableMotor;
+    }
+    public static final class WeldJointData { public float referenceAngleRad, frequencyHz, dampingRatio; }
+    public static final class FrictionJointData { public float maxForce, maxTorque; }
+    public static final class MotorJointData {
+        public float linearOffsetX, linearOffsetY, angularOffsetRad, maxForce, maxTorque, correctionFactor;
     }
     /** Marker only: scene-specific sourceAssetId is intentionally absent. */
     public static final class GameObjectData { }

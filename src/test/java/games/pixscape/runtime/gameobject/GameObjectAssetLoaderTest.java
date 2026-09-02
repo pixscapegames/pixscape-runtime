@@ -1,6 +1,7 @@
 package games.pixscape.runtime.gameobject;
 
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
@@ -184,6 +185,39 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "Physics ancestor scale to be (1,1)");
     }
 
+    @Test public void v3InternalJointsRoundTripWithAssetLocalEndpoints() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).physicsBody = body();
+        asset.entities.get(1).physicsBody = body();
+        GameObjectAsset.GameObjectJointData joint = distanceJoint(7, 1, 2);
+        asset.joints.add(joint);
+
+        GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
+
+        Assert.assertEquals(3, restored.schemaVersion);
+        Assert.assertEquals(1, restored.joints.size());
+        GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
+        Assert.assertEquals(7, restoredJoint.jointLocalId);
+        Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, restoredJoint.type);
+        Assert.assertEquals(1, restoredJoint.bodyALocalEntityId);
+        Assert.assertEquals(2, restoredJoint.bodyBLocalEntityId);
+        Assert.assertEquals(3.5f, restoredJoint.distance.lengthM, 0f);
+    }
+
+    @Test public void v3JointEndpointOutsideAssetIsRejected() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).physicsBody = body();
+        asset.entities.get(1).physicsBody = body();
+        asset.joints.add(distanceJoint(1, 1, 99));
+        rejected(asset, "requires two asset-local entity endpoints");
+    }
+
+    @Test public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.schemaVersion = 2;
+        rejected(asset, "schemaVersion must be 3");
+    }
+
     private void rejected(GameObjectAsset asset, String diagnostic) {
         try {
             loader.toJson(asset);
@@ -229,6 +263,24 @@ public class GameObjectAssetLoaderTest {
         body.linearDamping = .5f;
         body.angularDamping = .25f;
         return body;
+    }
+
+    private static GameObjectAsset.GameObjectJointData distanceJoint(
+            int localId, int bodyA, int bodyB) {
+        GameObjectAsset.GameObjectJointData joint = new GameObjectAsset.GameObjectJointData();
+        joint.jointLocalId = localId;
+        joint.type = PhysicsJointComponent.TYPE_DISTANCE;
+        joint.bodyALocalEntityId = bodyA;
+        joint.bodyBLocalEntityId = bodyB;
+        joint.anchorAx = .25f;
+        joint.anchorAy = .5f;
+        joint.anchorBx = .75f;
+        joint.anchorBy = 1f;
+        joint.distance = new GameObjectAsset.DistanceJointData();
+        joint.distance.lengthM = 3.5f;
+        joint.distance.frequencyHz = 2f;
+        joint.distance.dampingRatio = .4f;
+        return joint;
     }
 
     private static GameObjectAsset.PhysicsShapeData shape(

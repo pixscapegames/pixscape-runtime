@@ -8,9 +8,7 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -18,6 +16,7 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -59,13 +58,18 @@ public final class GameObjectRuntimeFragmentSpawner {
             float rootOffsetX, float rootOffsetY) {
         if (world == null) throw new IllegalArgumentException("world must not be null");
         loader.validate(asset, null);
+        if (sceneMeta != null && !sceneMeta.physicsEnabled && containsAuthoredPhysics(asset)) {
+            throw new IllegalStateException(
+                    "Cannot spawn a Game Object with authored Physics while scene Physics is disabled.");
+        }
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
 
         IntIntMap sourceToStable = allocateStableIds(asset.entities);
         IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
         IntMap<PreparedPhysics> physics = preparePhysics(world, asset.entities);
-        IntArray created = new IntArray(false, asset.entities.size());
+        IntArray created = new IntArray(false, asset.entities.size() + asset.joints.size());
+        IntIntMap sourceToEntity = new IntIntMap(asset.entities.size());
         int rootEntityId = -1;
         try {
             List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
@@ -73,11 +77,13 @@ public final class GameObjectRuntimeFragmentSpawner {
                 GameObjectAsset.GameObjectEntityData data = ordered.get(i);
                 int entityId = world.create();
                 created.add(entityId);
+                sourceToEntity.put(data.sourceEntityId, entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
                         sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
                         physics.get(data.sourceEntityId), rootOffsetX, rootOffsetY);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
+            createJoints(world, asset.joints, sourceToEntity, rootEntityId, created);
             markCreatedDirty(world, created);
             return new SpawnResult(toBag(created), rootEntityId);
         } catch (RuntimeException failure) {
@@ -87,6 +93,119 @@ public final class GameObjectRuntimeFragmentSpawner {
             rollback(world, created);
             throw failure;
         }
+    }
+
+    private static boolean containsAuthoredPhysics(GameObjectAsset asset) {
+        if (!asset.joints.isEmpty()) return true;
+        for (int i = 0; i < asset.entities.size(); i++) {
+            GameObjectAsset.GameObjectEntityData entity = asset.entities.get(i);
+            if (entity.physicsBody != null || !entity.physicsShapes.isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /** Publishes standalone Scene joints only after every hierarchy Body endpoint exists. */
+    private void createJoints(World world, List<GameObjectAsset.GameObjectJointData> joints,
+                              IntIntMap sourceToEntity, int rootEntityId, IntArray created) {
+        if (joints.isEmpty()) return;
+        IntIntMap localJointToEntity = new IntIntMap(joints.size());
+        for (int i = 0; i < joints.size(); i++) {
+            GameObjectAsset.GameObjectJointData source = joints.get(i);
+            int jointEntityId = world.create();
+            created.add(jointEntityId);
+            localJointToEntity.put(source.jointLocalId, jointEntityId);
+            identityRegistry.ensureStableId(jointEntityId);
+            PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(jointEntityId);
+            base.type = source.type;
+            base.aEid = sourceToEntity.get(source.bodyALocalEntityId, -1);
+            base.bEid = sourceToEntity.get(source.bodyBLocalEntityId, -1);
+            base.collideConnected = source.collideConnected;
+            base.anchorAx = source.anchorAx; base.anchorAy = source.anchorAy;
+            base.anchorBx = source.anchorBx; base.anchorBy = source.anchorBy;
+            applyTypedJoint(world, jointEntityId, source, rootEntityId);
+        }
+        for (int i = 0; i < joints.size(); i++) {
+            GameObjectAsset.GameObjectJointData source = joints.get(i);
+            if (source.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class)
+                    .get(localJointToEntity.get(source.jointLocalId, -1));
+            gear.joint1Eid = localJointToEntity.get(source.gear.jointALocalId, -1);
+            gear.joint2Eid = localJointToEntity.get(source.gear.jointBLocalId, -1);
+        }
+    }
+
+    private void applyTypedJoint(World world, int entityId,
+                                 GameObjectAsset.GameObjectJointData source, int rootEntityId) {
+        switch (source.type) {
+            case PhysicsJointComponent.TYPE_DISTANCE: {
+                PhysicsDistanceJointComponent value = world.getMapper(PhysicsDistanceJointComponent.class).create(entityId);
+                value.lengthM = source.distance.lengthM; value.frequencyHz = source.distance.frequencyHz;
+                value.dampingRatio = source.distance.dampingRatio; break;
+            }
+            case PhysicsJointComponent.TYPE_REVOLUTE: {
+                PhysicsRevoluteJointComponent value = world.getMapper(PhysicsRevoluteJointComponent.class).create(entityId);
+                value.enableLimit = source.revolute.enableLimit; value.lowerAngleRad = source.revolute.lowerAngleRad;
+                value.upperAngleRad = source.revolute.upperAngleRad; value.enableMotor = source.revolute.enableMotor;
+                value.motorSpeedRad = source.revolute.motorSpeedRad; value.maxMotorTorque = source.revolute.maxMotorTorque; break;
+            }
+            case PhysicsJointComponent.TYPE_PRISMATIC: {
+                PhysicsPrismaticJointComponent value = world.getMapper(PhysicsPrismaticJointComponent.class).create(entityId);
+                value.axisX = source.prismatic.axisX; value.axisY = source.prismatic.axisY;
+                value.enableLimit = source.prismatic.enableLimit; value.lowerTranslationM = source.prismatic.lowerTranslationM;
+                value.upperTranslationM = source.prismatic.upperTranslationM; value.enableMotor = source.prismatic.enableMotor;
+                value.motorSpeedMps = source.prismatic.motorSpeedMps; value.maxMotorForce = source.prismatic.maxMotorForce; break;
+            }
+            case PhysicsJointComponent.TYPE_PULLEY: {
+                PhysicsPulleyJointComponent value = world.getMapper(PhysicsPulleyJointComponent.class).create(entityId);
+                float[] a = rootLocalMetersToWorldMeters(world, rootEntityId,
+                        source.pulley.groundAnchorALocalX, source.pulley.groundAnchorALocalY);
+                float[] b = rootLocalMetersToWorldMeters(world, rootEntityId,
+                        source.pulley.groundAnchorBLocalX, source.pulley.groundAnchorBLocalY);
+                value.groundAx = a[0]; value.groundAy = a[1]; value.groundBx = b[0]; value.groundBy = b[1];
+                value.lengthAM = source.pulley.lengthAM; value.lengthBM = source.pulley.lengthBM; value.ratio = source.pulley.ratio; break;
+            }
+            case PhysicsJointComponent.TYPE_GEAR: {
+                PhysicsGearJointComponent value = world.getMapper(PhysicsGearJointComponent.class).create(entityId);
+                value.ratio = source.gear.ratio; break;
+            }
+            case PhysicsJointComponent.TYPE_WHEEL: {
+                PhysicsWheelJointComponent value = world.getMapper(PhysicsWheelJointComponent.class).create(entityId);
+                value.frequencyHz = source.wheel.frequencyHz; value.dampingRatio = source.wheel.dampingRatio;
+                value.enableMotor = source.wheel.enableMotor; value.motorSpeedRad = source.wheel.motorSpeedRad;
+                value.maxMotorTorque = source.wheel.maxMotorTorque; value.axisX = source.wheel.axisX; value.axisY = source.wheel.axisY; break;
+            }
+            case PhysicsJointComponent.TYPE_WELD: {
+                PhysicsWeldJointComponent value = world.getMapper(PhysicsWeldJointComponent.class).create(entityId);
+                value.referenceAngleRad = source.weld.referenceAngleRad; value.frequencyHz = source.weld.frequencyHz;
+                value.dampingRatio = source.weld.dampingRatio; break;
+            }
+            case PhysicsJointComponent.TYPE_FRICTION: {
+                PhysicsFrictionJointComponent value = world.getMapper(PhysicsFrictionJointComponent.class).create(entityId);
+                value.maxForce = source.friction.maxForce; value.maxTorque = source.friction.maxTorque; break;
+            }
+            case PhysicsJointComponent.TYPE_MOTOR: {
+                PhysicsMotorJointComponent value = world.getMapper(PhysicsMotorJointComponent.class).create(entityId);
+                value.linearOffsetX = source.motor.linearOffsetX; value.linearOffsetY = source.motor.linearOffsetY;
+                value.angularOffsetRad = source.motor.angularOffsetRad; value.maxForce = source.motor.maxForce;
+                value.maxTorque = source.motor.maxTorque; value.correctionFactor = source.motor.correctionFactor; break;
+            }
+            default: throw new IllegalArgumentException("Unsupported Game Object joint type " + source.type);
+        }
+    }
+
+    private float[] rootLocalMetersToWorldMeters(World world, int rootEntityId, float localX, float localY) {
+        TransformComponent root = world.getMapper(TransformComponent.class).get(rootEntityId);
+        float ppm = sceneMeta != null && sceneMeta.pixelsPerMeter > 0f ? sceneMeta.pixelsPerMeter : 100f;
+        float localWuX = localX * ppm;
+        float localWuY = localY * ppm;
+        float cos = com.badlogic.gdx.math.MathUtils.cos(root.rotationRad);
+        float sin = com.badlogic.gdx.math.MathUtils.sin(root.rotationRad);
+        float frameX = root.x + root.originX - cos * root.scaleX * root.originX
+                + sin * root.scaleY * root.originY;
+        float frameY = root.y + root.originY - sin * root.scaleX * root.originX
+                - cos * root.scaleY * root.originY;
+        return new float[]{(frameX + cos * root.scaleX * localWuX - sin * root.scaleY * localWuY) / ppm,
+                (frameY + sin * root.scaleX * localWuX + cos * root.scaleY * localWuY) / ppm};
     }
 
     private IntIntMap allocateStableIds(List<GameObjectAsset.GameObjectEntityData> entities) {
@@ -335,6 +454,9 @@ public final class GameObjectRuntimeFragmentSpawner {
                     | DirtyBits.COLOR | DirtyBits.ORDER | DirtyBits.LAYER);
             if (world.getMapper(PhysicsBodyComponent.class).has(created.get(i))) {
                 dirty.physics(created.get(i), games.pixscape.runtime.render.PhysicsDirtyBits.ALL);
+            }
+            if (world.getMapper(PhysicsJointComponent.class).has(created.get(i))) {
+                dirty.joint(created.get(i), JointDirtyBits.ALL);
             }
         }
     }

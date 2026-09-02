@@ -12,6 +12,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -102,6 +104,7 @@ public class GameObjectHierarchySpawnTest {
         World world = new World(new WorldConfigurationBuilder().build());
         SceneMetaRuntime meta = new SceneMetaRuntime();
         meta.nextPhysicsShapeId = 40;
+        meta.physicsEnabled = true;
         GameObjectAsset asset = physicalHierarchy();
         GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), meta, new AtlasRuntimeService());
@@ -143,6 +146,50 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals(2f, world.getMapper(PhysicsShapesComponent.class)
                 .get(secondRoot).shapes.first().geometry.halfWidth, 0f);
         Assert.assertEquals(1, asset.entities.get(0).physicsShapes.get(0).localShapeId);
+    }
+
+    @Test
+    public void physicalAssetSpawnsJointsAfterBodiesWithRemappedEndpoints() {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64)).build());
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 50;
+        meta.physicsEnabled = true;
+        GameObjectAsset asset = physicalHierarchy();
+        GameObjectAsset.GameObjectJointData joint = new GameObjectAsset.GameObjectJointData();
+        joint.jointLocalId = 11;
+        joint.type = PhysicsJointComponent.TYPE_DISTANCE;
+        joint.bodyALocalEntityId = 1;
+        joint.bodyBLocalEntityId = 2;
+        joint.collideConnected = true;
+        joint.anchorAx = .1f;
+        joint.anchorAy = .2f;
+        joint.anchorBx = .3f;
+        joint.anchorBy = .4f;
+        joint.distance = new GameObjectAsset.DistanceJointData();
+        joint.distance.lengthM = 2.5f;
+        joint.distance.frequencyHz = 4f;
+        joint.distance.dampingRatio = .6f;
+        asset.joints.add(joint);
+
+        SpawnResult result = new GameObjectRuntimeFragmentSpawner(
+                new IdentityRegistry(), meta, new AtlasRuntimeService())
+                .spawnAsset(world, asset, "gameobjects/joint.gameobject", 0f, 0f);
+        world.process();
+
+        Assert.assertEquals(4, result.createdEntityIds().size());
+        int jointEntityId = result.createdEntityIds().get(
+                result.createdEntityIds().size() - 1);
+        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(jointEntityId);
+        Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, base.type);
+        Assert.assertEquals(result.createdEntityIds().get(0), base.aEid);
+        Assert.assertEquals(result.createdEntityIds().get(1), base.bEid);
+        Assert.assertTrue(base.collideConnected);
+        PhysicsDistanceJointComponent distance = world.getMapper(
+                PhysicsDistanceJointComponent.class).get(jointEntityId);
+        Assert.assertEquals(2.5f, distance.lengthM, 0f);
+        Assert.assertEquals(4f, distance.frequencyHz, 0f);
+        Assert.assertEquals(.6f, distance.dampingRatio, 0f);
     }
 
     private static GameObjectAsset hierarchy() {
