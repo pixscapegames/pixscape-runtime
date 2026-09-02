@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Runtime-serializable real Game Object hierarchy. */
 public final class GameObjectRuntimeFragment {
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public String sourceAssetId = "";
@@ -17,6 +17,7 @@ public final class GameObjectRuntimeFragment {
             GameObjectAsset asset, String sourceAssetId) {
         if (asset == null) throw new IllegalArgumentException("Game Object asset must not be null.");
         GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
+        fragment.schemaVersion = CURRENT_SCHEMA_VERSION;
         fragment.sourceAssetId = sourceAssetId != null ? sourceAssetId : "";
         fragment.rootSourceEntityId = asset.rootSourceEntityId;
         fragment.entities.addAll(asset.entities);
@@ -26,6 +27,7 @@ public final class GameObjectRuntimeFragment {
     public GameObjectAsset toAsset() {
         requireCurrentSchema(this);
         GameObjectAsset asset = new GameObjectAsset();
+        asset.schemaVersion = GameObjectAsset.SCHEMA_VERSION;
         asset.rootSourceEntityId = rootSourceEntityId;
         asset.entities.addAll(entities);
         return asset;

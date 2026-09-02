@@ -1,5 +1,7 @@
 package games.pixscape.runtime.gameobject;
 
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,7 +34,7 @@ public class GameObjectAssetLoaderTest {
         String json = loader.toJson(asset);
         GameObjectAsset restored = loader.fromJson(json);
 
-        Assert.assertEquals(1, restored.schemaVersion);
+        Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, restored.schemaVersion);
         Assert.assertEquals(1, restored.rootSourceEntityId);
         Assert.assertEquals(1, restored.entities.get(1).parentSourceEntityId);
         Assert.assertEquals(2, restored.entities.get(2).parentSourceEntityId);
@@ -93,10 +95,10 @@ public class GameObjectAssetLoaderTest {
 
     @Test public void unsupportedSchemaIsRejected() {
         try {
-            loader.fromJson("{\"schemaVersion\":2,\"rootSourceEntityId\":1,\"entities\":[]}");
+            loader.fromJson("{\"schemaVersion\":1,\"rootSourceEntityId\":1,\"entities\":[]}");
             Assert.fail("Expected rejection");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("unsupported schemaVersion 2"));
+            Assert.assertTrue(expected.getMessage().contains("unsupported schemaVersion 1"));
         }
     }
 
@@ -117,6 +119,69 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).transform.scaleY = 2f;
         rejected(asset, "positive uniform authored scale");
+    }
+
+    @Test
+    public void v2PhysicsBodyAndManualShapesRoundTripWithoutSceneIds() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).physicsBody = new GameObjectAsset.PhysicsBodyData();
+        asset.entities.get(0).physicsBody.type = PhysicsBodyComponent.STATIC;
+        asset.entities.get(1).physicsBody = new GameObjectAsset.PhysicsBodyData();
+        asset.entities.get(1).physicsBody.type = PhysicsBodyComponent.DYNAMIC;
+        GameObjectAsset.GameObjectEntityData physical = asset.entities.get(2);
+        physical.physicsBody = body();
+        physical.physicsShapes.add(shape(11, box()));
+        physical.physicsShapes.add(shape(17, circle()));
+        physical.physicsShapes.add(shape(23, polygon()));
+
+        GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
+        GameObjectAsset.GameObjectEntityData restoredPhysical = restored.entities.get(2);
+        Assert.assertEquals(PhysicsBodyComponent.STATIC, restored.entities.get(0).physicsBody.type);
+        Assert.assertEquals(PhysicsBodyComponent.DYNAMIC, restored.entities.get(1).physicsBody.type);
+        Assert.assertEquals(PhysicsBodyComponent.KINEMATIC, restoredPhysical.physicsBody.type);
+        Assert.assertTrue(restoredPhysical.physicsBody.fixedRotation);
+        Assert.assertEquals(3, restoredPhysical.physicsShapes.size());
+        GameObjectAsset.PhysicsShapeData restoredShape = restoredPhysical.physicsShapes.get(2);
+        Assert.assertEquals(23, restoredShape.localShapeId);
+        Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON, restoredShape.geometry.shapeType);
+        Assert.assertArrayEquals(new float[] {0f, 0f, 2f, 0f, 0f, 3f},
+                restoredShape.geometry.polygonVertices, 0f);
+        Assert.assertEquals((short) 0x0002, restoredShape.categoryBits);
+        Assert.assertEquals((short) 0x00F0, restoredShape.maskBits);
+        Assert.assertEquals((short) -3, restoredShape.groupIndex);
+        Assert.assertFalse(restoredShape.enabled);
+        Assert.assertFalse(loader.toJson(restored).contains("physicsShapeId"));
+        Assert.assertFalse(loader.toJson(restored).contains("spatialBlockId"));
+    }
+
+    @Test public void physicsShapesRequireBody() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(2).physicsShapes.add(shape(1, box()));
+        rejected(asset, "Physics Shapes without a Physics Body");
+    }
+
+    @Test public void malformedPhysicsIsRejected() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(2).physicsBody = body();
+        GameObjectAsset.PhysicsShapeData invalid = shape(1, polygon());
+        invalid.geometry.polygonVertices[4] = Float.NaN;
+        asset.entities.get(2).physicsShapes.add(invalid);
+        rejected(asset, "must be finite");
+    }
+
+    @Test public void malformedPhysicsBodyIsRejected() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(2).physicsBody = body();
+        asset.entities.get(2).physicsBody.gravityScale = Float.NaN;
+        rejected(asset, "non-finite physicsBody.gravityScale");
+    }
+
+    @Test public void physicalDescendantCannotHaveScaledGameObjectAncestor() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(1).transform.scaleX = 2f;
+        asset.entities.get(1).transform.scaleY = 2f;
+        asset.entities.get(2).physicsBody = body();
+        rejected(asset, "Physics ancestor scale to be (1,1)");
     }
 
     private void rejected(GameObjectAsset asset, String diagnostic) {
@@ -151,5 +216,57 @@ public class GameObjectAssetLoaderTest {
         entity.entityIndex.zIndex = localZ;
         if (root) entity.gameObject = new GameObjectAsset.GameObjectData();
         return entity;
+    }
+
+    private static GameObjectAsset.PhysicsBodyData body() {
+        GameObjectAsset.PhysicsBodyData body = new GameObjectAsset.PhysicsBodyData();
+        body.type = PhysicsBodyComponent.KINEMATIC;
+        body.fixedRotation = true;
+        body.bullet = true;
+        body.allowSleep = false;
+        body.awake = false;
+        body.gravityScale = .75f;
+        body.linearDamping = .5f;
+        body.angularDamping = .25f;
+        return body;
+    }
+
+    private static GameObjectAsset.PhysicsShapeData shape(
+            int localShapeId, PhysicsGeometryData geometry) {
+        GameObjectAsset.PhysicsShapeData shape = new GameObjectAsset.PhysicsShapeData();
+        shape.localShapeId = localShapeId;
+        shape.geometry = geometry;
+        shape.density = 2f;
+        shape.friction = .6f;
+        shape.restitution = .4f;
+        shape.sensor = true;
+        shape.categoryBits = 0x0002;
+        shape.maskBits = 0x00F0;
+        shape.groupIndex = -3;
+        shape.enabled = false;
+        return shape;
+    }
+
+    private static PhysicsGeometryData box() {
+        PhysicsGeometryData geometry = new PhysicsGeometryData();
+        geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        geometry.halfWidth = 2f;
+        geometry.halfHeight = 3f;
+        return geometry;
+    }
+
+    private static PhysicsGeometryData circle() {
+        PhysicsGeometryData geometry = new PhysicsGeometryData();
+        geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        geometry.radius = 4f;
+        return geometry;
+    }
+
+    private static PhysicsGeometryData polygon() {
+        PhysicsGeometryData geometry = new PhysicsGeometryData();
+        geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        geometry.polygonVertexCount = 3;
+        geometry.polygonVertices = new float[] {0f, 0f, 2f, 0f, 0f, 3f};
+        return geometry;
     }
 }

@@ -8,7 +8,12 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
@@ -17,6 +22,7 @@ import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.util.List;
@@ -58,6 +64,7 @@ public final class GameObjectRuntimeFragmentSpawner {
 
         IntIntMap sourceToStable = allocateStableIds(asset.entities);
         IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
+        IntMap<PreparedPhysics> physics = preparePhysics(world, asset.entities);
         IntArray created = new IntArray(false, asset.entities.size());
         int rootEntityId = -1;
         try {
@@ -68,7 +75,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 created.add(entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
                         sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
-                        rootOffsetX, rootOffsetY);
+                        physics.get(data.sourceEntityId), rootOffsetX, rootOffsetY);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
             markCreatedDirty(world, created);
@@ -104,6 +111,36 @@ public final class GameObjectRuntimeFragmentSpawner {
         return result;
     }
 
+    private IntMap<PreparedPhysics> preparePhysics(
+            World world, List<GameObjectAsset.GameObjectEntityData> entities) {
+        IntMap<PreparedPhysics> result = new IntMap<PreparedPhysics>();
+        PhysicsService physicsService = new PhysicsService(world, null, sceneMeta);
+        for (int i = 0; i < entities.size(); i++) {
+            GameObjectAsset.GameObjectEntityData data = entities.get(i);
+            if (data.physicsBody == null) continue;
+            Array<PhysicsShapeData> shapes = new Array<PhysicsShapeData>(
+                    true, data.physicsShapes.size(), PhysicsShapeData.class);
+            for (int shapeIndex = 0; shapeIndex < data.physicsShapes.size(); shapeIndex++) {
+                GameObjectAsset.PhysicsShapeData source = data.physicsShapes.get(shapeIndex);
+                PhysicsShapeData shape = new PhysicsShapeData();
+                shape.physicsShapeId = physicsService.allocateNewPhysicsShapeId();
+                shape.geometry = source.geometry != null ? source.geometry.copy() : null;
+                shape.density = source.density;
+                shape.friction = source.friction;
+                shape.restitution = source.restitution;
+                shape.sensor = source.sensor;
+                shape.categoryBits = source.categoryBits;
+                shape.maskBits = source.maskBits;
+                shape.groupIndex = source.groupIndex;
+                shape.enabled = source.enabled;
+                shapes.add(shape);
+            }
+            result.put(data.sourceEntityId, new PreparedPhysics(
+                    copyBody(data.physicsBody), PhysicsService.prepareBodyCandidate(shapes)));
+        }
+        return result;
+    }
+
     private static List<GameObjectAsset.GameObjectEntityData> topologicalOrder(GameObjectAsset asset) {
         java.util.ArrayList<GameObjectAsset.GameObjectEntityData> ordered =
                 new java.util.ArrayList<GameObjectAsset.GameObjectEntityData>(asset.entities.size());
@@ -133,7 +170,8 @@ public final class GameObjectRuntimeFragmentSpawner {
     private static void apply(
             World world, int entityId, GameObjectAsset.GameObjectEntityData data,
             int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
-            PreparedAssetBinding preparedBinding, float rootOffsetX, float rootOffsetY) {
+            PreparedAssetBinding preparedBinding, PreparedPhysics preparedPhysics,
+            float rootOffsetX, float rootOffsetY) {
         if (data.transform != null) {
             TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
             value.x = data.transform.x + (data.sourceEntityId == rootSourceId ? rootOffsetX : 0f);
@@ -233,6 +271,21 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
         }
+        if (preparedPhysics != null) {
+            PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
+            body.type = preparedPhysics.body.type;
+            body.fixedRotation = preparedPhysics.body.fixedRotation;
+            body.bullet = preparedPhysics.body.bullet;
+            body.allowSleep = preparedPhysics.body.allowSleep;
+            body.awake = preparedPhysics.body.awake;
+            body.gravityScale = preparedPhysics.body.gravityScale;
+            body.linearDamping = preparedPhysics.body.linearDamping;
+            body.angularDamping = preparedPhysics.body.angularDamping;
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
+            PhysicsCompiledFixturesComponent compiled =
+                    world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
+            PhysicsService.publishPreparedCandidate(shapes, compiled, preparedPhysics.candidate);
+        }
     }
 
     private static void publishBinding(World world, int entityId,
@@ -280,6 +333,9 @@ public final class GameObjectRuntimeFragmentSpawner {
         for (int i = 0; i < created.size; i++) {
             dirty.mark(created.get(i), DirtyBits.GEOMETRY | DirtyBits.MATERIAL
                     | DirtyBits.COLOR | DirtyBits.ORDER | DirtyBits.LAYER);
+            if (world.getMapper(PhysicsBodyComponent.class).has(created.get(i))) {
+                dirty.physics(created.get(i), games.pixscape.runtime.render.PhysicsDirtyBits.ALL);
+            }
         }
     }
 
@@ -292,5 +348,29 @@ public final class GameObjectRuntimeFragmentSpawner {
     private static final class PreparedAssetBinding {
         final AtlasAssetBinding binding;
         PreparedAssetBinding(AtlasAssetBinding binding) { this.binding = binding; }
+    }
+
+    private static PhysicsBodyComponent copyBody(GameObjectAsset.PhysicsBodyData source) {
+        PhysicsBodyComponent result = new PhysicsBodyComponent();
+        result.type = source.type;
+        result.fixedRotation = source.fixedRotation;
+        result.bullet = source.bullet;
+        result.allowSleep = source.allowSleep;
+        result.awake = source.awake;
+        result.gravityScale = source.gravityScale;
+        result.linearDamping = source.linearDamping;
+        result.angularDamping = source.angularDamping;
+        return result;
+    }
+
+    private static final class PreparedPhysics {
+        final PhysicsBodyComponent body;
+        final PreparedPhysicsBodyCandidate candidate;
+
+        PreparedPhysics(PhysicsBodyComponent body,
+                        PreparedPhysicsBodyCandidate candidate) {
+            this.body = body;
+            this.candidate = candidate;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.gameobject;
 
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.property.PropertySet;
 
 import java.util.ArrayList;
@@ -11,7 +12,7 @@ import java.util.Map;
 /** Authored, hierarchical data stored in one {@value #EXTENSION} asset. */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
@@ -39,6 +40,10 @@ public final class GameObjectAsset {
         public RepeatData repeat;
         public PointLightData pointLight;
         public ConeLightData coneLight;
+        /** Authored Body definition; runtime Box2D state is intentionally absent. */
+        public PhysicsBodyData physicsBody;
+        /** Ordered asset-local shapes; their IDs are never Scene physicsShapeIds. */
+        public List<PhysicsShapeData> physicsShapes = new ArrayList<>();
         /** Present for the top-level root and nested Game Object roots. */
         public GameObjectData gameObject;
     }
@@ -80,6 +85,19 @@ public final class GameObjectAsset {
     public static final class ConeLightData {
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;
+    }
+    public static final class PhysicsBodyData {
+        public int type;
+        public boolean fixedRotation, bullet, allowSleep = true, awake = true;
+        public float gravityScale = 1f, linearDamping, angularDamping;
+    }
+    public static final class PhysicsShapeData {
+        public int localShapeId;
+        public PhysicsGeometryData geometry;
+        public float density = 1f, friction = .2f, restitution;
+        public boolean sensor;
+        public short categoryBits = 0x0001, maskBits = (short) 0xFFFF, groupIndex;
+        public boolean enabled = true;
     }
     /** Marker only: scene-specific sourceAssetId is intentionally absent. */
     public static final class GameObjectData { }

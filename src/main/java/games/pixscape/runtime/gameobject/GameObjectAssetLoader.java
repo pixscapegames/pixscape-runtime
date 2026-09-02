@@ -11,6 +11,8 @@ import com.badlogic.gdx.utils.JsonWriter;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.SortKey64;
 
 /** Strict reader/writer for the independent Game Object asset schema. */
@@ -102,6 +104,7 @@ public final class GameObjectAssetLoader {
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             validateObjectReferences(entity.customProperties, byId, file, entity.sourceEntityId);
         }
+        validatePhysics(asset, byId, file);
     }
 
     private static void validateAuthoredEntity(
@@ -140,6 +143,79 @@ public final class GameObjectAssetLoader {
             } catch (RuntimeException ex) {
                 throw failure(file, "sourceEntityId " + entity.sourceEntityId
                         + " has invalid Custom Properties: " + ex.getMessage());
+            }
+        }
+        if (entity.physicsBody != null && entity.physicsShapes == null) {
+            throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                    + " requires a Physics Shapes list when it has a Physics Body");
+        }
+        if (entity.physicsBody == null && entity.physicsShapes != null && !entity.physicsShapes.isEmpty()) {
+            throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                    + " has Physics Shapes without a Physics Body");
+        }
+        if (entity.physicsBody != null) validateBody(entity, file);
+        if (entity.physicsShapes != null) validateShapes(entity, file);
+    }
+
+    private static void validateBody(GameObjectAsset.GameObjectEntityData entity, FileHandle file) {
+        GameObjectAsset.PhysicsBodyData body = entity.physicsBody;
+        if (body.type != PhysicsBodyComponent.STATIC
+                && body.type != PhysicsBodyComponent.KINEMATIC
+                && body.type != PhysicsBodyComponent.DYNAMIC) {
+            throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                    + " has unsupported Physics Body type " + body.type);
+        }
+        requireFinite(body.gravityScale, "physicsBody.gravityScale", entity.sourceEntityId, file);
+        requireFinite(body.linearDamping, "physicsBody.linearDamping", entity.sourceEntityId, file);
+        requireFinite(body.angularDamping, "physicsBody.angularDamping", entity.sourceEntityId, file);
+    }
+
+    private static void validateShapes(GameObjectAsset.GameObjectEntityData entity, FileHandle file) {
+        IntSet localIds = new IntSet();
+        for (int i = 0; i < entity.physicsShapes.size(); i++) {
+            GameObjectAsset.PhysicsShapeData source = entity.physicsShapes.get(i);
+            if (source == null || source.localShapeId <= 0 || !localIds.add(source.localShapeId)) {
+                throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                        + " has invalid or duplicate asset-local Physics shape ID");
+            }
+            PhysicsShapeData shape = new PhysicsShapeData();
+            shape.physicsShapeId = source.localShapeId;
+            shape.geometry = source.geometry != null ? source.geometry.copy() : null;
+            shape.density = source.density;
+            shape.friction = source.friction;
+            shape.restitution = source.restitution;
+            shape.sensor = source.sensor;
+            shape.categoryBits = source.categoryBits;
+            shape.maskBits = source.maskBits;
+            shape.groupIndex = source.groupIndex;
+            shape.enabled = source.enabled;
+            try {
+                shape.validateStructure();
+            } catch (IllegalArgumentException ex) {
+                throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                        + " has invalid Physics shape: " + ex.getMessage());
+            }
+        }
+    }
+
+    private static void validatePhysics(GameObjectAsset asset,
+                                        IntMap<GameObjectAsset.GameObjectEntityData> byId,
+                                        FileHandle file) {
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity.physicsBody == null) continue;
+            int parentId = entity.parentSourceEntityId;
+            while (parentId != -1) {
+                GameObjectAsset.GameObjectEntityData parent = byId.get(parentId);
+                if (parent == null || parent.gameObject == null) {
+                    throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                            + " has invalid Physics hierarchy parent");
+                }
+                if (Float.compare(parent.transform.scaleX, 1f) != 0
+                        || Float.compare(parent.transform.scaleY, 1f) != 0) {
+                    throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                            + " requires every Game Object Physics ancestor scale to be (1,1)");
+                }
+                parentId = parent.parentSourceEntityId;
             }
         }
     }
