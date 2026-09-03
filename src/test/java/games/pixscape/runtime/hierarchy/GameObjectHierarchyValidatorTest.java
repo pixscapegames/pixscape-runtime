@@ -215,7 +215,7 @@ public class GameObjectHierarchyValidatorTest {
     }
 
     @Test
-    public void tiledMapsParticlesAndSpatialActorsRemainExcluded() {
+    public void tiledMapsParticlesAndSceneLocalSpatialStructuresRemainExcluded() {
         gameObject(1);
         int tiled = member(2, 1, false);
         world.getMapper(TiledLayerComponent.class).create(tiled);
@@ -229,7 +229,7 @@ public class GameObjectHierarchyValidatorTest {
 
         int spatial = member(4, 1, false);
         world.getMapper(SpatialShapesComponent.class).create(spatial);
-        Assert.assertTrue(validateAllFailure().getMessage().contains("Spatial actors"));
+        Assert.assertTrue(validateAllFailure().getMessage().contains("Scene-local Spatial structures"));
     }
 
     private IllegalArgumentException validateMemberFailure(int entityId) {

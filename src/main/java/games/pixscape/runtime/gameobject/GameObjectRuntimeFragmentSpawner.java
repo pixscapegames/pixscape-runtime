@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -252,6 +253,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 shape.maskBits = source.maskBits;
                 shape.groupIndex = source.groupIndex;
                 shape.enabled = source.enabled;
+                shape.spatialFootprint = source.spatialFootprint;
                 shapes.add(shape);
             }
             result.put(data.sourceEntityId, new PreparedPhysics(
@@ -389,6 +391,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
             light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
+        }
+        if (data.spatialHeight != null) {
+            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
+            height.altitude = data.spatialHeight.altitude;
+            height.height = data.spatialHeight.height;
         }
         if (preparedPhysics != null) {
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

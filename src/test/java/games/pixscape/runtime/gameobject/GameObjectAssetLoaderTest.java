@@ -155,6 +155,35 @@ public class GameObjectAssetLoaderTest {
         Assert.assertFalse(loader.toJson(restored).contains("spatialBlockId"));
     }
 
+    @Test
+    public void v3SpatialHeightAndAutonomousFootprintRoundTrip() {
+        GameObjectAsset asset = validNestedAsset();
+        GameObjectAsset.GameObjectEntityData physical = asset.entities.get(2);
+        physical.physicsBody = body();
+        GameObjectAsset.PhysicsShapeData footprint = shape(1, circle());
+        footprint.enabled = true;
+        footprint.spatialFootprint = true;
+        physical.physicsShapes.add(footprint);
+        physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        physical.spatialHeight.altitude = 2.5f;
+        physical.spatialHeight.height = 7.5f;
+
+        GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
+
+        Assert.assertEquals(3, restored.schemaVersion);
+        Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).spatialFootprint);
+        Assert.assertEquals(2.5f, restored.entities.get(2).spatialHeight.altitude, 0f);
+        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.height, 0f);
+    }
+
+    @Test
+    public void negativeSpatialHeightIsRejected() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(2).spatialHeight = new GameObjectAsset.SpatialHeightData();
+        asset.entities.get(2).spatialHeight.height = -1f;
+        rejected(asset, "negative Spatial height");
+    }
+
     @Test public void physicsShapesRequireBody() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).physicsShapes.add(shape(1, box()));

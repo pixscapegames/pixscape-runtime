@@ -153,7 +153,7 @@ public class GameObjectRenderCompositionTest {
     }
 
     @Test
-    public void spatialPostPassCannotLeaveAnExternalEntryInsideAFlattenedBlock() {
+    public void spatialPostPassDoesNotRecompactAnAlreadySplitGameObjectBlock() {
         Fixture fixture = new Fixture(32);
         fixture.gameObject(10, -1, 0, 0);
         int first = fixture.member(11, 10, 0, -1);
@@ -164,9 +164,9 @@ public class GameObjectRenderCompositionTest {
         fixture.drawList.set(0, RenderSourceDomain.SOURCE_ECS, first);
         fixture.drawList.set(1, RenderSourceDomain.SOURCE_ECS, external);
         fixture.drawList.set(2, RenderSourceDomain.SOURCE_ECS, second);
-        fixture.spatial.restoreGameObjectAtomicity();
+        fixture.spatial.process();
 
-        fixture.assertEcsOrder(first, second, external);
+        fixture.assertEcsOrder(first, external, second);
     }
 
     @Test

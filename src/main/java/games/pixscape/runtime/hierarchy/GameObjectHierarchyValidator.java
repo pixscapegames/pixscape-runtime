@@ -132,7 +132,7 @@ public final class GameObjectHierarchyValidator {
                 }
                 if (spatialBlocks.has(entityId) || spatialShapes.has(entityId)) {
                     throw failure(entityId,
-                            "Spatial actors cannot be Game Object members in the current Runtime stage");
+                            "Scene-local Spatial structures cannot be Game Object members");
                 }
                 requireEntityIndex(entityId, "Game Object member");
                 requireDirectParent(entityId);

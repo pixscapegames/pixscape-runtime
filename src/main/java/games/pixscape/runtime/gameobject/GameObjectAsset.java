@@ -42,6 +42,8 @@ public final class GameObjectAsset {
         public RepeatData repeat;
         public PointLightData pointLight;
         public ConeLightData coneLight;
+        /** Authored Spatial vertical volume; derived Spatial footprint cache is intentionally absent. */
+        public SpatialHeightData spatialHeight;
         /** Authored Body definition; runtime Box2D state is intentionally absent. */
         public PhysicsBodyData physicsBody;
         /** Ordered asset-local shapes; their IDs are never Scene physicsShapeIds. */
@@ -88,6 +90,7 @@ public final class GameObjectAsset {
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;
     }
+    public static final class SpatialHeightData { public float altitude, height; }
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep = true, awake = true;
@@ -100,6 +103,8 @@ public final class GameObjectAsset {
         public boolean sensor;
         public short categoryBits = 0x0001, maskBits = (short) 0xFFFF, groupIndex;
         public boolean enabled = true;
+        /** Self-contained circular Spatial footprint marker; no Scene Spatial block is referenced. */
+        public boolean spatialFootprint;
     }
     /** One standalone Scene joint definition owned by this asset, not by its transform hierarchy. */
     public static final class GameObjectJointData {

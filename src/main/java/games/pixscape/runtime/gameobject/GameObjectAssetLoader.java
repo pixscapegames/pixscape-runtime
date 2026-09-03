@@ -157,6 +157,14 @@ public final class GameObjectAssetLoader {
         }
         if (entity.physicsBody != null) validateBody(entity, file);
         if (entity.physicsShapes != null) validateShapes(entity, file);
+        if (entity.spatialHeight != null) {
+            requireFinite(entity.spatialHeight.altitude, "spatialHeight.altitude", entity.sourceEntityId, file);
+            requireFinite(entity.spatialHeight.height, "spatialHeight.height", entity.sourceEntityId, file);
+            if (entity.spatialHeight.height < 0f) {
+                throw failure(file, "sourceEntityId " + entity.sourceEntityId
+                        + " has negative Spatial height");
+            }
+        }
     }
 
     private static void validateBody(GameObjectAsset.GameObjectEntityData entity, FileHandle file) {
@@ -191,6 +199,7 @@ public final class GameObjectAssetLoader {
             shape.maskBits = source.maskBits;
             shape.groupIndex = source.groupIndex;
             shape.enabled = source.enabled;
+            shape.spatialFootprint = source.spatialFootprint;
             try {
                 shape.validateStructure();
             } catch (IllegalArgumentException ex) {

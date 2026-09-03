@@ -15,6 +15,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -146,6 +147,37 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals(2f, world.getMapper(PhysicsShapesComponent.class)
                 .get(secondRoot).shapes.first().geometry.halfWidth, 0f);
         Assert.assertEquals(1, asset.entities.get(0).physicsShapes.get(0).localShapeId);
+    }
+
+    @Test
+    public void physicalSpatialMemberRestoresAuthoredHeightAndFootprintMarker() {
+        World world = new World(new WorldConfigurationBuilder().build());
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextPhysicsShapeId = 40;
+        meta.physicsEnabled = true;
+        GameObjectAsset asset = physicalHierarchy();
+        GameObjectAsset.GameObjectEntityData member = asset.entities.get(2);
+        member.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        member.spatialHeight.altitude = 3f;
+        member.spatialHeight.height = 6f;
+        GameObjectAsset.PhysicsShapeData shape = member.physicsShapes.get(0);
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.geometry.radius = 2f;
+        shape.spatialFootprint = true;
+
+        SpawnResult result = new GameObjectRuntimeFragmentSpawner(
+                new IdentityRegistry(), meta, new AtlasRuntimeService())
+                .spawnAsset(world, asset, "gameobjects/spatial.gameobject", 0f, 0f);
+        world.process();
+
+        int spawnedMember = result.createdEntityIds().get(2);
+        SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(spawnedMember);
+        Assert.assertEquals(3f, height.altitude, 0f);
+        Assert.assertEquals(6f, height.height, 0f);
+        PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
+                .get(spawnedMember).shapes.first();
+        Assert.assertTrue(spawnedShape.spatialFootprint);
+        Assert.assertNotEquals(shape.localShapeId, spawnedShape.physicsShapeId);
     }
 
     @Test
