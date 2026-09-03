@@ -3,8 +3,9 @@ package games.pixscape.runtime.api;
 /**
  * Runtime layer placement and local z-order controls for one entity.
  *
- * <p>Operations require existing layer and entity-index components and never
- * create render-order capability.</p>
+ * <p>Standalone entities and Game Object roots require existing layer and entity-index
+ * components. A Game Object member requires only its own entity-index component: its Layer is
+ * inherited from the top-level root and its z-index is local to the member.</p>
  *
  * <p>When the entity is stale or either required component is missing,
  * {@link #exists()} returns {@code false}, getters return their documented safe
@@ -29,14 +30,15 @@ package games.pixscape.runtime.api;
 public interface RenderOrderFacade {
 
     /**
-     * Returns {@code true} only when the captured entity is current and both authored layer and
-     * entity-index ordering components exist.
+     * Returns {@code true} only when the captured entity is current and has the ordering
+     * components required by its hierarchy role.
      * This reports capability presence, not current render submission or visibility.
      */
     boolean exists();
 
     /**
-     * Returns the current scene layer index of the entity.
+     * Returns the current scene layer index of the entity. A Game Object member reports its
+     * effective top-level-root Layer.
      *
      * @return the current layer index, or {@code -1} when {@link #exists()} is false
      */

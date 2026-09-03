@@ -39,6 +39,7 @@ import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
@@ -949,7 +950,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public void remove() {
             World world = handle.world();
-            if (world != null) world.delete(handle.entityId);
+            if (world != null) HierarchyRemoval.schedule(world, handle.entityId);
         }
     }
 
@@ -1052,23 +1053,28 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean exists() {
-            return resolveComponents();
+            return isGameObjectMember() ? resolveEntityIndex() : resolveIndependentComponents();
         }
 
         @Override
         public int layerIndex() {
-            return resolveComponents() ? validatedEntityIndex.layerIndex : -1;
+            if (isGameObjectMember()) {
+                return resolveEntityIndex() ? effectiveMemberLayerIndex() : -1;
+            }
+            return resolveIndependentComponents() ? validatedEntityIndex.layerIndex : -1;
         }
 
         @Override
         public int zIndex() {
-            return resolveComponents() ? validatedEntityIndex.zIndex : 0;
+            if (isGameObjectMember()) return resolveEntityIndex() ? validatedEntityIndex.zIndex : 0;
+            return resolveIndependentComponents() ? validatedEntityIndex.zIndex : 0;
         }
 
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
-            if (!resolveComponents()) return this;
+            if (!resolveEntityIndex()) return this;
             requireIndependentLayer("layerIndex(int)");
+            if (!resolveIndependentComponents()) return this;
             validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
@@ -1077,7 +1083,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade zIndex(int zIndex) {
-            if (!resolveComponents()) return this;
+            if (isGameObjectMember()) {
+                if (!resolveEntityIndex()) return this;
+            } else if (!resolveIndependentComponents()) return this;
             validateZIndex(zIndex, "zIndex(int)");
             if (isGameObjectMember()) {
                 applyLocalZ(zIndex);
@@ -1089,25 +1097,32 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade set(int layerIndex, int zIndex) {
-            if (!resolveComponents()) return this;
+            if (!resolveEntityIndex()) return this;
             requireIndependentLayer("set(int, int)");
+            if (!resolveIndependentComponents()) return this;
             int resolved = layers().requireLayerIndex(layerIndex);
             validateZIndex(zIndex, "set(int, int)");
             apply(resolved, zIndex);
             return this;
         }
 
-        private boolean resolveComponents() {
+        private boolean resolveEntityIndex() {
             World world = handle.world();
             if (world == null) {
                 validatedLayer = null;
                 validatedEntityIndex = null;
                 return false;
             }
-            validatedLayer = world.getMapper(LayerComponent.class).getSafe(handle.entityId, null);
             validatedEntityIndex = world.getMapper(EntityIndexComponent.class)
                     .getSafe(handle.entityId, null);
-            return validatedLayer != null && validatedEntityIndex != null;
+            return validatedEntityIndex != null;
+        }
+
+        private boolean resolveIndependentComponents() {
+            if (!resolveEntityIndex()) return false;
+            validatedLayer = handle.world().getMapper(LayerComponent.class)
+                    .getSafe(handle.entityId, null);
+            return validatedLayer != null;
         }
 
         private SceneLayerResolver layers() {
@@ -1136,6 +1151,27 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = handle.world();
             return world != null && world.getMapper(GameObjectMemberComponent.class)
                     .has(handle.entityId);
+        }
+
+        private int effectiveMemberLayerIndex() {
+            World world = handle.world();
+            if (world == null) return -1;
+            IdentityRegistry identities = IdentityRegistry.boundTo(world);
+            if (identities == null) return -1;
+            int entityId = handle.entityId;
+            ComponentMapper<GameObjectMemberComponent> members =
+                    world.getMapper(GameObjectMemberComponent.class);
+            for (int depth = 0; depth < 256; depth++) {
+                GameObjectMemberComponent member = members.getSafe(entityId, null);
+                if (member == null) {
+                    EntityIndexComponent rootIndex = world.getMapper(EntityIndexComponent.class)
+                            .getSafe(entityId, null);
+                    return rootIndex != null ? rootIndex.layerIndex : -1;
+                }
+                entityId = identities.findByStableId(member.parentStableId);
+                if (entityId < 0) return -1;
+            }
+            return -1;
         }
 
         private void applyLocalZ(int zIndex) {
@@ -3269,7 +3305,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public Object projection() {
+        public TiledProjection projection() {
             TiledMapLayerData d = data();
             return d != null ? d.projection : null;
         }
@@ -3910,31 +3946,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public SpawnResult spawn(String name, float x, float y) {
+        public GameObjectInstance spawn(String name, float x, float y) {
             return engine.spawnGameObject(name, x, y);
         }
 
         @Override
-        public SpawnResult spawnFragment(GameObjectRuntimeFragment fragment, float x, float y) {
-            return engine.spawnGameObjectFragment(fragment, x, y);
-        }
-
-        @Override
         public EntityRef root(String name, float x, float y) {
-            SpawnResult result = spawn(name, x, y);
-            if (result == null || result.rootEntityId() < 0) {
-                return entities.ofEntityId(-1);
-            }
-            return entities.ofEntityId(result.rootEntityId());
+            return spawn(name, x, y).root();
         }
 
         @Override
         public EntityRef requireRoot(String name, float x, float y) {
-            SpawnResult result = spawn(name, x, y);
-            if (result == null || result.rootEntityId() < 0) {
-                throw new IllegalStateException("GameObject spawn created no entities: " + name);
-            }
-            return entities.ofEntityId(result.rootEntityId());
+            EntityRef root = spawn(name, x, y).root();
+            if (!root.exists()) throw new IllegalStateException("GameObject spawn created no root: " + name);
+            return root;
         }
     }
 }

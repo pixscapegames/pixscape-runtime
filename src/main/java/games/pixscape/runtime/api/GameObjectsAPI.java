@@ -1,14 +1,13 @@
 package games.pixscape.runtime.api;
 
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
-import games.pixscape.runtime.gameobject.SpawnResult;
-
 /**
- * Runtime API for spawning exported Game Object fragments into the currently loaded scene.
+ * Runtime API for synchronously spawning exported Game Object assets into the active scene.
  *
- * <p>GameObject spawning requires a loaded project and an initialized scene. Spawned
- * entities receive fresh stable IDs and their asset references are resolved against
- * the currently loaded runtime atlases.</p>
+ * <p>Call only after project loading and scene {@code READY}. Accepted names are
+ * {@code enemy}, {@code enemy.gameobject}, and the canonical recommended form
+ * {@code gameobjects/enemy.gameobject}. The asset file is read synchronously; its visual
+ * resources must already have been prepared through the scene's Runtime Availability.
+ * Missing or invalid assets, or unavailable visual bindings, fail before publication.</p>
  */
 public interface GameObjectsAPI {
 
@@ -18,22 +17,12 @@ public interface GameObjectsAPI {
      * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X offset applied to the real root
      * @param y    world-space Y offset applied to the real root
-     * @return result containing all created entity IDs
+     * @return an incarnation-safe handle for the newly spawned instance
      */
-    SpawnResult spawn(String name, float x, float y);
+    GameObjectInstance spawn(String name, float x, float y);
 
     /**
-     * Spawns an already loaded real-hierarchy fragment at the given root offset.
-     *
-     * @param fragment runtime Game Object fragment to instantiate
-     * @param x        world-space X offset applied to the real root
-     * @param y        world-space Y offset applied to the real root
-     * @return result containing all created entity IDs
-     */
-    SpawnResult spawnFragment(GameObjectRuntimeFragment fragment, float x, float y);
-
-    /**
-     * Spawns a Game Object and returns a reference to its real root.
+     * Spawns a new Game Object instance and returns its real root.
      *
      * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X offset
@@ -43,7 +32,7 @@ public interface GameObjectsAPI {
     EntityRef root(String name, float x, float y);
 
     /**
-     * Spawns a Game Object and returns a reference to its real root.
+     * Spawns a new Game Object instance and returns its real root.
      *
      * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X offset

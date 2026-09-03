@@ -1,5 +1,7 @@
 package games.pixscape.runtime.api;
 
+import games.pixscape.runtime.tiled.TiledProjection;
+
 /**
  * Runtime tiled map/layer properties and coordinate conversion helpers.
  * Operations affect existing Tiled Map data only and never create a Map.
@@ -31,7 +33,8 @@ public interface TiledMapFacade {
 
     TiledMapFacade setAtlasTag(String atlasTag);
 
-    Object projection();
+    /** Returns this map's authored projection, or {@code null} when stale or missing. */
+    TiledProjection projection();
 
     TiledMapFacade setVisible(boolean visible);
 

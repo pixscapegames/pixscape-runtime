@@ -66,8 +66,8 @@ public final class GameObjectRuntimeFragmentSpawner {
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
 
-        IntIntMap sourceToStable = allocateStableIds(asset.entities);
         IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
+        IntIntMap sourceToStable = allocateStableIds(asset.entities);
         IntMap<PreparedPhysics> physics = preparePhysics(world, asset.entities);
         IntArray created = new IntArray(false, asset.entities.size() + asset.joints.size());
         IntIntMap sourceToEntity = new IntIntMap(asset.entities.size());
@@ -226,6 +226,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             if (data.assetRef == null) continue;
             AtlasAssetBinding binding = atlasRuntimeService.resolveBinding(
                     data.assetRef.assetId, data.assetRef.atlasTag);
+            if (binding == null) {
+                throw new IllegalStateException("Game Object visual asset is unavailable before spawn: "
+                        + "sourceEntityId=" + data.sourceEntityId + ", assetId="
+                        + data.assetRef.assetId + ", atlasTag=" + data.assetRef.atlasTag + ".");
+            }
             result.put(data.sourceEntityId, new PreparedAssetBinding(binding));
         }
         return result;

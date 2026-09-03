@@ -49,6 +49,7 @@ import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.SpawnResult;
+import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -292,9 +293,14 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (!load.isReady() && !load.isFailed()) load.update();
 
             Assert.assertTrue(load.isReady());
-            SpawnResult spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
-            Assert.assertEquals(1, spawned.createdEntityIds().size());
-            Assert.assertTrue(spawned.rootEntityId() >= 0);
+            GameObjectInstance spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
+            Assert.assertTrue(spawned.exists());
+            Assert.assertTrue(spawned.root().stableId() >= 0);
+            spawned.despawn();
+            fixture.engine.getWorld().process();
+            Assert.assertFalse(spawned.exists());
+            Assert.assertFalse(spawned.root().exists());
+            spawned.despawn();
             RenderParticleSyncSystem particles = fixture.engine.getWorld()
                     .getSystem(RenderParticleSyncSystem.class);
             particles.requirePrepared("a", "declared.p");

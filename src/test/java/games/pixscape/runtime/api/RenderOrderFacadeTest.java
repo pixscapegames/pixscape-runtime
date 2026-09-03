@@ -9,10 +9,12 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
@@ -223,9 +225,21 @@ public class RenderOrderFacadeTest {
         Fixture fixture = fixture();
         fixture.layer(4);
         EntityRef entity = fixture.target(0, 7);
+        int root = fixture.world.create();
+        fixture.world.getMapper(PixscapeIdentityComponent.class).create(root).stableId = 100;
+        fixture.world.getMapper(GameObjectComponent.class).create(root);
+        TransformComponent rootTransform = fixture.world.getMapper(TransformComponent.class).create(root);
+        rootTransform.scaleX = 1f;
+        rootTransform.scaleY = 1f;
+        fixture.world.getMapper(LayerComponent.class).create(root).layerIndex = 0;
+        fixture.world.getMapper(EntityIndexComponent.class).create(root).layerIndex = 0;
         fixture.world.getMapper(GameObjectMemberComponent.class).create(entity.entityId())
                 .parentStableId = 100;
+        fixture.world.getMapper(PixscapeIdentityComponent.class).create(entity.entityId()).stableId = 101;
+        fixture.world.getMapper(TransformComponent.class).create(entity.entityId());
         fixture.world.getMapper(LayerComponent.class).get(entity.entityId()).layerIndex = 3;
+        fixture.world.process();
+        fixture.engine.getIdentityRegistry().rebuild();
 
         entity.renderOrder().zIndex(9);
         Assert.assertEquals(9, entity.renderOrder().zIndex());
@@ -388,7 +402,7 @@ public class RenderOrderFacadeTest {
 
         Fixture fixture = new Fixture(engine, world, dirty);
         fixture.layer(4);
-        SpawnResult result = engine.api().gameObjects().spawnFragment(fragment, 0f, 0f);
+        SpawnResult result = engine.spawnGameObjectFragment(fragment, 0f, 0f);
         EntityRef spawned = engine.api().entities().ofEntityId(result.createdEntityIds().get(0));
 
         spawned.renderOrder().set(4, 8);
@@ -434,6 +448,7 @@ public class RenderOrderFacadeTest {
         PixscapeEngine engine = new PixscapeEngine();
         setField(engine, "world", world);
         SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 1000;
         engine.getIdentityRegistry().bind(world, meta);
         engine.getTagRegistry().bind(world);
         return new Fixture(engine, world, dirty);

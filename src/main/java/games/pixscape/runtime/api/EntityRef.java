@@ -73,6 +73,8 @@ public interface EntityRef {
 
     /**
      * Schedules removal only while this handle still identifies its captured entity.
+     * A standalone entity removes itself; a hierarchy node removes its surviving descendant
+     * subtree. Physics joints made invalid by removed Bodies or source joints are removed too.
      * Calling this method on a stale handle has no effect.
      */
     void remove();

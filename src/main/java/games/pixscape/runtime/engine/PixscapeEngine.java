@@ -13,6 +13,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
+import games.pixscape.runtime.api.EntityRef;
+import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
@@ -441,7 +443,8 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Spawns an in-memory Game Object fragment into the currently loaded scene.
+     * {@code SUPPORTED_EXPERT}: spawns an in-memory Game Object serialization fragment into the
+     * currently loaded scene. The mutable fragment and raw result are not HIGH_LEVEL APIs.
      *
      * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
@@ -479,7 +482,7 @@ public final class PixscapeEngine {
      * @throws IllegalStateException                      if the project or world is not initialized
      * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
-    public SpawnResult spawnGameObject(String name, float offsetX, float offsetY) {
+    public GameObjectInstance spawnGameObject(String name, float offsetX, float offsetY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
@@ -496,7 +499,31 @@ public final class PixscapeEngine {
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        return spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
+        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
+        return new SpawnedGameObjectInstance(api().entities().ofEntityId(result.rootEntityId()));
+    }
+
+    private static final class SpawnedGameObjectInstance implements GameObjectInstance {
+        private final EntityRef root;
+
+        SpawnedGameObjectInstance(EntityRef root) {
+            this.root = root;
+        }
+
+        @Override
+        public EntityRef root() {
+            return root;
+        }
+
+        @Override
+        public boolean exists() {
+            return root != null && root.exists();
+        }
+
+        @Override
+        public void despawn() {
+            if (root != null) root.remove();
+        }
     }
 
     private void rebuildWorld(RuntimeConfig config,
