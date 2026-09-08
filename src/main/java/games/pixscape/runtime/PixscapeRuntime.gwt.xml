@@ -21,6 +21,7 @@
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.physics.box2d.Joint"/>
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.tiled"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.tiled"/>
 
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.spatial"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockData"/>

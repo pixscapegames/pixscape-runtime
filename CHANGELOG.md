@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [0.2.1]
+
+### Fixed
+
+* Fixed HTML/GWT scene loading for Tiled maps using TiledProjection.
+
+
 ## [0.2.0]
 
 ### Breaking changes
