@@ -1,11 +1,11 @@
 package games.pixscape.runtime.api;
 
 /**
- * Spatial render-order settings for one tiled layer.
+ * Spatial render-order settings for one Tiled Map.
  *
  * <p>Operations affect an existing tiled capability only and never create a layer or map.</p>
  *
- * <p>This facade exposes tiled layer participation, default tile volume, and
+ * <p>This facade exposes Tiled Map participation, default tile volume, and
  * per-cell volume overrides. Authored occluder blocks are not exposed by this
  * high-level facade; advanced authored/compiler access is a separate
  * {@code SUPPORTED_EXPERT} contract.</p>
@@ -15,12 +15,12 @@ package games.pixscape.runtime.api;
  */
 public interface TiledSpatialFacade {
     /**
-     * Returns whether this tiled layer participates in spatial render ordering.
+     * Returns whether this Tiled Map participates in spatial render ordering.
      */
     boolean enabled();
 
     /**
-     * Enables or disables spatial render ordering for this tiled layer.
+     * Enables or disables spatial render ordering for this Tiled Map.
      */
     TiledSpatialFacade setEnabled(boolean enabled);
 

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.tiled.profile;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -68,7 +69,7 @@ public class TileProfilePlacementTest {
     @Test
     public void isometricTopCenterUsesDiamondTopVertex() {
         RuntimeTilesetProfile profile = profile(256, 128, RuntimeTilesetAnchor.TOP_CENTER, 0, 0);
-        profile.projection = SceneMetaRuntime.TiledProjection.ISO;
+        profile.projection = TiledProjection.ISO;
 
         float[] quad = build(100f, 200f, 256, 128, 256, 512, profile);
 
@@ -78,9 +79,9 @@ public class TileProfilePlacementTest {
     @Test
     public void isometricBottomCenterAndCenterUseDiamondAnchors() {
         RuntimeTilesetProfile bottom = profile(256, 128, RuntimeTilesetAnchor.BOTTOM_CENTER, 0, 0);
-        bottom.projection = SceneMetaRuntime.TiledProjection.ISO;
+        bottom.projection = TiledProjection.ISO;
         RuntimeTilesetProfile center = profile(256, 128, RuntimeTilesetAnchor.CENTER, 0, 0);
-        center.projection = SceneMetaRuntime.TiledProjection.ISO;
+        center.projection = TiledProjection.ISO;
 
         assertQuad(build(100f, 200f, 256, 128, 256, 512, bottom),
                 100f, 200f, 100f, 712f, 356f, 712f, 356f, 200f);

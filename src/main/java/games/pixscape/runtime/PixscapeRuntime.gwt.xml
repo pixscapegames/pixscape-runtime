@@ -30,8 +30,8 @@
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.physics.PhysicsShapeData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.physics.PhysicsGeometryData"/>
 
-    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.prefab"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.prefab.RuntimePrefabFragment"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.gameobject"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.gameobject.GameObjectRuntimeFragment"/>
 
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.property"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.property"/>

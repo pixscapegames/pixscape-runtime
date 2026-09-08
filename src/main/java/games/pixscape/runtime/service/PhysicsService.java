@@ -17,8 +17,10 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
 /**
  * {@code SUPPORTED_EXPERT} authored-physics service shared by Runtime and Studio tooling.
@@ -121,6 +123,7 @@ public final class PhysicsService {
     private final World world;
     private Box2dWorldService box2d;
     private final DirtyTrackerSystem dirty;
+    private final GameObjectHierarchySystem hierarchy;
 
     private final ComponentMapper<TransformComponent> mT;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
@@ -142,11 +145,20 @@ public final class PhysicsService {
 
     private final Vector2 tmpA = new Vector2();
     private final Vector2 tmpB = new Vector2();
+    private final BodyPose resolvedPoseA = new BodyPose();
+    private final BodyPose resolvedPoseB = new BodyPose();
+
+    private static final class BodyPose {
+        float x;
+        float y;
+        float rotationRad;
+    }
 
     public PhysicsService(World world, Box2dWorldService box2d) {
         this.world = world;
         this.box2d = box2d;
         this.dirty = world.getSystem(DirtyTrackerSystem.class);
+        this.hierarchy = world.getSystem(GameObjectHierarchySystem.class);
 
         this.mT = world.getMapper(TransformComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
@@ -707,19 +719,18 @@ public final class PhysicsService {
 
         // Default offsets = current relative transform of B in A frame.
         if (isAvailable()) {
-            TransformComponent bT = mT.getSafe(bEid, null);
-            if (bT != null) {
+            if (resolveBodyPose(bEid, resolvedPoseB)) {
                 Vector2 localBInA = new Vector2();
-                if (computeLocalAnchorMetersFromWorldPivot(aEid, bT.x, bT.y, localBInA)) {
+                if (computeLocalAnchorMetersFromWorldPivot(
+                        aEid, resolvedPoseB.x, resolvedPoseB.y, localBInA)) {
                     motor.linearOffsetX = localBInA.x;
                     motor.linearOffsetY = localBInA.y;
                 }
             }
 
-            TransformComponent aT = mT.getSafe(aEid, null);
-            TransformComponent bT2 = mT.getSafe(bEid, null);
-            if (aT != null && bT2 != null) {
-                motor.angularOffsetRad = bT2.rotationRad - aT.rotationRad;
+            if (resolveBodyPose(aEid, resolvedPoseA)
+                    && resolveBodyPose(bEid, resolvedPoseB)) {
+                motor.angularOffsetRad = resolvedPoseB.rotationRad - resolvedPoseA.rotationRad;
             }
         }
 
@@ -757,10 +768,9 @@ public final class PhysicsService {
 
         PhysicsWeldJointComponent weld = mWeld.create(jEid);
 
-        TransformComponent aT = mT.getSafe(aEid, null);
-        TransformComponent bT = mT.getSafe(bEid, null);
-        if (aT != null && bT != null) {
-            weld.referenceAngleRad = bT.rotationRad - aT.rotationRad;
+        if (resolveBodyPose(aEid, resolvedPoseA)
+                && resolveBodyPose(bEid, resolvedPoseB)) {
+            weld.referenceAngleRad = resolvedPoseB.rotationRad - resolvedPoseA.rotationRad;
         }
 
         weld.frequencyHz = Math.max(0f, weld.frequencyHz);
@@ -984,18 +994,17 @@ public final class PhysicsService {
         if (!isAvailable()) return false;
         if (bodyEid < 0) return false;
 
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return false;
+        if (!resolveBodyPose(bodyEid, resolvedPoseA)) return false;
 
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
+        float cos = MathUtils.cos(resolvedPoseA.rotationRad);
+        float sin = MathUtils.sin(resolvedPoseA.rotationRad);
 
         float rx_m = localAx_m * cos - localAy_m * sin;
         float ry_m = localAx_m * sin + localAy_m * cos;
 
         outWU.set(
-                t.x + box2d.mToPx(rx_m),
-                t.y + box2d.mToPx(ry_m)
+                resolvedPoseA.x + box2d.mToPx(rx_m),
+                resolvedPoseA.y + box2d.mToPx(ry_m)
         );
         return true;
     }
@@ -1109,8 +1118,7 @@ public final class PhysicsService {
         int bEid = base.bEid;
         if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
-        TransformComponent t = mT.getSafe(aEid, null);
-        if (t == null) return false;
+        if (!resolveBodyPose(aEid, resolvedPoseA)) return false;
 
         if (!computeAnchorWorldWU(aEid, base.anchorAx, base.anchorAy, outPivotWU)) return false;
 
@@ -1125,8 +1133,8 @@ public final class PhysicsService {
             axisY /= len;
         }
 
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
+        float cos = MathUtils.cos(resolvedPoseA.rotationRad);
+        float sin = MathUtils.sin(resolvedPoseA.rotationRad);
         float worldAxisX = axisX * cos - axisY * sin;
         float worldAxisY = axisX * sin + axisY * cos;
 
@@ -1149,22 +1157,39 @@ public final class PhysicsService {
         if (!isAvailable()) return false;
         if (bodyEid < 0) return false;
 
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return false;
+        if (!resolveBodyPose(bodyEid, resolvedPoseA)) return false;
 
-        float dxWu = pivotWuX - t.x;
-        float dyWu = pivotWuY - t.y;
+        float dxWu = pivotWuX - resolvedPoseA.x;
+        float dyWu = pivotWuY - resolvedPoseA.y;
 
         float dxM = box2d.pxToM(dxWu);
         float dyM = box2d.pxToM(dyWu);
 
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
+        float cos = MathUtils.cos(resolvedPoseA.rotationRad);
+        float sin = MathUtils.sin(resolvedPoseA.rotationRad);
 
         float localAx = dxM * cos + dyM * sin;
         float localAy = -dxM * sin + dyM * cos;
 
         outLocalMeters.set(localAx, localAy);
+        return true;
+    }
+
+    /** Resolves the same hierarchy display pose used by Physics writeback and joint authoring. */
+    private boolean resolveBodyPose(int entityId, BodyPose out) {
+        if (out == null || entityId < 0) return false;
+        TransformComponent authored = mT.getSafe(entityId, null);
+        if (authored == null) return false;
+        WorldTransformState state = hierarchy != null ? hierarchy.worldTransforms() : null;
+        if (state != null && state.isResolved(entityId)) {
+            out.x = state.x[entityId];
+            out.y = state.y[entityId];
+            out.rotationRad = state.rotationRad[entityId];
+        } else {
+            out.x = authored.x;
+            out.y = authored.y;
+            out.rotationRad = authored.rotationRad;
+        }
         return true;
     }
 

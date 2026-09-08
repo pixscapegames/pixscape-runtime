@@ -1,8 +1,10 @@
 package games.pixscape.runtime.api;
 
+import games.pixscape.runtime.tiled.TiledProjection;
+
 /**
  * Runtime tiled map/layer properties and coordinate conversion helpers.
- * Operations affect existing tiled map data only and never create a tiled layer.
+ * Operations affect existing Tiled Map data only and never create a Map.
  * Missing or stale capabilities report zero dimensions, an empty atlas tag, a null projection,
  * zero coordinate-conversion results, and {@code false} from {@link #isInside(int, int)}.
  */
@@ -31,10 +33,24 @@ public interface TiledMapFacade {
 
     TiledMapFacade setAtlasTag(String atlasTag);
 
-    Object projection();
+    /** Returns this map's authored projection, or {@code null} when stale or missing. */
+    TiledProjection projection();
 
     TiledMapFacade setVisible(boolean visible);
 
+    /**
+     * Controls native collision participation for this loaded map.
+     *
+     * <p>Disabling collisions removes the map's native Box2D body and fixtures while preserving
+     * its authored physics body, shapes, settings, links, and persistent shape identities.
+     * Enabling collisions allows the normal physics synchronization path to recreate native
+     * state from those existing authored components. This runtime-only toggle never creates or
+     * deletes authored physics, changes Spatial data or owning-layer state, affects another map,
+     * or enables global scene physics.</p>
+     *
+     * @throws IllegalStateException when enabling collisions while the active scene explicitly
+     *                               has physics disabled
+     */
     TiledMapFacade setCollisionEnabled(boolean enabled);
 
     /**

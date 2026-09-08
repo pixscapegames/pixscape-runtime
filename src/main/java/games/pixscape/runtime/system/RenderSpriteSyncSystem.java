@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.IntArray;
@@ -14,6 +15,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.helper.ColorHelper;
 import games.pixscape.runtime.helper.QuadGeometryHelper;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -32,6 +34,8 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
     private final DynamicEntityRenderState state;
 
     private DirtyTrackerSystem dirty;
+    @SkipWire
+    private GameObjectHierarchySystem hierarchy;
 
     private ComponentMapper<OrientedBoundsComponent> mBounds;
     private ComponentMapper<TextureRegionComponent> mTR;
@@ -64,6 +68,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
     @Override
     protected void initialize() {
+        hierarchy = world.getSystem(GameObjectHierarchySystem.class);
         InternalTextures.initIfNeeded();
 
         // subscription = all "sprite renderable" entities
@@ -190,6 +195,10 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
             // TextureRegion + Transform only for non-light sprites
             TextureRegionComponent tr = isLight ? null : mTR.getSafe(e, null);
             TransformComponent t = isLight ? null : mTransform.getSafe(e, null);
+            WorldTransformState worldState = hierarchy != null ? hierarchy.worldTransforms() : null;
+            boolean resolved = worldState != null && worldState.isResolved(e);
+            float worldScaleX = resolved ? worldState.scaleX[e] : (t != null ? t.scaleX : 1f);
+            float worldScaleY = resolved ? worldState.scaleY[e] : (t != null ? t.scaleY : 1f);
 
             if (b == null || mat == null || entityIndex == null || (!isLight && tr == null)) {
                 state.releaseSlotForEntity(e);
@@ -238,7 +247,8 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
             // --- GEOMETRY: corners ---
             if ((mask & DirtyBits.GEOMETRY) != 0) {
-                QuadGeometryHelper.toWorldCorners(b, t, mQuad.getSafe(e, null), tmpCorners);
+                QuadGeometryHelper.toWorldCorners(
+                        b, t, mQuad.getSafe(e, null), worldScaleX, worldScaleY, tmpCorners);
 
                 float blx = tmpCorners[0];
                 float bly = tmpCorners[1];
@@ -285,8 +295,8 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                     float u2 = tr.u2;
                     float v2 = tr.v2;
 
-                    boolean flipX = t != null && t.scaleX < 0f;
-                    boolean flipY = t != null && t.scaleY < 0f;
+                    boolean flipX = worldScaleX < 0f;
+                    boolean flipY = worldScaleY < 0f;
 
                     if (flipX) {
                         float tmp = u1;

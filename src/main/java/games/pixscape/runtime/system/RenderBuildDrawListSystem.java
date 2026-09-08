@@ -4,6 +4,10 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
+import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -14,6 +18,8 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+
+import java.util.Arrays;
 
 public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
     private final DynamicEntityRenderState ecsState;
@@ -35,6 +41,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private ComponentMapper<PhysicsShapesComponent> mShapes;
     private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
     private EntitySubscription allEntities;
+    private ComponentMapper<GameObjectComponent> mGameObject;
+    private ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
+    private ComponentMapper<PixscapeIdentityComponent> mIdentity;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    @SkipWire
+    private GameObjectHierarchySystem hierarchySystem;
+    @SkipWire
+    private GameObjectCompositionSystem compositionSystem;
+    private boolean[] rootsWithRenderWork = new boolean[16];
     private int vfxPeakCapacity;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
@@ -72,12 +87,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     @Override
     protected void initialize() {
         allEntities = world.getAspectSubscriptionManager().get(Aspect.all());
+        hierarchySystem = world.getSystem(GameObjectHierarchySystem.class);
+        compositionSystem = world.getSystem(GameObjectCompositionSystem.class);
     }
 
     @Override
     protected void begin() {
         drawList.clear();
         stats.reset();
+        Arrays.fill(rootsWithRenderWork, false);
     }
 
     @Override
@@ -96,14 +114,30 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     private void processSystemInternal() {
+        RenderCompositionList composition = drawList.composition();
+        int extractedQuads = 0;
         int activeEcsSlots = ecsState != null ? ecsState.activeCount : 0;
         for (int slot = 0; slot < activeEcsSlots; slot++) {
             boolean renderable = isRenderableSlot(slot);
             if (renderable) {
-                drawList.addEcsSlot(slot);
+                int entityId = ecsState.entityIdForSlot(slot);
+                boolean activeEntity = entityId >= 0
+                        && allEntities.getActiveEntityIds().get(entityId);
+                if (hierarchySystem != null && activeEntity && mGameObjectMember.has(entityId)) {
+                    GameObjectTopologyState topology = hierarchySystem.topology();
+                    int rootEntityId = topology.rootEntityId[entityId];
+                    ensureRootCapacity(rootEntityId);
+                    rootsWithRenderWork[rootEntityId] = true;
+                } else if (activeEntity && mGameObject.has(entityId)) {
+                    continue;
+                } else {
+                    composition.add(RenderSourceDomain.SOURCE_ECS, slot, ecsState.sortKey[slot]);
+                }
                 stats.ecsEmittedRenderSlots++;
+                extractedQuads++;
             }
         }
+        emitGameObjectBlocks(composition);
         stats.buildDrawListScannedEcsSlots = activeEcsSlots;
         if (ecsState != null) {
             stats.ecsActiveRenderSlots = ecsState.activeCount;
@@ -112,14 +146,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         int tiledVisibleRefCount = tiledState.getVisibleRefCount();
-        int[] tiledVisibleRefs = tiledState.getVisibleRefs();
-        for (int i = 0; i < tiledVisibleRefCount; i++) {
-            int tiledRenderRef = tiledVisibleRefs[i];
-
-            boolean renderable = isRenderableTiledRef(tiledRenderRef);
-            if (renderable) {
-                drawList.addTiledSlot(tiledRenderRef);
-            }
+        int visibleMapCount = tiledState.getVisibleMapCount();
+        for (int group = 0; group < visibleMapCount; group++) {
+            if (!isRenderableTiledGroup(group)) continue;
+            composition.add(
+                    RenderSourceDomain.SOURCE_TILED,
+                    group,
+                    tiledState.visibleMapCompositionKey(group)
+            );
+            extractedQuads += tiledState.visibleMapRefCount(group);
         }
 
         if (vfxState != null && vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
@@ -127,7 +162,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
 
             for (int i = 0; i < count; i++) {
                 if (isRenderableVfxIndex(i)) {
-                    drawList.addVfxSlot(i);
+                    composition.add(RenderSourceDomain.SOURCE_VFX, i, vfxState.sortKey[i]);
+                    extractedQuads++;
                 }
             }
         }
@@ -140,7 +176,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         stats.tiledRenderableRefsConsidered = tiledState.cullingRenderableRefsConsidered;
         stats.tiledRenderableRefsVisible = tiledState.cullingRenderableRefsVisible;
         stats.tiledRenderableRefsCulled = tiledState.cullingRenderableRefsCulled;
-        stats.extractedQuads = drawList.size;
+        stats.extractedQuads = extractedQuads;
         if (vfxState != null) {
             vfxPeakCapacity = Math.max(vfxPeakCapacity, vfxState.getCapacity());
             stats.vfxActiveParticles = vfxState.activeCount;
@@ -213,22 +249,53 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         stats.ecsFirstSkippedComponentFlags = flags;
     }
 
-    private boolean isRenderableTiledRef(int tiledRenderRef) {
-        if (!tiledState.isRenderableRef(tiledRenderRef)) return false;
+    private boolean isRenderableTiledGroup(int groupIndex) {
+        int refCount = tiledState.visibleMapRefCount(groupIndex);
+        if (refCount <= 0) return false;
 
         if (layerState != null) {
-            int layerIdx = tiledState.layerIndex[tiledRenderRef];
-
-            if (layerIdx < 0 || layerIdx >= layerState.enabled.length) {
-                return false;
-            }
-
-            if (!layerState.enabled[layerIdx]) {
+            int layerIdx = tiledState.visibleMapLayerIndex(groupIndex);
+            if (layerIdx < 0 || layerIdx >= layerState.enabled.length || !layerState.enabled[layerIdx]) {
                 return false;
             }
         }
-
         return true;
+    }
+
+    private void emitGameObjectBlocks(RenderCompositionList composition) {
+        if (hierarchySystem == null || compositionSystem == null) return;
+        GameObjectTopologyState topology = hierarchySystem.topology();
+        GameObjectCompositionState compositionState = compositionSystem.state();
+        IntArray traversal = topology.traversal;
+        for (int i = 0, n = traversal.size; i < n; i++) {
+            int rootEntityId = traversal.get(i);
+            if (!mGameObject.has(rootEntityId) || topology.parented[rootEntityId]) continue;
+            ensureRootCapacity(rootEntityId);
+            if (!rootsWithRenderWork[rootEntityId]) continue;
+            rootsWithRenderWork[rootEntityId] = false;
+            if (!compositionState.hierarchyVisible[rootEntityId]) continue;
+            EntityIndexComponent index = mEntityIndex.getSafe(rootEntityId, null);
+            PixscapeIdentityComponent identity = mIdentity.getSafe(rootEntityId, null);
+            if (index == null || identity == null) continue;
+            if (layerState != null && (index.layerIndex < 0
+                    || index.layerIndex >= layerState.enabled.length
+                    || !layerState.enabled[index.layerIndex])) {
+                continue;
+            }
+            long key = SortKey64.packOrdered(
+                    BlendMode.PASS_ORDERED, 0, 0, 0,
+                    index.layerIndex, index.zIndex, identity.stableId);
+            composition.add(RenderSourceDomain.SOURCE_GAME_OBJECT, rootEntityId, key);
+        }
+    }
+
+    private void ensureRootCapacity(int entityId) {
+        if (entityId < 0 || entityId < rootsWithRenderWork.length) return;
+        int next = rootsWithRenderWork.length;
+        while (next <= entityId) next <<= 1;
+        boolean[] expanded = new boolean[next];
+        System.arraycopy(rootsWithRenderWork, 0, expanded, 0, rootsWithRenderWork.length);
+        rootsWithRenderWork = expanded;
     }
 
     private boolean isRenderableVfxIndex(int index) {

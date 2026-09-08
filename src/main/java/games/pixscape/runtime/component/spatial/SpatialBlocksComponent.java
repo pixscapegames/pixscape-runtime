@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 
 /**
- * Passive authored rectangular walls owned by a tiled layer entity.
+ * Passive authored rectangular walls owned by a Tiled Map entity.
  *
  * <p>Walls use integer tiled-cell x/y coordinates and positive width/depth dimensions.
  * Projection to screen space is intentionally deferred to future systems that

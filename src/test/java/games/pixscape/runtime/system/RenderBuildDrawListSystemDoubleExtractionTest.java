@@ -206,6 +206,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             int ref = tiledState.registerRef();
             writeTiledRenderData(ref, sourceSlot);
             tiledState.addVisibleRef(ref);
+            tiledState.addVisibleMap(ref, state.layerIndex[sourceSlot], 0,
+                    state.sortKey[sourceSlot], tiledState.getVisibleRefCount() - 1, 1);
             return ref;
         }
 
@@ -214,6 +216,8 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             for (int i = 0; i < count; i++) {
                 writeTiledRenderData(refStart + i, startInclusive + i);
                 tiledState.addVisibleRef(refStart + i);
+                tiledState.addVisibleMap(refStart + i, state.layerIndex[startInclusive + i], 0,
+                        state.sortKey[startInclusive + i], tiledState.getVisibleRefCount() - 1, 1);
             }
             return refStart;
         }

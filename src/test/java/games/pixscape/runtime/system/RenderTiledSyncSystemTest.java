@@ -1,16 +1,25 @@
 package games.pixscape.runtime.system;
 
+import com.artemis.Aspect;
 import com.artemis.Entity;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerParallaxDisplayOffsetResolver;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasAssetBinding;
@@ -25,6 +34,23 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+
+    private static final DisplayOffsetResolverCreator RUNTIME_DISPLAY_OFFSETS =
+            new DisplayOffsetResolverCreator() {
+                @Override
+                public LayerDisplayOffsetResolver create(LayerStateSOA layerState,
+                                                         OrthographicCamera camera) {
+                    return new LayerParallaxDisplayOffsetResolver(layerState, camera);
+                }
+            };
+    private static final DisplayOffsetResolverCreator AUTHORED_DISPLAY_OFFSETS =
+            new DisplayOffsetResolverCreator() {
+                @Override
+                public LayerDisplayOffsetResolver create(LayerStateSOA layerState,
+                                                         OrthographicCamera camera) {
+                    return new IdentityLayerDisplayOffsetResolver();
+                }
+            };
 
     @BeforeClass
     public static void loadNatives() {
@@ -51,6 +77,75 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
         Assert.assertEquals(compilations,
                 fixture.tiledSync.persistentChunkCompilationCount());
+    }
+
+    @Test
+    public void visibleRefsFromMultipleChunksPublishOneContiguousMapGroup() {
+        Fixture fixture = createTwoChunksFixture();
+        fixture.camera.viewportWidth = 64f;
+        fixture.camera.position.set(32f, 16f, 0f);
+        fixture.camera.update();
+
+        fixture.world.process();
+
+        Assert.assertEquals(2, fixture.drawList.size);
+        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(0, fixture.tiledState.visibleMapRefStart(0));
+        Assert.assertEquals(2, fixture.tiledState.visibleMapRefCount(0));
+        Assert.assertEquals(onlyMapEntity(fixture.world),
+                fixture.tiledState.visibleMapEntityId(0));
+    }
+
+    @Test
+    public void mapZChangeUpdatesOnlyGroupOrderAndDoesNotRecompileChunks() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.process();
+        int mapEntity = onlyMapEntity(fixture.world);
+        int compilations = fixture.tiledSync.persistentChunkCompilationCount();
+        int firstRef = fixture.tiledState.getVisibleRefs()[0];
+        long internalKey = fixture.tiledState.sortKey[firstRef];
+
+        fixture.world.getMapper(EntityIndexComponent.class).get(mapEntity).zIndex = 25;
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(mapEntity, fixture.tiledState.visibleMapEntityId(0));
+        Assert.assertEquals(25, fixture.tiledState.visibleMapZIndex(0));
+        Assert.assertEquals(25, SortKey64.unpackZOrdered(
+                fixture.tiledState.visibleMapCompositionKey(0)));
+        Assert.assertEquals(internalKey, fixture.tiledState.sortKey[firstRef]);
+        Assert.assertEquals(compilations, fixture.tiledSync.persistentChunkCompilationCount());
+    }
+
+    @Test
+    public void mapCompositionAcceptsExactZBoundaries() {
+        Fixture fixture = createSingleChunkFixture();
+        int mapEntity = onlyMapEntity(fixture.world);
+        EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(mapEntity);
+
+        index.zIndex = SortKey64.MIN_Z;
+        fixture.world.process();
+        Assert.assertEquals(SortKey64.MIN_Z, fixture.tiledState.visibleMapZIndex(0));
+
+        index.zIndex = SortKey64.MAX_Z;
+        fixture.world.process();
+        Assert.assertEquals(SortKey64.MAX_Z, fixture.tiledState.visibleMapZIndex(0));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void mapCompositionRejectsZBelowSupportedRange() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .get(onlyMapEntity(fixture.world)).zIndex = SortKey64.MIN_Z - 1;
+        fixture.world.process();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void mapCompositionRejectsZAboveSupportedRange() {
+        Fixture fixture = createSingleChunkFixture();
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .get(onlyMapEntity(fixture.world)).zIndex = SortKey64.MAX_Z + 1;
+        fixture.world.process();
     }
 
     @Test
@@ -425,29 +520,34 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))                .build());
+                .with(
+                        tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList)
+                )
+                .build());
 
         Entity layerA = world.createEntity();
         LayerComponent layerCompA = layerA.edit().create(LayerComponent.class);
-        layerCompA.type = LayerComponent.TYPE_TILED;
         layerCompA.layerIndex = 0;
-        TiledLayerComponent tiledA = layerA.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiledA = createTiledMapEntity(world, layerCompA.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiledA.atlasTag = "main";
         tiledA.data = new TiledMapLayerData(4, 2, 16, 16, 2);
         tiledA.data.setTile(0, 0, 1);
 
         Entity layerB = world.createEntity();
         LayerComponent layerCompB = layerB.edit().create(LayerComponent.class);
-        layerCompB.type = LayerComponent.TYPE_TILED;
         layerCompB.layerIndex = 1;
-        TiledLayerComponent tiledB = layerB.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiledB = createTiledMapEntity(world, layerCompB.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiledB.atlasTag = "main";
         tiledB.data = new TiledMapLayerData(4, 2, 16, 16, 2);
         tiledB.data.originX = 128f;
@@ -472,10 +572,229 @@ public class RenderTiledSyncSystemTest {
     }
 
     @Test
+    public void unitParallaxPreservesAuthoredOrthogonalCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                1f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                64f,
+                0f,
+                64f,
+                16f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(64f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(0f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void farParallaxUsesInverseDisplayOffsetForOrthogonalChunkAndTileCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                60f,
+                16f
+        );
+
+        fixture.world.process();
+        Assert.assertEquals("Rendered Map overlaps the display viewport", 1,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(-60f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Moving left moves the far Map out of the display viewport", 0,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(60f, 16f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Moving right restores the same clean chunk", 1,
+                fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals("Culling must not mutate the authored Map origin", 0f,
+                fixture.firstMap.originX, 0f);
+    }
+
+    @Test
+    public void tiledExtractionAndCullingShareTheExactDisplayOffsetAuthority() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1.75f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                64f,
+                60f,
+                40f
+        );
+
+        fixture.world.process();
+
+        Vector2 expectedOffset = new Vector2();
+        fixture.displayOffsetResolver.resolveLayer(0, expectedOffset);
+        int ref = fixture.tiledState.getVisibleRefs()[0];
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(fixture.tiledState.x1[ref] + expectedOffset.x,
+                fixture.frameQueue.x1[0], 0.0001f);
+        Assert.assertEquals(fixture.tiledState.y1[ref] + expectedOffset.y,
+                fixture.frameQueue.y1[0], 0.0001f);
+    }
+
+    @Test
+    public void parallaxCullingUsesTheZoomedDisplayViewport() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                50f,
+                0f,
+                100f,
+                16f
+        );
+        fixture.camera.zoom = 2f;
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+    }
+
+    @Test
+    public void asymmetricParallaxUsesBothAxesForChunkAndTileCulling() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .25f,
+                1.75f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                64f,
+                80f,
+                40f
+        );
+
+        fixture.world.process();
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(80f, -40f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("Y display offset must participate independently", 0,
+                fixture.tiledState.getVisibleRefCount());
+
+        fixture.camera.position.set(-80f, 40f, 0f);
+        fixture.world.process();
+        Assert.assertEquals("X display offset must participate independently", 0,
+                fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(0f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(64f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void extremeParallaxFactorsKeepVisibleOrthogonalMapsInTheirDisplayRange() {
+        float[] factors = {.1f, .5f, 1f, 2f, 3f};
+        for (float factor : factors) {
+            ParallaxFixture fixture = createParallaxFixture(
+                    games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                    factor,
+                    1f,
+                    RUNTIME_DISPLAY_OFFSETS,
+                    50f * factor,
+                    0f,
+                    50f,
+                    16f
+            );
+
+            fixture.world.process();
+
+            Assert.assertEquals("factor=" + factor, 1, fixture.tiledState.getVisibleRefCount());
+        }
+    }
+
+    @Test
+    public void isometricCullingUsesTheSameInverseDisplayOffsetWithoutChangingProjectionOrder() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
+                2f,
+                2f,
+                RUNTIME_DISPLAY_OFFSETS,
+                64f,
+                64f,
+                30f,
+                30f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(1, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(1, fixture.drawList.size);
+        Assert.assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO,
+                fixture.firstMap.projection);
+        Assert.assertEquals(64f, fixture.firstMap.originX, 0f);
+        Assert.assertEquals(64f, fixture.firstMap.originY, 0f);
+    }
+
+    @Test
+    public void mapsUseTheirOwnLayerDisplayOffsetsAndSameLayerMapsStayIndependent() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                RUNTIME_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                50f,
+                16f
+        );
+        TiledMapLayerData sameLayerMap = addParallaxMap(
+                fixture.world, 0, 16f, 0f,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO);
+        fixture.layerState.enabled[1] = true;
+        fixture.layerState.parallaxX[1] = 2f;
+        fixture.layerState.parallaxY[1] = 1f;
+        TiledMapLayerData otherLayerMap = addParallaxMap(
+                fixture.world, 1, 96f, 0f,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO);
+
+        fixture.world.process();
+
+        Assert.assertEquals(3, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(3, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(3, fixture.drawList.size);
+        Assert.assertEquals(16f, sameLayerMap.originX, 0f);
+        Assert.assertEquals(96f, otherLayerMap.originX, 0f);
+    }
+
+    @Test
+    public void identityDisplayOffsetsRetainAuthoredMapCullingForAuthoringWorlds() {
+        ParallaxFixture fixture = createParallaxFixture(
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
+                .5f,
+                1f,
+                AUTHORED_DISPLAY_OFFSETS,
+                0f,
+                0f,
+                50f,
+                16f
+        );
+
+        fixture.world.process();
+
+        Assert.assertEquals(0, fixture.tiledState.getVisibleRefCount());
+        Assert.assertEquals(0, fixture.drawList.size);
+    }
+
+    @Test
     public void missingProfileDisablesTileWithoutCrash() {
         Fixture fixture = createProfilePlacementFixture(
                 RuntimeTilesetProfiles.empty(),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                 64,
                 32,
                 64,
@@ -500,11 +819,11 @@ public class RenderTiledSyncSystemTest {
                 32,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO
         ));
         Fixture fixture = createProfilePlacementFixture(
                 profiles,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                 64,
                 32,
                 64,
@@ -529,11 +848,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -558,11 +877,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -591,11 +910,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 10,
                 -20,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -620,11 +939,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(unrelatedProfile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -650,11 +969,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -683,11 +1002,11 @@ public class RenderTiledSyncSystemTest {
                 128,
                 0,
                 0,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO
+                games.pixscape.runtime.tiled.TiledProjection.ISO
         );
         Fixture fixture = createProfilePlacementFixture(
                 profilesWith(profile),
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                games.pixscape.runtime.tiled.TiledProjection.ISO,
                 256,
                 128,
                 256,
@@ -734,7 +1053,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2,
                         3
@@ -744,16 +1063,17 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList)
                 )
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
@@ -788,7 +1108,7 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
@@ -797,16 +1117,17 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1)
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1),
+                        new RenderSortSystem(null, tiledState, drawList)
                 )
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 2, 16, 16, 2);
@@ -843,22 +1164,24 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(10, 10, 16, 16, 2);
@@ -889,22 +1212,24 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1,
                         2
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(4, 1, 16, 16, 4);
@@ -935,21 +1260,23 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO,
+                        games.pixscape.runtime.tiled.TiledProjection.ORTHO,
                         1
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         tiled.data = new TiledMapLayerData(2, 2, 16, 16, 2);
 
@@ -976,23 +1303,25 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         16,
                         16,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        games.pixscape.runtime.tiled.TiledProjection.ISO,
                         1
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
+                games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(1, 1, 1);
         tiled.data = map;
 
@@ -1024,24 +1353,26 @@ public class RenderTiledSyncSystemTest {
                 topCenterProfiles(
                         64,
                         32,
-                        games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO,
+                        games.pixscape.runtime.tiled.TiledProjection.ISO,
                         1
                 )
         );
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
-                games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO);
+                games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
 
@@ -1049,7 +1380,7 @@ public class RenderTiledSyncSystemTest {
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
-                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         games.pixscape.runtime.tiled.TiledProjection projection,
                                                          int cellWidth,
                                                          int cellHeight,
                                                          int spriteWidth,
@@ -1073,7 +1404,7 @@ public class RenderTiledSyncSystemTest {
     }
 
     private static Fixture createProfilePlacementFixture(RuntimeTilesetProfiles profiles,
-                                                         games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                         games.pixscape.runtime.tiled.TiledProjection projection,
                                                          int cellWidth,
                                                          int cellHeight,
                                                          int spriteWidth,
@@ -1103,15 +1434,17 @@ public class RenderTiledSyncSystemTest {
                 profiles);
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(tiledSync, new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(tiledSync,
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList))
                 .build());
 
         Entity layerEntity = world.createEntity();
         LayerComponent layer = layerEntity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
 
-        TiledLayerComponent tiled = layerEntity.edit().create(TiledLayerComponent.class);
+        TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
+                .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
         TiledMapLayerData map = new TiledMapLayerData(1, 1, cellWidth, cellHeight, 1, projection);
@@ -1140,7 +1473,7 @@ public class RenderTiledSyncSystemTest {
                                                  int referenceCellHeight,
                                                  int offsetX,
                                                  int offsetY,
-                                                 games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
+                                                 games.pixscape.runtime.tiled.TiledProjection projection) {
         RuntimeTilesetProfile profile = new RuntimeTilesetProfile();
         profile.tilesetId = 1;
         profile.referenceCellWidth = referenceCellWidth;
@@ -1162,7 +1495,7 @@ public class RenderTiledSyncSystemTest {
 
     private static RuntimeTilesetProfiles topCenterProfiles(int referenceCellWidth,
                                                             int referenceCellHeight,
-                                                            games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection,
+                                                            games.pixscape.runtime.tiled.TiledProjection projection,
                                                             int... tileAssetIds) {
         RuntimeTilesetProfiles profiles = RuntimeTilesetProfiles.empty();
         for (int tileAssetId : tileAssetIds) {
@@ -1203,6 +1536,21 @@ public class RenderTiledSyncSystemTest {
         return ref;
     }
 
+    private static int onlyMapEntity(World world) {
+        IntBag maps = world.getAspectSubscriptionManager().get(
+                Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        Assert.assertEquals(1, maps.size());
+        return maps.get(0);
+    }
+
+    private static Entity createTiledMapEntity(World world, int layerIndex) {
+        Entity mapEntity = world.createEntity();
+        EntityIndexComponent index = mapEntity.edit().create(EntityIndexComponent.class);
+        index.layerIndex = layerIndex;
+        index.zIndex = 0;
+        return mapEntity;
+    }
+
     private static boolean containsVisibleRef(TiledMapRenderState state, int ref) {
         int[] refs = state.getVisibleRefs();
         for (int i = 0; i < state.getVisibleRefCount(); i++) {
@@ -1236,6 +1584,80 @@ public class RenderTiledSyncSystemTest {
         Assert.assertFalse("visual padding should be cached after processing", map.visualBoundsDirty);
     }
 
+    private static ParallaxFixture createParallaxFixture(
+            games.pixscape.runtime.tiled.TiledProjection projection,
+            float parallaxX,
+            float parallaxY,
+            DisplayOffsetResolverCreator displayOffsetResolverCreator,
+            float originX,
+            float originY,
+            float cameraX,
+            float cameraY) {
+        OrthographicCamera camera = new OrthographicCamera(32f, 32f);
+        camera.position.set(cameraX, cameraY, 0f);
+
+        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        FrameRenderQueue frameQueue = new FrameRenderQueue(16);
+        LayerStateSOA layerState = new LayerStateSOA(4);
+        layerState.enabled[0] = true;
+        layerState.parallaxX[0] = parallaxX;
+        layerState.parallaxY[0] = parallaxY;
+        LayerDisplayOffsetResolver displayOffsetResolver = displayOffsetResolverCreator.create(
+                layerState, camera);
+        DrawList drawList = new DrawList(32);
+        RenderStats stats = new RenderStats();
+        CountingAtlasRuntimeService atlas = new CountingAtlasRuntimeService();
+        RuntimeTilesetProfiles profiles = topCenterProfiles(16, 16, projection, 1);
+        RenderTiledSyncSystem tiledSync = new RenderTiledSyncSystem(
+                camera,
+                tiledState,
+                atlas,
+                7,
+                null,
+                profiles,
+                null,
+                displayOffsetResolver
+        );
+        World world = new World(new WorldConfigurationBuilder()
+                .with(
+                        tiledSync,
+                        new RenderBuildDrawListSystem(
+                                new DynamicEntityRenderState(16), tiledState, layerState,
+                                drawList, stats, 16, -1, -1),
+                        new RenderSortSystem(null, tiledState, drawList),
+                        new RenderExtractFrameQueueSystem(
+                                new DynamicEntityRenderState(16), tiledState, null,
+                                displayOffsetResolver, drawList, frameQueue, stats,
+                                16, -1, -1)
+                )
+                .build());
+
+        TiledMapLayerData firstMap = addParallaxMap(world, 0, originX, originY, projection);
+        return new ParallaxFixture(
+                world, camera, tiledState, drawList, frameQueue, layerState,
+                displayOffsetResolver, firstMap);
+    }
+
+    private static TiledMapLayerData addParallaxMap(World world,
+                                                     int layerIndex,
+                                                     float originX,
+                                                     float originY,
+                                                     games.pixscape.runtime.tiled.TiledProjection projection) {
+        TiledLayerComponent tiled = createTiledMapEntity(world, layerIndex)
+                .edit().create(TiledLayerComponent.class);
+        tiled.atlasTag = "main";
+        TiledMapLayerData map = new TiledMapLayerData(1, 1, 16, 16, 1, projection);
+        map.originX = originX;
+        map.originY = originY;
+        map.setTile(0, 0, 1);
+        tiled.data = map;
+        return map;
+    }
+
+    private interface DisplayOffsetResolverCreator {
+        LayerDisplayOffsetResolver create(LayerStateSOA layerState, OrthographicCamera camera);
+    }
+
     private static final class Fixture {
         final World world;
         final OrthographicCamera camera;
@@ -1262,6 +1684,35 @@ public class RenderTiledSyncSystemTest {
             this.map = map;
             this.tiledSync = tiledSync;
             this.stats = stats;
+        }
+    }
+
+    private static final class ParallaxFixture {
+        final World world;
+        final OrthographicCamera camera;
+        final TiledMapRenderState tiledState;
+        final DrawList drawList;
+        final FrameRenderQueue frameQueue;
+        final LayerStateSOA layerState;
+        final LayerDisplayOffsetResolver displayOffsetResolver;
+        final TiledMapLayerData firstMap;
+
+        private ParallaxFixture(World world,
+                                OrthographicCamera camera,
+                                TiledMapRenderState tiledState,
+                                DrawList drawList,
+                                FrameRenderQueue frameQueue,
+                                LayerStateSOA layerState,
+                                LayerDisplayOffsetResolver displayOffsetResolver,
+                                TiledMapLayerData firstMap) {
+            this.world = world;
+            this.camera = camera;
+            this.tiledState = tiledState;
+            this.drawList = drawList;
+            this.frameQueue = frameQueue;
+            this.layerState = layerState;
+            this.displayOffsetResolver = displayOffsetResolver;
+            this.firstMap = firstMap;
         }
     }
 

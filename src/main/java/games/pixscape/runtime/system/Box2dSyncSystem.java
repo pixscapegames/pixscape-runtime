@@ -1,6 +1,7 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.*;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
@@ -9,6 +10,7 @@ import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -19,7 +21,6 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
@@ -30,10 +31,12 @@ import java.util.Arrays;
  * {@code SUPPORTED_EXPERT} synchronization boundary from authored physics ECS state to native
  * Box2D state.
  *
- * <p>The Artemis components remain authoritative; native bodies, fixtures, and joints are derived
- * and may be rebuilt. Replacing or re-enabling the bound {@link Box2dWorldService} schedules the
- * required body/fixture bootstrap and joint rebuild before normal stepping. The system is
- * World-owned, phase-sensitive, and not thread-safe.</p>
+ * <p>In authoring mode, the authored ECS hierarchy owns native Body pose. In Runtime Physics mode,
+ * the native Body owns physical world pose and {@link GameObjectPhysicsWritebackSystem} reconstructs
+ * authored world/local transforms. Fixtures and Body definitions remain authored ECS state; native
+ * bodies and joints are derived resources that may be rebuilt. Replacing or re-enabling the bound
+ * {@link Box2dWorldService} schedules the required body/fixture bootstrap and joint rebuild before
+ * normal stepping. The system is World-owned, phase-sensitive, and not thread-safe.</p>
  */
 public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem {
     private static final float TRANSFORM_SYNC_EPSILON = 1e-6f;
@@ -43,6 +46,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
+    private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<PhysicsBodyComponent> mBodyDef;
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
     private ComponentMapper<PhysicsRuntimeBodyComponent> mRuntime;
@@ -62,6 +66,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
 
     private DirtyTrackerSystem dirty;
+    @SkipWire private GameObjectHierarchySystem hierarchy;
+    @SkipWire private PhysicsPoseAuthority poseAuthority;
 
     private EntitySubscription subWanted;   // T + Body
     private EntitySubscription subRuntime;  // RuntimeBody
@@ -132,6 +138,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     protected void initialize() {
         mT = world.getMapper(TransformComponent.class);
         mIdentity = world.getMapper(PixscapeIdentityComponent.class);
+        mTiled = world.getMapper(TiledLayerComponent.class);
         mBodyDef = world.getMapper(PhysicsBodyComponent.class);
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
         mRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
@@ -151,6 +158,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
 
         dirty = world.getSystem(DirtyTrackerSystem.class);
+        hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        poseAuthority = world.getSystem(PhysicsPoseAuthority.class);
 
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
 
@@ -318,7 +327,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             box2d.step(world.getDelta());
         }
 
-        // 7) Sync transform <-> body
+        // 7) Authoring owns native Body poses. Runtime-owned poses are reconstructed by the
+        // dedicated post-Physics hierarchy writeback phase, even while stepping is paused.
+        if (isRuntimePhysicsAuthoritative()) return;
         for (int i = 0, n = wanted.size(); i < n; i++) {
             int e = w[i];
             PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
@@ -327,48 +338,22 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             TransformComponent t = mT.get(e);
             if (t == null) continue;
 
-            if (stepEnabled) {
-                Vector2 p = rt.body.getPosition();
-                float nextX = box2d.mToPx(p.x);
-                float nextY = box2d.mToPx(p.y);
-                float nextRotation = rt.body.getAngle();
-                boolean positionChanged =
-                        Math.abs(t.x - nextX) > TRANSFORM_SYNC_EPSILON
-                                || Math.abs(t.y - nextY) > TRANSFORM_SYNC_EPSILON;
-                boolean rotationChanged =
-                        Math.abs(t.rotationRad - nextRotation)
-                                > TRANSFORM_SYNC_EPSILON;
-                if (positionChanged || rotationChanged) {
-                    int geometryMask = GeometryDirty.NONE;
-                    if (positionChanged) {
-                        t.x = nextX;
-                        t.y = nextY;
-                        geometryMask |= GeometryDirty.POSITION;
-                    }
-                    if (rotationChanged) {
-                        t.rotationRad = nextRotation;
-                        geometryMask |= GeometryDirty.ROTATION;
-                    }
-                    if (dirty != null) dirty.geometry(e, geometryMask);
-                }
-            } else {
-                float targetX = box2d.pxToM(t.x);
-                float targetY = box2d.pxToM(t.y);
-                float targetAngle = t.rotationRad;
+            float targetX = box2d.pxToM(authoredWorldX(e, t));
+            float targetY = box2d.pxToM(authoredWorldY(e, t));
+            float targetAngle = authoredWorldRotation(e, t);
 
-                Vector2 p = rt.body.getPosition();
-                boolean movedByAuthoring =
-                        Math.abs(p.x - targetX) > TRANSFORM_SYNC_EPSILON
-                                || Math.abs(p.y - targetY) > TRANSFORM_SYNC_EPSILON
-                                || Math.abs(rt.body.getAngle() - targetAngle)
-                                > TRANSFORM_SYNC_EPSILON;
+            Vector2 p = rt.body.getPosition();
+            boolean movedByAuthoring =
+                    Math.abs(p.x - targetX) > TRANSFORM_SYNC_EPSILON
+                            || Math.abs(p.y - targetY) > TRANSFORM_SYNC_EPSILON
+                            || Math.abs(rt.body.getAngle() - targetAngle)
+                            > TRANSFORM_SYNC_EPSILON;
 
-                if (movedByAuthoring) {
-                    rt.body.setTransform(targetX, targetY, targetAngle);
-                    rt.body.setAwake(true);
-                    refreshConnectedDistanceJointLengths(e);
-                    markJointsDirtyForBody(e);
-                }
+            if (movedByAuthoring) {
+                rt.body.setTransform(targetX, targetY, targetAngle);
+                rt.body.setAwake(true);
+                refreshConnectedDistanceJointLengths(e);
+                markJointsDirtyForBody(e);
             }
         }
     }
@@ -380,6 +365,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     public void prepareRuntimeAvailability() {
         setStepEnabled(false);
         setEnabled(true);
+        if (hierarchy != null) hierarchy.prepareRuntimeAvailability();
         processSystemInternal();
         if (fullRebuildPending || bootstrapStepPending) {
             throw new IllegalStateException("Box2D Runtime availability did not close.");
@@ -530,32 +516,32 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             PhysicsDistanceJointComponent dist = mJointDist.getSafe(jEid, null);
             if (dist == null) continue;
 
-            TransformComponent aT = mT.getSafe(base.aEid, null);
-            TransformComponent bT = mT.getSafe(base.bEid, null);
-            if (aT == null || bT == null) continue;
+            PhysicsRuntimeBodyComponent aRt = mRuntime.getSafe(base.aEid, null);
+            PhysicsRuntimeBodyComponent bRt = mRuntime.getSafe(base.bEid, null);
+            if (aRt == null || aRt.body == null || bRt == null || bRt.body == null) continue;
 
-            float ax = anchorWorldX(aT, base.anchorAx, base.anchorAy);
-            float ay = anchorWorldY(aT, base.anchorAx, base.anchorAy);
-            float bx = anchorWorldX(bT, base.anchorBx, base.anchorBy);
-            float by = anchorWorldY(bT, base.anchorBx, base.anchorBy);
+            float ax = anchorWorldX(aRt.body, base.anchorAx, base.anchorAy);
+            float ay = anchorWorldY(aRt.body, base.anchorAx, base.anchorAy);
+            float bx = anchorWorldX(bRt.body, base.anchorBx, base.anchorBy);
+            float by = anchorWorldY(bRt.body, base.anchorBx, base.anchorBy);
 
             float lenWU = Vector2.dst(ax, ay, bx, by);
             dist.lengthM = Math.max(0.001f, box2d.pxToM(lenWU));
         }
     }
 
-    private float anchorWorldX(TransformComponent t, float localAx, float localAy) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
+    private float anchorWorldX(Body body, float localAx, float localAy) {
+        float cos = MathUtils.cos(body.getAngle());
+        float sin = MathUtils.sin(body.getAngle());
         float rx_m = localAx * cos - localAy * sin;
-        return t.x + box2d.mToPx(rx_m);
+        return box2d.mToPx(body.getPosition().x + rx_m);
     }
 
-    private float anchorWorldY(TransformComponent t, float localAx, float localAy) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
+    private float anchorWorldY(Body body, float localAx, float localAy) {
+        float cos = MathUtils.cos(body.getAngle());
+        float sin = MathUtils.sin(body.getAngle());
         float ry_m = localAx * sin + localAy * cos;
-        return t.y + box2d.mToPx(ry_m);
+        return box2d.mToPx(body.getPosition().y + ry_m);
     }
 
     private void detachRuntimeJointsForBody(int bodyEid) {
@@ -580,7 +566,39 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private boolean isWantedEntity(int e) {
-        return hasAuthoredBody(e) && hasMaterializableCompiledCache(e);
+        return hasAuthoredBody(e)
+                && isTiledCollisionEnabled(e)
+                && hasMaterializableCompiledCache(e);
+    }
+
+    private boolean isRuntimePhysicsAuthoritative() {
+        return poseAuthority != null && poseAuthority.isRuntimePhysics();
+    }
+
+    private float authoredWorldX(int entityId, TransformComponent authored) {
+        if (hierarchy != null && hierarchy.worldTransforms().isResolved(entityId)) {
+            return hierarchy.worldTransforms().x[entityId];
+        }
+        return authored.x;
+    }
+
+    private float authoredWorldY(int entityId, TransformComponent authored) {
+        if (hierarchy != null && hierarchy.worldTransforms().isResolved(entityId)) {
+            return hierarchy.worldTransforms().y[entityId];
+        }
+        return authored.y;
+    }
+
+    private float authoredWorldRotation(int entityId, TransformComponent authored) {
+        if (hierarchy != null && hierarchy.worldTransforms().isResolved(entityId)) {
+            return hierarchy.worldTransforms().rotationRad[entityId];
+        }
+        return authored.rotationRad;
+    }
+
+    private boolean isTiledCollisionEnabled(int e) {
+        TiledLayerComponent tiled = mTiled.getSafe(e, null);
+        return tiled == null || tiled.data == null || tiled.data.collisionEnabled;
     }
 
     private boolean hasAuthoredBody(int e) {
@@ -629,10 +647,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         PhysicsCompiledFixturesComponent compiled = requireCompiledCache(e);
         if (testObserver != null) testObserver.onBodyRebuild();
-        Body candidateBody = createBodyFromCompiled(
-                e, compiled.fixtures, wakeForMutation);
-
         Body previousBody = rt.body;
+        float worldX = previousBody != null && isRuntimePhysicsAuthoritative()
+                ? box2d.mToPx(previousBody.getPosition().x)
+                : authoredWorldX(e, mT.get(e));
+        float worldY = previousBody != null && isRuntimePhysicsAuthoritative()
+                ? box2d.mToPx(previousBody.getPosition().y)
+                : authoredWorldY(e, mT.get(e));
+        float worldRotation = previousBody != null && isRuntimePhysicsAuthoritative()
+                ? previousBody.getAngle()
+                : authoredWorldRotation(e, mT.get(e));
+        Body candidateBody = createBodyFromCompiled(
+                e, compiled.fixtures, wakeForMutation, worldX, worldY, worldRotation);
+
         if (previousBody != null) {
             detachRuntimeJointsForBody(e);
             box2d.world.destroyBody(previousBody);
@@ -698,21 +725,23 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private Body createBodyFromCompiled(
             int e,
             Array<CompiledFixtureData> fixtures,
-            boolean wakeForMutation) {
+            boolean wakeForMutation,
+            float worldX,
+            float worldY,
+            float worldRotation) {
         if (box2d == null || box2d.world == null) return null;
         if (!isWantedEntity(e)) return null;
 
-        TransformComponent t = mT.get(e);
         PhysicsBodyComponent bd = mBodyDef.get(e);
-        if (t == null || bd == null || fixtures == null) return null;
+        if (bd == null || fixtures == null) return null;
 
         BodyDef def = new BodyDef();
         def.type = (bd.type == 0) ? BodyDef.BodyType.StaticBody
                 : (bd.type == 1) ? BodyDef.BodyType.KinematicBody
                 : BodyDef.BodyType.DynamicBody;
 
-        def.position.set(box2d.pxToM(t.x), box2d.pxToM(t.y));
-        def.angle = t.rotationRad;
+        def.position.set(box2d.pxToM(worldX), box2d.pxToM(worldY));
+        def.angle = worldRotation;
         def.fixedRotation = bd.fixedRotation;
         def.bullet = bd.bullet;
         def.allowSleep = box2d.isDoSleep() && bd.allowSleep;

@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-/** Mutable runtime caches owned by one tiled-layer entity. */
+/** Mutable runtime caches owned by one Tiled Map entity. */
 public final class SpatialLayerFaceRuntime {
     public int layerEntity = -1;
     public final SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();

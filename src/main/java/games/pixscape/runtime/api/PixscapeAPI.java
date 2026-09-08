@@ -10,7 +10,7 @@ public interface PixscapeAPI {
     EntitiesAPI entities();
 
     /**
-     * Runtime tiled layer access and tile animation APIs.
+     * Runtime Tiled Map access and tile animation APIs.
      */
     TiledAPI tiled();
 
@@ -55,7 +55,7 @@ public interface PixscapeAPI {
     PhysicsAPI physics();
 
     /**
-     * Prefab spawning API.
+     * GameObject spawning API.
      */
-    PrefabsAPI prefabs();
+    GameObjectsAPI gameObjects();
 }

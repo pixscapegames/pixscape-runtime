@@ -1,10 +1,45 @@
 package games.pixscape.runtime.tiled;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TiledMapLayerDataTest {
+
+    @Test
+    public void authoredConfigurationsBuildIndependentMapData() {
+        TiledLayerComponent iso = configuredMap(
+                TiledProjection.ISO, 64, 32, 12, 10, 32, 5f, 7f);
+        TiledLayerComponent ortho = configuredMap(
+                TiledProjection.ORTHO, 32, 32, 7, 9, 8, -3f, 11f);
+
+        TiledMapLayerData isoData = iso.createMapData();
+        TiledMapLayerData orthoData = ortho.createMapData();
+
+        Assert.assertEquals(TiledProjection.ISO, isoData.projection);
+        Assert.assertEquals(64, isoData.tileWidth);
+        Assert.assertEquals(32, isoData.tileHeight);
+        Assert.assertEquals(32, isoData.chunkSize);
+        Assert.assertEquals(12, isoData.mapWidth);
+        Assert.assertEquals(10, isoData.mapHeight);
+        Assert.assertEquals(5f, isoData.originX, 0f);
+        Assert.assertEquals(7f, isoData.originY, 0f);
+
+        Assert.assertEquals(TiledProjection.ORTHO, orthoData.projection);
+        Assert.assertEquals(32, orthoData.tileWidth);
+        Assert.assertEquals(32, orthoData.tileHeight);
+        Assert.assertEquals(8, orthoData.chunkSize);
+        Assert.assertEquals(7, orthoData.mapWidth);
+        Assert.assertEquals(9, orthoData.mapHeight);
+        Assert.assertEquals(-3f, orthoData.originX, 0f);
+        Assert.assertEquals(11f, orthoData.originY, 0f);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void missingAuthoredConfigurationDoesNotFallBack() {
+        new TiledLayerComponent().createMapData();
+    }
 
     @Test
     public void atomicCandidateIsReadableWithoutPublishingRevisionOrDirtyState() {
@@ -89,7 +124,7 @@ public class TiledMapLayerDataTest {
                 90,
                 30,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         map.originX = 10f;
         map.originY = 20f;
@@ -106,7 +141,7 @@ public class TiledMapLayerDataTest {
                 70,
                 22,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         map.originX = -13f;
         map.originY = 5f;
@@ -128,7 +163,7 @@ public class TiledMapLayerDataTest {
                 64,
                 32,
                 4,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         map.originX = -128f;
         map.originY = 256f;
@@ -155,6 +190,27 @@ public class TiledMapLayerDataTest {
         }
         map.visualBoundsDirty = false;
         return map;
+    }
+
+    private static TiledLayerComponent configuredMap(
+            TiledProjection projection,
+            int tileWidth,
+            int tileHeight,
+            int mapWidth,
+            int mapHeight,
+            int chunkSize,
+            float originX,
+            float originY) {
+        TiledLayerComponent tiled = new TiledLayerComponent();
+        tiled.projection = projection;
+        tiled.tileWidth = tileWidth;
+        tiled.tileHeight = tileHeight;
+        tiled.mapWidthCells = mapWidth;
+        tiled.mapHeightCells = mapHeight;
+        tiled.chunkSize = chunkSize;
+        tiled.originX = originX;
+        tiled.originY = originY;
+        return tiled;
     }
 
     private static void resetChunkDirtyState(TileChunk chunk) {

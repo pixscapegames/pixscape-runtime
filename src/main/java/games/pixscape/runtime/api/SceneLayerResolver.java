@@ -7,6 +7,7 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 
@@ -23,6 +24,7 @@ final class SceneLayerResolver {
     private EntitySubscription subscription;
     private EntitySubscription.SubscriptionListener listener;
     private final IntMap<IntArray> byLayerIndex = new IntMap<IntArray>();
+    private final IntSet layerEntityIds = new IntSet();
     private int lastSpatialLookupVisitCount;
 
     public void bind(World world) {
@@ -35,6 +37,7 @@ final class SceneLayerResolver {
         subscription = null;
         listener = null;
         byLayerIndex.clear();
+        layerEntityIds.clear();
         if (world == null) return;
 
         layers = world.getMapper(LayerComponent.class);
@@ -62,6 +65,7 @@ final class SceneLayerResolver {
 
     public void rebuild() {
         byLayerIndex.clear();
+        layerEntityIds.clear();
         if (world == null || subscription == null) return;
         IntBag entities = subscription.getEntities();
         int[] data = entities.getData();
@@ -87,6 +91,10 @@ final class SceneLayerResolver {
         return matches.get(0);
     }
 
+    boolean isLayerEntityId(int entityId) {
+        return entityId >= 0 && layerEntityIds.contains(entityId);
+    }
+
     boolean isLayerSpatialEnabled(int layerIndex) {
         IntArray matches = byLayerIndex.get(layerIndex);
         lastSpatialLookupVisitCount = 0;
@@ -106,9 +114,7 @@ final class SceneLayerResolver {
         for (int i = 0, n = matches.size; i < n; i++) {
             lastSpatialLookupVisitCount++;
             LayerComponent layer = layers.getSafe(matches.get(i), null);
-            if (layer != null
-                    && layer.type != LayerComponent.TYPE_TILED
-                    && layer.spatialEnabled) {
+            if (layer != null && layer.spatialEnabled) {
                 return true;
             }
         }
@@ -137,10 +143,12 @@ final class SceneLayerResolver {
         if (world == null || !world.getEntityManager().isActive(entityId)) return;
         LayerComponent layer = layers.getSafe(entityId, null);
         if (layer == null) return;
+        layerEntityIds.add(entityId);
         add(byLayerIndex, layer.layerIndex, entityId);
     }
 
     private void unindex(int entityId) {
+        layerEntityIds.remove(entityId);
         removeEntity(byLayerIndex, entityId);
     }
 

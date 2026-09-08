@@ -10,18 +10,20 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -40,17 +42,18 @@ import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 
-@All({LayerComponent.class, TiledLayerComponent.class})
-@Exclude(EntityIndexComponent.class)
+@All({EntityIndexComponent.class, TiledLayerComponent.class})
+@Exclude(LayerComponent.class)
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
 
     private static final int CHUNK_OUTSIDE = 0;
     private static final int CHUNK_FULLY_INSIDE = 1;
     private static final int CHUNK_PARTIAL = 2;
 
-    private ComponentMapper<LayerComponent> mLayer;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -61,11 +64,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private final int defaultShaderIdx;
     private final RuntimeTilesetProfiles tilesetProfiles;
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
     private SpatialTileOrderCache currentTileOrder;
-    private int currentLayerEntity = -1;
+    private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
 
     private final Rectangle viewBounds = new Rectangle();
+    private final Rectangle mapViewBounds = new Rectangle();
+    private final Vector2 mapDisplayOffset = new Vector2();
     private final float[] tmpQuad = new float[8];
     private final float[] tmpSpriteBounds = new float[4];
     private final int[] tmpWindow = new int[4];
@@ -93,7 +99,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 defaultShaderIdx,
                 null,
                 null,
-                null
+                null,
+                new IdentityLayerDisplayOffsetResolver()
         );
     }
 
@@ -109,7 +116,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 defaultShaderIdx,
                 tileAnimationLookup,
                 null,
-                null
+                null,
+                new IdentityLayerDisplayOffsetResolver()
         );
     }
 
@@ -120,7 +128,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                  TileAnimationLookup tileAnimationLookup,
                                  RuntimeTilesetProfiles tilesetProfiles) {
         this(camera, tiledState, atlasRuntimeService, defaultShaderIdx, tileAnimationLookup,
-                tilesetProfiles, null);
+                tilesetProfiles, null, new IdentityLayerDisplayOffsetResolver());
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
@@ -130,6 +138,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                  TileAnimationLookup tileAnimationLookup,
                                  RuntimeTilesetProfiles tilesetProfiles,
                                  SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
+        this(camera, tiledState, atlasRuntimeService, defaultShaderIdx, tileAnimationLookup,
+                tilesetProfiles, spatialRuntimeRegistry, new IdentityLayerDisplayOffsetResolver());
+    }
+
+    public RenderTiledSyncSystem(OrthographicCamera camera,
+                                 TiledMapRenderState tiledState,
+                                 AtlasRuntimeService atlasRuntimeService,
+                                 int defaultShaderIdx,
+                                 TileAnimationLookup tileAnimationLookup,
+                                 RuntimeTilesetProfiles tilesetProfiles,
+                                 SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+                                 LayerDisplayOffsetResolver displayOffsetResolver) {
 
         this.camera = camera;
         this.tiledState = tiledState;
@@ -139,6 +159,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         this.tilesetProfiles = tilesetProfiles != null ? tilesetProfiles : RuntimeTilesetProfiles.empty();
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -159,17 +180,15 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     @Override
     protected void process(int e) {
-        LayerComponent layer = mLayer.get(e);
-        if (layer.type != LayerComponent.TYPE_TILED) return;
-
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) return;
+        EntityIndexComponent index = mEntityIndex.get(e);
 
         TiledMapLayerData map = tiled.data;
         currentTileOrder = null;
-        currentLayerEntity = e;
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO
-                && (layer.spatialEnabled || tiled.spatialEnabled || map.spatialEnabled)) {
+        currentMapEntity = e;
+        if (map.projection == TiledProjection.ISO
+                && (tiled.spatialEnabled || map.spatialEnabled)) {
             ensureAllChunkRenderRefs(map);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(e, null);
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
@@ -177,10 +196,13 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             runtime.projected.ensure(runtime.compiled, map);
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);
             currentTileOrder = runtime.tileOrder;
-            if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, layer.layerIndex, currentTileOrder);
+            if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, index.layerIndex, currentTileOrder);
         }
         if (!map.visible) return;
+        validateCompositionZ(e, index.zIndex);
+        int visibleRefStart = tiledState.getVisibleRefCount();
         refreshVisualPaddingIfDirty(map, tiled.atlasTag);
+        computeMapViewBounds(index.layerIndex);
         computeChunkWindow(map, tmpWindow);
         int currentMinCx = tmpWindow[0];
         int currentMaxCx = tmpWindow[1];
@@ -243,6 +265,36 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         map.previousChunkMaxX = currentMaxCx;
         map.previousChunkMinY = currentMinCy;
         map.previousChunkMaxY = currentMaxCy;
+
+        int visibleRefCount = tiledState.getVisibleRefCount() - visibleRefStart;
+        if (visibleRefCount > 0) {
+            // Texture handle zero is an explicit sentinel: tile materials are internal to the
+            // group and must not participate in global composition ordering.
+            long compositionKey = SortKey64.packForBlend(
+                    defaultShaderIdx,
+                    BlendMode.ALPHA.id,
+                    0,
+                    index.layerIndex,
+                    index.zIndex,
+                    e
+            );
+            tiledState.addVisibleMap(
+                    e,
+                    index.layerIndex,
+                    index.zIndex,
+                    compositionKey,
+                    visibleRefStart,
+                    visibleRefCount
+            );
+        }
+    }
+
+    private static void validateCompositionZ(int mapEntityId, int zIndex) {
+        if (zIndex < SortKey64.MIN_Z || zIndex > SortKey64.MAX_Z) {
+            throw new IllegalStateException("Tiled Map entity " + mapEntityId + " has zIndex "
+                    + zIndex + " outside supported render-order range [" + SortKey64.MIN_Z
+                    + ", " + SortKey64.MAX_Z + "].");
+        }
     }
 
     int getTestedChunkCount() {
@@ -276,23 +328,21 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     public void prepareRuntimeAvailability() {
         preparedPersistentChunkCount = 0;
         IntBag entities = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class)
-                        .exclude(EntityIndexComponent.class))
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class))
                 .getEntities();
         int[] data = entities.getData();
         for (int i = 0, n = entities.size(); i < n; i++) {
             int entityId = data[i];
-            LayerComponent layer = mLayer.get(entityId);
+            EntityIndexComponent index = mEntityIndex.get(entityId);
             TiledLayerComponent tiled = mTiled.get(entityId);
-            if (layer == null || layer.type != LayerComponent.TYPE_TILED
-                    || tiled == null || tiled.data == null) continue;
+            if (index == null || tiled == null || tiled.data == null) continue;
 
             TiledMapLayerData map = tiled.data;
-            currentLayerEntity = entityId;
+            currentMapEntity = entityId;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
-            if (map.projection == SceneMetaRuntime.TiledProjection.ISO
-                    && (layer.spatialEnabled || tiled.spatialEnabled || map.spatialEnabled)) {
+            if (map.projection == TiledProjection.ISO
+                    && (tiled.spatialEnabled || map.spatialEnabled)) {
                 SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entityId, null);
                 SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
                 runtime.compiled.ensure(blocks);
@@ -314,7 +364,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 preparedPersistentChunkCount++;
             }
             if (currentTileOrder != null && currentTileOrder.needsKeyRefresh()) {
-                refreshTileKeys(map, layer.layerIndex, currentTileOrder);
+                refreshTileKeys(map, index.layerIndex, currentTileOrder);
             }
         }
     }
@@ -334,7 +384,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         persistentChunkCompilationCount++;
 
-        int layerIndex = mLayer.get(entityId).layerIndex;
+        int layerIndex = mEntityIndex.get(entityId).layerIndex;
 
         for (int i = 0; i < chunk.dirtyLocalIndices.size; i++) {
 
@@ -387,6 +437,19 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         );
     }
 
+    private void computeMapViewBounds(int layerIndex) {
+        displayOffsetResolver.resolveLayer(layerIndex, mapDisplayOffset);
+        // Tile refs remain in authored map space until frame extraction shifts
+        // the atomic Map group into display space. Invert that one group offset
+        // once to query authored chunks against the display camera viewport.
+        mapViewBounds.set(
+                viewBounds.x - mapDisplayOffset.x,
+                viewBounds.y - mapDisplayOffset.y,
+                viewBounds.width,
+                viewBounds.height
+        );
+    }
+
     private void hideChunksOutsideCurrentWindow(TiledMapLayerData map,
                                                 int currentMinCx,
                                                 int currentMaxCx,
@@ -422,10 +485,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         int minTy = Integer.MAX_VALUE;
         int maxTy = Integer.MIN_VALUE;
 
-        float queryMinX = viewBounds.x - map.visualPaddingRight;
-        float queryMaxX = viewBounds.x + viewBounds.width + map.visualPaddingLeft;
-        float queryMinY = viewBounds.y - map.visualPaddingTop;
-        float queryMaxY = viewBounds.y + viewBounds.height + map.visualPaddingBottom;
+        float queryMinX = mapViewBounds.x - map.visualPaddingRight;
+        float queryMaxX = mapViewBounds.x + mapViewBounds.width + map.visualPaddingLeft;
+        float queryMinY = mapViewBounds.y - map.visualPaddingTop;
+        float queryMaxY = mapViewBounds.y + mapViewBounds.height + map.visualPaddingBottom;
 
         int tx = map.worldToTileX(queryMinX, queryMinY);
         int ty = map.worldToTileY(queryMinX, queryMinY);
@@ -570,10 +633,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             return CHUNK_OUTSIDE;
         }
 
-        float viewMinX = viewBounds.x;
-        float viewMinY = viewBounds.y;
-        float viewMaxX = viewBounds.x + viewBounds.width;
-        float viewMaxY = viewBounds.y + viewBounds.height;
+        float viewMinX = mapViewBounds.x;
+        float viewMinY = mapViewBounds.y;
+        float viewMaxX = mapViewBounds.x + mapViewBounds.width;
+        float viewMaxY = mapViewBounds.y + mapViewBounds.height;
 
         if (!boundsOverlap(
                 chunk.visualMinX,
@@ -611,10 +674,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         int count = chunk.getRenderableRefCount();
         tiledState.cullingRenderableRefsConsidered += count;
 
-        float viewMinX = viewBounds.x;
-        float viewMinY = viewBounds.y;
-        float viewMaxX = viewBounds.x + viewBounds.width;
-        float viewMaxY = viewBounds.y + viewBounds.height;
+        float viewMinX = mapViewBounds.x;
+        float viewMinY = mapViewBounds.y;
+        float viewMaxX = mapViewBounds.x + mapViewBounds.width;
+        float viewMaxY = mapViewBounds.y + mapViewBounds.height;
 
         for (int i = 0; i < count; i++) {
             int ref = chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i);
@@ -696,7 +759,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         persistentChunkCompilationCount++;
 
-        int layerIndex = mLayer.get(entityId).layerIndex;
+        int layerIndex = mEntityIndex.get(entityId).layerIndex;
 
         chunk.clearRenderableRefs();
 
@@ -793,7 +856,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         // Tiled-compatible isometric depth: farther cells must render first,
         // so depth is the negative diagonal index.
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+        if (map.projection == TiledProjection.ISO) {
             z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
         }
@@ -897,14 +960,13 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                                                   String lookupState) {
         int chunkX = map.chunkSize > 0 ? gx / map.chunkSize : -1;
         int chunkY = map.chunkSize > 0 ? gy / map.chunkSize : -1;
-        PixscapeIdentityComponent identity = mIdentity.getSafe(currentLayerEntity, null);
+        PixscapeIdentityComponent identity = mIdentity.getSafe(currentMapEntity, null);
         String layerName = identity != null && identity.name != null ? identity.name : "<unnamed>";
         int owner = currentTileOrder != null ? currentTileOrder.ownerBlockId(gx, gy) : 0;
         int anchor = currentTileOrder != null ? currentTileOrder.anchorStructureId(gx, gy) : 0;
-        boolean spatialLayer = mLayer.get(currentLayerEntity).spatialEnabled
-                || mTiled.get(currentLayerEntity).spatialEnabled || map.spatialEnabled;
+        boolean spatialLayer = mTiled.get(currentMapEntity).spatialEnabled || map.spatialEnabled;
         return new SpatialTileSyncInvariantException("Spatial tiled sync could not resolve canonical rank: cell=("
-                + gx + "," + gy + "), layerEntity=" + currentLayerEntity + ", layerName=" + layerName
+                + gx + "," + gy + "), mapEntity=" + currentMapEntity + ", mapName=" + layerName
                 + ", layerIndex=" + layerIndex + ", chunk=(" + chunkX + "," + chunkY + ")"
                 + ", tileAssetId=" + assetId + ", spatialLayer=" + spatialLayer
                 + ", projection=" + map.projection + ", mapRevision=" + map.contentStateRevision()

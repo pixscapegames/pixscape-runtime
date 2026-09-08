@@ -60,6 +60,9 @@ public final class PhysicsGeometryData {
                             physicsShapeId,
                             "polygonVertices is smaller than polygonVertexCount.");
                 }
+                for (int i = 0; i < polygonVertexCount * 2; i++) {
+                    validateFinite(physicsShapeId, polygonVertices[i], "polygonVertices[" + i + "]");
+                }
                 break;
             default:
                 throw invalid(physicsShapeId, "unsupported shapeType " + shapeType + ".");

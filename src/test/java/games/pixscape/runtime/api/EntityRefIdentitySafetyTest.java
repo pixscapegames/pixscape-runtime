@@ -115,7 +115,7 @@ public class EntityRefIdentitySafetyTest {
             ParticleFacade oldParticles = oldEntity.particles();
             ShaderFacade oldShader = oldEntity.shader();
             RenderOrderFacade oldRenderOrder = oldEntity.renderOrder();
-            TiledLayerRef oldTiled = engine.api().tiled().requireEntityId(first);
+            TiledMapRef oldTiled = engine.api().tiled().requireEntityId(first);
 
             world.delete(first);
             world.process();
@@ -157,7 +157,7 @@ public class EntityRefIdentitySafetyTest {
             Assert.assertTrue(world.getEntityManager().isActive(replacement));
 
             EntityRef freshEntity = engine.api().entities().ofEntityId(replacement);
-            TiledLayerRef freshTiled = engine.api().tiled().ofEntityId(replacement);
+            TiledMapRef freshTiled = engine.api().tiled().ofEntityId(replacement);
             Assert.assertTrue(freshEntity.exists());
             Assert.assertTrue(freshTiled.exists());
             Assert.assertEquals(4, freshTiled.map().width());

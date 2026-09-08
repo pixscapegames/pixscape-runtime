@@ -3,7 +3,7 @@ package games.pixscape.runtime.api;
 /**
  * Global animated tile definition registry.
  *
- * <p>Definitions are keyed by animated tile asset id and shared by all tiled layers/cells.</p>
+ * <p>Definitions are keyed by animated tile asset id and shared by all Tiled Maps and cells.</p>
  */
 public interface TiledAnimationsAPI {
     /**
@@ -32,7 +32,7 @@ public interface TiledAnimationsAPI {
      * Registers or replaces an animated tile definition.
      *
      * <p>The {@code animatedTileAssetId} and all frame asset ids are runtime asset ids. They should
-     * be included in Runtime Availability so the tiled layer can render every frame in the current
+     * be included in Runtime Availability so the Tiled Map can render every frame in the current
      * scene atlas.</p>
      *
      * @param animatedTileAssetId asset id used by map cells to reference the animation

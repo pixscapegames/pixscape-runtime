@@ -2,12 +2,110 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class RenderExtractFrameQueueSystemTest {
+
+    @Test
+    public void canKeepTiledAndParticleQuadsInAuthoredCoordinatesForAnAuthoringWorld() {
+        DynamicEntityRenderState ecsState = new DynamicEntityRenderState(1);
+        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        VfxRenderState vfxState = new VfxRenderState(1);
+        DrawList drawList = new DrawList(2);
+        FrameRenderQueue queue = new FrameRenderQueue(2);
+        LayerStateSOA layers = new LayerStateSOA(2);
+        layers.enabled[1] = true;
+        layers.parallaxX[1] = .2f;
+        layers.parallaxY[1] = .3f;
+        OrthographicCamera camera = new OrthographicCamera();
+        camera.position.set(100f, 200f, 0f);
+        int tiledRef = tiledState.registerRef();
+        writeTiled(tiledState, tiledRef, 10);
+        tiledState.layerIndex[tiledRef] = 1;
+        writeVfx(vfxState, 20);
+        vfxState.layerIndex[0] = 1;
+        drawList.addTiledSlot(tiledRef);
+        drawList.addVfxSlot(0);
+
+        World world = new World(new WorldConfigurationBuilder().with(
+                new RenderExtractFrameQueueSystem(
+                        ecsState, tiledState, vfxState, new IdentityLayerDisplayOffsetResolver(),
+                        drawList, queue, new RenderStats(), 1, 0, 1)).build());
+        world.process();
+
+        Assert.assertEquals(10.1f, queue.x1[0], 0f);
+        Assert.assertEquals(10.2f, queue.y1[0], 0f);
+        Assert.assertEquals(20.1f, queue.x1[1], 0f);
+        Assert.assertEquals(20.2f, queue.y1[1], 0f);
+    }
+
+    @Test
+    public void appliesOwningLayerParallaxToTiledAndParticleQuadsOnlyAtDisplayExtraction() {
+        DynamicEntityRenderState ecsState = new DynamicEntityRenderState(2);
+        TiledMapRenderState tiledState = new TiledMapRenderState(4);
+        VfxRenderState vfxState = new VfxRenderState(4);
+        DrawList drawList = new DrawList(8);
+        FrameRenderQueue queue = new FrameRenderQueue(8);
+        LayerStateSOA layers = new LayerStateSOA(3);
+        layers.enabled[1] = true;
+        layers.parallaxX[1] = 0.5f;
+        layers.parallaxY[1] = 2f;
+        layers.enabled[2] = true;
+        layers.parallaxX[2] = 1f;
+        layers.parallaxY[2] = 1f;
+        OrthographicCamera camera = new OrthographicCamera();
+        camera.position.set(20f, 10f, 0f);
+
+        int firstLayerOneRef = tiledState.registerRef();
+        int secondLayerOneRef = tiledState.registerRef();
+        int layerTwoRef = tiledState.registerRef();
+        writeTiled(tiledState, firstLayerOneRef, 10);
+        writeTiled(tiledState, secondLayerOneRef, 20);
+        writeTiled(tiledState, layerTwoRef, 30);
+        tiledState.layerIndex[firstLayerOneRef] = 1;
+        tiledState.layerIndex[secondLayerOneRef] = 1;
+        tiledState.layerIndex[layerTwoRef] = 2;
+        writeVfx(vfxState, 30);
+        writeVfx(vfxState, 40);
+        vfxState.layerIndex[0] = 1;
+        vfxState.layerIndex[1] = 2;
+        drawList.addTiledSlot(firstLayerOneRef);
+        drawList.addTiledSlot(secondLayerOneRef);
+        drawList.addTiledSlot(layerTwoRef);
+        drawList.addVfxSlot(0);
+        drawList.addVfxSlot(1);
+
+        World world = new World(new WorldConfigurationBuilder().with(
+                new RenderExtractFrameQueueSystem(
+                        ecsState, tiledState, vfxState, layers, camera,
+                        drawList, queue, new RenderStats(), 2, 0, 4)).build());
+        world.process();
+
+        Assert.assertEquals(20.1f, queue.x1[0], 0.0001f);
+        Assert.assertEquals(0.2f, queue.y1[0], 0.0001f);
+        Assert.assertEquals(30.1f, queue.x1[1], 0.0001f);
+        Assert.assertEquals(10.2f, queue.y1[1], 0.0001f);
+        Assert.assertEquals(30.1f, queue.x1[2], 0.0001f);
+        Assert.assertEquals(30.2f, queue.y1[2], 0.0001f);
+        Assert.assertEquals(40.1f, queue.x1[3], 0.0001f);
+        Assert.assertEquals(20.2f, queue.y1[3], 0.0001f);
+        Assert.assertEquals(40.1f, queue.x1[4], 0.0001f);
+        Assert.assertEquals(40.2f, queue.y1[4], 0.0001f);
+        Assert.assertEquals(FrameRenderQueue.SOURCE_TILED, queue.sourceDomain[0]);
+        Assert.assertEquals(FrameRenderQueue.SOURCE_TILED, queue.sourceDomain[1]);
+        Assert.assertEquals(FrameRenderQueue.SOURCE_TILED, queue.sourceDomain[2]);
+        Assert.assertEquals(FrameRenderQueue.SOURCE_VFX, queue.sourceDomain[3]);
+        Assert.assertEquals(FrameRenderQueue.SOURCE_VFX, queue.sourceDomain[4]);
+        Assert.assertEquals(10.1f, tiledState.x1[firstLayerOneRef], 0f);
+        Assert.assertEquals(20.1f, tiledState.x1[secondLayerOneRef], 0f);
+        Assert.assertEquals(30.1f, tiledState.x1[layerTwoRef], 0f);
+        Assert.assertEquals(30.1f, vfxState.x1[0], 0f);
+        Assert.assertEquals(40.1f, vfxState.x1[1], 0f);
+    }
 
     @Test
     public void extractsDrawListOrderAndCopiesDrawReadyFields() {

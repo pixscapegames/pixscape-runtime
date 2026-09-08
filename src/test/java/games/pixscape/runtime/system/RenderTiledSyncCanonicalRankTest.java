@@ -6,9 +6,11 @@ import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -127,8 +129,8 @@ public class RenderTiledSyncCanonicalRankTest {
         } catch (SpatialTileSyncInvariantException expected) {
             String message = expected.getMessage();
             Assert.assertTrue(message.contains("cell=(1,1)"));
-            Assert.assertTrue(message.contains("layerEntity=" + fixture.entityId));
-            Assert.assertTrue(message.contains("layerName=canonical-rank-layer"));
+            Assert.assertTrue(message.contains("mapEntity=" + fixture.entityId));
+            Assert.assertTrue(message.contains("mapName=canonical-rank-layer"));
             Assert.assertTrue(message.contains("projection=ISO"));
             Assert.assertTrue(message.contains("mapRevision="));
             Assert.assertTrue(message.contains("canonicalRankState=" + lookupState));
@@ -148,20 +150,24 @@ public class RenderTiledSyncCanonicalRankTest {
         PixscapeIdentityComponent identity = entity.edit().create(PixscapeIdentityComponent.class);
         identity.name = "canonical-rank-layer";
         LayerComponent layer = entity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 3;
         layer.spatialEnabled = spatial;
-        TiledLayerComponent tiled = entity.edit().create(TiledLayerComponent.class);
+        Entity mapEntity = world.createEntity();
+        mapEntity.edit().create(EntityIndexComponent.class).layerIndex = 3;
+        PixscapeIdentityComponent mapIdentity = mapEntity.edit()
+                .create(PixscapeIdentityComponent.class);
+        mapIdentity.name = "canonical-rank-layer";
+        TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         tiled.spatialEnabled = spatial;
         TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 8, 2,
-                SceneMetaRuntime.TiledProjection.ISO);
+                TiledProjection.ISO);
         map.spatialEnabled = spatial;
         for (int i = 0; i < occupiedCells.length; i++) {
             map.setTile(occupiedCells[i][0], occupiedCells[i][1], 1);
         }
         tiled.data = map;
-        return new Fixture(world, state, registry, map, entity.getId());
+        return new Fixture(world, state, registry, map, mapEntity.getId());
     }
 
     private static RuntimeTilesetProfiles profiles() {
@@ -169,7 +175,7 @@ public class RenderTiledSyncCanonicalRankTest {
         profile.tilesetId = 1;
         profile.referenceCellWidth = 16;
         profile.referenceCellHeight = 8;
-        profile.projection = SceneMetaRuntime.TiledProjection.ISO;
+        profile.projection = TiledProjection.ISO;
         profile.anchor = RuntimeTilesetAnchor.TOP_CENTER;
         profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
         profile.tileAssetIds = new int[]{1};

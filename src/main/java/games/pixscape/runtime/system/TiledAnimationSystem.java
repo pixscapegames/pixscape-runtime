@@ -20,11 +20,10 @@ import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlaybackStepper;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 
-@All({LayerComponent.class, TiledLayerComponent.class})
-@Exclude(EntityIndexComponent.class)
+@All({EntityIndexComponent.class, TiledLayerComponent.class})
+@Exclude(LayerComponent.class)
 public final class TiledAnimationSystem extends IteratingSystem implements ProfiledSystem {
 
-    private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private TileAnimationLookup tileAnimationLookup;
@@ -83,9 +82,6 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
 
     @Override
     protected void process(int e) {
-        LayerComponent layer = mLayer.get(e);
-        if (layer.type != LayerComponent.TYPE_TILED) return;
-
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) return;
 

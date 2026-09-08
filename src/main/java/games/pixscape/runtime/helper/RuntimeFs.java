@@ -1,6 +1,7 @@
 package games.pixscape.runtime.helper;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
 
 public final class RuntimeFs {
 
@@ -9,8 +10,6 @@ public final class RuntimeFs {
 
     public static final String EXT_JSON = ".json";
     public static final String EXT_ATLAS = ".atlas";
-    public static final String EXT_PREFAB = ".pixprefab";
-
     public static final String FILE_PROJECT_JSON = "project.json";
     public static final String FILE_DEFAULT_SCENE = "scene1.json";
 
@@ -21,7 +20,7 @@ public final class RuntimeFs {
     public static final String DIR_ANIMATIONS = "animations";
     public static final String DIR_SHADERS = "shaders";
     public static final String DIR_AUDIO = "audio";
-    public static final String DIR_PREFABS = "prefabs";
+    public static final String DIR_GAME_OBJECTS = GameObjectAssetId.DIRECTORY;
 
     public static final String RUNTIME_DIR_SHADERS = "shaders";
     public static final String RUNTIME_DIR_SHADER_CORE = RUNTIME_DIR_SHADERS + "/core";

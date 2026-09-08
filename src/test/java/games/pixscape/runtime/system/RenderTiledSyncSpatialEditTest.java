@@ -6,9 +6,11 @@ import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
@@ -43,19 +45,20 @@ public class RenderTiledSyncSpatialEditTest {
 
         Entity entity = world.createEntity();
         LayerComponent layer = entity.edit().create(LayerComponent.class);
-        layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
         layer.spatialEnabled = true;
-        TiledLayerComponent tiled = entity.edit().create(TiledLayerComponent.class);
+        Entity mapEntity = world.createEntity();
+        mapEntity.edit().create(EntityIndexComponent.class).layerIndex = 0;
+        TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.spatialEnabled = true;
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 8, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 8, 4, TiledProjection.ISO);
         map.spatialEnabled = true;
         map.setTile(2, 2, 1);
         map.setTile(3, 2, 1);
         tiled.data = map;
 
-        SpatialBlocksComponent blocks = entity.edit().create(SpatialBlocksComponent.class);
+        SpatialBlocksComponent blocks = mapEntity.edit().create(SpatialBlocksComponent.class);
         SpatialBlockData wall = new SpatialBlockData();
         wall.id = 9;
         wall.structureId = 4;
@@ -70,7 +73,7 @@ public class RenderTiledSyncSpatialEditTest {
         blocks.revision = 1;
 
         world.process();
-        SpatialTileOrderCache order = registry.forLayer(entity.getId(), map).tileOrder;
+        SpatialTileOrderCache order = registry.forLayer(mapEntity.getId(), map).tileOrder;
         Assert.assertTrue(order.rank(2, 2) >= 0);
 
         map.beginContentMutation();
@@ -112,7 +115,7 @@ public class RenderTiledSyncSpatialEditTest {
             profile.tilesetId = i + 1;
             profile.referenceCellWidth = 16;
             profile.referenceCellHeight = 8;
-            profile.projection = SceneMetaRuntime.TiledProjection.ISO;
+            profile.projection = TiledProjection.ISO;
             profile.anchor = RuntimeTilesetAnchor.TOP_CENTER;
             profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
             profile.tileAssetIds = new int[]{assetIds[i]};

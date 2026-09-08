@@ -19,7 +19,11 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
         RenderStats stats = new RenderStats();
 
         World world = new World(new WorldConfigurationBuilder()
-                .with(new RenderBuildDrawListSystem(ecsState, tiledState, layerState, drawList, stats, 64, -1, -1))
+                .with(
+                        new RenderBuildDrawListSystem(
+                                ecsState, tiledState, layerState, drawList, stats, 64, -1, -1),
+                        new RenderSortSystem(ecsState, tiledState, drawList)
+                )
                 .build());
 
         int tiledSlot = 128;
@@ -30,6 +34,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
                 0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
                 0f, 0f, 1f, 1f, 1f, 1f, (byte) 0);
         tiledState.addVisibleRef(tiledRenderRef);
+        tiledState.addVisibleMap(7, 0, 0, 10L, 0, 1);
 
         // Act
         world.process();

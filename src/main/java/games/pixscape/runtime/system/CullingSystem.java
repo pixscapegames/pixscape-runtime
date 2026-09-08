@@ -2,6 +2,7 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
+import com.artemis.annotations.SkipWire;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.runtime.component.AABBComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
@@ -11,6 +12,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 
 public final class CullingSystem extends BaseSystem implements ProfiledSystem {
 
@@ -19,6 +21,10 @@ public final class CullingSystem extends BaseSystem implements ProfiledSystem {
 
     private ComponentMapper<AABBComponent> mAABB;
     private ComponentMapper<VisibilityComponent> mVis;
+    @SkipWire
+    private GameObjectCompositionSystem compositionSystem;
+    @SkipWire
+    private GameObjectHierarchySystem hierarchySystem;
 
     private float frMinX;
     private float frMaxX;
@@ -33,6 +39,12 @@ public final class CullingSystem extends BaseSystem implements ProfiledSystem {
     public CullingSystem(OrthographicCamera worldCamera, DynamicEntityRenderState renderState) {
         this.cam = worldCamera;
         this.renderState = renderState;
+    }
+
+    @Override
+    protected void initialize() {
+        compositionSystem = world.getSystem(GameObjectCompositionSystem.class);
+        hierarchySystem = world.getSystem(GameObjectHierarchySystem.class);
     }
 
     @Override
@@ -68,6 +80,19 @@ public final class CullingSystem extends BaseSystem implements ProfiledSystem {
 
         VisibilityComponent v = mVis.getSafe(e, null);
         if (v == null) {
+            renderState.visible[renderSlot] = false;
+            return;
+        }
+
+        GameObjectCompositionState composition = compositionSystem != null
+                ? compositionSystem.state() : null;
+        if (composition != null && hierarchySystem != null
+                && e < hierarchySystem.topology().getEntityCapacity()
+                && hierarchySystem.topology().parented[e]
+                && e < composition.getEntityCapacity()
+                && !composition.hierarchyVisible[e]) {
+            v.inView = false;
+            v.culledByFrustum = true;
             renderState.visible[renderSlot] = false;
             return;
         }

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -267,18 +268,18 @@ public class SpatialBlockLinkedTilesTest {
     }
 
     private static TiledMapLayerData orthoMap(int width, int height) {
-        return map(width, height, 16, 16, SceneMetaRuntime.TiledProjection.ORTHO);
+        return map(width, height, 16, 16, TiledProjection.ORTHO);
     }
 
     private static TiledMapLayerData isoMap(int width, int height) {
-        return map(width, height, 90, 30, SceneMetaRuntime.TiledProjection.ISO);
+        return map(width, height, 90, 30, TiledProjection.ISO);
     }
 
     private static TiledMapLayerData map(int width,
                                          int height,
                                          int tileWidth,
                                          int tileHeight,
-                                         SceneMetaRuntime.TiledProjection projection) {
+                                         TiledProjection projection) {
         TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
         assignRenderRefs(map, 300);
         return map;

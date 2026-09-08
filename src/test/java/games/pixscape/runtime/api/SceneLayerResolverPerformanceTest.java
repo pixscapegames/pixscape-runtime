@@ -15,12 +15,10 @@ public class SceneLayerResolverPerformanceTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = i + 100;
-            layer.type = LayerComponent.TYPE_CLASSIC;
         }
         int targetEntity = world.create();
         LayerComponent target = world.getMapper(LayerComponent.class).create(targetEntity);
         target.layerIndex = 7;
-        target.type = LayerComponent.TYPE_CLASSIC;
         target.spatialEnabled = true;
         world.process();
 
@@ -60,7 +58,6 @@ public class SceneLayerResolverPerformanceTest {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = enabled;
         world.process();
         return world;

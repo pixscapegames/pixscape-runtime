@@ -13,9 +13,11 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator;
 import games.pixscape.runtime.physics.PhysicsShapeIdentityValidator;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -93,6 +95,7 @@ public final class SceneLoader {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
         try {
+            validateFinalLayerSchema(serialized, sceneFile);
             WorldSerializationManager validationSerialization =
                     validationWorld.getSystem(WorldSerializationManager.class);
             validationSerialization.setSerializer(
@@ -104,8 +107,11 @@ public final class SceneLoader {
                 validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
+                validateGameObjectHierarchy(
+                        format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
+                validateTiledMapConfigurations(format, validationWorld, sceneFile);
             }
         } catch (Exception e) {
             String detail = e.getMessage();
@@ -117,6 +123,68 @@ public final class SceneLoader {
                     e);
         } finally {
             validationWorld.dispose();
+        }
+    }
+
+    private static void validateGameObjectHierarchy(
+            SaveFileFormat format, World world, SceneMetaRuntime sceneMeta, FileHandle sceneFile) {
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, sceneMeta);
+        try {
+            identities.rebuild();
+            new GameObjectHierarchyValidator(world, identities)
+                    .validateEntities(format.entities);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Scene '" + sceneFile.path() + "' has invalid Game Object hierarchy: "
+                            + ex.getMessage(), ex);
+        } finally {
+            identities.bind(null, null);
+        }
+    }
+
+    private static void validateFinalLayerSchema(String serialized, FileHandle sceneFile) {
+        JsonValue root = new JsonReader().parse(serialized);
+        JsonValue identifiers = root.get("componentIdentifiers");
+        JsonValue layerIdentifier = identifiers != null
+                ? identifiers.get(LayerComponent.class.getName())
+                : null;
+        String layerComponentName = layerIdentifier != null
+                ? layerIdentifier.asString()
+                : "LayerComponent";
+        JsonValue entities = root.get("entities");
+        if (entities == null || !entities.isObject()) return;
+
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            if (components == null || !components.isObject()) continue;
+            JsonValue layer = components.get(layerComponentName);
+            if (layer != null && layer.isObject() && layer.has("type")) {
+                throw new IllegalArgumentException(
+                        "Scene '" + sceneFile.path()
+                                + "' uses an obsolete schema-3 LayerComponent representation: "
+                                + "field 'type' is unsupported.");
+            }
+        }
+    }
+
+    private static void validateTiledMapConfigurations(
+            SaveFileFormat format, World world, FileHandle sceneFile) {
+        ComponentMapper<TiledLayerComponent> tiledMaps =
+                world.getMapper(TiledLayerComponent.class);
+        int[] entityIds = format.entities.getData();
+        for (int i = 0, n = format.entities.size(); i < n; i++) {
+            int entityId = entityIds[i];
+            TiledLayerComponent tiled = tiledMaps.getSafe(entityId, null);
+            if (tiled == null) continue;
+            try {
+                tiled.validateMapConfiguration();
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        "Scene '" + sceneFile.path()
+                                + "' has invalid Tiled map configuration on entityId="
+                                + entityId + ": " + ex.getMessage(), ex);
+            }
         }
     }
 

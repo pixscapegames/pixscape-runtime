@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.RenderKind;
@@ -134,6 +135,27 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(29f, fixture.collector.actorBaseStartY[0], 0.0001f);
         Assert.assertEquals(13f, fixture.collector.actorBaseEndX[0], 0.0001f);
         Assert.assertEquals(29f, fixture.collector.actorBaseEndY[0], 0.0001f);
+    }
+
+    @Test
+    public void usesResolvedWorldPoseAndEffectiveRenderLayerForGameObjectMembers() {
+        Fixture fixture = new Fixture();
+        int actor = fixture.createActor(1f, 2f, 1, false);
+        fixture.spatialLayers[2] = true;
+        fixture.addCircle(actor, 3f, 5f, 0f);
+        fixture.addActorDrawSlot(actor);
+        fixture.state.layerIndex[fixture.renderSlotFor(actor)] = 2;
+        WorldTransformState worldPose = new WorldTransformState();
+        worldPose.setResolved(actor, 100f, 200f, (float) (Math.PI * .5), 1f, 1f);
+
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers,
+                fixture.world.getEntityManager(), fixture.entityIndex, fixture.transform,
+                fixture.height, fixture.shapes, null, worldPose);
+
+        Assert.assertEquals(1, fixture.collector.actorCount());
+        Assert.assertEquals(2, fixture.collector.actorLayerIndex[0]);
+        Assert.assertEquals(100f, fixture.collector.actorFootX[0], .0001f);
+        Assert.assertEquals(205f, fixture.collector.actorFootY[0], .0001f);
     }
 
     @Test

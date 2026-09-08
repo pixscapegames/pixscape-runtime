@@ -1,9 +1,9 @@
 package games.pixscape.runtime.api;
 
 /**
- * Per-cell playback control for animated tiles in one tiled layer.
+ * Per-cell playback control for animated tiles in one Tiled Map.
  *
- * <p>Operations affect existing tiled map data only and never create a tiled layer.</p>
+ * <p>Operations affect existing Tiled Map data only and never create a Map.</p>
  *
  * <p>These operations control runtime playback state for one cell. They do not modify the global
  * animated tile definition registry.</p>
@@ -11,7 +11,7 @@ package games.pixscape.runtime.api;
  * <p>One-shot playback is intended for simple visual map interactions, such as a door tile that
  * opens once and optionally holds its final frame. Gameplay-heavy doors with collision changes,
  * sounds, locks, persistence, or changing 2.5D footprints are usually better represented as
- * actors/prefabs, or as a trigger/prefab driving a tiled visual.</p>
+ * actors/gameObjects, or as a trigger/gameObject driving a tiled visual.</p>
  *
  * <p>Tiled animation playback is visual state. By default the runtime advances only chunks that
  * were visible during the previous frame, so authoritative gameplay timers should live in game

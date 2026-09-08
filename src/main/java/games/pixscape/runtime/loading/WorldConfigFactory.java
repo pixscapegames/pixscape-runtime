@@ -239,6 +239,38 @@ public final class WorldConfigFactory {
             Consumer<WorldConfigurationBuilder> preRenderCustomizer,
             Consumer<WorldConfigurationBuilder> postRenderCustomizer
     ) {
+        return buildWorld(
+                camera, dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState,
+                stats, defaultShaderIdx, atlasRuntimeService, effectsRoot, submitSupplier, meta,
+                tiledBudget, animatedTileRegistry, animationRegistry, tilesetProfiles, systemProfiler,
+                new LayerParallaxDisplayOffsetResolver(layerState, camera),
+                preRenderCustomizer, postRenderCustomizer);
+    }
+
+    /** Builds a world with its injected display-space offset authority. */
+    public static WorldBootstrapResult buildWorld(
+            OrthographicCamera camera,
+            DynamicEntityRenderState dynamicEntityState,
+            LayerStateSOA layerState,
+            DrawList drawList,
+            FrameRenderQueue frameQueue,
+            VfxRenderState vfxState,
+            TiledMapRenderState tiledState,
+            RenderStats stats,
+            int defaultShaderIdx,
+            AtlasRuntimeService atlasRuntimeService,
+            FileHandle effectsRoot,
+            Supplier<BaseSystem> submitSupplier,
+            SceneMetaRuntime meta,
+            int tiledBudget,
+            TileAnimationRegistry animatedTileRegistry,
+            AnimationRegistry animationRegistry,
+            RuntimeTilesetProfiles tilesetProfiles,
+            SystemProfiler systemProfiler,
+            LayerDisplayOffsetResolver displayOffsetResolver,
+            Consumer<WorldConfigurationBuilder> preRenderCustomizer,
+            Consumer<WorldConfigurationBuilder> postRenderCustomizer
+    ) {
 
         int ecsStart = 0;
         int ecsEnd = DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY;
@@ -275,7 +307,8 @@ public final class WorldConfigFactory {
                 animationRegistry,
                 tilesetProfiles,
                 systemProfiler,
-                spatialRuntimeRegistry
+                spatialRuntimeRegistry,
+                displayOffsetResolver
         );
 
         if (preRenderCustomizer != null) {
@@ -284,6 +317,7 @@ public final class WorldConfigFactory {
 
         addRenderPipelineSystems(
                 builder,
+                camera,
                 dynamicEntityState,
                 vfxState,
                 tiledState,
@@ -297,7 +331,8 @@ public final class WorldConfigFactory {
                 meta,
                 submitSupplier,
                 systemProfiler,
-                spatialRuntimeRegistry
+                spatialRuntimeRegistry,
+                displayOffsetResolver
         );
 
         builder.with(profiled(new DirtyFlushSystem(), systemProfiler));
@@ -337,12 +372,16 @@ public final class WorldConfigFactory {
             AnimationRegistry animationRegistry,
             RuntimeTilesetProfiles tilesetProfiles,
             SystemProfiler systemProfiler,
-            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+            LayerDisplayOffsetResolver displayOffsetResolver
     ) {
         builder.with(
                 new WorldSerializationManager(),
                 new DirtyTrackerSystem(entityCapacityHint),
+                new PhysicsPoseAuthority(),
+                new GameObjectHierarchySystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
+                new GameObjectPhysicsWritebackSystem(),
                 profiled(new PhysicsSpatialFootprintSyncSystem(
                         meta != null && meta.pixelsPerMeter > 0f
                                 ? meta.pixelsPerMeter
@@ -352,7 +391,8 @@ public final class WorldConfigFactory {
                 profiled(new TiledEntityAnimationSystem(animatedTileRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new LayerStateBuildSystem(layerState, meta), systemProfiler),
                 profiled(new RenderSpriteSyncSystem(dynamicEntityState), systemProfiler),
-                profiled(new ParallaxDisplaySystem(dynamicEntityState, layerState, worldCamera), systemProfiler),
+                new GameObjectCompositionSystem(dynamicEntityState, entityCapacityHint),
+                profiled(new ParallaxDisplaySystem(dynamicEntityState, displayOffsetResolver), systemProfiler),
                 profiled(new CullingSystem(worldCamera, dynamicEntityState), systemProfiler),
                 profiled(new TiledAnimationSystem(animatedTileRegistry), systemProfiler),
                 profiled(new RenderTiledSyncSystem(
@@ -362,7 +402,8 @@ public final class WorldConfigFactory {
                         defaultShaderIdx,
                         animatedTileRegistry,
                         tilesetProfiles,
-                        spatialRuntimeRegistry
+                        spatialRuntimeRegistry,
+                        displayOffsetResolver
                 ), systemProfiler),
                 profiled(new RenderParticleSyncSystem(
                         vfxState,
@@ -390,6 +431,7 @@ public final class WorldConfigFactory {
 
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
+            OrthographicCamera worldCamera,
             DynamicEntityRenderState dynamicEntityState,
             VfxRenderState vfxState,
             TiledMapRenderState tiledState,
@@ -403,7 +445,8 @@ public final class WorldConfigFactory {
             SceneMetaRuntime meta,
             Supplier<BaseSystem> submitSupplier,
             SystemProfiler systemProfiler,
-            SpatialLayerRuntimeRegistry spatialRuntimeRegistry
+            SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+            LayerDisplayOffsetResolver displayOffsetResolver
     ) {
         builder.with(
                 profiled(new RenderBuildDrawListSystem(
@@ -435,6 +478,7 @@ public final class WorldConfigFactory {
                         dynamicEntityState,
                         tiledState,
                         vfxState,
+                        displayOffsetResolver,
                         drawList,
                         frameQueue,
                         stats,

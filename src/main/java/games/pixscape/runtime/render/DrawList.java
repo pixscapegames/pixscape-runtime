@@ -14,6 +14,7 @@ public final class DrawList {
     public byte[] sourceDomain;
     public int[] sourceSlot;
     public int size = 0;
+    private final RenderCompositionList composition = new RenderCompositionList();
 
     public DrawList() {
         // An explicit setCapacity(...) is expected later.
@@ -24,6 +25,16 @@ public final class DrawList {
     }
 
     public void clear() {
+        size = 0;
+        composition.clear();
+    }
+
+    public RenderCompositionList composition() {
+        return composition;
+    }
+
+    /** Clears only the flattened entries while preserving staged composition items. */
+    public void clearEntries() {
         size = 0;
     }
 
@@ -88,6 +99,7 @@ public final class DrawList {
         }
         sourceDomain = new byte[capacity];
         sourceSlot = new int[capacity];
+        composition.setCapacity(capacity);
         size = 0;
     }
 

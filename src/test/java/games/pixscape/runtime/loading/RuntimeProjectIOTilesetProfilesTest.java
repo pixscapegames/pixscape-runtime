@@ -6,6 +6,7 @@ import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,7 +44,7 @@ public class RuntimeProjectIOTilesetProfilesTest {
         Assert.assertEquals(96, profile.tileHeight);
         Assert.assertEquals(32, profile.referenceCellWidth);
         Assert.assertEquals(16, profile.referenceCellHeight);
-        Assert.assertEquals(SceneMetaRuntime.TiledProjection.ISO, profile.projection);
+        Assert.assertEquals(TiledProjection.ISO, profile.projection);
         Assert.assertEquals(RuntimeTilesetAnchor.TOP_CENTER, profile.anchor);
         Assert.assertEquals(3, profile.offsetX);
         Assert.assertEquals(-5, profile.offsetY);

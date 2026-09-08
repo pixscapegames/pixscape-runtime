@@ -59,7 +59,7 @@ public class PhysicsShapeIdAllocatorTest {
     public void sceneMetadataReadsAndCopiesPersistentHighWater() {
         SceneMetaRuntime parsed = SceneMetaRuntime.fromJson(
                 new JsonReader().parse(
-                        "{\"sceneSchemaVersion\":2,"
+                        "{\"sceneSchemaVersion\":3,"
                                 + "\"nextEntityStableId\":1,"
                                 + "\"nextPhysicsShapeId\":37}"),
                 "scene");
@@ -82,7 +82,7 @@ public class PhysicsShapeIdAllocatorTest {
                 new JsonReader().parse(serialized), "fallback");
 
         Assert.assertTrue(serialized, serialized.contains("nextPhysicsShapeId:91"));
-        Assert.assertTrue(serialized, serialized.contains("sceneSchemaVersion:2"));
+        Assert.assertTrue(serialized, serialized.contains("sceneSchemaVersion:3"));
         Assert.assertEquals(91, restored.nextPhysicsShapeId);
     }
 

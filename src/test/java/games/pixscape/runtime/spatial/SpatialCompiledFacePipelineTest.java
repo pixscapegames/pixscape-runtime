@@ -3,6 +3,7 @@ package games.pixscape.runtime.spatial;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -207,7 +208,7 @@ public class SpatialCompiledFacePipelineTest {
     }
 
     private static TiledMapLayerData map() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) map.setTile(x, y, 1);
         int nextRef = 0;
         for (int cy = 0; cy < 2; cy++) for (int cx = 0; cx < 2; cx++) {

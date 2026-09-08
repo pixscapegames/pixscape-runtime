@@ -1,7 +1,5 @@
 package games.pixscape.runtime.render;
 
-import games.pixscape.runtime.component.LayerComponent;
-
 /**
  * {@code SUPPORTED_EXPERT} borrowed derived layer state indexed by layer index.
  * <p>
@@ -17,8 +15,6 @@ public final class LayerStateSOA {
     public boolean[] enabled;
     public float[] parallaxX;
     public float[] parallaxY;
-    public int[] entityId;
-    public int[] type;
     public float physicsParallaxX = Float.NaN;
     public float physicsParallaxY = Float.NaN;
 
@@ -43,8 +39,6 @@ public final class LayerStateSOA {
         enabled = new boolean[capacity];
         parallaxX = new float[capacity];
         parallaxY = new float[capacity];
-        entityId = new int[capacity];
-        type = new int[capacity];
 
         clear();
     }
@@ -59,8 +53,6 @@ public final class LayerStateSOA {
             enabled[i] = false;
             parallaxX[i] = Float.NaN;
             parallaxY[i] = Float.NaN;
-            entityId[i] = -1;
-            type[i] = LayerComponent.TYPE_CLASSIC;
         }
         maxLayerIndex = -1;
     }

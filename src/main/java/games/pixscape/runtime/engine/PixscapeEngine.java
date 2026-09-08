@@ -13,14 +13,19 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
+import games.pixscape.runtime.api.EntityRef;
+import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
-import games.pixscape.runtime.prefab.RuntimePrefabFragmentSpawner;
-import games.pixscape.runtime.prefab.SpawnResult;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
+import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -34,6 +39,8 @@ import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.DirtyFlushSystem;
 import games.pixscape.runtime.system.LayerStateBuildSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.runtime.system.PhysicsPoseAuthority;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.system.RenderSpriteSyncSystem;
@@ -42,6 +49,7 @@ import games.pixscape.runtime.system.RenderTiledSyncSystem;
 import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
@@ -435,62 +443,87 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Spawns an in-memory prefab fragment into the currently loaded scene.
+     * {@code SUPPORTED_EXPERT}: spawns an in-memory Game Object serialization fragment into the
+     * currently loaded scene. The mutable fragment and raw result are not HIGH_LEVEL APIs.
      *
-     * <p>The fragment is staged and validated before its prepared entities are
-     * published into the active Artemis world.</p>
+     * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
-     * @param fragment prefab fragment to instantiate
+     * @param fragment Game Object fragment to instantiate
      * @param offsetX  world-space X offset applied to spawned transforms
      * @param offsetY  world-space Y offset applied to spawned transforms
      * @return result containing all created entity IDs
      * @throws IllegalStateException if no world is initialized
      */
-    public SpawnResult spawnPrefabFragment(
-            RuntimePrefabFragment fragment, float offsetX, float offsetY) {
+    public SpawnResult spawnGameObjectFragment(
+            GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
         if (world == null || !sceneLoaded) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
         if (activeSceneMeta == null) {
             throw new IllegalStateException(
-                    "Active scene metadata is required to allocate physics shape IDs.");
+                    "Active scene metadata is required to allocate stable identities.");
         }
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
         return spawner.spawn(world, fragment, offsetX, offsetY);
     }
 
     /**
-     * Loads and spawns an exported prefab fragment by name.
+     * Loads and spawns a Game Object asset by name.
      *
-     * <p>The prefab is resolved from {@code <runtimeProject>/<prefabsDir>/<name>.pixfragment.json}
+     * <p>The Game Object is resolved from {@code <runtimeProject>/<gameObjectsDir>/<name>.gameobject}
      * and then spawned into the currently loaded scene.</p>
      *
-     * @param name    prefab name without the {@code .pixfragment.json} extension
-     * @param offsetX world-space X offset applied to spawned transforms
-     * @param offsetY world-space Y offset applied to spawned transforms
+     * @param name    Game Object name or canonical logical asset ID
+     * @param offsetX world-space X offset applied to the real root
+     * @param offsetY world-space Y offset applied to the real root
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
-     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the prefab fragment file does not exist
+     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
-    public SpawnResult spawnPrefab(String name, float offsetX, float offsetY) {
+    public GameObjectInstance spawnGameObject(String name, float offsetX, float offsetY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
-        FileHandle fragmentFile = runtimeProjectDir
-                .child(cfg.prefabsDir)
-                .child(name + ".pixfragment.json");
+        String logicalId = GameObjectAssetId.normalize(name);
+        FileHandle assetFile = runtimeProjectDir
+                .child(cfg.gameObjectsDir)
+                .child(GameObjectAssetId.assetName(logicalId) + GameObjectAsset.EXTENSION);
 
-        if (!fragmentFile.exists()) {
-            throw new GdxRuntimeException("Prefab fragment not found: " + fragmentFile.path());
+        if (!assetFile.exists()) {
+            throw new GdxRuntimeException("Game Object asset not found: " + assetFile.path());
         }
 
-        JsonValue root = new JsonReader().parse(fragmentFile);
-        RuntimePrefabFragmentSpawner spawner =
-                new RuntimePrefabFragmentSpawner(
+        GameObjectAsset asset = new GameObjectAssetLoader().load(assetFile);
+        GameObjectRuntimeFragmentSpawner spawner =
+                new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        return spawner.spawn(world, root, offsetX, offsetY);
+        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
+        return new SpawnedGameObjectInstance(api().entities().ofEntityId(result.rootEntityId()));
+    }
+
+    private static final class SpawnedGameObjectInstance implements GameObjectInstance {
+        private final EntityRef root;
+
+        SpawnedGameObjectInstance(EntityRef root) {
+            this.root = root;
+        }
+
+        @Override
+        public EntityRef root() {
+            return root;
+        }
+
+        @Override
+        public boolean exists() {
+            return root != null && root.exists();
+        }
+
+        @Override
+        public void despawn() {
+            if (root != null) root.remove();
+        }
     }
 
     private void rebuildWorld(RuntimeConfig config,
@@ -1307,7 +1340,7 @@ public final class PixscapeEngine {
         switch (step) {
             case 0:
                 rebuildRuntimeRegistries();
-                rebuildTiledLayersRuntime(meta);
+                rebuildTiledLayersRuntime();
                 RuntimeSceneAtlasLoader.loadSceneAtlas(
                         cfg,
                         candidate.sceneName(),
@@ -1338,6 +1371,8 @@ public final class PixscapeEngine {
     }
 
     private void preparePhysicsRuntime(SceneMetaRuntime meta) {
+        setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.AUTHORING);
+        requireSystem(GameObjectHierarchySystem.class).prepareRuntimeAvailability();
         PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
         applyPhysicsFromScene(meta, false);
         PhysicsSpatialFootprintSyncSystem footprints =
@@ -1359,6 +1394,7 @@ public final class PixscapeEngine {
     private void publishReadyScene(SceneAvailabilityPlan candidate) {
         SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
         if (meta.physicsEnabled) {
+            setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
             box2dSyncSystem.setStepEnabled(true);
         }
         activeSceneAvailability = candidate;
@@ -1433,11 +1469,12 @@ public final class PixscapeEngine {
         pendingSceneAvailability = null;
     }
 
-    private void rebuildTiledLayersRuntime(SceneMetaRuntime meta) {
+    private void rebuildTiledLayersRuntime() {
+        TiledMapOwnership.validateWorld(world);
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer =
-                world.getMapper(LayerComponent.class);
+        ComponentMapper<EntityIndexComponent> mEntityIndex =
+                world.getMapper(EntityIndexComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -1449,23 +1486,14 @@ public final class PixscapeEngine {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
-            LayerComponent layer = mLayer.getSafe(e, null);
+            if (!mEntityIndex.has(e)) {
+                throw new IllegalArgumentException(
+                        "Tiled map entity " + e + " has no EntityIndexComponent.");
+            }
 
             tiled.ensureSparseTileStorageConsistency();
 
-            tiled.data = new TiledMapLayerData(
-                    tiled.mapWidthCells,
-                    tiled.mapHeightCells,
-                    (int) meta.tileWidth,
-                    (int) meta.tileHeight,
-                    meta.chunkSize,
-                    meta.tiledProjection
-            );
-            tiled.data.originX = tiled.originX;
-            tiled.data.originY = tiled.originY;
-            tiled.data.spatialEnabled = tiled.spatialEnabled || (layer != null && layer.spatialEnabled);
-            tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
-            tiled.data.defaultTileHeight = tiled.defaultTileHeight;
+            tiled.data = tiled.createMapData();
 
             tiled.data.beginContentMutation();
             try {
@@ -1659,6 +1687,7 @@ public final class PixscapeEngine {
         }
 
         if (meta == null || !meta.physicsEnabled) {
+            setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode.AUTHORING);
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
             if (activate && box2dWorldService != null) {
@@ -1708,6 +1737,12 @@ public final class PixscapeEngine {
                         + " doSleep=" + meta.doSleep
                         + " stepEnabled=" + box2dSyncSystem.isStepEnabled()
         );
+    }
+
+    private void setPhysicsPoseAuthority(PhysicsPoseAuthority.Mode mode) {
+        PhysicsPoseAuthority authority = world != null
+                ? world.getSystem(PhysicsPoseAuthority.class) : null;
+        if (authority != null) authority.setMode(mode);
     }
 
     private void applyConfiguredLogLevel() {

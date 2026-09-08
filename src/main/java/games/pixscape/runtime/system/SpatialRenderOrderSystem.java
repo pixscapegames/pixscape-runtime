@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
@@ -57,6 +58,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private int mappedSlotCount;
     private int[] mappedTiledRefs = new int[0];
     private int mappedTiledRefCount;
+    @SkipWire
+    private GameObjectHierarchySystem gameObjectHierarchy;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
@@ -80,11 +83,12 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     @Override
     protected void initialize() {
+        gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         layersSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
         blockLayersSub = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class)
-                        .exclude(EntityIndexComponent.class));
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
+                        .exclude(LayerComponent.class));
     }
 
     @Override
@@ -151,12 +155,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         int[] data = layers.getData();
         for (int i = 0, n = layers.size(); i < n; i++) {
             int entity = data[i];
-            LayerComponent layer = mLayer.getSafe(entity, null);
             TiledLayerComponent tiled = mTiled.getSafe(entity, null);
-            if (layer == null || tiled == null) continue;
-            if (layer.type != LayerComponent.TYPE_TILED) continue;
+            if (tiled == null) continue;
             if (tiled.data == null) continue;
-            if (!isSpatialTiledLayer(layer, tiled)) continue;
+            if (!isSpatialTiledMap(tiled)) continue;
 
             ensureFaceLayerCapacity(faceLayerCount + 1);
             faceLayerEntities[faceLayerCount] = entity;
@@ -173,7 +175,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mTransform,
                 mSpatialHeight,
                 mSpatialPhysicsFootprint,
-                mIdentity);
+                mIdentity,
+                gameObjectHierarchy != null ? gameObjectHierarchy.worldTransforms() : null);
     }
 
     /**
@@ -193,7 +196,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 mEntityIndex,
                 mTransform,
                 mSpatialHeight,
-                mSpatialPhysicsFootprint);
+                mSpatialPhysicsFootprint,
+                gameObjectHierarchy != null ? gameObjectHierarchy.worldTransforms() : null);
     }
 
     private void buildDrawIndexMaps() {
@@ -248,8 +252,11 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         for (int i = 0, n = layers.size(); i < n; i++) {
             int entity = data[i];
             LayerComponent layer = mLayer.getSafe(entity, null);
-            if (layer == null || layer.layerIndex < 0 || !layer.spatialEnabled) continue;
-            if (layer.type == LayerComponent.TYPE_TILED) continue;
+            if (layer == null
+                    || layer.layerIndex < 0
+                    || !layer.spatialEnabled) {
+                continue;
+            }
 
             ensureSpatialLayerCapacity(layer.layerIndex + 1);
             if (!spatialLayers[layer.layerIndex]) {
@@ -260,9 +267,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         }
     }
 
-    private boolean isSpatialTiledLayer(LayerComponent layer, TiledLayerComponent tiled) {
-        return (layer != null && layer.spatialEnabled)
-                || (tiled != null && tiled.spatialEnabled)
+    private boolean isSpatialTiledMap(TiledLayerComponent tiled) {
+        return (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
     }
 

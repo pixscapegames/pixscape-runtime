@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -114,7 +115,7 @@ public class SpatialLayerRuntimeRegistryTest {
 
     private static TiledMapLayerData mapWithRenderRefs(int firstRef) {
         TiledMapLayerData map = new TiledMapLayerData(
-                4, 4, 16, 8, 2, SceneMetaRuntime.TiledProjection.ISO);
+                4, 4, 16, 8, 2, TiledProjection.ISO);
         map.spatialEnabled = true;
         for (int gy = 0; gy < map.mapHeight; gy++) {
             for (int gx = 0; gx < map.mapWidth; gx++) {
