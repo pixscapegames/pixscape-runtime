@@ -700,12 +700,22 @@ public final class HudBatch implements Batch {
     private float requireTextureLayer(Texture texture) {
         if (texture == null) throw new IllegalArgumentException("texture is null");
         requireBundle();
-        int handle = TextureRegistry.handleOf(texture);
-        int layer = regionResolveCache.resolveLayer(handle, handleToLayer);
+        return requireRegisteredTextureLayer(texture, handleToLayer, regionResolveCache);
+    }
+
+    static int requireRegisteredTextureLayer(Texture texture,
+                                             IntIntMap handleToLayer,
+                                             RegionResolveCache resolveCache) {
+        int handle = TextureRegistry.findHandle(texture);
+        if (handle == TextureRegistry.INVALID_HANDLE) {
+            throw new IllegalStateException(
+                    "HUD texture is not registered in TextureRegistry.");
+        }
+        int layer = resolveCache.resolveLayer(handle, handleToLayer);
         if (layer < 0) {
             throw new IllegalStateException(
-                    "Texture handle " + handle
-                            + " is not registered in the active HUD texture array.");
+                    "HUD texture handle " + handle
+                            + " is not present in the active HUD TextureArray.");
         }
         return layer;
     }
@@ -793,4 +803,3 @@ public final class HudBatch implements Batch {
         }
     }
 }
-

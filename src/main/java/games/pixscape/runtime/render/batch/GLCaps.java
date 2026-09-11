@@ -2,6 +2,7 @@ package games.pixscape.runtime.render.batch;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.utils.BufferUtils;
 
 import java.nio.IntBuffer;
@@ -11,11 +12,14 @@ public final class GLCaps {
     public final boolean es3;
     public final int maxTextureUnits;
     public final int maxTextureSize;
+    public final int maxArrayTextureLayers;
 
-    private GLCaps(boolean es3, int maxTextureUnits, int maxTextureSize) {
+    GLCaps(boolean es3, int maxTextureUnits, int maxTextureSize,
+           int maxArrayTextureLayers) {
         this.es3 = es3;
         this.maxTextureUnits = maxTextureUnits;
         this.maxTextureSize = maxTextureSize;
+        this.maxArrayTextureLayers = maxArrayTextureLayers;
     }
 
     public static GLCaps detect() {
@@ -29,8 +33,12 @@ public final class GLCaps {
         }
 
         int size = readInt(buf, GL20.GL_MAX_TEXTURE_SIZE, 64);
+        int arrayLayers = es3
+                ? readInt(buf, GL30.GL_MAX_ARRAY_TEXTURE_LAYERS, 1)
+                : 0;
 
-        return new GLCaps(es3, Math.max(1, units), Math.max(64, size));
+        return new GLCaps(es3, Math.max(1, units), Math.max(64, size),
+                es3 ? Math.max(1, arrayLayers) : 0);
     }
 
     private static int readInt(IntBuffer buf, int pname, int fallback) {
@@ -52,12 +60,32 @@ public final class GLCaps {
         return es3;
     }
 
+    /** Validates a complete fixed-size TextureArray before GPU allocation. */
+    public void validateTextureArray(int width, int height, int requiredLayers) {
+        if (!supportsTextureArray()) {
+            throw new IllegalStateException(
+                    "TextureArray requires GL30, OpenGL ES 3, or WebGL2 support.");
+        }
+        if (width > maxTextureSize || height > maxTextureSize) {
+            throw new IllegalStateException(
+                    "TextureArray dimensions " + width + "x" + height
+                            + " exceed GL_MAX_TEXTURE_SIZE " + maxTextureSize + ".");
+        }
+        if (requiredLayers > maxArrayTextureLayers) {
+            throw new IllegalStateException(
+                    "TextureArray requires " + requiredLayers
+                            + " layers but this device supports "
+                            + maxArrayTextureLayers + ".");
+        }
+    }
+
     @Override
     public String toString() {
         return "GLCaps{es3=" + es3
                 + ", textureArray=" + supportsTextureArray()
                 + ", maxTextureUnits=" + maxTextureUnits
                 + ", maxTextureSize=" + maxTextureSize
+                + ", maxArrayTextureLayers=" + maxArrayTextureLayers
                 + "}";
     }
 }

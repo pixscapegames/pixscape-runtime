@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
+import games.pixscape.runtime.render.batch.GLCaps;
 
 
 /**
@@ -222,7 +223,9 @@ public class AtlasRuntimeService {
     }
 
     /**
-     * Returns unique page textures from the atlas, preserving region encounter order.
+     * Returns unique page textures from the atlas, preserving first region encounter order.
+     * TextureAtlas regions use the atlas-data order, so this avoids the unspecified iteration
+     * order of {@link TextureAtlas#getTextures()}.
      *
      * @param atlas source atlas
      * @return unique texture pages referenced by the atlas
@@ -278,18 +281,23 @@ public class AtlasRuntimeService {
             }
         }
 
+        GLCaps.detect().validateTextureArray(
+                ATLAS_SIZE, ATLAS_SIZE, 1 + sources.size);
+
         Array<Pixmap> srcs = new Array<>(sources.size);
         Array<Pixmap> uploadLayers = new Array<>(1 + sources.size);
         TextureArray textureArray = null;
         boolean completed = false;
         boolean uploadOwnershipTransferred = false;
         try {
-            // Copy each source texture before normalizing it to the fixed atlas size.
+            // Copy each source texture and require exact fixed-page dimensions.
             for (int i = 0; i < sources.size; i++) {
                 Texture texture = sources.get(i);
                 Pixmap pixmap = obtainPixmapCopy(texture);
                 srcs.add(pixmap);
-                validateAtlasPageSize(pixmap, texture);
+                validateTextureArrayPageDimensions(
+                        pixmap.getWidth(), pixmap.getHeight(),
+                        ATLAS_SIZE, ATLAS_SIZE, "atlas page " + i);
             }
 
             // Layer 0 is the fixed-size internal white texture.
@@ -425,13 +433,16 @@ public class AtlasRuntimeService {
         }
     }
 
-    private static void validateAtlasPageSize(Pixmap pm, Texture sourceTexture) {
-        if (pm.getWidth() > ATLAS_SIZE || pm.getHeight() > ATLAS_SIZE) {
+    static void validateTextureArrayPageDimensions(int actualWidth, int actualHeight,
+                                                    int expectedWidth, int expectedHeight,
+                                                    String pageContext) {
+        if (actualWidth != expectedWidth || actualHeight != expectedHeight) {
+            String context = pageContext == null || pageContext.length() == 0
+                    ? "" : " for " + pageContext;
             throw new IllegalStateException(
-                    "Atlas page exceeds fixed size " + ATLAS_SIZE + "x" + ATLAS_SIZE
-                            + " for texture " + sourceTexture
-                            + " (" + pm.getWidth() + "x" + pm.getHeight() + ")"
-            );
+                    "TextureArray page has invalid dimensions" + context
+                            + ": expected " + expectedWidth + "x" + expectedHeight
+                            + ", got " + actualWidth + "x" + actualHeight + ".");
         }
     }
 

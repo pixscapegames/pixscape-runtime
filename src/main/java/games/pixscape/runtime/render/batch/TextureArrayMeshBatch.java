@@ -352,8 +352,6 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
 
         float fl = (float) layer;
 
-        // Fix UVs if pages do not all have same size
-
         int o = vertCount * VERT_STRIDE;
 
         // BL

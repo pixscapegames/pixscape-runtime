@@ -1,4 +1,4 @@
-package games.pixscape.runtime.service;
+package games.pixscape.runtime.render.batch;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
@@ -6,10 +6,9 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import games.pixscape.runtime.render.InternalTextures;
+import com.badlogic.gdx.utils.IntIntMap;
+import games.pixscape.runtime.service.TextureRegistry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,7 +17,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Proxy;
 
-public class AtlasRuntimeServiceTextureArrayMappingTest {
+public class HudBatchTextureLookupTest {
     private GL20 previousGl;
     private GL20 previousGl20;
     private GL30 previousGl30;
@@ -42,23 +41,19 @@ public class AtlasRuntimeServiceTextureArrayMappingTest {
                 (proxy, method, args) -> {
                     if ("glGenTexture".equals(method.getName())) return nextTexture[0]++;
                     return defaultValue(method.getReturnType());
-                }
-        );
+                });
         Gdx.gl = gl;
         Gdx.gl20 = gl;
         Gdx.gl30 = gl;
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(),
                 new Class<?>[]{Graphics.class},
-                (proxy, method, args) -> defaultValue(method.getReturnType())
-        );
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
         TextureRegistry.clear();
-        InternalTextures.dispose();
     }
 
     @After
     public void restoreGl() {
-        InternalTextures.dispose();
         TextureRegistry.clear();
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl20;
@@ -67,48 +62,62 @@ public class AtlasRuntimeServiceTextureArrayMappingTest {
     }
 
     @Test
-    public void whiteAndAtlasPageHandlesKeepTheirStableLayerOrder() {
-        Texture first = texture();
-        Texture second = texture();
-        Texture third = texture();
-        Array<Texture> pages = new Array<>(new Texture[]{first, second, third});
+    public void unregisteredTextureFailsWithoutRegisteringIt() {
+        Texture texture = texture();
+        IntIntMap mapping = new IntIntMap();
+        try {
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class,
+                    () -> HudBatch.requireRegisteredTextureLayer(
+                            texture, mapping, new RegionResolveCache(4)));
 
-        int firstHandle = TextureRegistry.handleOf(first);
-        int secondHandle = TextureRegistry.handleOf(second);
-        int thirdHandle = TextureRegistry.handleOf(third);
-        com.badlogic.gdx.utils.IntIntMap mapping = AtlasRuntimeService.buildHandleToLayer(pages);
-
-        Assert.assertEquals(0, mapping.get(InternalTextures.whiteHandle(), -1));
-        Assert.assertEquals(1, mapping.get(firstHandle, -1));
-        Assert.assertEquals(2, mapping.get(secondHandle, -1));
-        Assert.assertEquals(3, mapping.get(thirdHandle, -1));
-        first.dispose();
-        second.dispose();
-        third.dispose();
+            Assert.assertEquals(
+                    "HUD texture is not registered in TextureRegistry.",
+                    failure.getMessage());
+            Assert.assertEquals(TextureRegistry.INVALID_HANDLE,
+                    TextureRegistry.findHandle(texture));
+            Assert.assertEquals(0, mapping.size);
+            Assert.assertEquals(2, TextureRegistry.handleOf(texture));
+        } finally {
+            texture.dispose();
+        }
     }
 
     @Test
-    public void atlasPagesUseStableFirstRegionEncounterOrder() {
-        Texture first = texture();
-        Texture second = texture();
-        Texture third = texture();
+    public void registeredTextureOutsideBundleFailsWithoutChangingEitherState() {
+        Texture texture = texture();
+        IntIntMap mapping = new IntIntMap();
         try {
-            TextureAtlas atlas = new TextureAtlas();
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(first, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(third, 0, 0, 1, 1));
+            int handle = TextureRegistry.handleOf(texture);
 
-            Array<Texture> pages = AtlasRuntimeService.getPageTextures(atlas);
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class,
+                    () -> HudBatch.requireRegisteredTextureLayer(
+                            texture, mapping, new RegionResolveCache(4)));
 
-            Assert.assertEquals(3, pages.size);
-            Assert.assertSame(second, pages.get(0));
-            Assert.assertSame(first, pages.get(1));
-            Assert.assertSame(third, pages.get(2));
+            Assert.assertEquals(
+                    "HUD texture handle " + handle
+                            + " is not present in the active HUD TextureArray.",
+                    failure.getMessage());
+            Assert.assertEquals(handle, TextureRegistry.findHandle(texture));
+            Assert.assertEquals(0, mapping.size);
         } finally {
-            first.dispose();
-            second.dispose();
-            third.dispose();
+            texture.dispose();
+        }
+    }
+
+    @Test
+    public void registeredBundleTextureResolvesNormally() {
+        Texture texture = texture();
+        IntIntMap mapping = new IntIntMap();
+        try {
+            int handle = TextureRegistry.handleOf(texture);
+            mapping.put(handle, 3);
+
+            Assert.assertEquals(3, HudBatch.requireRegisteredTextureLayer(
+                    texture, mapping, new RegionResolveCache(4)));
+        } finally {
+            texture.dispose();
         }
     }
 

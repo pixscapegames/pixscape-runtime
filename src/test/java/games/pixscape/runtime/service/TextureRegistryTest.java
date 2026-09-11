@@ -6,10 +6,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import games.pixscape.runtime.render.InternalTextures;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,7 +15,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Proxy;
 
-public class AtlasRuntimeServiceTextureArrayMappingTest {
+public class TextureRegistryTest {
     private GL20 previousGl;
     private GL20 previousGl20;
     private GL30 previousGl30;
@@ -42,23 +39,19 @@ public class AtlasRuntimeServiceTextureArrayMappingTest {
                 (proxy, method, args) -> {
                     if ("glGenTexture".equals(method.getName())) return nextTexture[0]++;
                     return defaultValue(method.getReturnType());
-                }
-        );
+                });
         Gdx.gl = gl;
         Gdx.gl20 = gl;
         Gdx.gl30 = gl;
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(),
                 new Class<?>[]{Graphics.class},
-                (proxy, method, args) -> defaultValue(method.getReturnType())
-        );
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
         TextureRegistry.clear();
-        InternalTextures.dispose();
     }
 
     @After
     public void restoreGl() {
-        InternalTextures.dispose();
         TextureRegistry.clear();
         Gdx.gl = previousGl;
         Gdx.gl20 = previousGl20;
@@ -67,48 +60,21 @@ public class AtlasRuntimeServiceTextureArrayMappingTest {
     }
 
     @Test
-    public void whiteAndAtlasPageHandlesKeepTheirStableLayerOrder() {
-        Texture first = texture();
-        Texture second = texture();
-        Texture third = texture();
-        Array<Texture> pages = new Array<>(new Texture[]{first, second, third});
-
-        int firstHandle = TextureRegistry.handleOf(first);
-        int secondHandle = TextureRegistry.handleOf(second);
-        int thirdHandle = TextureRegistry.handleOf(third);
-        com.badlogic.gdx.utils.IntIntMap mapping = AtlasRuntimeService.buildHandleToLayer(pages);
-
-        Assert.assertEquals(0, mapping.get(InternalTextures.whiteHandle(), -1));
-        Assert.assertEquals(1, mapping.get(firstHandle, -1));
-        Assert.assertEquals(2, mapping.get(secondHandle, -1));
-        Assert.assertEquals(3, mapping.get(thirdHandle, -1));
-        first.dispose();
-        second.dispose();
-        third.dispose();
-    }
-
-    @Test
-    public void atlasPagesUseStableFirstRegionEncounterOrder() {
-        Texture first = texture();
-        Texture second = texture();
-        Texture third = texture();
+    public void readOnlyLookupDoesNotRegisterOrAdvanceTheNextHandle() {
+        Texture registered = texture();
+        Texture absent = texture();
         try {
-            TextureAtlas atlas = new TextureAtlas();
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(first, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
-            atlas.getRegions().add(new TextureAtlas.AtlasRegion(third, 0, 0, 1, 1));
+            int registeredHandle = TextureRegistry.handleOf(registered);
 
-            Array<Texture> pages = AtlasRuntimeService.getPageTextures(atlas);
+            Assert.assertEquals(registeredHandle, TextureRegistry.findHandle(registered));
+            Assert.assertEquals(TextureRegistry.INVALID_HANDLE,
+                    TextureRegistry.findHandle(absent));
+            Assert.assertNull(TextureRegistry.getByHandle(registeredHandle + 1));
 
-            Assert.assertEquals(3, pages.size);
-            Assert.assertSame(second, pages.get(0));
-            Assert.assertSame(first, pages.get(1));
-            Assert.assertSame(third, pages.get(2));
+            Assert.assertEquals(registeredHandle + 1, TextureRegistry.handleOf(absent));
         } finally {
-            first.dispose();
-            second.dispose();
-            third.dispose();
+            registered.dispose();
+            absent.dispose();
         }
     }
 
