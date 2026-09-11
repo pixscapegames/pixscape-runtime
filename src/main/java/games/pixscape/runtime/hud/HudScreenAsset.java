@@ -9,8 +9,14 @@ public final class HudScreenAsset {
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public int referenceWidth = DEFAULT_REFERENCE_WIDTH;
     public int referenceHeight = DEFAULT_REFERENCE_HEIGHT;
+    /** Project-relative Skin JSON used to prepare this HUD, or {@code null} while unauthored. */
+    public String skinId;
+    /** Project-relative TextureAtlas descriptor used to prepare this HUD, or {@code null}. */
+    public String atlasId;
+    /** Stable built-in texture profile identifier. */
+    public String textureProfileId = HudTextureProfile.DEFAULT_ID;
 
-    /** Validates the complete version-1 authored HUD screen model. */
+    /** Validates the basic version-1 model; physical resources may remain unassigned. */
     public void validate() {
         if (schemaVersion != CURRENT_SCHEMA_VERSION) {
             throw new IllegalArgumentException("HudScreenAsset requires schemaVersion "
@@ -22,5 +28,8 @@ public final class HudScreenAsset {
         if (referenceHeight <= 0) {
             throw new IllegalArgumentException("HudScreenAsset referenceHeight must be positive.");
         }
+        skinId = HudResourceId.normalizeOptional(skinId, "Skin");
+        atlasId = HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
+        textureProfileId = HudTextureProfile.normalizeIdOrDefault(textureProfileId);
     }
 }

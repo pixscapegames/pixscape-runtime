@@ -14,6 +14,9 @@ public class HudScreenAssetTest {
         Assert.assertEquals(HudScreenAsset.CURRENT_SCHEMA_VERSION, asset.schemaVersion);
         Assert.assertEquals(1920, asset.referenceWidth);
         Assert.assertEquals(1080, asset.referenceHeight);
+        Assert.assertNull(asset.skinId);
+        Assert.assertNull(asset.atlasId);
+        Assert.assertEquals(HudTextureProfile.DEFAULT_ID, asset.textureProfileId);
     }
 
     @Test
@@ -54,6 +57,38 @@ public class HudScreenAssetTest {
         Assert.assertNull(HudScreenAssetId.normalizeOptional(null));
         Assert.assertNull(HudScreenAssetId.normalizeOptional(""));
         Assert.assertNull(HudScreenAssetId.normalizeOptional("   "));
+    }
+
+    @Test
+    public void resourceReferencesRoundTripAndNormalize() {
+        HudScreenAsset source = new HudScreenAsset();
+        source.skinId = "ui\\game.json";
+        source.atlasId = "ui/game.atlas";
+        source.textureProfileId = HudTextureProfile.DEFAULT_ID;
+
+        Json json = new Json();
+        json.setUsePrototypes(false);
+        HudScreenAsset restored = json.fromJson(
+                HudScreenAsset.class, json.toJson(source));
+        restored.validate();
+
+        Assert.assertEquals("ui/game.json", restored.skinId);
+        Assert.assertEquals("ui/game.atlas", restored.atlasId);
+        Assert.assertEquals(HudTextureProfile.DEFAULT_ID, restored.textureProfileId);
+    }
+
+    @Test
+    public void absoluteAndParentTraversalResourceReferencesAreRejected() {
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.skinId = "C:\\ui\\game.json";
+        rejected(asset, "project-relative");
+
+        asset.skinId = "ui/../game.json";
+        rejected(asset, "project-relative");
+
+        asset.skinId = "ui/game.json";
+        asset.atlasId = "/ui/game.atlas";
+        rejected(asset, "project-relative");
     }
 
     private static void rejected(HudScreenAsset asset, String diagnostic) {

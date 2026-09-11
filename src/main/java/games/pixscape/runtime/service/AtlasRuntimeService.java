@@ -267,6 +267,13 @@ public class AtlasRuntimeService {
      * @return texture-array bundle with a {@code textureHandle -> layer} mapping
      */
     public static TextureArrayBundle buildTextureArrayFromTextures(Array<Texture> textures) {
+        return buildTextureArrayFromTextures(
+                textures, ATLAS_SIZE, ATLAS_SIZE, GLCaps.detect());
+    }
+
+    /** Builds an independent fixed-page bundle without publishing world atlas state. */
+    public static TextureArrayBundle buildTextureArrayFromTextures(
+            Array<Texture> textures, int arrayWidth, int arrayHeight, GLCaps caps) {
         InternalTextures.initIfNeeded();
 
         // 0) Build source list without the internal white texture.
@@ -281,8 +288,8 @@ public class AtlasRuntimeService {
             }
         }
 
-        GLCaps.detect().validateTextureArray(
-                ATLAS_SIZE, ATLAS_SIZE, 1 + sources.size);
+        if (caps == null) throw new IllegalArgumentException("GLCaps must not be null.");
+        caps.validateTextureArray(arrayWidth, arrayHeight, 1 + sources.size);
 
         Array<Pixmap> srcs = new Array<>(sources.size);
         Array<Pixmap> uploadLayers = new Array<>(1 + sources.size);
@@ -297,24 +304,24 @@ public class AtlasRuntimeService {
                 srcs.add(pixmap);
                 validateTextureArrayPageDimensions(
                         pixmap.getWidth(), pixmap.getHeight(),
-                        ATLAS_SIZE, ATLAS_SIZE, "atlas page " + i);
+                        arrayWidth, arrayHeight, "atlas page " + i);
             }
 
             // Layer 0 is the fixed-size internal white texture.
-            Pixmap white = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
+            Pixmap white = new Pixmap(arrayWidth, arrayHeight, Format.RGBA8888);
             uploadLayers.add(white);
             white.setBlending(Pixmap.Blending.None);
             white.setColor(1f, 1f, 1f, 1f);
             white.fill();
 
             for (int i = 0; i < srcs.size; i++) {
-                uploadLayers.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
+                uploadLayers.add(normalizeTo(srcs.get(i), arrayWidth, arrayHeight));
             }
+
+            IntIntMap handle2layer = buildHandleToLayer(sources);
 
             uploadOwnershipTransferred = true;
             textureArray = TextureArrayUploads.uploadOwned(uploadLayers);
-
-            IntIntMap handle2layer = buildHandleToLayer(sources);
 
             completed = true;
             return new TextureArrayBundle(textureArray, handle2layer);
@@ -433,9 +440,10 @@ public class AtlasRuntimeService {
         }
     }
 
-    static void validateTextureArrayPageDimensions(int actualWidth, int actualHeight,
-                                                    int expectedWidth, int expectedHeight,
-                                                    String pageContext) {
+    public static void validateTextureArrayPageDimensions(
+            int actualWidth, int actualHeight,
+            int expectedWidth, int expectedHeight,
+            String pageContext) {
         if (actualWidth != expectedWidth || actualHeight != expectedHeight) {
             String context = pageContext == null || pageContext.length() == 0
                     ? "" : " for " + pageContext;
