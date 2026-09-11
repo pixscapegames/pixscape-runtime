@@ -34,6 +34,8 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.gameobject"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.gameobject.GameObjectRuntimeFragment"/>
 
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.hud"/>
+
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.property"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.property"/>
 

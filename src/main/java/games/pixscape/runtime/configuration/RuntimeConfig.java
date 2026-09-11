@@ -4,6 +4,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
@@ -163,6 +164,8 @@ public final class RuntimeConfig {
             }
 
             meta.file = RuntimeFs.filenameOnly(meta.file);
+            meta.defaultHudScreenId =
+                    HudScreenAssetId.normalizeOptional(meta.defaultHudScreenId);
 
             if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has invalid file in: " + pathForErrors);
