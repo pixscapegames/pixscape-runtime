@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
@@ -13,7 +14,13 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
-/** Owned, immutable HUD resource snapshot prepared before Scene2D drawing. */
+/**
+ * {@code INTERNAL} owned prepared HUD resource snapshot.
+ *
+ * <p>Resource membership and profile selection are frozen after preparation. The contained
+ * LibGDX objects remain mutable implementation resources and are borrowed only by Runtime code
+ * in this package; {@code HudResources} is their sole disposal owner.</p>
+ */
 public final class HudResources implements Disposable {
     private final String skinId;
     private final String atlasId;
@@ -44,9 +51,13 @@ public final class HudResources implements Disposable {
             throw new IllegalArgumentException("Runtime project directory is required.");
         }
         asset.validate();
-        String skinId = requireReference(asset.skinId, "skinId");
-        String atlasId = requireReference(asset.atlasId, "atlasId");
-        HudTextureProfile profile = HudTextureProfile.forId(asset.textureProfileId);
+        String skinId = requireReference(
+                HudResourceId.normalizeOptional(asset.skinId, "Skin"), "skinId");
+        String atlasId = requireReference(
+                HudResourceId.normalizeOptional(asset.atlasId, "TextureAtlas"), "atlasId");
+        String profileId = HudTextureProfile.normalizeIdOrDefault(asset.textureProfileId);
+        HudTextureProfile profile = HudTextureProfile.forId(profileId);
+        validateOutputFormat(profile);
 
         FileHandle skinFile = resolveRequired(runtimeProjectDir, skinId, "Skin");
         FileHandle atlasFile = resolveRequired(runtimeProjectDir, atlasId, "TextureAtlas");
@@ -89,6 +100,14 @@ public final class HudResources implements Disposable {
                     "HudResources preparation requires HudScreenAsset." + field + ".");
         }
         return value;
+    }
+
+    private static void validateOutputFormat(HudTextureProfile profile) {
+        if (profile.outputFormat() != Pixmap.Format.RGBA8888) {
+            throw new IllegalArgumentException("HUD TextureArray preparation supports only "
+                    + "RGBA8888 output; profile '" + profile.id() + "' requests "
+                    + profile.outputFormat() + ".");
+        }
     }
 
     private static FileHandle resolveRequired(
@@ -215,17 +234,20 @@ public final class HudResources implements Disposable {
         return textureProfile;
     }
 
-    public Skin skin() {
+    /** Package-private borrowed mutable Skin; valid only while open; do not mutate or dispose. */
+    Skin skin() {
         requireOpen();
         return skin;
     }
 
-    public TextureAtlas atlas() {
+    /** Package-private borrowed mutable atlas; valid only while open; do not mutate or dispose. */
+    TextureAtlas atlas() {
         requireOpen();
         return atlas;
     }
 
-    public AtlasRuntimeService.TextureArrayBundle textureArrayBundle() {
+    /** Package-private borrowed bundle; valid only while open; do not mutate or dispose. */
+    AtlasRuntimeService.TextureArrayBundle textureArrayBundle() {
         requireOpen();
         return textureArrayBundle;
     }

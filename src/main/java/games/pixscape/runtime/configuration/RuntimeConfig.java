@@ -140,10 +140,6 @@ public final class RuntimeConfig {
             glSamples = 0;
         }
 
-        if (scenes.size == 0) {
-            throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
-        }
-
         // Clean scenes, normalize files, and apply defaults.
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
@@ -176,17 +172,21 @@ public final class RuntimeConfig {
             }
         }
 
-        // Default current scene choice:
-        // 1) valid currentSceneName
-        // 2) scene whose file == scene1.json
-        // 3) first sorted
-        if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
-            String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
-            currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();
-        }
+        if (scenes.size == 0) {
+            currentSceneName = null;
+        } else {
+            // Default current scene choice:
+            // 1) valid currentSceneName
+            // 2) scene whose file == scene1.json
+            // 3) first sorted
+            if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
+                String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
+                currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();
+            }
 
-        if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
-            throw new RuntimeException("Cannot resolve currentSceneName in: " + pathForErrors);
+            if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
+                throw new RuntimeException("Cannot resolve currentSceneName in: " + pathForErrors);
+            }
         }
     }
 

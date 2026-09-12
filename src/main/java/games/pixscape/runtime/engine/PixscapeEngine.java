@@ -362,7 +362,12 @@ public final class PixscapeEngine {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
-        initRuntime(cfg, runtimeProjectDir, false);
+        if (cfg.scenes.size > 0) {
+            initRuntime(cfg, runtimeProjectDir, false);
+        } else {
+            applyConfiguredLogLevel();
+            disposeWorldAndRuntime();
+        }
 
         loaded = true;
 

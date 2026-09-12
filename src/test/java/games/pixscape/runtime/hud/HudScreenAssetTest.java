@@ -60,11 +60,11 @@ public class HudScreenAssetTest {
     }
 
     @Test
-    public void resourceReferencesRoundTripAndNormalize() {
+    public void resourceReferencesRoundTripAndValidationDoesNotMutateThem() {
         HudScreenAsset source = new HudScreenAsset();
-        source.skinId = "ui\\game.json";
-        source.atlasId = "ui/game.atlas";
-        source.textureProfileId = HudTextureProfile.DEFAULT_ID;
+        source.skinId = "  ui\\game.json  ";
+        source.atlasId = "  ui\\game.atlas  ";
+        source.textureProfileId = "  " + HudTextureProfile.DEFAULT_ID + "  ";
 
         Json json = new Json();
         json.setUsePrototypes(false);
@@ -72,9 +72,13 @@ public class HudScreenAssetTest {
                 HudScreenAsset.class, json.toJson(source));
         restored.validate();
 
-        Assert.assertEquals("ui/game.json", restored.skinId);
-        Assert.assertEquals("ui/game.atlas", restored.atlasId);
-        Assert.assertEquals(HudTextureProfile.DEFAULT_ID, restored.textureProfileId);
+        Assert.assertEquals(source.skinId, restored.skinId);
+        Assert.assertEquals(source.atlasId, restored.atlasId);
+        Assert.assertEquals(source.textureProfileId, restored.textureProfileId);
+        Assert.assertEquals("ui/game.json",
+                HudResourceId.normalizeOptional(restored.skinId, "Skin"));
+        Assert.assertEquals("ui/game.atlas",
+                HudResourceId.normalizeOptional(restored.atlasId, "TextureAtlas"));
     }
 
     @Test

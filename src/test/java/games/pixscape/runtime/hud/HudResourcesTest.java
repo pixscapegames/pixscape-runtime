@@ -152,11 +152,18 @@ public class HudResourcesTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("complete"));
         writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
-        asset.skinId = "ui/game.json";
-        asset.atlasId = "ui/game.atlas";
+        String authoredSkinId = "  ui\\game.json  ";
+        String authoredAtlasId = "  ui\\game.atlas  ";
+        String authoredProfileId = "  " + HudTextureProfile.DEFAULT_ID + "  ";
+        asset.skinId = authoredSkinId;
+        asset.atlasId = authoredAtlasId;
+        asset.textureProfileId = authoredProfileId;
 
         HudResources resources = HudResources.prepare(asset, root);
 
+        Assert.assertEquals(authoredSkinId, asset.skinId);
+        Assert.assertEquals(authoredAtlasId, asset.atlasId);
+        Assert.assertEquals(authoredProfileId, asset.textureProfileId);
         Assert.assertEquals("ui/game.json", resources.skinId());
         Assert.assertEquals("ui/game.atlas", resources.atlasId());
         Assert.assertEquals(HudTextureProfile.DEFAULT_ID, resources.textureProfile().id());

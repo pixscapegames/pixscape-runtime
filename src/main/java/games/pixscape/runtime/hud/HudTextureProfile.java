@@ -88,6 +88,10 @@ public final class HudTextureProfile {
         return useMipMaps;
     }
 
+    /**
+     * Required normalized output format. HUD preparation currently rejects values other than
+     * {@link Pixmap.Format#RGBA8888} until the shared builder supports configurable formats.
+     */
     public Pixmap.Format outputFormat() {
         return outputFormat;
     }

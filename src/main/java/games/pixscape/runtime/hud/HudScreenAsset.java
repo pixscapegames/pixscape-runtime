@@ -28,8 +28,8 @@ public final class HudScreenAsset {
         if (referenceHeight <= 0) {
             throw new IllegalArgumentException("HudScreenAsset referenceHeight must be positive.");
         }
-        skinId = HudResourceId.normalizeOptional(skinId, "Skin");
-        atlasId = HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
-        textureProfileId = HudTextureProfile.normalizeIdOrDefault(textureProfileId);
+        HudResourceId.normalizeOptional(skinId, "Skin");
+        HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
+        HudTextureProfile.normalizeIdOrDefault(textureProfileId);
     }
 }

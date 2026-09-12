@@ -13,6 +13,23 @@ import java.io.FileWriter;
 public class RuntimeProjectIOTest {
 
     @Test
+    public void projectWithNoScenesLoadsWithoutAnActiveScene() {
+        FileHandle projectDir = projectDirectory("{"
+                + "\"projectFileName\":\"ui-only\","
+                + "\"version\":\"1\","
+                + "\"currentSceneName\":\"removed-scene\","
+                + "\"scenes\":{}"
+                + "}");
+
+        RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
+
+        Assert.assertEquals(0, config.scenes.size);
+        Assert.assertNull(config.currentSceneName);
+        Assert.assertNull(config.getCurrentSceneMeta());
+        Assert.assertNull(config.firstSceneNameSorted());
+    }
+
+    @Test
     public void sceneSchemaVersionThreeIsAccepted() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
                 "\"sceneSchemaVersion\":3,"));
