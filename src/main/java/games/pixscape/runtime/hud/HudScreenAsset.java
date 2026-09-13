@@ -2,6 +2,7 @@ package games.pixscape.runtime.hud;
 
 /** Authored data for an autonomous reusable HUD screen. */
 public final class HudScreenAsset {
+    public static final String EXTENSION = ".hudscreen";
     public static final int CURRENT_SCHEMA_VERSION = 1;
     public static final int DEFAULT_REFERENCE_WIDTH = 1920;
     public static final int DEFAULT_REFERENCE_HEIGHT = 1080;
@@ -9,6 +10,8 @@ public final class HudScreenAsset {
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public int referenceWidth = DEFAULT_REFERENCE_WIDTH;
     public int referenceHeight = DEFAULT_REFERENCE_HEIGHT;
+    /** Project-relative versioned HUD construction document, or {@code null} for an empty screen. */
+    public String documentId;
     /** Project-relative Skin JSON used to prepare this HUD, or {@code null} while unauthored. */
     public String skinId;
     /** Project-relative TextureAtlas descriptor used to prepare this HUD, or {@code null}. */
@@ -30,6 +33,7 @@ public final class HudScreenAsset {
         }
         HudResourceId.normalizeOptional(skinId, "Skin");
         HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
+        HudResourceId.normalizeOptional(documentId, "HUD document");
         HudTextureProfile.normalizeIdOrDefault(textureProfileId);
     }
 }

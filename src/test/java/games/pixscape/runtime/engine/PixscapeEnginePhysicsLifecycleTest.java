@@ -49,6 +49,9 @@ import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.SpawnResult;
+import games.pixscape.runtime.hud.ActiveHudScreen;
+import games.pixscape.runtime.hud.HudResourcesTest;
+import games.pixscape.runtime.hud.HudTextureProfile;
 import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -76,6 +79,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEnginePhysicsLifecycleTest {
+    private static final String[] HUD_ATTRIBUTES = {
+            "a_position", "a_color", "a_texCoord0", "a_layer"
+    };
+    private static final String[] HUD_UNIFORMS = {"u_projTrans", "u_array"};
     private Application previousApp;
     private GL20 previousGl;
     private GL20 previousGl20;
@@ -495,6 +502,76 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
+    @Test
+    public void sceneDefaultsFollowPublishedSceneAndFailuresCannotMasquerade() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        FileHandle project = fixture.projectDir;
+        HudResourcesTest.writeHudFiles(project);
+        project.child("hud").mkdirs();
+        writeHudScreen(project, "a", "hud/a.json");
+        writeHudScreen(project, "b", "hud/b.json");
+        project.child("hud/a.json").writeString(hudDocument(), false, "UTF-8");
+        project.child("hud/b.json").writeString(hudDocument(), false, "UTF-8");
+        try {
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.config().getSceneMeta("D").defaultHudScreenId = "hud/b";
+            engine.loadScene("A");
+            ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotNull(String.valueOf(engine.lastSceneDefaultHudFailure()), a);
+            Assert.assertEquals("hud/a", a.screenId());
+            Assert.assertNotNull(a.materializedHud().actor("root"));
+
+            engine.loadScene("D");
+            ActiveHudScreen b = engine.hudScreenRuntime().activeScreen();
+            Assert.assertEquals("hud/b", b.screenId());
+            Assert.assertTrue(a.isDisposed());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = null;
+            engine.loadScene("A");
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertTrue(b.isDisposed());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.loadScene("A");
+            ActiveHudScreen replacement = engine.hudScreenRuntime().activeScreen();
+            engine.config().getSceneMeta("D").defaultHudScreenId = "hud/missing";
+            engine.loadScene("D");
+            Assert.assertEquals("D", engine.getActiveSceneMeta().name);
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertTrue(replacement.isDisposed());
+            Assert.assertNotNull(engine.lastSceneDefaultHudFailure());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.loadScene("A");
+            ActiveHudScreen beforeFailedScene = engine.hudScreenRuntime().activeScreen();
+            Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("B"));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertTrue(beforeFailedScene.isDisposed());
+
+            engine.update(1f / 60f);
+            engine.render();
+            engine.resize(640, 360);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    private static void writeHudScreen(FileHandle project, String name, String documentId) {
+        project.child("hud/" + name + ".hudscreen").writeString(
+                "{\"schemaVersion\":1,\"referenceWidth\":320,"
+                        + "\"referenceHeight\":180,\"documentId\":\"" + documentId + "\","
+                        + "\"skinId\":\"ui/game.json\",\"atlasId\":\"ui/game.atlas\","
+                        + "\"textureProfileId\":\"" + HudTextureProfile.DEFAULT_ID + "\"}",
+                false, "UTF-8");
+    }
+
+    private static String hudDocument() {
+        return "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                + "\"kind\":\"GROUP\",\"children\":[]}}";
+    }
+
     private static EngineFixture createEngineFixture() throws Exception {
         GdxNativesLoader.load();
 
@@ -801,14 +878,33 @@ public class PixscapeEnginePhysicsLifecycleTest {
             ((java.nio.IntBuffer) args[2]).put(0, 1);
             return null;
         }
+        if ("glGetIntegerv".equals(methodName)
+                && args != null && args.length >= 2) {
+            int parameter = (Integer) args[0];
+            int value = parameter == GL30.GL_MAX_ARRAY_TEXTURE_LAYERS ? 16
+                    : parameter == GL20.GL_MAX_TEXTURE_IMAGE_UNITS
+                    || parameter == GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS ? 16 : 4096;
+            ((java.nio.IntBuffer) args[1]).put(0, value);
+            return null;
+        }
         if ("glGetProgramiv".equals(methodName)
                 && args != null && args.length >= 3) {
             int parameter = (Integer) args[1];
             int value = parameter == GL20.GL_LINK_STATUS
-                    || parameter == GL20.GL_VALIDATE_STATUS ? 1 : 0;
+                    || parameter == GL20.GL_VALIDATE_STATUS ? 1
+                    : parameter == GL20.GL_ACTIVE_ATTRIBUTES ? HUD_ATTRIBUTES.length
+                    : parameter == GL20.GL_ACTIVE_UNIFORMS ? HUD_UNIFORMS.length : 0;
             ((java.nio.IntBuffer) args[2]).put(0, value);
             return null;
         }
+        if ("glGetActiveAttrib".equals(methodName)) {
+            return HUD_ATTRIBUTES[(Integer) args[1]];
+        }
+        if ("glGetActiveUniform".equals(methodName)) {
+            return HUD_UNIFORMS[(Integer) args[1]];
+        }
+        if ("glGetAttribLocation".equals(methodName)
+                || "glGetUniformLocation".equals(methodName)) return 1;
         if (methodName.startsWith("glGen")
                 && args != null && args.length >= 2
                 && args[1] instanceof java.nio.IntBuffer) {

@@ -332,6 +332,7 @@ public final class ShaderRegistry {
 
         loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
         loadCoreLightShader(variant, RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
+        loadCoreHudShader(variant);
 
         loadOptionalCoreDefaultShader(variant, ShaderMode.TEXTURE_2D);
         loadOptionalCoreDefaultShader(variant, ShaderMode.MULTI_TEXTURE);
@@ -693,6 +694,22 @@ public final class ShaderRegistry {
                 ShaderOrigin.CORE,
                 ShaderRole.LIGHT
         );
+    }
+
+    private static void loadCoreHudShader(ShaderVariant variant) {
+        String vertPath = coreShaderPath(variant, RuntimeFs.HUD_TEXTURE_ARRAY, ".vert");
+        String fragPath = coreShaderPath(variant, RuntimeFs.HUD_TEXTURE_ARRAY, ".frag");
+        ShaderProgram shader = compileShader(
+                resolveShaderFile(vertPath),
+                resolveShaderFile(fragPath),
+                "hud/" + RuntimeFs.HUD_TEXTURE_ARRAY,
+                true);
+        registerOrReplace(
+                RuntimeFs.HUD_TEXTURE_ARRAY,
+                shader,
+                ShaderMode.TEXTURE_ARRAY,
+                ShaderOrigin.CORE,
+                ShaderRole.HUD);
     }
 
     // ------------------------------------------------------------------------

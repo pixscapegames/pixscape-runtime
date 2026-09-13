@@ -26,6 +26,7 @@ import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.SpawnResult;
+import games.pixscape.runtime.hud.HudScreenRuntime;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -111,6 +112,8 @@ public final class PixscapeEngine {
 
     private AtlasRuntimeService atlasRuntimeService;
     private String defaultShaderName;
+    private HudScreenRuntime hudScreenRuntime;
+    private RuntimeException lastSceneDefaultHudFailure;
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
@@ -606,21 +609,22 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Sets the active Artemis World's delta time for the next processing pass.
+     * Sets the active Artemis World's delta and advances the independent active HUD once.
      *
      * <p>This method does not call {@link World#process()} and does not by itself advance
-     * the complete Runtime simulation. Normal usage calls it once before {@link #render()}.</p>
+     * the complete world simulation. It does call Scene2D act for an active HUD, including
+     * when no World exists. Normal usage calls it once before {@link #render()}.</p>
      *
      * @param dt frame delta time in seconds
      */
     public void update(float dt) {
-        if (world == null) return;
-        world.setDelta(dt);
+        if (world != null) world.setDelta(dt);
+        if (hudScreenRuntime != null) hudScreenRuntime.act(dt);
     }
 
     /**
-     * Synchronously processes the configured Artemis World and then flushes deferred atlas
-     * disposals.
+     * Synchronously processes the configured Artemis World, draws the independent HUD above it,
+     * and then flushes deferred atlas disposals.
      *
      * <p>Despite its name, this is more than a stateless GPU draw call. Depending on Runtime
      * configuration, the {@link World#process()} pass includes physics/runtime systems,
@@ -643,6 +647,9 @@ public final class PixscapeEngine {
      * // Begin and end the application's own Batch normally.
      * }</pre>
      *
+     * <p>The HUD pass is never mixed into the ECS draw list and runs after world processing.
+     * A HUD may draw even when no World exists.</p>
+     *
      * <p>With default submission, Pixscape calls {@link MetricsBatch#begin} and
      * {@link MetricsBatch#end} and the internal batch is ended before this method returns
      * normally. Pixscape owns and closes that batch; callers must not dispose it. External
@@ -657,18 +664,17 @@ public final class PixscapeEngine {
      * on rather than assuming the pre-Pixscape state was restored.</p>
      */
     public void render() {
-        if (world == null) return;
         if (activeSceneLoad != null
                 && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
-        processWorld();
+        if (world != null) processWorld();
+        if (hudScreenRuntime != null) hudScreenRuntime.draw();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
         }
     }
 
     /**
-     * Sets the borrowed Runtime camera's viewport dimensions and immediately calls
-     * {@link OrthographicCamera#update()}.
+     * Sets the borrowed Runtime camera's viewport dimensions and resizes the independent HUD.
      *
      * <p>Pixscape does not own or dispose a camera supplied through
      * {@link #setWorldCamera(OrthographicCamera)}.</p>
@@ -679,6 +685,7 @@ public final class PixscapeEngine {
             worldCamera.viewportHeight = h;
             worldCamera.update();
         }
+        if (hudScreenRuntime != null) hudScreenRuntime.resize(w, h);
     }
 
     /**
@@ -1022,7 +1029,13 @@ public final class PixscapeEngine {
     private void disposeWorldAndRuntime() {
         identityRegistry.bind(null, null);
 
-        // World first (systems may touch services)
+        if (hudScreenRuntime != null) {
+            hudScreenRuntime.dispose();
+            hudScreenRuntime = null;
+        }
+        lastSceneDefaultHudFailure = null;
+
+        // World after HUD; World systems may still touch their own services.
         if (world != null) {
             world.dispose();
             world = null;
@@ -1110,6 +1123,8 @@ public final class PixscapeEngine {
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
         ShaderRegistry.initDefaults(platformTarget, projectDir, config.shadersDir);
+        hudScreenRuntime = new HudScreenRuntime(
+                projectDir, ShaderRegistry.get(RuntimeFs.HUD_TEXTURE_ARRAY));
 
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
@@ -1407,12 +1422,65 @@ public final class PixscapeEngine {
         activeSceneMeta = meta;
         cfg.currentSceneName = candidate.sceneName();
         sceneLoaded = true;
+        applySceneDefaultHud(meta);
+    }
+
+    private void applySceneDefaultHud(SceneMetaRuntime meta) {
+        lastSceneDefaultHudFailure = null;
+        if (hudScreenRuntime == null) return;
+        if (meta == null || meta.defaultHudScreenId == null) {
+            try {
+                hudScreenRuntime.hide();
+            } catch (RuntimeException failure) {
+                lastSceneDefaultHudFailure = failure;
+                logHudFailure("Unable to clear the previous Scene HUD. The new Scene remains "
+                        + "active without a HUD.", failure);
+            }
+            return;
+        }
+        try {
+            hudScreenRuntime.show(meta.defaultHudScreenId);
+        } catch (RuntimeException failure) {
+            lastSceneDefaultHudFailure = failure;
+            try {
+                hudScreenRuntime.hide();
+            } catch (RuntimeException cleanupFailure) {
+                if (Gdx.app != null) {
+                    Gdx.app.error("PixscapeHud",
+                            "Cleanup also failed after default HUD activation failure.",
+                            cleanupFailure);
+                }
+            }
+            logHudFailure("Unable to activate default HUD " + meta.defaultHudScreenId
+                    + " for Scene " + meta.name + ". The Scene remains active without a HUD.",
+                    failure);
+        }
+    }
+
+    private static void logHudFailure(String message, RuntimeException failure) {
+        if (Gdx.app != null) Gdx.app.error("PixscapeHud", message, failure);
+    }
+
+    HudScreenRuntime hudScreenRuntime() {
+        return hudScreenRuntime;
+    }
+
+    RuntimeException lastSceneDefaultHudFailure() {
+        return lastSceneDefaultHudFailure;
     }
 
     private void failSceneLoad(
             SceneAvailabilityPlan candidate, boolean constructionStarted) {
         if (constructionStarted) {
             discardFailedSceneLoad();
+            if (hudScreenRuntime != null) {
+                try {
+                    hudScreenRuntime.hide();
+                } catch (RuntimeException cleanupFailure) {
+                    logHudFailure("Unable to clear the previous HUD after Scene loading failed.",
+                            cleanupFailure);
+                }
+            }
             if (atlasRuntimeService != null && candidate != null) {
                 atlasRuntimeService.unload(candidate.sceneTag());
             }

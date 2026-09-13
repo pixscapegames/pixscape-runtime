@@ -16,6 +16,7 @@ public class HudScreenAssetTest {
         Assert.assertEquals(1080, asset.referenceHeight);
         Assert.assertNull(asset.skinId);
         Assert.assertNull(asset.atlasId);
+        Assert.assertNull(asset.documentId);
         Assert.assertEquals(HudTextureProfile.DEFAULT_ID, asset.textureProfileId);
     }
 
@@ -33,6 +34,25 @@ public class HudScreenAssetTest {
 
         Assert.assertEquals(1080, restored.referenceWidth);
         Assert.assertEquals(1920, restored.referenceHeight);
+    }
+
+    @Test
+    public void documentReferenceRoundTripsWhileLegacySchemaOneRemainsEmpty() {
+        Json json = new Json();
+        json.setUsePrototypes(false);
+        HudScreenAsset source = new HudScreenAsset();
+        source.documentId = "hud/game.json";
+
+        HudScreenAsset restored = json.fromJson(
+                HudScreenAsset.class, json.toJson(source));
+        restored.validate();
+        HudScreenAsset legacy = json.fromJson(
+                HudScreenAsset.class, "{\"schemaVersion\":1}");
+        legacy.validate();
+
+        Assert.assertEquals("hud/game.json", restored.documentId);
+        Assert.assertNull(legacy.documentId);
+        Assert.assertEquals(HudScreenAsset.CURRENT_SCHEMA_VERSION, legacy.schemaVersion);
     }
 
     @Test
@@ -92,6 +112,10 @@ public class HudScreenAssetTest {
 
         asset.skinId = "ui/game.json";
         asset.atlasId = "/ui/game.atlas";
+        rejected(asset, "project-relative");
+
+        asset.atlasId = "ui/game.atlas";
+        asset.documentId = "../outside.json";
         rejected(asset, "project-relative");
     }
 

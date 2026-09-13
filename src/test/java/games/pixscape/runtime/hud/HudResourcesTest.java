@@ -241,7 +241,7 @@ public class HudResourcesTest {
         }
     }
 
-    static void writeHudFiles(FileHandle root) {
+    public static void writeHudFiles(FileHandle root) {
         FileHandle ui = root.child("ui");
         ui.mkdirs();
         writePage(ui.child("page-a.png"));
