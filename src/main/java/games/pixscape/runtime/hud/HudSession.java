@@ -70,11 +70,18 @@ public final class HudSession implements Disposable {
 
     /** Updates the fitted screen bounds and centers the logical-space camera. */
     public void resize(int width, int height) {
+        resize(0, 0, width, height);
+    }
+
+    /** Fits the authored HUD inside a framebuffer sub-region, preserving reference aspect ratio. */
+    public void resize(int screenX, int screenY, int width, int height) {
         requireUsable();
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("HUD viewport size must be positive.");
         }
         viewport.update(width, height, true);
+        viewport.setScreenPosition(viewport.getScreenX() + screenX, viewport.getScreenY() + screenY);
+        viewport.apply(true);
         layoutContent();
     }
 

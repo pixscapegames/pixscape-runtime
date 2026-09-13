@@ -48,6 +48,12 @@ public final class HudScreenRuntime implements Disposable {
         if (current != null) current.resize(width, height);
     }
 
+    /** Fits the active HUD inside a framebuffer sub-region. */
+    public void resize(int screenX, int screenY, int width, int height) {
+        ActiveHudScreen current = active;
+        if (current != null) current.resize(screenX, screenY, width, height);
+    }
+
     @Override
     public void dispose() {
         hide();

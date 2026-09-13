@@ -249,6 +249,22 @@ public class HudSessionTest {
     }
 
     @Test
+    public void fitsInsideOffsetFramebufferRegion() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            Assert.assertEquals(50, session.viewport().getScreenX());
+            Assert.assertEquals(138, session.viewport().getScreenY());
+            Assert.assertEquals(1000, session.viewport().getScreenWidth());
+            Assert.assertEquals(563, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
     public void failedInstallLeavesCurrentMaterializedTreePublished() throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);

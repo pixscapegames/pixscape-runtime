@@ -63,6 +63,11 @@ public final class ActiveHudScreen implements Disposable {
         if (session != null) session.resize(width, height);
     }
 
+    void resize(int screenX, int screenY, int width, int height) {
+        requireUsable();
+        if (session != null) session.resize(screenX, screenY, width, height);
+    }
+
     @Override
     public void dispose() {
         if (disposed) return;
