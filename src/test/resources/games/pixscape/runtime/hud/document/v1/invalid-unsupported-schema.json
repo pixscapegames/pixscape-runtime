@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "id": "future-root",
+    "kind": "GROUP",
+    "children": []
+  }
+}

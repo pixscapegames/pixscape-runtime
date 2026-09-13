@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "empty-container",
+    "kind": "CONTAINER",
+    "container": { "clip": true },
+    "children": []
+  }
+}

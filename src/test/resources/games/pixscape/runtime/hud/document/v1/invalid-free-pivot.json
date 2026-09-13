@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "free-root",
+    "kind": "GROUP",
+    "children": [
+      {
+        "placementKind": "FREE",
+        "free": {
+          "horizontalAnchor": "CENTER",
+          "verticalAnchor": "CENTER",
+          "pivotX": -0.01,
+          "pivotY": 1.01,
+          "offsetX": 0,
+          "offsetY": 0
+        },
+        "node": {
+          "id": "invalid-pivot",
+          "kind": "LABEL",
+          "label": { "text": "Invalid pivot", "styleName": "hud-body" }
+        }
+      }
+    ]
+  }
+}

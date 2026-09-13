@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "table-root",
+    "kind": "TABLE",
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "direct-label",
+          "kind": "LABEL",
+          "label": { "text": "Wrong placement", "styleName": "hud-body" }
+        }
+      }
+    ]
+  }
+}

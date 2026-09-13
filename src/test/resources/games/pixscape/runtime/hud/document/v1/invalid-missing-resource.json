@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "missing-region",
+    "kind": "IMAGE",
+    "image": { "source": "REGION", "resourceName": "   " },
+    "children": []
+  }
+}

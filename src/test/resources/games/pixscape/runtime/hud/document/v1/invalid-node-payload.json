@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "wrong-payload",
+    "kind": "IMAGE",
+    "label": { "text": "Not an image", "styleName": "hud-body" },
+    "children": []
+  }
+}
