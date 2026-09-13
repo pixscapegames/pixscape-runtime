@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "free-root",
+    "kind": "GROUP",
+    "actor": { "width": 1920, "height": 1080 },
+    "children": [
+      {
+        "placementKind": "FREE",
+        "free": {
+          "horizontalAnchor": "LEFT", "verticalAnchor": "TOP",
+          "pivotX": 0, "pivotY": 1, "offsetX": 24, "offsetY": -24
+        },
+        "node": {
+          "id": "top-left",
+          "kind": "LABEL",
+          "actor": { "width": 220, "height": 48 },
+          "label": { "text": "Score", "styleName": "hud-body" }
+        }
+      },
+      {
+        "placementKind": "FREE",
+        "free": {
+          "horizontalAnchor": "CENTER", "verticalAnchor": "CENTER",
+          "pivotX": 0.5, "pivotY": 0.5, "offsetX": 0, "offsetY": 0
+        },
+        "node": {
+          "id": "center",
+          "kind": "IMAGE",
+          "actor": { "width": 48, "height": 48 },
+          "image": { "source": "REGION", "resourceName": "crosshair" }
+        }
+      },
+      {
+        "placementKind": "FREE",
+        "free": {
+          "horizontalAnchor": "RIGHT", "verticalAnchor": "BOTTOM",
+          "pivotX": 1, "pivotY": 0, "offsetX": -24, "offsetY": 24
+        },
+        "node": {
+          "id": "bottom-right",
+          "kind": "TEXT_BUTTON",
+          "actor": { "width": 180, "height": 56 },
+          "textButton": { "text": "Inventory", "styleName": "hud-primary" }
+        }
+      }
+    ]
+  }
+}

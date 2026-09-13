@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "duplicate-root",
+    "kind": "STACK",
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "duplicate",
+          "kind": "LABEL",
+          "label": { "text": "First", "styleName": "hud-body" }
+        }
+      },
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "duplicate",
+          "kind": "LABEL",
+          "label": { "text": "Second", "styleName": "hud-body" }
+        }
+      }
+    ]
+  }
+}

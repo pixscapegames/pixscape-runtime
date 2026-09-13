@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "clipped-panel",
+    "kind": "CONTAINER",
+    "actor": { "width": 480, "height": 240 },
+    "container": { "clip": true },
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "clipped-content",
+          "kind": "TABLE",
+          "children": [
+            {
+              "placementKind": "CELL",
+              "cell": { "prefWidth": 640, "prefHeight": 320, "fillX": true, "fillY": true },
+              "node": {
+                "id": "clipped-label",
+                "kind": "LABEL",
+                "label": { "text": "Content outside the Container is clipped", "styleName": "hud-body" }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

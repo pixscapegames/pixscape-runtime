@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "overlay",
+    "kind": "STACK",
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "overlay-background",
+          "kind": "IMAGE",
+          "image": { "source": "REGION", "resourceName": "overlay-gradient" }
+        }
+      },
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "overlay-title",
+          "kind": "LABEL",
+          "label": { "text": "Paused", "styleName": "hud-title" }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "resource-stack",
+    "kind": "STACK",
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "scene-art",
+          "kind": "IMAGE",
+          "image": { "source": "REGION", "resourceName": "inventory-art" }
+        }
+      },
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "ninepatch-panel",
+          "kind": "IMAGE",
+          "image": { "source": "DRAWABLE", "resourceName": "inventory-panel" }
+        }
+      },
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "resource-label",
+          "kind": "LABEL",
+          "label": {
+            "text": "Atlas-backed font through LabelStyle",
+            "styleName": "hud-body-bitmap"
+          }
+        }
+      },
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "resource-button",
+          "kind": "TEXT_BUTTON",
+          "textButton": { "text": "Equip", "styleName": "hud-primary" }
+        }
+      }
+    ]
+  }
+}

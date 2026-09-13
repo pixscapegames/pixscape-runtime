@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "unknown-root",
+    "kind": "ARBITRARY_JAVA_ACTOR",
+    "children": []
+  }
+}
