@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
@@ -8,6 +9,10 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentValidator;
+import games.pixscape.runtime.hud.document.HudValidationResult;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import games.pixscape.runtime.render.InternalTextures;
@@ -37,6 +42,7 @@ public class HudSessionTest {
     private GL20 previousGl20;
     private GL30 previousGl30;
     private Graphics previousGraphics;
+    private Files previousFiles;
     private int deletedBuffers;
     private int deletedTextures;
     private int deletedPrograms;
@@ -53,6 +59,7 @@ public class HudSessionTest {
         previousGl20 = Gdx.gl20;
         previousGl30 = Gdx.gl30;
         previousGraphics = Gdx.graphics;
+        previousFiles = Gdx.files;
 
         Gdx.app = (Application) Proxy.newProxyInstance(
                 Application.class.getClassLoader(), new Class<?>[]{Application.class},
@@ -72,6 +79,9 @@ public class HudSessionTest {
                     if ("getHeight".equals(method.getName())) return 1080;
                     return defaultValue(method.getReturnType());
                 });
+        Gdx.files = (Files) Proxy.newProxyInstance(
+                Files.class.getClassLoader(), new Class<?>[]{Files.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
         TextureRegistry.clear();
         InternalTextures.dispose();
     }
@@ -85,6 +95,7 @@ public class HudSessionTest {
         Gdx.gl20 = previousGl20;
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
+        Gdx.files = previousFiles;
     }
 
     @Test
@@ -208,6 +219,77 @@ public class HudSessionTest {
         }
     }
 
+    @Test
+    public void installsMaterializedTreeAtReferenceSizeAndRelayoutsWithoutRematerializing()
+            throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("mixed-layout.json", prepared.resources);
+        try {
+            session.install(hud);
+            Assert.assertEquals(1, session.stage().getActors().size);
+            Assert.assertSame(hud.root(), session.stage().getActors().first());
+            Assert.assertEquals(1920f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(1080f, hud.root().getHeight(), 0f);
+            Assert.assertEquals(1528f, hud.actor("objective").getX(), 0.001f);
+            Assert.assertEquals(976f, hud.actor("objective").getY(), 0.001f);
+
+            hud.root().setSize(1000f, 500f);
+            session.resize(1280, 720);
+            Assert.assertSame(hud.root(), session.stage().getActors().first());
+            Assert.assertEquals(1920f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(1080f, hud.root().getHeight(), 0f);
+            Assert.assertEquals(1528f, hud.actor("objective").getX(), 0.001f);
+            Assert.assertEquals(976f, hud.actor("objective").getY(), 0.001f);
+        } finally {
+            session.dispose();
+            Assert.assertNull(hud.root().getParent());
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void failedInstallLeavesCurrentMaterializedTreePublished() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud current = materialize("free-layout.json", prepared.resources);
+        MaterializedHud attached = materialize("stack.json", prepared.resources);
+        Group foreignParent = new Group();
+        foreignParent.addActor(attached.root());
+        try {
+            session.install(current);
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class, () -> session.install(attached));
+            Assert.assertEquals(
+                    "Materialized HUD root must be detached before installation.",
+                    failure.getMessage());
+            Assert.assertEquals(1, session.stage().getActors().size);
+            Assert.assertSame(current.root(), session.stage().getActors().first());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void materializedWidgetsDrawThroughSessionHudBatchWithPreparedTextureArray()
+            throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("resources.json", prepared.resources);
+        try {
+            session.install(hud);
+            session.act(0f);
+            session.draw();
+            Assert.assertSame(prepared.resources.textureArrayBundle(),
+                    session.hudBatch().getTextureArrayBundle());
+            Assert.assertFalse(prepared.resources.isDisposed());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
     private Prepared prepare() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder());
         HudResourcesTest.writeHudFiles(root);
@@ -215,6 +297,15 @@ public class HudSessionTest {
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
         return new Prepared(asset, HudResources.prepare(asset, root), shader());
+    }
+
+    private static MaterializedHud materialize(String fixture, HudResources resources) {
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentCodec().read(new FileHandle(
+                        "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
+                resources);
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        return new HudMaterializer().materialize(validation.validatedDocument(), resources);
     }
 
     private static ShaderProgram shader() {

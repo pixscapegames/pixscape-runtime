@@ -248,6 +248,10 @@ public class HudResourcesTest {
         writePage(ui.child("page-b.png"));
         ui.child("game.atlas").writeString(
                 pageDescriptor("page-a.png", "default-font", 0)
+                        + regionDescriptor("crosshair", -1)
+                        + regionDescriptor("overlay-gradient", -1)
+                        + regionDescriptor("inventory-art", -1)
+                        + regionDescriptor("inventory-panel", -1)
                         + "\n" + pageDescriptor("page-b.png", "default-font", 1),
                 false, "UTF-8");
         ui.child("default-font.fnt").writeString(
@@ -265,7 +269,14 @@ public class HudResourcesTest {
                 false, "UTF-8");
         ui.child("game.json").writeString(
                 "{\"com.badlogic.gdx.graphics.g2d.BitmapFont\":{"
-                        + "\"default-font\":{\"file\":\"default-font.fnt\"}}}",
+                        + "\"default-font\":{\"file\":\"default-font.fnt\"}},"
+                        + "\"com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle\":{"
+                        + "\"hud-title\":{\"font\":\"default-font\"},"
+                        + "\"hud-body\":{\"font\":\"default-font\"},"
+                        + "\"hud-body-bitmap\":{\"font\":\"default-font\"}},"
+                        + "\"com.badlogic.gdx.scenes.scene2d.ui.TextButton$TextButtonStyle\":{"
+                        + "\"hud-primary\":{\"font\":\"default-font\","
+                        + "\"up\":\"inventory-panel\"}}}",
                 false, "UTF-8");
     }
 
@@ -276,6 +287,16 @@ public class HudResourcesTest {
                 + "filter: Linear,Linear\n"
                 + "repeat: none\n"
                 + region + "\n"
+                + "  rotate: false\n"
+                + "  xy: 0, 0\n"
+                + "  size: 1, 1\n"
+                + "  orig: 1, 1\n"
+                + "  offset: 0, 0\n"
+                + "  index: " + index + "\n";
+    }
+
+    private static String regionDescriptor(String region, int index) {
+        return region + "\n"
                 + "  rotate: false\n"
                 + "  xy: 0, 0\n"
                 + "  size: 1, 1\n"

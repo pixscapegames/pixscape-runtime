@@ -3,6 +3,8 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -24,6 +26,7 @@ public final class HudSession implements Disposable {
     private Viewport viewport;
     private HudBatch hudBatch;
     private Stage stage;
+    private MaterializedHud content;
     private boolean disposed;
 
     private HudSession(HudScreenAsset asset, HudResources resources, ShaderProgram hudShader) {
@@ -72,6 +75,26 @@ public final class HudSession implements Disposable {
             throw new IllegalArgumentException("HUD viewport size must be positive.");
         }
         viewport.update(width, height, true);
+        layoutContent();
+    }
+
+    /**
+     * Installs a successfully materialized detached tree as this session's content.
+     * Existing content is replaced only after the candidate root has been sized and laid out.
+     */
+    public void install(MaterializedHud materializedHud) {
+        requireUsable();
+        if (materializedHud == null) throw new IllegalArgumentException("MaterializedHud is required.");
+        if (content == materializedHud) return;
+        Actor candidate = materializedHud.root();
+        if (candidate.getParent() != null) {
+            throw new IllegalStateException("Materialized HUD root must be detached before installation.");
+        }
+
+        layout(candidate);
+        if (content != null) content.root().remove();
+        stage.addActor(candidate);
+        content = materializedHud;
     }
 
     public boolean isDisposed() {
@@ -115,6 +138,7 @@ public final class HudSession implements Disposable {
         disposed = true;
         RuntimeException failure = null;
         try {
+            if (content != null) content.root().remove();
             stage.dispose();
         } catch (RuntimeException disposalFailure) {
             failure = disposalFailure;
@@ -125,9 +149,23 @@ public final class HudSession implements Disposable {
             if (failure == null) failure = disposalFailure;
         }
         stage = null;
+        content = null;
         hudBatch = null;
         viewport = null;
         resources = null;
         if (failure != null) throw failure;
+    }
+
+    private void layoutContent() {
+        if (content != null) layout(content.root());
+    }
+
+    private void layout(Actor root) {
+        root.setBounds(0f, 0f, viewport.getWorldWidth(), viewport.getWorldHeight());
+        if (root instanceof Layout) {
+            Layout layout = (Layout) root;
+            layout.invalidateHierarchy();
+            layout.validate();
+        }
     }
 }

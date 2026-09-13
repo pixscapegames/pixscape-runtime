@@ -12,6 +12,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.render.batch.GLCaps;
+import games.pixscape.runtime.hud.document.HudResourceCatalog;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
 /**
@@ -21,7 +22,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * LibGDX objects remain mutable implementation resources and are borrowed only by Runtime code
  * in this package; {@code HudResources} is their sole disposal owner.</p>
  */
-public final class HudResources implements Disposable {
+public final class HudResources implements Disposable, HudResourceCatalog {
     private final String skinId;
     private final String atlasId;
     private final HudTextureProfile textureProfile;
@@ -254,6 +255,33 @@ public final class HudResources implements Disposable {
 
     public boolean isDisposed() {
         return disposed;
+    }
+
+    @Override
+    public boolean hasRegion(String name) {
+        requireOpen();
+        return atlas.findRegion(name) != null;
+    }
+
+    @Override
+    public boolean hasDrawable(String name) {
+        requireOpen();
+        return skin.has(name, com.badlogic.gdx.scenes.scene2d.utils.Drawable.class)
+                || skin.has(name, com.badlogic.gdx.graphics.g2d.TextureRegion.class)
+                || skin.has(name, com.badlogic.gdx.graphics.g2d.NinePatch.class)
+                || skin.has(name, com.badlogic.gdx.graphics.g2d.Sprite.class);
+    }
+
+    @Override
+    public boolean hasLabelStyle(String name) {
+        requireOpen();
+        return skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
+    }
+
+    @Override
+    public boolean hasTextButtonStyle(String name) {
+        requireOpen();
+        return skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
     }
 
     private void requireOpen() {

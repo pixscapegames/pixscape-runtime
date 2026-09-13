@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "id": "smoke-table",
+    "kind": "TABLE",
+    "actor": { "width": 320, "height": 180 },
+    "children": [
+      {
+        "placementKind": "CELL",
+        "cell": { "fillX": true, "fillY": true, "expandX": true, "expandY": true },
+        "node": {
+          "id": "smoke-free",
+          "kind": "GROUP",
+          "children": [
+            {
+              "placementKind": "FREE",
+              "free": {
+                "horizontalAnchor": "LEFT", "verticalAnchor": "TOP",
+                "pivotX": 0, "pivotY": 1, "offsetX": 8, "offsetY": -8
+              },
+              "node": {
+                "id": "smoke-image",
+                "kind": "IMAGE",
+                "actor": { "width": 32, "height": 32 },
+                "image": { "source": "REGION", "resourceName": "crosshair" }
+              }
+            },
+            {
+              "placementKind": "FREE",
+              "free": {
+                "horizontalAnchor": "CENTER", "verticalAnchor": "CENTER",
+                "pivotX": 0.5, "pivotY": 0.5
+              },
+              "node": {
+                "id": "smoke-label",
+                "kind": "LABEL",
+                "label": { "text": "AB", "styleName": "hud-body" }
+              }
+            },
+            {
+              "placementKind": "FREE",
+              "free": {
+                "horizontalAnchor": "RIGHT", "verticalAnchor": "BOTTOM",
+                "pivotX": 1, "pivotY": 0, "offsetX": -8, "offsetY": 8
+              },
+              "node": {
+                "id": "smoke-button",
+                "kind": "TEXT_BUTTON",
+                "actor": { "width": 80, "height": 32 },
+                "textButton": { "text": "AB", "styleName": "hud-primary" }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

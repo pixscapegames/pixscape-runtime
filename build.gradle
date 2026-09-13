@@ -27,6 +27,7 @@ dependencies {
   api "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
 
   testImplementation "junit:junit:${junitVersion}"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
 
   testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
   testRuntimeOnly "com.badlogicgames.gdx:gdx-box2d-platform:${gdxVersion}:natives-desktop"
@@ -34,6 +35,17 @@ dependencies {
 
 tasks.named('test', Test).configure {
   useJUnit()
+  exclude '**/HudMaterializerGlSmokeTest.class'
+}
+
+tasks.register('hudGlSmoke', Test) {
+  description = 'Runs the real desktop GL30 HUD integration smoke.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/HudMaterializerGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
 }
 
 tasks.named('compileJava', JavaCompile).configure {
