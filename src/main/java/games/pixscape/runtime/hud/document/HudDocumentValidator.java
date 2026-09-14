@@ -252,9 +252,9 @@ public final class HudDocumentValidator {
                 return;
             }
             int count = node.children.size();
-            if (node.kind == HudNodeKind.CONTAINER && count != 1) {
+            if (node.kind == HudNodeKind.CONTAINER && count > 1) {
                 add(HudValidationIssueCode.INVALID_CHILD_COUNT,
-                        "CONTAINER requires exactly one child, found " + count + ".",
+                        "CONTAINER accepts at most one child, found " + count + ".",
                         usableId(node), path + ".children");
             } else if (isLeaf(node.kind) && count != 0) {
                 add(HudValidationIssueCode.INVALID_CHILD_COUNT,

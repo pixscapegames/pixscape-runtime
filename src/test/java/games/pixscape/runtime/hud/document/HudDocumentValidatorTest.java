@@ -142,7 +142,7 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
-    public void leafChildrenAndContainerCountAreRejected() {
+    public void leafChildrenAndCrowdedContainerAreRejected() {
         HudNode leaf = label("leaf");
         leaf.children.add(HudChild.direct(label("nested")));
 
@@ -152,13 +152,25 @@ public class HudDocumentValidatorTest {
         crowdedContainer.children.add(HudChild.direct(label("second")));
 
         HudValidationResult leafResult = validator.validate(new HudDocumentV1(leaf));
-        HudValidationResult containerResult = validator.validate(
-                read("invalid-container-child-count.json"));
 
         requireIssue(leafResult, HudValidationIssueCode.INVALID_CHILD_COUNT);
-        requireIssue(containerResult, HudValidationIssueCode.INVALID_CHILD_COUNT);
         requireIssue(validator.validate(new HudDocumentV1(crowdedContainer)),
                 HudValidationIssueCode.INVALID_CHILD_COUNT);
+    }
+
+    @Test
+    public void containerAcceptsZeroOrOneDirectChild() {
+        HudNode empty = new HudNode("empty", HudNodeKind.CONTAINER);
+        empty.container = new HudContainerData();
+        HudValidationResult emptyResult = validator.validate(new HudDocumentV1(empty));
+
+        HudNode occupied = new HudNode("occupied", HudNodeKind.CONTAINER);
+        occupied.container = new HudContainerData();
+        occupied.children.add(HudChild.direct(new HudNode("group", HudNodeKind.GROUP)));
+        HudValidationResult occupiedResult = validator.validate(new HudDocumentV1(occupied));
+
+        Assert.assertTrue(emptyResult.issues().toString(), emptyResult.isValid());
+        Assert.assertTrue(occupiedResult.issues().toString(), occupiedResult.isValid());
     }
 
     @Test

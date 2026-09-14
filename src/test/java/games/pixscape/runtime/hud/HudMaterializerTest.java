@@ -25,6 +25,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudChild;
+import games.pixscape.runtime.hud.document.HudContainerData;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
@@ -133,6 +134,34 @@ public class HudMaterializerTest {
         } finally {
             emptyResources.dispose();
         }
+    }
+
+    @Test
+    public void materializesEmptyAndOccupiedContainersWithoutSyntheticChildren() {
+        HudNode empty = new HudNode("empty", HudNodeKind.CONTAINER);
+        empty.container = new HudContainerData();
+        HudValidationResult emptyValidation = new HudDocumentValidator().validate(
+                new HudDocumentV1(empty), resources);
+        Assert.assertTrue(emptyValidation.issues().toString(), emptyValidation.isValid());
+
+        MaterializedHud emptyHud = new HudMaterializer().materialize(
+                emptyValidation.validatedDocument(), resources);
+        Container<?> emptyActor = (Container<?>) emptyHud.actor("empty");
+        Assert.assertNull(emptyActor.getActor());
+        Assert.assertEquals(1, emptyHud.actorById().size());
+
+        HudNode occupied = new HudNode("occupied", HudNodeKind.CONTAINER);
+        occupied.container = new HudContainerData();
+        occupied.children.add(HudChild.direct(new HudNode("group", HudNodeKind.GROUP)));
+        HudValidationResult occupiedValidation = new HudDocumentValidator().validate(
+                new HudDocumentV1(occupied), resources);
+        Assert.assertTrue(occupiedValidation.issues().toString(), occupiedValidation.isValid());
+
+        MaterializedHud occupiedHud = new HudMaterializer().materialize(
+                occupiedValidation.validatedDocument(), resources);
+        Container<?> occupiedActor = (Container<?>) occupiedHud.actor("occupied");
+        Assert.assertSame(occupiedHud.actor("group"), occupiedActor.getActor());
+        Assert.assertEquals(2, occupiedHud.actorById().size());
     }
 
     @Test
