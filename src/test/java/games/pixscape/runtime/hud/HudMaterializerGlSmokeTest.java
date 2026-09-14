@@ -7,6 +7,8 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.scenes.scene2d.ui.Container;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.TextureRegistry;
 import org.junit.Assert;
@@ -78,6 +80,8 @@ public class HudMaterializerGlSmokeTest {
                     runtime.draw();
                     runtime.resize(640, 360);
                     runtime.draw();
+                    runtime.resize(40, 20, 240, 120);
+                    runtime.draw();
 
                     Assert.assertSame(bundleBefore, session.hudBatch().getTextureArrayBundle());
                     Assert.assertEquals(layersBefore,
@@ -85,6 +89,8 @@ public class HudMaterializerGlSmokeTest {
                     Assert.assertNotNull(hud.actor("smoke-image"));
                     Assert.assertNotNull(hud.actor("smoke-label"));
                     Assert.assertNotNull(hud.actor("smoke-button"));
+                    Assert.assertTrue(((Container<?>) hud.actor("smoke-clip")).getClip());
+                    Assert.assertNull(ScissorStack.peekScissors());
                 } catch (Throwable smokeFailure) {
                     failure[0] = smokeFailure;
                 } finally {

@@ -48,6 +48,8 @@ public class HudSessionTest {
     private int deletedBuffers;
     private int deletedTextures;
     private int deletedPrograms;
+    private int viewportApplications;
+    private final int[] lastViewport = new int[4];
 
     @BeforeClass
     public static void loadNatives() {
@@ -77,8 +79,10 @@ public class HudSessionTest {
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
                 (proxy, method, args) -> {
-                    if ("getWidth".equals(method.getName())) return 1920;
-                    if ("getHeight".equals(method.getName())) return 1080;
+                    if ("getWidth".equals(method.getName())
+                            || "getBackBufferWidth".equals(method.getName())) return 1920;
+                    if ("getHeight".equals(method.getName())
+                            || "getBackBufferHeight".equals(method.getName())) return 1080;
                     return defaultValue(method.getReturnType());
                 });
         Gdx.files = (Files) Proxy.newProxyInstance(
@@ -283,7 +287,7 @@ public class HudSessionTest {
     }
 
     @Test
-    public void fitsInsideOffsetFramebufferRegion() throws Exception {
+    public void fitsInsideOffsetLogicalScreenRegion() throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
         try {
@@ -292,6 +296,71 @@ public class HudSessionTest {
             Assert.assertEquals(138, session.viewport().getScreenY());
             Assert.assertEquals(1000, session.viewport().getScreenWidth());
             Assert.assertEquals(563, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void fittedSubregionCanBeResizedWithoutChangingAuthoredSpace() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            session.resize(100, 20, 800, 800);
+
+            Assert.assertEquals(1920f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(1080f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(100, session.viewport().getScreenX());
+            Assert.assertEquals(195, session.viewport().getScreenY());
+            Assert.assertEquals(800, session.viewport().getScreenWidth());
+            Assert.assertEquals(450, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void drawReappliesOwnedViewportWithoutRecenteringHudCamera() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            session.viewport().getCamera().position.set(321f, 654f, 0f);
+            session.viewport().getCamera().update();
+
+            Gdx.gl.glViewport(0, 0, 17, 19); // Simulates the preceding WORLD pass.
+            int beforeDraw = viewportApplications;
+            session.draw();
+
+            Assert.assertTrue(viewportApplications > beforeDraw);
+            Assert.assertArrayEquals(new int[]{50, 138, 1000, 563}, lastViewport);
+            Assert.assertEquals(321f, session.viewport().getCamera().position.x, 0f);
+            Assert.assertEquals(654f, session.viewport().getCamera().position.y, 0f);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void arbitraryPositiveReferenceDimensionsUseTheSameFitViewportContract()
+            throws Exception {
+        Prepared prepared = prepare();
+        prepared.asset.referenceWidth = 333;
+        prepared.asset.referenceHeight = 777;
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(20, 30, 900, 600);
+
+            Assert.assertEquals(333f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(777f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertTrue(session.viewport().getScreenWidth() > 0);
+            Assert.assertTrue(session.viewport().getScreenHeight() > 0);
+            Assert.assertTrue(session.viewport().getScreenX() >= 20);
+            Assert.assertTrue(session.viewport().getScreenY() >= 30);
         } finally {
             session.dispose();
             prepared.dispose();
@@ -421,6 +490,12 @@ public class HudSessionTest {
         if ("glDeleteBuffer".equals(name)) deletedBuffers++;
         if ("glDeleteTextures".equals(name) || "glDeleteTexture".equals(name)) deletedTextures++;
         if ("glDeleteProgram".equals(name)) deletedPrograms++;
+        if ("glViewport".equals(name) && args != null && args.length == 4) {
+            viewportApplications++;
+            for (int i = 0; i < lastViewport.length; i++) {
+                lastViewport[i] = (Integer) args[i];
+            }
+        }
         if ("glCheckFramebufferStatus".equals(name)) return GL20.GL_FRAMEBUFFER_COMPLETE;
         return defaultValue(returnType);
     }

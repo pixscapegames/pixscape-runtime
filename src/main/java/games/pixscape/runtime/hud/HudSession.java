@@ -65,6 +65,7 @@ public final class HudSession implements Disposable {
     /** Draws the Stage through the session-owned HudBatch without clearing the framebuffer. */
     public void draw() {
         requireUsable();
+        viewport.apply(false);
         stage.draw();
     }
 
@@ -73,7 +74,7 @@ public final class HudSession implements Disposable {
         resize(0, 0, width, height);
     }
 
-    /** Fits the authored HUD inside a framebuffer sub-region, preserving reference aspect ratio. */
+    /** Fits the authored HUD inside a logical screen sub-region, preserving reference aspect ratio. */
     public void resize(int screenX, int screenY, int width, int height) {
         requireUsable();
         if (width <= 0 || height <= 0) {

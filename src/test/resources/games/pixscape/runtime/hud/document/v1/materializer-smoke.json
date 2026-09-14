@@ -49,6 +49,42 @@
                 "actor": { "width": 80, "height": 32 },
                 "textButton": { "text": "AB", "styleName": "hud-primary" }
               }
+            },
+            {
+              "placementKind": "FREE",
+              "free": {
+                "horizontalAnchor": "CENTER", "verticalAnchor": "BOTTOM",
+                "pivotX": 0.5, "pivotY": 0, "offsetY": 8
+              },
+              "node": {
+                "id": "smoke-clip",
+                "kind": "CONTAINER",
+                "actor": { "width": 100, "height": 32 },
+                "container": { "clip": true },
+                "children": [
+                  {
+                    "placementKind": "DIRECT",
+                    "node": {
+                      "id": "smoke-clipped-content",
+                      "kind": "TABLE",
+                      "children": [
+                        {
+                          "placementKind": "CELL",
+                          "cell": {
+                            "prefWidth": 200, "prefHeight": 64,
+                            "fillX": true, "fillY": true
+                          },
+                          "node": {
+                            "id": "smoke-clipped-label",
+                            "kind": "LABEL",
+                            "label": { "text": "AB", "styleName": "hud-body" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
             }
           ]
         }
