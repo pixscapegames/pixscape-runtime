@@ -109,4 +109,83 @@ public class HudMaterializerGlSmokeTest {
             throw new AssertionError("Real desktop GL30 HUD materialization smoke failed.", failure[0]);
         }
     }
+
+    @Test
+    public void rendersLayoutOnlyHudWithoutSkinAtlasOrTextureArray() throws Exception {
+        File projectDirectory = temporaryFolder.newFolder("layout-only-hud-gl-smoke");
+        Throwable[] failure = {null};
+
+        Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
+        configuration.setTitle("Pixscape layout-only HUD GL30 smoke");
+        configuration.setWindowedMode(320, 180);
+        configuration.setInitialVisible(false);
+        configuration.setOpenGLEmulation(
+                Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 2);
+        configuration.disableAudio(true);
+
+        new Lwjgl3Application(new ApplicationAdapter() {
+            private ShaderProgram shader;
+            private HudScreenRuntime runtime;
+
+            @Override
+            public void create() {
+                try {
+                    Assert.assertNotNull("A real GL30 context is required", Gdx.gl30);
+                    FileHandle root = new FileHandle(projectDirectory);
+                    root.child("hud").mkdirs();
+                    root.child("hud/layout.hudscreen").writeString(
+                            "{\"schemaVersion\":1,\"referenceWidth\":320,"
+                                    + "\"referenceHeight\":180,"
+                                    + "\"documentId\":\"hud/layout.json\"}",
+                            false, "UTF-8");
+                    root.child("hud/layout.json").writeString(
+                            "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                                    + "\"kind\":\"GROUP\",\"children\":[{"
+                                    + "\"placementKind\":\"DIRECT\",\"node\":{"
+                                    + "\"id\":\"stack\",\"kind\":\"STACK\","
+                                    + "\"children\":[]}}]}}", false, "UTF-8");
+                    shader = new ShaderProgram(
+                            Gdx.files.internal(
+                                    "shaders/core/desktop-gl30/hud-texture-array.vert"),
+                            Gdx.files.internal(
+                                    "shaders/core/desktop-gl30/hud-texture-array.frag"));
+                    Assert.assertTrue(shader.getLog(), shader.isCompiled());
+                    runtime = new HudScreenRuntime(root, shader);
+
+                    ActiveHudScreen active = runtime.show("layout");
+                    Assert.assertNull(active.resources().textureArrayBundle());
+                    Assert.assertNull(active.session().hudBatch().getTextureArrayBundle());
+                    Assert.assertNotNull(active.materializedHud().actor("root"));
+                    Assert.assertNotNull(active.materializedHud().actor("stack"));
+
+                    Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
+                    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                    runtime.act(0f);
+                    runtime.draw();
+                    runtime.resize(640, 360);
+                    runtime.draw();
+                } catch (Throwable smokeFailure) {
+                    failure[0] = smokeFailure;
+                } finally {
+                    Gdx.app.exit();
+                }
+            }
+
+            @Override
+            public void dispose() {
+                try {
+                    if (runtime != null) runtime.dispose();
+                    if (shader != null) shader.dispose();
+                    InternalTextures.dispose();
+                    TextureRegistry.clear();
+                } catch (Throwable disposalFailure) {
+                    if (failure[0] == null) failure[0] = disposalFailure;
+                }
+            }
+        }, configuration);
+
+        if (failure[0] != null) {
+            throw new AssertionError("Real desktop GL30 layout-only HUD smoke failed.", failure[0]);
+        }
+    }
 }

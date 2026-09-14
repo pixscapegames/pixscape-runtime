@@ -137,7 +137,6 @@ public final class HudBatch implements Batch {
     public void begin() {
         if (drawing) throw new IllegalStateException("HudBatch.end must be called before begin.");
         requireGl30();
-        requireBundle();
 
         state.syncRealTransformToVirtual();
         drawing = true;

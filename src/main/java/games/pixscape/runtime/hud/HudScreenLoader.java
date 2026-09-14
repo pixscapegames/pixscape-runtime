@@ -38,11 +38,13 @@ public final class HudScreenLoader {
         HudDocumentV1 document = documentCodec.read(documentFile);
         HudValidationResult structural = validator.validate(document);
         requireValid(HudDocumentValidationException.Phase.STRUCTURAL, documentId, structural);
+        HudResourceRequirements requirements =
+                HudResourceRequirements.from(structural.validatedDocument());
 
         HudResources resources = null;
         HudSession session = null;
         try {
-            resources = HudResources.prepare(asset, runtimeProjectDir);
+            resources = HudResources.prepare(asset, runtimeProjectDir, requirements);
             HudValidationResult resourceAware = validator.validate(document, resources);
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,
                     documentId, resourceAware);

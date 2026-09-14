@@ -1,0 +1,50 @@
+package games.pixscape.runtime.hud;
+
+import games.pixscape.runtime.hud.document.HudImageSource;
+import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.HudNodeKind;
+import games.pixscape.runtime.hud.document.ValidatedHudDocument;
+
+/**
+ * GL-free resource categories required to materialize one validated HUD document.
+ *
+ * <p>Skin-backed V1 actors also require the authored atlas because their textures must belong to
+ * the HUD texture array consumed by {@code HudBatch}. A REGION image needs only that atlas.</p>
+ */
+public final class HudResourceRequirements {
+    private final boolean skin;
+    private final boolean atlas;
+
+    private HudResourceRequirements(boolean skin, boolean atlas) {
+        this.skin = skin;
+        this.atlas = atlas;
+    }
+
+    /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
+    public static HudResourceRequirements from(ValidatedHudDocument document) {
+        if (document == null) {
+            throw new IllegalArgumentException("ValidatedHudDocument is required.");
+        }
+        boolean requiresSkin = false;
+        boolean requiresAtlas = false;
+        for (HudNode node : document.nodeIndex().values()) {
+            HudNodeKind kind = node.kind;
+            if (kind == HudNodeKind.LABEL || kind == HudNodeKind.TEXT_BUTTON) {
+                requiresSkin = true;
+                requiresAtlas = true;
+            } else if (kind == HudNodeKind.IMAGE) {
+                requiresAtlas = true;
+                if (node.image.source == HudImageSource.DRAWABLE) requiresSkin = true;
+            }
+        }
+        return new HudResourceRequirements(requiresSkin, requiresAtlas);
+    }
+
+    public boolean requiresSkin() {
+        return skin;
+    }
+
+    public boolean requiresAtlas() {
+        return atlas;
+    }
+}

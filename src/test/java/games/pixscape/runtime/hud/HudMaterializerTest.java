@@ -95,7 +95,7 @@ public class HudMaterializerTest {
         HudScreenAsset asset = new HudScreenAsset();
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
-        resources = HudResources.prepare(asset, root);
+        resources = HudResources.prepare(asset, root, HudResourcesTest.fullRequirements());
     }
 
     @After
@@ -108,6 +108,31 @@ public class HudMaterializerTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+    }
+
+    @Test
+    public void materializesLayoutOnlyTreeWithoutSkinOrAtlas() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("layout-only"));
+        String serialized = "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                + "\"kind\":\"GROUP\",\"children\":[{\"placementKind\":\"DIRECT\","
+                + "\"node\":{\"id\":\"stack\",\"kind\":\"STACK\","
+                + "\"children\":[]}}]}}";
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentCodec().read(serialized));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        HudResourceRequirements requirements =
+                HudResourceRequirements.from(validation.validatedDocument());
+        HudResources emptyResources = HudResources.prepare(
+                new HudScreenAsset(), root, requirements);
+        try {
+            MaterializedHud hud = new HudMaterializer().materialize(
+                    validation.validatedDocument(), emptyResources);
+            Assert.assertTrue(hud.root() instanceof HudFreeGroup);
+            Assert.assertTrue(hud.actor("stack") instanceof Stack);
+            Assert.assertEquals(2, hud.actorById().size());
+        } finally {
+            emptyResources.dispose();
+        }
     }
 
     @Test

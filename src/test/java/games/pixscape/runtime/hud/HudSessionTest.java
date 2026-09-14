@@ -7,6 +7,8 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
@@ -96,6 +98,38 @@ public class HudSessionTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+    }
+
+    @Test
+    public void resourceFreeSessionDrawsEmptyStageAndRejectsTexturedSubmission() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free-session"));
+        HudScreenAsset asset = new HudScreenAsset();
+        HudResourceRequirements requirements = HudResourcesTest.requirementsFor(
+                "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}");
+        HudResources resources = HudResources.prepare(asset, root, requirements);
+        ShaderProgram shader = shader();
+        HudSession session = HudSession.create(asset, resources, shader);
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        try {
+            Assert.assertNull(session.hudBatch().getTextureArrayBundle());
+            session.act(0f);
+            session.draw();
+
+            session.hudBatch().begin();
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class,
+                    () -> session.hudBatch().draw(texture, 0f, 0f));
+            Assert.assertEquals(
+                    "HudBatch has no active HUD texture-array bundle.", failure.getMessage());
+            session.hudBatch().end();
+        } finally {
+            texture.dispose();
+            session.dispose();
+            resources.dispose();
+            shader.dispose();
+        }
     }
 
     @Test
@@ -312,7 +346,8 @@ public class HudSessionTest {
         HudScreenAsset asset = new HudScreenAsset();
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
-        return new Prepared(asset, HudResources.prepare(asset, root), shader());
+        return new Prepared(asset,
+                HudResources.prepare(asset, root, HudResourcesTest.fullRequirements()), shader());
     }
 
     private static MaterializedHud materialize(String fixture, HudResources resources) {

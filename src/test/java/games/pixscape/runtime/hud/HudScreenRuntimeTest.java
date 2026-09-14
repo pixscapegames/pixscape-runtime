@@ -188,6 +188,40 @@ public class HudScreenRuntimeTest {
     }
 
     @Test
+    public void presentLayoutOnlyScreenRunsWithoutSkinAtlasOrTextureBundle() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("layout-only-project"));
+        root.child("hud").mkdirs();
+        root.child("hud/layout.hudscreen").writeString(
+                "{\"schemaVersion\":1,\"referenceWidth\":320,"
+                        + "\"referenceHeight\":180,\"documentId\":\"hud/layout.json\"}",
+                false, "UTF-8");
+        root.child("hud/layout.json").writeString(
+                "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                        + "\"kind\":\"GROUP\",\"children\":[{"
+                        + "\"placementKind\":\"DIRECT\",\"node\":{"
+                        + "\"id\":\"stack\",\"kind\":\"STACK\","
+                        + "\"children\":[]}}]}}", false, "UTF-8");
+
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        ActiveHudScreen active = runtime.show("layout");
+        try {
+            Assert.assertFalse(active.isEmpty());
+            Assert.assertNotNull(active.materializedHud().actor("root"));
+            Assert.assertNotNull(active.materializedHud().actor("stack"));
+            Assert.assertNull(active.resources().textureArrayBundle());
+            Assert.assertNull(active.session().hudBatch().getTextureArrayBundle());
+            int drawsBefore = drawCalls;
+            runtime.act(0f);
+            runtime.resize(640, 360);
+            runtime.draw();
+            Assert.assertEquals(drawsBefore, drawCalls);
+        } finally {
+            runtime.dispose();
+        }
+        Assert.assertTrue(active.isDisposed());
+    }
+
+    @Test
     public void failuresRetainStageSpecificAndTypedDiagnostics() throws Exception {
         FileHandle root = project();
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);

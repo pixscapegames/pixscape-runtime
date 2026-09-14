@@ -16,6 +16,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -103,6 +105,80 @@ public class HudResourcesTest {
     }
 
     @Test
+    public void resourceFreePreparationNeedsNoFilesOrGlResourcesAndDisposesOnce()
+            throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free"));
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.skinId = "ui/not-loaded.json";
+        asset.atlasId = "ui/not-loaded.atlas";
+        HudResourceRequirements requirements = requirementsFor(
+                "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}");
+
+        HudResources resources = HudResources.prepare(asset, root, requirements);
+
+        Assert.assertTrue(resources.satisfies(requirements));
+        Assert.assertNull(resources.skinId());
+        Assert.assertNull(resources.atlasId());
+        Assert.assertNull(resources.textureArrayBundle());
+        Assert.assertFalse(resources.hasRegion("anything"));
+        Assert.assertFalse(resources.hasDrawable("anything"));
+        Assert.assertFalse(resources.hasLabelStyle("anything"));
+        Assert.assertFalse(resources.hasTextButtonStyle("anything"));
+        Assert.assertThrows(IllegalStateException.class, resources::skin);
+        Assert.assertThrows(IllegalStateException.class, resources::atlas);
+
+        resources.dispose();
+        resources.dispose();
+        Assert.assertTrue(resources.isDisposed());
+    }
+
+    @Test
+    public void atlasOnlyRegionPreparationDoesNotRequireSkin() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("atlas-only"));
+        writeHudFiles(root);
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.atlasId = "ui/game.atlas";
+        HudResourceRequirements requirements = requirementsFor(
+                "{\"id\":\"image\",\"kind\":\"IMAGE\",\"image\":{"
+                        + "\"source\":\"REGION\",\"resourceName\":\"inventory-art\"},"
+                        + "\"children\":[]}");
+
+        HudResources resources = HudResources.prepare(asset, root, requirements);
+        try {
+            Assert.assertTrue(resources.satisfies(requirements));
+            Assert.assertNull(resources.skinId());
+            Assert.assertEquals("ui/game.atlas", resources.atlasId());
+            Assert.assertTrue(resources.hasRegion("inventory-art"));
+            Assert.assertFalse(resources.hasDrawable("inventory-panel"));
+            Assert.assertNotNull(resources.textureArrayBundle());
+        } finally {
+            resources.dispose();
+        }
+    }
+
+    @Test
+    public void actualDocumentRequirementsControlMissingReferenceDiagnostics() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("requirements"));
+        HudScreenAsset asset = new HudScreenAsset();
+        HudResourceRequirements region = requirementsFor(
+                "{\"id\":\"image\",\"kind\":\"IMAGE\",\"image\":{"
+                        + "\"source\":\"REGION\",\"resourceName\":\"art\"},"
+                        + "\"children\":[]}");
+        HudResourceRequirements label = requirementsFor(
+                "{\"id\":\"label\",\"kind\":\"LABEL\",\"label\":{"
+                        + "\"text\":\"Title\",\"styleName\":\"title\"},"
+                        + "\"children\":[]}");
+
+        RuntimeException missingAtlas = Assert.assertThrows(RuntimeException.class,
+                () -> HudResources.prepare(asset, root, region));
+        Assert.assertTrue(missingAtlas.getMessage(), missingAtlas.getMessage().contains("atlasId"));
+
+        RuntimeException missingSkin = Assert.assertThrows(RuntimeException.class,
+                () -> HudResources.prepare(asset, root, label));
+        Assert.assertTrue(missingSkin.getMessage(), missingSkin.getMessage().contains("skinId"));
+    }
+
+    @Test
     public void atlasMetadataRejectsWrongDimensionsAndSamplerPolicy() {
         HudTextureProfile profile = HudTextureProfile.forId(null);
         TextureAtlas.TextureAtlasData.Page page = validPage("page.png");
@@ -159,7 +235,7 @@ public class HudResourcesTest {
         asset.atlasId = authoredAtlasId;
         asset.textureProfileId = authoredProfileId;
 
-        HudResources resources = HudResources.prepare(asset, root);
+        HudResources resources = HudResources.prepare(asset, root, fullRequirements());
 
         Assert.assertEquals(authoredSkinId, asset.skinId);
         Assert.assertEquals(authoredAtlasId, asset.atlasId);
@@ -228,7 +304,8 @@ public class HudResourcesTest {
         asset.atlasId = "ui/game.atlas";
 
         IllegalStateException failure = Assert.assertThrows(
-                IllegalStateException.class, () -> HudResources.prepare(asset, root));
+                IllegalStateException.class,
+                () -> HudResources.prepare(asset, root, fullRequirements()));
 
         Assert.assertTrue(failure.getMessage(),
                 failure.getMessage().contains("external-font"));
@@ -360,7 +437,8 @@ public class HudResourcesTest {
     private static void assertPreparationFailure(
             HudScreenAsset asset, FileHandle root, String diagnostic) {
         RuntimeException failure = Assert.assertThrows(
-                RuntimeException.class, () -> HudResources.prepare(asset, root));
+                RuntimeException.class,
+                () -> HudResources.prepare(asset, root, fullRequirements()));
         Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(diagnostic));
     }
 
@@ -370,6 +448,21 @@ public class HudResourcesTest {
         RuntimeException failure = Assert.assertThrows(RuntimeException.class,
                 () -> HudResources.validateAtlasMetadata(pages, profile));
         Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(diagnostic));
+    }
+
+    static HudResourceRequirements fullRequirements() {
+        FileHandle fixture = new FileHandle(
+                "src/test/resources/games/pixscape/runtime/hud/document/v1/"
+                        + "materializer-smoke.json");
+        HudDocumentValidator validator = new HudDocumentValidator();
+        return HudResourceRequirements.from(validator.validate(
+                new HudDocumentCodec().read(fixture)).validatedDocument());
+    }
+
+    static HudResourceRequirements requirementsFor(String root) {
+        HudDocumentValidator validator = new HudDocumentValidator();
+        return HudResourceRequirements.from(validator.validate(new HudDocumentCodec().read(
+                "{\"schemaVersion\":1,\"root\":" + root + "}")).validatedDocument());
     }
 
     private static Object defaultValue(Class<?> type) {

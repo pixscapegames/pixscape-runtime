@@ -43,51 +43,67 @@ public final class HudResources implements Disposable, HudResourceCatalog {
     }
 
     /**
-     * Synchronously prepares a complete HUD resource snapshot on the active LibGDX GL thread.
-     * The returned object exclusively owns the loaded atlas, Skin, and TextureArray bundle.
+     * Synchronously prepares exactly the required HUD resource categories.
+     * The returned object exclusively owns every loaded atlas, Skin, and TextureArray bundle.
      */
-    public static HudResources prepare(HudScreenAsset asset, FileHandle runtimeProjectDir) {
+    public static HudResources prepare(HudScreenAsset asset, FileHandle runtimeProjectDir,
+                                       HudResourceRequirements requirements) {
         if (asset == null) throw new IllegalArgumentException("HudScreenAsset is required.");
         if (runtimeProjectDir == null) {
             throw new IllegalArgumentException("Runtime project directory is required.");
         }
+        if (requirements == null) {
+            throw new IllegalArgumentException("HudResourceRequirements is required.");
+        }
         asset.validate();
-        String skinId = requireReference(
-                HudResourceId.normalizeOptional(asset.skinId, "Skin"), "skinId");
-        String atlasId = requireReference(
-                HudResourceId.normalizeOptional(asset.atlasId, "TextureAtlas"), "atlasId");
+        String skinId = HudResourceId.normalizeOptional(asset.skinId, "Skin");
+        String atlasId = HudResourceId.normalizeOptional(asset.atlasId, "TextureAtlas");
+        if (requirements.requiresSkin()) skinId = requireReference(skinId, "skinId");
+        if (requirements.requiresAtlas()) atlasId = requireReference(atlasId, "atlasId");
         String profileId = HudTextureProfile.normalizeIdOrDefault(asset.textureProfileId);
         HudTextureProfile profile = HudTextureProfile.forId(profileId);
-        validateOutputFormat(profile);
+        if (requirements.requiresAtlas()) validateOutputFormat(profile);
 
-        FileHandle skinFile = resolveRequired(runtimeProjectDir, skinId, "Skin");
-        FileHandle atlasFile = resolveRequired(runtimeProjectDir, atlasId, "TextureAtlas");
-        TextureAtlasData atlasData = new TextureAtlasData(
-                atlasFile, atlasFile.parent(), false);
-        validateAtlasMetadata(atlasData.getPages(), profile);
+        FileHandle skinFile = requirements.requiresSkin()
+                ? resolveRequired(runtimeProjectDir, skinId, "Skin") : null;
+        TextureAtlasData atlasData = null;
+        if (requirements.requiresAtlas()) {
+            FileHandle atlasFile = resolveRequired(runtimeProjectDir, atlasId, "TextureAtlas");
+            atlasData = new TextureAtlasData(atlasFile, atlasFile.parent(), false);
+            validateAtlasMetadata(atlasData.getPages(), profile);
+        }
 
         TextureAtlas atlas = null;
         Skin skin = null;
         AtlasRuntimeService.TextureArrayBundle bundle = null;
         boolean completed = false;
         try {
-            atlas = new TextureAtlas(atlasData);
-            Array<Texture> orderedPages = orderedPageTextures(atlasData);
-            validateLoadedPages(orderedPages, profile);
+            Array<Texture> orderedPages = null;
+            if (atlasData != null) {
+                atlas = new TextureAtlas(atlasData);
+                orderedPages = orderedPageTextures(atlasData);
+                validateLoadedPages(orderedPages, profile);
+            }
 
-            skin = new Skin();
-            skin.addRegions(atlas);
-            skin.load(skinFile);
-            validateFonts(skin, orderedPages);
+            if (skinFile != null) {
+                skin = new Skin();
+                skin.addRegions(atlas);
+                skin.load(skinFile);
+                validateFonts(skin, orderedPages);
+            }
 
-            GLCaps caps = GLCaps.detect();
-            caps.validateTextureArray(
-                    profile.pageWidth(), profile.pageHeight(), 1 + orderedPages.size);
-            bundle = AtlasRuntimeService.buildTextureArrayFromTextures(
-                    orderedPages, profile.pageWidth(), profile.pageHeight(), caps);
+            if (orderedPages != null) {
+                GLCaps caps = GLCaps.detect();
+                caps.validateTextureArray(
+                        profile.pageWidth(), profile.pageHeight(), 1 + orderedPages.size);
+                bundle = AtlasRuntimeService.buildTextureArrayFromTextures(
+                        orderedPages, profile.pageWidth(), profile.pageHeight(), caps);
+            }
 
             HudResources resources = new HudResources(
-                    skinId, atlasId, profile, skin, atlas, bundle);
+                    skinFile != null ? skinId : null,
+                    atlasData != null ? atlasId : null,
+                    profile, skin, atlas, bundle);
             completed = true;
             return resources;
         } finally {
@@ -238,19 +254,33 @@ public final class HudResources implements Disposable, HudResourceCatalog {
     /** Package-private borrowed mutable Skin; valid only while open; do not mutate or dispose. */
     Skin skin() {
         requireOpen();
+        if (skin == null) throw new IllegalStateException("HudResources has no prepared Skin.");
         return skin;
     }
 
     /** Package-private borrowed mutable atlas; valid only while open; do not mutate or dispose. */
     TextureAtlas atlas() {
         requireOpen();
+        if (atlas == null) {
+            throw new IllegalStateException("HudResources has no prepared TextureAtlas.");
+        }
         return atlas;
     }
 
-    /** Package-private borrowed bundle; valid only while open; do not mutate or dispose. */
+    /** Package-private borrowed bundle, or null when no atlas was required. */
     AtlasRuntimeService.TextureArrayBundle textureArrayBundle() {
         requireOpen();
         return textureArrayBundle;
+    }
+
+    /** Returns whether this prepared snapshot satisfies all requested resource categories. */
+    public boolean satisfies(HudResourceRequirements requirements) {
+        requireOpen();
+        if (requirements == null) {
+            throw new IllegalArgumentException("HudResourceRequirements is required.");
+        }
+        return (!requirements.requiresSkin() || skin != null)
+                && (!requirements.requiresAtlas() || atlas != null && textureArrayBundle != null);
     }
 
     public boolean isDisposed() {
@@ -260,28 +290,30 @@ public final class HudResources implements Disposable, HudResourceCatalog {
     @Override
     public boolean hasRegion(String name) {
         requireOpen();
-        return atlas.findRegion(name) != null;
+        return atlas != null && atlas.findRegion(name) != null;
     }
 
     @Override
     public boolean hasDrawable(String name) {
         requireOpen();
-        return skin.has(name, com.badlogic.gdx.scenes.scene2d.utils.Drawable.class)
+        return skin != null && (skin.has(name, com.badlogic.gdx.scenes.scene2d.utils.Drawable.class)
                 || skin.has(name, com.badlogic.gdx.graphics.g2d.TextureRegion.class)
                 || skin.has(name, com.badlogic.gdx.graphics.g2d.NinePatch.class)
-                || skin.has(name, com.badlogic.gdx.graphics.g2d.Sprite.class);
+                || skin.has(name, com.badlogic.gdx.graphics.g2d.Sprite.class));
     }
 
     @Override
     public boolean hasLabelStyle(String name) {
         requireOpen();
-        return skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
+        return skin != null
+                && skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
     }
 
     @Override
     public boolean hasTextButtonStyle(String name) {
         requireOpen();
-        return skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
+        return skin != null
+                && skin.has(name, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
     }
 
     private void requireOpen() {
@@ -294,17 +326,19 @@ public final class HudResources implements Disposable, HudResourceCatalog {
         disposed = true;
         RuntimeException failure = null;
         try {
-            skin.dispose();
+            if (skin != null) skin.dispose();
         } catch (RuntimeException disposalFailure) {
             failure = disposalFailure;
         }
         try {
-            textureArrayBundle.textureArray.dispose();
+            if (textureArrayBundle != null && textureArrayBundle.textureArray != null) {
+                textureArrayBundle.textureArray.dispose();
+            }
         } catch (RuntimeException disposalFailure) {
             if (failure == null) failure = disposalFailure;
         }
         try {
-            atlas.dispose();
+            if (atlas != null) atlas.dispose();
         } catch (RuntimeException disposalFailure) {
             if (failure == null) failure = disposalFailure;
         }

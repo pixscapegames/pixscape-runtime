@@ -77,7 +77,6 @@ public final class HudMaterializer {
     }
 
     private Actor createActor(HudNode node, HudResources resources) {
-        Skin skin = resources.skin();
         switch (node.kind) {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
@@ -89,7 +88,7 @@ public final class HudMaterializer {
                 Container<Actor> container = new Container<Actor>();
                 container.setClip(node.container.clip);
                 return container;
-            case IMAGE:
+            case IMAGE: {
                 if (node.image.source == HudImageSource.REGION) {
                     AtlasRegion region = resources.atlas().findRegion(node.image.resourceName);
                     if (region == null) {
@@ -100,22 +99,28 @@ public final class HudMaterializer {
                 if (!resources.hasDrawable(node.image.resourceName)) {
                     throw missing(node, "Skin drawable", node.image.resourceName);
                 }
+                Skin skin = resources.skin();
                 Drawable drawable = skin.getDrawable(node.image.resourceName);
                 return new Image(drawable);
-            case LABEL:
+            }
+            case LABEL: {
+                Skin skin = resources.skin();
                 Label.LabelStyle labelStyle =
                         skin.optional(node.label.styleName, Label.LabelStyle.class);
                 if (labelStyle == null) {
                     throw missing(node, "Label style", node.label.styleName);
                 }
                 return new Label(node.label.text, labelStyle);
-            case TEXT_BUTTON:
+            }
+            case TEXT_BUTTON: {
+                Skin skin = resources.skin();
                 TextButton.TextButtonStyle buttonStyle =
                         skin.optional(node.textButton.styleName, TextButton.TextButtonStyle.class);
                 if (buttonStyle == null) {
                     throw missing(node, "TextButton style", node.textButton.styleName);
                 }
                 return new TextButton(node.textButton.text, buttonStyle);
+            }
             default:
                 throw new IllegalStateException(
                         "Unsupported validated HUD node kind: " + node.kind + ".");
