@@ -49,7 +49,7 @@ public final class HudScreenLoader {
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,
                     documentId, resourceAware);
             MaterializedHud hud = materializer.materialize(
-                    resourceAware.validatedDocument(), resources);
+                    resourceAware.validatedDocument(), (HudVisualResources) resources);
             session = HudSession.create(asset, resources, hudShader);
             session.install(hud);
             return new ActiveHudScreen(logicalId, asset, resources, hud, session);

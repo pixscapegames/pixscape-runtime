@@ -7,7 +7,10 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ObjectMap;
@@ -19,10 +22,11 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * {@code INTERNAL} owned prepared HUD resource snapshot.
  *
  * <p>Resource membership and profile selection are frozen after preparation. The contained
- * LibGDX objects remain mutable implementation resources and are borrowed only by Runtime code
- * in this package; {@code HudResources} is their sole disposal owner.</p>
+ * LibGDX objects remain mutable implementation resources; {@code HudResources} is their sole
+ * disposal owner. {@link HudVisualResources} exposes only the borrowed values needed to
+ * materialize a HUD document.</p>
  */
-public final class HudResources implements Disposable, HudResourceCatalog {
+public final class HudResources implements Disposable, HudResourceCatalog, HudVisualResources {
     private final String skinId;
     private final String atlasId;
     private final HudTextureProfile textureProfile;
@@ -285,6 +289,30 @@ public final class HudResources implements Disposable, HudResourceCatalog {
 
     public boolean isDisposed() {
         return disposed;
+    }
+
+    @Override
+    public TextureRegion region(String name) {
+        requireOpen();
+        return atlas == null ? null : atlas.findRegion(name);
+    }
+
+    @Override
+    public Drawable drawable(String name) {
+        requireOpen();
+        return hasDrawable(name) ? skin.getDrawable(name) : null;
+    }
+
+    @Override
+    public Label.LabelStyle labelStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, Label.LabelStyle.class);
+    }
+
+    @Override
+    public TextButton.TextButtonStyle textButtonStyle(String name) {
+        requireOpen();
+        return skin == null ? null : skin.optional(name, TextButton.TextButtonStyle.class);
     }
 
     @Override

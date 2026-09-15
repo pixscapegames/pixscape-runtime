@@ -7,6 +7,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.EventListener;
@@ -19,8 +20,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
@@ -275,7 +278,9 @@ public class HudMaterializerTest {
     @Test
     public void resourcesResolveFromPreparedSnapshotWithoutCreatingTextures() {
         int texturesBefore = generatedTextures;
-        MaterializedHud hud = materialize("resources.json");
+        HudVisualResources visualResources = resources;
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validated("resources.json"), visualResources);
         Image regionImage = (Image) hud.actor("scene-art");
         Image drawableImage = (Image) hud.actor("ninepatch-panel");
         Label label = (Label) hud.actor("resource-label");
@@ -292,6 +297,35 @@ public class HudMaterializerTest {
         Assert.assertSame(resources.skin().get(
                 "hud-primary", TextButton.TextButtonStyle.class), button.getStyle());
         Assert.assertEquals(texturesBefore, generatedTextures);
+    }
+
+    @Test
+    public void materializesBorrowedVisualResourcesWithoutOwningTheProvider() {
+        TextureRegion plainRegion = new TextureRegion();
+        FakeVisualResources visualResources = new FakeVisualResources(
+                plainRegion,
+                resources.skin().getDrawable("inventory-panel"),
+                resources.skin().get("hud-body-bitmap", Label.LabelStyle.class),
+                resources.skin().get("hud-primary", TextButton.TextButtonStyle.class));
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentCodec().read(new FileHandle(
+                        "src/test/resources/" + FIXTURE_ROOT + "resources.json")));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), visualResources);
+
+        Image image = (Image) hud.actor("scene-art");
+        Assert.assertSame(plainRegion,
+                ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable)
+                        image.getDrawable()).getRegion());
+        Assert.assertSame(visualResources.drawable,
+                ((Image) hud.actor("ninepatch-panel")).getDrawable());
+        Assert.assertSame(visualResources.labelStyle,
+                ((Label) hud.actor("resource-label")).getStyle());
+        Assert.assertSame(visualResources.textButtonStyle,
+                ((TextButton) hud.actor("resource-button")).getStyle());
+        Assert.assertFalse(visualResources.disposed);
     }
 
     @Test
@@ -350,12 +384,57 @@ public class HudMaterializerTest {
 
     @Test
     public void publicMaterializerBoundaryAcceptsOnlyValidatedDocuments() throws Exception {
-        Method materialize = HudMaterializer.class.getMethod(
+        Method visualMaterialize = HudMaterializer.class.getMethod(
+                "materialize", ValidatedHudDocument.class, HudVisualResources.class);
+        Assert.assertEquals(MaterializedHud.class, visualMaterialize.getReturnType());
+        Method compatibilityMaterialize = HudMaterializer.class.getMethod(
                 "materialize", ValidatedHudDocument.class, HudResources.class);
-        Assert.assertEquals(MaterializedHud.class, materialize.getReturnType());
+        Assert.assertEquals(MaterializedHud.class, compatibilityMaterialize.getReturnType());
         for (Method method : HudMaterializer.class.getMethods()) {
             if (!"materialize".equals(method.getName())) continue;
             Assert.assertEquals(ValidatedHudDocument.class, method.getParameterTypes()[0]);
+        }
+    }
+
+    private static final class FakeVisualResources implements HudVisualResources, Disposable {
+        private final TextureRegion region;
+        private final Drawable drawable;
+        private final Label.LabelStyle labelStyle;
+        private final TextButton.TextButtonStyle textButtonStyle;
+        private boolean disposed;
+
+        private FakeVisualResources(TextureRegion region, Drawable drawable,
+                                    Label.LabelStyle labelStyle,
+                                    TextButton.TextButtonStyle textButtonStyle) {
+            this.region = region;
+            this.drawable = drawable;
+            this.labelStyle = labelStyle;
+            this.textButtonStyle = textButtonStyle;
+        }
+
+        @Override
+        public TextureRegion region(String name) {
+            return "inventory-art".equals(name) ? region : null;
+        }
+
+        @Override
+        public Drawable drawable(String name) {
+            return "inventory-panel".equals(name) ? drawable : null;
+        }
+
+        @Override
+        public Label.LabelStyle labelStyle(String name) {
+            return "hud-body-bitmap".equals(name) ? labelStyle : null;
+        }
+
+        @Override
+        public TextButton.TextButtonStyle textButtonStyle(String name) {
+            return "hud-primary".equals(name) ? textButtonStyle : null;
+        }
+
+        @Override
+        public void dispose() {
+            disposed = true;
         }
     }
 

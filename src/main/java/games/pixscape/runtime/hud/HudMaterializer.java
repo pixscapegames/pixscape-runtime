@@ -1,13 +1,12 @@
 package games.pixscape.runtime.hud;
 
-import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -26,15 +25,26 @@ import java.util.Map;
 
 /** Converts a validated V1 construction document into one detached native Scene2D actor tree. */
 public final class HudMaterializer {
+    /**
+     * Preserves the existing Runtime entry point while delegating materialization to the
+     * borrowed visual-resource contract.
+     */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudResources resources) {
-        if (validatedDocument == null) {
-            throw new IllegalArgumentException("ValidatedHudDocument is required.");
-        }
         if (resources == null) throw new IllegalArgumentException("HudResources is required.");
         if (resources.isDisposed()) {
             throw new IllegalStateException("HudResources has been disposed.");
         }
+        return materialize(validatedDocument, (HudVisualResources) resources);
+    }
+
+    /** Converts a validated HUD document using borrowed visual resources. */
+    public MaterializedHud materialize(
+            ValidatedHudDocument validatedDocument, HudVisualResources resources) {
+        if (validatedDocument == null) {
+            throw new IllegalArgumentException("ValidatedHudDocument is required.");
+        }
+        if (resources == null) throw new IllegalArgumentException("HudVisualResources is required.");
 
         Map<String, Actor> actorById = new LinkedHashMap<String, Actor>();
         Actor root = materializeNode(validatedDocument.document().root, resources, actorById);
@@ -46,7 +56,7 @@ public final class HudMaterializer {
     }
 
     private Actor materializeNode(
-            HudNode node, HudResources resources, Map<String, Actor> actorById) {
+            HudNode node, HudVisualResources resources, Map<String, Actor> actorById) {
         Actor actor = createActor(node, resources);
         actor.setName(node.id);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
@@ -76,7 +86,7 @@ public final class HudMaterializer {
         return actor;
     }
 
-    private Actor createActor(HudNode node, HudResources resources) {
+    private Actor createActor(HudNode node, HudVisualResources resources) {
         switch (node.kind) {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
@@ -90,32 +100,28 @@ public final class HudMaterializer {
                 return container;
             case IMAGE: {
                 if (node.image.source == HudImageSource.REGION) {
-                    AtlasRegion region = resources.atlas().findRegion(node.image.resourceName);
+                    TextureRegion region = resources.region(node.image.resourceName);
                     if (region == null) {
                         throw missing(node, "atlas region", node.image.resourceName);
                     }
                     return new Image(region);
                 }
-                if (!resources.hasDrawable(node.image.resourceName)) {
+                Drawable drawable = resources.drawable(node.image.resourceName);
+                if (drawable == null) {
                     throw missing(node, "Skin drawable", node.image.resourceName);
                 }
-                Skin skin = resources.skin();
-                Drawable drawable = skin.getDrawable(node.image.resourceName);
                 return new Image(drawable);
             }
             case LABEL: {
-                Skin skin = resources.skin();
-                Label.LabelStyle labelStyle =
-                        skin.optional(node.label.styleName, Label.LabelStyle.class);
+                Label.LabelStyle labelStyle = resources.labelStyle(node.label.styleName);
                 if (labelStyle == null) {
                     throw missing(node, "Label style", node.label.styleName);
                 }
                 return new Label(node.label.text, labelStyle);
             }
             case TEXT_BUTTON: {
-                Skin skin = resources.skin();
                 TextButton.TextButtonStyle buttonStyle =
-                        skin.optional(node.textButton.styleName, TextButton.TextButtonStyle.class);
+                        resources.textButtonStyle(node.textButton.styleName);
                 if (buttonStyle == null) {
                     throw missing(node, "TextButton style", node.textButton.styleName);
                 }
@@ -170,6 +176,6 @@ public final class HudMaterializer {
     private static IllegalStateException missing(
             HudNode node, String resourceKind, String resourceName) {
         return new IllegalStateException("Validated HUD node '" + node.id + "' requires "
-                + resourceKind + " '" + resourceName + "' in the prepared HudResources.");
+                + resourceKind + " '" + resourceName + "' in the provided HUD visual resources.");
     }
 }
