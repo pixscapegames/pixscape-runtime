@@ -1035,6 +1035,7 @@ public final class PixscapeEngine {
         }
         lastSceneDefaultHudFailure = null;
 
+        if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
         // World after HUD; World systems may still touch their own services.
         if (world != null) {
             world.dispose();
@@ -1057,6 +1058,7 @@ public final class PixscapeEngine {
             atlasRuntimeService.unloadAll();
             atlasRuntimeService = null;
         }
+        releaseActiveSceneAvailability();
 
         dynamicEntityState = null;
         layerState = null;
@@ -1338,6 +1340,8 @@ public final class PixscapeEngine {
         SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
         sceneLoaded = false;
         activeSceneMeta = null;
+        if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
         rebuildWorld(cfg, runtimeProjectDir, meta);
         retireActiveSceneAvailability();
 
@@ -1439,7 +1443,14 @@ public final class PixscapeEngine {
             return;
         }
         try {
-            hudScreenRuntime.show(meta.defaultHudScreenId);
+            if (cfg.sceneHudFormatVersion != null && cfg.sceneHudFormatVersion.intValue() == 1) {
+                if (activeSceneAvailability == null || activeSceneAvailability.hudResources() == null) {
+                    throw new IllegalStateException("Scene HUD v1 environment was not prepared.");
+                }
+                hudScreenRuntime.showBorrowing(meta.defaultHudScreenId, activeSceneAvailability.hudResources());
+            } else {
+                hudScreenRuntime.show(meta.defaultHudScreenId);
+            }
         } catch (RuntimeException failure) {
             lastSceneDefaultHudFailure = failure;
             try {
@@ -1532,14 +1543,17 @@ public final class PixscapeEngine {
 
     private void releaseActiveSceneAvailability() {
         if (activeSceneAvailability == null) return;
-        activeSceneAvailability.release();
+        if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        SceneAvailabilityPlan previous = activeSceneAvailability;
         activeSceneAvailability = null;
+        previous.release();
     }
 
     private void releasePendingSceneAvailability() {
         if (pendingSceneAvailability == null) return;
-        pendingSceneAvailability.release();
+        SceneAvailabilityPlan previous = pendingSceneAvailability;
         pendingSceneAvailability = null;
+        previous.release();
     }
 
     private void rebuildTiledLayersRuntime() {
@@ -1919,6 +1933,7 @@ public final class PixscapeEngine {
                         boolean available = candidate.update();
                         setProgress(0.60f * candidate.progress());
                         if (available) {
+                            candidate.prepareHudResources();
                             phase = SceneLoadPhase.SCENE;
                             setProgress(0.60f);
                         }

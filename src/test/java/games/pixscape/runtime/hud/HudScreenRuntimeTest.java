@@ -408,6 +408,150 @@ public class HudScreenRuntimeTest {
         return root;
     }
 
+    @Test
+    public void sceneExportMultiSkinUsesOnlyScenePagesAndRelativeFontDescriptors() throws Exception {
+        sceneExportMultiSkin(false);
+    }
+
+    @Test
+    public void sceneExportRelativeFontsLoadThroughCanonicalExactKeys() throws Exception {
+        sceneExportMultiSkin(true);
+    }
+
+    private void sceneExportMultiSkin(boolean exactKeys) throws Exception {
+        FileHandle root = twoSkinProject();
+        String atlasId = "atlases/hud/scene/hud.atlas";
+        FileHandle scene = root.child("atlases/hud/scene");
+        scene.mkdirs();
+        root.child("ui/game.atlas").copyTo(scene.child("hud.atlas"));
+        root.child("ui/page-a.png").copyTo(scene.child("page-a.png"));
+        root.child("ui/page-b.png").copyTo(scene.child("page-b.png"));
+        root.child("fonts").mkdirs();
+        root.child("ui/default-font.fnt").copyTo(root.child("fonts/default-font.fnt"));
+        for (String id : new String[]{"a", "b"}) {
+            FileHandle skin = root.child("ui/" + id + ".json");
+            skin.writeString(skin.readString().replace("default-font.fnt", "../fonts/default-font.fnt"), false);
+        }
+        root.child("ui/game.atlas").delete();
+        root.child("ui/page-a.png").delete(); root.child("ui/page-b.png").delete();
+        root.child("ui/default-font.fnt").delete(); root.child("ui/game.json").delete();
+        List<String> reads = new ArrayList<>();
+        if (exactKeys) {
+            Gdx.files = (Files) Proxy.newProxyInstance(Files.class.getClassLoader(), new Class<?>[]{Files.class},
+                    (proxy, method, args) -> "internal".equals(method.getName())
+                            ? new ExactKeyFile((String) args[0], reads) : defaultValue(method.getReturnType()));
+        }
+        FileHandle loadRoot = exactKeys ? new ExactKeyFile(root.path(), reads) : root;
+        com.badlogic.gdx.assets.loaders.FileHandleResolver resolver =
+                path -> exactKeys ? new ExactKeyFile(path, reads) : new FileHandle(path);
+        com.badlogic.gdx.assets.AssetManager manager = new com.badlogic.gdx.assets.AssetManager(resolver);
+        manager.setLoader(com.badlogic.gdx.graphics.g2d.TextureAtlas.class,
+                new com.badlogic.gdx.assets.loaders.SynchronousAssetLoader<com.badlogic.gdx.graphics.g2d.TextureAtlas,
+                        com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter>(resolver) {
+                    public com.badlogic.gdx.graphics.g2d.TextureAtlas load(com.badlogic.gdx.assets.AssetManager owner,
+                            String path, FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) {
+                        return new com.badlogic.gdx.graphics.g2d.TextureAtlas();
+                    }
+                    public com.badlogic.gdx.utils.Array<com.badlogic.gdx.assets.AssetDescriptor> getDependencies(String path,
+                            FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) { return null; }
+                });
+        games.pixscape.runtime.loading.FileAvailabilityService availability =
+                new games.pixscape.runtime.loading.FileAvailabilityService(manager, false);
+        root.child("scenes").mkdirs(); root.child("scenes/scene.json").writeString("{}", false);
+        root.child("atlases/scene.atlas").writeString("", false);
+        games.pixscape.runtime.configuration.RuntimeConfig config = new games.pixscape.runtime.configuration.RuntimeConfig();
+        config.sceneHudFormatVersion = 1;
+        games.pixscape.runtime.loading.SceneMetaRuntime meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.name = "scene"; meta.file = "scene.json"; meta.defaultHudScreenId = "a";
+        config.scenes.put("scene", meta);
+        java.lang.reflect.Constructor<games.pixscape.runtime.loading.SceneAvailabilityPlan> constructor =
+                games.pixscape.runtime.loading.SceneAvailabilityPlan.class.getDeclaredConstructor(
+                        games.pixscape.runtime.loading.FileAvailabilityService.class,
+                        games.pixscape.runtime.configuration.RuntimeConfig.class, FileHandle.class, String.class, List.class);
+        constructor.setAccessible(true);
+        games.pixscape.runtime.loading.SceneAvailabilityPlan plan = constructor.newInstance(
+                availability, config, loadRoot, "scene", Arrays.asList("b", "a", "hud/a"));
+        HudResources environment = null;
+        HudScreenRuntime runtime = new HudScreenRuntime(loadRoot, shader);
+        try {
+            plan.finishOnNative(); plan.prepareHudResources();
+            environment = plan.hudResources();
+            Assert.assertEquals(Arrays.asList("ui/a.json", "ui/b.json"), new ArrayList<String>(environment.skinIds()));
+            Assert.assertEquals(atlasId, environment.atlasId());
+            int allocations = generatedTextures;
+            ActiveHudScreen a = runtime.showBorrowing("a", environment);
+            Assert.assertEquals(Color.RED, ((Label) a.materializedHud().actor("label")).getStyle().fontColor);
+            ActiveHudScreen b = runtime.showBorrowing("b", environment);
+            Assert.assertEquals(Color.BLUE, ((Label) b.materializedHud().actor("label")).getStyle().fontColor);
+            Assert.assertNotSame(environment.select("ui/a.json").labelStyle("default"),
+                    environment.select("ui/b.json").labelStyle("default"));
+            Assert.assertSame(environment.select("ui/a.json").region("crosshair"),
+                    environment.select("ui/b.json").region("crosshair"));
+            Assert.assertEquals(allocations, generatedTextures);
+            Assert.assertEquals(2, environment.select("ui/a.json").skin()
+                    .getFont("default-font").getRegions().size);
+            Assert.assertFalse(root.child("fonts/page-a.png").exists());
+            Assert.assertFalse(root.child("fonts/page-b.png").exists());
+            Assert.assertFalse(root.child("ui/page-a.png").exists());
+            if (exactKeys) {
+                Assert.assertFalse(loadRoot.child("ui/../fonts/default-font.fnt").exists());
+                Assert.assertTrue(reads.contains(root.child("fonts/default-font.fnt").path()));
+                for (String read : reads) Assert.assertFalse(read.contains("/../"));
+            }
+            runtime.hide(); Assert.assertFalse(environment.isDisposed());
+        } finally {
+            runtime.dispose(); plan.release(); plan.release();
+            if (environment != null) Assert.assertTrue(environment.isDisposed());
+            availability.dispose(); manager.dispose();
+        }
+    }
+
+    /** Preserves raw child keys like GWT and rejects dot segments instead of trusting the OS. */
+    private static final class ExactKeyFile extends FileHandle {
+        private final List<String> reads;
+        ExactKeyFile(String path, List<String> reads) { super(path); this.reads = reads; }
+        @Override public FileHandle child(String name) { return new ExactKeyFile(path() + "/" + name, reads); }
+        @Override public FileHandle parent() {
+            return new ExactKeyFile(path().substring(0, path().lastIndexOf('/')), reads);
+        }
+        @Override public boolean exists() { return canonical() && super.exists(); }
+        @Override public java.io.InputStream read() {
+            Assert.assertTrue("Noncanonical exact-key read: " + path(), canonical());
+            reads.add(path());
+            return super.read();
+        }
+        private boolean canonical() {
+            for (String segment : path().replace('\\', '/').split("/")) {
+                if ("..".equals(segment) || ".".equals(segment)) return false;
+            }
+            return true;
+        }
+    }
+
+    @Test public void sceneBorrowedProfileIsAuthoritativeButExplicitShowRetainsOwnedValidation() throws Exception {
+        FileHandle root = project();
+        writeScreen(root, "game", "hud/game.json");
+        copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
+        FileHandle assetFile = root.child("hud/game.hudscreen");
+        String authored = assetFile.readString().replace(HudTextureProfile.DEFAULT_ID, "legacy-other-profile");
+        assetFile.writeString(authored, false);
+        HudResources environment = HudResources.prepareEnvironment(root, "ui/game.atlas",
+                HudTextureProfile.DEFAULT_ID, Arrays.asList("ui/game.json"));
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen borrowed = runtime.showBorrowing("game", environment);
+            Assert.assertSame(environment, borrowed.resources());
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, borrowed.resourceOwnership());
+            Assert.assertEquals("legacy-other-profile", borrowed.asset().textureProfileId);
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> runtime.show("game"));
+            Assert.assertTrue(failure.getMessage().contains("legacy-other-profile"));
+            Assert.assertSame(borrowed, runtime.activeScreen());
+            Assert.assertEquals(authored, assetFile.readString());
+            Assert.assertFalse(environment.isDisposed());
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
     private static HudResources shared(FileHandle root) {
         return HudResources.prepareEnvironment(root, "ui/game.atlas", null, Arrays.asList("ui/a.json", "ui/b.json"));
     }

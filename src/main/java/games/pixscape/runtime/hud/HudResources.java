@@ -144,7 +144,7 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
                 Skin skin = new Skin();
                 skins.put(entry.getKey(), skin); // Own even a partially loaded Skin on failure.
                 skin.addRegions(atlas);
-                skin.load(entry.getValue());
+                skin.load(new HudSkinFile(runtimeProjectDir, entry.getKey()));
                 validateFonts(skin, orderedPages);
             }
 

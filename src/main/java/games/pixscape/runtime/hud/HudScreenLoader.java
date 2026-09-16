@@ -69,10 +69,12 @@ public final class HudScreenLoader {
                 throw new IllegalArgumentException("HUD environment does not satisfy resource categories for "
                         + logicalId + " (Skin " + selected.skinId() + ").");
             }
-            String profileId = HudTextureProfile.normalizeIdOrDefault(asset.textureProfileId);
-            if (!resources.textureProfile().id().equals(profileId)) {
-                throw new IllegalArgumentException("HUD environment texture profile does not match "
-                        + logicalId + ": expected " + profileId + ".");
+            if (ownership == ActiveHudScreen.ResourceOwnership.OWNED) {
+                String profileId = HudTextureProfile.normalizeIdOrDefault(asset.textureProfileId);
+                if (!resources.textureProfile().id().equals(profileId)) {
+                    throw new IllegalArgumentException("HUD environment texture profile does not match "
+                            + logicalId + ": expected " + profileId + ".");
+                }
             }
             HudValidationResult resourceAware = validator.validate(document, selected);
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,

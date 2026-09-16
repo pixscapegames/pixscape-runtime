@@ -1,5 +1,6 @@
 package games.pixscape.runtime.loading;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
@@ -8,6 +9,11 @@ import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.runtime.particle.ParticleEffectPath;
+import games.pixscape.runtime.hud.HudResources;
+import games.pixscape.runtime.hud.HudTextureProfile;
+import games.pixscape.runtime.hud.SceneHudFiles;
+import java.util.List;
+import java.util.Collections;
 
 /** Small staged plan for the exact file/resource needs of one selected scene. */
 public final class SceneAvailabilityPlan {
@@ -23,13 +29,26 @@ public final class SceneAvailabilityPlan {
     private final ObjectSet<String> particlePathSet = new ObjectSet<>();
     private final Array<String> gameObjectPaths = new Array<>();
     private final ObjectSet<String> gameObjectPathSet = new ObjectSet<>();
+    private final Array<String> requestedFiles = new Array<>();
+    private boolean atlasRequested;
     private boolean dependenciesExpanded;
     private boolean released;
+    private final FileHandle runtimeProjectDir;
+    private final String hudAtlasId;
+    private final SceneHudFiles hudFiles;
+    private HudResources hudResources;
+    private boolean hudPrepared;
 
     public SceneAvailabilityPlan(FileAvailabilityService availability,
                                  RuntimeConfig config,
                                  FileHandle runtimeProjectDir,
                                  String sceneName) {
+        this(availability, config, runtimeProjectDir, sceneName, null);
+    }
+
+    // Package-private collection seam exercises the selected-root union without new metadata.
+    SceneAvailabilityPlan(FileAvailabilityService availability, RuntimeConfig config,
+                          FileHandle runtimeProjectDir, String sceneName, List<String> roots) {
         if (availability == null) throw new IllegalArgumentException("availability is null");
         if (config == null) throw new IllegalArgumentException("config is null");
         if (runtimeProjectDir == null) throw new IllegalArgumentException("runtimeProjectDir is null");
@@ -48,29 +67,45 @@ public final class SceneAvailabilityPlan {
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS)).path();
         this.effectsRoot = runtimeProjectDir.child(config.effectsDir);
         this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
+        this.runtimeProjectDir = runtimeProjectDir;
+        this.hudAtlasId = RuntimeFs.DIR_ATLASES + "/hud/" + sceneTag + "/hud.atlas";
+        List<String> hudRoots = config.sceneHudFormatVersion != null && config.sceneHudFormatVersion.intValue() == 1
+                ? (roots == null ? SceneHudRoots.collect(meta) : roots) : Collections.<String>emptyList();
+        this.hudFiles = hudRoots.isEmpty() ? null : new SceneHudFiles(availability, runtimeProjectDir, hudAtlasId, hudRoots);
 
-        availability.requestFile(scenePath);
-        addDeclaredParticles(meta);
-        addDeclaredGameObjects(meta);
+        try {
+            requestFile(scenePath);
+            addDeclaredParticles(meta);
+            addDeclaredGameObjects(meta);
+        } catch (RuntimeException failure) {
+            try {
+                releaseFiles();
+            } catch (RuntimeException cleanupFailure) {
+                if (Gdx.app != null) Gdx.app.error("PixscapeHud", "Scene file acquisition cleanup failed for " + sceneName + ".", cleanupFailure);
+            }
+            throw failure;
+        }
     }
 
     public boolean update() {
         requireActive();
         availability.update();
         expandIfSceneAvailable();
+        if (hudFiles != null) hudFiles.advance();
         return isComplete();
     }
 
     public void finishOnNative() {
         requireActive();
-        availability.finishLoadingOnNative();
-        expandIfSceneAvailable();
-        availability.finishLoadingOnNative();
+        do {
+            availability.finishLoadingOnNative();
+        } while (!update());
     }
 
     public boolean isComplete() {
         requireActive();
         if (!dependenciesExpanded) return false;
+        if (hudFiles != null && !hudFiles.isComplete()) return false;
         if (!availability.isAvailable(atlasPath, TextureAtlas.class)) return false;
         for (int i = 0; i < particlePaths.size; i++) {
             if (!availability.isFileAvailable(particlePaths.get(i))) return false;
@@ -84,7 +119,9 @@ public final class SceneAvailabilityPlan {
     public float progress() {
         requireActive();
         int total = 2 + particlePaths.size + gameObjectPaths.size;
+        if (hudFiles != null) total += hudFiles.fileCount();
         int complete = availability.isFileAvailable(scenePath) ? 1 : 0;
+        if (hudFiles != null) complete += hudFiles.completeFileCount();
         if (dependenciesExpanded && availability.isAvailable(atlasPath, TextureAtlas.class)) complete++;
         for (int i = 0; i < particlePaths.size; i++) {
             if (availability.isFileAvailable(particlePaths.get(i))) complete++;
@@ -103,14 +140,64 @@ public final class SceneAvailabilityPlan {
     public void release() {
         if (released) return;
         released = true;
-        availability.releaseFile(scenePath);
-        if (dependenciesExpanded) availability.release(atlasPath, TextureAtlas.class);
-        for (int i = 0; i < particlePaths.size; i++) {
-            availability.releaseFile(particlePaths.get(i));
+        try {
+            releaseHudResources();
+        } finally {
+            releaseFiles();
         }
-        for (int i = 0; i < gameObjectPaths.size; i++) {
-            availability.releaseFile(gameObjectPaths.get(i));
+    }
+
+    /** Prepare physical resources before the engine crosses its destructive Scene boundary. */
+    public void prepareHudResources() {
+        requireActive();
+        if (!isComplete()) throw new IllegalStateException("Scene HUD files are not available: " + sceneName);
+        if (hudPrepared) return;
+        if (hudFiles != null) {
+            hudResources = HudResources.prepareEnvironment(runtimeProjectDir, hudAtlasId,
+                    HudTextureProfile.DEFAULT_ID, hudFiles.skinIds());
         }
+        hudPrepared = true;
+    }
+
+    /** INTERNAL non-owning access for automatic Scene default activation only. */
+    public HudResources hudResources() { requireActive(); return hudResources; }
+
+    /** Sessions must already be closed; keep World file leases until World retirement completes. */
+    public void releaseHudResources() {
+        HudResources previous = hudResources;
+        hudResources = null;
+        if (previous != null) previous.dispose();
+    }
+
+    private void releaseFiles() {
+        RuntimeException failure = null;
+        try {
+            if (hudFiles != null) hudFiles.release();
+        } catch (RuntimeException cleanupFailure) {
+            failure = cleanupFailure;
+        }
+        for (int i = 0; i < requestedFiles.size; i++) {
+            try {
+                availability.releaseFile(requestedFiles.get(i));
+            } catch (RuntimeException cleanupFailure) {
+                if (failure == null) failure = cleanupFailure;
+            }
+        }
+        requestedFiles.clear();
+        if (atlasRequested) {
+            atlasRequested = false;
+            try {
+                availability.release(atlasPath, TextureAtlas.class);
+            } catch (RuntimeException cleanupFailure) {
+                if (failure == null) failure = cleanupFailure;
+            }
+        }
+        if (failure != null) throw failure;
+    }
+
+    private void requestFile(String path) {
+        availability.requestFile(path);
+        requestedFiles.add(path);
     }
 
     public String sceneName() {
@@ -143,11 +230,12 @@ public final class SceneAvailabilityPlan {
         }
 
         availability.request(atlasPath, TextureAtlas.class);
+        atlasRequested = true;
         for (int i = 0; i < particlePaths.size; i++) {
-            availability.requestFile(particlePaths.get(i));
+            requestFile(particlePaths.get(i));
         }
         for (int i = 0; i < gameObjectPaths.size; i++) {
-            availability.requestFile(gameObjectPaths.get(i));
+            requestFile(gameObjectPaths.get(i));
         }
         dependenciesExpanded = true;
     }

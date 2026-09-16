@@ -18,8 +18,8 @@ public final class HudScreenRuntime implements Disposable {
         return install(loader.load(screenId));
     }
 
-    /** Internal selection seam for a future outer owner; ordinary show remains independently owned. */
-    ActiveHudScreen showBorrowing(String screenId, HudResources environment) {
+    /** INTERNAL engine bridge for Scene default activation; ordinary show remains independently owned. */
+    public ActiveHudScreen showBorrowing(String screenId, HudResources environment) {
         if (active != null && active.resourceOwnership() == ActiveHudScreen.ResourceOwnership.OWNED
                 && active.resources() == environment) {
             throw new IllegalArgumentException("Cannot borrow the environment owned by the screen being replaced.");

@@ -48,6 +48,16 @@ public final class RuntimeProjectIO {
         if (root == null || !root.isObject()) return null;
 
         RuntimeConfig cfg = new RuntimeConfig();
+        JsonValue hudFormat = root.get("sceneHudFormatVersion");
+        if (hudFormat != null) {
+            if (!hudFormat.isLong()) {
+                throw new IllegalArgumentException("Invalid sceneHudFormatVersion: an integer is required.");
+            }
+            if (hudFormat.asLong() != 1L) {
+                throw new IllegalArgumentException("Unsupported sceneHudFormatVersion " + hudFormat.asLong() + ".");
+            }
+            cfg.sceneHudFormatVersion = 1;
+        }
         cfg.projectFileName = root.getString("projectFileName", cfg.projectFileName);
         cfg.version = root.getString("version", cfg.version);
         cfg.runtimeRootDir = root.getString("runtimeRootDir", cfg.runtimeRootDir);
@@ -85,7 +95,8 @@ public final class RuntimeProjectIO {
             JsonValue root = new JsonReader().parse(file);
             cfg = parseRuntimeConfig(root);
         } catch (Exception e) {
-            throw new GdxRuntimeException("Failed to parse " + PROJECT_JSON + ": " + file.path(), e);
+            throw new GdxRuntimeException("Failed to parse " + PROJECT_JSON + ": " + file.path()
+                    + ": " + e.getMessage(), e);
         }
 
         if (cfg == null) {
