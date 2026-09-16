@@ -27,11 +27,27 @@ public final class HudScreenLoader {
 
     /** Builds a detached ownership candidate; it does not mutate any active-screen state. */
     public ActiveHudScreen load(String screenId) {
+        return load(screenId, null, ActiveHudScreen.ResourceOwnership.OWNED);
+    }
+
+    /**
+     * Builds a detached screen borrowing an already prepared environment. The caller retains
+     * ownership on success and failure and must keep it open until every borrowing session ends.
+     * Does not load graphics resources or require exact environment membership/atlas identity.
+     */
+    public ActiveHudScreen loadBorrowing(String screenId, HudResources environment) {
+        if (environment == null) throw new IllegalArgumentException("Borrowed HudResources is required.");
+        environment.requireOpen();
+        return load(screenId, environment, ActiveHudScreen.ResourceOwnership.BORROWED);
+    }
+
+    private ActiveHudScreen load(String screenId, HudResources environment,
+                                 ActiveHudScreen.ResourceOwnership ownership) {
         String logicalId = HudScreenAssetId.normalize(screenId);
         HudScreenAsset asset = assetLoader.load(runtimeProjectDir, logicalId);
         String documentId = HudResourceId.normalizeOptional(asset.documentId, "HUD document");
         if (documentId == null) {
-            return new ActiveHudScreen(logicalId, asset, null, null, null);
+            return new ActiveHudScreen(logicalId, asset, environment, null, null, ownership);
         }
 
         FileHandle documentFile = runtimeProjectDir.child(documentId);
@@ -41,18 +57,31 @@ public final class HudScreenLoader {
         HudResourceRequirements requirements =
                 HudResourceRequirements.from(structural.validatedDocument());
 
-        HudResources resources = null;
+        HudResources resources = environment;
         HudSession session = null;
         try {
-            resources = HudResources.prepare(asset, runtimeProjectDir, requirements);
-            HudValidationResult resourceAware = validator.validate(document, resources);
+            if (ownership == ActiveHudScreen.ResourceOwnership.OWNED) {
+                resources = HudResources.prepare(asset, runtimeProjectDir, requirements);
+            }
+            HudSelectedResources selected = resources.select(
+                    requirements.requiresSkin() ? requireSkinId(asset, logicalId) : null);
+            if (!selected.satisfies(requirements)) {
+                throw new IllegalArgumentException("HUD environment does not satisfy resource categories for "
+                        + logicalId + " (Skin " + selected.skinId() + ").");
+            }
+            String profileId = HudTextureProfile.normalizeIdOrDefault(asset.textureProfileId);
+            if (!resources.textureProfile().id().equals(profileId)) {
+                throw new IllegalArgumentException("HUD environment texture profile does not match "
+                        + logicalId + ": expected " + profileId + ".");
+            }
+            HudValidationResult resourceAware = validator.validate(document, selected);
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,
                     documentId, resourceAware);
             MaterializedHud hud = materializer.materialize(
-                    resourceAware.validatedDocument(), (HudVisualResources) resources);
+                    resourceAware.validatedDocument(), (HudVisualResources) selected);
             session = HudSession.create(asset, resources, hudShader);
             session.install(hud);
-            return new ActiveHudScreen(logicalId, asset, resources, hud, session);
+            return new ActiveHudScreen(logicalId, asset, resources, hud, session, ownership);
         } catch (RuntimeException failure) {
             RuntimeException cleanupFailure = null;
             if (session != null) {
@@ -62,7 +91,7 @@ public final class HudScreenLoader {
                     cleanupFailure = disposalFailure;
                 }
             }
-            if (resources != null) {
+            if (ownership == ActiveHudScreen.ResourceOwnership.OWNED && resources != null) {
                 try {
                     resources.dispose();
                 } catch (RuntimeException disposalFailure) {
@@ -75,6 +104,12 @@ public final class HudScreenLoader {
             }
             throw failure;
         }
+    }
+
+    private static String requireSkinId(HudScreenAsset asset, String logicalId) {
+        String id = HudResourceId.normalizeOptional(asset.skinId, "Skin");
+        if (id == null) throw new IllegalArgumentException("HUD " + logicalId + " requires skinId.");
+        return id;
     }
 
     private static void requireValid(HudDocumentValidationException.Phase phase,

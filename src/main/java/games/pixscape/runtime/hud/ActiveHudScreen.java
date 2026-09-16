@@ -2,20 +2,24 @@ package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.utils.Disposable;
 
-/** {@code INTERNAL} completely built, owning live instance of one logical HUD screen. */
+/** {@code INTERNAL} live HUD screen; always owns its session, explicitly owns or borrows its environment. */
 public final class ActiveHudScreen implements Disposable {
+    public enum ResourceOwnership { OWNED, BORROWED }
     private final String screenId;
     private final HudScreenAsset asset;
     private final HudResources resources;
+    private final ResourceOwnership resourceOwnership;
     private final MaterializedHud materializedHud;
     private final HudSession session;
     private boolean disposed;
 
     ActiveHudScreen(String screenId, HudScreenAsset asset, HudResources resources,
-                    MaterializedHud materializedHud, HudSession session) {
+                    MaterializedHud materializedHud, HudSession session, ResourceOwnership resourceOwnership) {
+        if (resourceOwnership == null) throw new IllegalArgumentException("Resource ownership is required.");
         this.screenId = screenId;
         this.asset = asset;
         this.resources = resources;
+        this.resourceOwnership = resourceOwnership;
         this.materializedHud = materializedHud;
         this.session = session;
     }
@@ -38,6 +42,10 @@ public final class ActiveHudScreen implements Disposable {
 
     public boolean isDisposed() {
         return disposed;
+    }
+
+    public ResourceOwnership resourceOwnership() {
+        return resourceOwnership;
     }
 
     HudResources resources() {
@@ -80,7 +88,8 @@ public final class ActiveHudScreen implements Disposable {
                 failure = disposalFailure;
             }
         }
-        if (resources != null) {
+        // The outer owner of a borrowed environment must dispose it only after all sessions.
+        if (resourceOwnership == ResourceOwnership.OWNED && resources != null) {
             try {
                 resources.dispose();
             } catch (RuntimeException disposalFailure) {

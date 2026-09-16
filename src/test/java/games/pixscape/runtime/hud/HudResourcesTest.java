@@ -105,6 +105,89 @@ public class HudResourcesTest {
     }
 
     @Test
+    public void sharedCatalogCanonicalSelectionAndSkinlessViewAreFrozen() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("catalog"));
+        writeHudFiles(root);
+        root.child("ui/other.json").writeString(root.child("ui/game.json").readString(), false);
+        HudResources resources = HudResources.prepareEnvironment(root, "ui/game.atlas", null,
+                java.util.Arrays.asList("  ui\\game.json  ", "ui/other.json"));
+        HudSelectedResources a = resources.select(" ui\\game.json ");
+        HudSelectedResources b = resources.select("ui/other.json");
+        try {
+            Assert.assertEquals(java.util.Arrays.asList("ui/game.json", "ui/other.json"),
+                    new java.util.ArrayList<>(resources.skinIds()));
+            Assert.assertEquals("ui/game.json", a.skinId());
+            Assert.assertNotSame(a.labelStyle("hud-title"), b.labelStyle("hud-title"));
+            Assert.assertSame(a.region("crosshair"), b.region("crosshair"));
+            for (int i = 0; i < 10; i++) {
+                Assert.assertNull(a.region("missing"));
+                Assert.assertNull(a.labelStyle("missing"));
+                Assert.assertFalse(a.hasDrawable("missing"));
+            }
+            Assert.assertThrows(UnsupportedOperationException.class, () -> resources.skinIds().clear());
+            Assert.assertThrows(IllegalArgumentException.class, () -> resources.select("ui/missing.json"));
+            Assert.assertThrows(IllegalStateException.class, resources::skinId);
+            Assert.assertThrows(IllegalStateException.class, () -> resources.labelStyle("hud-title"));
+            Assert.assertThrows(IllegalStateException.class, () -> resources.satisfies(fullRequirements()));
+            HudSelectedResources skinless = resources.select("  ");
+            Assert.assertNull(skinless.skinId());
+            Assert.assertNull(skinless.labelStyle("hud-title"));
+            Assert.assertFalse(skinless.satisfies(fullRequirements()));
+            Assert.assertTrue(skinless.hasRegion("crosshair"));
+            Assert.assertFalse(com.badlogic.gdx.utils.Disposable.class.isInstance(a));
+            Assert.assertFalse(AutoCloseable.class.isInstance(a));
+        } finally { resources.dispose(); }
+        Assert.assertThrows(IllegalStateException.class, () -> a.region("crosshair"));
+        Assert.assertThrows(IllegalStateException.class, () -> b.labelStyle("hud-title"));
+        Assert.assertThrows(IllegalStateException.class, () -> resources.select(null));
+    }
+
+    @Test
+    public void duplicateCanonicalSkinIdsFailBeforeAllocationOrFileResolution() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("duplicates"));
+        int deletionsBefore = deletedTextures;
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> HudResources.prepareEnvironment(root, "ui/absent.atlas", null,
+                        java.util.Arrays.asList("ui/game.json", " ui\\game.json ")));
+        Assert.assertEquals("Duplicate canonical HUD Skin ID: ui/game.json.", failure.getMessage());
+        Assert.assertEquals(deletionsBefore, deletedTextures);
+        for (String id : new String[]{null, "", "  ", "../escape.json", "ui//bad.json"}) {
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> HudResources.prepareEnvironment(root, null, null,
+                            java.util.Collections.singletonList(id)));
+        }
+    }
+
+    @Test
+    public void skinlessEnvironmentSupportsLayoutWithoutAllocatingGraphics() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("skinless-catalog"));
+        HudResources resources = HudResources.prepareEnvironment(root, null, null,
+                java.util.Collections.emptyList());
+        try {
+            HudSelectedResources selected = resources.select(null);
+            Assert.assertTrue(selected.satisfies(requirementsFor(
+                    "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}")));
+            Assert.assertNull(selected.region("crosshair"));
+            Assert.assertNull(selected.drawable("default"));
+            Assert.assertNull(selected.textButtonStyle("default"));
+            Assert.assertTrue(resources.skinIds().isEmpty());
+            // Even a shared environment with zero/one Skin must not infer a selection.
+            Assert.assertThrows(IllegalStateException.class, () -> resources.region("crosshair"));
+        } finally { resources.dispose(); }
+    }
+
+    @Test
+    public void failedSecondSkinPreparationCleansFirstSkinAndSharedAtlas() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("failed-second"));
+        writeHudFiles(root);
+        root.child("ui/broken.json").writeString("{", false);
+        int before = deletedTextures;
+        Assert.assertThrows(RuntimeException.class, () -> HudResources.prepareEnvironment(root,
+                "ui/game.atlas", null, java.util.Arrays.asList("ui/game.json", "ui/broken.json")));
+        Assert.assertEquals("Only the two atlas pages were allocated", 2, deletedTextures - before);
+    }
+
+    @Test
     public void resourceFreePreparationNeedsNoFilesOrGlResourcesAndDisposesOnce()
             throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free"));

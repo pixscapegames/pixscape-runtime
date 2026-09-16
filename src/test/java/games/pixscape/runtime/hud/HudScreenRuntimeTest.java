@@ -27,6 +27,13 @@ import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Proxy;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.utils.Disposable;
 
 public class HudScreenRuntimeTest {
     private static final String[] ATTRIBUTES = {
@@ -46,6 +53,10 @@ public class HudScreenRuntimeTest {
     private ShaderProgram shader;
     private int deletedTextures;
     private int drawCalls;
+    private int generatedTextures;
+    private int deletedBuffers;
+    private boolean failViewport;
+    private final List<String> disposalOrder = new ArrayList<>();
 
     @BeforeClass
     public static void loadNatives() {
@@ -113,6 +124,7 @@ public class HudScreenRuntimeTest {
         ActiveHudScreen a = runtime.show("a");
         HudSession aSession = a.session();
         HudResources aResources = a.resources();
+        Assert.assertEquals(ActiveHudScreen.ResourceOwnership.OWNED, a.resourceOwnership());
         Assert.assertEquals("hud/a", a.screenId());
         Assert.assertNotNull(a.materializedHud().actor("smoke-image"));
         Assert.assertNotNull(a.materializedHud().actor("smoke-label"));
@@ -141,6 +153,275 @@ public class HudScreenRuntimeTest {
         Assert.assertNull(runtime.activeScreen());
         Assert.assertTrue(bSession.isDisposed());
         Assert.assertTrue(bResources.isDisposed());
+    }
+
+    @Test
+    public void twoSkinsWithSameDefaultNamesStayIndependentWhenBorrowedAndReplaced() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources environment = shared(root);
+        HudSelectedResources aView = environment.select("ui/a.json");
+        HudSelectedResources bView = environment.select("ui/b.json");
+        int allocations = generatedTextures;
+        Object bundle = environment.textureArrayBundle();
+        // Borrowed loading must not read Skin JSON/atlas descriptors again.
+        root.child("ui/game.atlas").delete();
+        root.child("ui/a.json").delete();
+        root.child("ui/b.json").delete();
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen a = runtime.showBorrowing("a", environment);
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
+            Assert.assertSame(aView.labelStyle("default"), ((Label) a.materializedHud().actor("label")).getStyle());
+            Assert.assertEquals(Color.RED, ((Label) a.materializedHud().actor("label")).getStyle().fontColor);
+            Assert.assertSame(aView.drawable("default"), ((Image) a.materializedHud().actor("drawable")).getDrawable());
+            Assert.assertSame(aView.region("crosshair"), bView.region("crosshair"));
+            Assert.assertNotSame(aView.drawable("default"), bView.drawable("default"));
+            Assert.assertNotSame(aView.textButtonStyle("default"), bView.textButtonStyle("default"));
+            ActiveHudScreen b = runtime.showBorrowing("b", environment);
+            Assert.assertTrue(a.session().isDisposed());
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertSame(bView.labelStyle("default"), ((Label) b.materializedHud().actor("label")).getStyle());
+            Assert.assertEquals(Color.BLUE, ((Label) b.materializedHud().actor("label")).getStyle().fontColor);
+            Assert.assertSame(bView.drawable("default"), ((Image) b.materializedHud().actor("drawable")).getDrawable());
+            Assert.assertSame(bundle, b.session().hudBatch().getTextureArrayBundle());
+            Assert.assertEquals(allocations, generatedTextures);
+            runtime.draw();
+            runtime.hide();
+            b.dispose();
+            Assert.assertTrue(b.session().isDisposed());
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertNotNull(aView.labelStyle("default"));
+            Assert.assertNotNull(bView.labelStyle("default"));
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
+    @Test public void borrowedDifferentEnvironmentsRemainOpenDuringReplacementAndShutdown() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources first = shared(root), second = shared(root);
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen a = runtime.showBorrowing("a", first);
+            ActiveHudScreen b = runtime.showBorrowing("b", second);
+            Assert.assertTrue(a.session().isDisposed());
+            Assert.assertSame(b, runtime.activeScreen());
+            runtime.dispose(); runtime.dispose();
+            Assert.assertTrue(b.session().isDisposed());
+            Assert.assertFalse(first.isDisposed()); Assert.assertFalse(second.isDisposed());
+        } finally { runtime.dispose(); first.dispose(); second.dispose(); }
+    }
+
+    @Test public void ownedToBorrowedDisposesOnlyOldOwner() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources environment = shared(root);
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen owned = runtime.show("a");
+            ActiveHudScreen borrowed = runtime.showBorrowing("b", environment);
+            Assert.assertTrue(owned.resources().isDisposed());
+            Assert.assertTrue(owned.session().isDisposed());
+            Assert.assertSame(borrowed, runtime.activeScreen());
+            Assert.assertFalse(environment.isDisposed());
+            runtime.dispose();
+            Assert.assertFalse(environment.isDisposed());
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
+    @Test public void borrowingFromRetiringOwnedScreenIsRejectedBeforeReplacingIt() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen owned = runtime.show("a");
+            int allocations = generatedTextures;
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> runtime.showBorrowing("b", owned.resources()));
+            Assert.assertSame(owned, runtime.activeScreen());
+            Assert.assertFalse(owned.resources().isDisposed());
+            Assert.assertFalse(owned.session().isDisposed());
+            Assert.assertEquals(allocations, generatedTextures);
+        } finally { runtime.dispose(); }
+    }
+
+    @Test public void borrowedToOwnedLeavesOuterOwnerOpenAndShutdownClosesPrivateOwner() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources environment = shared(root);
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen borrowed = runtime.showBorrowing("a", environment);
+            ActiveHudScreen owned = runtime.show("b");
+            Assert.assertTrue(borrowed.session().isDisposed());
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertFalse(owned.resources().isDisposed());
+            runtime.dispose(); runtime.dispose();
+            Assert.assertTrue(owned.resources().isDisposed());
+            Assert.assertFalse(environment.isDisposed());
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
+    @Test public void sessionsPrecedeSkinCatalogDisposalAndOwnersDisposeExactlyOnce() throws Exception {
+        FileHandle root = twoSkinProject();
+        ActiveHudScreen active = new HudScreenLoader(root, shader).load("a");
+        int[] skinDisposals = {0};
+        active.resources().select("ui/a.json").skin().add("probe", (Disposable) () -> {
+            Assert.assertTrue(active.session().isDisposed()); skinDisposals[0]++;
+        }, Disposable.class);
+        disposalOrder.clear();
+        active.dispose();
+        int deleted = deletedTextures;
+        active.dispose();
+        Assert.assertEquals(1, skinDisposals[0]);
+        Assert.assertEquals(deleted, deletedTextures);
+        Assert.assertTrue(disposalOrder.indexOf("buffer") >= 0);
+        Assert.assertTrue(disposalOrder.lastIndexOf("buffer") < disposalOrder.indexOf("texture"));
+
+        HudResources environment = shared(root);
+        ActiveHudScreen a = new HudScreenLoader(root, shader).loadBorrowing("a", environment);
+        ActiveHudScreen b = new HudScreenLoader(root, shader).loadBorrowing("b", environment);
+        int[] counts = {0, 0};
+        environment.select("ui/a.json").skin().add("probe", (Disposable) () -> {
+            Assert.assertTrue(a.session().isDisposed()); Assert.assertTrue(b.session().isDisposed()); counts[0]++;
+        }, Disposable.class);
+        environment.select("ui/b.json").skin().add("probe", (Disposable) () -> counts[1]++, Disposable.class);
+        a.dispose(); b.dispose();
+        Assert.assertArrayEquals(new int[]{0, 0}, counts);
+        environment.dispose(); environment.dispose();
+        Assert.assertArrayEquals(new int[]{1, 1}, counts);
+    }
+
+    @Test public void skinBStyleCannotSatisfySkinAAndFailedReplacementPreservesActive() throws Exception {
+        FileHandle root = twoSkinProject();
+        root.child("ui/a.json").writeString("{}", false);
+        HudResources environment = shared(root);
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen b = runtime.showBorrowing("b", environment);
+            Assert.assertNotNull(environment.select("ui/b.json").labelStyle("default"));
+            Assert.assertNull(environment.select("ui/a.json").labelStyle("default"));
+            HudDocumentValidationException failure = Assert.assertThrows(HudDocumentValidationException.class,
+                    () -> runtime.showBorrowing("a", environment));
+            Assert.assertEquals(HudDocumentValidationException.Phase.RESOURCE_AWARE, failure.phase());
+            Assert.assertSame(b, runtime.activeScreen());
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertFalse(b.session().isDisposed());
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
+    @Test public void borrowedAssetDocumentSelectionAndRegionFailuresNeverDisposeEnvironment() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources environment = shared(root);
+        HudScreenLoader loader = new HudScreenLoader(root, shader);
+        try {
+            Assert.assertThrows(RuntimeException.class, () -> loader.loadBorrowing("absent", environment));
+            root.child("hud/a.json").delete();
+            Assert.assertThrows(HudDocumentLoadException.class, () -> loader.loadBorrowing("a", environment));
+            root.child("hud/a.json").writeString("{", false);
+            Assert.assertThrows(HudDocumentLoadException.class, () -> loader.loadBorrowing("a", environment));
+            root.child("hud/a.json").writeString(missingRegionDocument(), false);
+            Assert.assertThrows(HudDocumentValidationException.class, () -> loader.loadBorrowing("a", environment));
+            root.child("hud/a.json").writeString(twoSkinDocument(), false);
+            writeSelectedScreen(root, "a", "ui/unknown.json");
+            IllegalArgumentException unknown = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> loader.loadBorrowing("a", environment));
+            Assert.assertTrue(unknown.getMessage().contains("ui/unknown.json"));
+            writeSelectedScreen(root, "a", "");
+            Assert.assertThrows(IllegalArgumentException.class, () -> loader.loadBorrowing("a", environment));
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertNotNull(environment.select("ui/b.json").labelStyle("default"));
+        } finally { environment.dispose(); }
+    }
+
+    @Test public void materializationFailuresRespectOwnedAndBorrowedLifetime() throws Exception {
+        FileHandle root = twoSkinProject();
+        root.child("ui/a.json").writeString(
+                "{\"com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle\":{\"broken\":{}}}", false);
+        root.child("hud/a.json").writeString(
+                "{\"schemaVersion\":1,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                        + "\"label\":{\"text\":\"test\",\"styleName\":\"broken\"},\"children\":[]}}", false);
+        HudResources environment = shared(root);
+        try {
+            int before = deletedTextures;
+            Assert.assertThrows(RuntimeException.class, () -> new HudScreenLoader(root, shader).loadBorrowing("a", environment));
+            Assert.assertEquals(before, deletedTextures);
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertThrows(RuntimeException.class, () -> new HudScreenLoader(root, shader).load("a"));
+            Assert.assertEquals("private two-page atlas + bundle cleaned", 3, deletedTextures - before);
+        } finally { environment.dispose(); }
+    }
+
+    @Test public void sessionFailuresRespectOwnershipAndCleanPartialSessionState() throws Exception {
+        FileHandle root = twoSkinProject();
+        HudResources environment = shared(root);
+        try {
+            Assert.assertThrows(IllegalArgumentException.class, () -> new HudScreenLoader(root, null).loadBorrowing("a", environment));
+            Assert.assertFalse(environment.isDisposed());
+            int texturesBefore = deletedTextures;
+            Assert.assertThrows(IllegalArgumentException.class, () -> new HudScreenLoader(root, null).load("a"));
+            Assert.assertEquals(3, deletedTextures - texturesBefore);
+            texturesBefore = deletedTextures;
+            int buffersBefore = deletedBuffers;
+            failViewport = true;
+            Assert.assertThrows(IllegalStateException.class, () -> new HudScreenLoader(root, shader).loadBorrowing("a", environment));
+            Assert.assertFalse(environment.isDisposed());
+            Assert.assertEquals(texturesBefore, deletedTextures);
+            Assert.assertTrue(deletedBuffers > buffersBefore);
+            buffersBefore = deletedBuffers;
+            failViewport = true;
+            Assert.assertThrows(IllegalStateException.class, () -> new HudScreenLoader(root, shader).load("a"));
+            Assert.assertTrue(deletedBuffers > buffersBefore);
+            Assert.assertEquals(3, deletedTextures - texturesBefore);
+        } finally { environment.dispose(); }
+    }
+
+    @Test public void skinlessBorrowedLayoutAndLegacyEmptyScreensLeaveEnvironmentOpen() throws Exception {
+        FileHandle root = twoSkinProject();
+        root.child("hud/layout.hudscreen").writeString("{\"schemaVersion\":1,\"skinId\":\"ui/absent.json\",\"documentId\":\"hud/layout.json\"}", false);
+        root.child("hud/layout.json").writeString("{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}", false);
+        root.child("hud/empty.hudscreen").writeString("{\"schemaVersion\":1}", false);
+        HudResources environment = HudResources.prepareEnvironment(root, null, null, java.util.Collections.emptyList());
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen layout = runtime.showBorrowing("layout", environment);
+            Assert.assertNotNull(layout.session());
+            Assert.assertNull(layout.session().hudBatch().getTextureArrayBundle());
+            ActiveHudScreen empty = runtime.showBorrowing("empty", environment);
+            Assert.assertTrue(empty.isEmpty());
+            Assert.assertTrue(layout.session().isDisposed());
+            runtime.dispose();
+            Assert.assertFalse(environment.isDisposed());
+        } finally { runtime.dispose(); environment.dispose(); }
+    }
+
+    private FileHandle twoSkinProject() throws Exception {
+        FileHandle root = project();
+        String original = root.child("ui/game.json").readString();
+        for (String id : new String[]{"a", "b"}) {
+            String color = "a".equals(id) ? "ff0000ff" : "0000ffff";
+            String skin = original.replace("\"hud-title\":{\"font\":\"default-font\"}",
+                    "\"default\":{\"font\":\"default-font\",\"fontColor\":{\"hex\":\"" + color + "\"}}")
+                    .replace("\"hud-primary\"", "\"default\"");
+            skin = skin.substring(0, skin.length() - 1)
+                    + ",\"com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable\":{"
+                    + "\"default\":{\"region\":\"inventory-panel\"}}}";
+            root.child("ui/" + id + ".json").writeString(skin, false);
+            writeSelectedScreen(root, id, "ui/" + id + ".json");
+            root.child("hud/" + id + ".json").writeString(twoSkinDocument(), false);
+        }
+        return root;
+    }
+
+    private static HudResources shared(FileHandle root) {
+        return HudResources.prepareEnvironment(root, "ui/game.atlas", null, Arrays.asList("ui/a.json", "ui/b.json"));
+    }
+
+    private static void writeSelectedScreen(FileHandle root, String id, String skinId) {
+        root.child("hud/" + id + ".hudscreen").writeString("{\"schemaVersion\":1,\"documentId\":\"hud/" + id
+                + ".json\",\"skinId\":\"" + skinId + "\",\"atlasId\":\"ui/game.atlas\"}", false);
+    }
+
+    private static String twoSkinDocument() {
+        return "{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":["
+                + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"label\",\"kind\":\"LABEL\",\"label\":{\"text\":\"A\",\"styleName\":\"default\"},\"children\":[]}},"
+                + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"drawable\",\"kind\":\"IMAGE\",\"image\":{\"source\":\"DRAWABLE\",\"resourceName\":\"default\"},\"children\":[]}},"
+                + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"region\",\"kind\":\"IMAGE\",\"image\":{\"source\":\"REGION\",\"resourceName\":\"crosshair\"},\"children\":[]}}]}}";
     }
 
     @Test
@@ -301,6 +582,14 @@ public class HudScreenRuntimeTest {
     }
 
     private Object glValue(String name, Object[] args, Class<?> returnType, int[] nextHandle) {
+        if ("glViewport".equals(name) && failViewport) {
+            failViewport = false;
+            throw new IllegalStateException("Injected session viewport failure");
+        }
+        if ("glGenTexture".equals(name)) generatedTextures++;
+        if ("glDeleteBuffer".equals(name) || "glDeleteBuffers".equals(name)) {
+            deletedBuffers++; disposalOrder.add("buffer");
+        }
         if ("glCreateShader".equals(name) || "glCreateProgram".equals(name)
                 || "glGenTexture".equals(name) || "glGenBuffer".equals(name)
                 || "glGenVertexArray".equals(name)) return nextHandle[0]++;
@@ -333,7 +622,9 @@ public class HudScreenRuntimeTest {
             for (int i = 0; i < count; i++) handles.put(i, nextHandle[0]++);
             return null;
         }
-        if ("glDeleteTextures".equals(name) || "glDeleteTexture".equals(name)) deletedTextures++;
+        if ("glDeleteTextures".equals(name) || "glDeleteTexture".equals(name)) {
+            deletedTextures++; disposalOrder.add("texture");
+        }
         if ("glDrawElements".equals(name)) drawCalls++;
         if ("glCheckFramebufferStatus".equals(name)) return GL20.GL_FRAMEBUFFER_COMPLETE;
         return defaultValue(returnType);

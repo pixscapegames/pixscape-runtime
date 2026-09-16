@@ -35,7 +35,7 @@ public final class HudMaterializer {
         if (resources.isDisposed()) {
             throw new IllegalStateException("HudResources has been disposed.");
         }
-        return materialize(validatedDocument, (HudVisualResources) resources);
+        return materialize(validatedDocument, (HudVisualResources) resources.standaloneSelection());
     }
 
     /** Converts a validated HUD document using borrowed visual resources. */

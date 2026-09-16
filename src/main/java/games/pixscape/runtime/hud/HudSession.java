@@ -42,11 +42,20 @@ public final class HudSession implements Disposable {
         viewport = new FitViewport(asset.referenceWidth, asset.referenceHeight);
         hudBatch = new HudBatch(
                 HudBatch.DEFAULT_CAPACITY, hudShader, resources.textureArrayBundle());
-        stage = new Stage(viewport, hudBatch);
-
-        if (Gdx.graphics != null
-                && Gdx.graphics.getWidth() > 0 && Gdx.graphics.getHeight() > 0) {
-            viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+        try {
+            stage = new Stage(viewport, hudBatch);
+            if (Gdx.graphics != null
+                    && Gdx.graphics.getWidth() > 0 && Gdx.graphics.getHeight() > 0) {
+                viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+            }
+        } catch (RuntimeException failure) {
+            // A constructor failure cannot return a session to the loader for cleanup.
+            try {
+                dispose();
+            } catch (RuntimeException cleanupFailure) {
+                if (Gdx.app != null) Gdx.app.error("PixscapeHud", "HUD session cleanup failed.", cleanupFailure);
+            }
+            throw failure;
         }
     }
 
@@ -147,12 +156,12 @@ public final class HudSession implements Disposable {
         RuntimeException failure = null;
         try {
             if (content != null) content.root().remove();
-            stage.dispose();
+            if (stage != null) stage.dispose();
         } catch (RuntimeException disposalFailure) {
             failure = disposalFailure;
         }
         try {
-            hudBatch.dispose();
+            if (hudBatch != null) hudBatch.dispose();
         } catch (RuntimeException disposalFailure) {
             if (failure == null) failure = disposalFailure;
         }

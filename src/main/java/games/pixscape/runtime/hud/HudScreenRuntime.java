@@ -15,7 +15,19 @@ public final class HudScreenRuntime implements Disposable {
 
     /** Builds the candidate completely before publishing it and retiring the previous screen. */
     public ActiveHudScreen show(String screenId) {
-        ActiveHudScreen candidate = loader.load(screenId);
+        return install(loader.load(screenId));
+    }
+
+    /** Internal selection seam for a future outer owner; ordinary show remains independently owned. */
+    ActiveHudScreen showBorrowing(String screenId, HudResources environment) {
+        if (active != null && active.resourceOwnership() == ActiveHudScreen.ResourceOwnership.OWNED
+                && active.resources() == environment) {
+            throw new IllegalArgumentException("Cannot borrow the environment owned by the screen being replaced.");
+        }
+        return install(loader.loadBorrowing(screenId, environment));
+    }
+
+    private ActiveHudScreen install(ActiveHudScreen candidate) {
         ActiveHudScreen previous = active;
         active = candidate;
         if (previous != null) previous.dispose();
