@@ -1,7 +1,6 @@
 package games.pixscape.runtime.hud.document;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /** One persistently identified node in a {@link HudDocumentV1}. */
 public final class HudNode {
@@ -20,7 +19,7 @@ public final class HudNode {
     public HudContainerData container;
 
     /** Children in Scene2D insertion/draw order. Parent links are derived and never persisted. */
-    public List<HudChild> children = new ArrayList<HudChild>();
+    public ArrayList<HudChild> children = new ArrayList<HudChild>();
 
     /** Required by libGDX Json. */
     public HudNode() {
