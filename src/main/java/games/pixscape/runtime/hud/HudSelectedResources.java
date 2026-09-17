@@ -34,7 +34,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         if (requirements == null) throw new IllegalArgumentException("HudResourceRequirements is required.");
         return (!requirements.requiresSkin() || skin != null)
                 && (!requirements.requiresAtlas() || owner.textureArrayBundle() != null)
-                && (!requirements.requiresBuiltInLabelStyle() || builtInLabelStyle() != null);
+                && (!requirements.requiresBuiltInLabelStyle() || builtInLabelStyle() != null)
+                && (!requirements.requiresBuiltInTextButtonStyle()
+                        || builtInTextButtonStyle() != null);
     }
 
     Skin skin() {
@@ -73,7 +75,13 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return skin == null ? null : skin.optional(name, TextButton.TextButtonStyle.class);
     }
 
+    @Override public TextButton.TextButtonStyle builtInTextButtonStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInTextButtonStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
+    @Override public boolean hasBuiltInTextButtonStyle() { return builtInTextButtonStyle() != null; }
 }

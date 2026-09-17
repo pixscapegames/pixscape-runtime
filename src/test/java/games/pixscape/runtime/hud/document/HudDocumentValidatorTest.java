@@ -301,7 +301,7 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
-    public void missingStylesAndImageSourceAreRejectedWithoutCatalog() {
+    public void builtInStylesNeedNoNamesWhileMissingImageSourceIsRejected() {
         HudNode root = new HudNode("root", HudNodeKind.STACK);
         HudNode image = new HudNode("image", HudNodeKind.IMAGE);
         image.image = imageData(null, "icon");
@@ -318,7 +318,7 @@ public class HudDocumentValidatorTest {
         HudValidationResult result = validator.validate(new HudDocumentV1(root));
 
         requireIssue(result, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
-        Assert.assertEquals(1,
+        Assert.assertEquals(0,
                 count(result, HudValidationIssueCode.MISSING_RESOURCE_REFERENCE));
     }
 
@@ -331,6 +331,21 @@ public class HudDocumentValidatorTest {
                 new HudDocumentV1(label), new EmptyResourceCatalog());
         HudValidationResult available = validator.validate(
                 new HudDocumentV1(label), new FixtureResourceCatalog());
+
+        requireIssue(missing, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        Assert.assertTrue(issues(available), available.isValid());
+    }
+
+    @Test
+    public void builtInTextButtonStyleIsExplicitlyValidatedWithoutAStyleName() {
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Button";
+
+        HudValidationResult missing = validator.validate(
+                new HudDocumentV1(button), new EmptyResourceCatalog());
+        HudValidationResult available = validator.validate(
+                new HudDocumentV1(button), new FixtureResourceCatalog());
 
         requireIssue(missing, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
         Assert.assertTrue(issues(available), available.isValid());
@@ -457,6 +472,7 @@ public class HudDocumentValidatorTest {
 
     private static final class FixtureResourceCatalog extends EmptyResourceCatalog {
         @Override public boolean hasBuiltInLabelStyle() { return true; }
+        @Override public boolean hasBuiltInTextButtonStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {

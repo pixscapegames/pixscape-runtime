@@ -2,6 +2,7 @@ package games.pixscape.runtime.hud.document;
 
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
+import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -219,6 +220,14 @@ public final class HudDocumentValidator {
                 if (resources != null && !resources.hasBuiltInLabelStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                             "LABEL requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (!labelStyle && HudBuiltInTextButtonStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInTextButtonStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "TEXT_BUTTON requires the built-in Default style, but it is unavailable.",
                             usableId(node), path);
                 }
                 return;

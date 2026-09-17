@@ -51,6 +51,17 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void textButtonWithoutCustomStyleRequiresBuiltInResourcesButNoSkin() {
+        HudResourceRequirements requirements = requirements(node("button", "TEXT_BUTTON",
+                "\"textButton\":{\"text\":\"Button\"},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+        Assert.assertTrue(requirements.requiresBuiltInTextButtonStyle());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");

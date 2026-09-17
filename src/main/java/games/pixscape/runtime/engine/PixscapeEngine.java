@@ -4,6 +4,7 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.files.FileHandle;
@@ -686,6 +687,22 @@ public final class PixscapeEngine {
             worldCamera.update();
         }
         if (hudScreenRuntime != null) hudScreenRuntime.resize(w, h);
+    }
+
+    /**
+     * Returns the input bridge for the active HUD. Applications should place it before World
+     * input in their {@code InputMultiplexer} so handled widget gestures are not duplicated.
+     */
+    public InputProcessor getHudInputProcessor() {
+        if (hudScreenRuntime == null) {
+            throw new IllegalStateException("PixscapeEngine must be initialized before HUD input is requested.");
+        }
+        return hudScreenRuntime.inputProcessor();
+    }
+
+    /** Returns whether the active HUD currently owns a pointer gesture. */
+    public boolean isHudPointerCaptured() {
+        return hudScreenRuntime != null && hudScreenRuntime.isPointerCaptured();
     }
 
     /**

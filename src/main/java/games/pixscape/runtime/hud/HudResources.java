@@ -41,6 +41,7 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     private final HudTextureProfile textureProfile;
     private BitmapFont builtInLabelFont;
     private Label.LabelStyle builtInLabelStyle;
+    private TextButton.TextButtonStyle builtInTextButtonStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -359,6 +360,19 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
         return builtInLabelStyle;
     }
 
+    TextButton.TextButtonStyle sharedBuiltInTextButtonStyle() {
+        requireOpen();
+        if (builtInTextButtonStyle == null) {
+            Label.LabelStyle labelStyle = sharedBuiltInLabelStyle();
+            TextureRegion background = regions.get(HudBuiltInTextButtonStyle.BACKGROUND_REGION);
+            if (labelStyle == null || background == null) return null;
+
+            builtInTextButtonStyle = HudBuiltInTextButtonStyle.create(
+                    background, labelStyle.font);
+        }
+        return builtInTextButtonStyle;
+    }
+
     public String atlasId() {
         requireOpen();
         return atlasId;
@@ -426,6 +440,11 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     }
 
     @Override
+    public TextButton.TextButtonStyle builtInTextButtonStyle() {
+        return standaloneSelection().builtInTextButtonStyle();
+    }
+
+    @Override
     public boolean hasRegion(String name) {
         return standaloneSelection().hasRegion(name);
     }
@@ -448,6 +467,11 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     @Override
     public boolean hasTextButtonStyle(String name) {
         return standaloneSelection().hasTextButtonStyle(name);
+    }
+
+    @Override
+    public boolean hasBuiltInTextButtonStyle() {
+        return standaloneSelection().hasBuiltInTextButtonStyle();
     }
 
     void requireOpen() {

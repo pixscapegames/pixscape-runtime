@@ -31,6 +31,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     private float dampingRatio = 0.7f;
     private float grabRadiusMeters = 0.25f;
     private boolean allowStatic = false;
+    private boolean inputEnabled = true;
 
     private boolean wasPressed;
 
@@ -119,6 +120,11 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         this.allowStatic = allowStatic;
     }
 
+    /** Enables polling input; disabling it releases any active World drag. */
+    public void setInputEnabled(boolean inputEnabled) {
+        this.inputEnabled = inputEnabled;
+    }
+
     @Override
     protected void initialize() {
         box2dSync = world.getSystem(Box2dSyncSystem.class);
@@ -163,13 +169,18 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     }
 
     private void processInput() {
+        boolean pressed = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
+        if (!inputEnabled) {
+            destroyJoint();
+            wasPressed = pressed;
+            return;
+        }
         if (Gdx.input.isTouched(1)) {
             destroyJoint();
             wasPressed = false;
             return;
         }
 
-        boolean pressed = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
         if (pressed && !wasPressed) {
             tryBeginDrag();
         } else if (!pressed && wasPressed) {

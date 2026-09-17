@@ -1,6 +1,9 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.Files;
@@ -33,6 +36,7 @@ import java.util.List;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.utils.Disposable;
 
 public class HudScreenRuntimeTest {
@@ -590,6 +594,49 @@ public class HudScreenRuntimeTest {
             Assert.assertEquals(320f, active.session().viewport().getWorldWidth(), 0f);
             Assert.assertEquals(180f, active.session().viewport().getWorldHeight(), 0f);
             Assert.assertEquals(232f, materialized.actor("smoke-button").getX(), 0.01f);
+        } finally {
+            runtime.dispose();
+        }
+    }
+
+    @Test
+    public void activeHudInputConsumesButtonGestureBeforeWorldInput() throws Exception {
+        FileHandle root = project();
+        writeScreen(root, "game", "hud/game.json");
+        copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen active = runtime.show("game");
+            runtime.resize(320, 180);
+            TextButton button = (TextButton) active.materializedHud().actor("smoke-button");
+            int[] worldTouches = {0};
+            InputMultiplexer input = new InputMultiplexer(runtime.inputProcessor(), new InputAdapter() {
+                @Override public boolean touchDown(int screenX, int screenY, int pointer, int mouseButton) {
+                    worldTouches[0]++;
+                    return true;
+                }
+            });
+
+            Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
+            Assert.assertTrue(button.getClickListener().isPressed());
+            Assert.assertTrue(runtime.isPointerCaptured());
+            Assert.assertEquals(0, worldTouches[0]);
+            input.touchDragged(10, 10, 0);
+            input.touchUp(10, 10, 0, Input.Buttons.LEFT);
+            Assert.assertFalse(button.getClickListener().isPressed());
+            Assert.assertFalse(runtime.isPointerCaptured());
+
+            Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
+            Assert.assertTrue(runtime.isPointerCaptured());
+            input.touchCancelled(272, 156, 0, Input.Buttons.LEFT);
+            Assert.assertFalse(button.getClickListener().isPressed());
+            Assert.assertFalse(runtime.isPointerCaptured());
+
+            Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
+            runtime.hide();
+            Assert.assertFalse(runtime.isPointerCaptured());
+            Assert.assertFalse(runtime.inputProcessor().touchDown(
+                    272, 156, 0, Input.Buttons.LEFT));
         } finally {
             runtime.dispose();
         }

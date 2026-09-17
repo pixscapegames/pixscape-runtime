@@ -260,6 +260,30 @@ public class HudResourcesTest {
     }
 
     @Test
+    public void builtInTextButtonUsesPackedFontAndWhiteRegionWithoutSkin() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("built-in-button"));
+        writeHudFiles(root);
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.atlasId = "ui/game.atlas";
+        HudResourceRequirements requirements = requirementsFor(
+                "{\"id\":\"button\",\"kind\":\"TEXT_BUTTON\",\"textButton\":{"
+                        + "\"text\":\"Button\"},\"children\":[]}");
+
+        HudResources resources = HudResources.prepare(asset, root, requirements);
+        try {
+            Assert.assertTrue(resources.satisfies(requirements));
+            Assert.assertNull(resources.skinId());
+            Assert.assertNotNull(resources.builtInTextButtonStyle());
+            Assert.assertNotNull(resources.builtInTextButtonStyle().up);
+            Assert.assertNotNull(resources.builtInTextButtonStyle().over);
+            Assert.assertNotNull(resources.builtInTextButtonStyle().down);
+            Assert.assertNotNull(resources.builtInTextButtonStyle().disabled);
+        } finally {
+            resources.dispose();
+        }
+    }
+
+    @Test
     public void actualDocumentRequirementsControlMissingReferenceDiagnostics() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("requirements"));
         HudScreenAsset asset = new HudScreenAsset();
@@ -429,6 +453,7 @@ public class HudResourcesTest {
         ui.child("game.atlas").writeString(
                 pageDescriptor("page-a.png", "default-font", 0)
                         + regionDescriptor(HudBuiltInLabelStyle.ATLAS_REGION, -1)
+                        + regionDescriptor(HudBuiltInTextButtonStyle.BACKGROUND_REGION, -1)
                         + regionDescriptor("crosshair", -1)
                         + regionDescriptor("overlay-gradient", -1)
                         + regionDescriptor("inventory-art", -1)

@@ -337,6 +337,24 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void materializesDefaultTextButtonFromBuiltInStyle() {
+        TextButton.TextButtonStyle style = resources.builtInTextButtonStyle();
+        FakeVisualResources visualResources = new FakeVisualResources(
+                new TextureRegion(), resources.skin().getDrawable("inventory-panel"),
+                resources.skin().get("hud-body-bitmap", Label.LabelStyle.class), style);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new games.pixscape.runtime.hud.document.HudTextButtonData();
+        button.textButton.text = "Button";
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new games.pixscape.runtime.hud.document.HudDocumentV1(button));
+
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), visualResources);
+
+        Assert.assertSame(style, ((TextButton) hud.actor("button")).getStyle());
+    }
+
+    @Test
     public void callersCanExtendNativeTreeWithoutChangingPersistedIndex() {
         MaterializedHud hud = materialize("free-layout.json");
         Group root = (Group) hud.root();
@@ -456,6 +474,10 @@ public class HudMaterializerTest {
         @Override
         public TextButton.TextButtonStyle textButtonStyle(String name) {
             return "hud-primary".equals(name) ? textButtonStyle : null;
+        }
+
+        @Override public TextButton.TextButtonStyle builtInTextButtonStyle() {
+            return textButtonStyle;
         }
 
         @Override

@@ -22,4 +22,7 @@ public interface HudVisualResources {
     default Label.LabelStyle builtInLabelStyle() { return null; }
 
     TextButton.TextButtonStyle textButtonStyle(String name);
+
+    /** Skin-independent style used when a TextButton has no authored custom style reference. */
+    default TextButton.TextButtonStyle builtInTextButtonStyle() { return null; }
 }

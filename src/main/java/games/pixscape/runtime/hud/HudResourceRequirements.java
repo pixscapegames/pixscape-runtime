@@ -15,11 +15,14 @@ public final class HudResourceRequirements {
     private final boolean skin;
     private final boolean atlas;
     private final boolean builtInLabelStyle;
+    private final boolean builtInTextButtonStyle;
 
-    private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle) {
+    private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
+                                    boolean builtInTextButtonStyle) {
         this.skin = skin;
         this.atlas = atlas;
         this.builtInLabelStyle = builtInLabelStyle;
+        this.builtInTextButtonStyle = builtInTextButtonStyle;
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -30,6 +33,7 @@ public final class HudResourceRequirements {
         boolean requiresSkin = false;
         boolean requiresAtlas = false;
         boolean requiresBuiltInLabelStyle = false;
+        boolean requiresBuiltInTextButtonStyle = false;
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
             if (kind == HudNodeKind.LABEL) {
@@ -40,14 +44,20 @@ public final class HudResourceRequirements {
                     requiresSkin = true;
                 }
             } else if (kind == HudNodeKind.TEXT_BUTTON) {
-                requiresSkin = true;
                 requiresAtlas = true;
+                if (HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                    requiresBuiltInTextButtonStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             } else if (kind == HudNodeKind.IMAGE) {
                 requiresAtlas = true;
                 if (node.image.source == HudImageSource.DRAWABLE) requiresSkin = true;
             }
         }
-        return new HudResourceRequirements(requiresSkin, requiresAtlas, requiresBuiltInLabelStyle);
+        return new HudResourceRequirements(requiresSkin, requiresAtlas,
+                requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle);
     }
 
     public boolean requiresSkin() {
@@ -60,5 +70,9 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInLabelStyle() {
         return builtInLabelStyle;
+    }
+
+    public boolean requiresBuiltInTextButtonStyle() {
+        return builtInTextButtonStyle;
     }
 }

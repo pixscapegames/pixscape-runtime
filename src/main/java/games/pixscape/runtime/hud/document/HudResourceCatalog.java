@@ -15,4 +15,7 @@ public interface HudResourceCatalog {
     default boolean hasBuiltInLabelStyle() { return false; }
 
     boolean hasTextButtonStyle(String name);
+
+    /** Returns whether the prepared environment contains the built-in TextButton resources. */
+    default boolean hasBuiltInTextButtonStyle() { return false; }
 }

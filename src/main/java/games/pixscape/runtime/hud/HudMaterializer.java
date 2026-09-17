@@ -125,9 +125,13 @@ public final class HudMaterializer {
             }
             case TEXT_BUTTON: {
                 TextButton.TextButtonStyle buttonStyle =
-                        resources.textButtonStyle(node.textButton.styleName);
+                        HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)
+                                ? resources.builtInTextButtonStyle()
+                                : resources.textButtonStyle(node.textButton.styleName);
                 if (buttonStyle == null) {
-                    throw missing(node, "TextButton style", node.textButton.styleName);
+                    throw missing(node, "TextButton style",
+                            HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)
+                                    ? "built-in Default" : node.textButton.styleName);
                 }
                 return new TextButton(node.textButton.text, buttonStyle);
             }
