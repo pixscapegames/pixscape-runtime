@@ -113,9 +113,13 @@ public final class HudMaterializer {
                 return new Image(drawable);
             }
             case LABEL: {
-                Label.LabelStyle labelStyle = resources.labelStyle(node.label.styleName);
+                Label.LabelStyle labelStyle = HudBuiltInLabelStyle.isSelected(node.label.styleName)
+                        ? resources.builtInLabelStyle()
+                        : resources.labelStyle(node.label.styleName);
                 if (labelStyle == null) {
-                    throw missing(node, "Label style", node.label.styleName);
+                    throw missing(node, "Label style",
+                            HudBuiltInLabelStyle.isSelected(node.label.styleName)
+                                    ? "built-in Default" : node.label.styleName);
                 }
                 return new Label(node.label.text, labelStyle);
             }

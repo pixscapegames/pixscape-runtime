@@ -1,5 +1,6 @@
 package games.pixscape.runtime.hud;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -38,6 +39,8 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     private final HudSelectedResources standaloneSelection;
     private final String atlasId;
     private final HudTextureProfile textureProfile;
+    private BitmapFont builtInLabelFont;
+    private Label.LabelStyle builtInLabelStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -158,7 +161,8 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
 
             HudResources resources = new HudResources(
                     atlasData != null ? atlasId : null,
-                    profile, skins, atlas, bundle, standalone, standaloneSkinId);
+                    profile, skins, atlas, bundle,
+                    standalone, standaloneSkinId);
             completed = true;
             return resources;
         } finally {
@@ -273,7 +277,8 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     }
 
     private static void disposeFailedPreparation(
-            Map<String, Skin> skins, AtlasRuntimeService.TextureArrayBundle bundle, TextureAtlas atlas) {
+            Map<String, Skin> skins, AtlasRuntimeService.TextureArrayBundle bundle,
+            TextureAtlas atlas) {
         for (Skin skin : skins.values()) {
             try {
                 skin.dispose();
@@ -327,6 +332,31 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     TextureRegion sharedRegion(String name) {
         requireOpen();
         return regions.get(name);
+    }
+
+    Label.LabelStyle sharedBuiltInLabelStyle() {
+        requireOpen();
+        if (builtInLabelStyle == null) {
+            TextureRegion region = regions.get(HudBuiltInLabelStyle.ATLAS_REGION);
+            if (region == null) return null;
+            if (Gdx.files == null) {
+                throw new IllegalStateException(
+                        "LibGDX Files is required to load the built-in HUD Label font.");
+            }
+            FileHandle descriptor = Gdx.files.classpath(
+                    HudBuiltInLabelStyle.FONT_DESCRIPTOR);
+            if (!descriptor.exists()) {
+                throw new IllegalStateException("Built-in HUD Label font descriptor is missing: "
+                        + HudBuiltInLabelStyle.FONT_DESCRIPTOR + ".");
+            }
+            BitmapFont.BitmapFontData data = new BitmapFont.BitmapFontData(
+                    descriptor, false);
+            builtInLabelFont = new BitmapFont(data, region, true);
+            builtInLabelStyle = new Label.LabelStyle(
+                    builtInLabelFont, new com.badlogic.gdx.graphics.Color(
+                            com.badlogic.gdx.graphics.Color.WHITE));
+        }
+        return builtInLabelStyle;
     }
 
     public String atlasId() {
@@ -386,6 +416,11 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     }
 
     @Override
+    public Label.LabelStyle builtInLabelStyle() {
+        return standaloneSelection().builtInLabelStyle();
+    }
+
+    @Override
     public TextButton.TextButtonStyle textButtonStyle(String name) {
         return standaloneSelection().textButtonStyle(name);
     }
@@ -403,6 +438,11 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
     @Override
     public boolean hasLabelStyle(String name) {
         return standaloneSelection().hasLabelStyle(name);
+    }
+
+    @Override
+    public boolean hasBuiltInLabelStyle() {
+        return standaloneSelection().hasBuiltInLabelStyle();
     }
 
     @Override
@@ -425,6 +465,11 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
             } catch (RuntimeException disposalFailure) {
                 if (failure == null) failure = disposalFailure;
             }
+        }
+        try {
+            if (builtInLabelFont != null) builtInLabelFont.dispose();
+        } catch (RuntimeException disposalFailure) {
+            if (failure == null) failure = disposalFailure;
         }
         try {
             if (textureArrayBundle != null && textureArrayBundle.textureArray != null) {

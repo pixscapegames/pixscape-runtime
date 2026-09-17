@@ -41,6 +41,16 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void labelWithoutCustomStyleRequiresBuiltInStyleAndAtlasButNoSkin() {
+        HudResourceRequirements requirements = requirements(node("label", "LABEL",
+                "\"label\":{\"text\":\"Label\"},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");
@@ -54,13 +64,16 @@ public class HudResourceRequirementsTest {
 
     private static void assertRequirements(
             String root, boolean expectedSkin, boolean expectedAtlas) {
+        HudResourceRequirements requirements = requirements(root);
+        Assert.assertEquals(expectedSkin, requirements.requiresSkin());
+        Assert.assertEquals(expectedAtlas, requirements.requiresAtlas());
+    }
+
+    private static HudResourceRequirements requirements(String root) {
         HudValidationResult validation = new HudDocumentValidator().validate(
                 new HudDocumentCodec().read("{\"schemaVersion\":1,\"root\":" + root + "}"));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
-        HudResourceRequirements requirements =
-                HudResourceRequirements.from(validation.validatedDocument());
-        Assert.assertEquals(expectedSkin, requirements.requiresSkin());
-        Assert.assertEquals(expectedAtlas, requirements.requiresAtlas());
+        return HudResourceRequirements.from(validation.validatedDocument());
     }
 
     private static String node(String id, String kind, String fields) {

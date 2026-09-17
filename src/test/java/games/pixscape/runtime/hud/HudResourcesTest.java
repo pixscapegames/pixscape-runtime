@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
@@ -38,6 +39,7 @@ public class HudResourcesTest {
     private GL20 previousGl20;
     private GL30 previousGl30;
     private Graphics previousGraphics;
+    private Files previousFiles;
     private int deletedTextures;
 
     @BeforeClass
@@ -46,11 +48,12 @@ public class HudResourcesTest {
     }
 
     @Before
-    public void installGl() {
+    public void installGl() throws Exception {
         previousGl = Gdx.gl;
         previousGl20 = Gdx.gl20;
         previousGl30 = Gdx.gl30;
         previousGraphics = Gdx.graphics;
+        previousFiles = Gdx.files;
         int[] nextTexture = {1};
         GL30 gl = (GL30) Proxy.newProxyInstance(
                 GL30.class.getClassLoader(), new Class<?>[]{GL30.class},
@@ -77,6 +80,17 @@ public class HudResourcesTest {
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
+        FileHandle builtInDescriptor = new FileHandle(temporaryFolder.newFile("lsans-15.fnt"));
+        try (java.io.InputStream source = HudResourcesTest.class.getClassLoader()
+                .getResourceAsStream(HudBuiltInLabelStyle.FONT_DESCRIPTOR)) {
+            java.nio.file.Files.copy(source, builtInDescriptor.file().toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        Gdx.files = (Files) Proxy.newProxyInstance(
+                Files.class.getClassLoader(), new Class<?>[]{Files.class},
+                (proxy, method, args) -> "classpath".equals(method.getName())
+                        ? builtInDescriptor
+                        : defaultValue(method.getReturnType()));
         TextureRegistry.clear();
         InternalTextures.dispose();
     }
@@ -89,6 +103,7 @@ public class HudResourcesTest {
         Gdx.gl20 = previousGl20;
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
+        Gdx.files = previousFiles;
     }
 
     @Test
@@ -132,6 +147,11 @@ public class HudResourcesTest {
             HudSelectedResources skinless = resources.select("  ");
             Assert.assertNull(skinless.skinId());
             Assert.assertNull(skinless.labelStyle("hud-title"));
+            Assert.assertNotNull(skinless.builtInLabelStyle());
+            Assert.assertTrue(skinless.hasBuiltInLabelStyle());
+            Assert.assertTrue(skinless.satisfies(requirementsFor(
+                    "{\"id\":\"label\",\"kind\":\"LABEL\","
+                            + "\"label\":{\"text\":\"Label\"},\"children\":[]}")));
             Assert.assertFalse(skinless.satisfies(fullRequirements()));
             Assert.assertTrue(skinless.hasRegion("crosshair"));
             Assert.assertFalse(com.badlogic.gdx.utils.Disposable.class.isInstance(a));
@@ -408,6 +428,7 @@ public class HudResourcesTest {
         writePage(ui.child("page-b.png"));
         ui.child("game.atlas").writeString(
                 pageDescriptor("page-a.png", "default-font", 0)
+                        + regionDescriptor(HudBuiltInLabelStyle.ATLAS_REGION, -1)
                         + regionDescriptor("crosshair", -1)
                         + regionDescriptor("overlay-gradient", -1)
                         + regionDescriptor("inventory-art", -1)

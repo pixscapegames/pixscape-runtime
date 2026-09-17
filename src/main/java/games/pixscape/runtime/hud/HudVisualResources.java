@@ -18,5 +18,8 @@ public interface HudVisualResources {
 
     Label.LabelStyle labelStyle(String name);
 
+    /** Skin-independent style used when a Label has no authored custom style reference. */
+    default Label.LabelStyle builtInLabelStyle() { return null; }
+
     TextButton.TextButtonStyle textButtonStyle(String name);
 }

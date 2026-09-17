@@ -11,5 +11,8 @@ public interface HudResourceCatalog {
 
     boolean hasLabelStyle(String name);
 
+    /** Returns whether the prepared environment contains the built-in Label font region. */
+    default boolean hasBuiltInLabelStyle() { return false; }
+
     boolean hasTextButtonStyle(String name);
 }

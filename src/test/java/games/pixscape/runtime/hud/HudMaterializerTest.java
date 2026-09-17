@@ -88,9 +88,17 @@ public class HudMaterializerTest {
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
+        FileHandle builtInDescriptor = new FileHandle(temporaryFolder.newFile("lsans-15.fnt"));
+        try (java.io.InputStream source = HudMaterializerTest.class.getClassLoader()
+                .getResourceAsStream(HudBuiltInLabelStyle.FONT_DESCRIPTOR)) {
+            java.nio.file.Files.copy(source, builtInDescriptor.file().toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
         Gdx.files = (Files) Proxy.newProxyInstance(
                 Files.class.getClassLoader(), new Class<?>[]{Files.class},
-                (proxy, method, args) -> defaultValue(method.getReturnType()));
+                (proxy, method, args) -> "classpath".equals(method.getName())
+                        ? builtInDescriptor
+                        : defaultValue(method.getReturnType()));
         TextureRegistry.clear();
         InternalTextures.dispose();
 
@@ -383,6 +391,22 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void labelWithoutCustomStyleUsesThePreparedBuiltInStyle() {
+        HudNode root = new HudNode("label", HudNodeKind.LABEL);
+        root.label = new games.pixscape.runtime.hud.document.HudLabelData();
+        root.label.text = "Label";
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+
+        Label.LabelStyle builtIn = resources.labelStyle("hud-body-bitmap");
+        FakeVisualResources visual = new FakeVisualResources(null, null, builtIn, null);
+        Label label = (Label) new HudMaterializer().materialize(
+                validation.validatedDocument(), visual).root();
+
+        Assert.assertSame(builtIn, label.getStyle());
+    }
+
+    @Test
     public void publicMaterializerBoundaryAcceptsOnlyValidatedDocuments() throws Exception {
         Method visualMaterialize = HudMaterializer.class.getMethod(
                 "materialize", ValidatedHudDocument.class, HudVisualResources.class);
@@ -426,6 +450,8 @@ public class HudMaterializerTest {
         public Label.LabelStyle labelStyle(String name) {
             return "hud-body-bitmap".equals(name) ? labelStyle : null;
         }
+
+        @Override public Label.LabelStyle builtInLabelStyle() { return labelStyle; }
 
         @Override
         public TextButton.TextButtonStyle textButtonStyle(String name) {

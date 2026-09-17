@@ -318,8 +318,22 @@ public class HudDocumentValidatorTest {
         HudValidationResult result = validator.validate(new HudDocumentV1(root));
 
         requireIssue(result, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
-        Assert.assertEquals(2,
+        Assert.assertEquals(1,
                 count(result, HudValidationIssueCode.MISSING_RESOURCE_REFERENCE));
+    }
+
+    @Test
+    public void builtInLabelStyleIsExplicitlyValidatedWithoutAStyleName() {
+        HudNode label = label("label");
+        label.label.styleName = null;
+
+        HudValidationResult missing = validator.validate(
+                new HudDocumentV1(label), new EmptyResourceCatalog());
+        HudValidationResult available = validator.validate(
+                new HudDocumentV1(label), new FixtureResourceCatalog());
+
+        requireIssue(missing, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        Assert.assertTrue(issues(available), available.isValid());
     }
 
     @Test
@@ -442,6 +456,8 @@ public class HudDocumentValidatorTest {
     }
 
     private static final class FixtureResourceCatalog extends EmptyResourceCatalog {
+        @Override public boolean hasBuiltInLabelStyle() { return true; }
+
         @Override
         public boolean hasRegion(String name) {
             return "inventory-art".equals(name);

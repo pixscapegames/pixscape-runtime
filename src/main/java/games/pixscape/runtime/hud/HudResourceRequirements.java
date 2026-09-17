@@ -14,10 +14,12 @@ import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 public final class HudResourceRequirements {
     private final boolean skin;
     private final boolean atlas;
+    private final boolean builtInLabelStyle;
 
-    private HudResourceRequirements(boolean skin, boolean atlas) {
+    private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle) {
         this.skin = skin;
         this.atlas = atlas;
+        this.builtInLabelStyle = builtInLabelStyle;
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -27,9 +29,17 @@ public final class HudResourceRequirements {
         }
         boolean requiresSkin = false;
         boolean requiresAtlas = false;
+        boolean requiresBuiltInLabelStyle = false;
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
-            if (kind == HudNodeKind.LABEL || kind == HudNodeKind.TEXT_BUTTON) {
+            if (kind == HudNodeKind.LABEL) {
+                requiresAtlas = true;
+                if (HudBuiltInLabelStyle.isSelected(node.label.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
+            } else if (kind == HudNodeKind.TEXT_BUTTON) {
                 requiresSkin = true;
                 requiresAtlas = true;
             } else if (kind == HudNodeKind.IMAGE) {
@@ -37,7 +47,7 @@ public final class HudResourceRequirements {
                 if (node.image.source == HudImageSource.DRAWABLE) requiresSkin = true;
             }
         }
-        return new HudResourceRequirements(requiresSkin, requiresAtlas);
+        return new HudResourceRequirements(requiresSkin, requiresAtlas, requiresBuiltInLabelStyle);
     }
 
     public boolean requiresSkin() {
@@ -46,5 +56,9 @@ public final class HudResourceRequirements {
 
     public boolean requiresAtlas() {
         return atlas;
+    }
+
+    public boolean requiresBuiltInLabelStyle() {
+        return builtInLabelStyle;
     }
 }

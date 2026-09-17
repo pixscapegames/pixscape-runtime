@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud.document;
 
 import com.badlogic.gdx.utils.ObjectSet;
+import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -214,6 +215,14 @@ public final class HudDocumentValidator {
 
         private void validateStyle(HudNode node, String styleName, boolean labelStyle,
                                    String path) {
+            if (labelStyle && HudBuiltInLabelStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInLabelStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "LABEL requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
             if (!isNonBlank(styleName)) {
                 add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
                         node.kind + " requires a nonblank Skin style name.",
