@@ -23,6 +23,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
@@ -40,6 +41,7 @@ import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudImageButtonData;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudTextFieldData;
+import games.pixscape.runtime.hud.document.HudSelectBoxData;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -465,6 +467,24 @@ public class HudMaterializerTest {
         HudValidationResult invalid = new HudDocumentValidator().validate(
                 new HudDocumentV1(node), selectedResources);
         Assert.assertFalse(invalid.isValid());
+    }
+
+    @Test
+    public void materializesNativeSelectBoxWithoutMutatingItsAuthoredSelection() {
+        HudNode node = new HudNode("choice", HudNodeKind.SELECT_BOX);
+        node.selectBox = new HudSelectBoxData();
+        node.selectBox.items.add("North");
+        node.selectBox.items.add("South");
+        node.selectBox.selectedIndex = 1;
+        node.selectBox.maxListCount = 1;
+
+        SelectBox<String> box = (SelectBox<String>) materialize(
+                new HudDocumentV1(node)).actor("choice");
+        Assert.assertEquals("South", box.getSelected());
+        Assert.assertEquals(1, box.getMaxListCount());
+        Assert.assertSame(selectedResources.builtInSelectBoxStyle(), box.getStyle());
+        box.setSelected("North");
+        Assert.assertEquals(1, node.selectBox.selectedIndex);
     }
 
     @Test

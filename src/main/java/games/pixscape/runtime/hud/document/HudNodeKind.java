@@ -10,5 +10,6 @@ public enum HudNodeKind {
     LABEL,
     TEXT_BUTTON,
     IMAGE_BUTTON,
-    TEXT_FIELD
+    TEXT_FIELD,
+    SELECT_BOX
 }

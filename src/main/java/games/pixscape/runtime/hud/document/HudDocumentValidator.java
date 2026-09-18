@@ -5,11 +5,14 @@ import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudBuiltInImageButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
+import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Strict, deterministic, GL-free validator for {@link HudDocumentV1}. */
 public final class HudDocumentValidator {
@@ -138,32 +141,37 @@ public final class HudDocumentValidator {
                 case CONTAINER:
                     validPayload = node.container != null && node.image == null
                             && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null;
+                            && node.textField == null && node.selectBox == null;
                     break;
                 case IMAGE:
                     validPayload = node.image != null && node.container == null
                             && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null;
+                            && node.textField == null && node.selectBox == null;
                     break;
                 case LABEL:
                     validPayload = node.label != null && node.container == null
                             && node.image == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null;
+                            && node.textField == null && node.selectBox == null;
                     break;
                 case TEXT_BUTTON:
                     validPayload = node.textButton != null && node.container == null
                             && node.image == null && node.label == null && node.imageButton == null
-                            && node.textField == null;
+                            && node.textField == null && node.selectBox == null;
                     break;
                 case IMAGE_BUTTON:
                     validPayload = node.imageButton != null && node.container == null
                             && node.image == null && node.label == null && node.textButton == null
-                            && node.textField == null;
+                            && node.textField == null && node.selectBox == null;
                     break;
                 case TEXT_FIELD:
                     validPayload = node.textField != null && node.container == null
                             && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null;
+                            && node.imageButton == null && node.selectBox == null;
+                    break;
+                case SELECT_BOX:
+                    validPayload = node.selectBox != null && node.container == null
+                            && node.image == null && node.label == null && node.textButton == null
+                            && node.imageButton == null && node.textField == null;
                     break;
                 default:
                     validPayload = false;
@@ -185,6 +193,8 @@ public final class HudDocumentValidator {
                 validateImageButton(node, path);
             } else if (node.kind == HudNodeKind.TEXT_FIELD && node.textField != null) {
                 validateTextField(node, path);
+            } else if (node.kind == HudNodeKind.SELECT_BOX && node.selectBox != null) {
+                validateSelectBox(node, path);
             }
         }
 
@@ -273,6 +283,42 @@ public final class HudDocumentValidator {
                     path + ".textField.styleName");
         }
 
+        private void validateSelectBox(HudNode node, String path) {
+            if (node.selectBox.items == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SELECT_BOX items must be an ordered non-null list.", usableId(node),
+                        path + ".selectBox.items");
+            } else {
+                Set<String> values = new HashSet<String>();
+                for (int index = 0; index < node.selectBox.items.size(); index++) {
+                    String item = node.selectBox.items.get(index);
+                    if (item == null) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "SELECT_BOX items must not contain null values.", usableId(node),
+                                path + ".selectBox.items[" + index + "]");
+                    } else if (!values.add(item)) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "SELECT_BOX items must be distinct because native Scene2D selection uses value equality.",
+                                usableId(node), path + ".selectBox.items[" + index + "]");
+                    }
+                }
+                int minimum = node.selectBox.items.isEmpty() ? -1 : 0;
+                if (node.selectBox.selectedIndex < minimum
+                        || node.selectBox.selectedIndex >= node.selectBox.items.size()) {
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "SELECT_BOX selectedIndex must be -1 for an empty list or a valid item index.",
+                            usableId(node), path + ".selectBox.selectedIndex");
+                }
+            }
+            if (node.selectBox.maxListCount < 0) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SELECT_BOX maxListCount must be zero or a positive integer.",
+                        usableId(node), path + ".selectBox.maxListCount");
+            }
+            validateSelectBoxStyle(node, node.selectBox.styleName,
+                    path + ".selectBox.styleName");
+        }
+
         private void validateTextFieldStyle(HudNode node, String styleName, String path) {
             if (HudBuiltInTextFieldStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInTextFieldStyle()) {
@@ -286,6 +332,23 @@ public final class HudDocumentValidator {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "TEXT_FIELD Skin style '" + styleName
                                 + "' is missing or unusable; font and fontColor are required.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateSelectBoxStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInSelectBoxStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInSelectBoxStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "SELECT_BOX requires the complete built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (resources != null && !resources.hasSelectBoxStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "SELECT_BOX Skin style '" + styleName
+                                + "' is missing or incomplete; font, background, List and ScrollPane styles are required.",
                         usableId(node), path);
             }
         }
@@ -493,13 +556,13 @@ public final class HudDocumentValidator {
         private static boolean noWidgetPayload(HudNode node) {
             return node.container == null && node.image == null
                     && node.label == null && node.textButton == null && node.imageButton == null
-                    && node.textField == null;
+                    && node.textField == null && node.selectBox == null;
         }
 
         private static boolean isLeaf(HudNodeKind kind) {
             return kind == HudNodeKind.IMAGE || kind == HudNodeKind.LABEL
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
-                    || kind == HudNodeKind.TEXT_FIELD;
+                    || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX;
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {

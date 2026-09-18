@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
 
@@ -42,7 +43,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && (!requirements.requiresBuiltInImageButtonStyle()
                         || builtInImageButtonStyle() != null)
                 && (!requirements.requiresBuiltInTextFieldStyle()
-                        || builtInTextFieldStyle() != null);
+                        || builtInTextFieldStyle() != null)
+                && (!requirements.requiresBuiltInSelectBoxStyle()
+                        || builtInSelectBoxStyle() != null);
     }
 
     Skin skin() {
@@ -106,6 +109,16 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInTextFieldStyle();
     }
 
+    @Override public SelectBox.SelectBoxStyle selectBoxStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, SelectBox.SelectBoxStyle.class);
+    }
+
+    @Override public SelectBox.SelectBoxStyle builtInSelectBoxStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInSelectBoxStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
@@ -119,8 +132,20 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     @Override public boolean hasBuiltInTextFieldStyle() {
         return isUsableTextFieldStyle(builtInTextFieldStyle());
     }
+    @Override public boolean hasSelectBoxStyle(String name) {
+        return isUsableSelectBoxStyle(selectBoxStyle(name));
+    }
+    @Override public boolean hasBuiltInSelectBoxStyle() {
+        return isUsableSelectBoxStyle(builtInSelectBoxStyle());
+    }
 
     private static boolean isUsableTextFieldStyle(TextField.TextFieldStyle style) {
         return style != null && style.font != null && style.fontColor != null;
+    }
+    private static boolean isUsableSelectBoxStyle(SelectBox.SelectBoxStyle style) {
+        return style != null && style.font != null && style.fontColor != null
+                && style.background != null && style.listStyle != null
+                && style.listStyle.font != null && style.listStyle.selection != null
+                && style.scrollStyle != null;
     }
 }

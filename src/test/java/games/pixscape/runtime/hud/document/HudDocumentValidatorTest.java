@@ -376,6 +376,41 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void selectBoxRejectsDuplicateValuesAndIncoherentSelection() {
+        HudNode box = new HudNode("choice", HudNodeKind.SELECT_BOX);
+        box.selectBox = new HudSelectBoxData();
+        box.selectBox.items.add("Same");
+        box.selectBox.items.add("Same");
+        box.selectBox.selectedIndex = 2;
+        box.selectBox.maxListCount = -1;
+
+        HudValidationResult result = validator.validate(new HudDocumentV1(box));
+
+        Assert.assertEquals(3, count(result, HudValidationIssueCode.INVALID_NODE_PAYLOAD));
+    }
+
+    @Test
+    public void selectBoxRequiresACompleteBuiltInOrSkinStyle() {
+        HudNode box = new HudNode("choice", HudNodeKind.SELECT_BOX);
+        box.selectBox = new HudSelectBoxData();
+        box.selectBox.items.add("One");
+        box.selectBox.selectedIndex = 0;
+
+        requireIssue(validator.validate(new HudDocumentV1(box), new EmptyResourceCatalog()),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        HudValidationResult builtIn = validator.validate(new HudDocumentV1(box),
+                new FixtureResourceCatalog());
+        Assert.assertTrue(issues(builtIn), builtIn.isValid());
+        box.selectBox.styleName = "compact-select";
+        HudValidationResult custom = validator.validate(new HudDocumentV1(box),
+                new FixtureResourceCatalog());
+        Assert.assertTrue(issues(custom), custom.isValid());
+        box.selectBox.styleName = "missing";
+        requireIssue(validator.validate(new HudDocumentV1(box), new FixtureResourceCatalog()),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+    }
+
+    @Test
     public void imageButtonValidatesEachConfiguredNativeImageState() {
         HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
         button.imageButton = new HudImageButtonData();
@@ -514,6 +549,7 @@ public class HudDocumentValidatorTest {
         @Override public boolean hasBuiltInTextButtonStyle() { return true; }
         @Override public boolean hasBuiltInImageButtonStyle() { return true; }
         @Override public boolean hasBuiltInTextFieldStyle() { return true; }
+        @Override public boolean hasBuiltInSelectBoxStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {
@@ -543,6 +579,11 @@ public class HudDocumentValidatorTest {
         @Override
         public boolean hasTextFieldStyle(String name) {
             return "compact".equals(name);
+        }
+
+        @Override
+        public boolean hasSelectBoxStyle(String name) {
+            return "compact-select".equals(name);
         }
     }
 }

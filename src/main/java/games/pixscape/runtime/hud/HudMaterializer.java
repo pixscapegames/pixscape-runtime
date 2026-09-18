@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
@@ -155,6 +156,23 @@ public final class HudMaterializer {
                 field.setMessageText(node.textField.messageText);
                 field.setPasswordMode(node.textField.passwordMode);
                 return field;
+            }
+            case SELECT_BOX: {
+                SelectBox.SelectBoxStyle style =
+                        HudBuiltInSelectBoxStyle.isSelected(node.selectBox.styleName)
+                                ? resources.builtInSelectBoxStyle()
+                                : resources.selectBoxStyle(node.selectBox.styleName);
+                if (style == null) {
+                    throw missing(node, "SelectBox style",
+                            HudBuiltInSelectBoxStyle.isSelected(node.selectBox.styleName)
+                                    ? "built-in Default" : node.selectBox.styleName);
+                }
+                SelectBox<String> box = new SelectBox<String>(style);
+                box.setItems(node.selectBox.items.toArray(new String[node.selectBox.items.size()]));
+                box.setMaxListCount(node.selectBox.maxListCount);
+                box.setDisabled(node.selectBox.disabled);
+                if (node.selectBox.selectedIndex >= 0) box.setSelectedIndex(node.selectBox.selectedIndex);
+                return box;
             }
             default:
                 throw new IllegalStateException(

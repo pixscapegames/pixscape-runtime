@@ -91,6 +91,17 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void selectBoxWithoutCustomStyleRequiresCompleteBuiltInNativeStyle() {
+        HudResourceRequirements requirements = requirements(node("choice", "SELECT_BOX",
+                "\"selectBox\":{\"items\":[\"One\"],\"selectedIndex\":0},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+        Assert.assertTrue(requirements.requiresBuiltInSelectBoxStyle());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");

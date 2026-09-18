@@ -28,4 +28,9 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the built-in TextField resources. */
     default boolean hasBuiltInTextFieldStyle() { return false; }
+
+    default boolean hasSelectBoxStyle(String name) { return false; }
+
+    /** Returns whether the prepared environment contains the complete built-in SelectBox style. */
+    default boolean hasBuiltInSelectBoxStyle() { return false; }
 }

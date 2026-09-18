@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
@@ -42,6 +43,7 @@ public final class HudResources implements Disposable {
     private TextButton.TextButtonStyle builtInTextButtonStyle;
     private ImageButton.ImageButtonStyle builtInImageButtonStyle;
     private TextField.TextFieldStyle builtInTextFieldStyle;
+    private SelectBox.SelectBoxStyle builtInSelectBoxStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -369,6 +371,17 @@ public final class HudResources implements Disposable {
             builtInTextFieldStyle = HudBuiltInTextFieldStyle.create(white, labelStyle.font);
         }
         return builtInTextFieldStyle;
+    }
+
+    SelectBox.SelectBoxStyle sharedBuiltInSelectBoxStyle() {
+        requireOpen();
+        if (builtInSelectBoxStyle == null) {
+            Label.LabelStyle labelStyle = sharedBuiltInLabelStyle();
+            TextureRegion white = regions.get(HudBuiltInSelectBoxStyle.BACKGROUND_REGION);
+            if (labelStyle == null || white == null) return null;
+            builtInSelectBoxStyle = HudBuiltInSelectBoxStyle.create(white, labelStyle.font);
+        }
+        return builtInSelectBoxStyle;
     }
 
     public String atlasId() {
