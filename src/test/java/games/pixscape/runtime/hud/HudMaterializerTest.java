@@ -24,6 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
@@ -485,6 +486,25 @@ public class HudMaterializerTest {
         Assert.assertSame(selectedResources.builtInSelectBoxStyle(), box.getStyle());
         box.setSelected("North");
         Assert.assertEquals(1, node.selectBox.selectedIndex);
+    }
+
+    @Test
+    public void materializesNativeCheckBoxWithoutMutatingItsAuthoredState() {
+        HudNode node = new HudNode("check", HudNodeKind.CHECK_BOX);
+        node.checkBox = new games.pixscape.runtime.hud.document.HudCheckBoxData();
+        node.checkBox.text = "Enabled";
+        node.checkBox.checked = true;
+        node.checkBox.disabled = false;
+
+        CheckBox box = (CheckBox) materialize(new HudDocumentV1(node)).actor("check");
+        Assert.assertEquals("Enabled", box.getText().toString());
+        Assert.assertTrue(box.isChecked());
+        Assert.assertFalse(box.isDisabled());
+        Assert.assertSame(selectedResources.builtInCheckBoxStyle(), box.getStyle());
+        box.setChecked(false);
+        Assert.assertTrue(node.checkBox.checked);
+        box.setDisabled(true);
+        Assert.assertFalse(node.checkBox.disabled);
     }
 
     @Test

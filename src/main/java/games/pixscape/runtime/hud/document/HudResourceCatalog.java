@@ -33,4 +33,9 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the complete built-in SelectBox style. */
     default boolean hasBuiltInSelectBoxStyle() { return false; }
+
+    default boolean hasCheckBoxStyle(String name) { return false; }
+
+    /** Returns whether the prepared environment contains the complete built-in CheckBox style. */
+    default boolean hasBuiltInCheckBoxStyle() { return false; }
 }

@@ -21,10 +21,12 @@ public final class HudResourceRequirements {
     private final boolean builtInImageButtonStyle;
     private final boolean builtInTextFieldStyle;
     private final boolean builtInSelectBoxStyle;
+    private final boolean builtInCheckBoxStyle;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
                                     boolean builtInTextButtonStyle, boolean builtInImageButtonStyle,
-                                    boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle) {
+                                    boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
+                                    boolean builtInCheckBoxStyle) {
         this.skin = skin;
         this.atlas = atlas;
         this.builtInLabelStyle = builtInLabelStyle;
@@ -32,6 +34,7 @@ public final class HudResourceRequirements {
         this.builtInImageButtonStyle = builtInImageButtonStyle;
         this.builtInTextFieldStyle = builtInTextFieldStyle;
         this.builtInSelectBoxStyle = builtInSelectBoxStyle;
+        this.builtInCheckBoxStyle = builtInCheckBoxStyle;
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -46,6 +49,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInImageButtonStyle = false;
         boolean requiresBuiltInTextFieldStyle = false;
         boolean requiresBuiltInSelectBoxStyle = false;
+        boolean requiresBuiltInCheckBoxStyle = false;
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
@@ -89,6 +93,14 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.CHECK_BOX) {
+                requiresAtlas = true;
+                if (HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                    requiresBuiltInCheckBoxStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             }
             HudImageReferences.visit(node, imageRequirements);
         }
@@ -96,7 +108,7 @@ public final class HudResourceRequirements {
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
                 requiresBuiltInImageButtonStyle, requiresBuiltInTextFieldStyle,
-                requiresBuiltInSelectBoxStyle);
+                requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle);
     }
 
     public boolean requiresSkin() {
@@ -125,6 +137,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInSelectBoxStyle() {
         return builtInSelectBoxStyle;
+    }
+
+    public boolean requiresBuiltInCheckBoxStyle() {
+        return builtInCheckBoxStyle;
     }
 
     private static final class SkinRequirementVisitor implements HudImageReferences.Visitor {

@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
@@ -44,6 +45,7 @@ public final class HudResources implements Disposable {
     private ImageButton.ImageButtonStyle builtInImageButtonStyle;
     private TextField.TextFieldStyle builtInTextFieldStyle;
     private SelectBox.SelectBoxStyle builtInSelectBoxStyle;
+    private CheckBox.CheckBoxStyle builtInCheckBoxStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -382,6 +384,17 @@ public final class HudResources implements Disposable {
             builtInSelectBoxStyle = HudBuiltInSelectBoxStyle.create(white, labelStyle.font);
         }
         return builtInSelectBoxStyle;
+    }
+
+    CheckBox.CheckBoxStyle sharedBuiltInCheckBoxStyle() {
+        requireOpen();
+        if (builtInCheckBoxStyle == null) {
+            Label.LabelStyle labelStyle = sharedBuiltInLabelStyle();
+            TextureRegion white = regions.get(HudBuiltInCheckBoxStyle.BACKGROUND_REGION);
+            if (labelStyle == null || white == null) return null;
+            builtInCheckBoxStyle = HudBuiltInCheckBoxStyle.create(white, labelStyle.font);
+        }
+        return builtInCheckBoxStyle;
     }
 
     public String atlasId() {

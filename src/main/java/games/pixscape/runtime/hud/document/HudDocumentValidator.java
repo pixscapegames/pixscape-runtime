@@ -6,6 +6,7 @@ import games.pixscape.runtime.hud.HudBuiltInImageButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
 import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
+import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -141,37 +142,42 @@ public final class HudDocumentValidator {
                 case CONTAINER:
                     validPayload = node.container != null && node.image == null
                             && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null;
+                            && node.textField == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case IMAGE:
                     validPayload = node.image != null && node.container == null
                             && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null;
+                            && node.textField == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case LABEL:
                     validPayload = node.label != null && node.container == null
                             && node.image == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null;
+                            && node.textField == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case TEXT_BUTTON:
                     validPayload = node.textButton != null && node.container == null
                             && node.image == null && node.label == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null;
+                            && node.textField == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case IMAGE_BUTTON:
                     validPayload = node.imageButton != null && node.container == null
                             && node.image == null && node.label == null && node.textButton == null
-                            && node.textField == null && node.selectBox == null;
+                            && node.textField == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case TEXT_FIELD:
                     validPayload = node.textField != null && node.container == null
                             && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null && node.selectBox == null;
+                            && node.imageButton == null && node.selectBox == null && node.checkBox == null;
                     break;
                 case SELECT_BOX:
                     validPayload = node.selectBox != null && node.container == null
                             && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null && node.textField == null;
+                            && node.imageButton == null && node.textField == null && node.checkBox == null;
+                    break;
+                case CHECK_BOX:
+                    validPayload = node.checkBox != null && node.container == null
+                            && node.image == null && node.label == null && node.textButton == null
+                            && node.imageButton == null && node.textField == null && node.selectBox == null;
                     break;
                 default:
                     validPayload = false;
@@ -195,6 +201,8 @@ public final class HudDocumentValidator {
                 validateTextField(node, path);
             } else if (node.kind == HudNodeKind.SELECT_BOX && node.selectBox != null) {
                 validateSelectBox(node, path);
+            } else if (node.kind == HudNodeKind.CHECK_BOX && node.checkBox != null) {
+                validateCheckBox(node, path);
             }
         }
 
@@ -319,6 +327,15 @@ public final class HudDocumentValidator {
                     path + ".selectBox.styleName");
         }
 
+        private void validateCheckBox(HudNode node, String path) {
+            if (node.checkBox.text == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "CHECK_BOX text must not be null; an empty string is allowed.",
+                        usableId(node), path + ".checkBox.text");
+            }
+            validateCheckBoxStyle(node, node.checkBox.styleName, path + ".checkBox.styleName");
+        }
+
         private void validateTextFieldStyle(HudNode node, String styleName, String path) {
             if (HudBuiltInTextFieldStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInTextFieldStyle()) {
@@ -349,6 +366,23 @@ public final class HudDocumentValidator {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "SELECT_BOX Skin style '" + styleName
                                 + "' is missing or incomplete; font, List and ScrollPane styles are required.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateCheckBoxStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInCheckBoxStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInCheckBoxStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "CHECK_BOX requires the complete built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (resources != null && !resources.hasCheckBoxStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "CHECK_BOX Skin style '" + styleName
+                                + "' is missing or incomplete; font, checkboxOn and checkboxOff are required.",
                         usableId(node), path);
             }
         }
@@ -556,13 +590,14 @@ public final class HudDocumentValidator {
         private static boolean noWidgetPayload(HudNode node) {
             return node.container == null && node.image == null
                     && node.label == null && node.textButton == null && node.imageButton == null
-                    && node.textField == null && node.selectBox == null;
+                    && node.textField == null && node.selectBox == null && node.checkBox == null;
         }
 
         private static boolean isLeaf(HudNodeKind kind) {
             return kind == HudNodeKind.IMAGE || kind == HudNodeKind.LABEL
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
-                    || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX;
+                    || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
+                    || kind == HudNodeKind.CHECK_BOX;
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {

@@ -11,5 +11,6 @@ public enum HudNodeKind {
     TEXT_BUTTON,
     IMAGE_BUTTON,
     TEXT_FIELD,
-    SELECT_BOX
+    SELECT_BOX,
+    CHECK_BOX
 }

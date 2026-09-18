@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
 
@@ -45,7 +46,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && (!requirements.requiresBuiltInTextFieldStyle()
                         || builtInTextFieldStyle() != null)
                 && (!requirements.requiresBuiltInSelectBoxStyle()
-                        || builtInSelectBoxStyle() != null);
+                        || builtInSelectBoxStyle() != null)
+                && (!requirements.requiresBuiltInCheckBoxStyle()
+                        || builtInCheckBoxStyle() != null);
     }
 
     Skin skin() {
@@ -119,6 +122,16 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInSelectBoxStyle();
     }
 
+    @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, CheckBox.CheckBoxStyle.class);
+    }
+
+    @Override public CheckBox.CheckBoxStyle builtInCheckBoxStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInCheckBoxStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
@@ -138,6 +151,12 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     @Override public boolean hasBuiltInSelectBoxStyle() {
         return isUsableSelectBoxStyle(builtInSelectBoxStyle());
     }
+    @Override public boolean hasCheckBoxStyle(String name) {
+        return isUsableCheckBoxStyle(checkBoxStyle(name));
+    }
+    @Override public boolean hasBuiltInCheckBoxStyle() {
+        return isUsableCheckBoxStyle(builtInCheckBoxStyle());
+    }
 
     private static boolean isUsableTextFieldStyle(TextField.TextFieldStyle style) {
         return style != null && style.font != null && style.fontColor != null;
@@ -147,5 +166,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && style.listStyle != null
                 && style.listStyle.font != null && style.listStyle.selection != null
                 && style.scrollStyle != null;
+    }
+    private static boolean isUsableCheckBoxStyle(CheckBox.CheckBoxStyle style) {
+        return style != null && style.font != null
+                && style.checkboxOn != null && style.checkboxOff != null;
     }
 }

@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
@@ -172,6 +173,18 @@ public final class HudMaterializer {
                 box.setMaxListCount(node.selectBox.maxListCount);
                 box.setDisabled(node.selectBox.disabled);
                 if (node.selectBox.selectedIndex >= 0) box.setSelectedIndex(node.selectBox.selectedIndex);
+                return box;
+            }
+            case CHECK_BOX: {
+                CheckBox.CheckBoxStyle style = HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
+                        ? resources.builtInCheckBoxStyle() : resources.checkBoxStyle(node.checkBox.styleName);
+                if (style == null) {
+                    throw missing(node, "CheckBox style", HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
+                            ? "built-in Default" : node.checkBox.styleName);
+                }
+                CheckBox box = new CheckBox(node.checkBox.text, style);
+                box.setChecked(node.checkBox.checked);
+                box.setDisabled(node.checkBox.disabled);
                 return box;
             }
             default:

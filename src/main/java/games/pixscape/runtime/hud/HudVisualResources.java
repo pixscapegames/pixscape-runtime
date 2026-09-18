@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 
 /**
@@ -43,4 +44,9 @@ public interface HudVisualResources {
 
     /** Skin-independent style used when a SelectBox has no authored custom style reference. */
     default SelectBox.SelectBoxStyle builtInSelectBoxStyle() { return null; }
+
+    default CheckBox.CheckBoxStyle checkBoxStyle(String name) { return null; }
+
+    /** Skin-independent style used when a CheckBox has no authored custom style reference. */
+    default CheckBox.CheckBoxStyle builtInCheckBoxStyle() { return null; }
 }
