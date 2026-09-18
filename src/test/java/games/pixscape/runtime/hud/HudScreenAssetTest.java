@@ -8,6 +8,7 @@ public class HudScreenAssetTest {
     @Test
     public void defaultsUseSupportedSchemaAndReferenceResolution() {
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/default.json";
 
         asset.validate();
 
@@ -16,13 +17,14 @@ public class HudScreenAssetTest {
         Assert.assertEquals(1080, asset.referenceHeight);
         Assert.assertNull(asset.skinId);
         Assert.assertNull(asset.atlasId);
-        Assert.assertNull(asset.documentId);
+        Assert.assertEquals("hud/default.json", asset.documentId);
         Assert.assertEquals(HudTextureProfile.DEFAULT_ID, asset.textureProfileId);
     }
 
     @Test
     public void customPositiveReferenceResolutionRoundTrips() {
         HudScreenAsset source = new HudScreenAsset();
+        source.documentId = "hud/portrait.json";
         source.referenceWidth = 1080;
         source.referenceHeight = 1920;
 
@@ -37,7 +39,7 @@ public class HudScreenAssetTest {
     }
 
     @Test
-    public void documentReferenceRoundTripsWhileLegacySchemaOneRemainsEmpty() {
+    public void documentReferenceRoundTripsAndIsRequired() {
         Json json = new Json();
         json.setUsePrototypes(false);
         HudScreenAsset source = new HudScreenAsset();
@@ -46,18 +48,17 @@ public class HudScreenAssetTest {
         HudScreenAsset restored = json.fromJson(
                 HudScreenAsset.class, json.toJson(source));
         restored.validate();
-        HudScreenAsset legacy = json.fromJson(
+        HudScreenAsset incomplete = json.fromJson(
                 HudScreenAsset.class, "{\"schemaVersion\":1}");
-        legacy.validate();
+        rejected(incomplete, "documentId is required");
 
         Assert.assertEquals("hud/game.json", restored.documentId);
-        Assert.assertNull(legacy.documentId);
-        Assert.assertEquals(HudScreenAsset.CURRENT_SCHEMA_VERSION, legacy.schemaVersion);
     }
 
     @Test
     public void invalidSchemaAndReferenceDimensionsAreRejected() {
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/invalid.json";
         asset.schemaVersion = 2;
         rejected(asset, "schemaVersion 1");
 
@@ -82,6 +83,7 @@ public class HudScreenAssetTest {
     @Test
     public void resourceReferencesRoundTripAndValidationDoesNotMutateThem() {
         HudScreenAsset source = new HudScreenAsset();
+        source.documentId = "hud/resources.json";
         source.skinId = "  ui\\game.json  ";
         source.atlasId = "  ui\\game.atlas  ";
         source.textureProfileId = "  " + HudTextureProfile.DEFAULT_ID + "  ";

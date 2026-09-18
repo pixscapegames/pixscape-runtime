@@ -1460,14 +1460,10 @@ public final class PixscapeEngine {
             return;
         }
         try {
-            if (cfg.sceneHudFormatVersion != null && cfg.sceneHudFormatVersion.intValue() == 1) {
-                if (activeSceneAvailability == null || activeSceneAvailability.hudResources() == null) {
-                    throw new IllegalStateException("Scene HUD v1 environment was not prepared.");
-                }
-                hudScreenRuntime.showBorrowing(meta.defaultHudScreenId, activeSceneAvailability.hudResources());
-            } else {
-                hudScreenRuntime.show(meta.defaultHudScreenId);
+            if (activeSceneAvailability == null || activeSceneAvailability.hudResources() == null) {
+                throw new IllegalStateException("Scene HUD environment was not prepared.");
             }
+            hudScreenRuntime.showBorrowing(meta.defaultHudScreenId, activeSceneAvailability.hudResources());
         } catch (RuntimeException failure) {
             lastSceneDefaultHudFailure = failure;
             try {

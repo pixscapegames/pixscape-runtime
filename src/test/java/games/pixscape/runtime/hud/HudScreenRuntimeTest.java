@@ -375,21 +375,18 @@ public class HudScreenRuntimeTest {
         } finally { environment.dispose(); }
     }
 
-    @Test public void skinlessBorrowedLayoutAndLegacyEmptyScreensLeaveEnvironmentOpen() throws Exception {
+    @Test public void skinlessBorrowedLayoutLeavesEnvironmentOpen() throws Exception {
         FileHandle root = twoSkinProject();
         root.child("hud/layout.hudscreen").writeString("{\"schemaVersion\":1,\"skinId\":\"ui/absent.json\",\"documentId\":\"hud/layout.json\"}", false);
         root.child("hud/layout.json").writeString("{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}", false);
-        root.child("hud/empty.hudscreen").writeString("{\"schemaVersion\":1}", false);
         HudResources environment = HudResources.prepareEnvironment(root, null, null, java.util.Collections.emptyList());
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
         try {
             ActiveHudScreen layout = runtime.showBorrowing("layout", environment);
             Assert.assertNotNull(layout.session());
             Assert.assertNull(layout.session().hudBatch().getTextureArrayBundle());
-            ActiveHudScreen empty = runtime.showBorrowing("empty", environment);
-            Assert.assertTrue(empty.isEmpty());
-            Assert.assertTrue(layout.session().isDisposed());
             runtime.dispose();
+            Assert.assertTrue(layout.session().isDisposed());
             Assert.assertFalse(environment.isDisposed());
         } finally { runtime.dispose(); environment.dispose(); }
     }
@@ -464,7 +461,6 @@ public class HudScreenRuntimeTest {
         root.child("scenes").mkdirs(); root.child("scenes/scene.json").writeString("{}", false);
         root.child("atlases/scene.atlas").writeString("", false);
         games.pixscape.runtime.configuration.RuntimeConfig config = new games.pixscape.runtime.configuration.RuntimeConfig();
-        config.sceneHudFormatVersion = 1;
         games.pixscape.runtime.loading.SceneMetaRuntime meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
         meta.name = "scene"; meta.file = "scene.json"; meta.defaultHudScreenId = "a";
         config.scenes.put("scene", meta);
@@ -643,20 +639,16 @@ public class HudScreenRuntimeTest {
     }
 
     @Test
-    public void legacyEmptyScreenRequiresNeitherDocumentNorGlResources() throws Exception {
+    public void screenWithoutDocumentIsRejectedBeforeSessionCreation() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("empty-project"));
         root.child("hud").mkdirs();
         root.child("hud/empty.hudscreen").writeString(
                 "{\"schemaVersion\":1}", false, "UTF-8");
         HudScreenRuntime runtime = new HudScreenRuntime(root, null);
-        ActiveHudScreen empty = runtime.show("empty");
-        Assert.assertTrue(empty.isEmpty());
-        Assert.assertNull(empty.materializedHud());
-        runtime.act(0.1f);
-        runtime.draw();
-        runtime.resize(1, 1);
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> runtime.show("empty"));
+        Assert.assertTrue(failure.getMessage().contains("documentId is required"));
         runtime.dispose();
-        Assert.assertTrue(empty.isDisposed());
     }
 
     @Test

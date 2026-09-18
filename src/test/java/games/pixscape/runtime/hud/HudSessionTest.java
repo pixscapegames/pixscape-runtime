@@ -108,9 +108,10 @@ public class HudSessionTest {
     public void resourceFreeSessionDrawsEmptyStageAndRejectsTexturedSubmission() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free-session"));
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/resource-free.json";
         HudResourceRequirements requirements = HudResourcesTest.requirementsFor(
                 "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}");
-        HudResources resources = HudResources.prepare(asset, root, requirements);
+        HudResources resources = HudResources.prepareStandalone(asset, root, requirements);
         ShaderProgram shader = shader();
         HudSession session = HudSession.create(asset, resources, shader);
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -413,19 +414,21 @@ public class HudSessionTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder());
         HudResourcesTest.writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/test.json";
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
         return new Prepared(asset,
-                HudResources.prepare(asset, root, HudResourcesTest.fullRequirements()), shader());
+                HudResources.prepareStandalone(asset, root, HudResourcesTest.fullRequirements()), shader());
     }
 
     private static MaterializedHud materialize(String fixture, HudResources resources) {
         HudValidationResult validation = new HudDocumentValidator().validate(
                 new HudDocumentCodec().read(new FileHandle(
-                        "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
-                resources);
+                "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
+                resources.select("ui/game.json"));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
-        return new HudMaterializer().materialize(validation.validatedDocument(), resources);
+        return new HudMaterializer().materialize(
+                validation.validatedDocument(), resources.select("ui/game.json"));
     }
 
     private static ShaderProgram shader() {

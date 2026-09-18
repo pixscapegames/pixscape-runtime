@@ -37,9 +37,6 @@ public final class RuntimeConfig {
 
     public String version = DEFAULT_VERSION;
 
-    /** Export-only HUD contract marker. Absence preserves legacy independently owned HUDs. */
-    public Integer sceneHudFormatVersion;
-
     /**
      * Optional: can be inferred from FileHandle on engine side.
      */
@@ -119,10 +116,6 @@ public final class RuntimeConfig {
     // ---------------------------------------------------------------------
 
     public void applyDefaultsAndValidate(String pathForErrors) {
-        if (sceneHudFormatVersion != null && sceneHudFormatVersion.intValue() != 1) {
-            throw new IllegalArgumentException("Unsupported sceneHudFormatVersion "
-                    + sceneHudFormatVersion + " in: " + pathForErrors);
-        }
         if (version == null || isBlank(version)) {
             version = DEFAULT_VERSION;
         }

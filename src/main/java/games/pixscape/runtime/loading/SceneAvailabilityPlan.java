@@ -13,7 +13,6 @@ import games.pixscape.runtime.hud.HudResources;
 import games.pixscape.runtime.hud.HudTextureProfile;
 import games.pixscape.runtime.hud.SceneHudFiles;
 import java.util.List;
-import java.util.Collections;
 
 /** Small staged plan for the exact file/resource needs of one selected scene. */
 public final class SceneAvailabilityPlan {
@@ -69,8 +68,7 @@ public final class SceneAvailabilityPlan {
         this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
         this.runtimeProjectDir = runtimeProjectDir;
         this.hudAtlasId = RuntimeFs.DIR_ATLASES + "/hud/" + sceneTag + "/hud.atlas";
-        List<String> hudRoots = config.sceneHudFormatVersion != null && config.sceneHudFormatVersion.intValue() == 1
-                ? (roots == null ? SceneHudRoots.collect(meta) : roots) : Collections.<String>emptyList();
+        List<String> hudRoots = roots == null ? SceneHudRoots.collect(meta) : roots;
         this.hudFiles = hudRoots.isEmpty() ? null : new SceneHudFiles(availability, runtimeProjectDir, hudAtlasId, hudRoots);
 
         try {

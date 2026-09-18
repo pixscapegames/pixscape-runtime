@@ -69,9 +69,8 @@ public final class SceneHudFiles {
         for (Screen screen : screens.values()) {
             if (screen.asset == null && available(screen.assetId)) {
                 screen.asset = new HudScreenAssetLoader().load(project, screen.id);
-                screen.documentId = HudResourceId.normalizeOptional(screen.asset.documentId, "documentId");
-                if (screen.documentId == null) screen.expanded = true;
-                else request(screen.documentId);
+                screen.documentId = screen.asset.documentId;
+                request(screen.documentId);
             }
             if (!screen.expanded && screen.documentId != null && available(screen.documentId)) {
                 HudValidationResult validation = new HudDocumentValidator().validate(
@@ -152,7 +151,9 @@ public final class SceneHudFiles {
             files.add(id);
         }
     }
-    private boolean available(String id) { return availability.isFileAvailable(project.child(id).path()); }
+    private boolean available(String id) {
+        return id != null && availability.isFileAvailable(project.child(id).path());
+    }
     private FileHandle file(String id) { return availability.file(project.child(id).path()); }
 
     private static final class Screen {

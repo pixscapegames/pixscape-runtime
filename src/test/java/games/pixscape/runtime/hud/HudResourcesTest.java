@@ -110,6 +110,7 @@ public class HudResourcesTest {
     public void missingReferencesAndUnknownProfileFailClearly() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("missing"));
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/missing.json";
 
         assertPreparationFailure(asset, root, "skinId");
         asset.skinId = "ui/game.json";
@@ -141,9 +142,9 @@ public class HudResourcesTest {
             }
             Assert.assertThrows(UnsupportedOperationException.class, () -> resources.skinIds().clear());
             Assert.assertThrows(IllegalArgumentException.class, () -> resources.select("ui/missing.json"));
-            Assert.assertThrows(IllegalStateException.class, resources::skinId);
-            Assert.assertThrows(IllegalStateException.class, () -> resources.labelStyle("hud-title"));
-            Assert.assertThrows(IllegalStateException.class, () -> resources.satisfies(fullRequirements()));
+            Assert.assertEquals("ui/game.json", a.skinId());
+            Assert.assertNotNull(a.labelStyle("hud-title"));
+            Assert.assertTrue(a.satisfies(fullRequirements()));
             HudSelectedResources skinless = resources.select("  ");
             Assert.assertNull(skinless.skinId());
             Assert.assertNull(skinless.labelStyle("hud-title"));
@@ -192,7 +193,7 @@ public class HudResourcesTest {
             Assert.assertNull(selected.textButtonStyle("default"));
             Assert.assertTrue(resources.skinIds().isEmpty());
             // Even a shared environment with zero/one Skin must not infer a selection.
-            Assert.assertThrows(IllegalStateException.class, () -> resources.region("crosshair"));
+            Assert.assertNull(selected.region("crosshair"));
         } finally { resources.dispose(); }
     }
 
@@ -212,22 +213,24 @@ public class HudResourcesTest {
             throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free"));
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/resource-free.json";
         asset.skinId = "ui/not-loaded.json";
         asset.atlasId = "ui/not-loaded.atlas";
         HudResourceRequirements requirements = requirementsFor(
                 "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}");
 
-        HudResources resources = HudResources.prepare(asset, root, requirements);
+        HudResources resources = HudResources.prepareStandalone(asset, root, requirements);
+        HudSelectedResources selected = resources.select(null);
 
-        Assert.assertTrue(resources.satisfies(requirements));
-        Assert.assertNull(resources.skinId());
+        Assert.assertTrue(selected.satisfies(requirements));
+        Assert.assertNull(selected.skinId());
         Assert.assertNull(resources.atlasId());
         Assert.assertNull(resources.textureArrayBundle());
-        Assert.assertFalse(resources.hasRegion("anything"));
-        Assert.assertFalse(resources.hasDrawable("anything"));
-        Assert.assertFalse(resources.hasLabelStyle("anything"));
-        Assert.assertFalse(resources.hasTextButtonStyle("anything"));
-        Assert.assertThrows(IllegalStateException.class, resources::skin);
+        Assert.assertFalse(selected.hasRegion("anything"));
+        Assert.assertFalse(selected.hasDrawable("anything"));
+        Assert.assertFalse(selected.hasLabelStyle("anything"));
+        Assert.assertFalse(selected.hasTextButtonStyle("anything"));
+        Assert.assertNull(selected.skin());
         Assert.assertThrows(IllegalStateException.class, resources::atlas);
 
         resources.dispose();
@@ -240,19 +243,21 @@ public class HudResourcesTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("atlas-only"));
         writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/atlas-only.json";
         asset.atlasId = "ui/game.atlas";
         HudResourceRequirements requirements = requirementsFor(
                 "{\"id\":\"image\",\"kind\":\"IMAGE\",\"image\":{"
                         + "\"source\":\"REGION\",\"resourceName\":\"inventory-art\"},"
                         + "\"children\":[]}");
 
-        HudResources resources = HudResources.prepare(asset, root, requirements);
+        HudResources resources = HudResources.prepareStandalone(asset, root, requirements);
         try {
-            Assert.assertTrue(resources.satisfies(requirements));
-            Assert.assertNull(resources.skinId());
+            HudSelectedResources selected = resources.select(null);
+            Assert.assertTrue(selected.satisfies(requirements));
+            Assert.assertNull(selected.skinId());
             Assert.assertEquals("ui/game.atlas", resources.atlasId());
-            Assert.assertTrue(resources.hasRegion("inventory-art"));
-            Assert.assertFalse(resources.hasDrawable("inventory-panel"));
+            Assert.assertTrue(selected.hasRegion("inventory-art"));
+            Assert.assertFalse(selected.hasDrawable("inventory-panel"));
             Assert.assertNotNull(resources.textureArrayBundle());
         } finally {
             resources.dispose();
@@ -264,20 +269,22 @@ public class HudResourcesTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("built-in-button"));
         writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/built-in-button.json";
         asset.atlasId = "ui/game.atlas";
         HudResourceRequirements requirements = requirementsFor(
                 "{\"id\":\"button\",\"kind\":\"TEXT_BUTTON\",\"textButton\":{"
                         + "\"text\":\"Button\"},\"children\":[]}");
 
-        HudResources resources = HudResources.prepare(asset, root, requirements);
+        HudResources resources = HudResources.prepareStandalone(asset, root, requirements);
         try {
-            Assert.assertTrue(resources.satisfies(requirements));
-            Assert.assertNull(resources.skinId());
-            Assert.assertNotNull(resources.builtInTextButtonStyle());
-            Assert.assertNotNull(resources.builtInTextButtonStyle().up);
-            Assert.assertNotNull(resources.builtInTextButtonStyle().over);
-            Assert.assertNotNull(resources.builtInTextButtonStyle().down);
-            Assert.assertNotNull(resources.builtInTextButtonStyle().disabled);
+            HudSelectedResources selected = resources.select(null);
+            Assert.assertTrue(selected.satisfies(requirements));
+            Assert.assertNull(selected.skinId());
+            Assert.assertNotNull(selected.builtInTextButtonStyle());
+            Assert.assertNotNull(selected.builtInTextButtonStyle().up);
+            Assert.assertNotNull(selected.builtInTextButtonStyle().over);
+            Assert.assertNotNull(selected.builtInTextButtonStyle().down);
+            Assert.assertNotNull(selected.builtInTextButtonStyle().disabled);
         } finally {
             resources.dispose();
         }
@@ -287,6 +294,7 @@ public class HudResourcesTest {
     public void actualDocumentRequirementsControlMissingReferenceDiagnostics() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("requirements"));
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/complete.json";
         HudResourceRequirements region = requirementsFor(
                 "{\"id\":\"image\",\"kind\":\"IMAGE\",\"image\":{"
                         + "\"source\":\"REGION\",\"resourceName\":\"art\"},"
@@ -297,11 +305,11 @@ public class HudResourcesTest {
                         + "\"children\":[]}");
 
         RuntimeException missingAtlas = Assert.assertThrows(RuntimeException.class,
-                () -> HudResources.prepare(asset, root, region));
+                () -> HudResources.prepareStandalone(asset, root, region));
         Assert.assertTrue(missingAtlas.getMessage(), missingAtlas.getMessage().contains("atlasId"));
 
         RuntimeException missingSkin = Assert.assertThrows(RuntimeException.class,
-                () -> HudResources.prepare(asset, root, label));
+                () -> HudResources.prepareStandalone(asset, root, label));
         Assert.assertTrue(missingSkin.getMessage(), missingSkin.getMessage().contains("skinId"));
     }
 
@@ -355,6 +363,7 @@ public class HudResourcesTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("complete"));
         writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/complete.json";
         String authoredSkinId = "  ui\\game.json  ";
         String authoredAtlasId = "  ui\\game.atlas  ";
         String authoredProfileId = "  " + HudTextureProfile.DEFAULT_ID + "  ";
@@ -362,16 +371,17 @@ public class HudResourcesTest {
         asset.atlasId = authoredAtlasId;
         asset.textureProfileId = authoredProfileId;
 
-        HudResources resources = HudResources.prepare(asset, root, fullRequirements());
+        HudResources resources = HudResources.prepareStandalone(asset, root, fullRequirements());
+        HudSelectedResources selected = resources.select(authoredSkinId);
 
         Assert.assertEquals(authoredSkinId, asset.skinId);
         Assert.assertEquals(authoredAtlasId, asset.atlasId);
         Assert.assertEquals(authoredProfileId, asset.textureProfileId);
-        Assert.assertEquals("ui/game.json", resources.skinId());
+        Assert.assertEquals("ui/game.json", selected.skinId());
         Assert.assertEquals("ui/game.atlas", resources.atlasId());
         Assert.assertEquals(HudTextureProfile.DEFAULT_ID, resources.textureProfile().id());
-        Assert.assertNull(resources.skin().getAtlas());
-        BitmapFont font = resources.skin().get("default-font", BitmapFont.class);
+        Assert.assertNull(selected.skin().getAtlas());
+        BitmapFont font = selected.skin().get("default-font", BitmapFont.class);
         Assert.assertEquals(2, font.getRegions().size);
         Array<Texture> pages = new Array<Texture>();
         pages.add(font.getRegions().get(0).getTexture());
@@ -400,7 +410,7 @@ public class HudResourcesTest {
 
         Assert.assertTrue(resources.isDisposed());
         Assert.assertEquals(deletionsAfterFirstDispose, deletedTextures);
-        Assert.assertThrows(IllegalStateException.class, resources::skin);
+        Assert.assertThrows(IllegalStateException.class, selected::skin);
     }
 
     @Test
@@ -427,12 +437,13 @@ public class HudResourcesTest {
                         + "\"external-font\":{\"file\":\"external-font.fnt\"}}}",
                 false, "UTF-8");
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/transactional.json";
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
 
         IllegalStateException failure = Assert.assertThrows(
                 IllegalStateException.class,
-                () -> HudResources.prepare(asset, root, fullRequirements()));
+                () -> HudResources.prepareStandalone(asset, root, fullRequirements()));
 
         Assert.assertTrue(failure.getMessage(),
                 failure.getMessage().contains("external-font"));
@@ -567,7 +578,7 @@ public class HudResourcesTest {
             HudScreenAsset asset, FileHandle root, String diagnostic) {
         RuntimeException failure = Assert.assertThrows(
                 RuntimeException.class,
-                () -> HudResources.prepare(asset, root, fullRequirements()));
+                () -> HudResources.prepareStandalone(asset, root, fullRequirements()));
         Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(diagnostic));
     }
 

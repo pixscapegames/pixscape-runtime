@@ -63,6 +63,7 @@ public class HudMaterializerTest {
     private Graphics previousGraphics;
     private Files previousFiles;
     private HudResources resources;
+    private HudSelectedResources selectedResources;
     private int generatedTextures;
 
     @BeforeClass
@@ -105,9 +106,11 @@ public class HudMaterializerTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder());
         HudResourcesTest.writeHudFiles(root);
         HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/test.json";
         asset.skinId = "ui/game.json";
         asset.atlasId = "ui/game.atlas";
-        resources = HudResources.prepare(asset, root, HudResourcesTest.fullRequirements());
+        resources = HudResources.prepareStandalone(asset, root, HudResourcesTest.fullRequirements());
+        selectedResources = resources.select(asset.skinId);
     }
 
     @After
@@ -134,11 +137,12 @@ public class HudMaterializerTest {
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
         HudResourceRequirements requirements =
                 HudResourceRequirements.from(validation.validatedDocument());
-        HudResources emptyResources = HudResources.prepare(
-                new HudScreenAsset(), root, requirements);
+        HudScreenAsset emptyAsset = new HudScreenAsset();
+        emptyAsset.documentId = "hud/layout-only.json";
+        HudResources emptyResources = HudResources.prepareStandalone(emptyAsset, root, requirements);
         try {
             MaterializedHud hud = new HudMaterializer().materialize(
-                    validation.validatedDocument(), emptyResources);
+                    validation.validatedDocument(), emptyResources.select(null));
             Assert.assertTrue(hud.root() instanceof HudFreeGroup);
             Assert.assertTrue(hud.actor("stack") instanceof Stack);
             Assert.assertEquals(2, hud.actorById().size());
@@ -152,11 +156,11 @@ public class HudMaterializerTest {
         HudNode empty = new HudNode("empty", HudNodeKind.CONTAINER);
         empty.container = new HudContainerData();
         HudValidationResult emptyValidation = new HudDocumentValidator().validate(
-                new HudDocumentV1(empty), resources);
+                new HudDocumentV1(empty), selectedResources);
         Assert.assertTrue(emptyValidation.issues().toString(), emptyValidation.isValid());
 
         MaterializedHud emptyHud = new HudMaterializer().materialize(
-                emptyValidation.validatedDocument(), resources);
+                emptyValidation.validatedDocument(), selectedResources);
         Container<?> emptyActor = (Container<?>) emptyHud.actor("empty");
         Assert.assertNull(emptyActor.getActor());
         Assert.assertEquals(1, emptyHud.actorById().size());
@@ -165,11 +169,11 @@ public class HudMaterializerTest {
         occupied.container = new HudContainerData();
         occupied.children.add(HudChild.direct(new HudNode("group", HudNodeKind.GROUP)));
         HudValidationResult occupiedValidation = new HudDocumentValidator().validate(
-                new HudDocumentV1(occupied), resources);
+                new HudDocumentV1(occupied), selectedResources);
         Assert.assertTrue(occupiedValidation.issues().toString(), occupiedValidation.isValid());
 
         MaterializedHud occupiedHud = new HudMaterializer().materialize(
-                occupiedValidation.validatedDocument(), resources);
+                occupiedValidation.validatedDocument(), selectedResources);
         Container<?> occupiedActor = (Container<?>) occupiedHud.actor("occupied");
         Assert.assertSame(occupiedHud.actor("group"), occupiedActor.getActor());
         Assert.assertEquals(2, occupiedHud.actorById().size());
@@ -286,7 +290,7 @@ public class HudMaterializerTest {
     @Test
     public void resourcesResolveFromPreparedSnapshotWithoutCreatingTextures() {
         int texturesBefore = generatedTextures;
-        HudVisualResources visualResources = resources;
+        HudVisualResources visualResources = selectedResources;
         MaterializedHud hud = new HudMaterializer().materialize(
                 validated("resources.json"), visualResources);
         Image regionImage = (Image) hud.actor("scene-art");
@@ -298,11 +302,11 @@ public class HudMaterializerTest {
         Assert.assertSame(atlasTexture,
                 ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable)
                         regionImage.getDrawable()).getRegion().getTexture());
-        Assert.assertSame(resources.skin().getDrawable("inventory-panel"),
+        Assert.assertSame(selectedResources.skin().getDrawable("inventory-panel"),
                 drawableImage.getDrawable());
-        Assert.assertSame(resources.skin().get(
+        Assert.assertSame(selectedResources.skin().get(
                 "hud-body-bitmap", Label.LabelStyle.class), label.getStyle());
-        Assert.assertSame(resources.skin().get(
+        Assert.assertSame(selectedResources.skin().get(
                 "hud-primary", TextButton.TextButtonStyle.class), button.getStyle());
         Assert.assertEquals(texturesBefore, generatedTextures);
     }
@@ -312,9 +316,9 @@ public class HudMaterializerTest {
         TextureRegion plainRegion = new TextureRegion();
         FakeVisualResources visualResources = new FakeVisualResources(
                 plainRegion,
-                resources.skin().getDrawable("inventory-panel"),
-                resources.skin().get("hud-body-bitmap", Label.LabelStyle.class),
-                resources.skin().get("hud-primary", TextButton.TextButtonStyle.class));
+                selectedResources.skin().getDrawable("inventory-panel"),
+                selectedResources.skin().get("hud-body-bitmap", Label.LabelStyle.class),
+                selectedResources.skin().get("hud-primary", TextButton.TextButtonStyle.class));
         HudValidationResult validation = new HudDocumentValidator().validate(
                 new HudDocumentCodec().read(new FileHandle(
                         "src/test/resources/" + FIXTURE_ROOT + "resources.json")));
@@ -338,10 +342,10 @@ public class HudMaterializerTest {
 
     @Test
     public void materializesDefaultTextButtonFromBuiltInStyle() {
-        TextButton.TextButtonStyle style = resources.builtInTextButtonStyle();
+        TextButton.TextButtonStyle style = selectedResources.builtInTextButtonStyle();
         FakeVisualResources visualResources = new FakeVisualResources(
-                new TextureRegion(), resources.skin().getDrawable("inventory-panel"),
-                resources.skin().get("hud-body-bitmap", Label.LabelStyle.class), style);
+                new TextureRegion(), selectedResources.skin().getDrawable("inventory-panel"),
+                selectedResources.skin().get("hud-body-bitmap", Label.LabelStyle.class), style);
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
         button.textButton = new games.pixscape.runtime.hud.document.HudTextButtonData();
         button.textButton.text = "Button";
@@ -382,11 +386,11 @@ public class HudMaterializerTest {
         HudNode child = new HudNode("direct-child", HudNodeKind.GROUP);
         root.children.add(HudChild.direct(child));
         HudValidationResult validation = new HudDocumentValidator().validate(
-                new HudDocumentV1(root), resources);
+                new HudDocumentV1(root), selectedResources);
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
 
         MaterializedHud hud = new HudMaterializer().materialize(
-                validation.validatedDocument(), resources);
+                validation.validatedDocument(), selectedResources);
 
         Assert.assertSame(hud.actor("direct-child"), ((Group) hud.root()).getChild(0));
     }
@@ -402,7 +406,7 @@ public class HudMaterializerTest {
 
         IllegalStateException failure = Assert.assertThrows(IllegalStateException.class,
                 () -> new HudMaterializer().materialize(
-                        validation.validatedDocument(), resources));
+                        validation.validatedDocument(), selectedResources));
 
         Assert.assertTrue(failure.getMessage(), failure.getMessage().contains("missing-region"));
         Assert.assertFalse(resources.isDisposed());
@@ -416,7 +420,7 @@ public class HudMaterializerTest {
         HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
 
-        Label.LabelStyle builtIn = resources.labelStyle("hud-body-bitmap");
+        Label.LabelStyle builtIn = selectedResources.labelStyle("hud-body-bitmap");
         FakeVisualResources visual = new FakeVisualResources(null, null, builtIn, null);
         Label label = (Label) new HudMaterializer().materialize(
                 validation.validatedDocument(), visual).root();
@@ -429,9 +433,6 @@ public class HudMaterializerTest {
         Method visualMaterialize = HudMaterializer.class.getMethod(
                 "materialize", ValidatedHudDocument.class, HudVisualResources.class);
         Assert.assertEquals(MaterializedHud.class, visualMaterialize.getReturnType());
-        Method compatibilityMaterialize = HudMaterializer.class.getMethod(
-                "materialize", ValidatedHudDocument.class, HudResources.class);
-        Assert.assertEquals(MaterializedHud.class, compatibilityMaterialize.getReturnType());
         for (Method method : HudMaterializer.class.getMethods()) {
             if (!"materialize".equals(method.getName())) continue;
             Assert.assertEquals(ValidatedHudDocument.class, method.getParameterTypes()[0]);
@@ -501,13 +502,13 @@ public class HudMaterializerTest {
     }
 
     private MaterializedHud materialize(String fixture) {
-        return new HudMaterializer().materialize(validated(fixture), resources);
+        return new HudMaterializer().materialize(validated(fixture), selectedResources);
     }
 
     private ValidatedHudDocument validated(String fixture) {
         HudValidationResult result = new HudDocumentValidator().validate(
                 new HudDocumentCodec().read(new FileHandle(
-                        "src/test/resources/" + FIXTURE_ROOT + fixture)), resources);
+                        "src/test/resources/" + FIXTURE_ROOT + fixture)), selectedResources);
         Assert.assertTrue(result.issues().toString(), result.isValid());
         return result.validatedDocument();
     }

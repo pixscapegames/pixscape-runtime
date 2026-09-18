@@ -10,7 +10,7 @@ public final class HudScreenAsset {
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public int referenceWidth = DEFAULT_REFERENCE_WIDTH;
     public int referenceHeight = DEFAULT_REFERENCE_HEIGHT;
-    /** Project-relative versioned HUD construction document, or {@code null} for an empty screen. */
+    /** Project-relative versioned HUD construction document. */
     public String documentId;
     /** Project-relative Skin JSON used to prepare this HUD, or {@code null} while unauthored. */
     public String skinId;
@@ -33,7 +33,9 @@ public final class HudScreenAsset {
         }
         HudResourceId.normalizeOptional(skinId, "Skin");
         HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
-        HudResourceId.normalizeOptional(documentId, "HUD document");
+        if (HudResourceId.normalizeOptional(documentId, "HUD document") == null) {
+            throw new IllegalArgumentException("HudScreenAsset documentId is required.");
+        }
         HudTextureProfile.normalizeIdOrDefault(textureProfileId);
     }
 }

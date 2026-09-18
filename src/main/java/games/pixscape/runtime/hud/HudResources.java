@@ -16,7 +16,6 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.render.batch.GLCaps;
-import games.pixscape.runtime.hud.document.HudResourceCatalog;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,15 +27,12 @@ import java.util.Set;
  *
  * <p>Resource membership and profile selection are frozen after preparation. The contained
  * LibGDX objects remain mutable implementation resources; {@code HudResources} is their sole
- * disposal owner. {@link HudVisualResources} exposes only the borrowed values needed to
- * materialize a HUD document. Shared environments require {@link #select(String)}. The legacy
- * catalog/visual methods are supported only by the standalone {@link #prepare} path, whose
- * single-screen selection is fixed at construction, never inferred from catalog size.</p>
+ * disposal owner. {@link HudSelectedResources} exposes the borrowed values needed to materialize
+ * a HUD document. Every consumer, including standalone use, selects its Skin explicitly.</p>
  */
-public final class HudResources implements Disposable, HudResourceCatalog, HudVisualResources {
+public final class HudResources implements Disposable {
     private final Map<String, Skin> skins;
     private final Map<String, TextureRegion> regions;
-    private final HudSelectedResources standaloneSelection;
     private final String atlasId;
     private final HudTextureProfile textureProfile;
     private BitmapFont builtInLabelFont;
@@ -48,8 +44,7 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
 
     private HudResources(String atlasId, HudTextureProfile textureProfile,
                          Map<String, Skin> skins, TextureAtlas atlas,
-                         AtlasRuntimeService.TextureArrayBundle textureArrayBundle,
-                         boolean standalone, String standaloneSkinId) {
+                         AtlasRuntimeService.TextureArrayBundle textureArrayBundle) {
         this.skins = Collections.unmodifiableMap(new LinkedHashMap<String, Skin>(skins));
         this.atlasId = atlasId;
         this.textureProfile = textureProfile;
@@ -63,15 +58,14 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
             }
         }
         regions = Collections.unmodifiableMap(indexed);
-        standaloneSelection = standalone ? select(standaloneSkinId) : null;
     }
 
     /**
      * Synchronously prepares exactly the required HUD resource categories.
      * The returned object exclusively owns every loaded atlas, Skin, and TextureArray bundle.
      */
-    public static HudResources prepare(HudScreenAsset asset, FileHandle runtimeProjectDir,
-                                       HudResourceRequirements requirements) {
+    public static HudResources prepareStandalone(HudScreenAsset asset, FileHandle runtimeProjectDir,
+                                                 HudResourceRequirements requirements) {
         if (asset == null) throw new IllegalArgumentException("HudScreenAsset is required.");
         if (runtimeProjectDir == null) {
             throw new IllegalArgumentException("Runtime project directory is required.");
@@ -88,8 +82,7 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
         return prepareEnvironment(runtimeProjectDir,
                 requirements.requiresAtlas() ? atlasId : null, profileId,
                 requirements.requiresSkin() ? Collections.singletonList(skinId)
-                        : Collections.<String>emptyList(), true,
-                requirements.requiresSkin() ? skinId : null);
+                        : Collections.<String>emptyList());
     }
 
     /**
@@ -101,12 +94,6 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
      */
     public static HudResources prepareEnvironment(FileHandle runtimeProjectDir, String atlasId,
                                                   String textureProfileId, Iterable<String> skinIds) {
-        return prepareEnvironment(runtimeProjectDir, atlasId, textureProfileId, skinIds, false, null);
-    }
-
-    private static HudResources prepareEnvironment(FileHandle runtimeProjectDir, String atlasId,
-                                                   String textureProfileId, Iterable<String> skinIds,
-                                                   boolean standalone, String standaloneSkinId) {
         if (runtimeProjectDir == null) throw new IllegalArgumentException("Runtime project directory is required.");
         if (skinIds == null) throw new IllegalArgumentException("Skin specifications are required.");
         atlasId = HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
@@ -162,8 +149,7 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
 
             HudResources resources = new HudResources(
                     atlasData != null ? atlasId : null,
-                    profile, skins, atlas, bundle,
-                    standalone, standaloneSkinId);
+                    profile, skins, atlas, bundle);
             completed = true;
             return resources;
         } finally {
@@ -299,10 +285,6 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
         }
     }
 
-    public String skinId() {
-        return standaloneSelection().skinId();
-    }
-
     /** Frozen canonical Skin membership; contains no mutable Skin objects. */
     public Set<String> skinIds() {
         requireOpen();
@@ -318,15 +300,6 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
             throw new IllegalArgumentException("HUD environment has no prepared Skin: " + id + ".");
         }
         return new HudSelectedResources(this, id, skin);
-    }
-
-    /** Fixed standalone compatibility only; shared environments must select explicitly. */
-    HudSelectedResources standaloneSelection() {
-        requireOpen();
-        if (standaloneSelection == null) {
-            throw new IllegalStateException("Shared HudResources requires an explicit selected view.");
-        }
-        return standaloneSelection;
     }
 
     /** O(1) average present/absent lookup; index is frozen with the owning atlas. */
@@ -383,13 +356,6 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
         return textureProfile;
     }
 
-    /** Package-private borrowed mutable Skin; valid only while open; do not mutate or dispose. */
-    Skin skin() {
-        Skin skin = standaloneSelection().skin();
-        if (skin == null) throw new IllegalStateException("HudResources has no prepared Skin.");
-        return skin;
-    }
-
     /** Package-private borrowed mutable atlas; valid only while open; do not mutate or dispose. */
     TextureAtlas atlas() {
         requireOpen();
@@ -405,73 +371,8 @@ public final class HudResources implements Disposable, HudResourceCatalog, HudVi
         return textureArrayBundle;
     }
 
-    /** Returns whether this prepared snapshot satisfies all requested resource categories. */
-    public boolean satisfies(HudResourceRequirements requirements) {
-        return standaloneSelection().satisfies(requirements);
-    }
-
     public boolean isDisposed() {
         return disposed;
-    }
-
-    @Override
-    public TextureRegion region(String name) {
-        return standaloneSelection().region(name);
-    }
-
-    @Override
-    public Drawable drawable(String name) {
-        return standaloneSelection().drawable(name);
-    }
-
-    @Override
-    public Label.LabelStyle labelStyle(String name) {
-        return standaloneSelection().labelStyle(name);
-    }
-
-    @Override
-    public Label.LabelStyle builtInLabelStyle() {
-        return standaloneSelection().builtInLabelStyle();
-    }
-
-    @Override
-    public TextButton.TextButtonStyle textButtonStyle(String name) {
-        return standaloneSelection().textButtonStyle(name);
-    }
-
-    @Override
-    public TextButton.TextButtonStyle builtInTextButtonStyle() {
-        return standaloneSelection().builtInTextButtonStyle();
-    }
-
-    @Override
-    public boolean hasRegion(String name) {
-        return standaloneSelection().hasRegion(name);
-    }
-
-    @Override
-    public boolean hasDrawable(String name) {
-        return standaloneSelection().hasDrawable(name);
-    }
-
-    @Override
-    public boolean hasLabelStyle(String name) {
-        return standaloneSelection().hasLabelStyle(name);
-    }
-
-    @Override
-    public boolean hasBuiltInLabelStyle() {
-        return standaloneSelection().hasBuiltInLabelStyle();
-    }
-
-    @Override
-    public boolean hasTextButtonStyle(String name) {
-        return standaloneSelection().hasTextButtonStyle(name);
-    }
-
-    @Override
-    public boolean hasBuiltInTextButtonStyle() {
-        return standaloneSelection().hasBuiltInTextButtonStyle();
     }
 
     void requireOpen() {

@@ -29,7 +29,6 @@ public class SceneAvailabilityPlanTest {
 
     @Test public void sceneAcquisitionFailureReleasesEarlierHudLeasesAndKeepsOriginalFailure() {
         RuntimeConfig config = config();
-        config.sceneHudFormatVersion = 1;
         config.getSceneMeta("A").defaultHudScreenId = "a";
         FileLeaseTestManager manager = new FileLeaseTestManager();
         FileAvailabilityService availability = new FileAvailabilityService(manager, false);
@@ -47,7 +46,6 @@ public class SceneAvailabilityPlanTest {
 
     @Test public void declaredInputFailureReleasesHudAndSceneLeases() {
         RuntimeConfig config = config();
-        config.sceneHudFormatVersion = 1;
         config.getSceneMeta("A").defaultHudScreenId = "a";
         config.getSceneMeta("A").runtimeGameObjectIds.add("../invalid");
         FileLeaseTestManager manager = new FileLeaseTestManager();
@@ -63,7 +61,6 @@ public class SceneAvailabilityPlanTest {
 
     @Test public void successfulPlanConstructionTransfersLeasesToNormalRelease() {
         RuntimeConfig config = config();
-        config.sceneHudFormatVersion = 1;
         config.getSceneMeta("A").defaultHudScreenId = "a";
         FileLeaseTestManager manager = new FileLeaseTestManager();
         FileAvailabilityService availability = new FileAvailabilityService(manager, false);
@@ -105,7 +102,6 @@ public class SceneAvailabilityPlanTest {
         write(root, "ui/fonts/a.fnt", "descriptor-only");
         write(root, "fonts/b.fnt", "descriptor-only");
         RuntimeConfig config = config();
-        config.sceneHudFormatVersion = 1;
         RecordingAssetManager manager = manager(root);
         manager.setLoader(TextureAtlas.class, new StubAtlasLoader(manager.getFileHandleResolver(), new TrackingAtlas()));
         FileAvailabilityService availability = new FileAvailabilityService(manager, false);
@@ -132,23 +128,18 @@ public class SceneAvailabilityPlanTest {
     }
 
     @Test
-    public void legacyAndRootlessV1NeverRequestSceneHudBundle() throws Exception {
+    public void rootlessSceneNeverRequestsSceneHudBundle() throws Exception {
         File root = temp.newFolder("hud-no-environment");
         write(root, "scenes/A.json", "{}"); write(root, "atlases/A.atlas", "");
-        for (boolean v1 : new boolean[]{false, true}) {
-            RuntimeConfig config = config();
-            config.sceneHudFormatVersion = v1 ? 1 : null;
-            // Legacy default validity remains the owned presentation loader's responsibility.
-            config.getSceneMeta("A").defaultHudScreenId = v1 ? null : "invalid/nested-legacy";
-            RecordingAssetManager manager = manager(root);
-            manager.setLoader(TextureAtlas.class, new StubAtlasLoader(manager.getFileHandleResolver(), new TrackingAtlas()));
-            FileAvailabilityService availability = new FileAvailabilityService(manager, false);
-            SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle(root), "A");
-            try {
-                plan.finishOnNative(); plan.prepareHudResources();
-                assertNull(plan.hudResources()); assertEquals(2, manager.loadCounts.size());
-            } finally { plan.release(); availability.dispose(); manager.dispose(); }
-        }
+        RuntimeConfig config = config();
+        RecordingAssetManager manager = manager(root);
+        manager.setLoader(TextureAtlas.class, new StubAtlasLoader(manager.getFileHandleResolver(), new TrackingAtlas()));
+        FileAvailabilityService availability = new FileAvailabilityService(manager, false);
+        SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle(root), "A");
+        try {
+            plan.finishOnNative(); plan.prepareHudResources();
+            assertNull(plan.hudResources()); assertEquals(2, manager.loadCounts.size());
+        } finally { plan.release(); availability.dispose(); manager.dispose(); }
     }
 
     @Test
@@ -158,7 +149,7 @@ public class SceneAvailabilityPlanTest {
         write(root, "atlases/hud/A/hud.atlas", hudPage("present.png") + "\n" + hudPage("absent.png"));
         write(root, "atlases/hud/A/present.png", "staged-only");
         writeHud(root, "layout", "", "GROUP");
-        RuntimeConfig config = config(); config.sceneHudFormatVersion = 1;
+        RuntimeConfig config = config();
         config.getSceneMeta("A").defaultHudScreenId = "layout";
         RecordingAssetManager manager = manager(root);
         manager.setLoader(TextureAtlas.class, new StubAtlasLoader(manager.getFileHandleResolver(), new TrackingAtlas()));

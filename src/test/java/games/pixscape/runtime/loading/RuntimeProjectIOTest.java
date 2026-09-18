@@ -12,27 +12,6 @@ import java.io.FileWriter;
 
 public class RuntimeProjectIOTest {
     @Test
-    public void sceneHudMarkerIsExplicitAndStrict() {
-        Assert.assertNull(RuntimeProjectIO.loadProject(projectDirectory(
-                "{\"projectFileName\":\"legacy\",\"scenes\":{}}" )).sceneHudFormatVersion);
-        Assert.assertEquals(Integer.valueOf(1), RuntimeProjectIO.loadProject(projectDirectory(
-                "{\"projectFileName\":\"new\",\"sceneHudFormatVersion\":1,\"scenes\":{}}" )).sceneHudFormatVersion);
-        for (String value : new String[]{"0", "2", "-1", "4294967297"}) {
-            assertHudMarkerRejected(value, "Unsupported sceneHudFormatVersion");
-        }
-        for (String value : new String[]{"null", "true", "\"1\"", "1.0", "1.5", "{}", "[]"}) {
-            assertHudMarkerRejected(value, "Invalid sceneHudFormatVersion");
-        }
-    }
-
-    private static void assertHudMarkerRejected(String value, String diagnostic) {
-        RuntimeException failure = Assert.assertThrows(RuntimeException.class,
-                () -> RuntimeProjectIO.loadProject(projectDirectory("{\"projectFileName\":\"bad\","
-                        + "\"sceneHudFormatVersion\":" + value + ",\"scenes\":{}}")));
-        Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(diagnostic));
-    }
-
-    @Test
     public void projectWithNoScenesLoadsWithoutAnActiveScene() {
         FileHandle projectDir = projectDirectory("{"
                 + "\"projectFileName\":\"ui-only\","

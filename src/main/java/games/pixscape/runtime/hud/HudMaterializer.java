@@ -25,19 +25,6 @@ import java.util.Map;
 
 /** Converts a validated V1 construction document into one detached native Scene2D actor tree. */
 public final class HudMaterializer {
-    /**
-     * Preserves the existing Runtime entry point while delegating materialization to the
-     * borrowed visual-resource contract.
-     */
-    public MaterializedHud materialize(
-            ValidatedHudDocument validatedDocument, HudResources resources) {
-        if (resources == null) throw new IllegalArgumentException("HudResources is required.");
-        if (resources.isDisposed()) {
-            throw new IllegalStateException("HudResources has been disposed.");
-        }
-        return materialize(validatedDocument, (HudVisualResources) resources.standaloneSelection());
-    }
-
     /** Converts a validated HUD document using borrowed visual resources. */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudVisualResources resources) {

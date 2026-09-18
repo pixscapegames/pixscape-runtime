@@ -45,10 +45,7 @@ public final class HudScreenLoader {
                                  ActiveHudScreen.ResourceOwnership ownership) {
         String logicalId = HudScreenAssetId.normalize(screenId);
         HudScreenAsset asset = assetLoader.load(runtimeProjectDir, logicalId);
-        String documentId = HudResourceId.normalizeOptional(asset.documentId, "HUD document");
-        if (documentId == null) {
-            return new ActiveHudScreen(logicalId, asset, environment, null, null, ownership);
-        }
+        String documentId = asset.documentId;
 
         FileHandle documentFile = runtimeProjectDir.child(documentId);
         HudDocumentV1 document = documentCodec.read(documentFile);
@@ -61,7 +58,7 @@ public final class HudScreenLoader {
         HudSession session = null;
         try {
             if (ownership == ActiveHudScreen.ResourceOwnership.OWNED) {
-                resources = HudResources.prepare(asset, runtimeProjectDir, requirements);
+                resources = HudResources.prepareStandalone(asset, runtimeProjectDir, requirements);
             }
             HudSelectedResources selected = resources.select(
                     requirements.requiresSkin() ? requireSkinId(asset, logicalId) : null);
@@ -80,7 +77,7 @@ public final class HudScreenLoader {
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,
                     documentId, resourceAware);
             MaterializedHud hud = materializer.materialize(
-                    resourceAware.validatedDocument(), (HudVisualResources) selected);
+                    resourceAware.validatedDocument(), selected);
             session = HudSession.create(asset, resources, hudShader);
             session.install(hud);
             return new ActiveHudScreen(logicalId, asset, resources, hud, session, ownership);

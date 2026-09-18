@@ -525,6 +525,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
         writeHudScreen(project, "b", "hud/b.json");
         project.child("hud/a.json").writeString(hudDocument(), false, "UTF-8");
         project.child("hud/b.json").writeString(hudDocument(), false, "UTF-8");
+        copySceneHud(project, "a");
+        copySceneHud(project, "d");
         try {
             engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
             engine.config().getSceneMeta("D").defaultHudScreenId = "hud/b";
@@ -532,7 +534,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
             Assert.assertNotNull(String.valueOf(engine.lastSceneDefaultHudFailure()), a);
             Assert.assertEquals("hud/a", a.screenId());
-            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.OWNED, a.resourceOwnership());
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
             Assert.assertNotNull(a.materializedHud().actor("root"));
 
             engine.loadScene("D");
@@ -549,11 +551,10 @@ public class PixscapeEnginePhysicsLifecycleTest {
             engine.loadScene("A");
             ActiveHudScreen replacement = engine.hudScreenRuntime().activeScreen();
             engine.config().getSceneMeta("D").defaultHudScreenId = "hud/missing";
-            engine.loadScene("D");
-            Assert.assertEquals("D", engine.getActiveSceneMeta().name);
-            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
-            Assert.assertTrue(replacement.isDisposed());
-            Assert.assertNotNull(engine.lastSceneDefaultHudFailure());
+            Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("D"));
+            Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+            Assert.assertSame(replacement, engine.hudScreenRuntime().activeScreen());
+            Assert.assertFalse(replacement.isDisposed());
 
             engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
             engine.loadScene("A");
@@ -788,7 +789,6 @@ public class PixscapeEnginePhysicsLifecycleTest {
                             + "\"label\":{\"text\":\"HUD\",\"styleName\":\"hud-title\"},\"children\":[]}}", false);
         }
         copySceneHud(fixture.projectDir, "a"); copySceneHud(fixture.projectDir, "d");
-        fixture.config.sceneHudFormatVersion = 1;
         fixture.config.getSceneMeta("A").defaultHudScreenId = "hud/a";
         fixture.config.getSceneMeta("D").defaultHudScreenId = "hud/b";
         return fixture;
