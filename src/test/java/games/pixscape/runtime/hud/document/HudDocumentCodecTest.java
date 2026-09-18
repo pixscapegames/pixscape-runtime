@@ -56,6 +56,27 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void imageButtonRoundTripPreservesOptionalNativeStateReferences() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
+        button.imageButton = new HudImageButtonData();
+        button.imageButton.imageUp = image("up");
+        button.imageButton.imageCheckedOver = image("checked-over");
+
+        HudDocumentV1 restored = codec.read(codec.write(new HudDocumentV1(button)));
+
+        Assert.assertEquals(HudNodeKind.IMAGE_BUTTON, restored.root.kind);
+        Assert.assertEquals("up", restored.root.imageButton.imageUp.resourceName);
+        Assert.assertNull(restored.root.imageButton.imageDown);
+        Assert.assertEquals("checked-over", restored.root.imageButton.imageCheckedOver.resourceName);
+    }
+
+    private static HudImageData image(String resourceName) {
+        HudImageData image = new HudImageData();
+        image.resourceName = resourceName;
+        return image;
+    }
+
+    @Test
     public void unsupportedSchemaHasTypedLoadFailure() {
         rejected(fixture("invalid-unsupported-schema.json"),
                 HudDocumentLoadCode.UNSUPPORTED_SCHEMA_VERSION);

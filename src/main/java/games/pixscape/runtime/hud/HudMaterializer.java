@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -122,6 +123,21 @@ public final class HudMaterializer {
                 }
                 return new TextButton(node.textButton.text, buttonStyle);
             }
+            case IMAGE_BUTTON: {
+                ImageButton.ImageButtonStyle sharedStyle =
+                        HudBuiltInImageButtonStyle.isSelected(node.imageButton.styleName)
+                                ? resources.builtInImageButtonStyle()
+                                : resources.imageButtonStyle(node.imageButton.styleName);
+                if (sharedStyle == null) {
+                    throw missing(node, "ImageButton style",
+                            HudBuiltInImageButtonStyle.isSelected(node.imageButton.styleName)
+                                    ? "built-in Default" : node.imageButton.styleName);
+                }
+                ImageButton.ImageButtonStyle style = hasImageButtonOverrides(node)
+                        ? new ImageButton.ImageButtonStyle(sharedStyle) : sharedStyle;
+                if (style != sharedStyle) applyImageButtonOverrides(node, resources, style);
+                return new ImageButton(style);
+            }
             default:
                 throw new IllegalStateException(
                         "Unsupported validated HUD node kind: " + node.kind + ".");
@@ -168,6 +184,53 @@ public final class HudMaterializer {
     private static void applyAuthoredSize(Actor actor, float width, float height) {
         if (width > 0f) actor.setWidth(width);
         if (height > 0f) actor.setHeight(height);
+    }
+
+    private static void applyImageButtonOverrides(HudNode node, HudVisualResources resources,
+                                                  ImageButton.ImageButtonStyle style) {
+        if (node.imageButton.imageUp != null) {
+            style.imageUp = resolveImage(node, resources, node.imageButton.imageUp, "imageUp");
+        }
+        if (node.imageButton.imageDown != null) {
+            style.imageDown = resolveImage(node, resources, node.imageButton.imageDown, "imageDown");
+        }
+        if (node.imageButton.imageOver != null) {
+            style.imageOver = resolveImage(node, resources, node.imageButton.imageOver, "imageOver");
+        }
+        if (node.imageButton.imageDisabled != null) {
+            style.imageDisabled = resolveImage(node, resources, node.imageButton.imageDisabled, "imageDisabled");
+        }
+        if (node.imageButton.imageChecked != null) {
+            style.imageChecked = resolveImage(node, resources, node.imageButton.imageChecked, "imageChecked");
+        }
+        if (node.imageButton.imageCheckedDown != null) {
+            style.imageCheckedDown = resolveImage(node, resources, node.imageButton.imageCheckedDown,
+                    "imageCheckedDown");
+        }
+        if (node.imageButton.imageCheckedOver != null) {
+            style.imageCheckedOver = resolveImage(node, resources, node.imageButton.imageCheckedOver,
+                    "imageCheckedOver");
+        }
+    }
+
+    private static boolean hasImageButtonOverrides(HudNode node) {
+        return node.imageButton.imageUp != null || node.imageButton.imageDown != null
+                || node.imageButton.imageOver != null || node.imageButton.imageDisabled != null
+                || node.imageButton.imageChecked != null || node.imageButton.imageCheckedDown != null
+                || node.imageButton.imageCheckedOver != null;
+    }
+
+    private static Drawable resolveImage(HudNode node, HudVisualResources resources,
+                                         games.pixscape.runtime.hud.document.HudImageData image,
+                                         String field) {
+        if (image.source == HudImageSource.REGION) {
+            TextureRegion region = resources.region(image.resourceName);
+            if (region != null) return new com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable(region);
+            throw missing(node, "atlas region for " + field, image.resourceName);
+        }
+        Drawable drawable = resources.drawable(image.resourceName);
+        if (drawable != null) return drawable;
+        throw missing(node, "Skin drawable for " + field, image.resourceName);
     }
 
     private static IllegalStateException missing(

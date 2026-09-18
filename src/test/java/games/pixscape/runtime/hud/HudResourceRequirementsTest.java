@@ -38,6 +38,9 @@ public class HudResourceRequirementsTest {
                 + "\"styleName\":\"title\"},\"children\":[]"), true, true);
         assertRequirements(node("button", "TEXT_BUTTON", "\"textButton\":{\"text\":\"Go\","
                 + "\"styleName\":\"primary\"},\"children\":[]"), true, true);
+        assertRequirements(node("button", "IMAGE_BUTTON", "\"imageButton\":{\"styleName\":\"primary\","
+                + "\"imageOver\":{\"source\":\"DRAWABLE\",\"resourceName\":\"over\"}},"
+                + "\"children\":[]"), true, true);
     }
 
     @Test
@@ -59,6 +62,18 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(requirements.requiresAtlas());
         Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
         Assert.assertTrue(requirements.requiresBuiltInTextButtonStyle());
+    }
+
+    @Test
+    public void imageButtonWithoutCustomStyleRequiresItsBuiltInResourcesButNoFont() {
+        HudResourceRequirements requirements = requirements(node("button", "IMAGE_BUTTON",
+                "\"imageButton\":{},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertFalse(requirements.requiresBuiltInLabelStyle());
+        Assert.assertFalse(requirements.requiresBuiltInTextButtonStyle());
+        Assert.assertTrue(requirements.requiresBuiltInImageButtonStyle());
     }
 
     @Test

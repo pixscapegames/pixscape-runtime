@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
@@ -38,6 +39,7 @@ public final class HudResources implements Disposable {
     private BitmapFont builtInLabelFont;
     private Label.LabelStyle builtInLabelStyle;
     private TextButton.TextButtonStyle builtInTextButtonStyle;
+    private ImageButton.ImageButtonStyle builtInImageButtonStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -344,6 +346,16 @@ public final class HudResources implements Disposable {
                     background, labelStyle.font);
         }
         return builtInTextButtonStyle;
+    }
+
+    ImageButton.ImageButtonStyle sharedBuiltInImageButtonStyle() {
+        requireOpen();
+        if (builtInImageButtonStyle == null) {
+            TextureRegion background = regions.get(HudBuiltInImageButtonStyle.BACKGROUND_REGION);
+            if (background == null) return null;
+            builtInImageButtonStyle = HudBuiltInImageButtonStyle.create(background);
+        }
+        return builtInImageButtonStyle;
     }
 
     public String atlasId() {

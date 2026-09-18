@@ -352,6 +352,21 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void imageButtonValidatesEachConfiguredNativeImageState() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
+        button.imageButton = new HudImageButtonData();
+        button.imageButton.imageUp = imageData(HudImageSource.REGION, "inventory-art");
+        button.imageButton.imageOver = imageData(HudImageSource.DRAWABLE, "inventory-panel");
+        button.imageButton.imageChecked = imageData(HudImageSource.REGION, "missing");
+
+        HudValidationResult result = validator.validate(
+                new HudDocumentV1(button), new FixtureResourceCatalog());
+
+        Assert.assertEquals(1, count(result, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE));
+        Assert.assertEquals("$.root.imageButton.imageChecked.resourceName", result.issues().get(0).path());
+    }
+
+    @Test
     public void catalogAcceptsKnownFixtureReferences() {
         HudValidationResult result = validator.validate(read("resources.json"),
                 new FixtureResourceCatalog());
@@ -473,6 +488,7 @@ public class HudDocumentValidatorTest {
     private static final class FixtureResourceCatalog extends EmptyResourceCatalog {
         @Override public boolean hasBuiltInLabelStyle() { return true; }
         @Override public boolean hasBuiltInTextButtonStyle() { return true; }
+        @Override public boolean hasBuiltInImageButtonStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {
@@ -491,6 +507,11 @@ public class HudDocumentValidatorTest {
 
         @Override
         public boolean hasTextButtonStyle(String name) {
+            return "hud-primary".equals(name);
+        }
+
+        @Override
+        public boolean hasImageButtonStyle(String name) {
             return "hud-primary".equals(name);
         }
     }

@@ -2,6 +2,7 @@ package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
@@ -36,7 +37,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && (!requirements.requiresAtlas() || owner.textureArrayBundle() != null)
                 && (!requirements.requiresBuiltInLabelStyle() || builtInLabelStyle() != null)
                 && (!requirements.requiresBuiltInTextButtonStyle()
-                        || builtInTextButtonStyle() != null);
+                        || builtInTextButtonStyle() != null)
+                && (!requirements.requiresBuiltInImageButtonStyle()
+                        || builtInImageButtonStyle() != null);
     }
 
     Skin skin() {
@@ -80,8 +83,20 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInTextButtonStyle();
     }
 
+    @Override public ImageButton.ImageButtonStyle imageButtonStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, ImageButton.ImageButtonStyle.class);
+    }
+
+    @Override public ImageButton.ImageButtonStyle builtInImageButtonStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInImageButtonStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
     @Override public boolean hasBuiltInTextButtonStyle() { return builtInTextButtonStyle() != null; }
+    @Override public boolean hasImageButtonStyle(String name) { return imageButtonStyle(name) != null; }
+    @Override public boolean hasBuiltInImageButtonStyle() { return builtInImageButtonStyle() != null; }
 }

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud;
 
 import games.pixscape.runtime.hud.document.HudImageSource;
+import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -16,13 +17,15 @@ public final class HudResourceRequirements {
     private final boolean atlas;
     private final boolean builtInLabelStyle;
     private final boolean builtInTextButtonStyle;
+    private final boolean builtInImageButtonStyle;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
-                                    boolean builtInTextButtonStyle) {
+                                    boolean builtInTextButtonStyle, boolean builtInImageButtonStyle) {
         this.skin = skin;
         this.atlas = atlas;
         this.builtInLabelStyle = builtInLabelStyle;
         this.builtInTextButtonStyle = builtInTextButtonStyle;
+        this.builtInImageButtonStyle = builtInImageButtonStyle;
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -34,6 +37,7 @@ public final class HudResourceRequirements {
         boolean requiresAtlas = false;
         boolean requiresBuiltInLabelStyle = false;
         boolean requiresBuiltInTextButtonStyle = false;
+        boolean requiresBuiltInImageButtonStyle = false;
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
             if (kind == HudNodeKind.LABEL) {
@@ -54,10 +58,25 @@ public final class HudResourceRequirements {
             } else if (kind == HudNodeKind.IMAGE) {
                 requiresAtlas = true;
                 if (node.image.source == HudImageSource.DRAWABLE) requiresSkin = true;
+            } else if (kind == HudNodeKind.IMAGE_BUTTON) {
+                requiresAtlas = true;
+                if (HudBuiltInImageButtonStyle.isSelected(node.imageButton.styleName)) {
+                    requiresBuiltInImageButtonStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
+                requiresSkin |= requiresSkin(node.imageButton.imageUp);
+                requiresSkin |= requiresSkin(node.imageButton.imageDown);
+                requiresSkin |= requiresSkin(node.imageButton.imageOver);
+                requiresSkin |= requiresSkin(node.imageButton.imageDisabled);
+                requiresSkin |= requiresSkin(node.imageButton.imageChecked);
+                requiresSkin |= requiresSkin(node.imageButton.imageCheckedDown);
+                requiresSkin |= requiresSkin(node.imageButton.imageCheckedOver);
             }
         }
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
-                requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle);
+                requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
+                requiresBuiltInImageButtonStyle);
     }
 
     public boolean requiresSkin() {
@@ -74,5 +93,13 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInTextButtonStyle() {
         return builtInTextButtonStyle;
+    }
+
+    public boolean requiresBuiltInImageButtonStyle() {
+        return builtInImageButtonStyle;
+    }
+
+    private static boolean requiresSkin(HudImageData image) {
+        return image != null && image.source == HudImageSource.DRAWABLE;
     }
 }

@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -34,6 +35,8 @@ import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudImageData;
+import games.pixscape.runtime.hud.document.HudImageButtonData;
+import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -387,6 +390,39 @@ public class HudMaterializerTest {
                 validation.validatedDocument(), visualResources);
 
         Assert.assertSame(style, ((TextButton) hud.actor("button")).getStyle());
+    }
+
+    @Test
+    public void imageButtonUsesNativeStyleStatesWithoutMutatingSharedStyle() {
+        ImageButton.ImageButtonStyle shared = selectedResources.builtInImageButtonStyle();
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode first = imageButton("first", "inventory-art");
+        HudNode second = new HudNode("second", HudNodeKind.IMAGE_BUTTON);
+        second.imageButton = new HudImageButtonData();
+        root.children.add(HudChild.direct(first));
+        root.children.add(HudChild.direct(second));
+
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        ImageButton overridden = (ImageButton) hud.actor("first");
+        ImageButton defaultButton = (ImageButton) hud.actor("second");
+
+        Assert.assertNotSame(shared, overridden.getStyle());
+        Assert.assertSame(shared, defaultButton.getStyle());
+        Assert.assertNull(shared.imageUp);
+        Assert.assertNotNull(overridden.getStyle().imageUp);
+        Assert.assertEquals(overridden.getPrefWidth(), overridden.getWidth(), 0.01f);
+        Assert.assertEquals(overridden.getPrefHeight(), overridden.getHeight(), 0.01f);
+        Assert.assertTrue(overridden.getPrefWidth() > 0f);
+        Assert.assertTrue(overridden.getPrefHeight() > 0f);
+    }
+
+    private static HudNode imageButton(String id, String imageUp) {
+        HudNode button = new HudNode(id, HudNodeKind.IMAGE_BUTTON);
+        button.imageButton = new HudImageButtonData();
+        button.imageButton.imageUp = new HudImageData();
+        button.imageButton.imageUp.source = HudImageSource.REGION;
+        button.imageButton.imageUp.resourceName = imageUp;
+        return button;
     }
 
     @Test

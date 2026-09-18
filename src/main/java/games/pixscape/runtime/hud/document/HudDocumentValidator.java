@@ -2,6 +2,7 @@ package games.pixscape.runtime.hud.document;
 
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
+import games.pixscape.runtime.hud.HudBuiltInImageButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 
 import java.util.ArrayList;
@@ -135,19 +136,23 @@ public final class HudDocumentValidator {
                     break;
                 case CONTAINER:
                     validPayload = node.container != null && node.image == null
-                            && node.label == null && node.textButton == null;
+                            && node.label == null && node.textButton == null && node.imageButton == null;
                     break;
                 case IMAGE:
                     validPayload = node.image != null && node.container == null
-                            && node.label == null && node.textButton == null;
+                            && node.label == null && node.textButton == null && node.imageButton == null;
                     break;
                 case LABEL:
                     validPayload = node.label != null && node.container == null
-                            && node.image == null && node.textButton == null;
+                            && node.image == null && node.textButton == null && node.imageButton == null;
                     break;
                 case TEXT_BUTTON:
                     validPayload = node.textButton != null && node.container == null
-                            && node.image == null && node.label == null;
+                            && node.image == null && node.label == null && node.imageButton == null;
+                    break;
+                case IMAGE_BUTTON:
+                    validPayload = node.imageButton != null && node.container == null
+                            && node.image == null && node.label == null && node.textButton == null;
                     break;
                 default:
                     validPayload = false;
@@ -165,6 +170,8 @@ public final class HudDocumentValidator {
                 validateLabel(node, path);
             } else if (node.kind == HudNodeKind.TEXT_BUTTON && node.textButton != null) {
                 validateTextButton(node, path);
+            } else if (node.kind == HudNodeKind.IMAGE_BUTTON && node.imageButton != null) {
+                validateImageButton(node, path);
             }
         }
 
@@ -212,6 +219,60 @@ public final class HudDocumentValidator {
             }
             validateStyle(node, node.textButton.styleName, false,
                     path + ".textButton.styleName");
+        }
+
+        private void validateImageButton(HudNode node, String path) {
+            validateImageButtonStyle(node, node.imageButton.styleName, path + ".imageButton.styleName");
+            validateOptionalImage(node, node.imageButton.imageUp, "imageUp", path);
+            validateOptionalImage(node, node.imageButton.imageDown, "imageDown", path);
+            validateOptionalImage(node, node.imageButton.imageOver, "imageOver", path);
+            validateOptionalImage(node, node.imageButton.imageDisabled, "imageDisabled", path);
+            validateOptionalImage(node, node.imageButton.imageChecked, "imageChecked", path);
+            validateOptionalImage(node, node.imageButton.imageCheckedDown, "imageCheckedDown", path);
+            validateOptionalImage(node, node.imageButton.imageCheckedOver, "imageCheckedOver", path);
+        }
+
+        private void validateImageButtonStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInImageButtonStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInImageButtonStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "IMAGE_BUTTON requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (resources != null && !resources.hasImageButtonStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "IMAGE_BUTTON references unknown Skin style '" + styleName + "'.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateOptionalImage(HudNode node, HudImageData image, String field, String path) {
+            if (image == null) return;
+            String imagePath = path + ".imageButton." + field;
+            if (image.source == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "IMAGE_BUTTON " + field + " source must be REGION or DRAWABLE.",
+                        usableId(node), imagePath + ".source");
+                return;
+            }
+            if (!isNonBlank(image.resourceName)) {
+                add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
+                        "IMAGE_BUTTON " + field + " requires a nonblank logical resource name.",
+                        usableId(node), imagePath + ".resourceName");
+                return;
+            }
+            if (resources == null) return;
+            boolean known = image.source == HudImageSource.REGION
+                    ? resources.hasRegion(image.resourceName)
+                    : resources.hasDrawable(image.resourceName);
+            if (!known) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "IMAGE_BUTTON " + field + " references unknown " + image.source
+                                + " resource '" + image.resourceName + "'.",
+                        usableId(node), imagePath + ".resourceName");
+            }
         }
 
         private void validateStyle(HudNode node, String styleName, boolean labelStyle,
@@ -400,12 +461,12 @@ public final class HudDocumentValidator {
 
         private static boolean noWidgetPayload(HudNode node) {
             return node.container == null && node.image == null
-                    && node.label == null && node.textButton == null;
+                    && node.label == null && node.textButton == null && node.imageButton == null;
         }
 
         private static boolean isLeaf(HudNodeKind kind) {
             return kind == HudNodeKind.IMAGE || kind == HudNodeKind.LABEL
-                    || kind == HudNodeKind.TEXT_BUTTON;
+                    || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON;
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {
