@@ -13,9 +13,14 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.List;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.render.InternalTextures;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
@@ -28,8 +33,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Proxy;
 import java.nio.IntBuffer;
+import java.util.Collections;
 
 public class HudResourcesTest {
     @Rule
@@ -161,6 +168,27 @@ public class HudResourcesTest {
         Assert.assertThrows(IllegalStateException.class, () -> a.region("crosshair"));
         Assert.assertThrows(IllegalStateException.class, () -> b.labelStyle("hud-title"));
         Assert.assertThrows(IllegalStateException.class, () -> resources.select(null));
+    }
+
+    @Test
+    public void customSelectBoxStyleWithoutBackgroundIsUsable() throws Exception {
+        Skin skin = new Skin();
+        BitmapFont font = new BitmapFont(new BitmapFont.BitmapFontData(), new TextureRegion(), false);
+        SelectBox.SelectBoxStyle style = new SelectBox.SelectBoxStyle();
+        style.font = font;
+        style.fontColor = com.badlogic.gdx.graphics.Color.WHITE;
+        style.background = null;
+        style.listStyle = new List.ListStyle();
+        style.listStyle.font = font;
+        style.listStyle.selection = new BaseDrawable();
+        style.scrollStyle = new ScrollPane.ScrollPaneStyle();
+        skin.add("text-only", style);
+        HudResources resources = resourcesWithSkin(skin);
+        try {
+            Assert.assertTrue(resources.select("custom").hasSelectBoxStyle("text-only"));
+        } finally {
+            resources.dispose();
+        }
     }
 
     @Test
@@ -495,6 +523,15 @@ public class HudResourcesTest {
                         + "\"hud-primary\":{\"font\":\"default-font\","
                         + "\"up\":\"inventory-panel\"}}}",
                 false, "UTF-8");
+    }
+
+    private static HudResources resourcesWithSkin(Skin skin) throws Exception {
+        Constructor<HudResources> constructor = HudResources.class.getDeclaredConstructor(String.class,
+                HudTextureProfile.class, java.util.Map.class, TextureAtlas.class,
+                AtlasRuntimeService.TextureArrayBundle.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(null, HudTextureProfile.forId(null),
+                Collections.singletonMap("custom", skin), null, null);
     }
 
     private static String pageDescriptor(String file, String region, int index) {

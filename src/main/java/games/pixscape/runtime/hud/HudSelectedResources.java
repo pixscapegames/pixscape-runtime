@@ -144,7 +144,7 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     private static boolean isUsableSelectBoxStyle(SelectBox.SelectBoxStyle style) {
         return style != null && style.font != null && style.fontColor != null
-                && style.background != null && style.listStyle != null
+                && style.listStyle != null
                 && style.listStyle.font != null && style.listStyle.selection != null
                 && style.scrollStyle != null;
     }

@@ -348,7 +348,7 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasSelectBoxStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "SELECT_BOX Skin style '" + styleName
-                                + "' is missing or incomplete; font, background, List and ScrollPane styles are required.",
+                                + "' is missing or incomplete; font, List and ScrollPane styles are required.",
                         usableId(node), path);
             }
         }
