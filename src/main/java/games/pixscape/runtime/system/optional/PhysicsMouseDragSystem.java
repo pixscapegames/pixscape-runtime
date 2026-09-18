@@ -283,9 +283,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     private boolean updateTargetFromScreen(int screenX, int screenY) {
         if (lastWorld == null) return false;
         tmpScreen.set(screenX, screenY, 0f);
-        int viewportWidth = Math.max(1, Math.round(camera.viewportWidth));
-        int viewportHeight = Math.max(1, Math.round(camera.viewportHeight));
-        camera.unproject(tmpScreen, 0, 0, viewportWidth, viewportHeight);
+        camera.unproject(tmpScreen);
         tmpTarget.set(tmpScreen.x, tmpScreen.y);
         if (physics != null) {
             toPhysicsMeters(physics, camera, tmpTarget, tmpTarget);

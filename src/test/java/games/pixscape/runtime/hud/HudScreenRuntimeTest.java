@@ -71,6 +71,8 @@ public class HudScreenRuntimeTest {
     private int generatedTextures;
     private int deletedBuffers;
     private boolean failViewport;
+    private int graphicsWidth = 320;
+    private int graphicsHeight = 180;
     private final List<String> disposalOrder = new ArrayList<>();
 
     @BeforeClass
@@ -101,8 +103,8 @@ public class HudScreenRuntimeTest {
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
                 (proxy, method, args) -> {
-                    if ("getWidth".equals(method.getName())) return 320;
-                    if ("getHeight".equals(method.getName())) return 180;
+                    if ("getWidth".equals(method.getName())) return graphicsWidth;
+                    if ("getHeight".equals(method.getName())) return graphicsHeight;
                     return defaultValue(method.getReturnType());
                 });
         Gdx.files = (Files) Proxy.newProxyInstance(
@@ -760,6 +762,25 @@ public class HudScreenRuntimeTest {
     }
 
     @Test
+    public void screenCoordinatesUseGraphicsDimensionsInsteadOfWorldViewportUnits() {
+        graphicsWidth = 1280;
+        graphicsHeight = 720;
+        DragHarness drag = new DragHarness();
+        try {
+            drag.addDynamicBodyAtWorld(160f, 90f);
+
+            drag.system.inputProcessor().touchDown(640, 360, 0, Input.Buttons.LEFT);
+            drag.process();
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+
+            drag.system.inputProcessor().touchUp(640, 360, 0, Input.Buttons.LEFT);
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+        } finally {
+            drag.dispose();
+        }
+    }
+
+    @Test
     public void screenWithoutDocumentIsRejectedBeforeSessionCreation() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("empty-project"));
         root.child("hud").mkdirs();
@@ -969,9 +990,13 @@ public class HudScreenRuntimeTest {
         private void addDynamicBodyAtScreen(int screenX, int screenY) {
             Vector3 worldPoint = camera.unproject(
                     new Vector3(screenX, screenY, 0f), 0, 0, 320, 180);
+            addDynamicBodyAtWorld(worldPoint.x, worldPoint.y);
+        }
+
+        private void addDynamicBodyAtWorld(float worldX, float worldY) {
             BodyDef definition = new BodyDef();
             definition.type = BodyDef.BodyType.DynamicBody;
-            definition.position.set(worldPoint.x, worldPoint.y);
+            definition.position.set(worldX, worldY);
             Body body = physicsWorld.createBody(definition);
             CircleShape shape = new CircleShape();
             try {
