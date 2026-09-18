@@ -9,5 +9,6 @@ public enum HudNodeKind {
     IMAGE,
     LABEL,
     TEXT_BUTTON,
-    IMAGE_BUTTON
+    IMAGE_BUTTON,
+    TEXT_FIELD
 }

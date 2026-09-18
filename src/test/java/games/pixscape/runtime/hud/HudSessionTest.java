@@ -4,6 +4,7 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
@@ -12,6 +13,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudValidationResult;
@@ -45,6 +47,7 @@ public class HudSessionTest {
     private GL30 previousGl30;
     private Graphics previousGraphics;
     private Files previousFiles;
+    private Input previousInput;
     private int deletedBuffers;
     private int deletedTextures;
     private int deletedPrograms;
@@ -64,9 +67,13 @@ public class HudSessionTest {
         previousGl30 = Gdx.gl30;
         previousGraphics = Gdx.graphics;
         previousFiles = Gdx.files;
+        previousInput = Gdx.input;
 
         Gdx.app = (Application) Proxy.newProxyInstance(
                 Application.class.getClassLoader(), new Class<?>[]{Application.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.input = (Input) Proxy.newProxyInstance(
+                Input.class.getClassLoader(), new Class<?>[]{Input.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
         int[] nextHandle = {1};
         GL30 gl = (GL30) Proxy.newProxyInstance(
@@ -102,6 +109,7 @@ public class HudSessionTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+        Gdx.input = previousInput;
     }
 
     @Test
@@ -168,6 +176,45 @@ public class HudSessionTest {
         try {
             session.act(0.25f);
             Assert.assertEquals(0.25f, actor.elapsed, 0f);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void realStageDispatchesKeyboardInputToFocusedNativeTextField() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        HudSelectedResources selected = prepared.resources.select("ui/game.json");
+        TextField.TextFieldStyle style = HudBuiltInTextFieldStyle.create(
+                prepared.resources.atlas().findRegion(HudBuiltInTextFieldStyle.BACKGROUND_REGION),
+                selected.skin().get("hud-primary",
+                        com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class).font);
+        TextField first = new TextField("", style);
+        first.setOnlyFontChars(false);
+        first.setMaxLength(2);
+        TextField second = new TextField("", style);
+        second.setOnlyFontChars(false);
+        session.stage().addActor(first);
+        session.stage().addActor(second);
+        try {
+            session.stage().setKeyboardFocus(first);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.A);
+            Assert.assertTrue(session.stage().keyTyped('a'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.A);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.B);
+            Assert.assertTrue(session.stage().keyTyped('b'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.B);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.C);
+            Assert.assertTrue(session.stage().keyTyped('c'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.C);
+            Assert.assertEquals("ab", first.getText());
+
+            session.stage().setKeyboardFocus(second);
+            Assert.assertSame(second, session.stage().getKeyboardFocus());
+            Assert.assertEquals("", second.getText());
+            Assert.assertEquals("ab", first.getText());
         } finally {
             session.dispose();
             prepared.dispose();

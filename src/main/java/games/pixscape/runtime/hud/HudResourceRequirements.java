@@ -19,14 +19,17 @@ public final class HudResourceRequirements {
     private final boolean builtInLabelStyle;
     private final boolean builtInTextButtonStyle;
     private final boolean builtInImageButtonStyle;
+    private final boolean builtInTextFieldStyle;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
-                                    boolean builtInTextButtonStyle, boolean builtInImageButtonStyle) {
+                                    boolean builtInTextButtonStyle, boolean builtInImageButtonStyle,
+                                    boolean builtInTextFieldStyle) {
         this.skin = skin;
         this.atlas = atlas;
         this.builtInLabelStyle = builtInLabelStyle;
         this.builtInTextButtonStyle = builtInTextButtonStyle;
         this.builtInImageButtonStyle = builtInImageButtonStyle;
+        this.builtInTextFieldStyle = builtInTextFieldStyle;
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -39,6 +42,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInLabelStyle = false;
         boolean requiresBuiltInTextButtonStyle = false;
         boolean requiresBuiltInImageButtonStyle = false;
+        boolean requiresBuiltInTextFieldStyle = false;
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
@@ -66,13 +70,21 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.TEXT_FIELD) {
+                requiresAtlas = true;
+                if (HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                    requiresBuiltInTextFieldStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             }
             HudImageReferences.visit(node, imageRequirements);
         }
         requiresSkin |= imageRequirements.requiresSkin;
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
-                requiresBuiltInImageButtonStyle);
+                requiresBuiltInImageButtonStyle, requiresBuiltInTextFieldStyle);
     }
 
     public boolean requiresSkin() {
@@ -93,6 +105,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInImageButtonStyle() {
         return builtInImageButtonStyle;
+    }
+
+    public boolean requiresBuiltInTextFieldStyle() {
+        return builtInTextFieldStyle;
     }
 
     private static final class SkinRequirementVisitor implements HudImageReferences.Visitor {

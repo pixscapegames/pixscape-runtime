@@ -23,4 +23,9 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the built-in ImageButton resources. */
     default boolean hasBuiltInImageButtonStyle() { return false; }
+
+    default boolean hasTextFieldStyle(String name) { return false; }
+
+    /** Returns whether the prepared environment contains the built-in TextField resources. */
+    default boolean hasBuiltInTextFieldStyle() { return false; }
 }

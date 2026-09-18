@@ -1,6 +1,7 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
@@ -21,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
@@ -37,6 +39,7 @@ import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudImageButtonData;
 import games.pixscape.runtime.hud.document.HudImageSource;
+import games.pixscape.runtime.hud.document.HudTextFieldData;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -66,6 +69,7 @@ public class HudMaterializerTest {
     private GL30 previousGl30;
     private Graphics previousGraphics;
     private Files previousFiles;
+    private Application previousApp;
     private HudResources resources;
     private HudSelectedResources selectedResources;
     private int generatedTextures;
@@ -82,6 +86,7 @@ public class HudMaterializerTest {
         previousGl30 = Gdx.gl30;
         previousGraphics = Gdx.graphics;
         previousFiles = Gdx.files;
+        previousApp = Gdx.app;
         int[] nextHandle = {1};
         GL30 gl = (GL30) Proxy.newProxyInstance(
                 GL30.class.getClassLoader(), new Class<?>[]{GL30.class},
@@ -92,6 +97,9 @@ public class HudMaterializerTest {
         Gdx.gl30 = gl;
         Gdx.graphics = (Graphics) Proxy.newProxyInstance(
                 Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.app = (Application) Proxy.newProxyInstance(
+                Application.class.getClassLoader(), new Class<?>[]{Application.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
         FileHandle builtInDescriptor = new FileHandle(temporaryFolder.newFile("lsans-15.fnt"));
         try (java.io.InputStream source = HudMaterializerTest.class.getClassLoader()
@@ -127,6 +135,7 @@ public class HudMaterializerTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+        Gdx.app = previousApp;
     }
 
     @Test
@@ -390,6 +399,54 @@ public class HudMaterializerTest {
                 validation.validatedDocument(), visualResources);
 
         Assert.assertSame(style, ((TextButton) hud.actor("button")).getStyle());
+    }
+
+    @Test
+    public void materializesNativeTextFieldWithAuthoredPropertiesAndUsableDefaultStyle() {
+        HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        node.textField = new HudTextFieldData();
+        node.textField.text = "secret";
+        node.textField.messageText = "Enter value";
+        node.textField.maxLength = 12;
+        node.textField.passwordMode = true;
+
+        MaterializedHud hud = materialize(new HudDocumentV1(node));
+        TextField field = (TextField) hud.actor("field");
+
+        Assert.assertEquals("secret", field.getText());
+        Assert.assertEquals("Enter value", field.getMessageText());
+        Assert.assertEquals(12, field.getMaxLength());
+        Assert.assertTrue(field.isPasswordMode());
+        Assert.assertSame(selectedResources.builtInTextFieldStyle(), field.getStyle());
+        Assert.assertNotNull(field.getStyle().font);
+        Assert.assertNotNull(field.getStyle().cursor);
+        Assert.assertNotNull(field.getStyle().selection);
+        Assert.assertNotNull(field.getStyle().background);
+        Assert.assertNotNull(field.getStyle().messageFontColor);
+        Assert.assertEquals(field.getPrefWidth(), field.getWidth(), 0.01f);
+        Assert.assertEquals(field.getPrefHeight(), field.getHeight(), 0.01f);
+
+        field.setText("runtime edit longer than twelve");
+        Assert.assertEquals(12, field.getText().length());
+        Assert.assertEquals("secret", node.textField.text);
+    }
+
+    @Test
+    public void textFieldUsesAValidCustomNativeStyleAndRejectsAMissingOne() {
+        TextField.TextFieldStyle custom = new TextField.TextFieldStyle(
+                selectedResources.builtInTextFieldStyle());
+        selectedResources.skin().add("compact-field", custom, TextField.TextFieldStyle.class);
+        HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        node.textField = new HudTextFieldData();
+        node.textField.styleName = "compact-field";
+
+        MaterializedHud hud = materialize(new HudDocumentV1(node));
+        Assert.assertSame(custom, ((TextField) hud.actor("field")).getStyle());
+
+        node.textField.styleName = "missing-field";
+        HudValidationResult invalid = new HudDocumentValidator().validate(
+                new HudDocumentV1(node), selectedResources);
+        Assert.assertFalse(invalid.isValid());
     }
 
     @Test

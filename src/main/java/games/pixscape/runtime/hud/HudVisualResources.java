@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 
 /**
@@ -31,4 +32,9 @@ public interface HudVisualResources {
 
     /** Skin-independent style used when an ImageButton has no authored custom style reference. */
     default ImageButton.ImageButtonStyle builtInImageButtonStyle() { return null; }
+
+    default TextField.TextFieldStyle textFieldStyle(String name) { return null; }
+
+    /** Skin-independent style used when a TextField has no authored custom style reference. */
+    default TextField.TextFieldStyle builtInTextFieldStyle() { return null; }
 }

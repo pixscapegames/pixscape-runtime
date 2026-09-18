@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
@@ -137,6 +138,22 @@ public final class HudMaterializer {
                         ? new ImageButton.ImageButtonStyle(sharedStyle) : sharedStyle;
                 if (style != sharedStyle) applyImageButtonOverrides(node, resources, style);
                 return new ImageButton(style);
+            }
+            case TEXT_FIELD: {
+                TextField.TextFieldStyle style =
+                        HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
+                                ? resources.builtInTextFieldStyle()
+                                : resources.textFieldStyle(node.textField.styleName);
+                if (style == null) {
+                    throw missing(node, "TextField style",
+                            HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
+                                    ? "built-in Default" : node.textField.styleName);
+                }
+                TextField field = new TextField(node.textField.text, style);
+                field.setMessageText(node.textField.messageText);
+                field.setMaxLength(node.textField.maxLength);
+                field.setPasswordMode(node.textField.passwordMode);
+                return field;
             }
             default:
                 throw new IllegalStateException(

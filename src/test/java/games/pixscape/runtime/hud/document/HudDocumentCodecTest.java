@@ -70,6 +70,26 @@ public class HudDocumentCodecTest {
         Assert.assertEquals("checked-over", restored.root.imageButton.imageCheckedOver.resourceName);
     }
 
+    @Test
+    public void textFieldRoundTripPreservesAuthoredInitialValues() {
+        HudNode field = new HudNode("name", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.text = "Ada";
+        field.textField.messageText = "Name";
+        field.textField.styleName = "compact";
+        field.textField.maxLength = 24;
+        field.textField.passwordMode = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(field))).root;
+
+        Assert.assertEquals(HudNodeKind.TEXT_FIELD, restored.kind);
+        Assert.assertEquals("Ada", restored.textField.text);
+        Assert.assertEquals("Name", restored.textField.messageText);
+        Assert.assertEquals("compact", restored.textField.styleName);
+        Assert.assertEquals(24, restored.textField.maxLength);
+        Assert.assertTrue(restored.textField.passwordMode);
+    }
+
     private static HudImageData image(String resourceName) {
         HudImageData image = new HudImageData();
         image.resourceName = resourceName;

@@ -352,6 +352,30 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void textFieldValidatesDefaultsCustomStyleAndMaxLength() {
+        HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+
+        HudValidationResult missingDefault = validator.validate(
+                new HudDocumentV1(field), new EmptyResourceCatalog());
+        HudValidationResult availableDefault = validator.validate(
+                new HudDocumentV1(field), new FixtureResourceCatalog());
+        field.textField.styleName = "compact";
+        HudValidationResult custom = validator.validate(
+                new HudDocumentV1(field), new FixtureResourceCatalog());
+        field.textField.styleName = "missing";
+        field.textField.maxLength = -1;
+        HudValidationResult invalid = validator.validate(
+                new HudDocumentV1(field), new FixtureResourceCatalog());
+
+        requireIssue(missingDefault, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        Assert.assertTrue(issues(availableDefault), availableDefault.isValid());
+        Assert.assertTrue(issues(custom), custom.isValid());
+        Assert.assertEquals(1, count(invalid, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE));
+        Assert.assertEquals(1, count(invalid, HudValidationIssueCode.INVALID_NODE_PAYLOAD));
+    }
+
+    @Test
     public void imageButtonValidatesEachConfiguredNativeImageState() {
         HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
         button.imageButton = new HudImageButtonData();
@@ -489,6 +513,7 @@ public class HudDocumentValidatorTest {
         @Override public boolean hasBuiltInLabelStyle() { return true; }
         @Override public boolean hasBuiltInTextButtonStyle() { return true; }
         @Override public boolean hasBuiltInImageButtonStyle() { return true; }
+        @Override public boolean hasBuiltInTextFieldStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {
@@ -513,6 +538,11 @@ public class HudDocumentValidatorTest {
         @Override
         public boolean hasImageButtonStyle(String name) {
             return "hud-primary".equals(name);
+        }
+
+        @Override
+        public boolean hasTextFieldStyle(String name) {
+            return "compact".equals(name);
         }
     }
 }

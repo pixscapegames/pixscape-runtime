@@ -41,6 +41,9 @@ public class HudResourceRequirementsTest {
         assertRequirements(node("button", "IMAGE_BUTTON", "\"imageButton\":{\"styleName\":\"primary\","
                 + "\"imageOver\":{\"source\":\"DRAWABLE\",\"resourceName\":\"over\"}},"
                 + "\"children\":[]"), true, true);
+        assertRequirements(node("field", "TEXT_FIELD", "\"textField\":{\"text\":\"\","
+                + "\"messageText\":\"Name\",\"styleName\":\"compact\"},\"children\":[]"),
+                true, true);
     }
 
     @Test
@@ -74,6 +77,17 @@ public class HudResourceRequirementsTest {
         Assert.assertFalse(requirements.requiresBuiltInLabelStyle());
         Assert.assertFalse(requirements.requiresBuiltInTextButtonStyle());
         Assert.assertTrue(requirements.requiresBuiltInImageButtonStyle());
+    }
+
+    @Test
+    public void textFieldWithoutCustomStyleRequiresBuiltInFontAndGraphicsButNoSkin() {
+        HudResourceRequirements requirements = requirements(node("field", "TEXT_FIELD",
+                "\"textField\":{\"text\":\"\",\"messageText\":\"Name\"},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+        Assert.assertTrue(requirements.requiresBuiltInTextFieldStyle());
     }
 
     @Test

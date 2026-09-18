@@ -5,6 +5,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
 
@@ -39,7 +40,9 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && (!requirements.requiresBuiltInTextButtonStyle()
                         || builtInTextButtonStyle() != null)
                 && (!requirements.requiresBuiltInImageButtonStyle()
-                        || builtInImageButtonStyle() != null);
+                        || builtInImageButtonStyle() != null)
+                && (!requirements.requiresBuiltInTextFieldStyle()
+                        || builtInTextFieldStyle() != null);
     }
 
     Skin skin() {
@@ -93,10 +96,25 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInImageButtonStyle();
     }
 
+    @Override public TextField.TextFieldStyle textFieldStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, TextField.TextFieldStyle.class);
+    }
+
+    @Override public TextField.TextFieldStyle builtInTextFieldStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInTextFieldStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
     @Override public boolean hasBuiltInTextButtonStyle() { return builtInTextButtonStyle() != null; }
     @Override public boolean hasImageButtonStyle(String name) { return imageButtonStyle(name) != null; }
     @Override public boolean hasBuiltInImageButtonStyle() { return builtInImageButtonStyle() != null; }
+    @Override public boolean hasTextFieldStyle(String name) {
+        TextField.TextFieldStyle style = textFieldStyle(name);
+        return style != null && style.font != null;
+    }
+    @Override public boolean hasBuiltInTextFieldStyle() { return builtInTextFieldStyle() != null; }
 }
