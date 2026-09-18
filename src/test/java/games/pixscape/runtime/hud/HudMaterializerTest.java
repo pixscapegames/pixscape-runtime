@@ -462,7 +462,7 @@ public class HudMaterializerTest {
                 new HudDocumentV1(node), selectedResources);
         Assert.assertFalse(missingColorValidation.isValid());
         Assert.assertTrue(missingColorValidation.issues().get(0).message()
-                .contains("fontColor"));
+                .contains("TEXT_FIELD Skin style 'missing-color' is missing or unusable."));
 
         node.textField.styleName = "missing-field";
         HudValidationResult invalid = new HudDocumentValidator().validate(

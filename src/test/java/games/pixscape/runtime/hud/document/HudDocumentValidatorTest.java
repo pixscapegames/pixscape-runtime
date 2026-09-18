@@ -190,8 +190,11 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
-    public void requiredAndExclusivePayloadRulesAreEnforced() {
+    public void missingWrongAndMultiplePayloadsAreRejected() {
         HudValidationResult fixture = validator.validate(read("invalid-node-payload.json"));
+
+        HudNode missing = new HudNode("missing", HudNodeKind.TEXT_FIELD);
+        HudValidationResult absent = validator.validate(new HudDocumentV1(missing));
 
         HudNode image = new HudNode("image", HudNodeKind.IMAGE);
         image.image = imageData(HudImageSource.REGION, "icon");
@@ -199,7 +202,34 @@ public class HudDocumentValidatorTest {
         HudValidationResult extra = validator.validate(new HudDocumentV1(image));
 
         requireIssue(fixture, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+        requireIssue(absent, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
         requireIssue(extra, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+    }
+
+    @Test
+    public void everyKindAcceptsItsDocumentedPayloadContract() {
+        for (HudNodeKind kind : HudNodeKind.values()) {
+            HudNode node = nodeWithExpectedPayload("node-" + kind, kind);
+            if (kind == HudNodeKind.GROUP) {
+                node.actor = new HudActorProperties();
+                node.children.add(HudChild.direct(label("group-child")));
+            }
+            HudValidationResult result = validator.validate(new HudDocumentV1(node));
+            Assert.assertTrue(kind + issues(result), result.isValid());
+        }
+    }
+
+    @Test
+    public void expectedPayloadBusinessValidationRunsAlongsidePayloadExclusivity() {
+        HudNode node = new HudNode("label", HudNodeKind.LABEL);
+        node.label = labelData(null, "hud-body");
+        node.image = imageData(HudImageSource.REGION, "icon");
+
+        HudValidationResult result = validator.validate(new HudDocumentV1(node));
+
+        requireIssue(result, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+        Assert.assertEquals("$.root.label.text", requireIssueAt(result,
+                HudValidationIssueCode.INVALID_NODE_PAYLOAD, "$.root.label.text").path());
     }
 
     @Test
@@ -509,6 +539,45 @@ public class HudDocumentValidatorTest {
         return data;
     }
 
+    private static HudNode nodeWithExpectedPayload(String id, HudNodeKind kind) {
+        HudNode node = new HudNode(id, kind);
+        switch (kind) {
+            case GROUP:
+            case TABLE:
+            case STACK:
+                break;
+            case CONTAINER:
+                node.container = new HudContainerData();
+                break;
+            case IMAGE:
+                node.image = imageData(HudImageSource.REGION, "image");
+                break;
+            case LABEL:
+                node.label = labelData("Label", null);
+                break;
+            case TEXT_BUTTON:
+                node.textButton = new HudTextButtonData();
+                node.textButton.text = "Button";
+                break;
+            case IMAGE_BUTTON:
+                node.imageButton = new HudImageButtonData();
+                break;
+            case TEXT_FIELD:
+                node.textField = new HudTextFieldData();
+                break;
+            case SELECT_BOX:
+                node.selectBox = new HudSelectBoxData();
+                node.selectBox.selectedIndex = -1;
+                break;
+            case CHECK_BOX:
+                node.checkBox = new HudCheckBoxData();
+                break;
+            default:
+                throw new AssertionError("Unhandled HUD node kind: " + kind);
+        }
+        return node;
+    }
+
     private static HudValidationIssue requireIssue(HudValidationResult result,
                                                    HudValidationIssueCode code) {
         for (int i = 0; i < result.issues().size(); i++) {
@@ -516,6 +585,16 @@ public class HudDocumentValidatorTest {
             if (issue.code() == code) return issue;
         }
         Assert.fail("Expected issue " + code + issues(result));
+        return null;
+    }
+
+    private static HudValidationIssue requireIssueAt(HudValidationResult result,
+                                                     HudValidationIssueCode code, String path) {
+        for (int i = 0; i < result.issues().size(); i++) {
+            HudValidationIssue issue = result.issues().get(i);
+            if (issue.code() == code && path.equals(issue.path())) return issue;
+        }
+        Assert.fail("Expected issue " + code + " at " + path + issues(result));
         return null;
     }
 

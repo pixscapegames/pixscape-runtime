@@ -13,9 +13,11 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
@@ -186,6 +188,81 @@ public class HudResourcesTest {
         HudResources resources = resourcesWithSkin(skin);
         try {
             Assert.assertTrue(resources.select("custom").hasSelectBoxStyle("text-only"));
+        } finally {
+            resources.dispose();
+        }
+    }
+
+    @Test
+    public void selectedResourcesApplySharedInteractiveStyleRequirementsWithoutMutatingStyles()
+            throws Exception {
+        Skin skin = new Skin();
+        BitmapFont font = new BitmapFont(new BitmapFont.BitmapFontData(), new TextureRegion(), false);
+        BaseDrawable checkOff = new BaseDrawable();
+        BaseDrawable checkOn = new BaseDrawable();
+
+        TextField.TextFieldStyle textField = new TextField.TextFieldStyle();
+        textField.font = font;
+        textField.fontColor = com.badlogic.gdx.graphics.Color.WHITE;
+        skin.add("text-field", textField);
+        TextField.TextFieldStyle missingTextFieldColor = new TextField.TextFieldStyle();
+        missingTextFieldColor.font = font;
+        skin.add("missing-text-field-color", missingTextFieldColor);
+
+        CheckBox.CheckBoxStyle checkBox = new CheckBox.CheckBoxStyle();
+        checkBox.font = font;
+        checkBox.fontColor = null;
+        checkBox.checkboxOff = checkOff;
+        checkBox.checkboxOn = checkOn;
+        skin.add("check-box", checkBox);
+        CheckBox.CheckBoxStyle missingCheckBoxOn = new CheckBox.CheckBoxStyle();
+        missingCheckBoxOn.font = font;
+        missingCheckBoxOn.checkboxOff = checkOff;
+        skin.add("missing-check-box-on", missingCheckBoxOn);
+
+        SelectBox.SelectBoxStyle selectBox = new SelectBox.SelectBoxStyle();
+        selectBox.font = font;
+        selectBox.fontColor = com.badlogic.gdx.graphics.Color.WHITE;
+        selectBox.listStyle = new List.ListStyle();
+        selectBox.listStyle.font = font;
+        selectBox.listStyle.selection = new BaseDrawable();
+        selectBox.scrollStyle = new ScrollPane.ScrollPaneStyle();
+        skin.add("select-box", selectBox);
+        SelectBox.SelectBoxStyle missingSelectBoxScroll = new SelectBox.SelectBoxStyle(selectBox);
+        missingSelectBoxScroll.scrollStyle = null;
+        skin.add("missing-select-box-scroll", missingSelectBoxScroll);
+
+        HudResources resources = resourcesWithSkin(skin);
+        try {
+            HudSelectedResources selected = resources.select("custom");
+            Assert.assertTrue(selected.hasTextFieldStyle("text-field"));
+            Assert.assertFalse(selected.hasTextFieldStyle("missing-text-field-color"));
+            Assert.assertTrue(selected.hasCheckBoxStyle("check-box"));
+            Assert.assertFalse(selected.hasCheckBoxStyle("missing-check-box-on"));
+            Assert.assertTrue(selected.hasSelectBoxStyle("select-box"));
+            Assert.assertFalse(selected.hasSelectBoxStyle("missing-select-box-scroll"));
+            Assert.assertFalse(selected.hasTextFieldStyle("missing"));
+            Assert.assertFalse(selected.hasCheckBoxStyle("missing"));
+            Assert.assertFalse(selected.hasSelectBoxStyle("missing"));
+            Assert.assertNull(checkBox.fontColor);
+            Assert.assertSame(checkOff, checkBox.checkboxOff);
+            Assert.assertSame(checkOn, checkBox.checkboxOn);
+        } finally {
+            resources.dispose();
+        }
+    }
+
+    @Test
+    public void builtInInteractiveStylesAreUsableWithoutASkin() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("built-in-interactive"));
+        writeHudFiles(root);
+        HudResources resources = HudResources.prepareEnvironment(root, "ui/game.atlas", null,
+                Collections.emptyList());
+        try {
+            HudSelectedResources selected = resources.select(null);
+            Assert.assertTrue(selected.hasBuiltInTextFieldStyle());
+            Assert.assertTrue(selected.hasBuiltInSelectBoxStyle());
+            Assert.assertTrue(selected.hasBuiltInCheckBoxStyle());
         } finally {
             resources.dispose();
         }

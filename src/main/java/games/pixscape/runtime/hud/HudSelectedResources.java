@@ -140,35 +140,21 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     @Override public boolean hasBuiltInImageButtonStyle() { return builtInImageButtonStyle() != null; }
     @Override public boolean hasTextFieldStyle(String name) {
         TextField.TextFieldStyle style = textFieldStyle(name);
-        return isUsableTextFieldStyle(style);
+        return HudStyleUsability.isUsableTextFieldStyle(style);
     }
     @Override public boolean hasBuiltInTextFieldStyle() {
-        return isUsableTextFieldStyle(builtInTextFieldStyle());
+        return HudStyleUsability.isUsableTextFieldStyle(builtInTextFieldStyle());
     }
     @Override public boolean hasSelectBoxStyle(String name) {
-        return isUsableSelectBoxStyle(selectBoxStyle(name));
+        return HudStyleUsability.isUsableSelectBoxStyle(selectBoxStyle(name));
     }
     @Override public boolean hasBuiltInSelectBoxStyle() {
-        return isUsableSelectBoxStyle(builtInSelectBoxStyle());
+        return HudStyleUsability.isUsableSelectBoxStyle(builtInSelectBoxStyle());
     }
     @Override public boolean hasCheckBoxStyle(String name) {
-        return isUsableCheckBoxStyle(checkBoxStyle(name));
+        return HudStyleUsability.isUsableCheckBoxStyle(checkBoxStyle(name));
     }
     @Override public boolean hasBuiltInCheckBoxStyle() {
-        return isUsableCheckBoxStyle(builtInCheckBoxStyle());
-    }
-
-    private static boolean isUsableTextFieldStyle(TextField.TextFieldStyle style) {
-        return style != null && style.font != null && style.fontColor != null;
-    }
-    private static boolean isUsableSelectBoxStyle(SelectBox.SelectBoxStyle style) {
-        return style != null && style.font != null && style.fontColor != null
-                && style.listStyle != null
-                && style.listStyle.font != null && style.listStyle.selection != null
-                && style.scrollStyle != null;
-    }
-    private static boolean isUsableCheckBoxStyle(CheckBox.CheckBoxStyle style) {
-        return style != null && style.font != null
-                && style.checkboxOn != null && style.checkboxOff != null;
+        return HudStyleUsability.isUsableCheckBoxStyle(builtInCheckBoxStyle());
     }
 }

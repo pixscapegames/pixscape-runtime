@@ -132,52 +132,37 @@ public final class HudDocumentValidator {
                 return;
             }
 
+            int payloadCount = payloadCount(node);
             boolean validPayload;
             switch (node.kind) {
                 case GROUP:
                 case TABLE:
                 case STACK:
-                    validPayload = noWidgetPayload(node);
+                    validPayload = payloadCount == 0;
                     break;
                 case CONTAINER:
-                    validPayload = node.container != null && node.image == null
-                            && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.container != null && payloadCount == 1;
                     break;
                 case IMAGE:
-                    validPayload = node.image != null && node.container == null
-                            && node.label == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.image != null && payloadCount == 1;
                     break;
                 case LABEL:
-                    validPayload = node.label != null && node.container == null
-                            && node.image == null && node.textButton == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.label != null && payloadCount == 1;
                     break;
                 case TEXT_BUTTON:
-                    validPayload = node.textButton != null && node.container == null
-                            && node.image == null && node.label == null && node.imageButton == null
-                            && node.textField == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.textButton != null && payloadCount == 1;
                     break;
                 case IMAGE_BUTTON:
-                    validPayload = node.imageButton != null && node.container == null
-                            && node.image == null && node.label == null && node.textButton == null
-                            && node.textField == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.imageButton != null && payloadCount == 1;
                     break;
                 case TEXT_FIELD:
-                    validPayload = node.textField != null && node.container == null
-                            && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null && node.selectBox == null && node.checkBox == null;
+                    validPayload = node.textField != null && payloadCount == 1;
                     break;
                 case SELECT_BOX:
-                    validPayload = node.selectBox != null && node.container == null
-                            && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null && node.textField == null && node.checkBox == null;
+                    validPayload = node.selectBox != null && payloadCount == 1;
                     break;
                 case CHECK_BOX:
-                    validPayload = node.checkBox != null && node.container == null
-                            && node.image == null && node.label == null && node.textButton == null
-                            && node.imageButton == null && node.textField == null && node.selectBox == null;
+                    validPayload = node.checkBox != null && payloadCount == 1;
                     break;
                 default:
                     validPayload = false;
@@ -348,7 +333,7 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasTextFieldStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "TEXT_FIELD Skin style '" + styleName
-                                + "' is missing or unusable; font and fontColor are required.",
+                                + "' is missing or unusable.",
                         usableId(node), path);
             }
         }
@@ -365,7 +350,7 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasSelectBoxStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "SELECT_BOX Skin style '" + styleName
-                                + "' is missing or incomplete; font, List and ScrollPane styles are required.",
+                                + "' is missing or unusable.",
                         usableId(node), path);
             }
         }
@@ -382,7 +367,7 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasCheckBoxStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "CHECK_BOX Skin style '" + styleName
-                                + "' is missing or incomplete; font, checkboxOn and checkboxOff are required.",
+                                + "' is missing or unusable.",
                         usableId(node), path);
             }
         }
@@ -587,10 +572,17 @@ public final class HudDocumentValidator {
             issues.add(new HudValidationIssue(code, message, nodeId, path));
         }
 
-        private static boolean noWidgetPayload(HudNode node) {
-            return node.container == null && node.image == null
-                    && node.label == null && node.textButton == null && node.imageButton == null
-                    && node.textField == null && node.selectBox == null && node.checkBox == null;
+        private static int payloadCount(HudNode node) {
+            int count = 0;
+            if (node.container != null) count++;
+            if (node.image != null) count++;
+            if (node.label != null) count++;
+            if (node.textButton != null) count++;
+            if (node.imageButton != null) count++;
+            if (node.textField != null) count++;
+            if (node.selectBox != null) count++;
+            if (node.checkBox != null) count++;
+            return count;
         }
 
         private static boolean isLeaf(HudNodeKind kind) {
