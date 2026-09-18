@@ -143,8 +143,10 @@ public final class HudMaterializer {
 
     private static void addCell(Table table, Actor actor, HudCellConstraints constraints) {
         Cell<Actor> cell = table.add(actor);
-        cell.minSize(constraints.minWidth, constraints.minHeight);
-        cell.prefSize(constraints.prefWidth, constraints.prefHeight);
+        if (constraints.minWidth != null) cell.minWidth(constraints.minWidth);
+        if (constraints.minHeight != null) cell.minHeight(constraints.minHeight);
+        if (constraints.prefWidth != null) cell.prefWidth(constraints.prefWidth);
+        if (constraints.prefHeight != null) cell.prefHeight(constraints.prefHeight);
         cell.pad(constraints.padTop, constraints.padLeft,
                 constraints.padBottom, constraints.padRight);
         cell.fill(constraints.fillX, constraints.fillY);

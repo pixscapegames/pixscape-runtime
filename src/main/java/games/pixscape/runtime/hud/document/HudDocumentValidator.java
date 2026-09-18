@@ -361,7 +361,8 @@ public final class HudDocumentValidator {
                     HudValidationIssueCode.INVALID_FREE_PLACEMENT);
         }
 
-        private void cellNumber(float value, String field, HudChild child, String path) {
+        private void cellNumber(Float value, String field, HudChild child, String path) {
+            if (value == null) return;
             if (!isFinite(value) || value < 0f) {
                 add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
                         "Cell " + field + " must be finite and nonnegative.",

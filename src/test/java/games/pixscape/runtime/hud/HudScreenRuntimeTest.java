@@ -11,8 +11,10 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.hud.document.HudDocumentLoadCode;
 import games.pixscape.runtime.hud.document.HudDocumentLoadException;
@@ -639,6 +641,48 @@ public class HudScreenRuntimeTest {
     }
 
     @Test
+    public void pointerCaptureReflectsNativeButtonAndMultiPointerTouchFocus() throws Exception {
+        FileHandle root = project();
+        writeScreen(root, "game", "hud/game.json");
+        copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen active = runtime.show("game");
+            runtime.resize(320, 180);
+            TextButton first = (TextButton) active.materializedHud().actor("smoke-button");
+            TextButton second = new TextButton("Second", first.getStyle());
+            second.setPosition(16f, 16f);
+            ((Group) active.materializedHud().root()).addActor(second);
+            Stage stage = active.session().stage();
+            int[] firstPoint = screenCenter(stage, first);
+            int[] secondPoint = screenCenter(stage, second);
+
+            Assert.assertTrue(runtime.inputProcessor().touchDown(
+                    firstPoint[0], firstPoint[1], 0, Input.Buttons.LEFT));
+            Assert.assertTrue(runtime.isPointerCaptured());
+            Assert.assertFalse(runtime.inputProcessor().touchUp(
+                    firstPoint[0], firstPoint[1], 0, Input.Buttons.RIGHT));
+            Assert.assertTrue(runtime.isPointerCaptured());
+
+            Assert.assertTrue(runtime.inputProcessor().touchDown(
+                    secondPoint[0], secondPoint[1], 1, Input.Buttons.LEFT));
+            Assert.assertTrue(runtime.inputProcessor().touchUp(
+                    secondPoint[0], secondPoint[1], 1, Input.Buttons.LEFT));
+            Assert.assertTrue(runtime.isPointerCaptured());
+            Assert.assertTrue(runtime.inputProcessor().touchUp(
+                    0, 0, 0, Input.Buttons.LEFT));
+            Assert.assertFalse(runtime.isPointerCaptured());
+
+            Assert.assertTrue(runtime.inputProcessor().touchDown(
+                    firstPoint[0], firstPoint[1], 0, Input.Buttons.LEFT));
+            runtime.show("game");
+            Assert.assertFalse(runtime.isPointerCaptured());
+        } finally {
+            runtime.dispose();
+        }
+    }
+
+    @Test
     public void screenWithoutDocumentIsRejectedBeforeSessionCreation() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("empty-project"));
         root.child("hud").mkdirs();
@@ -746,6 +790,13 @@ public class HudScreenRuntimeTest {
         target.writeString(new FileHandle(
                 "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)
                 .readString("UTF-8"), false, "UTF-8");
+    }
+
+    private static int[] screenCenter(Stage stage, Actor actor) {
+        Vector2 point = actor.localToStageCoordinates(
+                new Vector2(actor.getWidth() * 0.5f, actor.getHeight() * 0.5f));
+        stage.stageToScreenCoordinates(point);
+        return new int[] {Math.round(point.x), Math.round(point.y)};
     }
 
     private static String missingRegionDocument() {

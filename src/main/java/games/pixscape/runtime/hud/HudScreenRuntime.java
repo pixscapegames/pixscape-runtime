@@ -9,7 +9,6 @@ import com.badlogic.gdx.utils.Disposable;
 /** {@code INTERNAL} transactional owner and frame lifecycle for the currently shown HUD. */
 public final class HudScreenRuntime implements Disposable {
     private final HudScreenLoader loader;
-    private int capturedPointer = -1;
     private final InputProcessor inputProcessor = new InputAdapter() {
         @Override public boolean keyDown(int keycode) {
             return active != null && active.session().stage().keyDown(keycode);
@@ -24,24 +23,18 @@ public final class HudScreenRuntime implements Disposable {
         }
 
         @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            boolean handled = active != null
+            return active != null
                     && active.session().stage().touchDown(screenX, screenY, pointer, button);
-            if (handled) capturedPointer = pointer;
-            return handled;
         }
 
         @Override public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-            boolean handled = active != null
+            return active != null
                     && active.session().stage().touchUp(screenX, screenY, pointer, button);
-            if (pointer == capturedPointer) capturedPointer = -1;
-            return handled;
         }
 
         @Override public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
-            boolean handled = active != null
+            return active != null
                     && active.session().stage().touchCancelled(screenX, screenY, pointer, button);
-            if (pointer == capturedPointer) capturedPointer = -1;
-            return handled;
         }
 
         @Override public boolean touchDragged(int screenX, int screenY, int pointer) {
@@ -79,7 +72,6 @@ public final class HudScreenRuntime implements Disposable {
 
     private ActiveHudScreen install(ActiveHudScreen candidate) {
         ActiveHudScreen previous = active;
-        capturedPointer = -1;
         active = candidate;
         if (previous != null) previous.dispose();
         return candidate;
@@ -89,7 +81,6 @@ public final class HudScreenRuntime implements Disposable {
     public void hide() {
         ActiveHudScreen previous = active;
         active = null;
-        capturedPointer = -1;
         if (previous != null) previous.dispose();
     }
 
@@ -102,9 +93,9 @@ public final class HudScreenRuntime implements Disposable {
         return inputProcessor;
     }
 
-    /** Returns whether the active HUD currently owns a pointer gesture. */
+    /** Returns whether the active HUD Stage currently owns any touch focus. */
     public boolean isPointerCaptured() {
-        return capturedPointer >= 0;
+        return active != null && active.session().hasTouchFocus();
     }
 
     public void act(float delta) {

@@ -5,10 +5,14 @@ package games.pixscape.runtime.hud.document;
  * Values describe the relationship between the containing Table and this child, not Actor state.
  */
 public final class HudCellConstraints {
-    public float minWidth;
-    public float minHeight;
-    public float prefWidth;
-    public float prefHeight;
+    /** {@code null} leaves the native Scene2D minimum width unchanged. */
+    public Float minWidth;
+    /** {@code null} leaves the native Scene2D minimum height unchanged. */
+    public Float minHeight;
+    /** {@code null} leaves the native Scene2D preferred width unchanged. */
+    public Float prefWidth;
+    /** {@code null} leaves the native Scene2D preferred height unchanged. */
+    public Float prefHeight;
     public float padTop;
     public float padRight;
     public float padBottom;

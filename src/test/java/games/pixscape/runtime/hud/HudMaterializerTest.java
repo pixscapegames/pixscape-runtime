@@ -27,6 +27,7 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
+import games.pixscape.runtime.hud.document.HudCellConstraints;
 import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudContainerData;
 import games.pixscape.runtime.hud.document.HudNode;
@@ -231,6 +232,36 @@ public class HudMaterializerTest {
         Assert.assertEquals(Integer.valueOf(Align.right),
                 nested.getCell(hud.actor("status")).getAlign());
         Assert.assertFalse(nested.getCell(hud.actor("status")).isEndRow());
+    }
+
+    @Test
+    public void tableKeepsExplicitWidthAndNativePreferredHeightIndependent() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new games.pixscape.runtime.hud.document.HudTextButtonData();
+        button.textButton.text = "One line";
+        HudCellConstraints constraints = new HudCellConstraints();
+        constraints.prefWidth = 220f;
+        root.children.add(HudChild.cell(button, constraints));
+
+        MaterializedHud first = materialize(new HudDocumentV1(root));
+        Table firstTable = (Table) first.root();
+        firstTable.pack();
+        firstTable.validate();
+        TextButton firstButton = (TextButton) first.actor("button");
+        float firstHeight = firstButton.getHeight();
+        Assert.assertEquals(220f, firstButton.getWidth(), 0.01f);
+        Assert.assertEquals(firstButton.getPrefHeight(), firstHeight, 0.01f);
+
+        root.children.get(0).node.textButton.text = "One line\nSecond line";
+        MaterializedHud second = materialize(new HudDocumentV1(root));
+        Table secondTable = (Table) second.root();
+        secondTable.pack();
+        secondTable.validate();
+        TextButton secondButton = (TextButton) second.actor("button");
+        Assert.assertEquals(220f, secondButton.getWidth(), 0.01f);
+        Assert.assertEquals(secondButton.getPrefHeight(), secondButton.getHeight(), 0.01f);
+        Assert.assertTrue(secondButton.getHeight() > firstHeight);
     }
 
     @Test
@@ -503,6 +534,12 @@ public class HudMaterializerTest {
 
     private MaterializedHud materialize(String fixture) {
         return new HudMaterializer().materialize(validated(fixture), selectedResources);
+    }
+
+    private MaterializedHud materialize(HudDocumentV1 document) {
+        HudValidationResult result = new HudDocumentValidator().validate(document, selectedResources);
+        Assert.assertTrue(result.issues().toString(), result.isValid());
+        return new HudMaterializer().materialize(result.validatedDocument(), selectedResources);
     }
 
     private ValidatedHudDocument validated(String fixture) {

@@ -85,6 +85,8 @@ public class HudDocumentV1Test {
         Assert.assertTrue(title.rowAfter);
         Assert.assertEquals(HudHorizontalAlign.LEFT, title.horizontalAlign);
         Assert.assertEquals(24f, title.padLeft, 0f);
+        Assert.assertNull(title.minWidth);
+        Assert.assertNotNull(title.prefHeight);
 
         HudCellConstraints actions = restored.root.children.get(1).cell;
         Assert.assertEquals(320f, actions.minWidth, 0f);
