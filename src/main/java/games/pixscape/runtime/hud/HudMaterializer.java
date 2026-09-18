@@ -149,9 +149,10 @@ public final class HudMaterializer {
                             HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
                                     ? "built-in Default" : node.textField.styleName);
                 }
-                TextField field = new TextField(node.textField.text, style);
-                field.setMessageText(node.textField.messageText);
+                TextField field = new TextField("", style);
                 field.setMaxLength(node.textField.maxLength);
+                field.setText(node.textField.text);
+                field.setMessageText(node.textField.messageText);
                 field.setPasswordMode(node.textField.passwordMode);
                 return field;
             }

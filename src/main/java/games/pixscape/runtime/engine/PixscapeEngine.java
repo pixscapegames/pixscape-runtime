@@ -700,6 +700,14 @@ public final class PixscapeEngine {
         return hudScreenRuntime.inputProcessor();
     }
 
+    /** Returns whether the active HUD's native Stage currently owns keyboard focus. */
+    public boolean hasHudKeyboardFocus() {
+        if (hudScreenRuntime == null) {
+            throw new IllegalStateException("PixscapeEngine must be initialized before HUD focus is requested.");
+        }
+        return hudScreenRuntime.hasKeyboardFocus();
+    }
+
     /**
      * Disposes world and runtime resources; the instance must be reinitialized afterwards.
      */

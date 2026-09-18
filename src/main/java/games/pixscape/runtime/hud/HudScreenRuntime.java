@@ -93,6 +93,12 @@ public final class HudScreenRuntime implements Disposable {
         return inputProcessor;
     }
 
+    /** Returns whether the active native HUD Stage currently owns keyboard focus. */
+    public boolean hasKeyboardFocus() {
+        ActiveHudScreen current = active;
+        return current != null && current.session().stage().getKeyboardFocus() != null;
+    }
+
     public void act(float delta) {
         ActiveHudScreen current = active;
         if (current != null) current.act(delta);

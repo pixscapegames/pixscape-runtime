@@ -405,17 +405,17 @@ public class HudMaterializerTest {
     public void materializesNativeTextFieldWithAuthoredPropertiesAndUsableDefaultStyle() {
         HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
         node.textField = new HudTextFieldData();
-        node.textField.text = "secret";
+        node.textField.text = "abcdef";
         node.textField.messageText = "Enter value";
-        node.textField.maxLength = 12;
+        node.textField.maxLength = 3;
         node.textField.passwordMode = true;
 
         MaterializedHud hud = materialize(new HudDocumentV1(node));
         TextField field = (TextField) hud.actor("field");
 
-        Assert.assertEquals("secret", field.getText());
+        Assert.assertEquals("abc", field.getText());
         Assert.assertEquals("Enter value", field.getMessageText());
-        Assert.assertEquals(12, field.getMaxLength());
+        Assert.assertEquals(3, field.getMaxLength());
         Assert.assertTrue(field.isPasswordMode());
         Assert.assertSame(selectedResources.builtInTextFieldStyle(), field.getStyle());
         Assert.assertNotNull(field.getStyle().font);
@@ -426,22 +426,40 @@ public class HudMaterializerTest {
         Assert.assertEquals(field.getPrefWidth(), field.getWidth(), 0.01f);
         Assert.assertEquals(field.getPrefHeight(), field.getHeight(), 0.01f);
 
-        field.setText("runtime edit longer than twelve");
-        Assert.assertEquals(12, field.getText().length());
-        Assert.assertEquals("secret", node.textField.text);
+        Assert.assertEquals("abcdef", node.textField.text);
+
+        HudNode unlimitedNode = new HudNode("unlimited", HudNodeKind.TEXT_FIELD);
+        unlimitedNode.textField = new HudTextFieldData();
+        unlimitedNode.textField.text = "abcdef";
+        unlimitedNode.textField.maxLength = 0;
+        TextField unlimited = (TextField) materialize(
+                new HudDocumentV1(unlimitedNode)).actor("unlimited");
+        Assert.assertEquals("abcdef", unlimited.getText());
     }
 
     @Test
     public void textFieldUsesAValidCustomNativeStyleAndRejectsAMissingOne() {
-        TextField.TextFieldStyle custom = new TextField.TextFieldStyle(
-                selectedResources.builtInTextFieldStyle());
+        TextField.TextFieldStyle custom = new TextField.TextFieldStyle();
+        custom.font = selectedResources.builtInTextFieldStyle().font;
+        custom.fontColor = selectedResources.builtInTextFieldStyle().fontColor;
         selectedResources.skin().add("compact-field", custom, TextField.TextFieldStyle.class);
+        TextField.TextFieldStyle missingColor = new TextField.TextFieldStyle();
+        missingColor.font = selectedResources.builtInTextFieldStyle().font;
+        selectedResources.skin().add(
+                "missing-color", missingColor, TextField.TextFieldStyle.class);
         HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
         node.textField = new HudTextFieldData();
         node.textField.styleName = "compact-field";
 
         MaterializedHud hud = materialize(new HudDocumentV1(node));
         Assert.assertSame(custom, ((TextField) hud.actor("field")).getStyle());
+
+        node.textField.styleName = "missing-color";
+        HudValidationResult missingColorValidation = new HudDocumentValidator().validate(
+                new HudDocumentV1(node), selectedResources);
+        Assert.assertFalse(missingColorValidation.isValid());
+        Assert.assertTrue(missingColorValidation.issues().get(0).message()
+                .contains("fontColor"));
 
         node.textField.styleName = "missing-field";
         HudValidationResult invalid = new HudDocumentValidator().validate(

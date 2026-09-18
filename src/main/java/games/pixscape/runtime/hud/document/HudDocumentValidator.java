@@ -284,7 +284,8 @@ public final class HudDocumentValidator {
             }
             if (resources != null && !resources.hasTextFieldStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "TEXT_FIELD references unknown Skin style '" + styleName + "'.",
+                        "TEXT_FIELD Skin style '" + styleName
+                                + "' is missing or unusable; font and fontColor are required.",
                         usableId(node), path);
             }
         }

@@ -114,7 +114,13 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     @Override public boolean hasBuiltInImageButtonStyle() { return builtInImageButtonStyle() != null; }
     @Override public boolean hasTextFieldStyle(String name) {
         TextField.TextFieldStyle style = textFieldStyle(name);
-        return style != null && style.font != null;
+        return isUsableTextFieldStyle(style);
     }
-    @Override public boolean hasBuiltInTextFieldStyle() { return builtInTextFieldStyle() != null; }
+    @Override public boolean hasBuiltInTextFieldStyle() {
+        return isUsableTextFieldStyle(builtInTextFieldStyle());
+    }
+
+    private static boolean isUsableTextFieldStyle(TextField.TextFieldStyle style) {
+        return style != null && style.font != null && style.fontColor != null;
+    }
 }
