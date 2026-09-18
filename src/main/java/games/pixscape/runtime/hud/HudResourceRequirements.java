@@ -1,7 +1,8 @@
 package games.pixscape.runtime.hud;
 
-import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudImageData;
+import games.pixscape.runtime.hud.document.HudImageReferences;
+import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -38,6 +39,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInLabelStyle = false;
         boolean requiresBuiltInTextButtonStyle = false;
         boolean requiresBuiltInImageButtonStyle = false;
+        SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
             if (kind == HudNodeKind.LABEL) {
@@ -57,7 +59,6 @@ public final class HudResourceRequirements {
                 }
             } else if (kind == HudNodeKind.IMAGE) {
                 requiresAtlas = true;
-                if (node.image.source == HudImageSource.DRAWABLE) requiresSkin = true;
             } else if (kind == HudNodeKind.IMAGE_BUTTON) {
                 requiresAtlas = true;
                 if (HudBuiltInImageButtonStyle.isSelected(node.imageButton.styleName)) {
@@ -65,15 +66,10 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
-                requiresSkin |= requiresSkin(node.imageButton.imageUp);
-                requiresSkin |= requiresSkin(node.imageButton.imageDown);
-                requiresSkin |= requiresSkin(node.imageButton.imageOver);
-                requiresSkin |= requiresSkin(node.imageButton.imageDisabled);
-                requiresSkin |= requiresSkin(node.imageButton.imageChecked);
-                requiresSkin |= requiresSkin(node.imageButton.imageCheckedDown);
-                requiresSkin |= requiresSkin(node.imageButton.imageCheckedOver);
             }
+            HudImageReferences.visit(node, imageRequirements);
         }
+        requiresSkin |= imageRequirements.requiresSkin;
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
                 requiresBuiltInImageButtonStyle);
@@ -99,7 +95,12 @@ public final class HudResourceRequirements {
         return builtInImageButtonStyle;
     }
 
-    private static boolean requiresSkin(HudImageData image) {
-        return image != null && image.source == HudImageSource.DRAWABLE;
+    private static final class SkinRequirementVisitor implements HudImageReferences.Visitor {
+        boolean requiresSkin;
+
+        @Override
+        public void visit(HudNode node, String fieldPath, HudImageData image) {
+            if (image.source == HudImageSource.DRAWABLE) requiresSkin = true;
+        }
     }
 }

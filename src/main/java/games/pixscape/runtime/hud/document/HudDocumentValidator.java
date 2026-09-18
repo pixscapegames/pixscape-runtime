@@ -165,7 +165,7 @@ public final class HudDocumentValidator {
             }
 
             if (node.kind == HudNodeKind.IMAGE && node.image != null) {
-                validateImage(node, path);
+                validateImages(node, path);
             } else if (node.kind == HudNodeKind.LABEL && node.label != null) {
                 validateLabel(node, path);
             } else if (node.kind == HudNodeKind.TEXT_BUTTON && node.textButton != null) {
@@ -175,18 +175,32 @@ public final class HudDocumentValidator {
             }
         }
 
-        private void validateImage(HudNode node, String path) {
-            HudImageData image = node.image;
+        private void validateImages(final HudNode node, final String path) {
+            HudImageReferences.visit(node, new HudImageReferences.Visitor() {
+                @Override
+                public void visit(HudNode ignored, String fieldPath, HudImageData image) {
+                    validateImage(node, image, fieldPath, path);
+                }
+            });
+        }
+
+        private void validateImage(HudNode node, HudImageData image, String fieldPath,
+                                   String path) {
+            String imagePath = path + "." + fieldPath;
+            String field = fieldPath.substring(fieldPath.lastIndexOf('.') + 1);
+            String subject = node.kind == HudNodeKind.IMAGE
+                    ? "IMAGE"
+                    : "IMAGE_BUTTON " + field;
             if (image.source == null) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
-                        "IMAGE source must be REGION or DRAWABLE.", usableId(node),
-                        path + ".image.source");
+                        subject + " source must be REGION or DRAWABLE.", usableId(node),
+                        imagePath + ".source");
                 return;
             }
             if (!isNonBlank(image.resourceName)) {
                 add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
-                        "IMAGE requires a nonblank logical resource name.", usableId(node),
-                        path + ".image.resourceName");
+                        subject + " requires a nonblank logical resource name.", usableId(node),
+                        imagePath + ".resourceName");
                 return;
             }
             if (resources == null) return;
@@ -196,9 +210,9 @@ public final class HudDocumentValidator {
                     : resources.hasDrawable(image.resourceName);
             if (!known) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "IMAGE references unknown " + image.source + " resource '"
+                        subject + " references unknown " + image.source + " resource '"
                                 + image.resourceName + "'.",
-                        usableId(node), path + ".image.resourceName");
+                        usableId(node), imagePath + ".resourceName");
             }
         }
 
@@ -223,13 +237,7 @@ public final class HudDocumentValidator {
 
         private void validateImageButton(HudNode node, String path) {
             validateImageButtonStyle(node, node.imageButton.styleName, path + ".imageButton.styleName");
-            validateOptionalImage(node, node.imageButton.imageUp, "imageUp", path);
-            validateOptionalImage(node, node.imageButton.imageDown, "imageDown", path);
-            validateOptionalImage(node, node.imageButton.imageOver, "imageOver", path);
-            validateOptionalImage(node, node.imageButton.imageDisabled, "imageDisabled", path);
-            validateOptionalImage(node, node.imageButton.imageChecked, "imageChecked", path);
-            validateOptionalImage(node, node.imageButton.imageCheckedDown, "imageCheckedDown", path);
-            validateOptionalImage(node, node.imageButton.imageCheckedOver, "imageCheckedOver", path);
+            validateImages(node, path);
         }
 
         private void validateImageButtonStyle(HudNode node, String styleName, String path) {
@@ -245,33 +253,6 @@ public final class HudDocumentValidator {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "IMAGE_BUTTON references unknown Skin style '" + styleName + "'.",
                         usableId(node), path);
-            }
-        }
-
-        private void validateOptionalImage(HudNode node, HudImageData image, String field, String path) {
-            if (image == null) return;
-            String imagePath = path + ".imageButton." + field;
-            if (image.source == null) {
-                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
-                        "IMAGE_BUTTON " + field + " source must be REGION or DRAWABLE.",
-                        usableId(node), imagePath + ".source");
-                return;
-            }
-            if (!isNonBlank(image.resourceName)) {
-                add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
-                        "IMAGE_BUTTON " + field + " requires a nonblank logical resource name.",
-                        usableId(node), imagePath + ".resourceName");
-                return;
-            }
-            if (resources == null) return;
-            boolean known = image.source == HudImageSource.REGION
-                    ? resources.hasRegion(image.resourceName)
-                    : resources.hasDrawable(image.resourceName);
-            if (!known) {
-                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "IMAGE_BUTTON " + field + " references unknown " + image.source
-                                + " resource '" + image.resourceName + "'.",
-                        usableId(node), imagePath + ".resourceName");
             }
         }
 
