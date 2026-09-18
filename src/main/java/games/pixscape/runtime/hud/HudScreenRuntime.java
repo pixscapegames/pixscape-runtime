@@ -93,11 +93,6 @@ public final class HudScreenRuntime implements Disposable {
         return inputProcessor;
     }
 
-    /** Returns whether the active HUD Stage currently owns any touch focus. */
-    public boolean isPointerCaptured() {
-        return active != null && active.session().hasTouchFocus();
-    }
-
     public void act(float delta) {
         ActiveHudScreen current = active;
         if (current != null) current.act(delta);

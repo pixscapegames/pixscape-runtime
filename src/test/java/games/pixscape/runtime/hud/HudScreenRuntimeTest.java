@@ -1,5 +1,6 @@
 package games.pixscape.runtime.hud;
 
+import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
@@ -10,18 +11,25 @@ import com.badlogic.gdx.Files;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.CircleShape;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
-import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import games.pixscape.runtime.api.EntityRef;
+import games.pixscape.runtime.api.PhysicsAPI;
 import games.pixscape.runtime.hud.document.HudDocumentLoadCode;
 import games.pixscape.runtime.hud.document.HudDocumentLoadException;
 import games.pixscape.runtime.hud.document.HudValidationIssue;
 import games.pixscape.runtime.hud.document.HudValidationIssueCode;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,6 +64,7 @@ public class HudScreenRuntimeTest {
     private GL30 previousGl30;
     private Graphics previousGraphics;
     private Files previousFiles;
+    private com.badlogic.gdx.Input previousInput;
     private ShaderProgram shader;
     private int deletedTextures;
     private int drawCalls;
@@ -77,6 +86,7 @@ public class HudScreenRuntimeTest {
         previousGl30 = Gdx.gl30;
         previousGraphics = Gdx.graphics;
         previousFiles = Gdx.files;
+        previousInput = Gdx.input;
         Gdx.app = (Application) Proxy.newProxyInstance(
                 Application.class.getClassLoader(), new Class<?>[]{Application.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
@@ -98,6 +108,7 @@ public class HudScreenRuntimeTest {
         Gdx.files = (Files) Proxy.newProxyInstance(
                 Files.class.getClassLoader(), new Class<?>[]{Files.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.input = null;
         TextureRegistry.clear();
         InternalTextures.dispose();
         shader = shader();
@@ -114,6 +125,7 @@ public class HudScreenRuntimeTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+        Gdx.input = previousInput;
     }
 
     @Test
@@ -598,7 +610,7 @@ public class HudScreenRuntimeTest {
     }
 
     @Test
-    public void activeHudInputConsumesButtonGestureBeforeWorldInput() throws Exception {
+    public void activeHudInputConsumesButtonGestureAndWorksWithoutOptionalWorldInput() throws Exception {
         FileHandle root = project();
         writeScreen(root, "game", "hud/game.json");
         copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
@@ -617,68 +629,133 @@ public class HudScreenRuntimeTest {
 
             Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
             Assert.assertTrue(button.getClickListener().isPressed());
-            Assert.assertTrue(runtime.isPointerCaptured());
             Assert.assertEquals(0, worldTouches[0]);
             input.touchDragged(10, 10, 0);
             input.touchUp(10, 10, 0, Input.Buttons.LEFT);
             Assert.assertFalse(button.getClickListener().isPressed());
-            Assert.assertFalse(runtime.isPointerCaptured());
 
             Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
-            Assert.assertTrue(runtime.isPointerCaptured());
             input.touchCancelled(272, 156, 0, Input.Buttons.LEFT);
             Assert.assertFalse(button.getClickListener().isPressed());
-            Assert.assertFalse(runtime.isPointerCaptured());
 
             Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
             runtime.hide();
-            Assert.assertFalse(runtime.isPointerCaptured());
             Assert.assertFalse(runtime.inputProcessor().touchDown(
                     272, 156, 0, Input.Buttons.LEFT));
+            Assert.assertTrue(input.touchDown(10, 10, 0, Input.Buttons.LEFT));
+            Assert.assertEquals(1, worldTouches[0]);
         } finally {
             runtime.dispose();
         }
     }
 
     @Test
-    public void pointerCaptureReflectsNativeButtonAndMultiPointerTouchFocus() throws Exception {
+    public void hudGestureAbovePhysicsNeverArmsWorldDrag() throws Exception {
         FileHandle root = project();
         writeScreen(root, "game", "hud/game.json");
         copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        DragHarness drag = new DragHarness();
         try {
             ActiveHudScreen active = runtime.show("game");
             runtime.resize(320, 180);
-            TextButton first = (TextButton) active.materializedHud().actor("smoke-button");
-            TextButton second = new TextButton("Second", first.getStyle());
-            second.setPosition(16f, 16f);
-            ((Group) active.materializedHud().root()).addActor(second);
-            Stage stage = active.session().stage();
-            int[] firstPoint = screenCenter(stage, first);
-            int[] secondPoint = screenCenter(stage, second);
+            TextButton button = (TextButton) active.materializedHud().actor("smoke-button");
+            drag.addDynamicBodyAtScreen(272, 156);
+            InputMultiplexer input = new InputMultiplexer(
+                    runtime.inputProcessor(), drag.system.inputProcessor());
 
-            Assert.assertTrue(runtime.inputProcessor().touchDown(
-                    firstPoint[0], firstPoint[1], 0, Input.Buttons.LEFT));
-            Assert.assertTrue(runtime.isPointerCaptured());
-            Assert.assertFalse(runtime.inputProcessor().touchUp(
-                    firstPoint[0], firstPoint[1], 0, Input.Buttons.RIGHT));
-            Assert.assertTrue(runtime.isPointerCaptured());
+            Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
+            drag.process();
+            Assert.assertTrue(button.getClickListener().isPressed());
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+            input.touchUp(272, 156, 0, Input.Buttons.LEFT);
+            Assert.assertTrue(button.isChecked());
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
 
-            Assert.assertTrue(runtime.inputProcessor().touchDown(
-                    secondPoint[0], secondPoint[1], 1, Input.Buttons.LEFT));
-            Assert.assertTrue(runtime.inputProcessor().touchUp(
-                    secondPoint[0], secondPoint[1], 1, Input.Buttons.LEFT));
-            Assert.assertTrue(runtime.isPointerCaptured());
-            Assert.assertTrue(runtime.inputProcessor().touchUp(
-                    0, 0, 0, Input.Buttons.LEFT));
-            Assert.assertFalse(runtime.isPointerCaptured());
-
-            Assert.assertTrue(runtime.inputProcessor().touchDown(
-                    firstPoint[0], firstPoint[1], 0, Input.Buttons.LEFT));
-            runtime.show("game");
-            Assert.assertFalse(runtime.isPointerCaptured());
+            Assert.assertTrue(input.touchDown(272, 156, 0, Input.Buttons.LEFT));
+            input.touchDragged(40, 40, 0);
+            drag.process();
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+            input.touchUp(40, 40, 0, Input.Buttons.LEFT);
+            Assert.assertFalse(button.getClickListener().isPressed());
         } finally {
+            drag.dispose();
             runtime.dispose();
+        }
+    }
+
+    @Test
+    public void routedWorldDragReleasesOverHudAndHonorsButtonAndCancellation() throws Exception {
+        FileHandle root = project();
+        writeScreen(root, "game", "hud/game.json");
+        copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        DragHarness drag = new DragHarness();
+        try {
+            runtime.show("game");
+            runtime.resize(320, 180);
+            drag.addDynamicBodyAtScreen(40, 40);
+            InputMultiplexer input = new InputMultiplexer(
+                    runtime.inputProcessor(), drag.system.inputProcessor());
+
+            Assert.assertFalse(input.touchDown(40, 40, 0, Input.Buttons.LEFT));
+            drag.process();
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+            input.touchDragged(272, 156, 0);
+            drag.process();
+            Assert.assertTrue(input.touchUp(272, 156, 0, Input.Buttons.LEFT));
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+
+            input.touchDown(40, 40, 0, Input.Buttons.LEFT);
+            drag.process();
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+            Assert.assertFalse(input.touchUp(40, 40, 0, Input.Buttons.RIGHT));
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+            Assert.assertTrue(input.touchCancelled(40, 40, 0, Input.Buttons.LEFT));
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+
+            input.touchDown(40, 40, 0, Input.Buttons.LEFT);
+            drag.process();
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+            input.touchDown(10, 10, 1, Input.Buttons.LEFT);
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+            drag.process();
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+        } finally {
+            drag.dispose();
+            runtime.dispose();
+        }
+    }
+
+    @Test
+    public void worldReplacementAndDisableDiscardAcceptedGestureUntilNewTouchDown() {
+        DragHarness drag = new DragHarness();
+        try {
+            drag.addDynamicBodyAtScreen(40, 40);
+            drag.system.inputProcessor().mouseMoved(40, 40);
+            drag.process();
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+            drag.system.inputProcessor().touchDown(40, 40, 0, Input.Buttons.LEFT);
+            drag.process();
+            com.badlogic.gdx.physics.box2d.World previous = drag.physicsWorld;
+            Assert.assertEquals(1, previous.getJointCount());
+
+            drag.replacePhysicsWorld();
+            drag.process();
+            Assert.assertEquals(0, previous.getJointCount());
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+
+            drag.addDynamicBodyAtScreen(40, 40);
+            drag.system.inputProcessor().touchDown(40, 40, 0, Input.Buttons.LEFT);
+            drag.process();
+            Assert.assertEquals(1, drag.physicsWorld.getJointCount());
+            drag.system.setInputEnabled(false);
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+            drag.system.setInputEnabled(true);
+            drag.process();
+            Assert.assertEquals(0, drag.physicsWorld.getJointCount());
+        } finally {
+            drag.dispose();
         }
     }
 
@@ -792,13 +869,6 @@ public class HudScreenRuntimeTest {
                 .readString("UTF-8"), false, "UTF-8");
     }
 
-    private static int[] screenCenter(Stage stage, Actor actor) {
-        Vector2 point = actor.localToStageCoordinates(
-                new Vector2(actor.getWidth() * 0.5f, actor.getHeight() * 0.5f));
-        stage.stageToScreenCoordinates(point);
-        return new int[] {Math.round(point.x), Math.round(point.y)};
-    }
-
     private static String missingRegionDocument() {
         return "{\"schemaVersion\":1,\"root\":{\"id\":\"missing\","
                 + "\"kind\":\"IMAGE\",\"image\":{\"source\":\"REGION\","
@@ -875,6 +945,76 @@ public class HudScreenRuntimeTest {
         if (type == double.class) return 0d;
         if (type == char.class) return '\0';
         return null;
+    }
+
+    private static final class DragHarness implements Disposable {
+        private final OrthographicCamera camera = new OrthographicCamera();
+        private final MutablePhysicsApi physics = new MutablePhysicsApi();
+        private final PhysicsMouseDragSystem system;
+        private final com.artemis.World ecsWorld;
+        private com.badlogic.gdx.physics.box2d.World physicsWorld;
+        private com.badlogic.gdx.physics.box2d.World retiredPhysicsWorld;
+
+        private DragHarness() {
+            camera.setToOrtho(false, 320f, 180f);
+            physicsWorld = new com.badlogic.gdx.physics.box2d.World(new Vector2(), true);
+            physics.world = physicsWorld;
+            system = new PhysicsMouseDragSystem(camera, physics);
+            system.setGrabRadiusMeters(1f);
+            ecsWorld = new com.artemis.World(
+                    new WorldConfigurationBuilder().with(system).build());
+            process();
+        }
+
+        private void addDynamicBodyAtScreen(int screenX, int screenY) {
+            Vector3 worldPoint = camera.unproject(
+                    new Vector3(screenX, screenY, 0f), 0, 0, 320, 180);
+            BodyDef definition = new BodyDef();
+            definition.type = BodyDef.BodyType.DynamicBody;
+            definition.position.set(worldPoint.x, worldPoint.y);
+            Body body = physicsWorld.createBody(definition);
+            CircleShape shape = new CircleShape();
+            try {
+                shape.setRadius(6f);
+                body.createFixture(shape, 1f);
+            } finally {
+                shape.dispose();
+            }
+        }
+
+        private void replacePhysicsWorld() {
+            retiredPhysicsWorld = physicsWorld;
+            physicsWorld = new com.badlogic.gdx.physics.box2d.World(new Vector2(), true);
+            physics.world = physicsWorld;
+        }
+
+        private void process() {
+            ecsWorld.process();
+        }
+
+        @Override
+        public void dispose() {
+            ecsWorld.dispose();
+            physicsWorld.dispose();
+            if (retiredPhysicsWorld != null) retiredPhysicsWorld.dispose();
+        }
+    }
+
+    private static final class MutablePhysicsApi implements PhysicsAPI {
+        private com.badlogic.gdx.physics.box2d.World world;
+
+        @Override public boolean isRunning() { return true; }
+        @Override public float pixelsPerMeter() { return 1f; }
+        @Override public float parallaxX() { return 1f; }
+        @Override public float parallaxY() { return 1f; }
+        @Override public com.badlogic.gdx.physics.box2d.World box2dWorld() { return world; }
+        @Override public Body body(EntityRef entity) { return null; }
+
+        @Override
+        public Vector2 removeParallax(
+                Vector2 renderedWorldPosition, OrthographicCamera camera, Vector2 out) {
+            return out.set(renderedWorldPosition);
+        }
     }
 
     private static final class CountingActor extends Actor {

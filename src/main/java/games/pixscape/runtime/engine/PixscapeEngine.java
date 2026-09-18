@@ -700,11 +700,6 @@ public final class PixscapeEngine {
         return hudScreenRuntime.inputProcessor();
     }
 
-    /** Returns whether the active HUD currently owns a pointer gesture. */
-    public boolean isHudPointerCaptured() {
-        return hudScreenRuntime != null && hudScreenRuntime.isPointerCaptured();
-    }
-
     /**
      * Disposes world and runtime resources; the instance must be reinitialized afterwards.
      */

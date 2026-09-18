@@ -3,7 +3,6 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.HudTouchFocusStage;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Disposable;
@@ -26,7 +25,7 @@ public final class HudSession implements Disposable {
     private HudResources resources;
     private Viewport viewport;
     private HudBatch hudBatch;
-    private HudTouchFocusStage stage;
+    private Stage stage;
     private MaterializedHud content;
     private boolean disposed;
 
@@ -44,7 +43,7 @@ public final class HudSession implements Disposable {
         hudBatch = new HudBatch(
                 HudBatch.DEFAULT_CAPACITY, hudShader, resources.textureArrayBundle());
         try {
-            stage = new HudTouchFocusStage(viewport, hudBatch);
+            stage = new Stage(viewport, hudBatch);
             if (Gdx.graphics != null
                     && Gdx.graphics.getWidth() > 0 && Gdx.graphics.getHeight() > 0) {
                 viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
@@ -123,12 +122,6 @@ public final class HudSession implements Disposable {
     Stage stage() {
         requireUsable();
         return stage;
-    }
-
-    /** Whether the native Stage currently owns at least one pointer/button touch focus. */
-    boolean hasTouchFocus() {
-        requireUsable();
-        return stage.hasTouchFocus();
     }
 
     /** Package-private borrowed Viewport; valid only while this session is usable. */
