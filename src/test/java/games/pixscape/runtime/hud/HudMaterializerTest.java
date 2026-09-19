@@ -714,6 +714,24 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void textraPreparationUsesUnscaledPaddingForTheWhiteGlyph() {
+        assertPreparedWhiteGlyph(1f, false);
+        assertPreparedWhiteGlyph(2f, false);
+        assertPreparedWhiteGlyph(0.5f, false);
+        assertPreparedWhiteGlyph(2f, true);
+    }
+
+    @Test
+    public void textraLabelPreservesEnabledIntegerPositionsInItsNativeFontCopy() {
+        assertTextraLabelIntegerPositions(true);
+    }
+
+    @Test
+    public void textraLabelPreservesDisabledIntegerPositionsInItsNativeFontCopy() {
+        assertTextraLabelIntegerPositions(false);
+    }
+
+    @Test
     public void disabledTextraTypingRevealsTextWithoutDiscardingEffects() {
         HudNode node = textraLabel("textra", false);
         node.textraLabel.text = "{WAVE}Text{ENDWAVE}{EVENT=ignored}";
@@ -918,6 +936,92 @@ public class HudMaterializerTest {
         node.textraLabel.text = "Text";
         node.textraLabel.typingEnabled = typingEnabled;
         return node;
+    }
+
+    private void assertPreparedWhiteGlyph(float scale, boolean existingBlock) {
+        BitmapFont source = selectedResources.builtInLabelStyle().font;
+        BitmapFont.BitmapFontData data = source.getData();
+        BitmapFont.Glyph previousBlock = data.getGlyph('\u2588');
+        float previousScaleX = data.scaleX;
+        float previousScaleY = data.scaleY;
+        float previousPadLeft = data.padLeft;
+        float previousPadTop = data.padTop;
+        float previousPadRight = data.padRight;
+        float previousPadBottom = data.padBottom;
+        boolean previousIntegerPositions = source.usesIntegerPositions();
+        Font prepared = null;
+        try {
+            data.setScale(1f);
+            data.padLeft = 2f;
+            data.padTop = 3f;
+            data.padRight = 4f;
+            data.padBottom = 5f;
+            data.setScale(scale);
+            BitmapFont.Glyph block = null;
+            if (existingBlock) {
+                block = new BitmapFont.Glyph();
+                block.id = '\u2588';
+                block.page = 0;
+                block.srcX = -2;
+                block.srcY = -3;
+                block.width = 3;
+                block.height = 4;
+                block.xadvance = 1;
+                block.yoffset = -1;
+            }
+            data.setGlyph('\u2588', block);
+
+            float configuredScaleX = data.scaleX;
+            float configuredScaleY = data.scaleY;
+            float configuredPadLeft = data.padLeft;
+            float configuredPadTop = data.padTop;
+            float configuredPadRight = data.padRight;
+            float configuredPadBottom = data.padBottom;
+            int sourceRegionCount = source.getRegions().size;
+            int texturesBefore = generatedTextures;
+            TextureRegion whiteRegion = new TextureRegion(InternalTextures.whiteTexture());
+
+            prepared = HudTextraFontFactory.prepare(source, whiteRegion);
+
+            Assert.assertNull(prepared.whiteBlock);
+            Assert.assertEquals(texturesBefore, generatedTextures);
+            Assert.assertEquals(1, prepared.mapping.get('\u2588').getRegionWidth());
+            Assert.assertSame(existingBlock ? source.getRegion().getTexture()
+                            : whiteRegion.getTexture(),
+                    prepared.mapping.get('\u2588').getTexture());
+            Assert.assertEquals(configuredScaleX, prepared.scaleX, 0f);
+            Assert.assertEquals(configuredScaleY, prepared.scaleY, 0f);
+            Assert.assertEquals(configuredScaleX, data.scaleX, 0f);
+            Assert.assertEquals(configuredScaleY, data.scaleY, 0f);
+            Assert.assertEquals(configuredPadLeft, data.padLeft, 0f);
+            Assert.assertEquals(configuredPadTop, data.padTop, 0f);
+            Assert.assertEquals(configuredPadRight, data.padRight, 0f);
+            Assert.assertEquals(configuredPadBottom, data.padBottom, 0f);
+            Assert.assertEquals(previousIntegerPositions, source.usesIntegerPositions());
+            Assert.assertSame(block, data.getGlyph('\u2588'));
+            Assert.assertEquals(sourceRegionCount, source.getRegions().size);
+        } finally {
+            if (prepared != null) prepared.dispose();
+            data.setGlyph('\u2588', previousBlock);
+            data.setScale(previousScaleX, previousScaleY);
+            data.padLeft = previousPadLeft;
+            data.padTop = previousPadTop;
+            data.padRight = previousPadRight;
+            data.padBottom = previousPadBottom;
+        }
+    }
+
+    private void assertTextraLabelIntegerPositions(boolean enabled) {
+        BitmapFont source = selectedResources.builtInLabelStyle().font;
+        source.setUseIntegerPositions(enabled);
+
+        MaterializedHud hud = materialize(new HudDocumentV1(textraLabel("textra", true)));
+        TypingLabel label = (TypingLabel) hud.root();
+        Font prepared = selectedResources.textraFont(source);
+
+        Assert.assertEquals(enabled, prepared.integerPosition);
+        Assert.assertEquals(enabled, label.getFont().integerPosition);
+        hud.dispose();
     }
 
     private ValidatedHudDocument validated(String fixture) {

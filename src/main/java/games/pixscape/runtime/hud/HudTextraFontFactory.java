@@ -23,19 +23,22 @@ public final class HudTextraFontFactory {
 
         BitmapFont.BitmapFontData sourceData = source.getData();
         BitmapFont.Glyph existingBlock = sourceData.getGlyph(SOLID_BLOCK);
+        float unscaledPadLeft = sourceData.padLeft / sourceData.scaleX;
+        float unscaledPadTop = sourceData.padTop / sourceData.scaleY;
 
         BitmapFont.BitmapFontData isolatedData = copyData(sourceData);
         Array<TextureRegion> isolatedRegions = new Array<TextureRegion>(source.getRegions());
-        if (existingBlock == null || existingBlock.width != 1) {
+        if (existingBlock == null
+                || Math.round(existingBlock.width - unscaledPadLeft) != 1) {
             int whitePage = isolatedRegions.size;
             isolatedRegions.add(whiteRegion);
             BitmapFont.Glyph block = new BitmapFont.Glyph();
             block.id = SOLID_BLOCK;
             block.page = whitePage;
-            block.srcX = -(int) isolatedData.padLeft;
-            block.srcY = -(int) isolatedData.padTop;
-            block.width = 1 + (int) isolatedData.padLeft;
-            block.height = 1 + (int) isolatedData.padTop;
+            block.srcX = -Math.round(unscaledPadLeft);
+            block.srcY = -Math.round(unscaledPadTop);
+            block.width = Math.round(1f + unscaledPadLeft);
+            block.height = Math.round(1f + unscaledPadTop);
             block.xadvance = 1;
             block.yoffset = -1;
             isolatedData.setGlyph(SOLID_BLOCK, block);
@@ -43,6 +46,7 @@ public final class HudTextraFontFactory {
 
         BitmapFont projection = new BitmapFont(isolatedData, isolatedRegions, false);
         projection.setOwnsTexture(false);
+        projection.setUseIntegerPositions(source.usesIntegerPositions());
         try {
             Font prepared = new Font(projection);
             if (prepared.whiteBlock != null) {
