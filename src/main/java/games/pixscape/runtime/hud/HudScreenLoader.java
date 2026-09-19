@@ -56,6 +56,7 @@ public final class HudScreenLoader {
 
         HudResources resources = environment;
         HudSession session = null;
+        MaterializedHud hud = null;
         try {
             if (ownership == ActiveHudScreen.ResourceOwnership.OWNED) {
                 resources = HudResources.prepareStandalone(asset, runtimeProjectDir, requirements);
@@ -76,7 +77,7 @@ public final class HudScreenLoader {
             HudValidationResult resourceAware = validator.validate(document, selected);
             requireValid(HudDocumentValidationException.Phase.RESOURCE_AWARE,
                     documentId, resourceAware);
-            MaterializedHud hud = materializer.materialize(
+            hud = materializer.materialize(
                     resourceAware.validatedDocument(), selected);
             session = HudSession.create(asset, resources, hudShader);
             session.install(hud);
@@ -88,6 +89,13 @@ public final class HudScreenLoader {
                     session.dispose();
                 } catch (RuntimeException disposalFailure) {
                     cleanupFailure = disposalFailure;
+                }
+            }
+            if (hud != null) {
+                try {
+                    hud.dispose();
+                } catch (RuntimeException disposalFailure) {
+                    if (cleanupFailure == null) cleanupFailure = disposalFailure;
                 }
             }
             if (ownership == ActiveHudScreen.ResourceOwnership.OWNED && resources != null) {

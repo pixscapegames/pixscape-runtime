@@ -36,6 +36,8 @@ public class HudResourceRequirementsTest {
                 + "\"resourceName\":\"panel\"},\"children\":[]"), true, true);
         assertRequirements(node("label", "LABEL", "\"label\":{\"text\":\"Title\","
                 + "\"styleName\":\"title\"},\"children\":[]"), true, true);
+        assertRequirements(node("textra", "TEXTRA_LABEL", "\"textraLabel\":{\"text\":\"Title\","
+                + "\"styleName\":\"title\",\"typingEnabled\":true},\"children\":[]"), true, true);
         assertRequirements(node("button", "TEXT_BUTTON", "\"textButton\":{\"text\":\"Go\","
                 + "\"styleName\":\"primary\"},\"children\":[]"), true, true);
         assertRequirements(node("button", "IMAGE_BUTTON", "\"imageButton\":{\"styleName\":\"primary\","
@@ -50,6 +52,17 @@ public class HudResourceRequirementsTest {
     public void labelWithoutCustomStyleRequiresBuiltInStyleAndAtlasButNoSkin() {
         HudResourceRequirements requirements = requirements(node("label", "LABEL",
                 "\"label\":{\"text\":\"Label\"},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+    }
+
+    @Test
+    public void textraLabelWithoutCustomStyleRequiresBuiltInLabelResources() {
+        HudResourceRequirements requirements = requirements(node("textra", "TEXTRA_LABEL",
+                "\"textraLabel\":{\"text\":\"Text\",\"typingEnabled\":true},"
+                        + "\"children\":[]"));
 
         Assert.assertFalse(requirements.requiresSkin());
         Assert.assertTrue(requirements.requiresAtlas());
@@ -123,17 +136,21 @@ public class HudResourceRequirementsTest {
                 "\"children\":[]");
         String select = node("select", "SELECT_BOX", "\"selectBox\":{\"items\":[]," +
                 "\"selectedIndex\":-1,\"fontAssetId\":44},\"children\":[]");
+        String textra = node("textra", "TEXTRA_LABEL", "\"textraLabel\":{\"text\":\"Text\"," +
+                "\"fontAssetId\":45,\"typingEnabled\":true},\"children\":[]");
         HudResourceRequirements requirements = requirements(node("root", "GROUP",
                 "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":" + button + "},{" +
                         "\"placementKind\":\"DIRECT\",\"node\":" + check + "},{" +
                         "\"placementKind\":\"DIRECT\",\"node\":" + field + "},{" +
-                        "\"placementKind\":\"DIRECT\",\"node\":" + select + "}]"));
+                        "\"placementKind\":\"DIRECT\",\"node\":" + select + "},{" +
+                        "\"placementKind\":\"DIRECT\",\"node\":" + textra + "}]"));
 
-        Assert.assertEquals(4, requirements.bitmapFontAssetIds().size());
+        Assert.assertEquals(5, requirements.bitmapFontAssetIds().size());
         Assert.assertTrue(requirements.bitmapFontAssetIds().contains(41));
         Assert.assertTrue(requirements.bitmapFontAssetIds().contains(42));
         Assert.assertTrue(requirements.bitmapFontAssetIds().contains(43));
         Assert.assertTrue(requirements.bitmapFontAssetIds().contains(44));
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(45));
     }
 
     private static void assertRequirements(

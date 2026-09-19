@@ -109,9 +109,13 @@ public final class HudSession implements Disposable {
         }
 
         layout(candidate);
-        if (content != null) content.root().remove();
         stage.addActor(candidate);
+        MaterializedHud previous = content;
         content = materializedHud;
+        if (previous != null) {
+            previous.root().remove();
+            previous.dispose();
+        }
     }
 
     public boolean isDisposed() {
@@ -159,6 +163,11 @@ public final class HudSession implements Disposable {
             if (stage != null) stage.dispose();
         } catch (RuntimeException disposalFailure) {
             failure = disposalFailure;
+        }
+        try {
+            if (content != null) content.dispose();
+        } catch (RuntimeException disposalFailure) {
+            if (failure == null) failure = disposalFailure;
         }
         try {
             if (hudBatch != null) hudBatch.dispose();

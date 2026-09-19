@@ -103,6 +103,27 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void textraLabelRoundTripPreservesAuthoredBitmapStateOnly() {
+        HudNode label = new HudNode("dialogue", HudNodeKind.TEXTRA_LABEL);
+        label.textraLabel = new HudTextraLabelData();
+        label.textraLabel.text = "{WAVE}Hello{ENDWAVE}";
+        label.textraLabel.styleName = "dialogue";
+        label.textraLabel.fontAssetId = 75;
+        label.textraLabel.typingEnabled = true;
+
+        String serialized = codec.write(new HudDocumentV1(label));
+        HudNode restored = codec.read(serialized).root;
+
+        Assert.assertEquals(HudNodeKind.TEXTRA_LABEL, restored.kind);
+        Assert.assertEquals("{WAVE}Hello{ENDWAVE}", restored.textraLabel.text);
+        Assert.assertEquals("dialogue", restored.textraLabel.styleName);
+        Assert.assertEquals(Integer.valueOf(75), restored.textraLabel.fontAssetId);
+        Assert.assertTrue(restored.textraLabel.typingEnabled);
+        Assert.assertFalse(serialized.contains("progress"));
+        Assert.assertFalse(serialized.contains("elapsed"));
+    }
+
+    @Test
     public void nativeTextWidgetRoundTripPreservesBitmapFontOverrides() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);

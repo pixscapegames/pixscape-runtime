@@ -8,6 +8,7 @@ public enum HudNodeKind {
     CONTAINER,
     IMAGE,
     LABEL,
+    TEXTRA_LABEL,
     TEXT_BUTTON,
     IMAGE_BUTTON,
     TEXT_FIELD,

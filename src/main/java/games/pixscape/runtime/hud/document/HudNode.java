@@ -13,6 +13,8 @@ public final class HudNode {
     public HudImageData image;
     /** Present only for {@link HudNodeKind#LABEL}. */
     public HudLabelData label;
+    /** Present only for {@link HudNodeKind#TEXTRA_LABEL}. */
+    public HudTextraLabelData textraLabel;
     /** Present only for {@link HudNodeKind#TEXT_BUTTON}. */
     public HudTextButtonData textButton;
     /** Present only for {@link HudNodeKind#IMAGE_BUTTON}. */

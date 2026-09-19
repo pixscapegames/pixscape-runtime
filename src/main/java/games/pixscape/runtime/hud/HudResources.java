@@ -19,11 +19,14 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.github.tommyettinger.textra.Font;
+import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
@@ -38,6 +41,7 @@ public final class HudResources implements Disposable {
     private final Map<String, Skin> skins;
     private final Map<String, TextureRegion> regions;
     private final Map<Integer, BitmapFont> bitmapFonts;
+    private final Map<BitmapFont, Font> textraFonts = new IdentityHashMap<BitmapFont, Font>();
     private final String atlasId;
     private final HudTextureProfile textureProfile;
     private BitmapFont builtInLabelFont;
@@ -393,6 +397,18 @@ public final class HudResources implements Disposable {
         return bitmapFonts.get(assetId);
     }
 
+    Font sharedTextraFont(BitmapFont bitmapFont) {
+        requireOpen();
+        if (bitmapFont == null) return null;
+        Font prepared = textraFonts.get(bitmapFont);
+        if (prepared == null) {
+            prepared = HudTextraFontFactory.prepare(bitmapFont,
+                    new TextureRegion(InternalTextures.whiteTexture()));
+            textraFonts.put(bitmapFont, prepared);
+        }
+        return prepared;
+    }
+
     boolean hasBitmapFonts(Set<Integer> assetIds) {
         requireOpen();
         return bitmapFonts.keySet().containsAll(assetIds);
@@ -517,6 +533,14 @@ public final class HudResources implements Disposable {
         if (disposed) return;
         disposed = true;
         RuntimeException failure = null;
+        for (Font font : textraFonts.values()) {
+            try {
+                font.dispose();
+            } catch (RuntimeException disposalFailure) {
+                if (failure == null) failure = disposalFailure;
+            }
+        }
+        textraFonts.clear();
         for (Skin skin : skins.values()) {
             try {
                 skin.dispose();

@@ -149,6 +149,9 @@ public final class HudDocumentValidator {
                 case LABEL:
                     validPayload = node.label != null && payloadCount == 1;
                     break;
+                case TEXTRA_LABEL:
+                    validPayload = node.textraLabel != null && payloadCount == 1;
+                    break;
                 case TEXT_BUTTON:
                     validPayload = node.textButton != null && payloadCount == 1;
                     break;
@@ -178,6 +181,8 @@ public final class HudDocumentValidator {
                 validateImages(node, path);
             } else if (node.kind == HudNodeKind.LABEL && node.label != null) {
                 validateLabel(node, path);
+            } else if (node.kind == HudNodeKind.TEXTRA_LABEL && node.textraLabel != null) {
+                validateTextraLabel(node, path);
             } else if (node.kind == HudNodeKind.TEXT_BUTTON && node.textButton != null) {
                 validateTextButton(node, path);
             } else if (node.kind == HudNodeKind.IMAGE_BUTTON && node.imageButton != null) {
@@ -242,6 +247,18 @@ public final class HudDocumentValidator {
                     path + ".label.fontAssetId");
             validateLabelStyle(node, node.label.styleName, fontAssetId != null,
                     path + ".label.styleName");
+        }
+
+        private void validateTextraLabel(HudNode node, String path) {
+            if (node.textraLabel.text == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "TEXTRA_LABEL text must not be null; an empty string is allowed.",
+                        usableId(node), path + ".textraLabel.text");
+            }
+            Integer fontAssetId = validateFontAsset(node, node.textraLabel.fontAssetId,
+                    path + ".textraLabel.fontAssetId");
+            validateLabelStyle(node, node.textraLabel.styleName, fontAssetId != null,
+                    path + ".textraLabel.styleName");
         }
 
         private void validateTextButton(HudNode node, String path) {
@@ -422,24 +439,24 @@ public final class HudDocumentValidator {
             if (HudBuiltInLabelStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInLabelStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                            "LABEL requires the built-in Default style, but it is unavailable.",
+                            node.kind + " requires the built-in Default style, but it is unavailable.",
                             usableId(node), path);
                 }
                 return;
             }
             if (!isNonBlank(styleName)) {
                 add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
-                        "LABEL requires a nonblank Skin style name.", usableId(node), path);
+                        node.kind + " requires a nonblank Skin style name.", usableId(node), path);
                 return;
             }
             if (resources == null) return;
             if (!resources.hasLabelStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "LABEL references unknown Skin style '" + styleName + "'.",
+                        node.kind + " references unknown Skin style '" + styleName + "'.",
                         usableId(node), path);
             } else if (!hasFontOverride && !resources.hasLabelStyleFont(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "LABEL Skin style '" + styleName + "' has no usable font.",
+                        node.kind + " Skin style '" + styleName + "' has no usable font.",
                         usableId(node), path);
             }
         }
@@ -623,6 +640,7 @@ public final class HudDocumentValidator {
             if (node.container != null) count++;
             if (node.image != null) count++;
             if (node.label != null) count++;
+            if (node.textraLabel != null) count++;
             if (node.textButton != null) count++;
             if (node.imageButton != null) count++;
             if (node.textField != null) count++;
@@ -633,6 +651,7 @@ public final class HudDocumentValidator {
 
         private static boolean isLeaf(HudNodeKind kind) {
             return kind == HudNodeKind.IMAGE || kind == HudNodeKind.LABEL
+                    || kind == HudNodeKind.TEXTRA_LABEL
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
                     || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
                     || kind == HudNodeKind.CHECK_BOX;

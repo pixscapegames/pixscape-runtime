@@ -485,6 +485,27 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void textraLabelUsesLabelStyleAndFontOverrideContracts() {
+        HudNode label = nodeWithExpectedPayload("textra", HudNodeKind.TEXTRA_LABEL);
+        label.textraLabel.styleName = "fontless";
+        label.textraLabel.fontAssetId = 42;
+        HudResourceCatalog catalog = new EmptyResourceCatalog() {
+            @Override public boolean hasLabelStyle(String name) { return "fontless".equals(name); }
+            @Override public boolean hasLabelStyleFont(String name) { return false; }
+            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
+        };
+
+        Assert.assertTrue(issues(validator.validate(new HudDocumentV1(label), catalog)),
+                validator.validate(new HudDocumentV1(label), catalog).isValid());
+        label.textraLabel.fontAssetId = null;
+        requireIssue(validator.validate(new HudDocumentV1(label), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        label.textraLabel.text = null;
+        requireIssue(validator.validate(new HudDocumentV1(label), catalog),
+                HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+    }
+
+    @Test
     public void nativeTextWidgetOverridesCompleteOnlyTheirMissingStyleFonts() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
@@ -636,6 +657,11 @@ public class HudDocumentValidatorTest {
                 break;
             case LABEL:
                 node.label = labelData("Label", null);
+                break;
+            case TEXTRA_LABEL:
+                node.textraLabel = new HudTextraLabelData();
+                node.textraLabel.text = "Text";
+                node.textraLabel.typingEnabled = true;
                 break;
             case TEXT_BUTTON:
                 node.textButton = new HudTextButtonData();

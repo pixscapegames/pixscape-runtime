@@ -71,6 +71,13 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.TEXTRA_LABEL) {
+                requiresAtlas = true;
+                if (HudBuiltInLabelStyle.isSelected(node.textraLabel.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             } else if (kind == HudNodeKind.TEXT_BUTTON) {
                 requiresAtlas = true;
                 if (HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)) {

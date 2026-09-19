@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+import com.github.tommyettinger.textra.Font;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
 
 /**
@@ -86,6 +87,10 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
 
     @Override public BitmapFont bitmapFont(int assetId) {
         return owner.sharedBitmapFont(assetId);
+    }
+
+    @Override public Font textraFont(BitmapFont bitmapFont) {
+        return owner.sharedTextraFont(bitmapFont);
     }
 
     @Override public TextButton.TextButtonStyle textButtonStyle(String name) {

@@ -3,6 +3,7 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.files.FileHandle;
 import java.io.InputStream;
+import java.io.Reader;
 
 /** Skin's normal serializer reads through canonical project keys, including relative FNT paths. */
 final class HudSkinFile extends FileHandle {
@@ -32,6 +33,7 @@ final class HudSkinFile extends FileHandle {
     @Override public String extension() { return delegate.extension(); }
     @Override public String nameWithoutExtension() { return delegate.nameWithoutExtension(); }
     @Override public InputStream read() { return delegate.read(); }
+    @Override public Reader reader(String charset) { return delegate.reader(charset); }
     @Override public String readString() { return delegate.readString(); }
     @Override public String readString(String charset) { return delegate.readString(charset); }
     @Override public boolean exists() { return delegate.exists(); }

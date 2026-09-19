@@ -25,6 +25,7 @@ dependencies {
   api "net.onedaybeard.artemis:artemis-odb:${artemisOdbVersion}"
   api "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}"
   api "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
+  api "com.github.tommyettinger:textratypist:2.5.0"
 
   testImplementation "junit:junit:${junitVersion}"
   testImplementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
@@ -36,6 +37,7 @@ dependencies {
 tasks.named('test', Test).configure {
   useJUnit()
   exclude '**/HudMaterializerGlSmokeTest.class'
+  exclude '**/TextraHudBatchGlPrototypeTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -45,6 +47,16 @@ tasks.register('hudGlSmoke', Test) {
   classpath = sourceSets.test.runtimeClasspath
   useJUnit()
   include '**/HudMaterializerGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('textraHudGlPrototype', Test) {
+  description = 'Runs the TextraTypist 2.5.0 prototype through the real desktop HudBatch.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/TextraHudBatchGlPrototypeTest.class'
   shouldRunAfter tasks.named('test')
 }
 

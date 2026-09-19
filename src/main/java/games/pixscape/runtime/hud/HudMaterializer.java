@@ -17,6 +17,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Disposable;
+import com.github.tommyettinger.textra.Font;
+import com.github.tommyettinger.textra.Styles;
+import com.github.tommyettinger.textra.TypingLabel;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
 import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudHorizontalAlign;
@@ -26,6 +30,8 @@ import games.pixscape.runtime.hud.document.HudVerticalAlign;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /** Converts a validated V1 construction document into one detached native Scene2D actor tree. */
@@ -39,17 +45,25 @@ public final class HudMaterializer {
         if (resources == null) throw new IllegalArgumentException("HudVisualResources is required.");
 
         Map<String, Actor> actorById = new LinkedHashMap<String, Actor>();
-        Actor root = materializeNode(validatedDocument.document().root, resources, actorById);
-        if (actorById.size() != validatedDocument.nodeIndex().size()) {
-            throw new IllegalStateException(
-                    "Validated HUD document changed after validation; validate it again.");
+        List<Disposable> ownedResources = new ArrayList<Disposable>();
+        try {
+            Actor root = materializeNode(validatedDocument.document().root, resources,
+                    actorById, ownedResources);
+            if (actorById.size() != validatedDocument.nodeIndex().size()) {
+                throw new IllegalStateException(
+                        "Validated HUD document changed after validation; validate it again.");
+            }
+            return new MaterializedHud(root, actorById, ownedResources);
+        } catch (RuntimeException failure) {
+            disposeOwned(ownedResources);
+            throw failure;
         }
-        return new MaterializedHud(root, actorById);
     }
 
     private Actor materializeNode(
-            HudNode node, HudVisualResources resources, Map<String, Actor> actorById) {
-        Actor actor = createActor(node, resources);
+            HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
+            List<Disposable> ownedResources) {
+        Actor actor = createActor(node, resources, ownedResources);
         actor.setName(node.id);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
         if (actorById.put(node.id, actor) != null) {
@@ -59,7 +73,7 @@ public final class HudMaterializer {
 
         for (int i = 0; i < node.children.size(); i++) {
             HudChild child = node.children.get(i);
-            Actor childActor = materializeNode(child.node, resources, actorById);
+            Actor childActor = materializeNode(child.node, resources, actorById, ownedResources);
             switch (child.placementKind) {
                 case DIRECT:
                     addDirect(actor, childActor, node.id);
@@ -78,7 +92,8 @@ public final class HudMaterializer {
         return actor;
     }
 
-    private Actor createActor(HudNode node, HudVisualResources resources) {
+    private Actor createActor(HudNode node, HudVisualResources resources,
+                              List<Disposable> ownedResources) {
         switch (node.kind) {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
@@ -119,6 +134,35 @@ public final class HudMaterializer {
                     labelStyle.font = requireFont(node, node.label.fontAssetId, resources);
                 }
                 return new Label(node.label.text, labelStyle);
+            }
+            case TEXTRA_LABEL: {
+                Label.LabelStyle sharedStyle = HudBuiltInLabelStyle.isSelected(
+                        node.textraLabel.styleName)
+                        ? resources.builtInLabelStyle()
+                        : resources.labelStyle(node.textraLabel.styleName);
+                if (sharedStyle == null) {
+                    throw missing(node, "Label style",
+                            HudBuiltInLabelStyle.isSelected(node.textraLabel.styleName)
+                                    ? "built-in Default" : node.textraLabel.styleName);
+                }
+                BitmapFont bitmapFont = node.textraLabel.fontAssetId == null
+                        ? sharedStyle.font
+                        : requireFont(node, node.textraLabel.fontAssetId, resources);
+                Font prepared = resources.textraFont(bitmapFont);
+                if (prepared == null) {
+                    throw missing(node, "prepared TextraTypist font",
+                            node.textraLabel.fontAssetId == null
+                                    ? "selected Label style" : String.valueOf(node.textraLabel.fontAssetId));
+                }
+                Font actorFont = new Font(prepared);
+                ownedResources.add(actorFont);
+                Styles.LabelStyle style = new Styles.LabelStyle(actorFont,
+                        sharedStyle.fontColor == null ? null
+                                : new com.badlogic.gdx.graphics.Color(sharedStyle.fontColor),
+                        sharedStyle.background);
+                TypingLabel label = new TypingLabel(node.textraLabel.text, style);
+                if (!node.textraLabel.typingEnabled) label.skipToTheEnd(true, false);
+                return label;
             }
             case TEXT_BUTTON: {
                 TextButton.TextButtonStyle sharedStyle =
@@ -327,5 +371,15 @@ public final class HudMaterializer {
             HudNode node, String resourceKind, String resourceName) {
         return new IllegalStateException("Validated HUD node '" + node.id + "' requires "
                 + resourceKind + " '" + resourceName + "' in the provided HUD visual resources.");
+    }
+
+    private static void disposeOwned(List<Disposable> resources) {
+        for (int i = resources.size() - 1; i >= 0; i--) {
+            try {
+                resources.get(i).dispose();
+            } catch (RuntimeException ignored) {
+                // Preserve the materialization failure while cleaning candidate resources.
+            }
+        }
     }
 }

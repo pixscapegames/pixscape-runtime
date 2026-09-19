@@ -31,6 +31,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.github.tommyettinger.textra.Font;
+import com.github.tommyettinger.textra.TypingLabel;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
@@ -43,6 +45,7 @@ import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudImageButtonData;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudTextFieldData;
+import games.pixscape.runtime.hud.document.HudTextraLabelData;
 import games.pixscape.runtime.hud.document.HudSelectBoxData;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -295,8 +298,8 @@ public class HudMaterializerTest {
         Assert.assertSame(hud.actor("clipped-content"), container.getActor());
         Assert.assertTrue(container.getClip());
         Assert.assertFalse(resources.isDisposed());
-        Assert.assertFalse(com.badlogic.gdx.utils.Disposable.class
-                .isAssignableFrom(MaterializedHud.class));
+        hud.dispose();
+        Assert.assertFalse(resources.isDisposed());
     }
 
     @Test
@@ -654,6 +657,78 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void textraLabelUsesNativeActorIsolatedFontAndPreservesSharedSources() {
+        BitmapFont source = selectedResources.builtInLabelStyle().font;
+        int sourceRegionCount = source.getRegions().size;
+        BitmapFont.Glyph sourceBlock = source.getData().getGlyph('\u2588');
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode firstNode = textraLabel("first", true);
+        HudNode secondNode = textraLabel("second", true);
+        root.children.add(HudChild.direct(firstNode));
+        root.children.add(HudChild.direct(secondNode));
+
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        TypingLabel first = (TypingLabel) hud.actor("first");
+        TypingLabel second = (TypingLabel) hud.actor("second");
+        Font prepared = selectedResources.textraFont(source);
+
+        Assert.assertNotSame(prepared, first.getFont());
+        Assert.assertNotSame(first.getFont(), second.getFont());
+        Assert.assertSame(first.getFont().mapping.get('T').getTexture(),
+                second.getFont().mapping.get('T').getTexture());
+        Assert.assertNull(first.getFont().whiteBlock);
+        Assert.assertEquals(sourceRegionCount, source.getRegions().size);
+        Assert.assertSame(sourceBlock, source.getData().getGlyph('\u2588'));
+
+        float secondBold = second.getFont().getBoldStrength();
+        first.getFont().setBoldStrength(secondBold + 0.5f);
+        Assert.assertEquals(secondBold, second.getFont().getBoldStrength(), 0f);
+        second.pause();
+        first.skipToTheEnd(true, false);
+        Assert.assertTrue(first.hasEnded());
+        Assert.assertFalse(second.hasEnded());
+        Assert.assertTrue(second.isPaused());
+        hud.dispose();
+    }
+
+    @Test
+    public void textraPreparationAdaptsWithoutMutatingAnExistingSolidBlockGlyph() {
+        BitmapFont source = selectedResources.builtInLabelStyle().font;
+        BitmapFont.Glyph previous = source.getData().getGlyph('\u2588');
+        BitmapFont.Glyph block = new BitmapFont.Glyph();
+        block.id = '\u2588';
+        block.page = 0;
+        block.width = 2;
+        block.height = 1;
+        block.xadvance = 1;
+        source.getData().setGlyph('\u2588', block);
+        Font prepared = null;
+        try {
+            prepared = HudTextraFontFactory.prepare(source, source.getRegion());
+            Assert.assertNull(prepared.whiteBlock);
+            Assert.assertSame(block, source.getData().getGlyph('\u2588'));
+        } finally {
+            if (prepared != null) prepared.dispose();
+            source.getData().setGlyph('\u2588', previous);
+        }
+    }
+
+    @Test
+    public void disabledTextraTypingRevealsTextWithoutDiscardingEffects() {
+        HudNode node = textraLabel("textra", false);
+        node.textraLabel.text = "{WAVE}Text{ENDWAVE}{EVENT=ignored}";
+
+        MaterializedHud hud = materialize(new HudDocumentV1(node));
+        TypingLabel label = (TypingLabel) hud.root();
+
+        Assert.assertTrue(label.hasEnded());
+        Assert.assertEquals(4, label.getWorkingLayout().countGlyphs());
+        Assert.assertTrue(label.getPrefWidth() > 0f);
+        Assert.assertTrue(label.getPrefHeight() > 0f);
+        hud.dispose();
+    }
+
+    @Test
     public void nativeTextWidgetOverridesCopyStylesAndShareOnlyTheChosenFont() {
         BitmapFont override = new BitmapFont(new BitmapFont.BitmapFontData(),
                 new TextureRegion(), false);
@@ -835,6 +910,14 @@ public class HudMaterializerTest {
         HudValidationResult result = new HudDocumentValidator().validate(document, selectedResources);
         Assert.assertTrue(result.issues().toString(), result.isValid());
         return new HudMaterializer().materialize(result.validatedDocument(), selectedResources);
+    }
+
+    private static HudNode textraLabel(String id, boolean typingEnabled) {
+        HudNode node = new HudNode(id, HudNodeKind.TEXTRA_LABEL);
+        node.textraLabel = new HudTextraLabelData();
+        node.textraLabel.text = "Text";
+        node.textraLabel.typingEnabled = typingEnabled;
+        return node;
     }
 
     private ValidatedHudDocument validated(String fixture) {
