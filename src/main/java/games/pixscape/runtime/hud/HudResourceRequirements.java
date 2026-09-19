@@ -26,12 +26,14 @@ public final class HudResourceRequirements {
     private final boolean builtInTextFieldStyle;
     private final boolean builtInSelectBoxStyle;
     private final boolean builtInCheckBoxStyle;
+    private final boolean builtInSliderStyle;
     private final Set<Integer> bitmapFontAssetIds;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
                                     boolean builtInTextButtonStyle, boolean builtInImageButtonStyle,
                                     boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
                                     boolean builtInCheckBoxStyle,
+                                    boolean builtInSliderStyle,
                                     Set<Integer> bitmapFontAssetIds) {
         this.skin = skin;
         this.atlas = atlas;
@@ -41,6 +43,7 @@ public final class HudResourceRequirements {
         this.builtInTextFieldStyle = builtInTextFieldStyle;
         this.builtInSelectBoxStyle = builtInSelectBoxStyle;
         this.builtInCheckBoxStyle = builtInCheckBoxStyle;
+        this.builtInSliderStyle = builtInSliderStyle;
         this.bitmapFontAssetIds = Collections.unmodifiableSet(
                 new LinkedHashSet<Integer>(bitmapFontAssetIds));
     }
@@ -58,6 +61,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInTextFieldStyle = false;
         boolean requiresBuiltInSelectBoxStyle = false;
         boolean requiresBuiltInCheckBoxStyle = false;
+        boolean requiresBuiltInSliderStyle = false;
         Set<Integer> bitmapFontAssetIds = new LinkedHashSet<Integer>();
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
@@ -119,6 +123,13 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.SLIDER) {
+                requiresAtlas = true;
+                if (HudBuiltInSliderStyle.isSelected(node.slider.styleName)) {
+                    requiresBuiltInSliderStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             }
             HudImageReferences.visit(node, imageRequirements);
         }
@@ -127,6 +138,7 @@ public final class HudResourceRequirements {
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
                 requiresBuiltInImageButtonStyle, requiresBuiltInTextFieldStyle,
                 requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle,
+                requiresBuiltInSliderStyle,
                 bitmapFontAssetIds);
     }
 
@@ -160,6 +172,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInCheckBoxStyle() {
         return builtInCheckBoxStyle;
+    }
+
+    public boolean requiresBuiltInSliderStyle() {
+        return builtInSliderStyle;
     }
 
     public Set<Integer> bitmapFontAssetIds() {

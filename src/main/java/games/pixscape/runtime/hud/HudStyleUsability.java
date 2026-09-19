@@ -3,6 +3,7 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 
@@ -41,5 +42,9 @@ public final class HudStyleUsability {
                                                 boolean hasFontOverride) {
         return style != null && (hasFontOverride || style.font != null)
                 && style.checkboxOn != null && style.checkboxOff != null;
+    }
+
+    public static boolean isUsableSliderStyle(Slider.SliderStyle style) {
+        return style != null && style.background != null;
     }
 }

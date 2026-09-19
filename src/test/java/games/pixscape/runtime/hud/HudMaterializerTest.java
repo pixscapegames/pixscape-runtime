@@ -26,6 +26,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Align;
@@ -47,6 +49,8 @@ import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudTextFieldData;
 import games.pixscape.runtime.hud.document.HudTextraLabelData;
 import games.pixscape.runtime.hud.document.HudSelectBoxData;
+import games.pixscape.runtime.hud.document.HudSliderData;
+import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -531,6 +535,83 @@ public class HudMaterializerTest {
         Assert.assertTrue(node.checkBox.checked);
         box.setDisabled(true);
         Assert.assertFalse(node.checkBox.disabled);
+    }
+
+    @Test
+    public void materializesNativeSliderWithNativeSnappingAndChangeEvents() {
+        HudNode node = new HudNode("slider", HudNodeKind.SLIDER);
+        node.slider = new HudSliderData();
+        node.slider.min = 0f;
+        node.slider.max = 100f;
+        node.slider.stepSize = 10f;
+        node.slider.value = 53f;
+        node.slider.disabled = true;
+        Slider.SliderStyle shared = selectedResources.builtInSliderStyle();
+        Drawable background = shared.background;
+
+        Slider slider = (Slider) materialize(new HudDocumentV1(node)).actor("slider");
+
+        Assert.assertEquals(0f, slider.getMinValue(), 0f);
+        Assert.assertEquals(100f, slider.getMaxValue(), 0f);
+        Assert.assertEquals(10f, slider.getStepSize(), 0f);
+        Assert.assertEquals(50f, slider.getValue(), 0f);
+        Assert.assertEquals(53f, node.slider.value, 0f);
+        Assert.assertTrue(slider.isDisabled());
+        Assert.assertFalse(slider.isVertical());
+        Assert.assertEquals(140f, slider.getPrefWidth(), 0f);
+        Assert.assertSame(shared, slider.getStyle());
+        Assert.assertSame(background, shared.background);
+
+        final int[] changes = {0};
+        slider.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) { changes[0]++; }
+        });
+        slider.setDisabled(false);
+        slider.setValue(80f);
+        Assert.assertEquals(1, changes[0]);
+        Assert.assertEquals(80f, slider.getValue(), 0f);
+    }
+
+    @Test
+    public void verticalSliderUsesNativeVerticalNaturalSize() {
+        HudNode node = new HudNode("slider", HudNodeKind.SLIDER);
+        node.slider = new HudSliderData();
+        node.slider.orientation = HudSliderOrientation.VERTICAL;
+
+        Slider slider = (Slider) materialize(new HudDocumentV1(node)).actor("slider");
+
+        Assert.assertTrue(slider.isVertical());
+        Assert.assertEquals(140f, slider.getPrefHeight(), 0f);
+        Assert.assertTrue(slider.getPrefWidth() < slider.getPrefHeight());
+    }
+
+    @Test
+    public void customSliderUsesTheSharedSkinStyleWithoutMutation() {
+        HudNode node = new HudNode("slider", HudNodeKind.SLIDER);
+        node.slider = new HudSliderData();
+        node.slider.styleName = "custom";
+        Slider.SliderStyle custom = new Slider.SliderStyle();
+        custom.background = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        custom.knob = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        Drawable background = custom.background;
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentV1(node));
+
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), new HudVisualResources() {
+                    @Override public TextureRegion region(String name) { return null; }
+                    @Override public Drawable drawable(String name) { return null; }
+                    @Override public Label.LabelStyle labelStyle(String name) { return null; }
+                    @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+                    @Override public Slider.SliderStyle sliderStyle(String name) {
+                        return "custom".equals(name) ? custom : null;
+                    }
+                });
+        Slider slider = (Slider) hud.actor("slider");
+
+        Assert.assertSame(custom, slider.getStyle());
+        Assert.assertSame(background, custom.background);
+        hud.dispose();
     }
 
     @Test

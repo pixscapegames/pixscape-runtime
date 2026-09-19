@@ -441,6 +441,49 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void sliderValidatesNativeBoundsValueStepOrientationAndStyles() {
+        HudNode node = new HudNode("slider", HudNodeKind.SLIDER);
+        node.slider = new HudSliderData();
+
+        HudValidationResult builtIn = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(issues(builtIn), builtIn.isValid());
+
+        node.slider.styleName = "compact-slider";
+        HudValidationResult custom = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(issues(custom), custom.isValid());
+
+        node.slider.orientation = null;
+        node.slider.min = Float.NaN;
+        node.slider.max = Float.POSITIVE_INFINITY;
+        node.slider.stepSize = 0f;
+        node.slider.value = Float.NEGATIVE_INFINITY;
+        node.slider.styleName = "missing";
+        HudValidationResult invalid = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(count(invalid, HudValidationIssueCode.INVALID_NODE_PAYLOAD) >= 5);
+        requireIssue(invalid, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+
+        node.slider.orientation = HudSliderOrientation.HORIZONTAL;
+        node.slider.min = 10f;
+        node.slider.max = 5f;
+        node.slider.stepSize = 1f;
+        node.slider.value = 7f;
+        node.slider.styleName = null;
+        HudValidationResult reversed = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        requireIssue(reversed, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+
+        node.slider.min = 0f;
+        node.slider.max = 5f;
+        node.slider.value = 6f;
+        HudValidationResult outOfRange = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        requireIssue(outOfRange, HudValidationIssueCode.INVALID_NODE_PAYLOAD);
+    }
+
+    @Test
     public void imageButtonValidatesEachConfiguredNativeImageState() {
         HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
         button.imageButton = new HudImageButtonData();
@@ -680,6 +723,9 @@ public class HudDocumentValidatorTest {
             case CHECK_BOX:
                 node.checkBox = new HudCheckBoxData();
                 break;
+            case SLIDER:
+                node.slider = new HudSliderData();
+                break;
             default:
                 throw new AssertionError("Unhandled HUD node kind: " + kind);
         }
@@ -737,6 +783,7 @@ public class HudDocumentValidatorTest {
         @Override public boolean hasBuiltInImageButtonStyle() { return true; }
         @Override public boolean hasBuiltInTextFieldStyle() { return true; }
         @Override public boolean hasBuiltInSelectBoxStyle() { return true; }
+        @Override public boolean hasBuiltInSliderStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {
@@ -771,6 +818,11 @@ public class HudDocumentValidatorTest {
         @Override
         public boolean hasSelectBoxStyle(String name) {
             return "compact-select".equals(name);
+        }
+
+        @Override
+        public boolean hasSliderStyle(String name) {
+            return "compact-slider".equals(name);
         }
     }
 }

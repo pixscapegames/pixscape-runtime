@@ -115,6 +115,23 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void sliderUsesAtlasOnlyForDefaultAndSkinForCustomStyle() {
+        HudResourceRequirements builtIn = requirements(node("slider", "SLIDER",
+                "\"slider\":{},\"children\":[]"));
+        Assert.assertFalse(builtIn.requiresSkin());
+        Assert.assertTrue(builtIn.requiresAtlas());
+        Assert.assertTrue(builtIn.requiresBuiltInSliderStyle());
+        Assert.assertFalse(builtIn.requiresBuiltInLabelStyle());
+        Assert.assertTrue(builtIn.bitmapFontAssetIds().isEmpty());
+
+        HudResourceRequirements custom = requirements(node("slider", "SLIDER",
+                "\"slider\":{\"styleName\":\"compact\"},\"children\":[]"));
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertFalse(custom.requiresBuiltInSliderStyle());
+        Assert.assertTrue(custom.bitmapFontAssetIds().isEmpty());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");

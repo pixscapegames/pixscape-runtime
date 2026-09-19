@@ -60,4 +60,9 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the complete built-in CheckBox style. */
     default boolean hasBuiltInCheckBoxStyle() { return false; }
+
+    default boolean hasSliderStyle(String name) { return false; }
+
+    /** Returns whether the prepared environment contains the built-in Slider style. */
+    default boolean hasBuiltInSliderStyle() { return false; }
 }

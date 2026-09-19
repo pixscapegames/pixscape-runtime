@@ -152,6 +152,30 @@ public class HudDocumentCodecTest {
         Assert.assertEquals(Integer.valueOf(74), restored.children.get(3).node.selectBox.fontAssetId);
     }
 
+    @Test
+    public void sliderRoundTripPreservesAuthoredNativeState() {
+        HudNode slider = new HudNode("volume", HudNodeKind.SLIDER);
+        slider.slider = new HudSliderData();
+        slider.slider.orientation = HudSliderOrientation.VERTICAL;
+        slider.slider.min = -10f;
+        slider.slider.max = 10f;
+        slider.slider.stepSize = 0.5f;
+        slider.slider.value = 3.25f;
+        slider.slider.styleName = "compact";
+        slider.slider.disabled = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(slider))).root;
+
+        Assert.assertEquals(HudNodeKind.SLIDER, restored.kind);
+        Assert.assertEquals(HudSliderOrientation.VERTICAL, restored.slider.orientation);
+        Assert.assertEquals(-10f, restored.slider.min, 0f);
+        Assert.assertEquals(10f, restored.slider.max, 0f);
+        Assert.assertEquals(0.5f, restored.slider.stepSize, 0f);
+        Assert.assertEquals(3.25f, restored.slider.value, 0f);
+        Assert.assertEquals("compact", restored.slider.styleName);
+        Assert.assertTrue(restored.slider.disabled);
+    }
+
     private static HudImageData image(String resourceName) {
         HudImageData image = new HudImageData();
         image.resourceName = resourceName;

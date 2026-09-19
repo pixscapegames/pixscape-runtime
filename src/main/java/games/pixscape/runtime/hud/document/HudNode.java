@@ -25,6 +25,8 @@ public final class HudNode {
     public HudSelectBoxData selectBox;
     /** Present only for {@link HudNodeKind#CHECK_BOX}. */
     public HudCheckBoxData checkBox;
+    /** Present only for {@link HudNodeKind#SLIDER}. */
+    public HudSliderData slider;
     /** Present only for {@link HudNodeKind#CONTAINER}. */
     public HudContainerData container;
 

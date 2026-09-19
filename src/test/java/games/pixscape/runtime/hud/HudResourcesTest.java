@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
@@ -267,6 +268,13 @@ public class HudResourcesTest {
         TextButton.TextButtonStyle fontlessTextButton = new TextButton.TextButtonStyle();
         skin.add("fontless-text-button", fontlessTextButton);
 
+        Slider.SliderStyle slider = new Slider.SliderStyle();
+        slider.background = new BaseDrawable();
+        skin.add("slider", slider);
+        Slider.SliderStyle missingSliderBackground = new Slider.SliderStyle();
+        missingSliderBackground.knob = new BaseDrawable();
+        skin.add("missing-slider-background", missingSliderBackground);
+
         HudResources resources = resourcesWithSkin(skin);
         try {
             HudSelectedResources selected = resources.select("custom");
@@ -284,9 +292,13 @@ public class HudResourcesTest {
             Assert.assertFalse(selected.hasSelectBoxStyle("missing-select-box-scroll", true));
             Assert.assertFalse(selected.hasTextButtonStyle("fontless-text-button"));
             Assert.assertTrue(selected.hasTextButtonStyle("fontless-text-button", true));
+            Assert.assertTrue(selected.hasSliderStyle("slider"));
+            Assert.assertFalse(selected.hasSliderStyle("missing-slider-background"));
             Assert.assertFalse(selected.hasTextFieldStyle("missing"));
             Assert.assertFalse(selected.hasCheckBoxStyle("missing"));
             Assert.assertFalse(selected.hasSelectBoxStyle("missing"));
+            Assert.assertFalse(selected.hasSliderStyle("missing"));
+            Assert.assertSame(slider.background, selected.sliderStyle("slider").background);
             Assert.assertNull(checkBox.fontColor);
             Assert.assertSame(checkOff, checkBox.checkboxOff);
             Assert.assertSame(checkOn, checkBox.checkboxOn);
@@ -306,6 +318,7 @@ public class HudResourcesTest {
             Assert.assertTrue(selected.hasBuiltInTextFieldStyle());
             Assert.assertTrue(selected.hasBuiltInSelectBoxStyle());
             Assert.assertTrue(selected.hasBuiltInCheckBoxStyle());
+            Assert.assertTrue(selected.hasBuiltInSliderStyle());
         } finally {
             resources.dispose();
         }

@@ -15,6 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -26,6 +27,7 @@ import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudHorizontalAlign;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudVerticalAlign;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 
@@ -262,6 +264,22 @@ public final class HudMaterializer {
                 box.setChecked(node.checkBox.checked);
                 box.setDisabled(node.checkBox.disabled);
                 return box;
+            }
+            case SLIDER: {
+                Slider.SliderStyle style = HudBuiltInSliderStyle.isSelected(node.slider.styleName)
+                        ? resources.builtInSliderStyle()
+                        : resources.sliderStyle(node.slider.styleName);
+                if (style == null) {
+                    throw missing(node, "Slider style",
+                            HudBuiltInSliderStyle.isSelected(node.slider.styleName)
+                                    ? "built-in Default" : node.slider.styleName);
+                }
+                Slider slider = new Slider(node.slider.min, node.slider.max,
+                        node.slider.stepSize,
+                        node.slider.orientation == HudSliderOrientation.VERTICAL, style);
+                slider.setValue(node.slider.value);
+                slider.setDisabled(node.slider.disabled);
+                return slider;
             }
             default:
                 throw new IllegalStateException(

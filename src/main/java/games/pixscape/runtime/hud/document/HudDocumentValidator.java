@@ -7,6 +7,7 @@ import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
 import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
+import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -167,6 +168,9 @@ public final class HudDocumentValidator {
                 case CHECK_BOX:
                     validPayload = node.checkBox != null && payloadCount == 1;
                     break;
+                case SLIDER:
+                    validPayload = node.slider != null && payloadCount == 1;
+                    break;
                 default:
                     validPayload = false;
                     break;
@@ -193,6 +197,8 @@ public final class HudDocumentValidator {
                 validateSelectBox(node, path);
             } else if (node.kind == HudNodeKind.CHECK_BOX && node.checkBox != null) {
                 validateCheckBox(node, path);
+            } else if (node.kind == HudNodeKind.SLIDER && node.slider != null) {
+                validateSlider(node, path);
             }
         }
 
@@ -350,6 +356,39 @@ public final class HudDocumentValidator {
                     path + ".checkBox.styleName");
         }
 
+        private void validateSlider(HudNode node, String path) {
+            HudSliderData slider = node.slider;
+            if (slider.orientation == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER orientation must be HORIZONTAL or VERTICAL.",
+                        usableId(node), path + ".slider.orientation");
+            }
+            if (!isFinite(slider.min)) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER min must be finite.", usableId(node), path + ".slider.min");
+            }
+            if (!isFinite(slider.max)) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER max must be finite.", usableId(node), path + ".slider.max");
+            }
+            if (isFinite(slider.min) && isFinite(slider.max) && slider.min > slider.max) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER min must be less than or equal to max.",
+                        usableId(node), path + ".slider.min");
+            }
+            if (!isFinite(slider.stepSize) || slider.stepSize <= 0f) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER stepSize must be finite and greater than zero.",
+                        usableId(node), path + ".slider.stepSize");
+            }
+            if (!isFinite(slider.value) || slider.value < slider.min || slider.value > slider.max) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "SLIDER value must be finite and within its authored range.",
+                        usableId(node), path + ".slider.value");
+            }
+            validateSliderStyle(node, slider.styleName, path + ".slider.styleName");
+        }
+
         private Integer validateFontAsset(HudNode node, Integer fontAssetId, String path) {
             if (fontAssetId != null && fontAssetId <= 0) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
@@ -414,6 +453,22 @@ public final class HudDocumentValidator {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "CHECK_BOX Skin style '" + styleName
                                 + "' is missing or unusable.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateSliderStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInSliderStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInSliderStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "SLIDER requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (resources != null && !resources.hasSliderStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "SLIDER Skin style '" + styleName + "' is missing or unusable.",
                         usableId(node), path);
             }
         }
@@ -646,6 +701,7 @@ public final class HudDocumentValidator {
             if (node.textField != null) count++;
             if (node.selectBox != null) count++;
             if (node.checkBox != null) count++;
+            if (node.slider != null) count++;
             return count;
         }
 
@@ -654,7 +710,7 @@ public final class HudDocumentValidator {
                     || kind == HudNodeKind.TEXTRA_LABEL
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
                     || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
-                    || kind == HudNodeKind.CHECK_BOX;
+                    || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.SLIDER;
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {

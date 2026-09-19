@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
@@ -51,6 +52,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                         || builtInSelectBoxStyle() != null)
                 && (!requirements.requiresBuiltInCheckBoxStyle()
                         || builtInCheckBoxStyle() != null)
+                && (!requirements.requiresBuiltInSliderStyle()
+                        || builtInSliderStyle() != null)
                 && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
@@ -143,6 +146,16 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInCheckBoxStyle();
     }
 
+    @Override public Slider.SliderStyle sliderStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, Slider.SliderStyle.class);
+    }
+
+    @Override public Slider.SliderStyle builtInSliderStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInSliderStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
@@ -184,5 +197,11 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInCheckBoxStyle() {
         return HudStyleUsability.isUsableCheckBoxStyle(builtInCheckBoxStyle(), false);
+    }
+    @Override public boolean hasSliderStyle(String name) {
+        return HudStyleUsability.isUsableSliderStyle(sliderStyle(name));
+    }
+    @Override public boolean hasBuiltInSliderStyle() {
+        return HudStyleUsability.isUsableSliderStyle(builtInSliderStyle());
     }
 }
