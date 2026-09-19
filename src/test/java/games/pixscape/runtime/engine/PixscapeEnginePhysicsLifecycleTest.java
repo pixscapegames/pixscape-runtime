@@ -24,6 +24,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -54,6 +55,7 @@ import games.pixscape.runtime.hud.HudResourcesTest;
 import games.pixscape.runtime.hud.HudTextureProfile;
 import games.pixscape.runtime.hud.HudResources;
 import games.pixscape.runtime.hud.HudSession;
+import games.pixscape.runtime.hud.MaterializedHud;
 import games.pixscape.runtime.loading.SceneAvailabilityPlan;
 import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.render.batch.MetricsBatch;
@@ -532,19 +534,25 @@ public class PixscapeEnginePhysicsLifecycleTest {
             engine.config().getSceneMeta("D").defaultHudScreenId = "hud/b";
             engine.loadScene("A");
             ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
-            Assert.assertNotNull(String.valueOf(engine.lastSceneDefaultHudFailure()), a);
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), a);
+            Assert.assertSame(a.materializedHud(), engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
             Assert.assertEquals("hud/a", a.screenId());
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
             Assert.assertNotNull(a.materializedHud().actor("root"));
 
             engine.loadScene("D");
             ActiveHudScreen b = engine.hudScreenRuntime().activeScreen();
+            Assert.assertSame(b.materializedHud(), engine.getActiveHud());
+            Assert.assertNotSame(a.materializedHud(), engine.getActiveHud());
             Assert.assertEquals("hud/b", b.screenId());
             Assert.assertTrue(a.isDisposed());
 
             engine.config().getSceneMeta("A").defaultHudScreenId = null;
             engine.loadScene("A");
             Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
             Assert.assertTrue(b.isDisposed());
 
             engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
@@ -554,6 +562,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("D"));
             Assert.assertEquals("A", engine.getActiveSceneMeta().name);
             Assert.assertSame(replacement, engine.hudScreenRuntime().activeScreen());
+            Assert.assertSame(replacement.materializedHud(), engine.getActiveHud());
             Assert.assertFalse(replacement.isDisposed());
 
             engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
@@ -562,6 +571,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("B"));
             Assert.assertNull(engine.getActiveSceneMeta());
             Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
             Assert.assertTrue(beforeFailedScene.isDisposed());
 
             engine.update(1f / 60f);
@@ -579,7 +589,14 @@ public class PixscapeEnginePhysicsLifecycleTest {
         try {
             engine.loadScene("A");
             ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
-            Assert.assertNotNull(String.valueOf(engine.lastSceneDefaultHudFailure()), a);
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), a);
+            MaterializedHud publicHud = engine.getActiveHud();
+            Assert.assertSame(a.materializedHud(), publicHud);
+            Assert.assertSame(publicHud, engine.getActiveHud());
+            Label label = (Label) publicHud.actor("label");
+            label.setText("Score: 42");
+            Assert.assertEquals("Score: 42", ((Label) engine.getActiveHud().actor("label")).getText().toString());
+            Assert.assertNull(publicHud.actor("absent"));
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
             HudSession sessionA = hudSession(a);
             SceneAvailabilityPlan planA = (SceneAvailabilityPlan) get(engine, "activeSceneAvailability");
@@ -607,6 +624,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertTrue(String.valueOf(b.failure()), b.isReady());
             Assert.assertSame(planB, get(engine, "activeSceneAvailability"));
             ActiveHudScreen activeB = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotSame(publicHud, engine.getActiveHud());
+            Assert.assertSame(activeB.materializedHud(), engine.getActiveHud());
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, activeB.resourceOwnership());
             Assert.assertEquals("no second HUD environment allocated for default", allocations, generatedTextures);
             engine.hudScreenRuntime().hide();
@@ -617,6 +636,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertTrue(generatedTextures > allocations);
             engine.hudScreenRuntime().hide(); Assert.assertFalse(environmentB.isDisposed());
             engine.dispose(); engine.dispose();
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
             Assert.assertTrue(environmentB.isDisposed()); Assert.assertEquals(1, disposals[0]);
         } finally { engine.dispose(); }
     }
@@ -630,7 +651,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         try {
             fixture.engine.loadScene("A");
             ActiveHudScreen active = fixture.engine.hudScreenRuntime().activeScreen();
-            Assert.assertNotNull(String.valueOf(fixture.engine.lastSceneDefaultHudFailure()), active);
+            Assert.assertNotNull(String.valueOf(fixture.engine.getLastHudFailure()), active);
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, active.resourceOwnership());
             SceneAvailabilityPlan plan = (SceneAvailabilityPlan) get(fixture.engine, "activeSceneAvailability");
             Assert.assertSame(plan.hudResources(), get(active, "resources"));
@@ -720,10 +741,24 @@ public class PixscapeEnginePhysicsLifecycleTest {
             load.update();
             Assert.assertTrue(String.valueOf(load.failure()), load.isReady());
             Assert.assertEquals("A", engine.getActiveSceneMeta().name);
-            Assert.assertNotNull(engine.lastSceneDefaultHudFailure());
+            Assert.assertNotNull(engine.getLastHudFailure());
             Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
             HudResources resources = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
             Assert.assertFalse(resources.isDisposed());
+
+            engine.loadScene("D");
+            Assert.assertNotNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+
+            failHudViewport = true;
+            engine.loadScene("A");
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNotNull(engine.getLastHudFailure());
+            engine.config().getSceneMeta("D").defaultHudScreenId = null;
+            engine.loadScene("D");
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
             engine.dispose(); Assert.assertTrue(resources.isDisposed());
         } finally { engine.dispose(); }
     }
@@ -742,7 +777,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     + "\"documentId\":\"hud/b.json\",\"skinId\":\"ui/absent.json\",\"atlasId\":\"ui/absent.atlas\"}", false);
             engine.loadScene("D");
             ActiveHudScreen b = engine.hudScreenRuntime().activeScreen();
-            Assert.assertNotNull(String.valueOf(engine.lastSceneDefaultHudFailure()), b);
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), b);
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, b.resourceOwnership());
             Assert.assertTrue(((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources().skinIds().isEmpty());
         } finally { engine.dispose(); }
@@ -761,7 +796,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
             engine.loadScene("A");
             Assert.assertEquals("A", engine.getActiveSceneMeta().name);
             Assert.assertNull(engine.hudScreenRuntime().activeScreen());
-            Assert.assertNotNull(engine.lastSceneDefaultHudFailure());
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNotNull(engine.getLastHudFailure());
             HudResources environment = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
             Assert.assertFalse(environment.isDisposed());
             engine.dispose(); Assert.assertTrue(environment.isDisposed());
@@ -775,6 +811,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
         Assert.assertTrue(failed.isFailed()); Assert.assertEquals(SceneLoadPhase.FILES, failed.phase());
         Assert.assertSame(worldA, engine.getWorld()); Assert.assertEquals("A", engine.getActiveSceneMeta().name);
         Assert.assertSame(a, engine.hudScreenRuntime().activeScreen()); Assert.assertFalse(a.isDisposed());
+        Assert.assertSame(a.materializedHud(), engine.getActiveHud());
+        Assert.assertNull(engine.getLastHudFailure());
         Assert.assertFalse(environmentA.isDisposed());
     }
 

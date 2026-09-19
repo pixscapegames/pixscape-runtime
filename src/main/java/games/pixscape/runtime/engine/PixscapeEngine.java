@@ -27,7 +27,9 @@ import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.SpawnResult;
+import games.pixscape.runtime.hud.ActiveHudScreen;
 import games.pixscape.runtime.hud.HudScreenRuntime;
+import games.pixscape.runtime.hud.MaterializedHud;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -700,6 +702,36 @@ public final class PixscapeEngine {
         return hudScreenRuntime.inputProcessor();
     }
 
+    /**
+     * Returns the currently active, engine-owned HUD, or {@code null} when no HUD is active.
+     *
+     * <p>The returned object is borrowed and is the live native Scene2D actor tree; applications
+     * must not dispose it or its shared resources. The same instance is returned while that HUD
+     * remains active. Its actors may be accessed and mutated directly on the LibGDX render thread.
+     * References become invalid when the HUD is replaced or removed, the Scene changes, or this
+     * engine is disposed. A retained Java reference does not extend the lifetime of its resources;
+     * reacquire the HUD and reattach application listeners after each activation.</p>
+     *
+     * <p>This method also returns {@code null} after {@link #dispose()}.</p>
+     */
+    public MaterializedHud getActiveHud() {
+        if (hudScreenRuntime == null) return null;
+        ActiveHudScreen activeScreen = hudScreenRuntime.activeScreen();
+        if (activeScreen == null || activeScreen.isDisposed()) return null;
+        return activeScreen.materializedHud();
+    }
+
+    /**
+     * Returns the cause of the most recent default HUD activation failure, or {@code null}.
+     *
+     * <p>A Scene may be ready even when its default HUD could not be activated. This diagnostic
+     * remains available in that case and is cleared by a successful HUD activation or effective
+     * HUD/Scene removal. It also returns {@code null} after {@link #dispose()}.</p>
+     */
+    public Throwable getLastHudFailure() {
+        return lastSceneDefaultHudFailure;
+    }
+
     /** Returns whether the active HUD's native Stage currently owns keyboard focus. */
     public boolean hasHudKeyboardFocus() {
         if (hudScreenRuntime == null) {
@@ -1361,6 +1393,7 @@ public final class PixscapeEngine {
         sceneLoaded = false;
         activeSceneMeta = null;
         if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        lastSceneDefaultHudFailure = null;
         if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
         rebuildWorld(cfg, runtimeProjectDir, meta);
         retireActiveSceneAvailability();
@@ -1492,10 +1525,6 @@ public final class PixscapeEngine {
         return hudScreenRuntime;
     }
 
-    RuntimeException lastSceneDefaultHudFailure() {
-        return lastSceneDefaultHudFailure;
-    }
-
     private void failSceneLoad(
             SceneAvailabilityPlan candidate, boolean constructionStarted) {
         if (constructionStarted) {
@@ -1503,6 +1532,7 @@ public final class PixscapeEngine {
             if (hudScreenRuntime != null) {
                 try {
                     hudScreenRuntime.hide();
+                    lastSceneDefaultHudFailure = null;
                 } catch (RuntimeException cleanupFailure) {
                     logHudFailure("Unable to clear the previous HUD after Scene loading failed.",
                             cleanupFailure);
@@ -1560,6 +1590,7 @@ public final class PixscapeEngine {
     private void releaseActiveSceneAvailability() {
         if (activeSceneAvailability == null) return;
         if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        lastSceneDefaultHudFailure = null;
         SceneAvailabilityPlan previous = activeSceneAvailability;
         activeSceneAvailability = null;
         previous.release();
