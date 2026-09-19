@@ -102,6 +102,35 @@ public class HudDocumentCodecTest {
         Assert.assertEquals(Integer.valueOf(73), restored.label.fontAssetId);
     }
 
+    @Test
+    public void nativeTextWidgetRoundTripPreservesBitmapFontOverrides() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Button";
+        button.textButton.fontAssetId = 71;
+        HudNode check = new HudNode("check", HudNodeKind.CHECK_BOX);
+        check.checkBox = new HudCheckBoxData();
+        check.checkBox.fontAssetId = 72;
+        HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.fontAssetId = 73;
+        HudNode select = new HudNode("select", HudNodeKind.SELECT_BOX);
+        select.selectBox = new HudSelectBoxData();
+        select.selectBox.fontAssetId = 74;
+        root.children.add(HudChild.direct(button));
+        root.children.add(HudChild.direct(check));
+        root.children.add(HudChild.direct(field));
+        root.children.add(HudChild.direct(select));
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+
+        Assert.assertEquals(Integer.valueOf(71), restored.children.get(0).node.textButton.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(72), restored.children.get(1).node.checkBox.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(73), restored.children.get(2).node.textField.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(74), restored.children.get(3).node.selectBox.fontAssetId);
+    }
+
     private static HudImageData image(String resourceName) {
         HudImageData image = new HudImageData();
         image.resourceName = resourceName;

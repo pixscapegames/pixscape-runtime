@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.utils.Array;
@@ -228,6 +229,9 @@ public class HudResourcesTest {
         TextField.TextFieldStyle missingTextFieldColor = new TextField.TextFieldStyle();
         missingTextFieldColor.font = font;
         skin.add("missing-text-field-color", missingTextFieldColor);
+        TextField.TextFieldStyle fontlessTextField = new TextField.TextFieldStyle();
+        fontlessTextField.fontColor = com.badlogic.gdx.graphics.Color.WHITE;
+        skin.add("fontless-text-field", fontlessTextField);
 
         CheckBox.CheckBoxStyle checkBox = new CheckBox.CheckBoxStyle();
         checkBox.font = font;
@@ -239,6 +243,9 @@ public class HudResourcesTest {
         missingCheckBoxOn.font = font;
         missingCheckBoxOn.checkboxOff = checkOff;
         skin.add("missing-check-box-on", missingCheckBoxOn);
+        CheckBox.CheckBoxStyle fontlessCheckBox = new CheckBox.CheckBoxStyle(checkBox);
+        fontlessCheckBox.font = null;
+        skin.add("fontless-check-box", fontlessCheckBox);
 
         SelectBox.SelectBoxStyle selectBox = new SelectBox.SelectBoxStyle();
         selectBox.font = font;
@@ -251,16 +258,32 @@ public class HudResourcesTest {
         SelectBox.SelectBoxStyle missingSelectBoxScroll = new SelectBox.SelectBoxStyle(selectBox);
         missingSelectBoxScroll.scrollStyle = null;
         skin.add("missing-select-box-scroll", missingSelectBoxScroll);
+        SelectBox.SelectBoxStyle fontlessSelectBox = new SelectBox.SelectBoxStyle(selectBox);
+        fontlessSelectBox.font = null;
+        fontlessSelectBox.listStyle = new List.ListStyle(selectBox.listStyle);
+        fontlessSelectBox.listStyle.font = null;
+        skin.add("fontless-select-box", fontlessSelectBox);
+
+        TextButton.TextButtonStyle fontlessTextButton = new TextButton.TextButtonStyle();
+        skin.add("fontless-text-button", fontlessTextButton);
 
         HudResources resources = resourcesWithSkin(skin);
         try {
             HudSelectedResources selected = resources.select("custom");
             Assert.assertTrue(selected.hasTextFieldStyle("text-field"));
             Assert.assertFalse(selected.hasTextFieldStyle("missing-text-field-color"));
+            Assert.assertTrue(selected.hasTextFieldStyle("fontless-text-field", true));
+            Assert.assertFalse(selected.hasTextFieldStyle("missing-text-field-color", true));
             Assert.assertTrue(selected.hasCheckBoxStyle("check-box"));
             Assert.assertFalse(selected.hasCheckBoxStyle("missing-check-box-on"));
+            Assert.assertTrue(selected.hasCheckBoxStyle("fontless-check-box", true));
+            Assert.assertFalse(selected.hasCheckBoxStyle("missing-check-box-on", true));
             Assert.assertTrue(selected.hasSelectBoxStyle("select-box"));
             Assert.assertFalse(selected.hasSelectBoxStyle("missing-select-box-scroll"));
+            Assert.assertTrue(selected.hasSelectBoxStyle("fontless-select-box", true));
+            Assert.assertFalse(selected.hasSelectBoxStyle("missing-select-box-scroll", true));
+            Assert.assertFalse(selected.hasTextButtonStyle("fontless-text-button"));
+            Assert.assertTrue(selected.hasTextButtonStyle("fontless-text-button", true));
             Assert.assertFalse(selected.hasTextFieldStyle("missing"));
             Assert.assertFalse(selected.hasCheckBoxStyle("missing"));
             Assert.assertFalse(selected.hasSelectBoxStyle("missing"));

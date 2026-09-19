@@ -113,6 +113,29 @@ public class HudResourceRequirementsTest {
                 true, true);
     }
 
+    @Test
+    public void everyNativeTextPayloadContributesItsFontAssetDependency() {
+        String button = node("button", "TEXT_BUTTON", "\"textButton\":{\"text\":\"Go\"," +
+                "\"fontAssetId\":41},\"children\":[]");
+        String check = node("check", "CHECK_BOX", "\"checkBox\":{\"fontAssetId\":42}," +
+                "\"children\":[]");
+        String field = node("field", "TEXT_FIELD", "\"textField\":{\"fontAssetId\":43}," +
+                "\"children\":[]");
+        String select = node("select", "SELECT_BOX", "\"selectBox\":{\"items\":[]," +
+                "\"selectedIndex\":-1,\"fontAssetId\":44},\"children\":[]");
+        HudResourceRequirements requirements = requirements(node("root", "GROUP",
+                "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":" + button + "},{" +
+                        "\"placementKind\":\"DIRECT\",\"node\":" + check + "},{" +
+                        "\"placementKind\":\"DIRECT\",\"node\":" + field + "},{" +
+                        "\"placementKind\":\"DIRECT\",\"node\":" + select + "}]"));
+
+        Assert.assertEquals(4, requirements.bitmapFontAssetIds().size());
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(41));
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(42));
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(43));
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(44));
+    }
+
     private static void assertRequirements(
             String root, boolean expectedSkin, boolean expectedAtlas) {
         HudResourceRequirements requirements = requirements(root);

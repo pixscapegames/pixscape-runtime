@@ -115,27 +115,27 @@ public final class HudMaterializer {
                 }
                 Label.LabelStyle labelStyle = sharedStyle;
                 if (node.label.fontAssetId != null) {
-                    BitmapFont font = resources.bitmapFont(node.label.fontAssetId);
-                    if (font == null) {
-                        throw missing(node, "bitmap font Asset",
-                                String.valueOf(node.label.fontAssetId));
-                    }
                     labelStyle = new Label.LabelStyle(sharedStyle);
-                    labelStyle.font = font;
+                    labelStyle.font = requireFont(node, node.label.fontAssetId, resources);
                 }
                 return new Label(node.label.text, labelStyle);
             }
             case TEXT_BUTTON: {
-                TextButton.TextButtonStyle buttonStyle =
+                TextButton.TextButtonStyle sharedStyle =
                         HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)
                                 ? resources.builtInTextButtonStyle()
                                 : resources.textButtonStyle(node.textButton.styleName);
-                if (buttonStyle == null) {
+                if (sharedStyle == null) {
                     throw missing(node, "TextButton style",
                             HudBuiltInTextButtonStyle.isSelected(node.textButton.styleName)
                                     ? "built-in Default" : node.textButton.styleName);
                 }
-                return new TextButton(node.textButton.text, buttonStyle);
+                TextButton.TextButtonStyle style = sharedStyle;
+                if (node.textButton.fontAssetId != null) {
+                    style = new TextButton.TextButtonStyle(sharedStyle);
+                    style.font = requireFont(node, node.textButton.fontAssetId, resources);
+                }
+                return new TextButton(node.textButton.text, style);
             }
             case IMAGE_BUTTON: {
                 ImageButton.ImageButtonStyle sharedStyle =
@@ -153,14 +153,21 @@ public final class HudMaterializer {
                 return new ImageButton(style);
             }
             case TEXT_FIELD: {
-                TextField.TextFieldStyle style =
+                TextField.TextFieldStyle sharedStyle =
                         HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
                                 ? resources.builtInTextFieldStyle()
                                 : resources.textFieldStyle(node.textField.styleName);
-                if (style == null) {
+                if (sharedStyle == null) {
                     throw missing(node, "TextField style",
                             HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
                                     ? "built-in Default" : node.textField.styleName);
+                }
+                TextField.TextFieldStyle style = sharedStyle;
+                if (node.textField.fontAssetId != null) {
+                    BitmapFont font = requireFont(node, node.textField.fontAssetId, resources);
+                    style = new TextField.TextFieldStyle(sharedStyle);
+                    style.font = font;
+                    style.messageFont = font;
                 }
                 TextField field = new TextField("", style);
                 field.setMaxLength(node.textField.maxLength);
@@ -170,14 +177,23 @@ public final class HudMaterializer {
                 return field;
             }
             case SELECT_BOX: {
-                SelectBox.SelectBoxStyle style =
+                SelectBox.SelectBoxStyle sharedStyle =
                         HudBuiltInSelectBoxStyle.isSelected(node.selectBox.styleName)
                                 ? resources.builtInSelectBoxStyle()
                                 : resources.selectBoxStyle(node.selectBox.styleName);
-                if (style == null) {
+                if (sharedStyle == null) {
                     throw missing(node, "SelectBox style",
                             HudBuiltInSelectBoxStyle.isSelected(node.selectBox.styleName)
                                     ? "built-in Default" : node.selectBox.styleName);
+                }
+                SelectBox.SelectBoxStyle style = sharedStyle;
+                if (node.selectBox.fontAssetId != null) {
+                    BitmapFont font = requireFont(node, node.selectBox.fontAssetId, resources);
+                    style = new SelectBox.SelectBoxStyle(sharedStyle);
+                    style.font = font;
+                    style.listStyle = new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(
+                            sharedStyle.listStyle);
+                    style.listStyle.font = font;
                 }
                 SelectBox<String> box = new SelectBox<String>(style);
                 box.setItems(node.selectBox.items.toArray(new String[node.selectBox.items.size()]));
@@ -187,11 +203,16 @@ public final class HudMaterializer {
                 return box;
             }
             case CHECK_BOX: {
-                CheckBox.CheckBoxStyle style = HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
+                CheckBox.CheckBoxStyle sharedStyle = HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
                         ? resources.builtInCheckBoxStyle() : resources.checkBoxStyle(node.checkBox.styleName);
-                if (style == null) {
+                if (sharedStyle == null) {
                     throw missing(node, "CheckBox style", HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
                             ? "built-in Default" : node.checkBox.styleName);
+                }
+                CheckBox.CheckBoxStyle style = sharedStyle;
+                if (node.checkBox.fontAssetId != null) {
+                    style = new CheckBox.CheckBoxStyle(sharedStyle);
+                    style.font = requireFont(node, node.checkBox.fontAssetId, resources);
                 }
                 CheckBox box = new CheckBox(node.checkBox.text, style);
                 box.setChecked(node.checkBox.checked);
@@ -202,6 +223,15 @@ public final class HudMaterializer {
                 throw new IllegalStateException(
                         "Unsupported validated HUD node kind: " + node.kind + ".");
         }
+    }
+
+    private static BitmapFont requireFont(HudNode node, int assetId,
+                                          HudVisualResources resources) {
+        BitmapFont font = resources.bitmapFont(assetId);
+        if (font == null) {
+            throw missing(node, "bitmap font Asset", String.valueOf(assetId));
+        }
+        return font;
     }
 
     private static void addDirect(Actor parent, Actor child, String parentId) {

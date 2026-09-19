@@ -22,6 +22,10 @@ public interface HudResourceCatalog {
 
     boolean hasTextButtonStyle(String name);
 
+    default boolean hasTextButtonStyle(String name, boolean hasFontOverride) {
+        return hasTextButtonStyle(name);
+    }
+
     /** Returns whether the prepared environment contains the built-in TextButton resources. */
     default boolean hasBuiltInTextButtonStyle() { return false; }
 
@@ -32,15 +36,27 @@ public interface HudResourceCatalog {
 
     default boolean hasTextFieldStyle(String name) { return false; }
 
+    default boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
+        return hasTextFieldStyle(name);
+    }
+
     /** Returns whether the prepared environment contains the built-in TextField resources. */
     default boolean hasBuiltInTextFieldStyle() { return false; }
 
     default boolean hasSelectBoxStyle(String name) { return false; }
 
+    default boolean hasSelectBoxStyle(String name, boolean hasFontOverride) {
+        return hasSelectBoxStyle(name);
+    }
+
     /** Returns whether the prepared environment contains the complete built-in SelectBox style. */
     default boolean hasBuiltInSelectBoxStyle() { return false; }
 
     default boolean hasCheckBoxStyle(String name) { return false; }
+
+    default boolean hasCheckBoxStyle(String name, boolean hasFontOverride) {
+        return hasCheckBoxStyle(name);
+    }
 
     /** Returns whether the prepared environment contains the complete built-in CheckBox style. */
     default boolean hasBuiltInCheckBoxStyle() { return false; }

@@ -144,27 +144,40 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBitmapFont(int assetId) { return bitmapFont(assetId) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
-    @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
+    @Override public boolean hasTextButtonStyle(String name) {
+        return hasTextButtonStyle(name, false);
+    }
+    @Override public boolean hasTextButtonStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableTextButtonStyle(textButtonStyle(name), hasFontOverride);
+    }
     @Override public boolean hasBuiltInTextButtonStyle() { return builtInTextButtonStyle() != null; }
     @Override public boolean hasImageButtonStyle(String name) { return imageButtonStyle(name) != null; }
     @Override public boolean hasBuiltInImageButtonStyle() { return builtInImageButtonStyle() != null; }
     @Override public boolean hasTextFieldStyle(String name) {
-        TextField.TextFieldStyle style = textFieldStyle(name);
-        return HudStyleUsability.isUsableTextFieldStyle(style);
+        return hasTextFieldStyle(name, false);
+    }
+    @Override public boolean hasTextFieldStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableTextFieldStyle(textFieldStyle(name), hasFontOverride);
     }
     @Override public boolean hasBuiltInTextFieldStyle() {
-        return HudStyleUsability.isUsableTextFieldStyle(builtInTextFieldStyle());
+        return HudStyleUsability.isUsableTextFieldStyle(builtInTextFieldStyle(), false);
     }
     @Override public boolean hasSelectBoxStyle(String name) {
-        return HudStyleUsability.isUsableSelectBoxStyle(selectBoxStyle(name));
+        return hasSelectBoxStyle(name, false);
+    }
+    @Override public boolean hasSelectBoxStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableSelectBoxStyle(selectBoxStyle(name), hasFontOverride);
     }
     @Override public boolean hasBuiltInSelectBoxStyle() {
-        return HudStyleUsability.isUsableSelectBoxStyle(builtInSelectBoxStyle());
+        return HudStyleUsability.isUsableSelectBoxStyle(builtInSelectBoxStyle(), false);
     }
     @Override public boolean hasCheckBoxStyle(String name) {
-        return HudStyleUsability.isUsableCheckBoxStyle(checkBoxStyle(name));
+        return hasCheckBoxStyle(name, false);
+    }
+    @Override public boolean hasCheckBoxStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableCheckBoxStyle(checkBoxStyle(name), hasFontOverride);
     }
     @Override public boolean hasBuiltInCheckBoxStyle() {
-        return HudStyleUsability.isUsableCheckBoxStyle(builtInCheckBoxStyle());
+        return HudStyleUsability.isUsableCheckBoxStyle(builtInCheckBoxStyle(), false);
     }
 }

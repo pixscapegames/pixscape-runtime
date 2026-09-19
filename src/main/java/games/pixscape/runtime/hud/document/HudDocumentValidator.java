@@ -238,17 +238,8 @@ public final class HudDocumentValidator {
                         "LABEL text must not be null; an empty string is allowed.",
                         usableId(node), path + ".label.text");
             }
-            Integer fontAssetId = node.label.fontAssetId;
-            if (fontAssetId != null && fontAssetId <= 0) {
-                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
-                        "LABEL fontAssetId must be a positive Asset ID.", usableId(node),
-                        path + ".label.fontAssetId");
-            } else if (fontAssetId != null && resources != null
-                    && !resources.hasBitmapFont(fontAssetId)) {
-                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "LABEL references unknown bitmap font Asset " + fontAssetId + ".",
-                        usableId(node), path + ".label.fontAssetId");
-            }
+            Integer fontAssetId = validateFontAsset(node, node.label.fontAssetId,
+                    path + ".label.fontAssetId");
             validateLabelStyle(node, node.label.styleName, fontAssetId != null,
                     path + ".label.styleName");
         }
@@ -259,7 +250,9 @@ public final class HudDocumentValidator {
                         "TEXT_BUTTON text must not be null; an empty string is allowed.",
                         usableId(node), path + ".textButton.text");
             }
-            validateStyle(node, node.textButton.styleName,
+            Integer fontAssetId = validateFontAsset(node, node.textButton.fontAssetId,
+                    path + ".textButton.fontAssetId");
+            validateTextButtonStyle(node, node.textButton.styleName, fontAssetId != null,
                     path + ".textButton.styleName");
         }
 
@@ -284,7 +277,9 @@ public final class HudDocumentValidator {
                         "TEXT_FIELD maxLength must be zero or a positive integer.",
                         usableId(node), path + ".textField.maxLength");
             }
-            validateTextFieldStyle(node, node.textField.styleName,
+            Integer fontAssetId = validateFontAsset(node, node.textField.fontAssetId,
+                    path + ".textField.fontAssetId");
+            validateTextFieldStyle(node, node.textField.styleName, fontAssetId != null,
                     path + ".textField.styleName");
         }
 
@@ -320,7 +315,9 @@ public final class HudDocumentValidator {
                         "SELECT_BOX maxListCount must be zero or a positive integer.",
                         usableId(node), path + ".selectBox.maxListCount");
             }
-            validateSelectBoxStyle(node, node.selectBox.styleName,
+            Integer fontAssetId = validateFontAsset(node, node.selectBox.fontAssetId,
+                    path + ".selectBox.fontAssetId");
+            validateSelectBoxStyle(node, node.selectBox.styleName, fontAssetId != null,
                     path + ".selectBox.styleName");
         }
 
@@ -330,10 +327,28 @@ public final class HudDocumentValidator {
                         "CHECK_BOX text must not be null; an empty string is allowed.",
                         usableId(node), path + ".checkBox.text");
             }
-            validateCheckBoxStyle(node, node.checkBox.styleName, path + ".checkBox.styleName");
+            Integer fontAssetId = validateFontAsset(node, node.checkBox.fontAssetId,
+                    path + ".checkBox.fontAssetId");
+            validateCheckBoxStyle(node, node.checkBox.styleName, fontAssetId != null,
+                    path + ".checkBox.styleName");
         }
 
-        private void validateTextFieldStyle(HudNode node, String styleName, String path) {
+        private Integer validateFontAsset(HudNode node, Integer fontAssetId, String path) {
+            if (fontAssetId != null && fontAssetId <= 0) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        node.kind + " fontAssetId must be a positive Asset ID.",
+                        usableId(node), path);
+            } else if (fontAssetId != null && resources != null
+                    && !resources.hasBitmapFont(fontAssetId)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        node.kind + " references unknown bitmap font Asset " + fontAssetId + ".",
+                        usableId(node), path);
+            }
+            return fontAssetId;
+        }
+
+        private void validateTextFieldStyle(HudNode node, String styleName,
+                                            boolean hasFontOverride, String path) {
             if (HudBuiltInTextFieldStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInTextFieldStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
@@ -342,7 +357,7 @@ public final class HudDocumentValidator {
                 }
                 return;
             }
-            if (resources != null && !resources.hasTextFieldStyle(styleName)) {
+            if (resources != null && !resources.hasTextFieldStyle(styleName, hasFontOverride)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "TEXT_FIELD Skin style '" + styleName
                                 + "' is missing or unusable.",
@@ -350,7 +365,8 @@ public final class HudDocumentValidator {
             }
         }
 
-        private void validateSelectBoxStyle(HudNode node, String styleName, String path) {
+        private void validateSelectBoxStyle(HudNode node, String styleName,
+                                            boolean hasFontOverride, String path) {
             if (HudBuiltInSelectBoxStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInSelectBoxStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
@@ -359,7 +375,7 @@ public final class HudDocumentValidator {
                 }
                 return;
             }
-            if (resources != null && !resources.hasSelectBoxStyle(styleName)) {
+            if (resources != null && !resources.hasSelectBoxStyle(styleName, hasFontOverride)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "SELECT_BOX Skin style '" + styleName
                                 + "' is missing or unusable.",
@@ -367,7 +383,8 @@ public final class HudDocumentValidator {
             }
         }
 
-        private void validateCheckBoxStyle(HudNode node, String styleName, String path) {
+        private void validateCheckBoxStyle(HudNode node, String styleName,
+                                           boolean hasFontOverride, String path) {
             if (HudBuiltInCheckBoxStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInCheckBoxStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
@@ -376,7 +393,7 @@ public final class HudDocumentValidator {
                 }
                 return;
             }
-            if (resources != null && !resources.hasCheckBoxStyle(styleName)) {
+            if (resources != null && !resources.hasCheckBoxStyle(styleName, hasFontOverride)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "CHECK_BOX Skin style '" + styleName
                                 + "' is missing or unusable.",
@@ -427,7 +444,8 @@ public final class HudDocumentValidator {
             }
         }
 
-        private void validateStyle(HudNode node, String styleName, String path) {
+        private void validateTextButtonStyle(HudNode node, String styleName,
+                                             boolean hasFontOverride, String path) {
             if (HudBuiltInTextButtonStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInTextButtonStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
@@ -443,7 +461,7 @@ public final class HudDocumentValidator {
                 return;
             }
             if (resources == null) return;
-            boolean known = resources.hasTextButtonStyle(styleName);
+            boolean known = resources.hasTextButtonStyle(styleName, hasFontOverride);
             if (!known) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         node.kind + " references unknown Skin style '" + styleName + "'.",

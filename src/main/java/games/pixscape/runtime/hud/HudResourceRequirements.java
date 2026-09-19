@@ -3,6 +3,7 @@ package games.pixscape.runtime.hud;
 import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudImageReferences;
 import games.pixscape.runtime.hud.document.HudImageSource;
+import games.pixscape.runtime.hud.document.HudFontReferences;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -61,11 +62,10 @@ public final class HudResourceRequirements {
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
+            Integer fontAssetId = HudFontReferences.assetId(node);
+            if (fontAssetId != null) bitmapFontAssetIds.add(fontAssetId);
             if (kind == HudNodeKind.LABEL) {
                 requiresAtlas = true;
-                if (node.label.fontAssetId != null) {
-                    bitmapFontAssetIds.add(node.label.fontAssetId);
-                }
                 if (HudBuiltInLabelStyle.isSelected(node.label.styleName)) {
                     requiresBuiltInLabelStyle = true;
                 } else {

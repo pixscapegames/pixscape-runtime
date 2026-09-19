@@ -485,6 +485,67 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void nativeTextWidgetOverridesCompleteOnlyTheirMissingStyleFonts() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Button";
+        button.textButton.styleName = "fontless";
+        button.textButton.fontAssetId = 42;
+        HudNode check = new HudNode("check", HudNodeKind.CHECK_BOX);
+        check.checkBox = new HudCheckBoxData();
+        check.checkBox.styleName = "fontless";
+        check.checkBox.fontAssetId = 42;
+        HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.styleName = "fontless";
+        field.textField.fontAssetId = 42;
+        HudNode select = new HudNode("select", HudNodeKind.SELECT_BOX);
+        select.selectBox = new HudSelectBoxData();
+        select.selectBox.styleName = "fontless";
+        select.selectBox.fontAssetId = 42;
+        select.selectBox.selectedIndex = -1;
+        root.children.add(HudChild.direct(button));
+        root.children.add(HudChild.direct(check));
+        root.children.add(HudChild.direct(field));
+        root.children.add(HudChild.direct(select));
+        HudResourceCatalog catalog = new EmptyResourceCatalog() {
+            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
+            @Override public boolean hasTextButtonStyle(String name, boolean override) {
+                return override && "fontless".equals(name);
+            }
+            @Override public boolean hasCheckBoxStyle(String name, boolean override) {
+                return override && "fontless".equals(name);
+            }
+            @Override public boolean hasTextFieldStyle(String name, boolean override) {
+                return override && "fontless".equals(name);
+            }
+            @Override public boolean hasSelectBoxStyle(String name, boolean override) {
+                return override && "fontless".equals(name);
+            }
+        };
+
+        Assert.assertTrue(issues(validator.validate(new HudDocumentV1(root), catalog)),
+                validator.validate(new HudDocumentV1(root), catalog).isValid());
+
+        button.textButton.fontAssetId = null;
+        requireIssue(validator.validate(new HudDocumentV1(root), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        button.textButton.fontAssetId = 42;
+        check.checkBox.fontAssetId = null;
+        requireIssue(validator.validate(new HudDocumentV1(root), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        check.checkBox.fontAssetId = 42;
+        field.textField.fontAssetId = null;
+        requireIssue(validator.validate(new HudDocumentV1(root), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        field.textField.fontAssetId = 42;
+        select.selectBox.fontAssetId = 99;
+        requireIssue(validator.validate(new HudDocumentV1(root), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+    }
+
+    @Test
     public void catalogReportsUnknownRegionDrawableAndStyles() {
         HudValidationResult result = validator.validate(read("resources.json"),
                 new EmptyResourceCatalog());

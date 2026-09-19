@@ -4,6 +4,7 @@ package games.pixscape.runtime.hud.document;
 public final class HudCheckBoxData {
     public String text = "";
     public String styleName;
+    public Integer fontAssetId;
     public boolean checked;
     public boolean disabled;
 }

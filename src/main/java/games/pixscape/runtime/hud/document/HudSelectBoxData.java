@@ -9,6 +9,7 @@ public final class HudSelectBoxData {
     /** -1 for an empty list, otherwise an index in {@link #items}. */
     public int selectedIndex;
     public String styleName;
+    public Integer fontAssetId;
     /** Zero means unlimited. */
     public int maxListCount;
     public boolean disabled;

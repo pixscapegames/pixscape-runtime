@@ -472,6 +472,28 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void textFieldWithoutOverridePreservesItsDistinctPlaceholderFont() {
+        BitmapFont messageFont = new BitmapFont(new BitmapFont.BitmapFontData(),
+                new TextureRegion(), false);
+        TextField.TextFieldStyle shared = new TextField.TextFieldStyle(
+                selectedResources.builtInTextFieldStyle());
+        shared.messageFont = messageFont;
+        selectedResources.skin().add("distinct-placeholder", shared,
+                TextField.TextFieldStyle.class);
+        HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        node.textField = new HudTextFieldData();
+        node.textField.styleName = "distinct-placeholder";
+        try {
+            TextField field = (TextField) materialize(new HudDocumentV1(node)).actor("field");
+            Assert.assertSame(shared, field.getStyle());
+            Assert.assertSame(messageFont, field.getStyle().messageFont);
+            Assert.assertNotSame(field.getStyle().font, field.getStyle().messageFont);
+        } finally {
+            messageFont.dispose();
+        }
+    }
+
+    @Test
     public void materializesNativeSelectBoxWithoutMutatingItsAuthoredSelection() {
         HudNode node = new HudNode("choice", HudNodeKind.SELECT_BOX);
         node.selectBox = new HudSelectBoxData();
@@ -629,6 +651,95 @@ public class HudMaterializerTest {
         Assert.assertNotSame(shared, label.getStyle());
         Assert.assertSame(override, label.getStyle().font);
         Assert.assertNotSame(override, shared.font);
+    }
+
+    @Test
+    public void nativeTextWidgetOverridesCopyStylesAndShareOnlyTheChosenFont() {
+        BitmapFont override = new BitmapFont(new BitmapFont.BitmapFontData(),
+                new TextureRegion(), false);
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new games.pixscape.runtime.hud.document.HudTextButtonData();
+        button.textButton.text = "Button";
+        button.textButton.fontAssetId = 42;
+        HudNode inheritedButton = new HudNode("inherited-button", HudNodeKind.TEXT_BUTTON);
+        inheritedButton.textButton = new games.pixscape.runtime.hud.document.HudTextButtonData();
+        inheritedButton.textButton.text = "Inherited";
+        HudNode check = new HudNode("check", HudNodeKind.CHECK_BOX);
+        check.checkBox = new games.pixscape.runtime.hud.document.HudCheckBoxData();
+        check.checkBox.fontAssetId = 42;
+        HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.fontAssetId = 42;
+        HudNode select = new HudNode("select", HudNodeKind.SELECT_BOX);
+        select.selectBox = new HudSelectBoxData();
+        select.selectBox.fontAssetId = 42;
+        select.selectBox.selectedIndex = -1;
+        root.children.add(HudChild.direct(button));
+        root.children.add(HudChild.direct(inheritedButton));
+        root.children.add(HudChild.direct(check));
+        root.children.add(HudChild.direct(field));
+        root.children.add(HudChild.direct(select));
+        TextButton.TextButtonStyle sharedButton = selectedResources.builtInTextButtonStyle();
+        CheckBox.CheckBoxStyle sharedCheck = selectedResources.builtInCheckBoxStyle();
+        TextField.TextFieldStyle sharedField = selectedResources.builtInTextFieldStyle();
+        SelectBox.SelectBoxStyle sharedSelect = selectedResources.builtInSelectBoxStyle();
+        com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle sharedList = sharedSelect.listStyle;
+
+        MaterializedHud hud;
+        try {
+            HudValidationResult validation = new HudDocumentValidator().validate(
+                    new HudDocumentV1(root));
+            hud = new HudMaterializer().materialize(validation.validatedDocument(),
+                    overrideVisualResources(override));
+        } finally {
+            // The test owns only the standalone override, never the shared resource styles.
+            override.dispose();
+        }
+
+        TextButton materializedButton = (TextButton) hud.actor("button");
+        TextButton materializedInheritedButton = (TextButton) hud.actor("inherited-button");
+        CheckBox materializedCheck = (CheckBox) hud.actor("check");
+        TextField materializedField = (TextField) hud.actor("field");
+        @SuppressWarnings("unchecked") SelectBox<String> materializedSelect =
+                (SelectBox<String>) hud.actor("select");
+        Assert.assertNotSame(sharedButton, materializedButton.getStyle());
+        Assert.assertSame(override, materializedButton.getStyle().font);
+        Assert.assertSame(sharedButton, materializedInheritedButton.getStyle());
+        Assert.assertNotSame(sharedCheck, materializedCheck.getStyle());
+        Assert.assertSame(override, materializedCheck.getStyle().font);
+        Assert.assertNotSame(sharedField, materializedField.getStyle());
+        Assert.assertSame(override, materializedField.getStyle().font);
+        Assert.assertSame(override, materializedField.getStyle().messageFont);
+        Assert.assertNotSame(sharedSelect, materializedSelect.getStyle());
+        Assert.assertSame(override, materializedSelect.getStyle().font);
+        Assert.assertNotSame(sharedList, materializedSelect.getStyle().listStyle);
+        Assert.assertSame(override, materializedSelect.getStyle().listStyle.font);
+        Assert.assertNotNull(materializedSelect.getStyle().scrollStyle);
+        Assert.assertNotSame(override, sharedButton.font);
+        Assert.assertNotSame(override, sharedCheck.font);
+        Assert.assertNotSame(override, sharedField.font);
+        Assert.assertNotSame(override, sharedField.messageFont);
+        Assert.assertNotSame(override, sharedSelect.font);
+        Assert.assertNotSame(override, sharedList.font);
+    }
+
+    private HudVisualResources overrideVisualResources(final BitmapFont override) {
+        return new HudVisualResources() {
+            @Override public TextureRegion region(String name) { return selectedResources.region(name); }
+            @Override public Drawable drawable(String name) { return selectedResources.drawable(name); }
+            @Override public Label.LabelStyle labelStyle(String name) { return selectedResources.labelStyle(name); }
+            @Override public Label.LabelStyle builtInLabelStyle() { return selectedResources.builtInLabelStyle(); }
+            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
+            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return selectedResources.textButtonStyle(name); }
+            @Override public TextButton.TextButtonStyle builtInTextButtonStyle() { return selectedResources.builtInTextButtonStyle(); }
+            @Override public TextField.TextFieldStyle textFieldStyle(String name) { return selectedResources.textFieldStyle(name); }
+            @Override public TextField.TextFieldStyle builtInTextFieldStyle() { return selectedResources.builtInTextFieldStyle(); }
+            @Override public SelectBox.SelectBoxStyle selectBoxStyle(String name) { return selectedResources.selectBoxStyle(name); }
+            @Override public SelectBox.SelectBoxStyle builtInSelectBoxStyle() { return selectedResources.builtInSelectBoxStyle(); }
+            @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) { return selectedResources.checkBoxStyle(name); }
+            @Override public CheckBox.CheckBoxStyle builtInCheckBoxStyle() { return selectedResources.builtInCheckBoxStyle(); }
+        };
     }
 
     @Test
