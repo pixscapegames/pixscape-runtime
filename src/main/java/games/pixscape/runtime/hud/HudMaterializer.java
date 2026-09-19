@@ -1,5 +1,6 @@
 package games.pixscape.runtime.hud;
 
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
@@ -104,13 +105,23 @@ public final class HudMaterializer {
                 return new Image(drawable);
             }
             case LABEL: {
-                Label.LabelStyle labelStyle = HudBuiltInLabelStyle.isSelected(node.label.styleName)
+                Label.LabelStyle sharedStyle = HudBuiltInLabelStyle.isSelected(node.label.styleName)
                         ? resources.builtInLabelStyle()
                         : resources.labelStyle(node.label.styleName);
-                if (labelStyle == null) {
+                if (sharedStyle == null) {
                     throw missing(node, "Label style",
                             HudBuiltInLabelStyle.isSelected(node.label.styleName)
                                     ? "built-in Default" : node.label.styleName);
+                }
+                Label.LabelStyle labelStyle = sharedStyle;
+                if (node.label.fontAssetId != null) {
+                    BitmapFont font = resources.bitmapFont(node.label.fontAssetId);
+                    if (font == null) {
+                        throw missing(node, "bitmap font Asset",
+                                String.valueOf(node.label.fontAssetId));
+                    }
+                    labelStyle = new Label.LabelStyle(sharedStyle);
+                    labelStyle.font = font;
                 }
                 return new Label(node.label.text, labelStyle);
             }

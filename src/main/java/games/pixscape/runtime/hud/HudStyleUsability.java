@@ -1,12 +1,18 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 
 /** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
 public final class HudStyleUsability {
     private HudStyleUsability() {
+    }
+
+    public static boolean isUsableLabelStyle(Label.LabelStyle style,
+                                             boolean hasFontOverride) {
+        return style != null && (hasFontOverride || style.font != null);
     }
 
     public static boolean isUsableTextFieldStyle(TextField.TextFieldStyle style) {

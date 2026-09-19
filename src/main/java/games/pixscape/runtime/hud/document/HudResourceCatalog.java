@@ -11,6 +11,12 @@ public interface HudResourceCatalog {
 
     boolean hasLabelStyle(String name);
 
+    /** Returns whether an existing named Label style supplies its own usable font. */
+    default boolean hasLabelStyleFont(String name) { return hasLabelStyle(name); }
+
+    /** Returns whether a standalone bitmap font asset was prepared in this environment. */
+    default boolean hasBitmapFont(int assetId) { return false; }
+
     /** Returns whether the prepared environment contains the built-in Label font region. */
     default boolean hasBuiltInLabelStyle() { return false; }
 

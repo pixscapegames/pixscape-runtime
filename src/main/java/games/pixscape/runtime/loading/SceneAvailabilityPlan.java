@@ -152,7 +152,8 @@ public final class SceneAvailabilityPlan {
         if (hudPrepared) return;
         if (hudFiles != null) {
             hudResources = HudResources.prepareEnvironment(runtimeProjectDir, hudAtlasId,
-                    HudTextureProfile.DEFAULT_ID, hudFiles.skinIds());
+                    HudTextureProfile.DEFAULT_ID, hudFiles.skinIds(),
+                    hudFiles.bitmapFontAssetIds());
         }
         hudPrepared = true;
     }

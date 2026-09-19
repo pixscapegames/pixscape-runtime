@@ -1,5 +1,6 @@
 package games.pixscape.runtime.hud;
 
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
@@ -48,7 +49,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                 && (!requirements.requiresBuiltInSelectBoxStyle()
                         || builtInSelectBoxStyle() != null)
                 && (!requirements.requiresBuiltInCheckBoxStyle()
-                        || builtInCheckBoxStyle() != null);
+                        || builtInCheckBoxStyle() != null)
+                && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
     Skin skin() {
@@ -80,6 +82,10 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     @Override public Label.LabelStyle builtInLabelStyle() {
         owner.requireOpen();
         return owner.sharedBuiltInLabelStyle();
+    }
+
+    @Override public BitmapFont bitmapFont(int assetId) {
+        return owner.sharedBitmapFont(assetId);
     }
 
     @Override public TextButton.TextButtonStyle textButtonStyle(String name) {
@@ -133,6 +139,10 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
 
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
+    @Override public boolean hasLabelStyleFont(String name) {
+        return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
+    }
+    @Override public boolean hasBitmapFont(int assetId) { return bitmapFont(assetId) != null; }
     @Override public boolean hasBuiltInLabelStyle() { return builtInLabelStyle() != null; }
     @Override public boolean hasTextButtonStyle(String name) { return textButtonStyle(name) != null; }
     @Override public boolean hasBuiltInTextButtonStyle() { return builtInTextButtonStyle() != null; }

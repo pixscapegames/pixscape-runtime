@@ -25,6 +25,7 @@ public final class SceneHudFiles {
     private final Map<String, Screen> screens = new LinkedHashMap<String, Screen>();
     private final Set<String> files = new LinkedHashSet<String>();
     private final Map<String, Boolean> skins = new LinkedHashMap<String, Boolean>();
+    private final Set<Integer> bitmapFontAssetIds = new LinkedHashSet<Integer>();
     private boolean atlasExpanded;
 
     public SceneHudFiles(FileAvailabilityService availability, FileHandle project,
@@ -80,6 +81,11 @@ public final class SceneHudFiles {
                             HudDocumentValidationException.Phase.STRUCTURAL, screen.documentId, validation);
                 }
                 HudResourceRequirements requirements = HudResourceRequirements.from(validation.validatedDocument());
+                for (Integer fontAssetId : requirements.bitmapFontAssetIds()) {
+                    if (bitmapFontAssetIds.add(fontAssetId)) {
+                        request(HudBitmapFontResource.descriptorId(fontAssetId));
+                    }
+                }
                 if (requirements.requiresSkin()) {
                     String skinId = HudResourceId.normalizeOptional(screen.asset.skinId, "skinId");
                     if (skinId == null) throw new IllegalArgumentException("Scene HUD " + screen.id + " requires skinId.");
@@ -123,6 +129,10 @@ public final class SceneHudFiles {
         List<String> ids = new ArrayList<String>(skins.keySet());
         Collections.sort(ids);
         return ids;
+    }
+
+    public Set<Integer> bitmapFontAssetIds() {
+        return Collections.unmodifiableSet(bitmapFontAssetIds);
     }
 
     public int fileCount() { return files.size(); }

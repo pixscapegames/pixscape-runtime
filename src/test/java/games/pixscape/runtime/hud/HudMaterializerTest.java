@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.EventListener;
@@ -611,6 +612,26 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void labelFontOverrideCopiesSharedStyleAndChangesOnlyFont() {
+        HudNode root = new HudNode("label", HudNodeKind.LABEL);
+        root.label = new games.pixscape.runtime.hud.document.HudLabelData();
+        root.label.text = "Label";
+        root.label.fontAssetId = 42;
+        Label.LabelStyle shared = selectedResources.labelStyle("hud-body-bitmap");
+        BitmapFont override = selectedResources.builtInLabelStyle().font;
+        FakeVisualResources visual = new FakeVisualResources(
+                null, null, shared, null, override);
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentV1(root));
+        Label label = (Label) new HudMaterializer().materialize(
+                validation.validatedDocument(), visual).root();
+
+        Assert.assertNotSame(shared, label.getStyle());
+        Assert.assertSame(override, label.getStyle().font);
+        Assert.assertNotSame(override, shared.font);
+    }
+
+    @Test
     public void publicMaterializerBoundaryAcceptsOnlyValidatedDocuments() throws Exception {
         Method visualMaterialize = HudMaterializer.class.getMethod(
                 "materialize", ValidatedHudDocument.class, HudVisualResources.class);
@@ -626,15 +647,24 @@ public class HudMaterializerTest {
         private final Drawable drawable;
         private final Label.LabelStyle labelStyle;
         private final TextButton.TextButtonStyle textButtonStyle;
+        private final BitmapFont bitmapFont;
         private boolean disposed;
 
         private FakeVisualResources(TextureRegion region, Drawable drawable,
                                     Label.LabelStyle labelStyle,
                                     TextButton.TextButtonStyle textButtonStyle) {
+            this(region, drawable, labelStyle, textButtonStyle, null);
+        }
+
+        private FakeVisualResources(TextureRegion region, Drawable drawable,
+                                    Label.LabelStyle labelStyle,
+                                    TextButton.TextButtonStyle textButtonStyle,
+                                    BitmapFont bitmapFont) {
             this.region = region;
             this.drawable = drawable;
             this.labelStyle = labelStyle;
             this.textButtonStyle = textButtonStyle;
+            this.bitmapFont = bitmapFont;
         }
 
         @Override
@@ -653,6 +683,9 @@ public class HudMaterializerTest {
         }
 
         @Override public Label.LabelStyle builtInLabelStyle() { return labelStyle; }
+        @Override public BitmapFont bitmapFont(int assetId) {
+            return assetId == 42 ? bitmapFont : null;
+        }
 
         @Override
         public TextButton.TextButtonStyle textButtonStyle(String name) {

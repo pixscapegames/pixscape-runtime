@@ -173,6 +173,26 @@ public class HudResourcesTest {
     }
 
     @Test
+    public void standaloneMultipageFontBorrowsPackedAtlasRegionsByAssetId() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("standalone-font"));
+        writeHudFiles(root);
+        HudResources resources = HudResources.prepareEnvironment(root, "ui/game.atlas", null,
+                Collections.<String>emptyList(), Collections.singleton(42));
+        try {
+            BitmapFont font = resources.select(null).bitmapFont(42);
+            Assert.assertNotNull(font);
+            Assert.assertEquals(2, font.getRegions().size);
+            Assert.assertEquals(0, font.getData().getGlyph('A').page);
+            Assert.assertEquals(1, font.getData().getGlyph('B').page);
+            Assert.assertFalse(font.ownsTexture());
+            Assert.assertSame(resources.atlas().findRegion(
+                    HudBitmapFontResource.pageKey(42, 1)), font.getRegion(1));
+        } finally {
+            resources.dispose();
+        }
+    }
+
+    @Test
     public void customSelectBoxStyleWithoutBackgroundIsUsable() throws Exception {
         Skin skin = new Skin();
         BitmapFont font = new BitmapFont(new BitmapFont.BitmapFontData(), new TextureRegion(), false);
@@ -568,13 +588,15 @@ public class HudResourcesTest {
         writePage(ui.child("page-b.png"));
         ui.child("game.atlas").writeString(
                 pageDescriptor("page-a.png", "default-font", 0)
+                        + regionDescriptor(HudBitmapFontResource.pageKey(42, 0), -1)
                         + regionDescriptor(HudBuiltInLabelStyle.ATLAS_REGION, -1)
                         + regionDescriptor(HudBuiltInTextButtonStyle.BACKGROUND_REGION, -1)
                         + regionDescriptor("crosshair", -1)
                         + regionDescriptor("overlay-gradient", -1)
                         + regionDescriptor("inventory-art", -1)
                         + regionDescriptor("inventory-panel", -1)
-                        + "\n" + pageDescriptor("page-b.png", "default-font", 1),
+                        + "\n" + pageDescriptor("page-b.png", "default-font", 1)
+                        + regionDescriptor(HudBitmapFontResource.pageKey(42, 1), -1),
                 false, "UTF-8");
         ui.child("default-font.fnt").writeString(
                 "info face=\"test\" size=16 bold=0 italic=0 charset=\"\" unicode=0 "
@@ -589,6 +611,8 @@ public class HudResourcesTest {
                         + "xadvance=1 page=1 chnl=0\n"
                         + "kernings count=0\n",
                 false, "UTF-8");
+        root.child(HudBitmapFontResource.descriptorId(42)).writeString(
+                ui.child("default-font.fnt").readString(), false, "UTF-8");
         ui.child("game.json").writeString(
                 "{\"com.badlogic.gdx.graphics.g2d.BitmapFont\":{"
                         + "\"default-font\":{\"file\":\"default-font.fnt\"}},"
@@ -604,11 +628,11 @@ public class HudResourcesTest {
 
     private static HudResources resourcesWithSkin(Skin skin) throws Exception {
         Constructor<HudResources> constructor = HudResources.class.getDeclaredConstructor(String.class,
-                HudTextureProfile.class, java.util.Map.class, TextureAtlas.class,
+                HudTextureProfile.class, java.util.Map.class, java.util.Map.class, TextureAtlas.class,
                 AtlasRuntimeService.TextureArrayBundle.class);
         constructor.setAccessible(true);
         return constructor.newInstance(null, HudTextureProfile.forId(null),
-                Collections.singletonMap("custom", skin), null, null);
+                Collections.singletonMap("custom", skin), Collections.emptyMap(), null, null);
     }
 
     private static String pageDescriptor(String file, String region, int index) {

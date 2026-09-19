@@ -464,6 +464,27 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void labelFontOverrideRequiresFontButCanCompleteStyleWithoutFont() {
+        HudNode label = label("font-label");
+        label.label.styleName = "fontless";
+        label.label.fontAssetId = 42;
+        HudResourceCatalog catalog = new EmptyResourceCatalog() {
+            @Override public boolean hasLabelStyle(String name) { return "fontless".equals(name); }
+            @Override public boolean hasLabelStyleFont(String name) { return false; }
+            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
+        };
+
+        Assert.assertTrue(issues(validator.validate(new HudDocumentV1(label), catalog)),
+                validator.validate(new HudDocumentV1(label), catalog).isValid());
+        label.label.fontAssetId = null;
+        requireIssue(validator.validate(new HudDocumentV1(label), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+        label.label.fontAssetId = 99;
+        requireIssue(validator.validate(new HudDocumentV1(label), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+    }
+
+    @Test
     public void catalogReportsUnknownRegionDrawableAndStyles() {
         HudValidationResult result = validator.validate(read("resources.json"),
                 new EmptyResourceCatalog());

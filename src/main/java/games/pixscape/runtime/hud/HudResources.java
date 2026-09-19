@@ -37,6 +37,7 @@ import java.util.Set;
 public final class HudResources implements Disposable {
     private final Map<String, Skin> skins;
     private final Map<String, TextureRegion> regions;
+    private final Map<Integer, BitmapFont> bitmapFonts;
     private final String atlasId;
     private final HudTextureProfile textureProfile;
     private BitmapFont builtInLabelFont;
@@ -51,9 +52,12 @@ public final class HudResources implements Disposable {
     private boolean disposed;
 
     private HudResources(String atlasId, HudTextureProfile textureProfile,
-                         Map<String, Skin> skins, TextureAtlas atlas,
+                         Map<String, Skin> skins, Map<Integer, BitmapFont> bitmapFonts,
+                         TextureAtlas atlas,
                          AtlasRuntimeService.TextureArrayBundle textureArrayBundle) {
         this.skins = Collections.unmodifiableMap(new LinkedHashMap<String, Skin>(skins));
+        this.bitmapFonts = Collections.unmodifiableMap(
+                new LinkedHashMap<Integer, BitmapFont>(bitmapFonts));
         this.atlasId = atlasId;
         this.textureProfile = textureProfile;
         this.atlas = atlas;
@@ -90,7 +94,7 @@ public final class HudResources implements Disposable {
         return prepareEnvironment(runtimeProjectDir,
                 requirements.requiresAtlas() ? atlasId : null, profileId,
                 requirements.requiresSkin() ? Collections.singletonList(skinId)
-                        : Collections.<String>emptyList());
+                        : Collections.<String>emptyList(), requirements.bitmapFontAssetIds());
     }
 
     /**
@@ -102,8 +106,29 @@ public final class HudResources implements Disposable {
      */
     public static HudResources prepareEnvironment(FileHandle runtimeProjectDir, String atlasId,
                                                   String textureProfileId, Iterable<String> skinIds) {
+        return prepareEnvironment(runtimeProjectDir, atlasId, textureProfileId, skinIds,
+                Collections.<Integer>emptyList());
+    }
+
+    /** Prepares standalone bitmap fonts against regions in the shared HUD atlas. */
+    public static HudResources prepareEnvironment(FileHandle runtimeProjectDir, String atlasId,
+                                                  String textureProfileId, Iterable<String> skinIds,
+                                                  Iterable<Integer> bitmapFontAssetIds) {
+        if (bitmapFontAssetIds == null) throw new IllegalArgumentException("Bitmap-font specifications are required.");
+        java.util.List<HudBitmapFontSpec> specs = new java.util.ArrayList<HudBitmapFontSpec>();
+        for (Integer assetId : bitmapFontAssetIds) {
+            if (assetId == null) throw new IllegalArgumentException("Bitmap-font Asset ID is required.");
+            specs.add(new HudBitmapFontSpec(assetId, HudBitmapFontResource.descriptorId(assetId)));
+        }
+        return prepareEnvironmentWithFonts(runtimeProjectDir, atlasId, textureProfileId, skinIds, specs);
+    }
+
+    public static HudResources prepareEnvironmentWithFonts(
+            FileHandle runtimeProjectDir, String atlasId, String textureProfileId,
+            Iterable<String> skinIds, Iterable<HudBitmapFontSpec> bitmapFontSpecs) {
         if (runtimeProjectDir == null) throw new IllegalArgumentException("Runtime project directory is required.");
         if (skinIds == null) throw new IllegalArgumentException("Skin specifications are required.");
+        if (bitmapFontSpecs == null) throw new IllegalArgumentException("Bitmap-font specifications are required.");
         atlasId = HudResourceId.normalizeOptional(atlasId, "TextureAtlas");
         HudTextureProfile profile = HudTextureProfile.forId(textureProfileId);
         Map<String, FileHandle> skinFiles = new LinkedHashMap<String, FileHandle>();
@@ -119,6 +144,21 @@ public final class HudResources implements Disposable {
             throw new IllegalArgumentException("HUD Skin preparation requires a shared atlasId.");
         }
         for (String id : skinFiles.keySet()) resolveRequired(runtimeProjectDir, id, "Skin");
+        Map<Integer, FileHandle> fontFiles = new LinkedHashMap<Integer, FileHandle>();
+        for (HudBitmapFontSpec spec : bitmapFontSpecs) {
+            if (spec == null) throw new IllegalArgumentException("Bitmap-font specification is required.");
+            int assetId = spec.assetId();
+            if (fontFiles.containsKey(assetId)) {
+                throw new IllegalArgumentException("Duplicate HUD bitmap-font Asset ID: "
+                        + assetId + ".");
+            }
+            String descriptorId = spec.descriptorId();
+            fontFiles.put(assetId, resolveRequired(runtimeProjectDir, descriptorId,
+                    "bitmap-font descriptor"));
+        }
+        if (!fontFiles.isEmpty() && atlasId == null) {
+            throw new IllegalArgumentException("HUD bitmap-font preparation requires a shared atlasId.");
+        }
         TextureAtlasData atlasData = null;
         if (atlasId != null) {
             validateOutputFormat(profile);
@@ -129,6 +169,7 @@ public final class HudResources implements Disposable {
 
         TextureAtlas atlas = null;
         Map<String, Skin> skins = new LinkedHashMap<String, Skin>();
+        Map<Integer, BitmapFont> bitmapFonts = new LinkedHashMap<Integer, BitmapFont>();
         AtlasRuntimeService.TextureArrayBundle bundle = null;
         boolean completed = false;
         try {
@@ -147,6 +188,29 @@ public final class HudResources implements Disposable {
                 validateFonts(skin, orderedPages);
             }
 
+            for (Map.Entry<Integer, FileHandle> entry : fontFiles.entrySet()) {
+                BitmapFont.BitmapFontData data = new BitmapFont.BitmapFontData(
+                        entry.getValue(), false);
+                String[] imagePaths = data.getImagePaths();
+                if (imagePaths == null || imagePaths.length == 0) {
+                    throw new IllegalArgumentException("HUD bitmap-font descriptor has no pages: "
+                            + entry.getValue().path() + ".");
+                }
+                Array<TextureRegion> fontRegions = new Array<TextureRegion>(imagePaths.length);
+                for (int pageIndex = 0; pageIndex < imagePaths.length; pageIndex++) {
+                    String key = HudBitmapFontResource.pageKey(entry.getKey(), pageIndex);
+                    TextureRegion region = atlas.findRegion(key);
+                    if (region == null) {
+                        throw new IllegalArgumentException("HUD bitmap-font Asset "
+                                + entry.getKey() + " is missing packed page region '" + key + "'.");
+                    }
+                    fontRegions.add(region);
+                }
+                BitmapFont font = new BitmapFont(data, fontRegions, true);
+                font.setOwnsTexture(false);
+                bitmapFonts.put(entry.getKey(), font);
+            }
+
             if (orderedPages != null) {
                 GLCaps caps = GLCaps.detect();
                 caps.validateTextureArray(
@@ -157,11 +221,11 @@ public final class HudResources implements Disposable {
 
             HudResources resources = new HudResources(
                     atlasData != null ? atlasId : null,
-                    profile, skins, atlas, bundle);
+                    profile, skins, bitmapFonts, atlas, bundle);
             completed = true;
             return resources;
         } finally {
-            if (!completed) disposeFailedPreparation(skins, bundle, atlas);
+            if (!completed) disposeFailedPreparation(skins, bitmapFonts, bundle, atlas);
         }
     }
 
@@ -272,13 +336,21 @@ public final class HudResources implements Disposable {
     }
 
     private static void disposeFailedPreparation(
-            Map<String, Skin> skins, AtlasRuntimeService.TextureArrayBundle bundle,
+            Map<String, Skin> skins, Map<Integer, BitmapFont> bitmapFonts,
+            AtlasRuntimeService.TextureArrayBundle bundle,
             TextureAtlas atlas) {
         for (Skin skin : skins.values()) {
             try {
                 skin.dispose();
             } catch (RuntimeException ignored) {
                 // Preserve the preparation failure while continuing best-effort cleanup.
+            }
+        }
+        for (BitmapFont font : bitmapFonts.values()) {
+            try {
+                font.dispose();
+            } catch (RuntimeException ignored) {
+                // Fonts borrow atlas textures; preserve the preparation failure.
             }
         }
         try {
@@ -314,6 +386,16 @@ public final class HudResources implements Disposable {
     TextureRegion sharedRegion(String name) {
         requireOpen();
         return regions.get(name);
+    }
+
+    BitmapFont sharedBitmapFont(int assetId) {
+        requireOpen();
+        return bitmapFonts.get(assetId);
+    }
+
+    boolean hasBitmapFonts(Set<Integer> assetIds) {
+        requireOpen();
+        return bitmapFonts.keySet().containsAll(assetIds);
     }
 
     Label.LabelStyle sharedBuiltInLabelStyle() {
@@ -438,6 +520,13 @@ public final class HudResources implements Disposable {
         for (Skin skin : skins.values()) {
             try {
                 skin.dispose();
+            } catch (RuntimeException disposalFailure) {
+                if (failure == null) failure = disposalFailure;
+            }
+        }
+        for (BitmapFont font : bitmapFonts.values()) {
+            try {
+                font.dispose();
             } catch (RuntimeException disposalFailure) {
                 if (failure == null) failure = disposalFailure;
             }

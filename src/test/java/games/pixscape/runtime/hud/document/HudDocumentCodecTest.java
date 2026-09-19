@@ -90,6 +90,18 @@ public class HudDocumentCodecTest {
         Assert.assertTrue(restored.textField.passwordMode);
     }
 
+    @Test
+    public void labelRoundTripPreservesOptionalBitmapFontAssetIdentity() {
+        HudNode label = new HudNode("title", HudNodeKind.LABEL);
+        label.label = new HudLabelData();
+        label.label.text = "Title";
+        label.label.fontAssetId = 73;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(label))).root;
+
+        Assert.assertEquals(Integer.valueOf(73), restored.label.fontAssetId);
+    }
+
     private static HudImageData image(String resourceName) {
         HudImageData image = new HudImageData();
         image.resourceName = resourceName;

@@ -1,5 +1,6 @@
 package games.pixscape.runtime.hud;
 
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -21,6 +22,9 @@ public interface HudVisualResources {
     Drawable drawable(String name);
 
     Label.LabelStyle labelStyle(String name);
+
+    /** Borrowed standalone bitmap font resolved by its project Asset ID. */
+    default BitmapFont bitmapFont(int assetId) { return null; }
 
     /** Skin-independent style used when a Label has no authored custom style reference. */
     default Label.LabelStyle builtInLabelStyle() { return null; }

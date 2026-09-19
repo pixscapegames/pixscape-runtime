@@ -238,7 +238,19 @@ public final class HudDocumentValidator {
                         "LABEL text must not be null; an empty string is allowed.",
                         usableId(node), path + ".label.text");
             }
-            validateStyle(node, node.label.styleName, true, path + ".label.styleName");
+            Integer fontAssetId = node.label.fontAssetId;
+            if (fontAssetId != null && fontAssetId <= 0) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "LABEL fontAssetId must be a positive Asset ID.", usableId(node),
+                        path + ".label.fontAssetId");
+            } else if (fontAssetId != null && resources != null
+                    && !resources.hasBitmapFont(fontAssetId)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "LABEL references unknown bitmap font Asset " + fontAssetId + ".",
+                        usableId(node), path + ".label.fontAssetId");
+            }
+            validateLabelStyle(node, node.label.styleName, fontAssetId != null,
+                    path + ".label.styleName");
         }
 
         private void validateTextButton(HudNode node, String path) {
@@ -247,7 +259,7 @@ public final class HudDocumentValidator {
                         "TEXT_BUTTON text must not be null; an empty string is allowed.",
                         usableId(node), path + ".textButton.text");
             }
-            validateStyle(node, node.textButton.styleName, false,
+            validateStyle(node, node.textButton.styleName,
                     path + ".textButton.styleName");
         }
 
@@ -388,9 +400,9 @@ public final class HudDocumentValidator {
             }
         }
 
-        private void validateStyle(HudNode node, String styleName, boolean labelStyle,
-                                   String path) {
-            if (labelStyle && HudBuiltInLabelStyle.isSelected(styleName)) {
+        private void validateLabelStyle(HudNode node, String styleName,
+                                        boolean hasFontOverride, String path) {
+            if (HudBuiltInLabelStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInLabelStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                             "LABEL requires the built-in Default style, but it is unavailable.",
@@ -398,7 +410,25 @@ public final class HudDocumentValidator {
                 }
                 return;
             }
-            if (!labelStyle && HudBuiltInTextButtonStyle.isSelected(styleName)) {
+            if (!isNonBlank(styleName)) {
+                add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
+                        "LABEL requires a nonblank Skin style name.", usableId(node), path);
+                return;
+            }
+            if (resources == null) return;
+            if (!resources.hasLabelStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "LABEL references unknown Skin style '" + styleName + "'.",
+                        usableId(node), path);
+            } else if (!hasFontOverride && !resources.hasLabelStyleFont(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "LABEL Skin style '" + styleName + "' has no usable font.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInTextButtonStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInTextButtonStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                             "TEXT_BUTTON requires the built-in Default style, but it is unavailable.",
@@ -413,9 +443,7 @@ public final class HudDocumentValidator {
                 return;
             }
             if (resources == null) return;
-            boolean known = labelStyle
-                    ? resources.hasLabelStyle(styleName)
-                    : resources.hasTextButtonStyle(styleName);
+            boolean known = resources.hasTextButtonStyle(styleName);
             if (!known) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         node.kind + " references unknown Skin style '" + styleName + "'.",

@@ -6,6 +6,9 @@ import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * GL-free resource categories required to materialize one validated HUD document.
@@ -22,11 +25,13 @@ public final class HudResourceRequirements {
     private final boolean builtInTextFieldStyle;
     private final boolean builtInSelectBoxStyle;
     private final boolean builtInCheckBoxStyle;
+    private final Set<Integer> bitmapFontAssetIds;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
                                     boolean builtInTextButtonStyle, boolean builtInImageButtonStyle,
                                     boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
-                                    boolean builtInCheckBoxStyle) {
+                                    boolean builtInCheckBoxStyle,
+                                    Set<Integer> bitmapFontAssetIds) {
         this.skin = skin;
         this.atlas = atlas;
         this.builtInLabelStyle = builtInLabelStyle;
@@ -35,6 +40,8 @@ public final class HudResourceRequirements {
         this.builtInTextFieldStyle = builtInTextFieldStyle;
         this.builtInSelectBoxStyle = builtInSelectBoxStyle;
         this.builtInCheckBoxStyle = builtInCheckBoxStyle;
+        this.bitmapFontAssetIds = Collections.unmodifiableSet(
+                new LinkedHashSet<Integer>(bitmapFontAssetIds));
     }
 
     /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
@@ -50,11 +57,15 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInTextFieldStyle = false;
         boolean requiresBuiltInSelectBoxStyle = false;
         boolean requiresBuiltInCheckBoxStyle = false;
+        Set<Integer> bitmapFontAssetIds = new LinkedHashSet<Integer>();
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
             if (kind == HudNodeKind.LABEL) {
                 requiresAtlas = true;
+                if (node.label.fontAssetId != null) {
+                    bitmapFontAssetIds.add(node.label.fontAssetId);
+                }
                 if (HudBuiltInLabelStyle.isSelected(node.label.styleName)) {
                     requiresBuiltInLabelStyle = true;
                 } else {
@@ -108,7 +119,8 @@ public final class HudResourceRequirements {
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
                 requiresBuiltInImageButtonStyle, requiresBuiltInTextFieldStyle,
-                requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle);
+                requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle,
+                bitmapFontAssetIds);
     }
 
     public boolean requiresSkin() {
@@ -141,6 +153,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInCheckBoxStyle() {
         return builtInCheckBoxStyle;
+    }
+
+    public Set<Integer> bitmapFontAssetIds() {
+        return bitmapFontAssetIds;
     }
 
     private static final class SkinRequirementVisitor implements HudImageReferences.Visitor {
