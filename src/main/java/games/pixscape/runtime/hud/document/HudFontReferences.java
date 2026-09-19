@@ -1,0 +1,39 @@
+package games.pixscape.runtime.hud.document;
+
+/** Explicit access to the optional bitmap-font override of native textual HUD widgets. */
+public final class HudFontReferences {
+    private HudFontReferences() { }
+
+    public static Integer assetId(HudNode node) {
+        if (node == null || node.kind == null) return null;
+        switch (node.kind) {
+            case LABEL: return node.label == null ? null : node.label.fontAssetId;
+            case TEXT_BUTTON: return node.textButton == null ? null : node.textButton.fontAssetId;
+            case CHECK_BOX: return node.checkBox == null ? null : node.checkBox.fontAssetId;
+            case TEXT_FIELD: return node.textField == null ? null : node.textField.fontAssetId;
+            case SELECT_BOX: return node.selectBox == null ? null : node.selectBox.fontAssetId;
+            default: return null;
+        }
+    }
+
+    public static boolean supports(HudNodeKind kind) {
+        return kind == HudNodeKind.LABEL || kind == HudNodeKind.TEXT_BUTTON
+                || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.TEXT_FIELD
+                || kind == HudNodeKind.SELECT_BOX;
+    }
+
+    public static void setAssetId(HudNode node, Integer assetId) {
+        if (node == null || node.kind == null) {
+            throw new IllegalArgumentException("A typed textual HUD node is required.");
+        }
+        switch (node.kind) {
+            case LABEL: node.label.fontAssetId = assetId; return;
+            case TEXT_BUTTON: node.textButton.fontAssetId = assetId; return;
+            case CHECK_BOX: node.checkBox.fontAssetId = assetId; return;
+            case TEXT_FIELD: node.textField.fontAssetId = assetId; return;
+            case SELECT_BOX: node.selectBox.fontAssetId = assetId; return;
+            default: throw new IllegalArgumentException(
+                    "HUD node kind " + node.kind + " has no font override.");
+        }
+    }
+}
