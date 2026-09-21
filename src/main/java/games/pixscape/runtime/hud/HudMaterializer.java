@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
@@ -19,6 +20,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -44,6 +47,13 @@ public final class HudMaterializer {
     /** Converts a validated HUD document using borrowed visual resources. */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudVisualResources resources) {
+        return materialize(validatedDocument, resources, true);
+    }
+
+    /** Studio authoring can omit hover listeners while keeping native preview/runtime behavior. */
+    public MaterializedHud materialize(
+            ValidatedHudDocument validatedDocument, HudVisualResources resources,
+            boolean attachTooltips) {
         if (validatedDocument == null) {
             throw new IllegalArgumentException("ValidatedHudDocument is required.");
         }
@@ -51,15 +61,18 @@ public final class HudMaterializer {
 
         Map<String, Actor> actorById = new LinkedHashMap<String, Actor>();
         List<Disposable> ownedResources = new ArrayList<Disposable>();
+        Map<Actor, TextTooltip> tooltips = new LinkedHashMap<Actor, TextTooltip>();
+        TooltipManager tooltipManager = attachTooltips ? new TooltipManager() : null;
         try {
             Actor root = materializeNode(validatedDocument.document().root, resources,
-                    actorById, ownedResources);
+                    actorById, ownedResources, tooltipManager, tooltips);
             if (actorById.size() != validatedDocument.nodeIndex().size()) {
                 throw new IllegalStateException(
                         "Validated HUD document changed after validation; validate it again.");
             }
-            return new MaterializedHud(root, actorById, ownedResources);
+            return new MaterializedHud(root, actorById, ownedResources, tooltipManager, tooltips);
         } catch (RuntimeException failure) {
+            MaterializedHud.releaseTooltips(tooltipManager, tooltips);
             disposeOwned(ownedResources);
             throw failure;
         }
@@ -67,7 +80,8 @@ public final class HudMaterializer {
 
     private Actor materializeNode(
             HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
-            List<Disposable> ownedResources) {
+            List<Disposable> ownedResources, TooltipManager tooltipManager,
+            Map<Actor, TextTooltip> tooltips) {
         Actor actor = createActor(node, resources, ownedResources);
         actor.setName(node.id);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
@@ -75,10 +89,35 @@ public final class HudMaterializer {
             throw new IllegalStateException(
                     "Validated HUD document contains duplicate node ID '" + node.id + "'.");
         }
+        if (tooltipManager != null && node.tooltip != null) {
+            TextTooltip.TextTooltipStyle shared =
+                    HudBuiltInTextTooltipStyle.isSelected(node.tooltip.styleName)
+                            ? resources.builtInTextTooltipStyle()
+                            : resources.textTooltipStyle(node.tooltip.styleName);
+            if (shared == null) {
+                throw missing(node, "TextTooltip style",
+                        HudBuiltInTextTooltipStyle.isSelected(node.tooltip.styleName)
+                                ? "built-in Default" : node.tooltip.styleName);
+            }
+            TextTooltip.TextTooltipStyle style = shared;
+            if (node.tooltip.fontAssetId != null) {
+                style = new TextTooltip.TextTooltipStyle(shared);
+                style.label.font = requireFont(node, node.tooltip.fontAssetId, resources);
+            }
+            TextTooltip tooltip = new TextTooltip(node.tooltip.text, tooltipManager, style);
+            // Native layout groups default to childrenOnly. Make only this authored tooltip
+            // surface hittable; Group.hit still gives visible children first refusal.
+            if (actor.getTouchable() == Touchable.childrenOnly) {
+                actor.setTouchable(Touchable.enabled);
+            }
+            actor.addListener(tooltip);
+            tooltips.put(actor, tooltip);
+        }
 
         for (int i = 0; i < node.children.size(); i++) {
             HudChild child = node.children.get(i);
-            Actor childActor = materializeNode(child.node, resources, actorById, ownedResources);
+            Actor childActor = materializeNode(child.node, resources, actorById, ownedResources,
+                    tooltipManager, tooltips);
             switch (child.placementKind) {
                 case DIRECT:
                     addDirect(actor, childActor, node.id);

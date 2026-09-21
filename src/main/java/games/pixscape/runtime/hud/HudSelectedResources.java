@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
@@ -63,6 +64,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                         || builtInProgressBarStyle() != null)
                 && (!requirements.requiresBuiltInScrollPaneStyle()
                         || builtInScrollPaneStyle() != null)
+                && (!requirements.requiresBuiltInTextTooltipStyle()
+                        || builtInTextTooltipStyle() != null)
                 && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
@@ -194,6 +197,15 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         owner.requireOpen(); return owner.sharedBuiltInScrollPaneStyle();
     }
 
+    @Override public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, TextTooltip.TextTooltipStyle.class);
+    }
+
+    @Override public TextTooltip.TextTooltipStyle builtInTextTooltipStyle() {
+        owner.requireOpen(); return owner.sharedBuiltInTextTooltipStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
@@ -259,5 +271,11 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInScrollPaneStyle() {
         return HudStyleUsability.isUsableScrollPaneStyle(builtInScrollPaneStyle());
+    }
+    @Override public boolean hasTextTooltipStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableTextTooltipStyle(textTooltipStyle(name), hasFontOverride);
+    }
+    @Override public boolean hasBuiltInTextTooltipStyle() {
+        return HudStyleUsability.isUsableTextTooltipStyle(builtInTextTooltipStyle(), false);
     }
 }

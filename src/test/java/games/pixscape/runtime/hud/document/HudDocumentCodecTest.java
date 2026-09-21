@@ -18,6 +18,22 @@ public class HudDocumentCodecTest {
     private final HudDocumentCodec codec = new HudDocumentCodec();
 
     @Test
+    public void optionalTooltipRoundTripsWithoutChangingNodeKind() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.tooltip = new HudTooltipData();
+        root.tooltip.text = "First line\nSecond line";
+        root.tooltip.styleName = "hint";
+        root.tooltip.fontAssetId = 42;
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.GROUP, restored.kind);
+        Assert.assertEquals(root.tooltip.text, restored.tooltip.text);
+        Assert.assertEquals("hint", restored.tooltip.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.tooltip.fontAssetId);
+        root.tooltip = null;
+        Assert.assertNull(codec.read(codec.write(new HudDocumentV1(root))).root.tooltip);
+    }
+
+    @Test
     public void readsPositiveFixture() {
         HudDocumentV1 document = codec.read(fixture("managed-table.json"));
 

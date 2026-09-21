@@ -79,4 +79,8 @@ public interface HudResourceCatalog {
     default boolean hasScrollPaneStyle(String name) { return false; }
 
     default boolean hasBuiltInScrollPaneStyle() { return false; }
+
+    default boolean hasTextTooltipStyle(String name, boolean hasFontOverride) { return false; }
+
+    default boolean hasBuiltInTextTooltipStyle() { return false; }
 }

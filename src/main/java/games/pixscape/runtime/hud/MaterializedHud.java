@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.utils.Disposable;
 
 import java.util.ArrayList;
@@ -28,14 +30,19 @@ public final class MaterializedHud implements Disposable {
     private final Actor root;
     private final Map<String, Actor> actorById;
     private final List<Disposable> ownedResources;
+    private final TooltipManager tooltipManager;
+    private final Map<Actor, TextTooltip> tooltips;
     private boolean disposed;
 
     MaterializedHud(Actor root, Map<String, Actor> actorById,
-                    List<Disposable> ownedResources) {
+                    List<Disposable> ownedResources, TooltipManager tooltipManager,
+                    Map<Actor, TextTooltip> tooltips) {
         this.root = root;
         this.actorById = Collections.unmodifiableMap(
                 new LinkedHashMap<String, Actor>(actorById));
         this.ownedResources = new ArrayList<Disposable>(ownedResources);
+        this.tooltipManager = tooltipManager;
+        this.tooltips = new LinkedHashMap<Actor, TextTooltip>(tooltips);
     }
 
     /** Returns the actual native root of the materialized Scene2D tree. */
@@ -66,6 +73,7 @@ public final class MaterializedHud implements Disposable {
         if (disposed) return;
         disposed = true;
         RuntimeException failure = null;
+        releaseTooltips(tooltipManager, tooltips);
         for (int i = ownedResources.size() - 1; i >= 0; i--) {
             try {
                 ownedResources.get(i).dispose();
@@ -75,5 +83,17 @@ public final class MaterializedHud implements Disposable {
         }
         ownedResources.clear();
         if (failure != null) throw failure;
+    }
+
+    static void releaseTooltips(TooltipManager manager, Map<Actor, TextTooltip> tooltips) {
+        if (manager == null) return;
+        manager.hideAll(); // Cancels native delayed show/reset tasks before actors are released.
+        for (Map.Entry<Actor, TextTooltip> entry : tooltips.entrySet()) {
+            TextTooltip tooltip = entry.getValue();
+            entry.getKey().removeListener(tooltip);
+            tooltip.getContainer().clearActions();
+            tooltip.getContainer().remove();
+        }
+        tooltips.clear();
     }
 }

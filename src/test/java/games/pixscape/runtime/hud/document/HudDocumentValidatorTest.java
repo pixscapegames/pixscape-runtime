@@ -15,6 +15,29 @@ public class HudDocumentValidatorTest {
     private final HudDocumentValidator validator = new HudDocumentValidator();
 
     @Test
+    public void tooltipRejectsInvalidTextFontAndUnavailableNamedStyle() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.tooltip = new HudTooltipData();
+        root.tooltip.text = null;
+        root.tooltip.fontAssetId = -1;
+        root.tooltip.styleName = "missing";
+        HudResourceCatalog catalog = new HudResourceCatalog() {
+            @Override public boolean hasRegion(String name) { return false; }
+            @Override public boolean hasDrawable(String name) { return false; }
+            @Override public boolean hasLabelStyle(String name) { return false; }
+            @Override public boolean hasTextButtonStyle(String name) { return false; }
+        };
+        HudValidationResult result = validator.validate(new HudDocumentV1(root), catalog);
+        Assert.assertFalse(result.isValid());
+        Assert.assertTrue(result.issues().stream().anyMatch(issue ->
+                "$.root.tooltip.text".equals(issue.path())));
+        Assert.assertTrue(result.issues().stream().anyMatch(issue ->
+                "$.root.tooltip.fontAssetId".equals(issue.path())));
+        Assert.assertTrue(result.issues().stream().anyMatch(issue ->
+                "$.root.tooltip.styleName".equals(issue.path())));
+    }
+
+    @Test
     public void allPositiveFixturesValidateWithoutResourceCatalog() {
         String[] names = {
                 "managed-table.json", "stack.json", "free-layout.json",

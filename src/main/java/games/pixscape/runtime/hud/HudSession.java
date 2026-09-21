@@ -113,8 +113,11 @@ public final class HudSession implements Disposable {
         MaterializedHud previous = content;
         content = materializedHud;
         if (previous != null) {
-            previous.root().remove();
-            previous.dispose();
+            try {
+                previous.root().remove();
+            } finally {
+                previous.dispose();
+            }
         }
     }
 
@@ -159,13 +162,17 @@ public final class HudSession implements Disposable {
         disposed = true;
         RuntimeException failure = null;
         try {
-            if (content != null) content.root().remove();
-            if (stage != null) stage.dispose();
+            if (content != null) content.dispose();
         } catch (RuntimeException disposalFailure) {
             failure = disposalFailure;
         }
         try {
-            if (content != null) content.dispose();
+            if (content != null) content.root().remove();
+        } catch (RuntimeException disposalFailure) {
+            if (failure == null) failure = disposalFailure;
+        }
+        try {
+            if (stage != null) stage.dispose();
         } catch (RuntimeException disposalFailure) {
             if (failure == null) failure = disposalFailure;
         }

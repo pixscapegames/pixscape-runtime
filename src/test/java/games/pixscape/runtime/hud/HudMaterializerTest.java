@@ -10,10 +10,13 @@ import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.EventListener;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
@@ -30,6 +33,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
@@ -57,6 +64,7 @@ import games.pixscape.runtime.hud.document.HudSliderData;
 import games.pixscape.runtime.hud.document.HudProgressBarData;
 import games.pixscape.runtime.hud.document.HudScrollPaneData;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
+import games.pixscape.runtime.hud.document.HudTooltipData;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -1088,6 +1096,167 @@ public class HudMaterializerTest {
         for (Method method : HudMaterializer.class.getMethods()) {
             if (!"materialize".equals(method.getName())) continue;
             Assert.assertEquals(ValidatedHudDocument.class, method.getParameterTypes()[0]);
+        }
+    }
+
+    @Test
+    public void tooltipUsesNativeListenerAndStageAndIsRemovedWithItsHud() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.actor.width = 100f;
+        root.actor.height = 100f;
+        root.tooltip = new HudTooltipData();
+        root.tooltip.text = "Native tooltip";
+        HudDocumentV1 document = new HudDocumentV1(root);
+        HudValidationResult validation = new HudDocumentValidator().validate(document, selectedResources);
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        HudResourceRequirements requirements = HudResourceRequirements.from(validation.validatedDocument());
+        Assert.assertTrue(requirements.requiresBuiltInTextTooltipStyle());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+        MaterializedHud hud = new HudMaterializer().materialize(validation.validatedDocument(), selectedResources);
+        TextTooltip tooltip = null;
+        for (EventListener listener : hud.root().getListeners()) {
+            if (listener instanceof TextTooltip) tooltip = (TextTooltip) listener;
+        }
+        Assert.assertNotNull(tooltip);
+        Assert.assertSame(selectedResources.builtInTextTooltipStyle(), tooltip.getStyle());
+        tooltip.setInstant(true);
+        Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(),
+                new Class<?>[]{Batch.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Stage stage = new Stage(new ScreenViewport(), batch);
+        Application testApp = Gdx.app;
+        Graphics testGraphics = Gdx.graphics;
+        try {
+            Gdx.app = (Application) Proxy.newProxyInstance(Application.class.getClassLoader(),
+                    new Class<?>[]{Application.class},
+                    (proxy, method, args) -> "getType".equals(method.getName())
+                            ? Application.ApplicationType.Desktop
+                            : defaultValue(method.getReturnType()));
+            Gdx.graphics = (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
+                    new Class<?>[]{Graphics.class},
+                    (proxy, method, args) -> "getWidth".equals(method.getName()) ? 300
+                            : "getHeight".equals(method.getName()) ? 200
+                            : defaultValue(method.getReturnType()));
+            stage.getViewport().update(300, 200, true);
+            stage.addActor(hud.root());
+            stage.mouseMoved(20, 180);
+            stage.act(0f);
+            Assert.assertSame(stage, tooltip.getContainer().getStage());
+            hud.dispose();
+            Assert.assertNull(tooltip.getContainer().getStage());
+            Assert.assertFalse(hud.root().getListeners().contains(tooltip, true));
+        } finally {
+            stage.dispose();
+            Gdx.app = testApp;
+            Gdx.graphics = testGraphics;
+        }
+    }
+
+    @Test
+    public void tooltipFontOverrideCopiesNestedStyleWithoutChangingSharedFont() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.tooltip = new HudTooltipData();
+        root.tooltip.styleName = "custom";
+        root.tooltip.fontAssetId = 42;
+        BitmapFont override = selectedResources.builtInLabelStyle().font;
+        TextTooltip.TextTooltipStyle shared = new TextTooltip.TextTooltipStyle(
+                new Label.LabelStyle(), null);
+        HudVisualResources visual = new HudVisualResources() {
+            @Override public TextureRegion region(String name) { return null; }
+            @Override public Drawable drawable(String name) { return null; }
+            @Override public Label.LabelStyle labelStyle(String name) { return null; }
+            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+            @Override public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
+                return "custom".equals(name) ? shared : null;
+            }
+            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
+        };
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        MaterializedHud hud = new HudMaterializer().materialize(validation.validatedDocument(), visual);
+        TextTooltip tooltip = null;
+        for (EventListener listener : hud.root().getListeners()) {
+            if (listener instanceof TextTooltip) tooltip = (TextTooltip) listener;
+        }
+        Assert.assertNotNull(tooltip);
+        Assert.assertNotSame(shared, tooltip.getStyle());
+        Assert.assertNotSame(shared.label, tooltip.getStyle().label);
+        Assert.assertSame(override, tooltip.getStyle().label.font);
+        Assert.assertNull(shared.label.font);
+        hud.dispose();
+    }
+
+    @Test
+    public void tooltipMakesOnlyItsLayoutSurfaceHittableAndAuthoringCanOmitListeners() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        root.actor.width = 100f;
+        root.actor.height = 100f;
+        root.tooltip = new HudTooltipData();
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentV1(root), selectedResources);
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        MaterializedHud interactive = new HudMaterializer().materialize(
+                validation.validatedDocument(), selectedResources);
+        Assert.assertEquals(Touchable.enabled, interactive.root().getTouchable());
+        Assert.assertSame(interactive.root(), interactive.root().hit(50f, 50f, true));
+        interactive.dispose();
+
+        MaterializedHud authoring = new HudMaterializer().materialize(
+                validation.validatedDocument(), selectedResources, false);
+        Assert.assertEquals(Touchable.childrenOnly, authoring.root().getTouchable());
+        for (EventListener listener : authoring.root().getListeners()) {
+            Assert.assertFalse(listener instanceof TextTooltip);
+        }
+        authoring.dispose();
+    }
+
+    @Test
+    public void disposingDuringNativeTooltipDelayCancelsThePendingShow() throws Exception {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.actor.width = 100f;
+        root.actor.height = 100f;
+        root.tooltip = new HudTooltipData();
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        TextTooltip tooltip = null;
+        for (EventListener listener : hud.root().getListeners()) {
+            if (listener instanceof TextTooltip) tooltip = (TextTooltip) listener;
+        }
+        Assert.assertNotNull(tooltip);
+        java.lang.reflect.Field pendingField = TooltipManager.class.getDeclaredField("showTask");
+        pendingField.setAccessible(true);
+        Timer.Task pending = (Timer.Task) pendingField.get(tooltip.getManager());
+        java.lang.reflect.Field targetField = TooltipManager.class.getDeclaredField("showTooltip");
+        targetField.setAccessible(true);
+        Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(),
+                new Class<?>[]{Batch.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Stage stage = new Stage(new ScreenViewport(), batch);
+        Application testApp = Gdx.app;
+        Graphics testGraphics = Gdx.graphics;
+        try {
+            Gdx.app = (Application) Proxy.newProxyInstance(Application.class.getClassLoader(),
+                    new Class<?>[]{Application.class},
+                    (proxy, method, args) -> "getType".equals(method.getName())
+                            ? Application.ApplicationType.Desktop
+                            : defaultValue(method.getReturnType()));
+            Gdx.graphics = (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
+                    new Class<?>[]{Graphics.class},
+                    (proxy, method, args) -> "getWidth".equals(method.getName()) ? 300
+                            : "getHeight".equals(method.getName()) ? 200
+                            : defaultValue(method.getReturnType()));
+            stage.getViewport().update(300, 200, true);
+            stage.addActor(hud.root());
+            stage.mouseMoved(20, 180);
+            stage.act(0f);
+            Assert.assertTrue(pending.isScheduled());
+            Assert.assertNull(tooltip.getContainer().getStage());
+            hud.dispose();
+            Assert.assertFalse(pending.isScheduled());
+            Assert.assertNull(targetField.get(tooltip.getManager()));
+        } finally {
+            stage.dispose();
+            Gdx.app = testApp;
+            Gdx.graphics = testGraphics;
         }
     }
 

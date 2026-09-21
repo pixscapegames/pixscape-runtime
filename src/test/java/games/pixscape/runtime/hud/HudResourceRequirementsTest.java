@@ -8,6 +8,23 @@ import org.junit.Test;
 
 public class HudResourceRequirementsTest {
     @Test
+    public void tooltipOnlyNodeCollectsItsFontAndDefaultOrCustomStyle() {
+        HudResourceRequirements builtin = requirements(node("root", "GROUP",
+                "\"tooltip\":{\"text\":\"Hint\",\"fontAssetId\":42},\"children\":[]"));
+        Assert.assertFalse(builtin.requiresSkin());
+        Assert.assertTrue(builtin.requiresAtlas());
+        Assert.assertTrue(builtin.requiresBuiltInLabelStyle());
+        Assert.assertTrue(builtin.requiresBuiltInTextTooltipStyle());
+        Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
+
+        HudResourceRequirements custom = requirements(node("root", "GROUP",
+                "\"tooltip\":{\"text\":\"Hint\",\"styleName\":\"hint\"},\"children\":[]"));
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertTrue(custom.requiresAtlas());
+        Assert.assertFalse(custom.requiresBuiltInTextTooltipStyle());
+    }
+
+    @Test
     public void layoutKindsRequireNoResources() {
         assertRequirements(node("group", "GROUP", "\"children\":[]"), false, false);
         assertRequirements(node("table", "TABLE", "\"children\":[]"), false, false);

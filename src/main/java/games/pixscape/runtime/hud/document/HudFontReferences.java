@@ -18,6 +18,10 @@ public final class HudFontReferences {
         }
     }
 
+    public static Integer tooltipAssetId(HudNode node) {
+        return node == null || node.tooltip == null ? null : node.tooltip.fontAssetId;
+    }
+
     public static boolean supports(HudNodeKind kind) {
         return kind == HudNodeKind.LABEL || kind == HudNodeKind.TEXTRA_LABEL
                 || kind == HudNodeKind.TEXT_BUTTON

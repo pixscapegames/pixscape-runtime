@@ -11,6 +11,7 @@ import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
 import games.pixscape.runtime.hud.HudBuiltInProgressBarStyle;
 import games.pixscape.runtime.hud.HudBuiltInScrollPaneStyle;
+import games.pixscape.runtime.hud.HudBuiltInTextTooltipStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -91,6 +92,7 @@ public final class HudDocumentValidator {
 
             validateIdentity(node, path);
             validateKindAndPayload(node, path);
+            validateTooltip(node, path);
             validateDimensions(node, path);
             validateChildCount(node, path);
 
@@ -463,6 +465,31 @@ public final class HudDocumentValidator {
                         usableId(node), path);
             }
             return fontAssetId;
+        }
+
+        private void validateTooltip(HudNode node, String path) {
+            if (node.tooltip == null) return;
+            String tooltipPath = path + ".tooltip";
+            if (node.tooltip.text == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "Tooltip text must not be null; an empty string is allowed.",
+                        usableId(node), tooltipPath + ".text");
+            }
+            Integer fontAssetId = validateFontAsset(node, node.tooltip.fontAssetId,
+                    tooltipPath + ".fontAssetId");
+            String styleName = node.tooltip.styleName;
+            if (HudBuiltInTextTooltipStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInTextTooltipStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "Tooltip requires the built-in Default style, but it is unavailable.",
+                            usableId(node), tooltipPath + ".styleName");
+                }
+            } else if (resources != null && !resources.hasTextTooltipStyle(styleName,
+                    fontAssetId != null)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "Tooltip Skin style '" + styleName + "' is missing or unusable.",
+                        usableId(node), tooltipPath + ".styleName");
+            }
         }
 
         private void validateTextFieldStyle(HudNode node, String styleName,

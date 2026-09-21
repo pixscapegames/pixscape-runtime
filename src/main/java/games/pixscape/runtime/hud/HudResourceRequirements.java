@@ -30,6 +30,7 @@ public final class HudResourceRequirements {
     private final boolean builtInSliderStyle;
     private final boolean builtInProgressBarStyle;
     private final boolean builtInScrollPaneStyle;
+    private final boolean builtInTextTooltipStyle;
     private final Set<Integer> bitmapFontAssetIds;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
@@ -38,7 +39,7 @@ public final class HudResourceRequirements {
                                     boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
                                     boolean builtInCheckBoxStyle,
                                     boolean builtInSliderStyle, boolean builtInProgressBarStyle,
-                                    boolean builtInScrollPaneStyle,
+                                    boolean builtInScrollPaneStyle, boolean builtInTextTooltipStyle,
                                     Set<Integer> bitmapFontAssetIds) {
         this.skin = skin;
         this.atlas = atlas;
@@ -52,6 +53,7 @@ public final class HudResourceRequirements {
         this.builtInSliderStyle = builtInSliderStyle;
         this.builtInProgressBarStyle = builtInProgressBarStyle;
         this.builtInScrollPaneStyle = builtInScrollPaneStyle;
+        this.builtInTextTooltipStyle = builtInTextTooltipStyle;
         this.bitmapFontAssetIds = Collections.unmodifiableSet(
                 new LinkedHashSet<Integer>(bitmapFontAssetIds));
     }
@@ -73,12 +75,24 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInSliderStyle = false;
         boolean requiresBuiltInProgressBarStyle = false;
         boolean requiresBuiltInScrollPaneStyle = false;
+        boolean requiresBuiltInTextTooltipStyle = false;
         Set<Integer> bitmapFontAssetIds = new LinkedHashSet<Integer>();
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
             HudNodeKind kind = node.kind;
             Integer fontAssetId = HudFontReferences.assetId(node);
             if (fontAssetId != null) bitmapFontAssetIds.add(fontAssetId);
+            Integer tooltipFontAssetId = HudFontReferences.tooltipAssetId(node);
+            if (tooltipFontAssetId != null) bitmapFontAssetIds.add(tooltipFontAssetId);
+            if (node.tooltip != null) {
+                requiresAtlas = true;
+                if (HudBuiltInTextTooltipStyle.isSelected(node.tooltip.styleName)) {
+                    requiresBuiltInTextTooltipStyle = true;
+                    requiresBuiltInLabelStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
+            }
             if (kind == HudNodeKind.LABEL) {
                 requiresAtlas = true;
                 if (HudBuiltInLabelStyle.isSelected(node.label.styleName)) {
@@ -174,7 +188,7 @@ public final class HudResourceRequirements {
                 requiresBuiltInTextFieldStyle,
                 requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle,
                 requiresBuiltInSliderStyle, requiresBuiltInProgressBarStyle,
-                requiresBuiltInScrollPaneStyle,
+                requiresBuiltInScrollPaneStyle, requiresBuiltInTextTooltipStyle,
                 bitmapFontAssetIds);
     }
 
@@ -224,6 +238,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInScrollPaneStyle() {
         return builtInScrollPaneStyle;
+    }
+
+    public boolean requiresBuiltInTextTooltipStyle() {
+        return builtInTextTooltipStyle;
     }
 
     public Set<Integer> bitmapFontAssetIds() {

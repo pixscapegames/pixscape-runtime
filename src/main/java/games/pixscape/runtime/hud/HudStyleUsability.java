@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 
 /** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
 public final class HudStyleUsability {
@@ -64,5 +65,11 @@ public final class HudStyleUsability {
     /** Scene2D accepts every non-null ScrollPaneStyle; its drawables are optional. */
     public static boolean isUsableScrollPaneStyle(ScrollPane.ScrollPaneStyle style) {
         return style != null;
+    }
+
+    public static boolean isUsableTextTooltipStyle(TextTooltip.TextTooltipStyle style,
+                                                   boolean hasFontOverride) {
+        return style != null && style.label != null
+                && (hasFontOverride || style.label.font != null);
     }
 }

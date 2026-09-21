@@ -8,6 +8,8 @@ public final class HudNode {
     public String id;
     public HudNodeKind kind;
     public HudActorProperties actor = new HudActorProperties();
+    /** Optional TextTooltip behavior; independent of the node's widget payload. */
+    public HudTooltipData tooltip;
 
     /** Present only for {@link HudNodeKind#IMAGE}. */
     public HudImageData image;
