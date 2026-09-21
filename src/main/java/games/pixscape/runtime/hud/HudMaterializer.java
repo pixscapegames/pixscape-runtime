@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -300,6 +301,22 @@ public final class HudMaterializer {
                 slider.setValue(node.slider.value);
                 slider.setDisabled(node.slider.disabled);
                 return slider;
+            }
+            case PROGRESS_BAR: {
+                ProgressBar.ProgressBarStyle style = HudBuiltInProgressBarStyle.isSelected(node.progressBar.styleName)
+                        ? resources.builtInProgressBarStyle()
+                        : resources.progressBarStyle(node.progressBar.styleName);
+                if (style == null) {
+                    throw missing(node, "ProgressBar style",
+                            HudBuiltInProgressBarStyle.isSelected(node.progressBar.styleName)
+                                    ? "built-in Default" : node.progressBar.styleName);
+                }
+                ProgressBar progressBar = new ProgressBar(node.progressBar.min, node.progressBar.max,
+                        node.progressBar.stepSize,
+                        node.progressBar.orientation == HudSliderOrientation.VERTICAL, style);
+                progressBar.setValue(node.progressBar.value);
+                progressBar.setDisabled(node.progressBar.disabled);
+                return progressBar;
             }
             default:
                 throw new IllegalStateException(

@@ -139,7 +139,6 @@ public class HudDocumentCodecTest {
         Assert.assertEquals("dialogue", restored.textraLabel.styleName);
         Assert.assertEquals(Integer.valueOf(75), restored.textraLabel.fontAssetId);
         Assert.assertTrue(restored.textraLabel.typingEnabled);
-        Assert.assertFalse(serialized.contains("progress"));
         Assert.assertFalse(serialized.contains("elapsed"));
     }
 
@@ -194,6 +193,30 @@ public class HudDocumentCodecTest {
         Assert.assertEquals(3.25f, restored.slider.value, 0f);
         Assert.assertEquals("compact", restored.slider.styleName);
         Assert.assertTrue(restored.slider.disabled);
+    }
+
+    @Test
+    public void progressBarRoundTripPreservesAuthoredNativeState() {
+        HudNode progressBar = new HudNode("progress", HudNodeKind.PROGRESS_BAR);
+        progressBar.progressBar = new HudProgressBarData();
+        progressBar.progressBar.orientation = HudSliderOrientation.VERTICAL;
+        progressBar.progressBar.min = -10f;
+        progressBar.progressBar.max = 10f;
+        progressBar.progressBar.stepSize = .125f;
+        progressBar.progressBar.value = 3.25f;
+        progressBar.progressBar.styleName = "compact";
+        progressBar.progressBar.disabled = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(progressBar))).root;
+
+        Assert.assertEquals(HudNodeKind.PROGRESS_BAR, restored.kind);
+        Assert.assertEquals(HudSliderOrientation.VERTICAL, restored.progressBar.orientation);
+        Assert.assertEquals(-10f, restored.progressBar.min, 0f);
+        Assert.assertEquals(10f, restored.progressBar.max, 0f);
+        Assert.assertEquals(.125f, restored.progressBar.stepSize, 0f);
+        Assert.assertEquals(3.25f, restored.progressBar.value, 0f);
+        Assert.assertEquals("compact", restored.progressBar.styleName);
+        Assert.assertTrue(restored.progressBar.disabled);
     }
 
     private static HudImageData image(String resourceName) {

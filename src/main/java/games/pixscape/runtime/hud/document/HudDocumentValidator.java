@@ -9,6 +9,7 @@ import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
 import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
+import games.pixscape.runtime.hud.HudBuiltInProgressBarStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -175,6 +176,9 @@ public final class HudDocumentValidator {
                 case SLIDER:
                     validPayload = node.slider != null && payloadCount == 1;
                     break;
+                case PROGRESS_BAR:
+                    validPayload = node.progressBar != null && payloadCount == 1;
+                    break;
                 default:
                     validPayload = false;
                     break;
@@ -205,6 +209,8 @@ public final class HudDocumentValidator {
                 validateCheckBox(node, path);
             } else if (node.kind == HudNodeKind.SLIDER && node.slider != null) {
                 validateSlider(node, path);
+            } else if (node.kind == HudNodeKind.PROGRESS_BAR && node.progressBar != null) {
+                validateProgressBar(node, path);
             }
         }
 
@@ -406,6 +412,35 @@ public final class HudDocumentValidator {
             validateSliderStyle(node, slider.styleName, path + ".slider.styleName");
         }
 
+        private void validateProgressBar(HudNode node, String path) {
+            HudProgressBarData progressBar = node.progressBar;
+            if (progressBar.orientation == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "PROGRESS_BAR orientation must be HORIZONTAL or VERTICAL.",
+                        usableId(node), path + ".progressBar.orientation");
+            }
+            if (!isFinite(progressBar.min)) add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                    "PROGRESS_BAR min must be finite.", usableId(node), path + ".progressBar.min");
+            if (!isFinite(progressBar.max)) add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                    "PROGRESS_BAR max must be finite.", usableId(node), path + ".progressBar.max");
+            if (isFinite(progressBar.min) && isFinite(progressBar.max) && progressBar.min > progressBar.max) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "PROGRESS_BAR min must be less than or equal to max.",
+                        usableId(node), path + ".progressBar.min");
+            }
+            if (!isFinite(progressBar.stepSize) || progressBar.stepSize <= 0f) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "PROGRESS_BAR stepSize must be finite and greater than zero.",
+                        usableId(node), path + ".progressBar.stepSize");
+            }
+            if (!isFinite(progressBar.value) || progressBar.value < progressBar.min || progressBar.value > progressBar.max) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "PROGRESS_BAR value must be finite and within its authored range.",
+                        usableId(node), path + ".progressBar.value");
+            }
+            validateProgressBarStyle(node, progressBar.styleName, path + ".progressBar.styleName");
+        }
+
         private Integer validateFontAsset(HudNode node, Integer fontAssetId, String path) {
             if (fontAssetId != null && fontAssetId <= 0) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
@@ -486,6 +521,22 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasSliderStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "SLIDER Skin style '" + styleName + "' is missing or unusable.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateProgressBarStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInProgressBarStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInProgressBarStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "PROGRESS_BAR requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (resources != null && !resources.hasProgressBarStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "PROGRESS_BAR Skin style '" + styleName + "' is missing or unusable.",
                         usableId(node), path);
             }
         }
@@ -742,6 +793,7 @@ public final class HudDocumentValidator {
             if (node.selectBox != null) count++;
             if (node.checkBox != null) count++;
             if (node.slider != null) count++;
+            if (node.progressBar != null) count++;
             return count;
         }
 
@@ -751,7 +803,8 @@ public final class HudDocumentValidator {
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
                     || kind == HudNodeKind.IMAGE_TEXT_BUTTON
                     || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
-                    || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.SLIDER;
+                    || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.SLIDER
+                    || kind == HudNodeKind.PROGRESS_BAR;
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {

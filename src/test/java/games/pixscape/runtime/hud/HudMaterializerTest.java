@@ -28,6 +28,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
@@ -52,6 +53,7 @@ import games.pixscape.runtime.hud.document.HudTextFieldData;
 import games.pixscape.runtime.hud.document.HudTextraLabelData;
 import games.pixscape.runtime.hud.document.HudSelectBoxData;
 import games.pixscape.runtime.hud.document.HudSliderData;
+import games.pixscape.runtime.hud.document.HudProgressBarData;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -610,6 +612,28 @@ public class HudMaterializerTest {
         slider.setValue(80f);
         Assert.assertEquals(1, changes[0]);
         Assert.assertEquals(80f, slider.getValue(), 0f);
+    }
+
+    @Test
+    public void materializesNativeProgressBarWithNativeSnappingWithoutMutatingTheDocument() {
+        HudNode node = new HudNode("progress", HudNodeKind.PROGRESS_BAR);
+        node.progressBar = new HudProgressBarData();
+        node.progressBar.min = 0f;
+        node.progressBar.max = 100f;
+        node.progressBar.stepSize = 10f;
+        node.progressBar.value = 53f;
+        node.progressBar.orientation = HudSliderOrientation.VERTICAL;
+        ProgressBar.ProgressBarStyle shared = selectedResources.builtInProgressBarStyle();
+
+        ProgressBar progressBar = (ProgressBar) materialize(new HudDocumentV1(node)).actor("progress");
+
+        Assert.assertEquals(50f, progressBar.getValue(), 0f);
+        Assert.assertEquals(53f, node.progressBar.value, 0f);
+        Assert.assertTrue(progressBar.isVertical());
+        Assert.assertSame(shared, progressBar.getStyle());
+        Assert.assertNotNull(progressBar.getStyle().background);
+        Assert.assertNotNull(progressBar.getStyle().knobBefore);
+        Assert.assertNull(progressBar.getStyle().knob);
     }
 
     @Test

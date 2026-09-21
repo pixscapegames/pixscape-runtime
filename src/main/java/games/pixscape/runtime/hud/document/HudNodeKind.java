@@ -15,5 +15,6 @@ public enum HudNodeKind {
     TEXT_FIELD,
     SELECT_BOX,
     CHECK_BOX,
-    SLIDER
+    SLIDER,
+    PROGRESS_BAR
 }

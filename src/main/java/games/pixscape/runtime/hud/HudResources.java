@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
@@ -55,6 +56,7 @@ public final class HudResources implements Disposable {
     private SelectBox.SelectBoxStyle builtInSelectBoxStyle;
     private CheckBox.CheckBoxStyle builtInCheckBoxStyle;
     private Slider.SliderStyle builtInSliderStyle;
+    private ProgressBar.ProgressBarStyle builtInProgressBarStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -517,6 +519,16 @@ public final class HudResources implements Disposable {
             builtInSliderStyle = HudBuiltInSliderStyle.create(white);
         }
         return builtInSliderStyle;
+    }
+
+    ProgressBar.ProgressBarStyle sharedBuiltInProgressBarStyle() {
+        requireOpen();
+        if (builtInProgressBarStyle == null) {
+            Slider.SliderStyle sliderStyle = sharedBuiltInSliderStyle();
+            if (sliderStyle == null) return null;
+            builtInProgressBarStyle = HudBuiltInProgressBarStyle.create(sliderStyle);
+        }
+        return builtInProgressBarStyle;
     }
 
     public String atlasId() {

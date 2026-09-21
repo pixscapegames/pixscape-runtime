@@ -70,4 +70,9 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the built-in Slider style. */
     default boolean hasBuiltInSliderStyle() { return false; }
+
+    default boolean hasProgressBarStyle(String name) { return false; }
+
+    /** Returns whether the prepared environment contains the built-in ProgressBar style. */
+    default boolean hasBuiltInProgressBarStyle() { return false; }
 }

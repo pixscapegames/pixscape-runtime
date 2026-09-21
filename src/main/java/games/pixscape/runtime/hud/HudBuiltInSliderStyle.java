@@ -24,6 +24,8 @@ public final class HudBuiltInSliderStyle {
         style.background = drawable(white, new Color(0.16f, 0.19f, 0.22f, 1f), 6f);
         style.backgroundOver = drawable(white, new Color(0.21f, 0.25f, 0.29f, 1f), 6f);
         style.disabledBackground = drawable(white, new Color(0.11f, 0.12f, 0.14f, 0.75f), 6f);
+        style.knobBefore = drawable(white, new Color(0.20f, 0.48f, 0.72f, 1f), 6f);
+        style.disabledKnobBefore = drawable(white, new Color(0.18f, 0.31f, 0.42f, 0.75f), 6f);
         style.knob = drawable(white, new Color(0.20f, 0.48f, 0.72f, 1f), 16f);
         style.knobOver = drawable(white, new Color(0.26f, 0.56f, 0.80f, 1f), 16f);
         style.knobDown = drawable(white, new Color(0.15f, 0.40f, 0.65f, 1f), 16f);

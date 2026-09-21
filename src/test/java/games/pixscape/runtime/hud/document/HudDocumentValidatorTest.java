@@ -484,6 +484,25 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void progressBarValidatesNativeBoundsValueStepOrientationAndStyles() {
+        HudNode node = new HudNode("progress", HudNodeKind.PROGRESS_BAR);
+        node.progressBar = new HudProgressBarData();
+        HudValidationResult builtIn = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(issues(builtIn), builtIn.isValid());
+
+        node.progressBar.orientation = null;
+        node.progressBar.min = Float.NaN;
+        node.progressBar.max = Float.POSITIVE_INFINITY;
+        node.progressBar.stepSize = 0f;
+        node.progressBar.value = Float.NEGATIVE_INFINITY;
+        node.progressBar.styleName = "missing";
+        HudValidationResult invalid = validator.validate(new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(count(invalid, HudValidationIssueCode.INVALID_NODE_PAYLOAD) >= 5);
+        requireIssue(invalid, HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+    }
+
+    @Test
     public void imageButtonValidatesEachConfiguredNativeImageState() {
         HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
         button.imageButton = new HudImageButtonData();
@@ -730,6 +749,9 @@ public class HudDocumentValidatorTest {
             case SLIDER:
                 node.slider = new HudSliderData();
                 break;
+            case PROGRESS_BAR:
+                node.progressBar = new HudProgressBarData();
+                break;
             default:
                 throw new AssertionError("Unhandled HUD node kind: " + kind);
         }
@@ -788,6 +810,7 @@ public class HudDocumentValidatorTest {
         @Override public boolean hasBuiltInTextFieldStyle() { return true; }
         @Override public boolean hasBuiltInSelectBoxStyle() { return true; }
         @Override public boolean hasBuiltInSliderStyle() { return true; }
+        @Override public boolean hasBuiltInProgressBarStyle() { return true; }
 
         @Override
         public boolean hasRegion(String name) {
@@ -827,6 +850,9 @@ public class HudDocumentValidatorTest {
         @Override
         public boolean hasSliderStyle(String name) {
             return "compact-slider".equals(name);
+        }
+        @Override public boolean hasProgressBarStyle(String name) {
+            return "compact-progress".equals(name);
         }
     }
 }

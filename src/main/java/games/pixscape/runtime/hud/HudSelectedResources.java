@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
@@ -57,6 +58,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                         || builtInCheckBoxStyle() != null)
                 && (!requirements.requiresBuiltInSliderStyle()
                         || builtInSliderStyle() != null)
+                && (!requirements.requiresBuiltInProgressBarStyle()
+                        || builtInProgressBarStyle() != null)
                 && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
@@ -169,6 +172,16 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInSliderStyle();
     }
 
+    @Override public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, ProgressBar.ProgressBarStyle.class);
+    }
+
+    @Override public ProgressBar.ProgressBarStyle builtInProgressBarStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInProgressBarStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
@@ -222,5 +235,11 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInSliderStyle() {
         return HudStyleUsability.isUsableSliderStyle(builtInSliderStyle());
+    }
+    @Override public boolean hasProgressBarStyle(String name) {
+        return HudStyleUsability.isUsableProgressBarStyle(progressBarStyle(name));
+    }
+    @Override public boolean hasBuiltInProgressBarStyle() {
+        return HudStyleUsability.isUsableProgressBarStyle(builtInProgressBarStyle());
     }
 }

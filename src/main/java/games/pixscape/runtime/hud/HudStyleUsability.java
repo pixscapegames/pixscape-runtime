@@ -4,6 +4,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -52,5 +53,10 @@ public final class HudStyleUsability {
 
     public static boolean isUsableSliderStyle(Slider.SliderStyle style) {
         return style != null && style.background != null;
+    }
+
+    /** ProgressBar supports styles without a knob when the background and filled portion exist. */
+    public static boolean isUsableProgressBarStyle(ProgressBar.ProgressBarStyle style) {
+        return style != null && style.background != null && style.knobBefore != null;
     }
 }

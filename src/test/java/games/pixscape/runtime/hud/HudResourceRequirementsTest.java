@@ -144,6 +144,22 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void progressBarUsesAtlasOnlyForDefaultAndNeverRequiresAFont() {
+        HudResourceRequirements builtIn = requirements(node("progress", "PROGRESS_BAR",
+                "\"progressBar\":{},\"children\":[]"));
+        Assert.assertFalse(builtIn.requiresSkin());
+        Assert.assertTrue(builtIn.requiresAtlas());
+        Assert.assertTrue(builtIn.requiresBuiltInProgressBarStyle());
+        Assert.assertTrue(builtIn.bitmapFontAssetIds().isEmpty());
+
+        HudResourceRequirements custom = requirements(node("progress", "PROGRESS_BAR",
+                "\"progressBar\":{\"styleName\":\"compact\"},\"children\":[]"));
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertFalse(custom.requiresBuiltInProgressBarStyle());
+        Assert.assertTrue(custom.bitmapFontAssetIds().isEmpty());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");

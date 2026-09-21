@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
@@ -69,4 +70,9 @@ public interface HudVisualResources {
 
     /** Skin-independent style used when a Slider has no authored custom style reference. */
     default Slider.SliderStyle builtInSliderStyle() { return null; }
+
+    default ProgressBar.ProgressBarStyle progressBarStyle(String name) { return null; }
+
+    /** Skin-independent style used when a ProgressBar has no authored custom style reference. */
+    default ProgressBar.ProgressBarStyle builtInProgressBarStyle() { return null; }
 }
