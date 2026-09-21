@@ -55,8 +55,8 @@ public final class HudStyleUsability {
         return style != null && style.background != null;
     }
 
-    /** ProgressBar supports styles without a knob when the background and filled portion exist. */
+    /** Scene2D accepts every non-null ProgressBarStyle; all drawables are optional. */
     public static boolean isUsableProgressBarStyle(ProgressBar.ProgressBarStyle style) {
-        return style != null && style.background != null && style.knobBefore != null;
+        return style != null;
     }
 }

@@ -637,6 +637,49 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void materializesEveryNativeNonNullCustomProgressBarStyleWithoutMutation() {
+        ProgressBar.ProgressBarStyle backgroundAndKnob = new ProgressBar.ProgressBarStyle();
+        backgroundAndKnob.background = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        backgroundAndKnob.knob = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        ProgressBar.ProgressBarStyle knobAfterOnly = new ProgressBar.ProgressBarStyle();
+        knobAfterOnly.knobAfter = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        ProgressBar.ProgressBarStyle withoutBackground = new ProgressBar.ProgressBarStyle();
+        withoutBackground.knob = new com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable();
+        ProgressBar.ProgressBarStyle empty = new ProgressBar.ProgressBarStyle();
+        Object background = backgroundAndKnob.background;
+        Object knob = backgroundAndKnob.knob;
+        Object knobAfter = knobAfterOnly.knobAfter;
+        Object knobWithoutBackground = withoutBackground.knob;
+
+        for (ProgressBar.ProgressBarStyle custom : new ProgressBar.ProgressBarStyle[]{
+                backgroundAndKnob, knobAfterOnly, withoutBackground, empty}) {
+            HudNode node = new HudNode("progress", HudNodeKind.PROGRESS_BAR);
+            node.progressBar = new HudProgressBarData();
+            node.progressBar.styleName = "custom";
+            MaterializedHud hud = new HudMaterializer().materialize(
+                    new HudDocumentValidator().validate(new HudDocumentV1(node)).validatedDocument(),
+                    new HudVisualResources() {
+                        @Override public TextureRegion region(String name) { return null; }
+                        @Override public Drawable drawable(String name) { return null; }
+                        @Override public Label.LabelStyle labelStyle(String name) { return null; }
+                        @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+                        @Override public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
+                            return "custom".equals(name) ? custom : null;
+                        }
+                    });
+            Assert.assertSame(custom, ((ProgressBar) hud.actor("progress")).getStyle());
+            hud.dispose();
+        }
+        Assert.assertSame(background, backgroundAndKnob.background);
+        Assert.assertSame(knob, backgroundAndKnob.knob);
+        Assert.assertSame(knobAfter, knobAfterOnly.knobAfter);
+        Assert.assertSame(knobWithoutBackground, withoutBackground.knob);
+        Assert.assertNull(backgroundAndKnob.knobBefore);
+        Assert.assertNull(knobAfterOnly.knobBefore);
+        Assert.assertNull(withoutBackground.background);
+    }
+
+    @Test
     public void verticalSliderUsesNativeVerticalNaturalSize() {
         HudNode node = new HudNode("slider", HudNodeKind.SLIDER);
         node.slider = new HudSliderData();

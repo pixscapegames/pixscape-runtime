@@ -491,6 +491,11 @@ public class HudDocumentValidatorTest {
                 new HudDocumentV1(node), new FixtureResourceCatalog());
         Assert.assertTrue(issues(builtIn), builtIn.isValid());
 
+        node.progressBar.styleName = "compact-progress";
+        HudValidationResult custom = validator.validate(
+                new HudDocumentV1(node), new FixtureResourceCatalog());
+        Assert.assertTrue(issues(custom), custom.isValid());
+
         node.progressBar.orientation = null;
         node.progressBar.min = Float.NaN;
         node.progressBar.max = Float.POSITIVE_INFINITY;
