@@ -66,7 +66,7 @@ public final class HudMaterializer {
         TooltipManager tooltipManager = attachTooltips ? new TooltipManager() : null;
         try {
             Actor root = materializeNode(validatedDocument.document().root, resources,
-                    actorById, ownedResources, tooltipManager, tooltips);
+                    actorById, ownedResources, tooltipManager, tooltips, true);
             if (actorById.size() != validatedDocument.nodeIndex().size()) {
                 throw new IllegalStateException(
                         "Validated HUD document changed after validation; validate it again.");
@@ -82,9 +82,10 @@ public final class HudMaterializer {
     private Actor materializeNode(
             HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
             List<Disposable> ownedResources, TooltipManager tooltipManager,
-            Map<Actor, TextTooltip> tooltips) {
-        Actor actor = createActor(node, resources, ownedResources, tooltipManager != null);
+            Map<Actor, TextTooltip> tooltips, boolean stageRoot) {
+        Actor actor = createActor(node, resources, ownedResources, tooltipManager != null, stageRoot);
         actor.setName(node.id);
+        actor.setVisible(node.visible);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
         if (actorById.put(node.id, actor) != null) {
             throw new IllegalStateException(
@@ -118,7 +119,7 @@ public final class HudMaterializer {
         for (int i = 0; i < node.children.size(); i++) {
             HudChild child = node.children.get(i);
             Actor childActor = materializeNode(child.node, resources, actorById, ownedResources,
-                    tooltipManager, tooltips);
+                    tooltipManager, tooltips, false);
             switch (child.placementKind) {
                 case DIRECT:
                     addDirect(actor, childActor, node.id);
@@ -138,7 +139,8 @@ public final class HudMaterializer {
     }
 
     private Actor createActor(HudNode node, HudVisualResources resources,
-                              List<Disposable> ownedResources, boolean interactivePreview) {
+                              List<Disposable> ownedResources, boolean interactivePreview,
+                              boolean stageRoot) {
         switch (node.kind) {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
@@ -182,7 +184,11 @@ public final class HudMaterializer {
                 window.setMovable(interactivePreview && node.window.movable);
                 window.setResizable(interactivePreview && node.window.resizable);
                 window.setModal(interactivePreview && node.window.modal);
-                window.setKeepWithinStage(interactivePreview && node.window.keepWithinStage);
+                // Native Window.draw compares its local position with Stage coordinates for an
+                // orthographic camera. HudSession installs the HUD root directly in Stage.
+                // A nested Window remains positioned by its Scene2D parent (including scrolling).
+                window.setKeepWithinStage(interactivePreview && stageRoot
+                        && node.window.keepWithinStage);
                 return window;
             }
             case IMAGE: {

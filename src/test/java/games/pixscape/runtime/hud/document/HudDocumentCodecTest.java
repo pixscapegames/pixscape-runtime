@@ -18,6 +18,21 @@ public class HudDocumentCodecTest {
     private final HudDocumentCodec codec = new HudDocumentCodec();
 
     @Test
+    public void initialNodeVisibilityDefaultsOnAndRoundTripsOff() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode hidden = new HudNode("hidden", HudNodeKind.GROUP);
+        hidden.visible = false;
+        root.children.add(HudChild.free(hidden, new HudFreePlacement()));
+
+        Assert.assertTrue(root.visible);
+        String json = codec.write(new HudDocumentV1(root));
+        Assert.assertTrue(json.contains("\"visible\": false"));
+        HudNode restored = codec.read(json).root;
+        Assert.assertTrue(restored.visible);
+        Assert.assertFalse(restored.children.get(0).node.visible);
+    }
+
+    @Test
     public void windowPayloadAndCellChildRoundTrip() {
         HudNode root = new HudNode("window", HudNodeKind.WINDOW);
         root.window = new HudWindowData();

@@ -10,6 +10,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -38,6 +39,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -1250,6 +1252,162 @@ public class HudMaterializerTest {
         } finally {
             hud.dispose();
         }
+    }
+
+    @Test
+    public void scrolledWindowDrawDoesNotOverrideItsParentLayout() {
+        HudNode paneNode = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        paneNode.scrollPane = new HudScrollPaneData();
+        paneNode.actor.width = 120f;
+        paneNode.actor.height = 100f;
+        HudNode windowNode = new HudNode("window", HudNodeKind.WINDOW);
+        windowNode.window = new HudWindowData();
+        windowNode.actor.width = 240f;
+        windowNode.actor.height = 180f;
+        HudCellConstraints contentSize = new HudCellConstraints();
+        contentSize.prefWidth = 240f;
+        contentSize.prefHeight = 180f;
+        windowNode.children.add(HudChild.cell(new HudNode("content", HudNodeKind.GROUP), contentSize));
+        paneNode.children.add(HudChild.direct(windowNode));
+        MaterializedHud hud = materialize(new HudDocumentV1(paneNode));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            ScrollPane pane = (ScrollPane) hud.root();
+            Window window = (Window) hud.actor("window");
+            stage.addActor(pane);
+            pane.validate();
+            Assert.assertTrue(pane.getMaxX() > 0f);
+            pane.setScrollX(pane.getMaxX());
+            pane.updateVisualScroll();
+            pane.layout();
+            float layoutX = window.getX();
+            Assert.assertTrue("the native viewport has scrolled its content", layoutX < 0f);
+
+            window.draw(stage.getBatch(), 1f);
+            Assert.assertEquals("drawing must not undo the native scroll", layoutX, window.getX(), 0f);
+            Assert.assertTrue(windowNode.window.keepWithinStage);
+            window.setKeepWithinStage(true);
+            window.draw(stage.getBatch(), 1f);
+            Assert.assertTrue("the native clamp would contradict the ScrollPane", window.getX() > layoutX);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void rootWindowRetainsNativeStageConstraintOnDraw() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.actor.width = 200f;
+        root.actor.height = 140f;
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            Window window = (Window) hud.root();
+            window.setPosition(-20f, -15f);
+            stage.addActor(window);
+            window.draw(stage.getBatch(), 1f);
+            Assert.assertEquals(0f, window.getX(), 0f);
+            Assert.assertEquals(0f, window.getY(), 0f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void windowInsideOffsetFreeRootUsesParentCoordinatesOnDraw() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.actor.width = 300f;
+        root.actor.height = 240f;
+        HudNode child = new HudNode("window", HudNodeKind.WINDOW);
+        child.window = new HudWindowData();
+        child.actor.width = 100f;
+        child.actor.height = 80f;
+        root.children.add(HudChild.free(child, new games.pixscape.runtime.hud.document.HudFreePlacement()));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            HudFreeGroup group = (HudFreeGroup) hud.root();
+            group.setPosition(50f, 40f);
+            stage.addActor(group);
+            group.validate();
+            Window window = (Window) hud.actor("window");
+            window.setPosition(-10f, -5f); // Still inside the Stage in global coordinates.
+            window.draw(stage.getBatch(), 1f);
+            Assert.assertEquals(-10f, window.getX(), 0f);
+            Assert.assertEquals(-5f, window.getY(), 0f);
+            Assert.assertTrue(child.window.keepWithinStage);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void hiddenNodesRemainIndexedAndRuntimeVisibilityDoesNotEditAuthoredState() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.visible = false;
+        root.actor.width = 400f;
+        root.actor.height = 300f;
+        HudNode child = new HudNode("child", HudNodeKind.WINDOW);
+        child.window = new HudWindowData();
+        child.actor.width = 120f;
+        child.actor.height = 80f;
+        root.children.add(HudChild.free(child, new games.pixscape.runtime.hud.document.HudFreePlacement()));
+        HudDocumentV1 document = new HudDocumentV1(root);
+
+        MaterializedHud hud = materialize(document);
+        try {
+            Assert.assertFalse(hud.root().isVisible());
+            Assert.assertNotNull(hud.actor("child"));
+            Assert.assertTrue(hud.actor("child").isVisible());
+            hud.root().setVisible(true);
+            hud.actor("child").setVisible(false);
+            Assert.assertFalse(root.visible);
+            Assert.assertTrue(child.visible);
+        } finally {
+            hud.dispose();
+        }
+        MaterializedHud rebuilt = materialize(document);
+        try {
+            Assert.assertFalse(rebuilt.root().isVisible());
+            Assert.assertTrue(rebuilt.actor("child").isVisible());
+        } finally {
+            rebuilt.dispose();
+        }
+    }
+
+    private static Batch inertDrawBatch() {
+        Matrix4 transform = new Matrix4();
+        Color color = new Color(Color.WHITE);
+        return (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(), new Class<?>[]{Batch.class},
+                (proxy, method, args) -> "getTransformMatrix".equals(method.getName())
+                        || "getProjectionMatrix".equals(method.getName()) ? transform
+                        : "getColor".equals(method.getName()) ? color
+                        : defaultValue(method.getReturnType()));
+    }
+
+    private static Graphics logicalGraphics(int width, int height) {
+        return (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
+                new Class<?>[]{Graphics.class}, (proxy, method, args) ->
+                        "getWidth".equals(method.getName()) || "getBackBufferWidth".equals(method.getName())
+                                ? width : "getHeight".equals(method.getName())
+                                || "getBackBufferHeight".equals(method.getName())
+                                ? height : defaultValue(method.getReturnType()));
     }
 
     @Test

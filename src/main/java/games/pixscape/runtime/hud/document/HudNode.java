@@ -8,6 +8,8 @@ public final class HudNode {
     public String id;
     public HudNodeKind kind;
     public HudActorProperties actor = new HudActorProperties();
+    /** Initial Scene2D visibility; runtime Actor visibility remains independently mutable. */
+    public boolean visible = true;
     /** Optional TextTooltip behavior; independent of the node's widget payload. */
     public HudTooltipData tooltip;
 
