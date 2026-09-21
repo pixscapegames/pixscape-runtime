@@ -287,6 +287,33 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void windowAcceptsCellChildrenButRejectsDirectAndFreePlacements() {
+        HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
+        window.children.add(HudChild.cell(label("first"), new HudCellConstraints()));
+        window.children.add(HudChild.cell(label("second"), new HudCellConstraints()));
+        Assert.assertTrue(validator.validate(new HudDocumentV1(window)).isValid());
+
+        window.children.set(0, HudChild.direct(label("first")));
+        requireIssue(validator.validate(new HudDocumentV1(window)),
+                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
+        window.children.set(0, HudChild.free(label("first"), new HudFreePlacement()));
+        requireIssue(validator.validate(new HudDocumentV1(window)),
+                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
+    }
+
+    @Test
+    public void windowRequiresTitleAndUsableNamedStyle() {
+        HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
+        window.window.title = null;
+        requireIssueAt(validator.validate(new HudDocumentV1(window)),
+                HudValidationIssueCode.INVALID_NODE_PAYLOAD, "$.root.window.title");
+        window.window.title = "Inventory";
+        window.window.styleName = "missing";
+        requireIssueAt(validator.validate(new HudDocumentV1(window), new EmptyResourceCatalog()),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE, "$.root.window.styleName");
+    }
+
+    @Test
     public void expectedPayloadBusinessValidationRunsAlongsidePayloadExclusivity() {
         HudNode node = new HudNode("label", HudNodeKind.LABEL);
         node.label = labelData(null, "hud-body");
@@ -788,6 +815,9 @@ public class HudDocumentValidatorTest {
                 break;
             case SCROLL_PANE:
                 node.scrollPane = new HudScrollPaneData();
+                break;
+            case WINDOW:
+                node.window = new HudWindowData();
                 break;
             case IMAGE:
                 node.image = imageData(HudImageSource.REGION, "image");

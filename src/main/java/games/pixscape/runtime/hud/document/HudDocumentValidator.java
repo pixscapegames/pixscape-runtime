@@ -11,6 +11,7 @@ import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
 import games.pixscape.runtime.hud.HudBuiltInProgressBarStyle;
 import games.pixscape.runtime.hud.HudBuiltInScrollPaneStyle;
+import games.pixscape.runtime.hud.HudBuiltInWindowStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextTooltipStyle;
 
 import java.util.ArrayList;
@@ -152,6 +153,9 @@ public final class HudDocumentValidator {
                 case SCROLL_PANE:
                     validPayload = node.scrollPane != null && payloadCount == 1;
                     break;
+                case WINDOW:
+                    validPayload = node.window != null && payloadCount == 1;
+                    break;
                 case IMAGE:
                     validPayload = node.image != null && payloadCount == 1;
                     break;
@@ -219,6 +223,8 @@ public final class HudDocumentValidator {
                 validateProgressBar(node, path);
             } else if (node.kind == HudNodeKind.SCROLL_PANE && node.scrollPane != null) {
                 validateScrollPane(node, path);
+            } else if (node.kind == HudNodeKind.WINDOW && node.window != null) {
+                validateWindow(node, path);
             }
         }
 
@@ -451,6 +457,29 @@ public final class HudDocumentValidator {
 
         private void validateScrollPane(HudNode node, String path) {
             validateScrollPaneStyle(node, node.scrollPane.styleName, path + ".scrollPane.styleName");
+        }
+
+        private void validateWindow(HudNode node, String path) {
+            if (node.window.title == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "WINDOW title must not be null; an empty title is allowed.",
+                        usableId(node), path + ".window.title");
+            }
+            Integer fontAssetId = validateFontAsset(node, node.window.fontAssetId,
+                    path + ".window.fontAssetId");
+            String styleName = node.window.styleName;
+            if (HudBuiltInWindowStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInWindowStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "WINDOW requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path + ".window.styleName");
+                }
+            } else if (resources != null && !resources.hasWindowStyle(styleName,
+                    fontAssetId != null)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "WINDOW Skin style '" + styleName + "' is missing or unusable.",
+                        usableId(node), path + ".window.styleName");
+            }
         }
 
         private Integer validateFontAsset(HudNode node, Integer fontAssetId, String path) {
@@ -834,6 +863,7 @@ public final class HudDocumentValidator {
             int count = 0;
             if (node.container != null) count++;
             if (node.scrollPane != null) count++;
+            if (node.window != null) count++;
             if (node.image != null) count++;
             if (node.label != null) count++;
             if (node.textraLabel != null) count++;
@@ -859,7 +889,8 @@ public final class HudDocumentValidator {
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {
-            if (parent == HudNodeKind.TABLE) return placement == HudPlacementKind.CELL;
+            if (parent == HudNodeKind.TABLE || parent == HudNodeKind.WINDOW)
+                return placement == HudPlacementKind.CELL;
             if (parent == HudNodeKind.STACK || parent == HudNodeKind.CONTAINER
                     || parent == HudNodeKind.SCROLL_PANE) {
                 return placement == HudPlacementKind.DIRECT;

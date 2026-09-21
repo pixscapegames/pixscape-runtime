@@ -18,6 +18,31 @@ public class HudDocumentCodecTest {
     private final HudDocumentCodec codec = new HudDocumentCodec();
 
     @Test
+    public void windowPayloadAndCellChildRoundTrip() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.window.title = "Inventory";
+        root.window.styleName = "panel";
+        root.window.fontAssetId = 42;
+        root.window.resizable = true;
+        root.window.modal = true;
+        root.window.keepWithinStage = false;
+        HudNode child = new HudNode("content", HudNodeKind.TABLE);
+        root.children.add(HudChild.cell(child, new HudCellConstraints()));
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+
+        Assert.assertEquals(HudNodeKind.WINDOW, restored.kind);
+        Assert.assertEquals("Inventory", restored.window.title);
+        Assert.assertEquals("panel", restored.window.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.window.fontAssetId);
+        Assert.assertTrue(restored.window.resizable);
+        Assert.assertTrue(restored.window.modal);
+        Assert.assertFalse(restored.window.keepWithinStage);
+        Assert.assertEquals(HudPlacementKind.CELL, restored.children.get(0).placementKind);
+    }
+
+    @Test
     public void optionalTooltipRoundTripsWithoutChangingNodeKind() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         root.tooltip = new HudTooltipData();

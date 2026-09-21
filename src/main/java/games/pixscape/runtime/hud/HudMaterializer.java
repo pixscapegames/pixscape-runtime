@@ -22,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -82,7 +83,7 @@ public final class HudMaterializer {
             HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
             List<Disposable> ownedResources, TooltipManager tooltipManager,
             Map<Actor, TextTooltip> tooltips) {
-        Actor actor = createActor(node, resources, ownedResources);
+        Actor actor = createActor(node, resources, ownedResources, tooltipManager != null);
         actor.setName(node.id);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
         if (actorById.put(node.id, actor) != null) {
@@ -137,7 +138,7 @@ public final class HudMaterializer {
     }
 
     private Actor createActor(HudNode node, HudVisualResources resources,
-                              List<Disposable> ownedResources) {
+                              List<Disposable> ownedResources, boolean interactivePreview) {
         switch (node.kind) {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
@@ -162,6 +163,27 @@ public final class HudMaterializer {
                 pane.setSmoothScrolling(node.scrollPane.smoothScrolling);
                 pane.setOverscroll(node.scrollPane.overscrollX, node.scrollPane.overscrollY);
                 return pane;
+            }
+            case WINDOW: {
+                Window.WindowStyle sharedStyle = HudBuiltInWindowStyle.isSelected(node.window.styleName)
+                        ? resources.builtInWindowStyle() : resources.windowStyle(node.window.styleName);
+                if (!HudStyleUsability.isUsableWindowStyle(sharedStyle,
+                        node.window.fontAssetId != null)) {
+                    throw missing(node, "Window style",
+                            HudBuiltInWindowStyle.isSelected(node.window.styleName)
+                                    ? "built-in Default" : node.window.styleName);
+                }
+                Window.WindowStyle style = sharedStyle;
+                if (node.window.fontAssetId != null) {
+                    style = new Window.WindowStyle(sharedStyle);
+                    style.titleFont = requireFont(node, node.window.fontAssetId, resources);
+                }
+                Window window = new Window(node.window.title, style);
+                window.setMovable(interactivePreview && node.window.movable);
+                window.setResizable(interactivePreview && node.window.resizable);
+                window.setModal(interactivePreview && node.window.modal);
+                window.setKeepWithinStage(interactivePreview && node.window.keepWithinStage);
+                return window;
             }
             case IMAGE: {
                 if (node.image.source == HudImageSource.REGION) {

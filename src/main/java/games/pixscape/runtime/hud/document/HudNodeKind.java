@@ -7,6 +7,7 @@ public enum HudNodeKind {
     STACK,
     CONTAINER,
     SCROLL_PANE,
+    WINDOW,
     IMAGE,
     LABEL,
     TEXTRA_LABEL,

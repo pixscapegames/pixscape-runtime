@@ -14,6 +14,7 @@ public final class HudFontReferences {
             case CHECK_BOX: return node.checkBox == null ? null : node.checkBox.fontAssetId;
             case TEXT_FIELD: return node.textField == null ? null : node.textField.fontAssetId;
             case SELECT_BOX: return node.selectBox == null ? null : node.selectBox.fontAssetId;
+            case WINDOW: return node.window == null ? null : node.window.fontAssetId;
             default: return null;
         }
     }
@@ -27,7 +28,7 @@ public final class HudFontReferences {
                 || kind == HudNodeKind.TEXT_BUTTON
                 || kind == HudNodeKind.IMAGE_TEXT_BUTTON
                 || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.TEXT_FIELD
-                || kind == HudNodeKind.SELECT_BOX;
+                || kind == HudNodeKind.SELECT_BOX || kind == HudNodeKind.WINDOW;
     }
 
     public static void setAssetId(HudNode node, Integer assetId) {
@@ -42,6 +43,7 @@ public final class HudFontReferences {
             case CHECK_BOX: node.checkBox.fontAssetId = assetId; return;
             case TEXT_FIELD: node.textField.fontAssetId = assetId; return;
             case SELECT_BOX: node.selectBox.fontAssetId = assetId; return;
+            case WINDOW: node.window.fontAssetId = assetId; return;
             default: throw new IllegalArgumentException(
                     "HUD node kind " + node.kind + " has no font override.");
         }

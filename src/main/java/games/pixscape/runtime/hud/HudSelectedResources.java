@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
@@ -66,6 +67,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                         || builtInScrollPaneStyle() != null)
                 && (!requirements.requiresBuiltInTextTooltipStyle()
                         || builtInTextTooltipStyle() != null)
+                && (!requirements.requiresBuiltInWindowStyle()
+                        || builtInWindowStyle() != null)
                 && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
@@ -206,6 +209,15 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         owner.requireOpen(); return owner.sharedBuiltInTextTooltipStyle();
     }
 
+    @Override public Window.WindowStyle windowStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, Window.WindowStyle.class);
+    }
+
+    @Override public Window.WindowStyle builtInWindowStyle() {
+        owner.requireOpen(); return owner.sharedBuiltInWindowStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
@@ -277,5 +289,11 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInTextTooltipStyle() {
         return HudStyleUsability.isUsableTextTooltipStyle(builtInTextTooltipStyle(), false);
+    }
+    @Override public boolean hasWindowStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableWindowStyle(windowStyle(name), hasFontOverride);
+    }
+    @Override public boolean hasBuiltInWindowStyle() {
+        return HudStyleUsability.isUsableWindowStyle(builtInWindowStyle(), false);
     }
 }

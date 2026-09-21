@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 
 /** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
 public final class HudStyleUsability {
@@ -71,5 +72,11 @@ public final class HudStyleUsability {
                                                    boolean hasFontOverride) {
         return style != null && style.label != null
                 && (hasFontOverride || style.label.font != null);
+    }
+
+    /** Window requires a title font; background, color, and stage background are optional. */
+    public static boolean isUsableWindowStyle(Window.WindowStyle style,
+                                              boolean hasFontOverride) {
+        return style != null && (hasFontOverride || style.titleFont != null);
     }
 }

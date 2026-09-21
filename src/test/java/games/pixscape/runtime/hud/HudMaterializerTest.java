@@ -4,6 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
@@ -35,6 +37,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -65,6 +68,7 @@ import games.pixscape.runtime.hud.document.HudProgressBarData;
 import games.pixscape.runtime.hud.document.HudScrollPaneData;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudTooltipData;
+import games.pixscape.runtime.hud.document.HudWindowData;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -1096,6 +1100,155 @@ public class HudMaterializerTest {
         for (Method method : HudMaterializer.class.getMethods()) {
             if (!"materialize".equals(method.getName())) continue;
             Assert.assertEquals(ValidatedHudDocument.class, method.getParameterTypes()[0]);
+        }
+    }
+
+    @Test
+    public void windowIsNativeTableWithAuthoredCellsAndSeparateTitleActors() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.window.title = "Inventory";
+        root.actor.width = 240f;
+        root.actor.height = 160f;
+        HudNode content = new HudNode("content", HudNodeKind.TABLE);
+        root.children.add(HudChild.cell(content, new HudCellConstraints()));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        try {
+            Assert.assertTrue(hud.root() instanceof Window);
+            Window window = (Window) hud.root();
+            Assert.assertEquals("Inventory", window.getTitleLabel().getText().toString());
+            Assert.assertSame(content.id, hud.actor("content").getName());
+            Assert.assertNotNull(window.getCell(hud.actor("content")));
+            Assert.assertNull(hud.actor(window.getTitleLabel().getName()));
+            Assert.assertSame(selectedResources.builtInWindowStyle(), window.getStyle());
+            Assert.assertTrue(window.isMovable());
+            Assert.assertFalse(window.isResizable());
+            Assert.assertFalse(window.isModal());
+        } finally {
+            hud.dispose();
+        }
+    }
+
+    @Test
+    public void windowFontOverrideCopiesNativeStyleWithoutMutatingSource() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.window.styleName = "custom";
+        root.window.fontAssetId = 42;
+        Window.WindowStyle shared = new Window.WindowStyle();
+        BitmapFont override = selectedResources.builtInLabelStyle().font;
+        HudVisualResources visual = new HudVisualResources() {
+            @Override public TextureRegion region(String name) { return null; }
+            @Override public Drawable drawable(String name) { return null; }
+            @Override public Label.LabelStyle labelStyle(String name) { return null; }
+            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+            @Override public Window.WindowStyle windowStyle(String name) {
+                return "custom".equals(name) ? shared : null;
+            }
+            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
+        };
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
+        MaterializedHud hud = new HudMaterializer().materialize(validation.validatedDocument(), visual);
+        try {
+            Window window = (Window) hud.root();
+            Assert.assertNotSame(shared, window.getStyle());
+            Assert.assertSame(override, window.getStyle().titleFont);
+            Assert.assertNull(shared.titleFont);
+        } finally {
+            hud.dispose();
+        }
+    }
+
+    @Test
+    public void stageRoutesNativeWindowMoveResizeAndModalWithoutEditingDocument() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.window.resizable = true;
+        root.window.modal = true;
+        root.actor.width = 200f;
+        root.actor.height = 140f;
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Window window = (Window) hud.root();
+        Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(),
+                new Class<?>[]{Batch.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Stage stage = new Stage(new ScreenViewport(), batch);
+        Graphics testGraphics = Gdx.graphics;
+        try {
+            Gdx.graphics = (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
+                    new Class<?>[]{Graphics.class},
+                    (proxy, method, args) -> "getWidth".equals(method.getName()) ? 400
+                            : "getHeight".equals(method.getName()) ? 300
+                            : defaultValue(method.getReturnType()));
+            stage.getViewport().update(400, 300, true);
+            window.setPosition(40f, 40f);
+            stage.addActor(window);
+            Assert.assertTrue(stage.touchDown(60, 130, 0, 0)); // Title: stage (60,170).
+            stage.touchDragged(90, 110, 0);
+            stage.touchUp(90, 110, 0, 0);
+            Assert.assertTrue(window.getX() > 40f);
+            Assert.assertTrue(window.getY() > 40f);
+            float width = window.getWidth();
+            int resizeX = Math.round(window.getRight() - 10f);
+            int resizeY = Math.round(300f - (window.getY() + 10f));
+            Assert.assertTrue(stage.touchDown(resizeX, resizeY, 0, 0));
+            stage.touchDragged(resizeX + 20, resizeY, 0);
+            stage.touchUp(resizeX + 20, resizeY, 0, 0);
+            Assert.assertTrue(window.getWidth() > width);
+            Assert.assertTrue(stage.touchDown(390, 290, 0, 0)); // Modal outside its bounds.
+            stage.touchUp(390, 290, 0, 0);
+            final int[] worldTouches = {0};
+            InputMultiplexer routed = new InputMultiplexer(stage, new InputAdapter() {
+                @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                    worldTouches[0]++;
+                    return true;
+                }
+            });
+            Assert.assertTrue(routed.touchDown(390, 290, 0, 0));
+            Assert.assertEquals(0, worldTouches[0]);
+            routed.touchUp(390, 290, 0, 0);
+            Assert.assertEquals(200f, root.actor.width, 0f);
+            Assert.assertEquals(140f, root.actor.height, 0f);
+            Assert.assertTrue(root.window.modal);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = testGraphics;
+        }
+    }
+
+    @Test
+    public void freeGroupDoesNotOverwriteNativeWindowPreviewBoundsAfterInitialPlacement() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.actor.width = 400f;
+        root.actor.height = 300f;
+        HudNode node = new HudNode("window", HudNodeKind.WINDOW);
+        node.window = new HudWindowData();
+        node.actor.width = 200f;
+        node.actor.height = 140f;
+        games.pixscape.runtime.hud.document.HudFreePlacement free =
+                new games.pixscape.runtime.hud.document.HudFreePlacement();
+        free.offsetX = 40f;
+        free.offsetY = 50f;
+        root.children.add(HudChild.free(node, free));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        try {
+            HudFreeGroup group = (HudFreeGroup) hud.root();
+            Window window = (Window) hud.actor("window");
+            group.validate();
+            Assert.assertEquals(40f, window.getX(), 0f);
+            Assert.assertEquals(50f, window.getY(), 0f);
+            window.setBounds(75f, 85f, 220f, 150f);
+            group.invalidate();
+            group.validate();
+            Assert.assertEquals(75f, window.getX(), 0f);
+            Assert.assertEquals(85f, window.getY(), 0f);
+            Assert.assertEquals(220f, window.getWidth(), 0f);
+            Assert.assertEquals(150f, window.getHeight(), 0f);
+            Assert.assertEquals(40f, free.offsetX, 0f);
+            Assert.assertEquals(50f, free.offsetY, 0f);
+        } finally {
+            hud.dispose();
         }
     }
 

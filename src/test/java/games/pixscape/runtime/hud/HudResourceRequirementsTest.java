@@ -8,6 +8,22 @@ import org.junit.Test;
 
 public class HudResourceRequirementsTest {
     @Test
+    public void windowOnlyNodeCollectsTitleFontAndDefaultOrCustomStyle() {
+        HudResourceRequirements builtin = requirements(node("root", "WINDOW",
+                "\"window\":{\"title\":\"Inventory\",\"fontAssetId\":42},\"children\":[]"));
+        Assert.assertFalse(builtin.requiresSkin());
+        Assert.assertTrue(builtin.requiresAtlas());
+        Assert.assertTrue(builtin.requiresBuiltInLabelStyle());
+        Assert.assertTrue(builtin.requiresBuiltInWindowStyle());
+        Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
+
+        HudResourceRequirements custom = requirements(node("root", "WINDOW",
+                "\"window\":{\"title\":\"Inventory\",\"styleName\":\"panel\"},\"children\":[]"));
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertTrue(custom.requiresAtlas());
+        Assert.assertFalse(custom.requiresBuiltInWindowStyle());
+    }
+    @Test
     public void tooltipOnlyNodeCollectsItsFontAndDefaultOrCustomStyle() {
         HudResourceRequirements builtin = requirements(node("root", "GROUP",
                 "\"tooltip\":{\"text\":\"Hint\",\"fontAssetId\":42},\"children\":[]"));

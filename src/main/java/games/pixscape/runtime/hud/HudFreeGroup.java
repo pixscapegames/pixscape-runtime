@@ -2,6 +2,7 @@ package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.SnapshotArray;
 import games.pixscape.runtime.hud.document.HudFreePlacement;
@@ -40,9 +41,19 @@ final class HudFreeGroup extends WidgetGroup {
             float anchorY = placement.verticalAnchor == HudVerticalAnchor.BOTTOM ? 0f
                     : placement.verticalAnchor == HudVerticalAnchor.CENTER ? getHeight() / 2f
                     : getHeight();
+            // Preserve native Window move/resize while still following a changed parent anchor.
+            if (child instanceof Window && placement.initialized) {
+                child.moveBy(anchorX - placement.lastAnchorX, anchorY - placement.lastAnchorY);
+                placement.lastAnchorX = anchorX;
+                placement.lastAnchorY = anchorY;
+                continue;
+            }
             child.setPosition(
                     anchorX + placement.offsetX - child.getWidth() * placement.pivotX,
                     anchorY + placement.offsetY - child.getHeight() * placement.pivotY);
+            placement.initialized = true;
+            placement.lastAnchorX = anchorX;
+            placement.lastAnchorY = anchorY;
         }
     }
 
@@ -83,6 +94,9 @@ final class HudFreeGroup extends WidgetGroup {
         private final float pivotY;
         private final float offsetX;
         private final float offsetY;
+        private boolean initialized;
+        private float lastAnchorX;
+        private float lastAnchorY;
 
         Placement(HudFreePlacement source) {
             horizontalAnchor = source.horizontalAnchor;

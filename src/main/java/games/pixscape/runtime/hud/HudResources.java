@@ -20,6 +20,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
@@ -61,6 +62,7 @@ public final class HudResources implements Disposable {
     private ProgressBar.ProgressBarStyle builtInProgressBarStyle;
     private ScrollPane.ScrollPaneStyle builtInScrollPaneStyle;
     private TextTooltip.TextTooltipStyle builtInTextTooltipStyle;
+    private Window.WindowStyle builtInWindowStyle;
     private TextureAtlas atlas;
     private AtlasRuntimeService.TextureArrayBundle textureArrayBundle;
     private boolean disposed;
@@ -554,6 +556,17 @@ public final class HudResources implements Disposable {
             builtInTextTooltipStyle = HudBuiltInTextTooltipStyle.create(white, labelStyle);
         }
         return builtInTextTooltipStyle;
+    }
+
+    Window.WindowStyle sharedBuiltInWindowStyle() {
+        requireOpen();
+        if (builtInWindowStyle == null) {
+            Label.LabelStyle labelStyle = sharedBuiltInLabelStyle();
+            TextureRegion white = regions.get(HudBuiltInTextButtonStyle.BACKGROUND_REGION);
+            if (labelStyle == null || white == null) return null;
+            builtInWindowStyle = HudBuiltInWindowStyle.create(white, labelStyle);
+        }
+        return builtInWindowStyle;
     }
 
     public String atlasId() {

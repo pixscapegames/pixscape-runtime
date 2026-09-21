@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
 
@@ -85,4 +86,8 @@ public interface HudVisualResources {
     default TextTooltip.TextTooltipStyle textTooltipStyle(String name) { return null; }
 
     default TextTooltip.TextTooltipStyle builtInTextTooltipStyle() { return null; }
+
+    default Window.WindowStyle windowStyle(String name) { return null; }
+
+    default Window.WindowStyle builtInWindowStyle() { return null; }
 }
