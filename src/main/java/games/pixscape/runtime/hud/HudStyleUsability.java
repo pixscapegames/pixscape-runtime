@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 
 /** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
 public final class HudStyleUsability {
@@ -57,6 +58,11 @@ public final class HudStyleUsability {
 
     /** Scene2D accepts every non-null ProgressBarStyle; all drawables are optional. */
     public static boolean isUsableProgressBarStyle(ProgressBar.ProgressBarStyle style) {
+        return style != null;
+    }
+
+    /** Scene2D accepts every non-null ScrollPaneStyle; its drawables are optional. */
+    public static boolean isUsableScrollPaneStyle(ScrollPane.ScrollPaneStyle style) {
         return style != null;
     }
 }

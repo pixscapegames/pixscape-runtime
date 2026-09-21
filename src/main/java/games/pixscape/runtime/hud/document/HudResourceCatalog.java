@@ -75,4 +75,8 @@ public interface HudResourceCatalog {
 
     /** Returns whether the prepared environment contains the built-in ProgressBar style. */
     default boolean hasBuiltInProgressBarStyle() { return false; }
+
+    default boolean hasScrollPaneStyle(String name) { return false; }
+
+    default boolean hasBuiltInScrollPaneStyle() { return false; }
 }

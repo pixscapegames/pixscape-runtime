@@ -18,6 +18,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -109,6 +110,20 @@ public final class HudMaterializer {
                 Container<Actor> container = new Container<Actor>();
                 container.setClip(node.container.clip);
                 return container;
+            case SCROLL_PANE: {
+                ScrollPane.ScrollPaneStyle style = HudBuiltInScrollPaneStyle.isSelected(node.scrollPane.styleName)
+                        ? resources.builtInScrollPaneStyle() : resources.scrollPaneStyle(node.scrollPane.styleName);
+                if (style == null) throw missing(node, "ScrollPane style",
+                        HudBuiltInScrollPaneStyle.isSelected(node.scrollPane.styleName)
+                                ? "built-in Default" : node.scrollPane.styleName);
+                ScrollPane pane = new ScrollPane(null, style);
+                pane.setScrollingDisabled(node.scrollPane.scrollingDisabledX, node.scrollPane.scrollingDisabledY);
+                pane.setFadeScrollBars(node.scrollPane.fadeScrollBars);
+                pane.setFlickScroll(node.scrollPane.flickScroll);
+                pane.setSmoothScrolling(node.scrollPane.smoothScrolling);
+                pane.setOverscroll(node.scrollPane.overscrollX, node.scrollPane.overscrollY);
+                return pane;
+            }
             case IMAGE: {
                 if (node.image.source == HudImageSource.REGION) {
                     TextureRegion region = resources.region(node.image.resourceName);
@@ -338,6 +353,8 @@ public final class HudMaterializer {
             @SuppressWarnings("unchecked")
             Container<Actor> container = (Container<Actor>) parent;
             container.setActor(child);
+        } else if (parent instanceof ScrollPane) {
+            ((ScrollPane) parent).setActor(child);
         } else if (parent instanceof Group) {
             ((Group) parent).addActor(child);
         } else {

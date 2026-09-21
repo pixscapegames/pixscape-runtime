@@ -160,6 +160,22 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void scrollPaneUsesAtlasOnlyForDefaultAndNeverRequiresAFont() {
+        HudResourceRequirements builtIn = requirements(node("pane", "SCROLL_PANE",
+                "\"scrollPane\":{},\"children\":[]"));
+        Assert.assertFalse(builtIn.requiresSkin());
+        Assert.assertTrue(builtIn.requiresAtlas());
+        Assert.assertTrue(builtIn.requiresBuiltInScrollPaneStyle());
+        Assert.assertTrue(builtIn.bitmapFontAssetIds().isEmpty());
+
+        HudResourceRequirements custom = requirements(node("pane", "SCROLL_PANE",
+                "\"scrollPane\":{\"styleName\":\"compact\"},\"children\":[]"));
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertFalse(custom.requiresBuiltInScrollPaneStyle());
+        Assert.assertTrue(custom.bitmapFontAssetIds().isEmpty());
+    }
+
+    @Test
     public void mixedTreeUsesUnionOfActualRequirements() {
         String image = node("image", "IMAGE", "\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"art\"},\"children\":[]");

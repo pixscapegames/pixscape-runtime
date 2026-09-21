@@ -174,6 +174,50 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void scrollPaneAcceptsZeroOrOneDirectChildAndRejectsOtherCapacity() {
+        HudNode empty = new HudNode("empty", HudNodeKind.SCROLL_PANE);
+        empty.scrollPane = new HudScrollPaneData();
+        Assert.assertTrue(validator.validate(new HudDocumentV1(empty)).isValid());
+
+        HudNode occupied = new HudNode("occupied", HudNodeKind.SCROLL_PANE);
+        occupied.scrollPane = new HudScrollPaneData();
+        occupied.children.add(HudChild.direct(new HudNode("group", HudNodeKind.GROUP)));
+        Assert.assertTrue(validator.validate(new HudDocumentV1(occupied)).isValid());
+
+        occupied.children.add(HudChild.direct(new HudNode("second", HudNodeKind.GROUP)));
+        requireIssue(validator.validate(new HudDocumentV1(occupied)),
+                HudValidationIssueCode.INVALID_CHILD_COUNT);
+
+        HudNode wrongPlacement = new HudNode("wrong", HudNodeKind.SCROLL_PANE);
+        wrongPlacement.scrollPane = new HudScrollPaneData();
+        wrongPlacement.children.add(HudChild.cell(new HudNode("table", HudNodeKind.TABLE),
+                new HudCellConstraints()));
+        requireIssue(validator.validate(new HudDocumentV1(wrongPlacement)),
+                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
+    }
+
+    @Test
+    public void scrollPaneAcceptsEmptyNativeStyleAndRejectsMissingReference() {
+        HudNode pane = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        pane.scrollPane = new HudScrollPaneData();
+        pane.scrollPane.styleName = "empty-scroll";
+        HudResourceCatalog catalog = new HudResourceCatalog() {
+            @Override public boolean hasRegion(String name) { return false; }
+            @Override public boolean hasDrawable(String name) { return false; }
+            @Override public boolean hasLabelStyle(String name) { return false; }
+            @Override public boolean hasTextButtonStyle(String name) { return false; }
+            @Override public boolean hasScrollPaneStyle(String name) {
+                return "empty-scroll".equals(name);
+            }
+        };
+        Assert.assertTrue(validator.validate(new HudDocumentV1(pane), catalog).isValid());
+
+        pane.scrollPane.styleName = "missing";
+        requireIssue(validator.validate(new HudDocumentV1(pane), catalog),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE);
+    }
+
+    @Test
     public void recursiveAndReusedProgrammaticNodesAreRejected() {
         HudNode recursive = new HudNode("recursive", HudNodeKind.GROUP);
         recursive.children.add(HudChild.direct(recursive));
@@ -718,6 +762,9 @@ public class HudDocumentValidatorTest {
                 break;
             case CONTAINER:
                 node.container = new HudContainerData();
+                break;
+            case SCROLL_PANE:
+                node.scrollPane = new HudScrollPaneData();
                 break;
             case IMAGE:
                 node.image = imageData(HudImageSource.REGION, "image");

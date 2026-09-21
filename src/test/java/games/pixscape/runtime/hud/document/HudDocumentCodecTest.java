@@ -219,6 +219,37 @@ public class HudDocumentCodecTest {
         Assert.assertTrue(restored.progressBar.disabled);
     }
 
+    @Test
+    public void scrollPaneRoundTripPreservesOnlyAuthoredConfiguration() {
+        HudNode pane = new HudNode("scroll", HudNodeKind.SCROLL_PANE);
+        pane.scrollPane = new HudScrollPaneData();
+        pane.scrollPane.styleName = "compact";
+        pane.scrollPane.scrollingDisabledX = true;
+        pane.scrollPane.scrollingDisabledY = true;
+        pane.scrollPane.fadeScrollBars = false;
+        pane.scrollPane.flickScroll = false;
+        pane.scrollPane.smoothScrolling = false;
+        pane.scrollPane.overscrollX = false;
+        pane.scrollPane.overscrollY = false;
+
+        String json = codec.write(new HudDocumentV1(pane));
+        HudNode restored = codec.read(json).root;
+
+        Assert.assertEquals(HudNodeKind.SCROLL_PANE, restored.kind);
+        Assert.assertEquals("compact", restored.scrollPane.styleName);
+        Assert.assertTrue(restored.scrollPane.scrollingDisabledX);
+        Assert.assertTrue(restored.scrollPane.scrollingDisabledY);
+        Assert.assertFalse(restored.scrollPane.fadeScrollBars);
+        Assert.assertFalse(restored.scrollPane.flickScroll);
+        Assert.assertFalse(restored.scrollPane.smoothScrolling);
+        Assert.assertFalse(restored.scrollPane.overscrollX);
+        Assert.assertFalse(restored.scrollPane.overscrollY);
+        Assert.assertFalse(json.contains("\"scrollX\""));
+        Assert.assertFalse(json.contains("\"scrollY\""));
+        Assert.assertFalse(json.contains("\"velocityX\""));
+        Assert.assertFalse(json.contains("\"velocityY\""));
+    }
+
     private static HudImageData image(String resourceName) {
         HudImageData image = new HudImageData();
         image.resourceName = resourceName;

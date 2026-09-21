@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.github.tommyettinger.textra.Font;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
@@ -60,6 +61,8 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
                         || builtInSliderStyle() != null)
                 && (!requirements.requiresBuiltInProgressBarStyle()
                         || builtInProgressBarStyle() != null)
+                && (!requirements.requiresBuiltInScrollPaneStyle()
+                        || builtInScrollPaneStyle() != null)
                 && owner.hasBitmapFonts(requirements.bitmapFontAssetIds());
     }
 
@@ -182,6 +185,15 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInProgressBarStyle();
     }
 
+    @Override public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, ScrollPane.ScrollPaneStyle.class);
+    }
+
+    @Override public ScrollPane.ScrollPaneStyle builtInScrollPaneStyle() {
+        owner.requireOpen(); return owner.sharedBuiltInScrollPaneStyle();
+    }
+
     @Override public boolean hasLabelStyle(String name) { return labelStyle(name) != null; }
     @Override public boolean hasLabelStyleFont(String name) {
         return HudStyleUsability.isUsableLabelStyle(labelStyle(name), false);
@@ -241,5 +253,11 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInProgressBarStyle() {
         return HudStyleUsability.isUsableProgressBarStyle(builtInProgressBarStyle());
+    }
+    @Override public boolean hasScrollPaneStyle(String name) {
+        return HudStyleUsability.isUsableScrollPaneStyle(scrollPaneStyle(name));
+    }
+    @Override public boolean hasBuiltInScrollPaneStyle() {
+        return HudStyleUsability.isUsableScrollPaneStyle(builtInScrollPaneStyle());
     }
 }

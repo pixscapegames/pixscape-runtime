@@ -33,6 +33,8 @@ public final class HudNode {
     public HudProgressBarData progressBar;
     /** Present only for {@link HudNodeKind#CONTAINER}. */
     public HudContainerData container;
+    /** Present only for {@link HudNodeKind#SCROLL_PANE}. */
+    public HudScrollPaneData scrollPane;
 
     /** Children in Scene2D insertion/draw order. Parent links are derived and never persisted. */
     public ArrayList<HudChild> children = new ArrayList<HudChild>();

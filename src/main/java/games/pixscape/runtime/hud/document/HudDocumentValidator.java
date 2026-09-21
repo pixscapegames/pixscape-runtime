@@ -10,6 +10,7 @@ import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
 import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
 import games.pixscape.runtime.hud.HudBuiltInProgressBarStyle;
+import games.pixscape.runtime.hud.HudBuiltInScrollPaneStyle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -146,6 +147,9 @@ public final class HudDocumentValidator {
                 case CONTAINER:
                     validPayload = node.container != null && payloadCount == 1;
                     break;
+                case SCROLL_PANE:
+                    validPayload = node.scrollPane != null && payloadCount == 1;
+                    break;
                 case IMAGE:
                     validPayload = node.image != null && payloadCount == 1;
                     break;
@@ -211,6 +215,8 @@ public final class HudDocumentValidator {
                 validateSlider(node, path);
             } else if (node.kind == HudNodeKind.PROGRESS_BAR && node.progressBar != null) {
                 validateProgressBar(node, path);
+            } else if (node.kind == HudNodeKind.SCROLL_PANE && node.scrollPane != null) {
+                validateScrollPane(node, path);
             }
         }
 
@@ -441,6 +447,10 @@ public final class HudDocumentValidator {
             validateProgressBarStyle(node, progressBar.styleName, path + ".progressBar.styleName");
         }
 
+        private void validateScrollPane(HudNode node, String path) {
+            validateScrollPaneStyle(node, node.scrollPane.styleName, path + ".scrollPane.styleName");
+        }
+
         private Integer validateFontAsset(HudNode node, Integer fontAssetId, String path) {
             if (fontAssetId != null && fontAssetId <= 0) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
@@ -537,6 +547,19 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasProgressBarStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "PROGRESS_BAR Skin style '" + styleName + "' is missing or unusable.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateScrollPaneStyle(HudNode node, String styleName, String path) {
+            if (HudBuiltInScrollPaneStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInScrollPaneStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "SCROLL_PANE requires built-in Default style resources.", usableId(node), path);
+                }
+            } else if (resources != null && !resources.hasScrollPaneStyle(styleName)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "SCROLL_PANE references unknown or unusable style '" + styleName + "'.",
                         usableId(node), path);
             }
         }
@@ -652,9 +675,9 @@ public final class HudDocumentValidator {
                 return;
             }
             int count = node.children.size();
-            if (node.kind == HudNodeKind.CONTAINER && count > 1) {
+            if ((node.kind == HudNodeKind.CONTAINER || node.kind == HudNodeKind.SCROLL_PANE) && count > 1) {
                 add(HudValidationIssueCode.INVALID_CHILD_COUNT,
-                        "CONTAINER accepts at most one child, found " + count + ".",
+                        node.kind + " accepts at most one child, found " + count + ".",
                         usableId(node), path + ".children");
             } else if (isLeaf(node.kind) && count != 0) {
                 add(HudValidationIssueCode.INVALID_CHILD_COUNT,
@@ -783,6 +806,7 @@ public final class HudDocumentValidator {
         private static int payloadCount(HudNode node) {
             int count = 0;
             if (node.container != null) count++;
+            if (node.scrollPane != null) count++;
             if (node.image != null) count++;
             if (node.label != null) count++;
             if (node.textraLabel != null) count++;
@@ -809,7 +833,8 @@ public final class HudDocumentValidator {
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {
             if (parent == HudNodeKind.TABLE) return placement == HudPlacementKind.CELL;
-            if (parent == HudNodeKind.STACK || parent == HudNodeKind.CONTAINER) {
+            if (parent == HudNodeKind.STACK || parent == HudNodeKind.CONTAINER
+                    || parent == HudNodeKind.SCROLL_PANE) {
                 return placement == HudPlacementKind.DIRECT;
             }
             if (parent == HudNodeKind.GROUP) {

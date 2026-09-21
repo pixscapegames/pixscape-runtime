@@ -29,6 +29,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
@@ -54,6 +55,7 @@ import games.pixscape.runtime.hud.document.HudTextraLabelData;
 import games.pixscape.runtime.hud.document.HudSelectBoxData;
 import games.pixscape.runtime.hud.document.HudSliderData;
 import games.pixscape.runtime.hud.document.HudProgressBarData;
+import games.pixscape.runtime.hud.document.HudScrollPaneData;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -677,6 +679,61 @@ public class HudMaterializerTest {
         Assert.assertNull(backgroundAndKnob.knobBefore);
         Assert.assertNull(knobAfterOnly.knobBefore);
         Assert.assertNull(withoutBackground.background);
+    }
+
+    @Test
+    public void materializesNativeScrollablePaneAndPreservesSharedStyle() {
+        HudNode paneNode = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        paneNode.scrollPane = new HudScrollPaneData();
+        paneNode.actor.width = 100f;
+        paneNode.actor.height = 80f;
+        HudNode content = new HudNode("content", HudNodeKind.GROUP);
+        content.actor.width = 100f;
+        content.actor.height = 240f;
+        paneNode.children.add(HudChild.direct(content));
+        ScrollPane.ScrollPaneStyle shared = selectedResources.builtInScrollPaneStyle();
+        Drawable background = shared.background;
+
+        MaterializedHud hud = materialize(new HudDocumentV1(paneNode));
+        ScrollPane pane = (ScrollPane) hud.actor("pane");
+        pane.validate();
+
+        Assert.assertEquals(content.id, pane.getActor().getName());
+        Assert.assertTrue(pane.getMaxY() > 0f);
+        pane.setScrollPercentY(1f);
+        pane.updateVisualScroll();
+        Assert.assertEquals(pane.getMaxY(), pane.getVisualScrollY(), .001f);
+        Assert.assertSame(shared, pane.getStyle());
+        Assert.assertSame(background, shared.background);
+        Assert.assertNotNull(shared.hScroll);
+        Assert.assertNotNull(shared.vScroll);
+        Assert.assertNotNull(shared.hScrollKnob);
+        Assert.assertNotNull(shared.vScrollKnob);
+    }
+
+    @Test
+    public void materializesEmptyCustomScrollPaneStyleWithoutMutation() {
+        HudNode node = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        node.scrollPane = new HudScrollPaneData();
+        node.scrollPane.styleName = "empty";
+        ScrollPane.ScrollPaneStyle shared = new ScrollPane.ScrollPaneStyle();
+        MaterializedHud hud = new HudMaterializer().materialize(
+                new HudDocumentValidator().validate(new HudDocumentV1(node)).validatedDocument(),
+                new HudVisualResources() {
+                    @Override public TextureRegion region(String name) { return null; }
+                    @Override public Drawable drawable(String name) { return null; }
+                    @Override public Label.LabelStyle labelStyle(String name) { return null; }
+                    @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+                    @Override public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
+                        return "empty".equals(name) ? shared : null;
+                    }
+                });
+
+        Assert.assertSame(shared, ((ScrollPane) hud.actor("pane")).getStyle());
+        Assert.assertNull(shared.background);
+        Assert.assertNull(shared.hScrollKnob);
+        Assert.assertNull(shared.vScrollKnob);
+        hud.dispose();
     }
 
     @Test

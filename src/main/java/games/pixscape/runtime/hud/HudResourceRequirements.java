@@ -29,6 +29,7 @@ public final class HudResourceRequirements {
     private final boolean builtInCheckBoxStyle;
     private final boolean builtInSliderStyle;
     private final boolean builtInProgressBarStyle;
+    private final boolean builtInScrollPaneStyle;
     private final Set<Integer> bitmapFontAssetIds;
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
@@ -37,6 +38,7 @@ public final class HudResourceRequirements {
                                     boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
                                     boolean builtInCheckBoxStyle,
                                     boolean builtInSliderStyle, boolean builtInProgressBarStyle,
+                                    boolean builtInScrollPaneStyle,
                                     Set<Integer> bitmapFontAssetIds) {
         this.skin = skin;
         this.atlas = atlas;
@@ -49,6 +51,7 @@ public final class HudResourceRequirements {
         this.builtInCheckBoxStyle = builtInCheckBoxStyle;
         this.builtInSliderStyle = builtInSliderStyle;
         this.builtInProgressBarStyle = builtInProgressBarStyle;
+        this.builtInScrollPaneStyle = builtInScrollPaneStyle;
         this.bitmapFontAssetIds = Collections.unmodifiableSet(
                 new LinkedHashSet<Integer>(bitmapFontAssetIds));
     }
@@ -69,6 +72,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInCheckBoxStyle = false;
         boolean requiresBuiltInSliderStyle = false;
         boolean requiresBuiltInProgressBarStyle = false;
+        boolean requiresBuiltInScrollPaneStyle = false;
         Set<Integer> bitmapFontAssetIds = new LinkedHashSet<Integer>();
         SkinRequirementVisitor imageRequirements = new SkinRequirementVisitor();
         for (HudNode node : document.nodeIndex().values()) {
@@ -153,6 +157,13 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.SCROLL_PANE) {
+                requiresAtlas = true;
+                if (HudBuiltInScrollPaneStyle.isSelected(node.scrollPane.styleName)) {
+                    requiresBuiltInScrollPaneStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             }
             HudImageReferences.visit(node, imageRequirements);
         }
@@ -163,6 +174,7 @@ public final class HudResourceRequirements {
                 requiresBuiltInTextFieldStyle,
                 requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle,
                 requiresBuiltInSliderStyle, requiresBuiltInProgressBarStyle,
+                requiresBuiltInScrollPaneStyle,
                 bitmapFontAssetIds);
     }
 
@@ -208,6 +220,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInProgressBarStyle() {
         return builtInProgressBarStyle;
+    }
+
+    public boolean requiresBuiltInScrollPaneStyle() {
+        return builtInScrollPaneStyle;
     }
 
     public Set<Integer> bitmapFontAssetIds() {
