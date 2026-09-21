@@ -430,6 +430,29 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void builtInImageTextButtonStyleCopiesNativeButtonOffsetsWithoutMutatingSource() {
+        TextButton.TextButtonStyle source = new TextButton.TextButtonStyle(
+                selectedResources.builtInTextButtonStyle());
+        source.pressedOffsetX = 3f;
+        source.pressedOffsetY = -2f;
+        source.unpressedOffsetX = 1f;
+        source.unpressedOffsetY = 4f;
+        source.checkedOffsetX = -5f;
+        source.checkedOffsetY = 6f;
+
+        ImageTextButton.ImageTextButtonStyle copy = HudBuiltInImageTextButtonStyle.create(source);
+
+        Assert.assertEquals(3f, copy.pressedOffsetX, 0f);
+        Assert.assertEquals(-2f, copy.pressedOffsetY, 0f);
+        Assert.assertEquals(1f, copy.unpressedOffsetX, 0f);
+        Assert.assertEquals(4f, copy.unpressedOffsetY, 0f);
+        Assert.assertEquals(-5f, copy.checkedOffsetX, 0f);
+        Assert.assertEquals(6f, copy.checkedOffsetY, 0f);
+        copy.pressedOffsetX = 99f;
+        Assert.assertEquals(3f, source.pressedOffsetX, 0f);
+    }
+
+    @Test
     public void materializesNativeTextFieldWithAuthoredPropertiesAndUsableDefaultStyle() {
         HudNode node = new HudNode("field", HudNodeKind.TEXT_FIELD);
         node.textField = new HudTextFieldData();

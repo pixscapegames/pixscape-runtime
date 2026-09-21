@@ -18,22 +18,6 @@ public final class HudBuiltInImageTextButtonStyle {
         if (source == null || source.font == null) {
             throw new IllegalArgumentException("Usable TextButton style is required.");
         }
-        ImageTextButton.ImageTextButtonStyle style = new ImageTextButton.ImageTextButtonStyle();
-        style.up = source.up;
-        style.down = source.down;
-        style.over = source.over;
-        style.checked = source.checked;
-        style.checkedOver = source.checkedOver;
-        style.checkedDown = source.checkedDown;
-        style.disabled = source.disabled;
-        style.font = source.font;
-        style.fontColor = source.fontColor;
-        style.overFontColor = source.overFontColor;
-        style.downFontColor = source.downFontColor;
-        style.checkedFontColor = source.checkedFontColor;
-        style.checkedOverFontColor = source.checkedOverFontColor;
-        style.checkedDownFontColor = source.checkedDownFontColor;
-        style.disabledFontColor = source.disabledFontColor;
-        return style;
+        return new ImageTextButton.ImageTextButtonStyle(source);
     }
 }
