@@ -93,6 +93,18 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void imageTextButtonWithoutCustomStyleRequiresBuiltInTextAndImageButtonResources() {
+        HudResourceRequirements requirements = requirements(node("button", "IMAGE_TEXT_BUTTON",
+                "\"imageTextButton\":{\"text\":\"Button\"},\"children\":[]"));
+
+        Assert.assertFalse(requirements.requiresSkin());
+        Assert.assertTrue(requirements.requiresAtlas());
+        Assert.assertTrue(requirements.requiresBuiltInLabelStyle());
+        Assert.assertTrue(requirements.requiresBuiltInTextButtonStyle());
+        Assert.assertTrue(requirements.requiresBuiltInImageTextButtonStyle());
+    }
+
+    @Test
     public void textFieldWithoutCustomStyleRequiresBuiltInFontAndGraphicsButNoSkin() {
         HudResourceRequirements requirements = requirements(node("field", "TEXT_FIELD",
                 "\"textField\":{\"text\":\"\",\"messageText\":\"Name\"},\"children\":[]"));

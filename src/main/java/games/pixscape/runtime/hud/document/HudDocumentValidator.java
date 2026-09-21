@@ -3,6 +3,7 @@ package games.pixscape.runtime.hud.document;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudBuiltInImageButtonStyle;
+import games.pixscape.runtime.hud.HudBuiltInImageTextButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
 import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
@@ -159,6 +160,9 @@ public final class HudDocumentValidator {
                 case IMAGE_BUTTON:
                     validPayload = node.imageButton != null && payloadCount == 1;
                     break;
+                case IMAGE_TEXT_BUTTON:
+                    validPayload = node.imageTextButton != null && payloadCount == 1;
+                    break;
                 case TEXT_FIELD:
                     validPayload = node.textField != null && payloadCount == 1;
                     break;
@@ -191,6 +195,8 @@ public final class HudDocumentValidator {
                 validateTextButton(node, path);
             } else if (node.kind == HudNodeKind.IMAGE_BUTTON && node.imageButton != null) {
                 validateImageButton(node, path);
+            } else if (node.kind == HudNodeKind.IMAGE_TEXT_BUTTON && node.imageTextButton != null) {
+                validateImageTextButton(node, path);
             } else if (node.kind == HudNodeKind.TEXT_FIELD && node.textField != null) {
                 validateTextField(node, path);
             } else if (node.kind == HudNodeKind.SELECT_BOX && node.selectBox != null) {
@@ -215,9 +221,7 @@ public final class HudDocumentValidator {
                                    String path) {
             String imagePath = path + "." + fieldPath;
             String field = fieldPath.substring(fieldPath.lastIndexOf('.') + 1);
-            String subject = node.kind == HudNodeKind.IMAGE
-                    ? "IMAGE"
-                    : "IMAGE_BUTTON " + field;
+            String subject = node.kind == HudNodeKind.IMAGE ? "IMAGE" : node.kind + " " + field;
             if (image.source == null) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
                         subject + " source must be REGION or DRAWABLE.", usableId(node),
@@ -281,6 +285,19 @@ public final class HudDocumentValidator {
 
         private void validateImageButton(HudNode node, String path) {
             validateImageButtonStyle(node, node.imageButton.styleName, path + ".imageButton.styleName");
+            validateImages(node, path);
+        }
+
+        private void validateImageTextButton(HudNode node, String path) {
+            if (node.imageTextButton.text == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "IMAGE_TEXT_BUTTON text must not be null; an empty string is allowed.",
+                        usableId(node), path + ".imageTextButton.text");
+            }
+            Integer fontAssetId = validateFontAsset(node, node.imageTextButton.fontAssetId,
+                    path + ".imageTextButton.fontAssetId");
+            validateImageTextButtonStyle(node, node.imageTextButton.styleName, fontAssetId != null,
+                    path + ".imageTextButton.styleName");
             validateImages(node, path);
         }
 
@@ -485,6 +502,28 @@ public final class HudDocumentValidator {
             if (resources != null && !resources.hasImageButtonStyle(styleName)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
                         "IMAGE_BUTTON references unknown Skin style '" + styleName + "'.",
+                        usableId(node), path);
+            }
+        }
+
+        private void validateImageTextButtonStyle(HudNode node, String styleName,
+                                                  boolean hasFontOverride, String path) {
+            if (HudBuiltInImageTextButtonStyle.isSelected(styleName)) {
+                if (resources != null && !resources.hasBuiltInImageTextButtonStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "IMAGE_TEXT_BUTTON requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path);
+                }
+                return;
+            }
+            if (!isNonBlank(styleName)) {
+                add(HudValidationIssueCode.MISSING_RESOURCE_REFERENCE,
+                        "IMAGE_TEXT_BUTTON requires a nonblank Skin style name.", usableId(node), path);
+                return;
+            }
+            if (resources != null && !resources.hasImageTextButtonStyle(styleName, hasFontOverride)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "IMAGE_TEXT_BUTTON references unknown Skin style '" + styleName + "'.",
                         usableId(node), path);
             }
         }
@@ -698,6 +737,7 @@ public final class HudDocumentValidator {
             if (node.textraLabel != null) count++;
             if (node.textButton != null) count++;
             if (node.imageButton != null) count++;
+            if (node.imageTextButton != null) count++;
             if (node.textField != null) count++;
             if (node.selectBox != null) count++;
             if (node.checkBox != null) count++;
@@ -709,6 +749,7 @@ public final class HudDocumentValidator {
             return kind == HudNodeKind.IMAGE || kind == HudNodeKind.LABEL
                     || kind == HudNodeKind.TEXTRA_LABEL
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
+                    || kind == HudNodeKind.IMAGE_TEXT_BUTTON
                     || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
                     || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.SLIDER;
         }

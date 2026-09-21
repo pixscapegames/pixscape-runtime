@@ -19,6 +19,8 @@ public final class HudNode {
     public HudTextButtonData textButton;
     /** Present only for {@link HudNodeKind#IMAGE_BUTTON}. */
     public HudImageButtonData imageButton;
+    /** Present only for {@link HudNodeKind#IMAGE_TEXT_BUTTON}. */
+    public HudImageTextButtonData imageTextButton;
     /** Present only for {@link HudNodeKind#TEXT_FIELD}. */
     public HudTextFieldData textField;
     /** Present only for {@link HudNodeKind#SELECT_BOX}. */

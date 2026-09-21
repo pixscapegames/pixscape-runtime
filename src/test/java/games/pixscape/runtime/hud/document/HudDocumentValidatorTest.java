@@ -713,6 +713,10 @@ public class HudDocumentValidatorTest {
             case IMAGE_BUTTON:
                 node.imageButton = new HudImageButtonData();
                 break;
+            case IMAGE_TEXT_BUTTON:
+                node.imageTextButton = new HudImageTextButtonData();
+                node.imageTextButton.text = "Button";
+                break;
             case TEXT_FIELD:
                 node.textField = new HudTextFieldData();
                 break;

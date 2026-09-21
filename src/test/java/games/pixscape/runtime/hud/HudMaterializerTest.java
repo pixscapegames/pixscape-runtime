@@ -19,6 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -45,6 +46,7 @@ import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudImageData;
 import games.pixscape.runtime.hud.document.HudImageButtonData;
+import games.pixscape.runtime.hud.document.HudImageTextButtonData;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudTextFieldData;
 import games.pixscape.runtime.hud.document.HudTextraLabelData;
@@ -410,6 +412,21 @@ public class HudMaterializerTest {
                 validation.validatedDocument(), visualResources);
 
         Assert.assertSame(style, ((TextButton) hud.actor("button")).getStyle());
+    }
+
+    @Test
+    public void materializesDefaultImageTextButtonFromBuiltInStyleWithoutMutatingIt() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_TEXT_BUTTON);
+        button.imageTextButton = new HudImageTextButtonData();
+        button.imageTextButton.text = "Button";
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(button));
+
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), selectedResources);
+
+        ImageTextButton materialized = (ImageTextButton) hud.actor("button");
+        Assert.assertSame(selectedResources.builtInImageTextButtonStyle(), materialized.getStyle());
+        Assert.assertEquals("Button", materialized.getText().toString());
     }
 
     @Test

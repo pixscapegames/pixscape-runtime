@@ -23,6 +23,7 @@ public final class HudResourceRequirements {
     private final boolean builtInLabelStyle;
     private final boolean builtInTextButtonStyle;
     private final boolean builtInImageButtonStyle;
+    private final boolean builtInImageTextButtonStyle;
     private final boolean builtInTextFieldStyle;
     private final boolean builtInSelectBoxStyle;
     private final boolean builtInCheckBoxStyle;
@@ -31,6 +32,7 @@ public final class HudResourceRequirements {
 
     private HudResourceRequirements(boolean skin, boolean atlas, boolean builtInLabelStyle,
                                     boolean builtInTextButtonStyle, boolean builtInImageButtonStyle,
+                                    boolean builtInImageTextButtonStyle,
                                     boolean builtInTextFieldStyle, boolean builtInSelectBoxStyle,
                                     boolean builtInCheckBoxStyle,
                                     boolean builtInSliderStyle,
@@ -40,6 +42,7 @@ public final class HudResourceRequirements {
         this.builtInLabelStyle = builtInLabelStyle;
         this.builtInTextButtonStyle = builtInTextButtonStyle;
         this.builtInImageButtonStyle = builtInImageButtonStyle;
+        this.builtInImageTextButtonStyle = builtInImageTextButtonStyle;
         this.builtInTextFieldStyle = builtInTextFieldStyle;
         this.builtInSelectBoxStyle = builtInSelectBoxStyle;
         this.builtInCheckBoxStyle = builtInCheckBoxStyle;
@@ -58,6 +61,7 @@ public final class HudResourceRequirements {
         boolean requiresBuiltInLabelStyle = false;
         boolean requiresBuiltInTextButtonStyle = false;
         boolean requiresBuiltInImageButtonStyle = false;
+        boolean requiresBuiltInImageTextButtonStyle = false;
         boolean requiresBuiltInTextFieldStyle = false;
         boolean requiresBuiltInSelectBoxStyle = false;
         boolean requiresBuiltInCheckBoxStyle = false;
@@ -99,6 +103,15 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.IMAGE_TEXT_BUTTON) {
+                requiresAtlas = true;
+                if (HudBuiltInImageTextButtonStyle.isSelected(node.imageTextButton.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                    requiresBuiltInTextButtonStyle = true;
+                    requiresBuiltInImageTextButtonStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             } else if (kind == HudNodeKind.TEXT_FIELD) {
                 requiresAtlas = true;
                 if (HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)) {
@@ -136,7 +149,8 @@ public final class HudResourceRequirements {
         requiresSkin |= imageRequirements.requiresSkin;
         return new HudResourceRequirements(requiresSkin, requiresAtlas,
                 requiresBuiltInLabelStyle, requiresBuiltInTextButtonStyle,
-                requiresBuiltInImageButtonStyle, requiresBuiltInTextFieldStyle,
+                requiresBuiltInImageButtonStyle, requiresBuiltInImageTextButtonStyle,
+                requiresBuiltInTextFieldStyle,
                 requiresBuiltInSelectBoxStyle, requiresBuiltInCheckBoxStyle,
                 requiresBuiltInSliderStyle,
                 bitmapFontAssetIds);
@@ -160,6 +174,10 @@ public final class HudResourceRequirements {
 
     public boolean requiresBuiltInImageButtonStyle() {
         return builtInImageButtonStyle;
+    }
+
+    public boolean requiresBuiltInImageTextButtonStyle() {
+        return builtInImageTextButtonStyle;
     }
 
     public boolean requiresBuiltInTextFieldStyle() {

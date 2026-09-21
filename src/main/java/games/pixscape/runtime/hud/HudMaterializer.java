@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -198,6 +199,25 @@ public final class HudMaterializer {
                 if (style != sharedStyle) applyImageButtonOverrides(node, resources, style);
                 return new ImageButton(style);
             }
+            case IMAGE_TEXT_BUTTON: {
+                ImageTextButton.ImageTextButtonStyle sharedStyle =
+                        HudBuiltInImageTextButtonStyle.isSelected(node.imageTextButton.styleName)
+                                ? resources.builtInImageTextButtonStyle()
+                                : resources.imageTextButtonStyle(node.imageTextButton.styleName);
+                if (sharedStyle == null) {
+                    throw missing(node, "ImageTextButton style",
+                            HudBuiltInImageTextButtonStyle.isSelected(node.imageTextButton.styleName)
+                                    ? "built-in Default" : node.imageTextButton.styleName);
+                }
+                ImageTextButton.ImageTextButtonStyle style = hasImageTextButtonOverrides(node)
+                        ? new ImageTextButton.ImageTextButtonStyle(sharedStyle) : sharedStyle;
+                if (style != sharedStyle) applyImageTextButtonOverrides(node, resources, style);
+                if (node.imageTextButton.fontAssetId != null) {
+                    if (style == sharedStyle) style = new ImageTextButton.ImageTextButtonStyle(sharedStyle);
+                    style.font = requireFont(node, node.imageTextButton.fontAssetId, resources);
+                }
+                return new ImageTextButton(node.imageTextButton.text, style);
+            }
             case TEXT_FIELD: {
                 TextField.TextFieldStyle sharedStyle =
                         HudBuiltInTextFieldStyle.isSelected(node.textField.styleName)
@@ -370,6 +390,24 @@ public final class HudMaterializer {
                 || node.imageButton.imageOver != null || node.imageButton.imageDisabled != null
                 || node.imageButton.imageChecked != null || node.imageButton.imageCheckedDown != null
                 || node.imageButton.imageCheckedOver != null;
+    }
+
+    private static void applyImageTextButtonOverrides(HudNode node, HudVisualResources resources,
+                                                      ImageTextButton.ImageTextButtonStyle style) {
+        if (node.imageTextButton.imageUp != null) style.imageUp = resolveImage(node, resources, node.imageTextButton.imageUp, "imageUp");
+        if (node.imageTextButton.imageDown != null) style.imageDown = resolveImage(node, resources, node.imageTextButton.imageDown, "imageDown");
+        if (node.imageTextButton.imageOver != null) style.imageOver = resolveImage(node, resources, node.imageTextButton.imageOver, "imageOver");
+        if (node.imageTextButton.imageDisabled != null) style.imageDisabled = resolveImage(node, resources, node.imageTextButton.imageDisabled, "imageDisabled");
+        if (node.imageTextButton.imageChecked != null) style.imageChecked = resolveImage(node, resources, node.imageTextButton.imageChecked, "imageChecked");
+        if (node.imageTextButton.imageCheckedDown != null) style.imageCheckedDown = resolveImage(node, resources, node.imageTextButton.imageCheckedDown, "imageCheckedDown");
+        if (node.imageTextButton.imageCheckedOver != null) style.imageCheckedOver = resolveImage(node, resources, node.imageTextButton.imageCheckedOver, "imageCheckedOver");
+    }
+
+    private static boolean hasImageTextButtonOverrides(HudNode node) {
+        return node.imageTextButton.imageUp != null || node.imageTextButton.imageDown != null
+                || node.imageTextButton.imageOver != null || node.imageTextButton.imageDisabled != null
+                || node.imageTextButton.imageChecked != null || node.imageTextButton.imageCheckedDown != null
+                || node.imageTextButton.imageCheckedOver != null;
     }
 
     private static Drawable resolveImage(HudNode node, HudVisualResources resources,

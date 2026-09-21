@@ -34,6 +34,11 @@ public interface HudResourceCatalog {
     /** Returns whether the prepared environment contains the built-in ImageButton resources. */
     default boolean hasBuiltInImageButtonStyle() { return false; }
 
+    default boolean hasImageTextButtonStyle(String name, boolean hasFontOverride) { return false; }
+
+    /** Returns whether the prepared environment contains the built-in ImageTextButton resources. */
+    default boolean hasBuiltInImageTextButtonStyle() { return false; }
+
     default boolean hasTextFieldStyle(String name) { return false; }
 
     default boolean hasTextFieldStyle(String name, boolean hasFontOverride) {

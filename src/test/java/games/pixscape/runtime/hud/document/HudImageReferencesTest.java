@@ -44,6 +44,18 @@ public class HudImageReferencesTest {
                 visit(button));
     }
 
+    @Test
+    public void visitsEveryExplicitImageTextButtonStateWithItsOwnFieldContext() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_TEXT_BUTTON);
+        button.imageTextButton = new HudImageTextButtonData();
+        button.imageTextButton.imageUp = image(HudImageSource.REGION, "up");
+        button.imageTextButton.imageCheckedOver = image(HudImageSource.DRAWABLE, "checked-over");
+
+        Assert.assertEquals(Arrays.asList(
+                "imageTextButton.imageUp:REGION:up",
+                "imageTextButton.imageCheckedOver:DRAWABLE:checked-over"), visit(button));
+    }
+
     private static List<String> visit(HudNode node) {
         final List<String> references = new ArrayList<String>();
         HudImageReferences.visit(node, new HudImageReferences.Visitor() {

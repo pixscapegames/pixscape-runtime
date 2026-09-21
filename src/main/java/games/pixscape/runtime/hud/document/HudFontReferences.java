@@ -10,6 +10,7 @@ public final class HudFontReferences {
             case LABEL: return node.label == null ? null : node.label.fontAssetId;
             case TEXTRA_LABEL: return node.textraLabel == null ? null : node.textraLabel.fontAssetId;
             case TEXT_BUTTON: return node.textButton == null ? null : node.textButton.fontAssetId;
+            case IMAGE_TEXT_BUTTON: return node.imageTextButton == null ? null : node.imageTextButton.fontAssetId;
             case CHECK_BOX: return node.checkBox == null ? null : node.checkBox.fontAssetId;
             case TEXT_FIELD: return node.textField == null ? null : node.textField.fontAssetId;
             case SELECT_BOX: return node.selectBox == null ? null : node.selectBox.fontAssetId;
@@ -20,6 +21,7 @@ public final class HudFontReferences {
     public static boolean supports(HudNodeKind kind) {
         return kind == HudNodeKind.LABEL || kind == HudNodeKind.TEXTRA_LABEL
                 || kind == HudNodeKind.TEXT_BUTTON
+                || kind == HudNodeKind.IMAGE_TEXT_BUTTON
                 || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.TEXT_FIELD
                 || kind == HudNodeKind.SELECT_BOX;
     }
@@ -32,6 +34,7 @@ public final class HudFontReferences {
             case LABEL: node.label.fontAssetId = assetId; return;
             case TEXTRA_LABEL: node.textraLabel.fontAssetId = assetId; return;
             case TEXT_BUTTON: node.textButton.fontAssetId = assetId; return;
+            case IMAGE_TEXT_BUTTON: node.imageTextButton.fontAssetId = assetId; return;
             case CHECK_BOX: node.checkBox.fontAssetId = assetId; return;
             case TEXT_FIELD: node.textField.fontAssetId = assetId; return;
             case SELECT_BOX: node.selectBox.fontAssetId = assetId; return;

@@ -3,6 +3,7 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -43,6 +44,11 @@ public interface HudVisualResources {
 
     /** Skin-independent style used when an ImageButton has no authored custom style reference. */
     default ImageButton.ImageButtonStyle builtInImageButtonStyle() { return null; }
+
+    default ImageTextButton.ImageTextButtonStyle imageTextButtonStyle(String name) { return null; }
+
+    /** Skin-independent style used when an ImageTextButton has no authored custom style reference. */
+    default ImageTextButton.ImageTextButtonStyle builtInImageTextButtonStyle() { return null; }
 
     default TextField.TextFieldStyle textFieldStyle(String name) { return null; }
 

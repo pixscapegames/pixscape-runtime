@@ -25,6 +25,14 @@ public final class HudImageReferences {
             visit(visitor, node, "imageButton.imageChecked", node.imageButton.imageChecked);
             visit(visitor, node, "imageButton.imageCheckedDown", node.imageButton.imageCheckedDown);
             visit(visitor, node, "imageButton.imageCheckedOver", node.imageButton.imageCheckedOver);
+        } else if (node.kind == HudNodeKind.IMAGE_TEXT_BUTTON && node.imageTextButton != null) {
+            visit(visitor, node, "imageTextButton.imageUp", node.imageTextButton.imageUp);
+            visit(visitor, node, "imageTextButton.imageDown", node.imageTextButton.imageDown);
+            visit(visitor, node, "imageTextButton.imageOver", node.imageTextButton.imageOver);
+            visit(visitor, node, "imageTextButton.imageDisabled", node.imageTextButton.imageDisabled);
+            visit(visitor, node, "imageTextButton.imageChecked", node.imageTextButton.imageChecked);
+            visit(visitor, node, "imageTextButton.imageCheckedDown", node.imageTextButton.imageCheckedDown);
+            visit(visitor, node, "imageTextButton.imageCheckedOver", node.imageTextButton.imageCheckedOver);
         }
     }
 

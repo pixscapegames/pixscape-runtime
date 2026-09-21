@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -49,6 +50,7 @@ public final class HudResources implements Disposable {
     private Label.LabelStyle builtInLabelStyle;
     private TextButton.TextButtonStyle builtInTextButtonStyle;
     private ImageButton.ImageButtonStyle builtInImageButtonStyle;
+    private ImageTextButton.ImageTextButtonStyle builtInImageTextButtonStyle;
     private TextField.TextFieldStyle builtInTextFieldStyle;
     private SelectBox.SelectBoxStyle builtInSelectBoxStyle;
     private CheckBox.CheckBoxStyle builtInCheckBoxStyle;
@@ -462,6 +464,16 @@ public final class HudResources implements Disposable {
             builtInImageButtonStyle = HudBuiltInImageButtonStyle.create(background);
         }
         return builtInImageButtonStyle;
+    }
+
+    ImageTextButton.ImageTextButtonStyle sharedBuiltInImageTextButtonStyle() {
+        requireOpen();
+        if (builtInImageTextButtonStyle == null) {
+            TextButton.TextButtonStyle textButtonStyle = sharedBuiltInTextButtonStyle();
+            if (textButtonStyle == null) return null;
+            builtInImageTextButtonStyle = HudBuiltInImageTextButtonStyle.create(textButtonStyle);
+        }
+        return builtInImageTextButtonStyle;
     }
 
     TextField.TextFieldStyle sharedBuiltInTextFieldStyle() {

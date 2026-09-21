@@ -11,6 +11,7 @@ public enum HudNodeKind {
     TEXTRA_LABEL,
     TEXT_BUTTON,
     IMAGE_BUTTON,
+    IMAGE_TEXT_BUTTON,
     TEXT_FIELD,
     SELECT_BOX,
     CHECK_BOX,

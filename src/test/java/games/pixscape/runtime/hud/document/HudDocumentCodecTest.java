@@ -71,6 +71,26 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void imageTextButtonRoundTripPreservesTypedTextFontStyleAndStateReferences() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_TEXT_BUTTON);
+        button.imageTextButton = new HudImageTextButtonData();
+        button.imageTextButton.text = "Play";
+        button.imageTextButton.styleName = "primary";
+        button.imageTextButton.fontAssetId = 24;
+        button.imageTextButton.imageUp = image("up");
+        button.imageTextButton.imageCheckedOver = image("checked-over");
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(button))).root;
+
+        Assert.assertEquals(HudNodeKind.IMAGE_TEXT_BUTTON, restored.kind);
+        Assert.assertEquals("Play", restored.imageTextButton.text);
+        Assert.assertEquals("primary", restored.imageTextButton.styleName);
+        Assert.assertEquals(Integer.valueOf(24), restored.imageTextButton.fontAssetId);
+        Assert.assertEquals("up", restored.imageTextButton.imageUp.resourceName);
+        Assert.assertEquals("checked-over", restored.imageTextButton.imageCheckedOver.resourceName);
+    }
+
+    @Test
     public void textFieldRoundTripPreservesAuthoredInitialValues() {
         HudNode field = new HudNode("name", HudNodeKind.TEXT_FIELD);
         field.textField = new HudTextFieldData();

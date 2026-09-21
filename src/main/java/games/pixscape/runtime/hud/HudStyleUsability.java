@@ -5,6 +5,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 
 /** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
@@ -19,6 +20,11 @@ public final class HudStyleUsability {
 
     public static boolean isUsableTextButtonStyle(TextButton.TextButtonStyle style,
                                                   boolean hasFontOverride) {
+        return style != null && (hasFontOverride || style.font != null);
+    }
+
+    public static boolean isUsableImageTextButtonStyle(ImageTextButton.ImageTextButtonStyle style,
+                                                       boolean hasFontOverride) {
         return style != null && (hasFontOverride || style.font != null);
     }
 
