@@ -64,6 +64,10 @@ public final class HudMaterializer {
         List<Disposable> ownedResources = new ArrayList<Disposable>();
         Map<Actor, TextTooltip> tooltips = new LinkedHashMap<Actor, TextTooltip>();
         TooltipManager tooltipManager = attachTooltips ? new TooltipManager() : null;
+        if (tooltipManager != null) {
+            tooltipManager.initialTime = 0.5f;
+            tooltipManager.hideAll(); // Reset the manager's current delay before the first tooltip.
+        }
         try {
             Actor root = materializeNode(validatedDocument.document().root, resources,
                     actorById, ownedResources, tooltipManager, tooltips, true);

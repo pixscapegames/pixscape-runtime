@@ -1430,6 +1430,9 @@ public class HudMaterializerTest {
         }
         Assert.assertNotNull(tooltip);
         Assert.assertSame(selectedResources.builtInTextTooltipStyle(), tooltip.getStyle());
+        Assert.assertEquals(0.5f, tooltip.getManager().initialTime, 0f);
+        Assert.assertEquals(0f, tooltip.getManager().subsequentTime, 0f);
+        Assert.assertEquals(1.5f, tooltip.getManager().resetTime, 0f);
         tooltip.setInstant(true);
         Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(),
                 new Class<?>[]{Batch.class},
@@ -1533,6 +1536,9 @@ public class HudMaterializerTest {
             if (listener instanceof TextTooltip) tooltip = (TextTooltip) listener;
         }
         Assert.assertNotNull(tooltip);
+        java.lang.reflect.Field activeDelayField = TooltipManager.class.getDeclaredField("time");
+        activeDelayField.setAccessible(true);
+        Assert.assertEquals(0.5f, activeDelayField.getFloat(tooltip.getManager()), 0f);
         java.lang.reflect.Field pendingField = TooltipManager.class.getDeclaredField("showTask");
         pendingField.setAccessible(true);
         Timer.Task pending = (Timer.Task) pendingField.get(tooltip.getManager());
