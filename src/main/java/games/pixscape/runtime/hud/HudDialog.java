@@ -5,18 +5,75 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Action;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.scenes.scene2d.EventListener;
 
-/** Small adapter around native focus/show/hide for one authored Dialog placement. */
-final class HudDialog extends Dialog {
+/**
+ * One native Dialog in a materialized HUD. Its buttons, content, listeners, and form state are
+ * created once per HUD instance and survive {@link #close()} / {@link #open()} cycles. References
+ * become invalid when that HUD is disposed or replaced.
+ */
+public final class HudDialog extends Dialog {
+    /**
+     * Called once for a completed user click, before any configured close. Returning true allows
+     * that close, while false vetoes it. A button configured to stay open does so either way.
+     * Exceptions propagate and leave the Dialog open unless the callback closed it itself.
+     */
+    public interface ResultHandler {
+        boolean onResult(HudDialog source, String resultId);
+    }
+
     private HudDialogSlot slot;
     private boolean stageLevel;
     private boolean authoredKeepWithinStage;
     private boolean open;
+    private boolean resultCancelled;
+    private ResultHandler resultHandler;
 
-    HudDialog(String title, Window.WindowStyle style) { super(title, style); }
+    HudDialog(String title, Window.WindowStyle style) {
+        super(title, style);
+        // Dialog's ChangeListener also handles programmatic Button.setChecked. Route only
+        // completed native clicks through the authored result contract instead.
+        Array<EventListener> listeners = getButtonTable().getListeners();
+        for (int i = listeners.size - 1; i >= 0; i--)
+            if (listeners.get(i) instanceof ChangeListener)
+                getButtonTable().removeListener(listeners.get(i));
+    }
+
+    /** Replaces the one callback, or removes it with null. With no callback, closing is allowed. */
+    public void onResult(ResultHandler handler) { resultHandler = handler; }
+
+    void addResultButton(final Button button, final String resultId,
+                         final boolean closeAfterActivation, boolean interactive) {
+        button(button, resultId);
+        if (!interactive) return;
+        button.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                if (button.isDisabled() || !open) return;
+                boolean previousCancellation = resultCancelled;
+                resultCancelled = false;
+                try {
+                    result(resultId);
+                    if (closeAfterActivation && !resultCancelled && open) close();
+                } finally {
+                    resultCancelled = previousCancellation;
+                }
+            }
+        });
+    }
+
+    @Override protected void result(Object value) {
+        if (resultHandler != null && !resultHandler.onResult(this, (String) value)) cancel();
+    }
+
+    @Override public void cancel() { resultCancelled = true; }
 
     void attach(HudDialogSlot slot, boolean stageLevel, boolean keepWithinStage) {
         this.slot = slot;
@@ -25,9 +82,9 @@ final class HudDialog extends Dialog {
         setKeepWithinStage(stageLevel && keepWithinStage);
     }
 
-    boolean isOpen() { return open; }
+    public boolean isOpen() { return open; }
 
-    void open() {
+    public void open() {
         if (slot != null && slot.getStage() != null) show(slot.getStage(), null);
     }
 
@@ -58,7 +115,7 @@ final class HudDialog extends Dialog {
         return this;
     }
 
-    void close() {
+    public void close() {
         hide(null);
     }
 

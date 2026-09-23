@@ -67,6 +67,15 @@ public final class MaterializedHud implements Disposable {
         return actorById.get(nodeId);
     }
 
+    /** O(1) average typed lookup; returned native Dialog belongs to this HUD instance. */
+    public HudDialog dialog(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (actor == null) throw new IllegalArgumentException("HUD Dialog ID '" + nodeId + "' does not exist.");
+        if (!(actor instanceof HudDialog))
+            throw new IllegalArgumentException("HUD node '" + nodeId + "' is not a Dialog.");
+        return (HudDialog) actor;
+    }
+
     /** Returns a materialized explicit Table cell, or null when the cell is absent. */
     public Cell<?> cell(String cellId) {
         return cellById.get(cellId);

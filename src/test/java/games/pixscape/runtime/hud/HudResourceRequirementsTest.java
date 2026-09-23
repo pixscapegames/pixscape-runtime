@@ -43,6 +43,20 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(custom.requiresSkin());
         Assert.assertFalse(custom.requiresBuiltInWindowStyle());
     }
+
+    @Test
+    public void dialogResultButtonsContributeTheirOwnResources() {
+        String button = node("confirm", "TEXT_BUTTON",
+                "\"textButton\":{\"text\":\"Valider\",\"fontAssetId\":45}");
+        String dialog = node("dialog", "DIALOG",
+                "\"dialog\":{\"resultButtons\":[{\"button\":" + button
+                        + ",\"resultId\":\"confirm\",\"closeAfterActivation\":true}]},"
+                        + emptyTable());
+        HudResourceRequirements requirements = requirements(node("root", "GROUP",
+                "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":" + dialog + "}]"));
+        Assert.assertTrue(requirements.requiresBuiltInTextButtonStyle());
+        Assert.assertTrue(requirements.bitmapFontAssetIds().contains(45));
+    }
     @Test
     public void tooltipOnlyNodeCollectsItsFontAndDefaultOrCustomStyle() {
         HudResourceRequirements builtin = requirements(node("root", "GROUP",

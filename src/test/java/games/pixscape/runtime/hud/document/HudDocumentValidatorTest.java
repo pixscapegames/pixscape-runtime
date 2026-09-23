@@ -381,6 +381,34 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void dialogResultButtonsRequireUniqueIdsAndCannotOwnWindowActions() {
+        HudNode root = nodeWithExpectedPayload("root", HudNodeKind.GROUP);
+        HudNode dialog = nodeWithExpectedPayload("dialog", HudNodeKind.DIALOG);
+        dialog.table = grid("content-cell", null, new HudCellConstraints());
+        root.children.add(HudChild.free(dialog, new HudFreePlacement()));
+        HudNode confirm = nodeWithExpectedPayload("confirm-button", HudNodeKind.TEXT_BUTTON);
+        dialog.dialog.resultButtons.add(new HudDialogResultButton(confirm, "confirm", true));
+        HudDocumentV1 document = new HudDocumentV1(root);
+        Assert.assertTrue(validator.validate(document).issues().toString(), validator.validate(document).isValid());
+        Assert.assertSame(confirm, validator.validate(document).validatedDocument().node("confirm-button"));
+
+        HudNode cancel = nodeWithExpectedPayload("cancel-button", HudNodeKind.IMAGE_BUTTON);
+        dialog.dialog.resultButtons.add(new HudDialogResultButton(cancel, "confirm", true));
+        requireIssueAt(validator.validate(document), HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.children[0].node.dialog.resultButtons[1].resultId");
+        dialog.dialog.resultButtons.get(1).resultId = "cancel";
+        confirm.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
+        requireIssueAt(validator.validate(document), HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.children[0].node.dialog.resultButtons[0].button.windowActions");
+        confirm.windowActions.clear();
+        cancel.id = confirm.id;
+        requireIssue(validator.validate(document), HudValidationIssueCode.DUPLICATE_NODE_ID);
+        cancel.id = "cancel-button";
+        dialog.dialog.resultButtons.get(1).button = confirm;
+        requireIssue(validator.validate(document), HudValidationIssueCode.INVALID_HIERARCHY);
+    }
+
+    @Test
     public void expectedPayloadBusinessValidationRunsAlongsidePayloadExclusivity() {
         HudNode node = new HudNode("label", HudNodeKind.LABEL);
         node.label = labelData(null, "hud-body");

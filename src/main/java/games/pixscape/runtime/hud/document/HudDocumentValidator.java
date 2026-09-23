@@ -114,6 +114,8 @@ public final class HudDocumentValidator {
 
             if (isTabular(node.kind)) {
                 validateTableLayout(node, path);
+                if (node.kind == HudNodeKind.DIALOG && node.dialog != null)
+                    validateDialogButtons(node, path + ".dialog.resultButtons");
             } else if (node.children != null) {
                 for (int i = 0; i < node.children.size(); i++) {
                     HudChild child = node.children.get(i);
@@ -130,6 +132,45 @@ public final class HudDocumentValidator {
             }
 
             visiting.remove(node);
+        }
+
+        private void validateDialogButtons(HudNode dialog, String path) {
+            if (dialog.dialog.resultButtons == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "Dialog resultButtons must be an ordered non-null list.", dialog.id, path);
+                return;
+            }
+            Set<String> resultIds = new HashSet<String>();
+            for (int i = 0; i < dialog.dialog.resultButtons.size(); i++) {
+                HudDialogResultButton entry = dialog.dialog.resultButtons.get(i);
+                String entryPath = path + "[" + i + "]";
+                if (entry == null) {
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "Dialog result button entry must not be null.", dialog.id, entryPath);
+                    continue;
+                }
+                if (!isNonBlank(entry.resultId) || !resultIds.add(entry.resultId))
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "Dialog resultId must be nonblank and unique within its Dialog.",
+                            dialog.id, entryPath + ".resultId");
+                if (entry.button == null) {
+                    add(HudValidationIssueCode.INVALID_HIERARCHY,
+                            "Dialog result button requires an authored button node.", dialog.id,
+                            entryPath + ".button");
+                    continue;
+                }
+                HudNodeKind kind = entry.button.kind;
+                if (kind != HudNodeKind.TEXT_BUTTON && kind != HudNodeKind.IMAGE_BUTTON
+                        && kind != HudNodeKind.IMAGE_TEXT_BUTTON)
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "Dialog result requires a TextButton, ImageButton, or ImageTextButton.",
+                            usableId(entry.button), entryPath + ".button.kind");
+                if (entry.button.windowActions != null && !entry.button.windowActions.isEmpty())
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "Dialog result button cannot also own Window/Dialog actions.",
+                            usableId(entry.button), entryPath + ".button.windowActions");
+                visit(entry.button, entryPath + ".button");
+            }
         }
 
         private void validateTableLayout(HudNode node, String path) {

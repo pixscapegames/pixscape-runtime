@@ -77,6 +77,7 @@ import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudTooltipData;
 import games.pixscape.runtime.hud.document.HudWindowData;
 import games.pixscape.runtime.hud.document.HudDialogData;
+import games.pixscape.runtime.hud.document.HudDialogResultButton;
 import games.pixscape.runtime.hud.document.HudFreePlacement;
 import games.pixscape.runtime.hud.document.HudTextButtonData;
 import games.pixscape.runtime.hud.document.HudWindowAction;
@@ -1307,6 +1308,165 @@ public class HudMaterializerTest {
             Assert.assertNull("native restore must not focus a hidden opener",
                     stage.getKeyboardFocus());
             Assert.assertFalse("authored initial visibility is unchanged", dialogNode.visible);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void dialogResultButtonsUseNativeTableAndOneUserResultWithVeto() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 300f;
+        dialogNode.actor.height = 180f;
+        HudNode fieldNode = new HudNode("current-value", HudNodeKind.TEXT_FIELD);
+        fieldNode.textField = new HudTextFieldData();
+        dialogNode.table = table("content-cell", fieldNode, new HudCellConstraints());
+        HudNode confirm = new HudNode("confirm-button", HudNodeKind.TEXT_BUTTON);
+        confirm.textButton = new HudTextButtonData();
+        confirm.textButton.text = "Valider";
+        HudNode apply = new HudNode("apply-button", HudNodeKind.TEXT_BUTTON);
+        apply.textButton = new HudTextButtonData();
+        apply.textButton.text = "Appliquer";
+        dialogNode.dialog.resultButtons.add(new HudDialogResultButton(confirm, "confirm", true));
+        dialogNode.dialog.resultButtons.add(new HudDialogResultButton(apply, "apply", false));
+        root.children.add(HudChild.free(dialogNode, new HudFreePlacement()));
+        HudNode otherNode = new HudNode("other-dialog", HudNodeKind.DIALOG);
+        otherNode.dialog = new HudDialogData();
+        otherNode.table = table("other-content-cell", null, new HudCellConstraints());
+        otherNode.actor.width = 180f;
+        otherNode.actor.height = 120f;
+        root.children.add(HudChild.free(otherNode, new HudFreePlacement()));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            HudDialog dialog = hud.dialog("dialog");
+            HudDialog otherDialog = hud.dialog("other-dialog");
+            TextButton confirmActor = (TextButton) hud.actor("confirm-button");
+            TextButton applyActor = (TextButton) hud.actor("apply-button");
+            TextField fieldActor = (TextField) hud.actor("current-value");
+            Assert.assertSame(dialog.getButtonTable(), confirmActor.getParent());
+            Assert.assertSame(dialog.getButtonTable(), applyActor.getParent());
+            Assert.assertNull(dialog.getContentTable().getCell(confirmActor));
+            Assert.assertSame(dialog, hud.dialog("dialog"));
+            try { hud.dialog("missing"); Assert.fail("missing ID"); }
+            catch (IllegalArgumentException expected) { Assert.assertTrue(expected.getMessage().contains("missing")); }
+            try { hud.dialog("confirm-button"); Assert.fail("wrong kind"); }
+            catch (IllegalArgumentException expected) { Assert.assertTrue(expected.getMessage().contains("confirm-button")); }
+
+            final int[] calls = {0};
+            dialog.onResult((source, resultId) -> {
+                Assert.assertSame(dialog, source);
+                calls[0]++;
+                return !"confirm".equals(resultId) || calls[0] > 2;
+            });
+            dialog.open();
+            dialog.validate();
+            fieldActor.setText("edited");
+            confirmActor.setChecked(true);
+            Assert.assertEquals(0, calls[0]);
+            applyActor.setDisabled(true);
+            clickActor(stage, applyActor, 300);
+            Assert.assertEquals(0, calls[0]);
+            applyActor.setDisabled(false);
+            Vector2 cancelled = applyActor.localToStageCoordinates(new Vector2(
+                    applyActor.getWidth() * .5f, applyActor.getHeight() * .5f));
+            int cancelledX = Math.round(cancelled.x), cancelledY = Math.round(300f - cancelled.y);
+            Assert.assertTrue(stage.touchDown(cancelledX, cancelledY, 0, 0));
+            stage.touchCancelled(cancelledX, cancelledY, 0, 0);
+            Assert.assertEquals(0, calls[0]);
+            clickActor(stage, applyActor, 300);
+            Assert.assertEquals(1, calls[0]);
+            Assert.assertTrue(dialog.isOpen());
+            clickActor(stage, confirmActor, 300);
+            Assert.assertEquals(2, calls[0]);
+            Assert.assertTrue(dialog.isOpen());
+            clickActor(stage, confirmActor, 300);
+            Assert.assertEquals(3, calls[0]);
+            Assert.assertFalse(dialog.isOpen());
+            dialog.open();
+            dialog.validate();
+            Assert.assertSame(confirmActor, hud.actor("confirm-button"));
+            Assert.assertEquals("edited", fieldActor.getText());
+            dialog.onResult((source, resultId) -> {
+                otherDialog.open();
+                return true;
+            });
+            clickActor(stage, confirmActor, 300);
+            Assert.assertFalse(dialog.isOpen());
+            Assert.assertTrue(otherDialog.isOpen());
+            Assert.assertSame(otherDialog, stage.getKeyboardFocus());
+            otherDialog.close();
+            dialog.open();
+            dialog.validate();
+            dialog.onResult((source, resultId) -> {
+                source.close();
+                return true;
+            });
+            clickActor(stage, confirmActor, 300);
+            Assert.assertFalse(dialog.isOpen());
+            dialog.open();
+            dialog.validate();
+            dialog.onResult(null);
+            clickActor(stage, confirmActor, 300);
+            Assert.assertEquals(3, calls[0]);
+            Assert.assertFalse(dialog.isOpen());
+            dialog.open();
+            dialog.validate();
+            dialog.onResult((source, resultId) -> { throw new IllegalStateException("validation failed"); });
+            try { clickActor(stage, confirmActor, 300); Assert.fail("callback exception"); }
+            catch (IllegalStateException expected) { Assert.assertEquals("validation failed", expected.getMessage()); }
+            Assert.assertTrue(dialog.isOpen());
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void authoringDialogShowsResultButtonsWithoutExecutingThem() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 220f;
+        dialogNode.actor.height = 150f;
+        dialogNode.table = table("content-cell", null, new HudCellConstraints());
+        HudNode buttonNode = new HudNode("confirm-button", HudNodeKind.TEXT_BUTTON);
+        buttonNode.textButton = new HudTextButtonData();
+        buttonNode.textButton.text = "Valider";
+        dialogNode.dialog.resultButtons.add(new HudDialogResultButton(buttonNode, "confirm", true));
+        root.children.add(HudChild.free(dialogNode, new HudFreePlacement()));
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), selectedResources, false);
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            HudDialog dialog = hud.dialog("dialog");
+            Assert.assertTrue(dialog.isVisible());
+            dialog.validate();
+            final int[] calls = {0};
+            dialog.onResult((source, id) -> { calls[0]++; return true; });
+            clickActor(stage, hud.actor("confirm-button"), 300);
+            Assert.assertEquals(0, calls[0]);
+            Assert.assertTrue(dialog.isVisible());
+            Assert.assertFalse(dialog.isOpen());
         } finally {
             hud.dispose();
             stage.dispose();

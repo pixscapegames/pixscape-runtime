@@ -81,6 +81,10 @@ public class HudDocumentCodecTest {
         dialog.visible = false;
         dialog.table = table("cell-content", new HudNode("content", HudNodeKind.TABLE),
                 new HudCellConstraints());
+        HudNode result = new HudNode("confirm", HudNodeKind.TEXT_BUTTON);
+        result.textButton = new HudTextButtonData();
+        result.textButton.text = "Valider";
+        dialog.dialog.resultButtons.add(new HudDialogResultButton(result, "confirm", true));
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
         button.textButton = new HudTextButtonData();
         button.textButton.text = "Open";
@@ -96,6 +100,9 @@ public class HudDocumentCodecTest {
         Assert.assertEquals("panel", restored.children.get(1).node.dialog.styleName);
         Assert.assertEquals(Integer.valueOf(42), restored.children.get(1).node.dialog.fontAssetId);
         Assert.assertEquals("content", restored.children.get(1).node.table.rows.get(0).cells.get(0).content.id);
+        Assert.assertEquals("confirm", restored.children.get(1).node.dialog.resultButtons.get(0).resultId);
+        Assert.assertEquals("Valider", restored.children.get(1).node.dialog.resultButtons.get(0).button.textButton.text);
+        Assert.assertTrue(restored.children.get(1).node.dialog.resultButtons.get(0).closeAfterActivation);
         Assert.assertEquals("dialog", restored.children.get(0).node.windowActions.get(0).targetId);
         Assert.assertEquals(HudWindowActionKind.SHOW,
                 restored.children.get(0).node.windowActions.get(0).action);

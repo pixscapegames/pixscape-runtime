@@ -47,6 +47,7 @@ import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.hud.document.HudWindowData;
 import games.pixscape.runtime.hud.document.HudWindowAction;
 import games.pixscape.runtime.hud.document.HudWindowActionKind;
+import games.pixscape.runtime.hud.document.HudDialogResultButton;
 
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -138,6 +139,15 @@ public final class HudMaterializer {
                     ? ((HudDialog) actor).getContentTable() : (Table) actor;
             addExplicitTable(table, node.table, resources, actorById, cellById, ownedResources,
                     tooltipManager, tooltips, interactive);
+            if (actor instanceof HudDialog) {
+                HudDialog dialog = (HudDialog) actor;
+                for (HudDialogResultButton entry : node.dialog.resultButtons) {
+                    Button button = (Button) materializeNode(entry.button, resources, actorById,
+                            cellById, ownedResources, tooltipManager, tooltips, false, interactive);
+                    dialog.addResultButton(button, entry.resultId, entry.closeAfterActivation,
+                            interactive);
+                }
+            }
             return actor;
         }
 
