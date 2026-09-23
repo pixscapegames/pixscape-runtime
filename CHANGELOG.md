@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [0.2.2]
+
+### Breaking changes
+
+* HUD documents require schema 2; schema 1 is rejected without automatic migration. Other document formats are unaffected.
+
+### Added
+
+* Added Scene2D HUD screens with widget access through the Runtime API.
+* Added tables with explicit cells and persistent layout constraints.
+* Added reusable Dialogs with open/close actions and result buttons with callbacks.
+
+
 ## [0.2.1]
 
 ### Fixed
