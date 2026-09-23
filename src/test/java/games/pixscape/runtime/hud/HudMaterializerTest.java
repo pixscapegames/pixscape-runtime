@@ -39,6 +39,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.Timer;
@@ -71,6 +73,11 @@ import games.pixscape.runtime.hud.document.HudScrollPaneData;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudTooltipData;
 import games.pixscape.runtime.hud.document.HudWindowData;
+import games.pixscape.runtime.hud.document.HudDialogData;
+import games.pixscape.runtime.hud.document.HudFreePlacement;
+import games.pixscape.runtime.hud.document.HudTextButtonData;
+import games.pixscape.runtime.hud.document.HudWindowAction;
+import games.pixscape.runtime.hud.document.HudWindowActionKind;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
 import games.pixscape.runtime.render.InternalTextures;
@@ -1159,6 +1166,580 @@ public class HudMaterializerTest {
         } finally {
             hud.dispose();
         }
+    }
+
+    @Test
+    public void dialogUsesNativeSkinWindowStyleAndCopiesFontOverride() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.dialog.styleName = "custom";
+        dialogNode.dialog.fontAssetId = 42;
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        root.children.add(HudChild.free(dialogNode, new HudFreePlacement()));
+        Window.WindowStyle shared = new Window.WindowStyle();
+        BitmapFont override = selectedResources.builtInLabelStyle().font;
+        HudVisualResources visual = new HudVisualResources() {
+            @Override public TextureRegion region(String name) { return null; }
+            @Override public Drawable drawable(String name) { return null; }
+            @Override public Label.LabelStyle labelStyle(String name) { return null; }
+            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
+            @Override public Window.WindowStyle windowStyle(String name) {
+                return "custom".equals(name) ? shared : null;
+            }
+            @Override public BitmapFont bitmapFont(int assetId) {
+                return assetId == 42 ? override : null;
+            }
+        };
+        HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        MaterializedHud hud = new HudMaterializer().materialize(validation.validatedDocument(), visual);
+        try {
+            Assert.assertTrue(hud.actor("dialog") instanceof Dialog);
+            Window.WindowStyle resolved = ((Dialog) hud.actor("dialog")).getStyle();
+            Assert.assertNotSame(shared, resolved);
+            Assert.assertSame(override, resolved.titleFont);
+            Assert.assertNull(shared.titleFont);
+        } finally {
+            hud.dispose();
+        }
+    }
+
+    @Test
+    public void dialogOpensClosesAndReopensThroughStageButtonsWithoutGeometryDrift() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode opener = new HudNode("opener", HudNodeKind.TEXT_BUTTON);
+        opener.textButton = new HudTextButtonData();
+        opener.textButton.text = "Open";
+        opener.actor.width = 90f;
+        opener.actor.height = 35f;
+        opener.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        HudFreePlacement openerPlacement = new HudFreePlacement();
+        openerPlacement.offsetX = 20f;
+        openerPlacement.offsetY = 20f;
+        root.children.add(HudChild.free(opener, openerPlacement));
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.dialog.resizable = true;
+        dialogNode.visible = false;
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        HudNode closer = new HudNode("closer", HudNodeKind.TEXT_BUTTON);
+        closer.textButton = new HudTextButtonData();
+        closer.textButton.text = "Close";
+        closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
+        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        HudFreePlacement dialogPlacement = new HudFreePlacement();
+        dialogPlacement.offsetX = 130f;
+        dialogPlacement.offsetY = 60f;
+        root.children.add(HudChild.free(dialogNode, dialogPlacement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            Assert.assertFalse(dialog.isVisible());
+            Assert.assertNotSame(stage.getRoot(), dialog.getParent());
+            ((TextButton) hud.actor("opener")).setChecked(true);
+            Assert.assertFalse("programmatic checked must not show a dialog", dialog.isVisible());
+            stage.setKeyboardFocus(hud.actor("opener"));
+            clickActor(stage, hud.actor("opener"), 300);
+            Assert.assertSame(stage.getRoot(), dialog.getParent());
+            Assert.assertEquals(130f, dialog.getX(), .001f);
+            Assert.assertEquals(60f, dialog.getY(), .001f);
+            Assert.assertEquals(200f, dialog.getWidth(), .001f);
+            Assert.assertEquals(140f, dialog.getHeight(), .001f);
+            Assert.assertSame(dialog, stage.getKeyboardFocus());
+            Assert.assertSame(dialog, stage.getScrollFocus());
+            int listenerCount = dialog.getListeners().size;
+            ((HudDialog) dialog).open();
+            Assert.assertEquals(2, stage.getRoot().getChildren().size);
+            Assert.assertEquals(listenerCount, dialog.getListeners().size);
+            Assert.assertNotNull(dialog.getContentTable().getCell(hud.actor("closer")));
+            Assert.assertEquals(4, hud.actorById().size());
+            final int[] underlyingTouches = {0};
+            InputMultiplexer routed = new InputMultiplexer(stage, new InputAdapter() {
+                @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                    underlyingTouches[0]++;
+                    return true;
+                }
+            });
+            Assert.assertTrue(routed.touchDown(390, 290, 0, 0));
+            routed.touchUp(390, 290, 0, 0);
+            Assert.assertEquals(0, underlyingTouches[0]);
+            int titleX = Math.round(dialog.getX() + 50f);
+            int titleY = Math.round(300f - dialog.getTop() + 10f);
+            Assert.assertTrue(stage.touchDown(titleX, titleY, 0, 0));
+            stage.touchDragged(titleX + 20, titleY - 10, 0);
+            stage.touchUp(titleX + 20, titleY - 10, 0, 0);
+            Assert.assertTrue(dialog.getX() > 130f);
+            float beforeResize = dialog.getWidth();
+            int resizeX = Math.round(dialog.getRight() - 10f);
+            int resizeY = Math.round(300f - dialog.getY() - 10f);
+            Assert.assertTrue(stage.touchDown(resizeX, resizeY, 0, 0));
+            stage.touchDragged(resizeX + 20, resizeY, 0);
+            stage.touchUp(resizeX + 20, resizeY, 0, 0);
+            Assert.assertTrue(dialog.getWidth() > beforeResize);
+            dialog.validate();
+            clickActor(stage, hud.actor("closer"), 300);
+            Assert.assertNull(dialog.getStage());
+            Assert.assertSame(hud.actor("opener"), stage.getKeyboardFocus());
+            Assert.assertNull(stage.getScrollFocus());
+            clickActor(stage, hud.actor("opener"), 300);
+            Assert.assertSame(stage.getRoot(), dialog.getParent());
+            Assert.assertEquals(130f, dialog.getX(), .001f);
+            Assert.assertEquals(200f, dialog.getWidth(), .001f);
+            Assert.assertEquals(2, stage.getRoot().getChildren().size);
+            hud.actor("opener").setVisible(false);
+            dialog.validate();
+            clickActor(stage, hud.actor("closer"), 300);
+            Assert.assertNull("native restore must not focus a hidden opener",
+                    stage.getKeyboardFocus());
+            Assert.assertFalse("authored initial visibility is unchanged", dialogNode.visible);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void closedDialogSlotDoesNotShadowOverlappingOpenButton() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode opener = new HudNode("opener", HudNodeKind.TEXT_BUTTON);
+        opener.textButton = new HudTextButtonData();
+        opener.textButton.text = "Open";
+        opener.actor.width = 90f;
+        opener.actor.height = 35f;
+        opener.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.offsetX = 20f;
+        placement.offsetY = 20f;
+        root.children.add(HudChild.free(opener, placement));
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.visible = false;
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        root.children.add(HudChild.free(dialogNode, placement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Assert.assertTrue(stage.hit(65f, 37.5f, true)
+                    .isDescendantOf(hud.actor("opener")));
+            clickActor(stage, hud.actor("opener"), 300);
+            Assert.assertSame(stage.getRoot(), hud.actor("dialog").getParent());
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void dialogStartsClosedForEitherAuthoredVisibilityWithoutFocusOrModalInput() {
+        for (boolean authoredVisible : new boolean[]{true, false}) {
+            HudNode root = new HudNode("root", HudNodeKind.GROUP);
+            HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+            dialogNode.dialog = new HudDialogData();
+            dialogNode.visible = authoredVisible;
+            dialogNode.actor.width = 200f;
+            dialogNode.actor.height = 140f;
+            root.children.add(HudChild.free(dialogNode, new HudFreePlacement()));
+            MaterializedHud hud = materialize(new HudDocumentV1(root));
+            Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+            Graphics graphics = Gdx.graphics;
+            try {
+                Gdx.graphics = logicalGraphics(400, 300);
+                stage.getViewport().update(400, 300, true);
+                hud.root().setSize(400f, 300f);
+                stage.addActor(hud.root());
+                ((Layout) hud.root()).validate();
+                Dialog dialog = (Dialog) hud.actor("dialog");
+                Assert.assertFalse(dialog.isVisible());
+                Assert.assertNotSame(stage.getRoot(), dialog.getParent());
+                Assert.assertNull(stage.getKeyboardFocus());
+                Assert.assertNull(stage.getScrollFocus());
+                final int[] underlyingTouches = {0};
+                InputMultiplexer inputs = new InputMultiplexer(stage, new InputAdapter() {
+                    @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                        underlyingTouches[0]++;
+                        return true;
+                    }
+                });
+                Assert.assertTrue(inputs.touchDown(300, 100, 0, 0));
+                inputs.touchUp(300, 100, 0, 0);
+                Assert.assertEquals(1, underlyingTouches[0]);
+            } finally {
+                hud.dispose();
+                stage.dispose();
+                Gdx.graphics = graphics;
+            }
+        }
+    }
+
+    @Test
+    public void dialogUsesCurrentRightAndTopAnchorsAtFirstShowAndAfterResize() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode opener = new HudNode("opener", HudNodeKind.TEXT_BUTTON);
+        opener.textButton = new HudTextButtonData();
+        opener.textButton.text = "Open";
+        opener.actor.width = 90f;
+        opener.actor.height = 35f;
+        opener.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        HudFreePlacement openerPlacement = new HudFreePlacement();
+        openerPlacement.offsetX = 20f;
+        openerPlacement.offsetY = 20f;
+        root.children.add(HudChild.free(opener, openerPlacement));
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        HudNode closer = new HudNode("closer", HudNodeKind.TEXT_BUTTON);
+        closer.textButton = new HudTextButtonData();
+        closer.textButton.text = "Close";
+        closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
+        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        HudFreePlacement dialogPlacement = new HudFreePlacement();
+        dialogPlacement.horizontalAnchor = games.pixscape.runtime.hud.document.HudHorizontalAnchor.RIGHT;
+        dialogPlacement.verticalAnchor = games.pixscape.runtime.hud.document.HudVerticalAnchor.TOP;
+        dialogPlacement.offsetX = -210f;
+        dialogPlacement.offsetY = -150f;
+        root.children.add(HudChild.free(dialogNode, dialogPlacement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            clickActor(stage, hud.actor("opener"), 300);
+            Assert.assertEquals(190f, dialog.getX(), .001f);
+            Assert.assertEquals(150f, dialog.getY(), .001f);
+            dialog.validate();
+            clickActor(stage, hud.actor("closer"), 300);
+            Assert.assertFalse(dialog.isVisible());
+            Assert.assertNull(dialog.getStage());
+            Gdx.graphics = logicalGraphics(600, 400);
+            stage.getViewport().update(600, 400, true);
+            hud.root().setSize(600f, 400f);
+            ((Layout) hud.root()).invalidateHierarchy();
+            ((Layout) hud.root()).validate();
+            Actor slot = ((Group) hud.root()).getChildren().get(1);
+            Assert.assertEquals(390f, slot.getX(), .001f);
+            Assert.assertEquals(250f, slot.getY(), .001f);
+            clickActor(stage, hud.actor("opener"), 400);
+            Assert.assertEquals(390f, dialog.getX(), .001f);
+            Assert.assertEquals(250f, dialog.getY(), .001f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void dialogUsesCenteredAuthoredPlacementAtFirstShow() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode opener = new HudNode("opener", HudNodeKind.TEXT_BUTTON);
+        opener.textButton = new HudTextButtonData();
+        opener.textButton.text = "Open";
+        opener.actor.width = 90f;
+        opener.actor.height = 35f;
+        opener.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        root.children.add(HudChild.free(opener, new HudFreePlacement()));
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        HudFreePlacement centered = new HudFreePlacement();
+        centered.horizontalAnchor = games.pixscape.runtime.hud.document.HudHorizontalAnchor.CENTER;
+        centered.verticalAnchor = games.pixscape.runtime.hud.document.HudVerticalAnchor.CENTER;
+        root.children.add(HudChild.free(dialogNode, centered));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            clickActor(stage, hud.actor("opener"), 300);
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            Assert.assertEquals(200f, dialog.getX(), .001f);
+            Assert.assertEquals(150f, dialog.getY(), .001f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void nativeDialogShowAndHideRemainUsableFromApplicationCode() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.offsetX = 130f;
+        placement.offsetY = 60f;
+        root.children.add(HudChild.free(dialogNode, placement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            Assert.assertFalse(dialog.isVisible());
+            dialog.show(stage, null);
+            Assert.assertTrue(dialog.isVisible());
+            Assert.assertSame(stage.getRoot(), dialog.getParent());
+            Assert.assertEquals(130f, dialog.getX(), .001f);
+            Assert.assertEquals(60f, dialog.getY(), .001f);
+            dialog.hide(null);
+            Assert.assertFalse(dialog.isVisible());
+            Assert.assertNull(dialog.getStage());
+            Assert.assertNull(stage.getKeyboardFocus());
+            dialog.show(stage);
+            Assert.assertTrue(dialog.isVisible());
+            Assert.assertEquals(130f, dialog.getX(), .001f);
+            Assert.assertEquals(60f, dialog.getY(), .001f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void authoringDialogStaysVisibleAndIgnoresRuntimeCloseAction() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.visible = false;
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 140f;
+        HudNode closer = new HudNode("closer", HudNodeKind.TEXT_BUTTON);
+        closer.textButton = new HudTextButtonData();
+        closer.textButton.text = "Close";
+        closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
+        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.offsetX = 130f;
+        placement.offsetY = 60f;
+        root.children.add(HudChild.free(dialogNode, placement));
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentV1(root), selectedResources);
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        MaterializedHud hud = new HudMaterializer().materialize(
+                validation.validatedDocument(), selectedResources, false);
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            dialog.validate();
+            Assert.assertTrue(dialog.isVisible());
+            Assert.assertFalse(dialog.isModal());
+            Assert.assertSame(stage, dialog.getStage());
+            Assert.assertEquals(200f, dialog.getWidth(), .001f);
+            Assert.assertEquals(140f, dialog.getHeight(), .001f);
+            Assert.assertNotSame(stage.getRoot(), dialog.getParent());
+            clickActor(stage, hud.actor("closer"), 300);
+            Assert.assertTrue(dialog.isVisible());
+            Assert.assertSame(stage, dialog.getStage());
+            Assert.assertFalse(dialogNode.visible);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void windowButtonAssociationStillTogglesNativeWindow() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Toggle";
+        button.actor.width = 90f;
+        button.actor.height = 35f;
+        button.windowActions.add(new HudWindowAction("window", HudWindowActionKind.TOGGLE));
+        HudFreePlacement buttonPlacement = new HudFreePlacement();
+        buttonPlacement.offsetX = 20f;
+        buttonPlacement.offsetY = 20f;
+        root.children.add(HudChild.free(button, buttonPlacement));
+        HudNode windowNode = new HudNode("window", HudNodeKind.WINDOW);
+        windowNode.window = new HudWindowData();
+        windowNode.visible = false;
+        windowNode.actor.width = 160f;
+        windowNode.actor.height = 100f;
+        HudFreePlacement windowPlacement = new HudFreePlacement();
+        windowPlacement.offsetX = 200f;
+        windowPlacement.offsetY = 100f;
+        root.children.add(HudChild.free(windowNode, windowPlacement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Window window = (Window) hud.actor("window");
+            Assert.assertFalse(window.isVisible());
+            TextButton toggle = (TextButton) hud.actor("button");
+            toggle.setChecked(true);
+            Assert.assertFalse("programmatic checked must not toggle a window", window.isVisible());
+            toggle.setDisabled(true);
+            clickActor(stage, toggle, 300);
+            Assert.assertFalse("disabled button must not toggle a window", window.isVisible());
+            toggle.setDisabled(false);
+            Vector2 buttonPoint = toggle.localToStageCoordinates(new Vector2(45f, 17f));
+            int buttonX = Math.round(buttonPoint.x);
+            int buttonY = Math.round(300f - buttonPoint.y);
+            Assert.assertTrue(stage.touchDown(buttonX, buttonY, 0, 0));
+            stage.cancelTouchFocus();
+            stage.touchUp(buttonX, buttonY, 0, 0);
+            Assert.assertFalse("cancelled gesture must not toggle a window", window.isVisible());
+            clickActor(stage, hud.actor("button"), 300);
+            Assert.assertTrue(window.isVisible());
+            clickActor(stage, hud.actor("button"), 300);
+            Assert.assertFalse(window.isVisible());
+            Assert.assertFalse(windowNode.visible);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void nonmodalDialogStaysInScrolledAuthoredParentAfterNativeShow() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode paneNode = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        paneNode.scrollPane = new HudScrollPaneData();
+        paneNode.actor.width = 280f;
+        paneNode.actor.height = 180f;
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.dialog.modal = false;
+        dialogNode.actor.width = 220f;
+        dialogNode.actor.height = 260f;
+        paneNode.children.add(HudChild.direct(dialogNode));
+        root.children.add(HudChild.free(paneNode, new HudFreePlacement()));
+        HudNode toggle = new HudNode("toggle", HudNodeKind.TEXT_BUTTON);
+        toggle.textButton = new HudTextButtonData();
+        toggle.textButton.text = "Toggle";
+        toggle.actor.width = 80f;
+        toggle.actor.height = 30f;
+        toggle.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.TOGGLE));
+        HudFreePlacement togglePlacement = new HudFreePlacement();
+        togglePlacement.offsetX = 300f;
+        togglePlacement.offsetY = 20f;
+        root.children.add(HudChild.free(toggle, togglePlacement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(400f, 300f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            ScrollPane pane = (ScrollPane) hud.actor("pane");
+            Assert.assertFalse(dialog.isVisible());
+            clickActor(stage, hud.actor("toggle"), 300);
+            Assert.assertSame(pane.getActor(), dialog.getParent());
+            Assert.assertSame(stage, dialog.getStage());
+            Assert.assertFalse(dialog.isModal());
+            Assert.assertEquals(220f, dialog.getWidth(), .001f);
+            Assert.assertEquals(260f, dialog.getHeight(), .001f);
+            pane.validate();
+            float beforeScroll = dialog.localToStageCoordinates(new Vector2()).y;
+            pane.setScrollY(50f);
+            pane.updateVisualScroll();
+            pane.layout();
+            Assert.assertNotEquals(beforeScroll,
+                    dialog.localToStageCoordinates(new Vector2()).y, .001f);
+            clickActor(stage, hud.actor("toggle"), 300);
+            Assert.assertFalse(dialog.isVisible());
+            clickActor(stage, hud.actor("toggle"), 300);
+            Assert.assertSame(pane.getActor(), dialog.getParent());
+            Assert.assertTrue(dialog.isVisible());
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void dialogDirectlyInScrollRootDoesNotEscapeItsClippingParent() {
+        HudNode root = new HudNode("scroll-root", HudNodeKind.SCROLL_PANE);
+        root.scrollPane = new HudScrollPaneData();
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.dialog.modal = false;
+        dialogNode.actor.width = 220f;
+        dialogNode.actor.height = 260f;
+        root.children.add(HudChild.direct(dialogNode));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            hud.root().setSize(280f, 180f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            Dialog dialog = (Dialog) hud.actor("dialog");
+            Assert.assertFalse(dialog.isVisible());
+            ((HudDialog) dialog).open();
+            Assert.assertSame(((ScrollPane) hud.root()).getActor(), dialog.getParent());
+            Assert.assertNotSame(stage.getRoot(), dialog.getParent());
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    private static void clickActor(Stage stage, Actor actor, int screenHeight) {
+        Vector2 point = actor.localToStageCoordinates(
+                new Vector2(actor.getWidth() * .5f, actor.getHeight() * .5f));
+        int x = Math.round(point.x);
+        int y = Math.round(screenHeight - point.y);
+        Assert.assertTrue(stage.touchDown(x, y, 0, 0));
+        stage.touchUp(x, y, 0, 0);
     }
 
     @Test

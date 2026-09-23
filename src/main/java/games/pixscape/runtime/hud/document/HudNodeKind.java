@@ -8,6 +8,7 @@ public enum HudNodeKind {
     CONTAINER,
     SCROLL_PANE,
     WINDOW,
+    DIALOG,
     IMAGE,
     LABEL,
     TEXTRA_LABEL,

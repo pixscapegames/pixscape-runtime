@@ -12,6 +12,8 @@ public final class HudNode {
     public boolean visible = true;
     /** Optional TextTooltip behavior; independent of the node's widget payload. */
     public HudTooltipData tooltip;
+    /** Optional native visibility operations for authored buttons. */
+    public ArrayList<HudWindowAction> windowActions = new ArrayList<HudWindowAction>();
 
     /** Present only for {@link HudNodeKind#IMAGE}. */
     public HudImageData image;
@@ -41,6 +43,8 @@ public final class HudNode {
     public HudScrollPaneData scrollPane;
     /** Present only for {@link HudNodeKind#WINDOW}. */
     public HudWindowData window;
+    /** Present only for {@link HudNodeKind#DIALOG}. */
+    public HudDialogData dialog;
 
     /** Children in Scene2D insertion/draw order. Parent links are derived and never persisted. */
     public ArrayList<HudChild> children = new ArrayList<HudChild>();

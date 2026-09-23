@@ -23,6 +23,26 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(custom.requiresAtlas());
         Assert.assertFalse(custom.requiresBuiltInWindowStyle());
     }
+
+    @Test
+    public void dialogCollectsTheSameWindowStyleAndFontResources() {
+        String builtinDialog = node("dialog", "DIALOG",
+                "\"dialog\":{\"title\":\"Settings\",\"fontAssetId\":42},\"children\":[]");
+        HudResourceRequirements builtin = requirements(node("root", "GROUP",
+                "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
+                        + builtinDialog + "}]") );
+        Assert.assertFalse(builtin.requiresSkin());
+        Assert.assertTrue(builtin.requiresBuiltInWindowStyle());
+        Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
+
+        String skinDialog = node("dialog", "DIALOG",
+                "\"dialog\":{\"title\":\"Settings\",\"styleName\":\"panel\"},\"children\":[]");
+        HudResourceRequirements custom = requirements(node("root", "GROUP",
+                "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
+                        + skinDialog + "}]") );
+        Assert.assertTrue(custom.requiresSkin());
+        Assert.assertFalse(custom.requiresBuiltInWindowStyle());
+    }
     @Test
     public void tooltipOnlyNodeCollectsItsFontAndDefaultOrCustomStyle() {
         HudResourceRequirements builtin = requirements(node("root", "GROUP",

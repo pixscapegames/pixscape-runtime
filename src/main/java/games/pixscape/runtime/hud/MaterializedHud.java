@@ -73,6 +73,15 @@ public final class MaterializedHud implements Disposable {
         if (disposed) return;
         disposed = true;
         RuntimeException failure = null;
+        for (Actor actor : actorById.values()) {
+            if (tooltipManager != null && actor instanceof HudDialog) {
+                try {
+                    ((HudDialog) actor).close();
+                } catch (RuntimeException disposalFailure) {
+                    if (failure == null) failure = disposalFailure;
+                }
+            }
+        }
         releaseTooltips(tooltipManager, tooltips);
         for (int i = ownedResources.size() - 1; i >= 0; i--) {
             try {

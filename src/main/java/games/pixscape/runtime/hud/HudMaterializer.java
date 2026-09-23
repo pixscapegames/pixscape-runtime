@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
@@ -23,6 +24,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
@@ -34,9 +37,13 @@ import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudHorizontalAlign;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudVerticalAlign;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
+import games.pixscape.runtime.hud.document.HudWindowData;
+import games.pixscape.runtime.hud.document.HudWindowAction;
+import games.pixscape.runtime.hud.document.HudWindowActionKind;
 
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -51,10 +58,10 @@ public final class HudMaterializer {
         return materialize(validatedDocument, resources, true);
     }
 
-    /** Studio authoring can omit hover listeners while keeping native preview/runtime behavior. */
+    /** Studio authoring omits runtime interactions and keeps authored Dialogs visible for editing. */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudVisualResources resources,
-            boolean attachTooltips) {
+            boolean interactive) {
         if (validatedDocument == null) {
             throw new IllegalArgumentException("ValidatedHudDocument is required.");
         }
@@ -63,18 +70,19 @@ public final class HudMaterializer {
         Map<String, Actor> actorById = new LinkedHashMap<String, Actor>();
         List<Disposable> ownedResources = new ArrayList<Disposable>();
         Map<Actor, TextTooltip> tooltips = new LinkedHashMap<Actor, TextTooltip>();
-        TooltipManager tooltipManager = attachTooltips ? new TooltipManager() : null;
+        TooltipManager tooltipManager = interactive ? new TooltipManager() : null;
         if (tooltipManager != null) {
             tooltipManager.initialTime = 0.5f;
             tooltipManager.hideAll(); // Reset the manager's current delay before the first tooltip.
         }
         try {
             Actor root = materializeNode(validatedDocument.document().root, resources,
-                    actorById, ownedResources, tooltipManager, tooltips, true);
+                    actorById, ownedResources, tooltipManager, tooltips, true, interactive);
             if (actorById.size() != validatedDocument.nodeIndex().size()) {
                 throw new IllegalStateException(
                         "Validated HUD document changed after validation; validate it again.");
             }
+            if (interactive) bindWindowActions(validatedDocument, actorById);
             return new MaterializedHud(root, actorById, ownedResources, tooltipManager, tooltips);
         } catch (RuntimeException failure) {
             MaterializedHud.releaseTooltips(tooltipManager, tooltips);
@@ -86,10 +94,10 @@ public final class HudMaterializer {
     private Actor materializeNode(
             HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
             List<Disposable> ownedResources, TooltipManager tooltipManager,
-            Map<Actor, TextTooltip> tooltips, boolean stageRoot) {
-        Actor actor = createActor(node, resources, ownedResources, tooltipManager != null, stageRoot);
+            Map<Actor, TextTooltip> tooltips, boolean stageRoot, boolean interactive) {
+        Actor actor = createActor(node, resources, ownedResources, interactive, stageRoot);
         actor.setName(node.id);
-        actor.setVisible(node.visible);
+        actor.setVisible(node.kind == HudNodeKind.DIALOG ? !interactive : node.visible);
         applyAuthoredSize(actor, node.actor.width, node.actor.height);
         if (actorById.put(node.id, actor) != null) {
             throw new IllegalStateException(
@@ -123,13 +131,22 @@ public final class HudMaterializer {
         for (int i = 0; i < node.children.size(); i++) {
             HudChild child = node.children.get(i);
             Actor childActor = materializeNode(child.node, resources, actorById, ownedResources,
-                    tooltipManager, tooltips, false);
+                    tooltipManager, tooltips, false, interactive);
+            if (childActor instanceof HudDialog) {
+                HudDialog dialog = (HudDialog) childActor;
+                HudDialogSlot slot = new HudDialogSlot(dialog);
+                dialog.attach(slot, stageRoot && node.kind == HudNodeKind.GROUP, interactive
+                        && child.node.dialog.keepWithinStage);
+                childActor = slot;
+            }
             switch (child.placementKind) {
                 case DIRECT:
                     addDirect(actor, childActor, node.id);
                     break;
                 case CELL:
-                    addCell((Table) actor, childActor, child.cell);
+                    addCell(actor instanceof HudDialog
+                            ? ((HudDialog) actor).getContentTable() : (Table) actor,
+                            childActor, child.cell);
                     break;
                 case FREE:
                     ((HudFreeGroup) actor).addFreeActor(childActor, child.free);
@@ -171,29 +188,10 @@ public final class HudMaterializer {
                 return pane;
             }
             case WINDOW: {
-                Window.WindowStyle sharedStyle = HudBuiltInWindowStyle.isSelected(node.window.styleName)
-                        ? resources.builtInWindowStyle() : resources.windowStyle(node.window.styleName);
-                if (!HudStyleUsability.isUsableWindowStyle(sharedStyle,
-                        node.window.fontAssetId != null)) {
-                    throw missing(node, "Window style",
-                            HudBuiltInWindowStyle.isSelected(node.window.styleName)
-                                    ? "built-in Default" : node.window.styleName);
-                }
-                Window.WindowStyle style = sharedStyle;
-                if (node.window.fontAssetId != null) {
-                    style = new Window.WindowStyle(sharedStyle);
-                    style.titleFont = requireFont(node, node.window.fontAssetId, resources);
-                }
-                Window window = new Window(node.window.title, style);
-                window.setMovable(interactivePreview && node.window.movable);
-                window.setResizable(interactivePreview && node.window.resizable);
-                window.setModal(interactivePreview && node.window.modal);
-                // Native Window.draw compares its local position with Stage coordinates for an
-                // orthographic camera. HudSession installs the HUD root directly in Stage.
-                // A nested Window remains positioned by its Scene2D parent (including scrolling).
-                window.setKeepWithinStage(interactivePreview && stageRoot
-                        && node.window.keepWithinStage);
-                return window;
+                return createWindow(node, node.window, resources, interactivePreview, stageRoot, false);
+            }
+            case DIALOG: {
+                return createWindow(node, node.dialog, resources, interactivePreview, stageRoot, true);
             }
             case IMAGE: {
                 if (node.image.source == HudImageSource.REGION) {
@@ -407,6 +405,63 @@ public final class HudMaterializer {
             default:
                 throw new IllegalStateException(
                         "Unsupported validated HUD node kind: " + node.kind + ".");
+        }
+    }
+
+    private static Window createWindow(HudNode node, HudWindowData data,
+                                       HudVisualResources resources, boolean interactivePreview,
+                                       boolean stageRoot, boolean dialogKind) {
+        Window.WindowStyle sharedStyle = HudBuiltInWindowStyle.isSelected(data.styleName)
+                ? resources.builtInWindowStyle() : resources.windowStyle(data.styleName);
+        if (!HudStyleUsability.isUsableWindowStyle(sharedStyle, data.fontAssetId != null)) {
+            throw missing(node, "Window style",
+                    HudBuiltInWindowStyle.isSelected(data.styleName)
+                            ? "built-in Default" : data.styleName);
+        }
+        Window.WindowStyle style = sharedStyle;
+        if (data.fontAssetId != null) {
+            style = new Window.WindowStyle(sharedStyle);
+            style.titleFont = requireFont(node, data.fontAssetId, resources);
+        }
+        Window window = dialogKind ? new HudDialog(data.title, style)
+                : new Window(data.title, style);
+        window.setMovable(interactivePreview && data.movable);
+        window.setResizable(interactivePreview && data.resizable);
+        window.setModal(interactivePreview && data.modal);
+        // Nested windows use parent-local coordinates, not Stage coordinates.
+        window.setKeepWithinStage(interactivePreview && stageRoot && data.keepWithinStage);
+        return window;
+    }
+
+    private static void bindWindowActions(ValidatedHudDocument document,
+                                          Map<String, Actor> actors) {
+        for (HudNode node : document.nodeIndex().values()) {
+            if (node.windowActions.isEmpty()) continue;
+            Button source = (Button) actors.get(node.id);
+            for (HudWindowAction association : node.windowActions) {
+                final Actor target = actors.get(association.targetId);
+                final HudWindowActionKind action = association.action;
+                source.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent event, float x, float y) {
+                        if (source.isDisabled()) return;
+                        if (target instanceof HudDialog) {
+                            HudDialog dialog = (HudDialog) target;
+                            switch (action) {
+                                case SHOW: dialog.open(); break;
+                                case HIDE: dialog.close(); break;
+                                case TOGGLE: if (dialog.isOpen()) dialog.close(); else dialog.open(); break;
+                            }
+                        } else {
+                            Window window = (Window) target;
+                            boolean visible = action == HudWindowActionKind.SHOW
+                                    || action == HudWindowActionKind.TOGGLE
+                                    && !window.isVisible();
+                            window.setVisible(visible);
+                            if (!visible && window.getStage() != null) window.getStage().unfocus(window);
+                        }
+                    }
+                });
+            }
         }
     }
 

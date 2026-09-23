@@ -182,9 +182,10 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
-            } else if (kind == HudNodeKind.WINDOW) {
+            } else if (kind == HudNodeKind.WINDOW || kind == HudNodeKind.DIALOG) {
                 requiresAtlas = true;
-                if (HudBuiltInWindowStyle.isSelected(node.window.styleName)) {
+                if (HudBuiltInWindowStyle.isSelected(kind == HudNodeKind.WINDOW
+                        ? node.window.styleName : node.dialog.styleName)) {
                     requiresBuiltInLabelStyle = true;
                     requiresBuiltInWindowStyle = true;
                 } else {

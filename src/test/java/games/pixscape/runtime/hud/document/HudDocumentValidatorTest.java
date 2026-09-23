@@ -281,7 +281,12 @@ public class HudDocumentValidatorTest {
                 node.actor = new HudActorProperties();
                 node.children.add(HudChild.direct(label("group-child")));
             }
-            HudValidationResult result = validator.validate(new HudDocumentV1(node));
+            HudNode root = node;
+            if (kind == HudNodeKind.DIALOG) {
+                root = new HudNode("host", HudNodeKind.GROUP);
+                root.children.add(HudChild.free(node, new HudFreePlacement()));
+            }
+            HudValidationResult result = validator.validate(new HudDocumentV1(root));
             Assert.assertTrue(kind + issues(result), result.isValid());
         }
     }
@@ -311,6 +316,57 @@ public class HudDocumentValidatorTest {
         window.window.styleName = "missing";
         requireIssueAt(validator.validate(new HudDocumentV1(window), new EmptyResourceCatalog()),
                 HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE, "$.root.window.styleName");
+    }
+
+    @Test
+    public void dialogUsesWindowStyleAndRestrictsNestedModality() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialog = nodeWithExpectedPayload("dialog", HudNodeKind.DIALOG);
+        dialog.children.add(HudChild.cell(label("content"), new HudCellConstraints()));
+        root.children.add(HudChild.free(dialog, new HudFreePlacement()));
+        Assert.assertTrue(validator.validate(new HudDocumentV1(root)).isValid());
+        dialog.dialog.title = null;
+        requireIssueAt(validator.validate(new HudDocumentV1(root)),
+                HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.children[0].node.dialog.title");
+        dialog.dialog.title = "Dialog";
+        dialog.dialog.styleName = "missing";
+        requireIssueAt(validator.validate(new HudDocumentV1(root), new EmptyResourceCatalog()),
+                HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                "$.root.children[0].node.dialog.styleName");
+        dialog.dialog.styleName = null;
+        HudNode pane = nodeWithExpectedPayload("pane", HudNodeKind.SCROLL_PANE);
+        root.children.clear();
+        root.children.add(HudChild.free(pane, new HudFreePlacement()));
+        pane.children.add(HudChild.direct(dialog));
+        requireIssue(validator.validate(new HudDocumentV1(root)),
+                HudValidationIssueCode.INVALID_HIERARCHY);
+        dialog.dialog.modal = false;
+        Assert.assertTrue(validator.validate(new HudDocumentV1(root)).isValid());
+        HudNode scrollRoot = nodeWithExpectedPayload("scroll-root", HudNodeKind.SCROLL_PANE);
+        scrollRoot.children.add(HudChild.direct(dialog));
+        dialog.dialog.modal = true;
+        requireIssue(validator.validate(new HudDocumentV1(scrollRoot)),
+                HudValidationIssueCode.INVALID_HIERARCHY);
+        dialog.dialog.modal = false;
+        Assert.assertTrue(validator.validate(new HudDocumentV1(scrollRoot)).isValid());
+    }
+
+    @Test
+    public void buttonActionsAcceptWindowAndDialogTargetsOnly() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = nodeWithExpectedPayload("button", HudNodeKind.TEXT_BUTTON);
+        HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
+        HudNode dialog = nodeWithExpectedPayload("dialog", HudNodeKind.DIALOG);
+        root.children.add(HudChild.free(button, new HudFreePlacement()));
+        root.children.add(HudChild.free(window, new HudFreePlacement()));
+        root.children.add(HudChild.free(dialog, new HudFreePlacement()));
+        button.windowActions.add(new HudWindowAction("window", HudWindowActionKind.SHOW));
+        button.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.TOGGLE));
+        Assert.assertTrue(validator.validate(new HudDocumentV1(root)).isValid());
+        button.windowActions.get(1).targetId = "missing";
+        requireIssue(validator.validate(new HudDocumentV1(root)),
+                HudValidationIssueCode.INVALID_NODE_PAYLOAD);
     }
 
     @Test
@@ -818,6 +874,9 @@ public class HudDocumentValidatorTest {
                 break;
             case WINDOW:
                 node.window = new HudWindowData();
+                break;
+            case DIALOG:
+                node.dialog = new HudDialogData();
                 break;
             case IMAGE:
                 node.image = imageData(HudImageSource.REGION, "image");

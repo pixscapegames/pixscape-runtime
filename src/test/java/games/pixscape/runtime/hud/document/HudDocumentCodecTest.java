@@ -58,6 +58,38 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void dialogPayloadAndButtonAssociationRoundTrip() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialog = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialog.dialog = new HudDialogData();
+        dialog.dialog.title = "Settings";
+        dialog.dialog.styleName = "panel";
+        dialog.dialog.fontAssetId = 42;
+        dialog.visible = false;
+        dialog.children.add(HudChild.cell(new HudNode("content", HudNodeKind.TABLE),
+                new HudCellConstraints()));
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Open";
+        button.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        root.children.add(HudChild.free(button, new HudFreePlacement()));
+        root.children.add(HudChild.free(dialog, new HudFreePlacement()));
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.DIALOG, restored.children.get(1).node.kind);
+        Assert.assertEquals("Settings", restored.children.get(1).node.dialog.title);
+        Assert.assertTrue(restored.children.get(1).node.dialog.modal);
+        Assert.assertFalse(restored.children.get(1).node.visible);
+        Assert.assertEquals("panel", restored.children.get(1).node.dialog.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.children.get(1).node.dialog.fontAssetId);
+        Assert.assertEquals(HudPlacementKind.CELL,
+                restored.children.get(1).node.children.get(0).placementKind);
+        Assert.assertEquals("dialog", restored.children.get(0).node.windowActions.get(0).targetId);
+        Assert.assertEquals(HudWindowActionKind.SHOW,
+                restored.children.get(0).node.windowActions.get(0).action);
+    }
+
+    @Test
     public void optionalTooltipRoundTripsWithoutChangingNodeKind() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         root.tooltip = new HudTooltipData();

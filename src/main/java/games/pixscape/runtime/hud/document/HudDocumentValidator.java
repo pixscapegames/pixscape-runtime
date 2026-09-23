@@ -49,7 +49,9 @@ public final class HudDocumentValidator {
             return state.result(document);
         }
 
+        state.root = document.root;
         state.visit(document.root, "$.root");
+        state.validateWindowActions();
         return state.result(document);
     }
 
@@ -57,8 +59,10 @@ public final class HudDocumentValidator {
         private final HudResourceCatalog resources;
         private final List<HudValidationIssue> issues = new ArrayList<HudValidationIssue>();
         private final Map<String, HudNode> nodeIndex = new LinkedHashMap<String, HudNode>();
+        private final Map<String, String> nodePaths = new LinkedHashMap<String, String>();
         private final ObjectSet<HudNode> visiting = new ObjectSet<HudNode>();
         private final ObjectSet<HudNode> visited = new ObjectSet<HudNode>();
+        private HudNode root;
 
         ValidationState(HudResourceCatalog resources) {
             this.resources = resources;
@@ -96,6 +100,11 @@ public final class HudDocumentValidator {
             validateTooltip(node, path);
             validateDimensions(node, path);
             validateChildCount(node, path);
+            if (node == root && node.kind == HudNodeKind.DIALOG) {
+                add(HudValidationIssueCode.INVALID_HIERARCHY,
+                        "DIALOG cannot be the HUD root; it requires an authored host and opener.",
+                        usableId(node), path);
+            }
 
             if (node.children != null) {
                 for (int i = 0; i < node.children.size(); i++) {
@@ -130,6 +139,7 @@ public final class HudDocumentValidator {
                 return;
             }
             nodeIndex.put(node.id, node);
+            nodePaths.put(node.id, path);
         }
 
         private void validateKindAndPayload(HudNode node, String path) {
@@ -155,6 +165,9 @@ public final class HudDocumentValidator {
                     break;
                 case WINDOW:
                     validPayload = node.window != null && payloadCount == 1;
+                    break;
+                case DIALOG:
+                    validPayload = node.dialog != null && payloadCount == 1;
                     break;
                 case IMAGE:
                     validPayload = node.image != null && payloadCount == 1;
@@ -224,7 +237,9 @@ public final class HudDocumentValidator {
             } else if (node.kind == HudNodeKind.SCROLL_PANE && node.scrollPane != null) {
                 validateScrollPane(node, path);
             } else if (node.kind == HudNodeKind.WINDOW && node.window != null) {
-                validateWindow(node, path);
+                validateWindow(node, node.window, path + ".window");
+            } else if (node.kind == HudNodeKind.DIALOG && node.dialog != null) {
+                validateWindow(node, node.dialog, path + ".dialog");
             }
         }
 
@@ -459,26 +474,26 @@ public final class HudDocumentValidator {
             validateScrollPaneStyle(node, node.scrollPane.styleName, path + ".scrollPane.styleName");
         }
 
-        private void validateWindow(HudNode node, String path) {
-            if (node.window.title == null) {
+        private void validateWindow(HudNode node, HudWindowData data, String path) {
+            if (data.title == null) {
                 add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
-                        "WINDOW title must not be null; an empty title is allowed.",
-                        usableId(node), path + ".window.title");
+                        node.kind + " title must not be null; an empty title is allowed.",
+                        usableId(node), path + ".title");
             }
-            Integer fontAssetId = validateFontAsset(node, node.window.fontAssetId,
-                    path + ".window.fontAssetId");
-            String styleName = node.window.styleName;
+            Integer fontAssetId = validateFontAsset(node, data.fontAssetId,
+                    path + ".fontAssetId");
+            String styleName = data.styleName;
             if (HudBuiltInWindowStyle.isSelected(styleName)) {
                 if (resources != null && !resources.hasBuiltInWindowStyle()) {
                     add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                            "WINDOW requires the built-in Default style, but it is unavailable.",
-                            usableId(node), path + ".window.styleName");
+                            node.kind + " requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path + ".styleName");
                 }
             } else if (resources != null && !resources.hasWindowStyle(styleName,
                     fontAssetId != null)) {
                 add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
-                        "WINDOW Skin style '" + styleName + "' is missing or unusable.",
-                        usableId(node), path + ".window.styleName");
+                        node.kind + " Skin style '" + styleName + "' is missing or unusable.",
+                        usableId(node), path + ".styleName");
             }
         }
 
@@ -743,6 +758,13 @@ public final class HudDocumentValidator {
         }
 
         private void validatePlacement(HudNode parent, HudChild child, String path) {
+            if (child.node != null && child.node.kind == HudNodeKind.DIALOG
+                    && child.node.dialog != null && child.node.dialog.modal
+                    && (parent != root || parent.kind != HudNodeKind.GROUP)) {
+                add(HudValidationIssueCode.INVALID_HIERARCHY,
+                        "A modal DIALOG must be a direct child of a GROUP HUD root; other dialogs must be nonmodal.",
+                        childId(child), path + ".node.dialog.modal");
+            }
             HudPlacementKind placement = child.placementKind;
             if (placement == null) {
                 add(HudValidationIssueCode.INVALID_CHILD_PLACEMENT,
@@ -859,11 +881,54 @@ public final class HudDocumentValidator {
             issues.add(new HudValidationIssue(code, message, nodeId, path));
         }
 
+        void validateWindowActions() {
+            for (HudNode node : nodeIndex.values()) {
+                String actionsPath = nodePaths.get(node.id) + ".windowActions";
+                if (node.windowActions == null) {
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "windowActions must be a non-null list.", usableId(node),
+                            actionsPath);
+                    continue;
+                }
+                if (!node.windowActions.isEmpty() && node.kind != HudNodeKind.TEXT_BUTTON
+                        && node.kind != HudNodeKind.IMAGE_BUTTON
+                        && node.kind != HudNodeKind.IMAGE_TEXT_BUTTON) {
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "Only buttons can own windowActions.", usableId(node),
+                            actionsPath);
+                }
+                Set<String> targets = new HashSet<String>();
+                for (int i = 0; i < node.windowActions.size(); i++) {
+                    HudWindowAction action = node.windowActions.get(i);
+                    String path = actionsPath + "[" + i + "]";
+                    if (action == null || action.action == null || !isNonBlank(action.targetId)) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "Window action requires a target ID and SHOW, HIDE, or TOGGLE.",
+                                usableId(node), path);
+                        continue;
+                    }
+                    HudNode target = nodeIndex.get(action.targetId);
+                    if (target == null || (target.kind != HudNodeKind.WINDOW
+                            && target.kind != HudNodeKind.DIALOG)) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "Window action target must identify an authored WINDOW or DIALOG.",
+                                usableId(node), path + ".targetId");
+                    }
+                    if (!targets.add(action.targetId)) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "A button may target each WINDOW or DIALOG only once.",
+                                usableId(node), path + ".targetId");
+                    }
+                }
+            }
+        }
+
         private static int payloadCount(HudNode node) {
             int count = 0;
             if (node.container != null) count++;
             if (node.scrollPane != null) count++;
             if (node.window != null) count++;
+            if (node.dialog != null) count++;
             if (node.image != null) count++;
             if (node.label != null) count++;
             if (node.textraLabel != null) count++;
@@ -889,7 +954,8 @@ public final class HudDocumentValidator {
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {
-            if (parent == HudNodeKind.TABLE || parent == HudNodeKind.WINDOW)
+            if (parent == HudNodeKind.TABLE || parent == HudNodeKind.WINDOW
+                    || parent == HudNodeKind.DIALOG)
                 return placement == HudPlacementKind.CELL;
             if (parent == HudNodeKind.STACK || parent == HudNodeKind.CONTAINER
                     || parent == HudNodeKind.SCROLL_PANE) {
