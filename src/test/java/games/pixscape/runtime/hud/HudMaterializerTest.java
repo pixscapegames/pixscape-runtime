@@ -70,6 +70,7 @@ import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudTextFieldData;
 import games.pixscape.runtime.hud.document.HudTextraLabelData;
 import games.pixscape.runtime.hud.document.HudSelectBoxData;
+import games.pixscape.runtime.hud.document.HudListData;
 import games.pixscape.runtime.hud.document.HudSliderData;
 import games.pixscape.runtime.hud.document.HudProgressBarData;
 import games.pixscape.runtime.hud.document.HudScrollPaneData;
@@ -1043,6 +1044,12 @@ public class HudMaterializerTest {
         root.children.add(HudChild.direct(check));
         root.children.add(HudChild.direct(field));
         root.children.add(HudChild.direct(select));
+        HudNode listNode = new HudNode("list", HudNodeKind.LIST);
+        listNode.list = new HudListData();
+        listNode.list.items.add("One");
+        listNode.list.selectedIndex = 0;
+        listNode.list.fontAssetId = 42;
+        root.children.add(HudChild.direct(listNode));
         TextButton.TextButtonStyle sharedButton = selectedResources.builtInTextButtonStyle();
         CheckBox.CheckBoxStyle sharedCheck = selectedResources.builtInCheckBoxStyle();
         TextField.TextFieldStyle sharedField = selectedResources.builtInTextFieldStyle();
@@ -1066,6 +1073,7 @@ public class HudMaterializerTest {
         TextField materializedField = (TextField) hud.actor("field");
         @SuppressWarnings("unchecked") SelectBox<String> materializedSelect =
                 (SelectBox<String>) hud.actor("select");
+        com.badlogic.gdx.scenes.scene2d.ui.List<String> materializedList = hud.list("list");
         Assert.assertNotSame(sharedButton, materializedButton.getStyle());
         Assert.assertSame(override, materializedButton.getStyle().font);
         Assert.assertSame(sharedButton, materializedInheritedButton.getStyle());
@@ -1077,6 +1085,8 @@ public class HudMaterializerTest {
         Assert.assertNotSame(sharedSelect, materializedSelect.getStyle());
         Assert.assertSame(override, materializedSelect.getStyle().font);
         Assert.assertNotSame(sharedList, materializedSelect.getStyle().listStyle);
+        Assert.assertNotSame(sharedList, materializedList.getStyle());
+        Assert.assertSame(override, materializedList.getStyle().font);
         Assert.assertSame(override, materializedSelect.getStyle().listStyle.font);
         Assert.assertNotNull(materializedSelect.getStyle().scrollStyle);
         Assert.assertNotSame(override, sharedButton.font);
@@ -1100,6 +1110,7 @@ public class HudMaterializerTest {
             @Override public TextField.TextFieldStyle builtInTextFieldStyle() { return selectedResources.builtInTextFieldStyle(); }
             @Override public SelectBox.SelectBoxStyle selectBoxStyle(String name) { return selectedResources.selectBoxStyle(name); }
             @Override public SelectBox.SelectBoxStyle builtInSelectBoxStyle() { return selectedResources.builtInSelectBoxStyle(); }
+            @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() { return selectedResources.builtInListStyle(); }
             @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) { return selectedResources.checkBoxStyle(name); }
             @Override public CheckBox.CheckBoxStyle builtInCheckBoxStyle() { return selectedResources.builtInCheckBoxStyle(); }
         };
@@ -1905,6 +1916,98 @@ public class HudMaterializerTest {
         int y = Math.round(screenHeight - point.y);
         Assert.assertTrue(stage.touchDown(x, y, 0, 0));
         stage.touchUp(x, y, 0, 0);
+    }
+
+    @Test
+    public void listUsesNativeSelectionEventsAndFreshMaterializationRestoresAuthoredState() {
+        HudNode node = new HudNode("choices", HudNodeKind.LIST);
+        node.list = new HudListData();
+        node.list.items.add("First");
+        node.list.items.add("Second");
+        node.list.items.add("Third");
+        node.list.selectedIndex = 0;
+        HudDocumentV1 document = new HudDocumentV1(node);
+        MaterializedHud hud = materialize(document);
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        com.badlogic.gdx.Input input = Gdx.input;
+        try {
+            Gdx.input = (com.badlogic.gdx.Input) Proxy.newProxyInstance(
+                    com.badlogic.gdx.Input.class.getClassLoader(),
+                    new Class<?>[]{com.badlogic.gdx.Input.class},
+                    (proxy, method, args) -> defaultValue(method.getReturnType()));
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            com.badlogic.gdx.scenes.scene2d.ui.List<String> list = hud.list("choices");
+            stage.addActor(list);
+            list.setPosition(20f, 20f);
+            list.validate();
+            Assert.assertEquals(0, list.getSelectedIndex());
+            final int[] changes = {0};
+            list.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) { changes[0]++; }
+            });
+            float rowY = list.getHeight() - list.getStyle().background.getTopHeight()
+                    - list.getItemHeight() * 1.5f;
+            int screenX = 30;
+            int screenY = Math.round(300f - (20f + rowY));
+            Assert.assertTrue(stage.touchDown(screenX, screenY, 0, 0));
+            stage.touchUp(screenX, screenY, 0, 0);
+            Assert.assertEquals(1, list.getSelectedIndex());
+            Assert.assertSame(list, stage.getKeyboardFocus());
+            Assert.assertTrue(stage.keyDown(com.badlogic.gdx.Input.Keys.DOWN));
+            Assert.assertEquals(2, list.getSelectedIndex());
+            Assert.assertTrue(changes[0] >= 2);
+            list.setItems("Runtime item", "Other");
+            Assert.assertEquals("Runtime item", list.getItems().first());
+            Assert.assertEquals(3, node.list.items.size());
+            Assert.assertEquals(0, node.list.selectedIndex);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+            Gdx.input = input;
+        }
+        MaterializedHud rebuilt = materialize(document);
+        try {
+            Assert.assertEquals(0, rebuilt.list("choices").getSelectedIndex());
+            Assert.assertEquals("First", rebuilt.list("choices").getItems().first());
+        } finally {
+            rebuilt.dispose();
+        }
+    }
+
+    @Test
+    public void longListRemainsAClippedNativeScrollPaneChildWithWheelRouting() {
+        HudNode paneNode = new HudNode("pane", HudNodeKind.SCROLL_PANE);
+        paneNode.scrollPane = new HudScrollPaneData();
+        HudNode listNode = new HudNode("list", HudNodeKind.LIST);
+        listNode.list = new HudListData();
+        for (int i = 0; i < 20; i++) listNode.list.items.add("Item " + i);
+        listNode.list.selectedIndex = 0;
+        paneNode.children.add(HudChild.direct(listNode));
+        MaterializedHud hud = materialize(new HudDocumentV1(paneNode));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(400, 300);
+            stage.getViewport().update(400, 300, true);
+            ScrollPane pane = (ScrollPane) hud.root();
+            pane.setSize(120f, 80f);
+            stage.addActor(pane);
+            pane.validate();
+            Assert.assertSame(hud.list("list"), pane.getActor());
+            Assert.assertTrue(pane.getMaxY() > 0f);
+            stage.draw();
+            Assert.assertNotNull(hud.list("list").getCullingArea());
+            stage.setScrollFocus(pane);
+            Assert.assertTrue(stage.scrolled(0f, 1f));
+            Assert.assertTrue(pane.getScrollY() > 0f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
     }
 
     @Test

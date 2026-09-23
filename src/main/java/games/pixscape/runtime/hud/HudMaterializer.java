@@ -405,6 +405,30 @@ public final class HudMaterializer {
                 if (node.selectBox.selectedIndex >= 0) box.setSelectedIndex(node.selectBox.selectedIndex);
                 return box;
             }
+            case LIST: {
+                com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle sharedStyle =
+                        HudBuiltInSelectBoxStyle.isSelected(node.list.styleName)
+                                ? resources.builtInListStyle() : resources.listStyle(node.list.styleName);
+                if (sharedStyle == null) {
+                    throw missing(node, "List style", HudBuiltInSelectBoxStyle.isSelected(node.list.styleName)
+                            ? "built-in Default" : node.list.styleName);
+                }
+                com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle style = sharedStyle;
+                if (node.list.fontAssetId != null) {
+                    style = new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(sharedStyle);
+                    style.font = requireFont(node, node.list.fontAssetId, resources);
+                }
+                com.badlogic.gdx.scenes.scene2d.ui.List<String> list =
+                        new com.badlogic.gdx.scenes.scene2d.ui.List<String>(style);
+                list.getSelection().setMultiple(false);
+                list.getSelection().setRequired(node.list.required);
+                list.setItems(node.list.items.toArray(new String[node.list.items.size()]));
+                list.setSelectedIndex(node.list.selectedIndex);
+                // List's constructor sizes before items exist; the initial free/root size must use
+                // the preferred size after setItems. Parent layout may still override this size.
+                list.setSize(list.getPrefWidth(), list.getPrefHeight());
+                return list;
+            }
             case CHECK_BOX: {
                 CheckBox.CheckBoxStyle sharedStyle = HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)
                         ? resources.builtInCheckBoxStyle() : resources.checkBoxStyle(node.checkBox.styleName);

@@ -17,6 +17,26 @@ public class HudDocumentCodecTest {
 
     private final HudDocumentCodec codec = new HudDocumentCodec();
 
+    @Test
+    public void listPayloadRoundTripsWithDuplicateLabelsAndOptionalSelection() {
+        HudNode root = new HudNode("list", HudNodeKind.LIST);
+        root.list = new HudListData();
+        root.list.items.add("Same");
+        root.list.items.add("Same");
+        root.list.required = false;
+        root.list.selectedIndex = -1;
+        root.list.styleName = "compact";
+        root.list.fontAssetId = 42;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.LIST, restored.kind);
+        Assert.assertEquals(root.list.items, restored.list.items);
+        Assert.assertFalse(restored.list.required);
+        Assert.assertEquals(-1, restored.list.selectedIndex);
+        Assert.assertEquals("compact", restored.list.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.list.fontAssetId);
+    }
+
     private static HudTableLayout table(String cellId, HudNode content, HudCellConstraints constraints) {
         HudTableCell cell = new HudTableCell();
         cell.id = cellId;

@@ -194,6 +194,22 @@ public class HudResourceRequirementsTest {
     }
 
     @Test
+    public void listCollectsDefaultOrSkinStyleAndOptionalFont() {
+        HudResourceRequirements builtIn = requirements(node("list", "LIST",
+                "\"list\":{\"items\":[\"One\"],\"selectedIndex\":0,\"fontAssetId\":46},\"children\":[]"));
+        Assert.assertFalse(builtIn.requiresSkin());
+        Assert.assertTrue(builtIn.requiresAtlas());
+        Assert.assertTrue(builtIn.requiresBuiltInLabelStyle());
+        Assert.assertTrue(builtIn.requiresBuiltInSelectBoxStyle());
+        Assert.assertTrue(builtIn.bitmapFontAssetIds().contains(46));
+
+        HudResourceRequirements skin = requirements(node("list", "LIST",
+                "\"list\":{\"items\":[],\"selectedIndex\":-1,\"styleName\":\"compact\"},\"children\":[]"));
+        Assert.assertTrue(skin.requiresSkin());
+        Assert.assertFalse(skin.requiresBuiltInSelectBoxStyle());
+    }
+
+    @Test
     public void sliderUsesAtlasOnlyForDefaultAndSkinForCustomStyle() {
         HudResourceRequirements builtIn = requirements(node("slider", "SLIDER",
                 "\"slider\":{},\"children\":[]"));

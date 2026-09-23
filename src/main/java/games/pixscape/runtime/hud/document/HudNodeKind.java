@@ -17,6 +17,7 @@ public enum HudNodeKind {
     IMAGE_TEXT_BUTTON,
     TEXT_FIELD,
     SELECT_BOX,
+    LIST,
     CHECK_BOX,
     SLIDER,
     PROGRESS_BAR

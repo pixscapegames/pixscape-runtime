@@ -57,6 +57,10 @@ public interface HudResourceCatalog {
     /** Returns whether the prepared environment contains the complete built-in SelectBox style. */
     default boolean hasBuiltInSelectBoxStyle() { return false; }
 
+    default boolean hasListStyle(String name, boolean hasFontOverride) { return false; }
+
+    default boolean hasBuiltInListStyle() { return false; }
+
     default boolean hasCheckBoxStyle(String name) { return false; }
 
     default boolean hasCheckBoxStyle(String name, boolean hasFontOverride) {

@@ -31,6 +31,8 @@ public final class HudNode {
     public HudTextFieldData textField;
     /** Present only for {@link HudNodeKind#SELECT_BOX}. */
     public HudSelectBoxData selectBox;
+    /** Present only for {@link HudNodeKind#LIST}. */
+    public HudListData list;
     /** Present only for {@link HudNodeKind#CHECK_BOX}. */
     public HudCheckBoxData checkBox;
     /** Present only for {@link HudNodeKind#SLIDER}. */

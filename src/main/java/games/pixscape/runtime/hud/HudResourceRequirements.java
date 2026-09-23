@@ -153,6 +153,14 @@ public final class HudResourceRequirements {
                 } else {
                     requiresSkin = true;
                 }
+            } else if (kind == HudNodeKind.LIST) {
+                requiresAtlas = true;
+                if (HudBuiltInSelectBoxStyle.isSelected(node.list.styleName)) {
+                    requiresBuiltInLabelStyle = true;
+                    requiresBuiltInSelectBoxStyle = true;
+                } else {
+                    requiresSkin = true;
+                }
             } else if (kind == HudNodeKind.CHECK_BOX) {
                 requiresAtlas = true;
                 if (HudBuiltInCheckBoxStyle.isSelected(node.checkBox.styleName)) {

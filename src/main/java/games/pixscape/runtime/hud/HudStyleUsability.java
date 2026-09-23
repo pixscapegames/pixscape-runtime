@@ -48,6 +48,13 @@ public final class HudStyleUsability {
                 && style.scrollStyle != null;
     }
 
+    public static boolean isUsableListStyle(com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle style,
+                                            boolean hasFontOverride) {
+        return style != null && (hasFontOverride || style.font != null)
+                && style.selection != null && style.fontColorSelected != null
+                && style.fontColorUnselected != null;
+    }
+
     public static boolean isUsableCheckBoxStyle(CheckBox.CheckBoxStyle style,
                                                 boolean hasFontOverride) {
         return style != null && (hasFontOverride || style.font != null)

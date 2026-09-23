@@ -76,6 +76,16 @@ public final class MaterializedHud implements Disposable {
         return (HudDialog) actor;
     }
 
+    /** O(1) average typed lookup of the native List; listeners and items belong to the live actor. */
+    @SuppressWarnings("unchecked")
+    public com.badlogic.gdx.scenes.scene2d.ui.List<String> list(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (actor == null) throw new IllegalArgumentException("HUD List ID '" + nodeId + "' does not exist.");
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.List))
+            throw new IllegalArgumentException("HUD node '" + nodeId + "' is not a List.");
+        return (com.badlogic.gdx.scenes.scene2d.ui.List<String>) actor;
+    }
+
     /** Returns a materialized explicit Table cell, or null when the cell is absent. */
     public Cell<?> cell(String cellId) {
         return cellById.get(cellId);

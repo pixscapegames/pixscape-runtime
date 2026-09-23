@@ -64,6 +64,10 @@ public interface HudVisualResources {
     /** Skin-independent style used when a SelectBox has no authored custom style reference. */
     default SelectBox.SelectBoxStyle builtInSelectBoxStyle() { return null; }
 
+    default com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle(String name) { return null; }
+
+    default com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() { return null; }
+
     default CheckBox.CheckBoxStyle checkBoxStyle(String name) { return null; }
 
     /** Skin-independent style used when a CheckBox has no authored custom style reference. */

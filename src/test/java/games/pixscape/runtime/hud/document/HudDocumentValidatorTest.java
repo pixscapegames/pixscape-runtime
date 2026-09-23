@@ -297,6 +297,33 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
+    public void listValidatesEmptyOptionalRequiredDuplicatesAndIndices() {
+        HudNode node = new HudNode("list", HudNodeKind.LIST);
+        node.list = new HudListData();
+        HudDocumentV1 document = new HudDocumentV1(node);
+        Assert.assertTrue(validator.validate(document).isValid());
+
+        node.list.items.add("Same");
+        node.list.items.add("Same");
+        node.list.selectedIndex = 1;
+        Assert.assertTrue(validator.validate(document).isValid());
+
+        node.list.selectedIndex = -1;
+        requireIssueAt(validator.validate(document), HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.list.selectedIndex");
+        node.list.required = false;
+        Assert.assertTrue(validator.validate(document).isValid());
+
+        node.list.selectedIndex = 2;
+        requireIssueAt(validator.validate(document), HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.list.selectedIndex");
+        node.list.selectedIndex = 0;
+        node.list.items.set(1, null);
+        requireIssueAt(validator.validate(document), HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                "$.root.list.items[1]");
+    }
+
+    @Test
     public void windowAcceptsExplicitCellsButRejectsGenericChildren() {
         HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
         window.table = grid("first-cell", label("first"), new HudCellConstraints());
@@ -973,6 +1000,9 @@ public class HudDocumentValidatorTest {
             case SELECT_BOX:
                 node.selectBox = new HudSelectBoxData();
                 node.selectBox.selectedIndex = -1;
+                break;
+            case LIST:
+                node.list = new HudListData();
                 break;
             case CHECK_BOX:
                 node.checkBox = new HudCheckBoxData();

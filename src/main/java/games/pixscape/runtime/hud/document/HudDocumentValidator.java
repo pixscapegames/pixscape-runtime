@@ -304,6 +304,9 @@ public final class HudDocumentValidator {
                 case SELECT_BOX:
                     validPayload = node.selectBox != null && payloadCount == 1;
                     break;
+                case LIST:
+                    validPayload = node.list != null && payloadCount == 1;
+                    break;
                 case CHECK_BOX:
                     validPayload = node.checkBox != null && payloadCount == 1;
                     break;
@@ -339,6 +342,8 @@ public final class HudDocumentValidator {
                 validateTextField(node, path);
             } else if (node.kind == HudNodeKind.SELECT_BOX && node.selectBox != null) {
                 validateSelectBox(node, path);
+            } else if (node.kind == HudNodeKind.LIST && node.list != null) {
+                validateList(node, path);
             } else if (node.kind == HudNodeKind.CHECK_BOX && node.checkBox != null) {
                 validateCheckBox(node, path);
             } else if (node.kind == HudNodeKind.SLIDER && node.slider != null) {
@@ -505,6 +510,41 @@ public final class HudDocumentValidator {
                     path + ".selectBox.fontAssetId");
             validateSelectBoxStyle(node, node.selectBox.styleName, fontAssetId != null,
                     path + ".selectBox.styleName");
+        }
+
+        private void validateList(HudNode node, String path) {
+            if (node.list.items == null) {
+                add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                        "LIST items must be an ordered non-null list.", usableId(node), path + ".list.items");
+            } else {
+                for (int index = 0; index < node.list.items.size(); index++) {
+                    if (node.list.items.get(index) == null) {
+                        add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                                "LIST items must not contain null values.", usableId(node),
+                                path + ".list.items[" + index + "]");
+                    }
+                }
+                int count = node.list.items.size();
+                if (node.list.selectedIndex < -1 || node.list.selectedIndex >= count
+                        || (node.list.required && count > 0 && node.list.selectedIndex == -1)) {
+                    add(HudValidationIssueCode.INVALID_NODE_PAYLOAD,
+                            "LIST selectedIndex must be valid, or -1 only when empty or optional.",
+                            usableId(node), path + ".list.selectedIndex");
+                }
+            }
+            Integer fontAssetId = validateFontAsset(node, node.list.fontAssetId,
+                    path + ".list.fontAssetId");
+            if (HudBuiltInSelectBoxStyle.isSelected(node.list.styleName)) {
+                if (resources != null && !resources.hasBuiltInListStyle()) {
+                    add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                            "LIST requires the built-in Default style, but it is unavailable.",
+                            usableId(node), path + ".list.styleName");
+                }
+            } else if (resources != null && !resources.hasListStyle(node.list.styleName, fontAssetId != null)) {
+                add(HudValidationIssueCode.UNKNOWN_RESOURCE_REFERENCE,
+                        "LIST Skin style '" + node.list.styleName + "' is missing or unusable.",
+                        usableId(node), path + ".list.styleName");
+            }
         }
 
         private void validateCheckBox(HudNode node, String path) {
@@ -1052,6 +1092,7 @@ public final class HudDocumentValidator {
             if (node.imageTextButton != null) count++;
             if (node.textField != null) count++;
             if (node.selectBox != null) count++;
+            if (node.list != null) count++;
             if (node.checkBox != null) count++;
             if (node.slider != null) count++;
             if (node.progressBar != null) count++;
@@ -1064,6 +1105,7 @@ public final class HudDocumentValidator {
                     || kind == HudNodeKind.TEXT_BUTTON || kind == HudNodeKind.IMAGE_BUTTON
                     || kind == HudNodeKind.IMAGE_TEXT_BUTTON
                     || kind == HudNodeKind.TEXT_FIELD || kind == HudNodeKind.SELECT_BOX
+                    || kind == HudNodeKind.LIST
                     || kind == HudNodeKind.CHECK_BOX || kind == HudNodeKind.SLIDER
                     || kind == HudNodeKind.PROGRESS_BAR;
         }

@@ -161,6 +161,16 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
         return owner.sharedBuiltInSelectBoxStyle();
     }
 
+    @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle(String name) {
+        owner.requireOpen();
+        return skin == null ? null : skin.optional(name, com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle.class);
+    }
+
+    @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() {
+        owner.requireOpen();
+        return owner.sharedBuiltInSelectBoxStyle().listStyle;
+    }
+
     @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) {
         owner.requireOpen();
         return skin == null ? null : skin.optional(name, CheckBox.CheckBoxStyle.class);
@@ -256,6 +266,12 @@ public final class HudSelectedResources implements HudResourceCatalog, HudVisual
     }
     @Override public boolean hasBuiltInSelectBoxStyle() {
         return HudStyleUsability.isUsableSelectBoxStyle(builtInSelectBoxStyle(), false);
+    }
+    @Override public boolean hasListStyle(String name, boolean hasFontOverride) {
+        return HudStyleUsability.isUsableListStyle(listStyle(name), hasFontOverride);
+    }
+    @Override public boolean hasBuiltInListStyle() {
+        return HudStyleUsability.isUsableListStyle(builtInListStyle(), false);
     }
     @Override public boolean hasCheckBoxStyle(String name) {
         return hasCheckBoxStyle(name, false);
