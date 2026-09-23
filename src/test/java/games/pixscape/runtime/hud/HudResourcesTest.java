@@ -776,7 +776,7 @@ public class HudResourcesTest {
     static HudResourceRequirements requirementsFor(String root) {
         HudDocumentValidator validator = new HudDocumentValidator();
         return HudResourceRequirements.from(validator.validate(new HudDocumentCodec().read(
-                "{\"schemaVersion\":1,\"root\":" + root + "}")).validatedDocument());
+                "{\"schemaVersion\":2,\"root\":" + root + "}")).validatedDocument());
     }
 
     private static Object defaultValue(Class<?> type) {

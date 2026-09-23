@@ -46,7 +46,13 @@ public final class HudNode {
     /** Present only for {@link HudNodeKind#DIALOG}. */
     public HudDialogData dialog;
 
-    /** Children in Scene2D insertion/draw order. Parent links are derived and never persisted. */
+    /**
+     * Explicit native Table content for TABLE, WINDOW and DIALOG. These parents must not also
+     * use {@link #children}; cell order and colspan define their native Table order.
+     */
+    public HudTableLayout table;
+
+    /** Children in Scene2D insertion/draw order for non-tabular parents. */
     public ArrayList<HudChild> children = new ArrayList<HudChild>();
 
     /** Required by libGDX Json. */

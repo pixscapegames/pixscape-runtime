@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.utils.Disposable;
@@ -29,17 +31,19 @@ import java.util.Map;
 public final class MaterializedHud implements Disposable {
     private final Actor root;
     private final Map<String, Actor> actorById;
+    private final Map<String, Cell<?>> cellById;
     private final List<Disposable> ownedResources;
     private final TooltipManager tooltipManager;
     private final Map<Actor, TextTooltip> tooltips;
     private boolean disposed;
 
-    MaterializedHud(Actor root, Map<String, Actor> actorById,
+    MaterializedHud(Actor root, Map<String, Actor> actorById, Map<String, Cell<?>> cellById,
                     List<Disposable> ownedResources, TooltipManager tooltipManager,
                     Map<Actor, TextTooltip> tooltips) {
         this.root = root;
         this.actorById = Collections.unmodifiableMap(
                 new LinkedHashMap<String, Actor>(actorById));
+        this.cellById = Collections.unmodifiableMap(new LinkedHashMap<String, Cell<?>>(cellById));
         this.ownedResources = new ArrayList<Disposable>(ownedResources);
         this.tooltipManager = tooltipManager;
         this.tooltips = new LinkedHashMap<Actor, TextTooltip>(tooltips);
@@ -61,6 +65,22 @@ public final class MaterializedHud implements Disposable {
      */
     public Actor actor(String nodeId) {
         return actorById.get(nodeId);
+    }
+
+    /** Returns a materialized explicit Table cell, or null when the cell is absent. */
+    public Cell<?> cell(String cellId) {
+        return cellById.get(cellId);
+    }
+
+    /** Native owner Table for an explicit cell, or null when the cell is absent. */
+    public Table cellTable(String cellId) {
+        Cell<?> cell = cellById.get(cellId);
+        return cell != null ? cell.getTable() : null;
+    }
+
+    /** Complete immutable index of explicit authored cells for this materialization. */
+    public Map<String, Cell<?>> cellById() {
+        return cellById;
     }
 
     /**

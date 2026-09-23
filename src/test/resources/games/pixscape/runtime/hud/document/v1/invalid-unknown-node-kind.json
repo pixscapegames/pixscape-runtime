@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "unknown-root",
     "kind": "ARBITRARY_JAVA_ACTOR",

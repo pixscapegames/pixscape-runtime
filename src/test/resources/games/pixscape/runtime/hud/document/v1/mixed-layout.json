@@ -1,14 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "managed-root",
     "kind": "TABLE",
     "actor": { "width": 1920, "height": 1080 },
-    "children": [
-      {
-        "placementKind": "CELL",
-        "cell": { "fillX": true, "fillY": true, "expandX": true, "expandY": true },
-        "node": {
+    "table": { "columns": 1, "rows": [ { "cells": [
+      { "id": "cell-free-surface", "constraints": {
+        "fillX": true, "fillY": true, "expandX": true, "expandY": true }, "content": {
           "id": "free-surface",
           "kind": "GROUP",
           "children": [
@@ -28,6 +26,6 @@
           ]
         }
       }
-    ]
+    ] } ] }
   }
 }

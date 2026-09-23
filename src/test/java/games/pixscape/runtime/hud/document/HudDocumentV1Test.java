@@ -79,16 +79,15 @@ public class HudDocumentV1Test {
     public void nativeCellConstructionDataSurvivesJsonRoundTrip() {
         HudDocumentV1 restored = roundTrip(read("managed-table.json"));
 
-        HudCellConstraints title = restored.root.children.get(0).cell;
+        HudCellConstraints title = restored.root.table.rows.get(0).cells.get(0).constraints;
         Assert.assertTrue(title.fillX);
         Assert.assertTrue(title.expandX);
-        Assert.assertTrue(title.rowAfter);
         Assert.assertEquals(HudHorizontalAlign.LEFT, title.horizontalAlign);
         Assert.assertEquals(24f, title.padLeft, 0f);
         Assert.assertNull(title.minWidth);
         Assert.assertNotNull(title.prefHeight);
 
-        HudCellConstraints actions = restored.root.children.get(1).cell;
+        HudCellConstraints actions = restored.root.table.rows.get(1).cells.get(0).constraints;
         Assert.assertEquals(320f, actions.minWidth, 0f);
         Assert.assertEquals(640f, actions.prefWidth, 0f);
         Assert.assertTrue(actions.fillY);

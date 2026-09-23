@@ -23,6 +23,4 @@ public final class HudCellConstraints {
     public boolean expandY;
     public HudHorizontalAlign horizontalAlign = HudHorizontalAlign.CENTER;
     public HudVerticalAlign verticalAlign = HudVerticalAlign.CENTER;
-    /** Starts a new native Table row after this child. */
-    public boolean rowAfter;
 }

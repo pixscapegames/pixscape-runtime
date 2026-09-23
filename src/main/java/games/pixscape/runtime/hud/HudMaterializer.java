@@ -38,6 +38,9 @@ import games.pixscape.runtime.hud.document.HudHorizontalAlign;
 import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
+import games.pixscape.runtime.hud.document.HudTableCell;
+import games.pixscape.runtime.hud.document.HudTableLayout;
+import games.pixscape.runtime.hud.document.HudTableRow;
 import games.pixscape.runtime.hud.document.HudSliderOrientation;
 import games.pixscape.runtime.hud.document.HudVerticalAlign;
 import games.pixscape.runtime.hud.document.ValidatedHudDocument;
@@ -68,6 +71,7 @@ public final class HudMaterializer {
         if (resources == null) throw new IllegalArgumentException("HudVisualResources is required.");
 
         Map<String, Actor> actorById = new LinkedHashMap<String, Actor>();
+        Map<String, Cell<?>> cellById = new LinkedHashMap<String, Cell<?>>();
         List<Disposable> ownedResources = new ArrayList<Disposable>();
         Map<Actor, TextTooltip> tooltips = new LinkedHashMap<Actor, TextTooltip>();
         TooltipManager tooltipManager = interactive ? new TooltipManager() : null;
@@ -77,13 +81,13 @@ public final class HudMaterializer {
         }
         try {
             Actor root = materializeNode(validatedDocument.document().root, resources,
-                    actorById, ownedResources, tooltipManager, tooltips, true, interactive);
+                    actorById, cellById, ownedResources, tooltipManager, tooltips, true, interactive);
             if (actorById.size() != validatedDocument.nodeIndex().size()) {
                 throw new IllegalStateException(
                         "Validated HUD document changed after validation; validate it again.");
             }
             if (interactive) bindWindowActions(validatedDocument, actorById);
-            return new MaterializedHud(root, actorById, ownedResources, tooltipManager, tooltips);
+            return new MaterializedHud(root, actorById, cellById, ownedResources, tooltipManager, tooltips);
         } catch (RuntimeException failure) {
             MaterializedHud.releaseTooltips(tooltipManager, tooltips);
             disposeOwned(ownedResources);
@@ -93,6 +97,7 @@ public final class HudMaterializer {
 
     private Actor materializeNode(
             HudNode node, HudVisualResources resources, Map<String, Actor> actorById,
+            Map<String, Cell<?>> cellById,
             List<Disposable> ownedResources, TooltipManager tooltipManager,
             Map<Actor, TextTooltip> tooltips, boolean stageRoot, boolean interactive) {
         Actor actor = createActor(node, resources, ownedResources, interactive, stageRoot);
@@ -128,9 +133,17 @@ public final class HudMaterializer {
             tooltips.put(actor, tooltip);
         }
 
+        if (isTabular(node.kind)) {
+            Table table = actor instanceof HudDialog
+                    ? ((HudDialog) actor).getContentTable() : (Table) actor;
+            addExplicitTable(table, node.table, resources, actorById, cellById, ownedResources,
+                    tooltipManager, tooltips, interactive);
+            return actor;
+        }
+
         for (int i = 0; i < node.children.size(); i++) {
             HudChild child = node.children.get(i);
-            Actor childActor = materializeNode(child.node, resources, actorById, ownedResources,
+            Actor childActor = materializeNode(child.node, resources, actorById, cellById, ownedResources,
                     tooltipManager, tooltips, false, interactive);
             if (childActor instanceof HudDialog) {
                 HudDialog dialog = (HudDialog) childActor;
@@ -157,6 +170,35 @@ public final class HudMaterializer {
             }
         }
         return actor;
+    }
+
+    private void addExplicitTable(Table table, HudTableLayout layout, HudVisualResources resources,
+                                  Map<String, Actor> actorById, Map<String, Cell<?>> cellById,
+                                  List<Disposable> ownedResources, TooltipManager tooltipManager,
+                                  Map<Actor, TextTooltip> tooltips, boolean interactive) {
+        for (int rowIndex = 0; rowIndex < layout.rows.size(); rowIndex++) {
+            HudTableRow row = layout.rows.get(rowIndex);
+            for (int cellIndex = 0; cellIndex < row.cells.size(); cellIndex++) {
+                HudTableCell source = row.cells.get(cellIndex);
+                Actor content = source.content != null
+                        ? materializeNode(source.content, resources, actorById, cellById, ownedResources,
+                        tooltipManager, tooltips, false, interactive) : null;
+                if (content instanceof HudDialog) {
+                    HudDialog dialog = (HudDialog) content;
+                    HudDialogSlot slot = new HudDialogSlot(dialog);
+                    dialog.attach(slot, false, interactive && source.content.dialog.keepWithinStage);
+                    content = slot;
+                }
+                Cell<Actor> cell = table.add(content);
+                applyCellConstraints(cell, source.constraints);
+                cell.colspan(source.colspan);
+                if (cellById.put(source.id, cell) != null) {
+                    throw new IllegalStateException("Validated HUD document contains duplicate cell ID '"
+                            + source.id + "'.");
+                }
+            }
+            table.row();
+        }
     }
 
     private Actor createActor(HudNode node, HudVisualResources resources,
@@ -491,6 +533,10 @@ public final class HudMaterializer {
 
     private static void addCell(Table table, Actor actor, HudCellConstraints constraints) {
         Cell<Actor> cell = table.add(actor);
+        applyCellConstraints(cell, constraints);
+    }
+
+    private static void applyCellConstraints(Cell<Actor> cell, HudCellConstraints constraints) {
         if (constraints.minWidth != null) cell.minWidth(constraints.minWidth);
         if (constraints.minHeight != null) cell.minHeight(constraints.minHeight);
         if (constraints.prefWidth != null) cell.prefWidth(constraints.prefWidth);
@@ -500,7 +546,10 @@ public final class HudMaterializer {
         cell.fill(constraints.fillX, constraints.fillY);
         cell.expand(constraints.expandX, constraints.expandY);
         cell.align(cellAlign(constraints.horizontalAlign, constraints.verticalAlign));
-        if (constraints.rowAfter) table.row();
+    }
+
+    private static boolean isTabular(HudNodeKind kind) {
+        return kind == HudNodeKind.TABLE || kind == HudNodeKind.WINDOW || kind == HudNodeKind.DIALOG;
     }
 
     private static int cellAlign(

@@ -1,8 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "table-root",
     "kind": "TABLE",
+    "table": { "columns": 1, "rows": [ { "cells": [
+      { "id": "empty-cell", "constraints": {} }
+    ] } ] },
     "children": [
       {
         "placementKind": "DIRECT",

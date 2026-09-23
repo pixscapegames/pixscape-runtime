@@ -173,7 +173,7 @@ public class SceneAvailabilityPlanTest {
                 + ".json\",\"skinId\":\"" + skin + "\",\"atlasId\":\"ui/legacy.atlas\"}");
         String body = "LABEL".equals(kind) ? ",\"label\":{\"text\":\"title\",\"styleName\":\"default\"}"
                 : "IMAGE".equals(kind) ? ",\"image\":{\"source\":\"REGION\",\"resourceName\":\"art\"}" : "";
-        write(root, "hud/" + id + ".json", "{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\""
+        write(root, "hud/" + id + ".json", "{\"schemaVersion\":2,\"root\":{\"id\":\"root\",\"kind\":\""
                 + kind + "\"" + body + ",\"children\":[]}}");
     }
 

@@ -354,7 +354,7 @@ public class HudScreenRuntimeTest {
         root.child("ui/a.json").writeString(
                 "{\"com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle\":{\"broken\":{}}}", false);
         root.child("hud/a.json").writeString(
-                "{\"schemaVersion\":1,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
                         + "\"label\":{\"text\":\"test\",\"styleName\":\"broken\"},\"children\":[]}}", false);
         HudResources environment = shared(root);
         try {
@@ -394,7 +394,7 @@ public class HudScreenRuntimeTest {
     @Test public void skinlessBorrowedLayoutLeavesEnvironmentOpen() throws Exception {
         FileHandle root = twoSkinProject();
         root.child("hud/layout.hudscreen").writeString("{\"schemaVersion\":1,\"skinId\":\"ui/absent.json\",\"documentId\":\"hud/layout.json\"}", false);
-        root.child("hud/layout.json").writeString("{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}", false);
+        root.child("hud/layout.json").writeString("{\"schemaVersion\":2,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}", false);
         HudResources environment = HudResources.prepareEnvironment(root, null, null, java.util.Collections.emptyList());
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
         try {
@@ -578,7 +578,7 @@ public class HudScreenRuntimeTest {
     }
 
     private static String twoSkinDocument() {
-        return "{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":["
+        return "{\"schemaVersion\":2,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":["
                 + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"label\",\"kind\":\"LABEL\",\"label\":{\"text\":\"A\",\"styleName\":\"default\"},\"children\":[]}},"
                 + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"drawable\",\"kind\":\"IMAGE\",\"image\":{\"source\":\"DRAWABLE\",\"resourceName\":\"default\"},\"children\":[]}},"
                 + "{\"placementKind\":\"DIRECT\",\"node\":{\"id\":\"region\",\"kind\":\"IMAGE\",\"image\":{\"source\":\"REGION\",\"resourceName\":\"crosshair\"},\"children\":[]}}]}}";
@@ -802,7 +802,7 @@ public class HudScreenRuntimeTest {
                         + "\"referenceHeight\":180,\"documentId\":\"hud/layout.json\"}",
                 false, "UTF-8");
         root.child("hud/layout.json").writeString(
-                "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
                         + "\"kind\":\"GROUP\",\"children\":[{"
                         + "\"placementKind\":\"DIRECT\",\"node\":{"
                         + "\"id\":\"stack\",\"kind\":\"STACK\","
@@ -891,7 +891,7 @@ public class HudScreenRuntimeTest {
     }
 
     private static String missingRegionDocument() {
-        return "{\"schemaVersion\":1,\"root\":{\"id\":\"missing\","
+        return "{\"schemaVersion\":2,\"root\":{\"id\":\"missing\","
                 + "\"kind\":\"IMAGE\",\"image\":{\"source\":\"REGION\","
                 + "\"resourceName\":\"not-in-atlas\"},\"children\":[]}}";
     }

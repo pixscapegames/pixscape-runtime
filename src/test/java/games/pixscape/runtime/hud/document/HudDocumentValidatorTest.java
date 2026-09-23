@@ -108,13 +108,13 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
-    public void tableRejectsDirectPlacement() {
+    public void tableRejectsGenericChildrenEvenWithAnExplicitGrid() {
         HudValidationResult result = validator.validate(read("invalid-table-placement.json"));
 
         HudValidationIssue issue = requireIssue(result,
-                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
-        Assert.assertEquals("direct-label", issue.nodeId());
-        Assert.assertEquals("$.root.children[0].placementKind", issue.path());
+                HudValidationIssueCode.INVALID_CHILD_COUNT);
+        Assert.assertEquals("table-root", issue.nodeId());
+        Assert.assertEquals("$.root.children", issue.path());
     }
 
     @Test
@@ -147,6 +147,7 @@ public class HudDocumentValidatorTest {
         stack.children.add(child);
 
         HudNode table = new HudNode("table", HudNodeKind.TABLE);
+        table.table = grid("table-cell", null, new HudCellConstraints());
         HudChild cell = HudChild.cell(label("cell-label"), new HudCellConstraints());
         cell.free = new HudFreePlacement();
         table.children.add(cell);
@@ -159,7 +160,7 @@ public class HudDocumentValidatorTest {
         requireIssue(validator.validate(new HudDocumentV1(stack)),
                 HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
         requireIssue(validator.validate(new HudDocumentV1(table)),
-                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
+                HudValidationIssueCode.INVALID_CHILD_COUNT);
         requireIssue(validator.validate(new HudDocumentV1(group)),
                 HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
     }
@@ -277,6 +278,10 @@ public class HudDocumentValidatorTest {
     public void everyKindAcceptsItsDocumentedPayloadContract() {
         for (HudNodeKind kind : HudNodeKind.values()) {
             HudNode node = nodeWithExpectedPayload("node-" + kind, kind);
+            if (kind == HudNodeKind.TABLE || kind == HudNodeKind.WINDOW
+                    || kind == HudNodeKind.DIALOG) {
+                node.table = grid("cell-" + kind, null, new HudCellConstraints());
+            }
             if (kind == HudNodeKind.GROUP) {
                 node.actor = new HudActorProperties();
                 node.children.add(HudChild.direct(label("group-child")));
@@ -292,18 +297,22 @@ public class HudDocumentValidatorTest {
     }
 
     @Test
-    public void windowAcceptsCellChildrenButRejectsDirectAndFreePlacements() {
+    public void windowAcceptsExplicitCellsButRejectsGenericChildren() {
         HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
-        window.children.add(HudChild.cell(label("first"), new HudCellConstraints()));
-        window.children.add(HudChild.cell(label("second"), new HudCellConstraints()));
+        window.table = grid("first-cell", label("first"), new HudCellConstraints());
+        HudTableCell second = new HudTableCell();
+        second.id = "second-cell";
+        second.content = label("second");
+        window.table.columns = 2;
+        window.table.rows.get(0).cells.add(second);
         Assert.assertTrue(validator.validate(new HudDocumentV1(window)).isValid());
 
-        window.children.set(0, HudChild.direct(label("first")));
+        window.children.add(HudChild.direct(label("extra")));
         requireIssue(validator.validate(new HudDocumentV1(window)),
-                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
-        window.children.set(0, HudChild.free(label("first"), new HudFreePlacement()));
+                HudValidationIssueCode.INVALID_CHILD_COUNT);
+        window.children.set(0, HudChild.free(label("extra"), new HudFreePlacement()));
         requireIssue(validator.validate(new HudDocumentV1(window)),
-                HudValidationIssueCode.INVALID_CHILD_PLACEMENT);
+                HudValidationIssueCode.INVALID_CHILD_COUNT);
     }
 
     @Test
@@ -322,7 +331,7 @@ public class HudDocumentValidatorTest {
     public void dialogUsesWindowStyleAndRestrictsNestedModality() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode dialog = nodeWithExpectedPayload("dialog", HudNodeKind.DIALOG);
-        dialog.children.add(HudChild.cell(label("content"), new HudCellConstraints()));
+        dialog.table = grid("content-cell", label("content"), new HudCellConstraints());
         root.children.add(HudChild.free(dialog, new HudFreePlacement()));
         Assert.assertTrue(validator.validate(new HudDocumentV1(root)).isValid());
         dialog.dialog.title = null;
@@ -358,6 +367,8 @@ public class HudDocumentValidatorTest {
         HudNode button = nodeWithExpectedPayload("button", HudNodeKind.TEXT_BUTTON);
         HudNode window = nodeWithExpectedPayload("window", HudNodeKind.WINDOW);
         HudNode dialog = nodeWithExpectedPayload("dialog", HudNodeKind.DIALOG);
+        window.table = grid("window-cell", null, new HudCellConstraints());
+        dialog.table = grid("dialog-cell", null, new HudCellConstraints());
         root.children.add(HudChild.free(button, new HudFreePlacement()));
         root.children.add(HudChild.free(window, new HudFreePlacement()));
         root.children.add(HudChild.free(dialog, new HudFreePlacement()));
@@ -466,11 +477,25 @@ public class HudDocumentValidatorTest {
         HudCellConstraints cell = new HudCellConstraints();
         cell.minWidth = -1f;
         cell.padTop = Float.NaN;
-        table.children.add(HudChild.cell(label("label"), cell));
+        table.table = grid("label-cell", label("label"), cell);
 
         HudValidationResult result = validator.validate(new HudDocumentV1(table));
 
         Assert.assertEquals(2, count(result, HudValidationIssueCode.INVALID_CELL_CONSTRAINTS));
+    }
+
+    @Test
+    public void cellAndWidgetIdsShareTheDocumentNamespace() {
+        HudNode table = new HudNode("table", HudNodeKind.TABLE);
+        table.table = grid("table", label("label"), new HudCellConstraints());
+        requireIssueAt(validator.validate(new HudDocumentV1(table)),
+                HudValidationIssueCode.DUPLICATE_NODE_ID,
+                "$.root.table.rows[0].cells[0].id");
+
+        table.table.rows.get(0).cells.get(0).id = "label";
+        requireIssueAt(validator.validate(new HudDocumentV1(table)),
+                HudValidationIssueCode.DUPLICATE_NODE_ID,
+                "$.root.table.rows[0].cells[0].content.id");
     }
 
     @Test
@@ -798,7 +823,7 @@ public class HudDocumentValidatorTest {
     @Test
     public void unsupportedProgrammaticSchemaAndMissingRootAreValidationData() {
         HudDocumentV1 unsupported = new HudDocumentV1(label("root"));
-        unsupported.schemaVersion = 2;
+        unsupported.schemaVersion = 1;
         HudDocumentV1 missingRoot = new HudDocumentV1();
 
         HudValidationResult unsupportedResult = validator.validate(unsupported);
@@ -835,6 +860,20 @@ public class HudDocumentValidatorTest {
 
     private HudDocumentV1 read(String name) {
         return codec.read(new FileHandle(FIXTURES + name));
+    }
+
+    private static HudTableLayout grid(String cellId, HudNode content,
+                                       HudCellConstraints constraints) {
+        HudTableCell cell = new HudTableCell();
+        cell.id = cellId;
+        cell.content = content;
+        cell.constraints = constraints;
+        HudTableRow row = new HudTableRow();
+        row.cells.add(cell);
+        HudTableLayout layout = new HudTableLayout();
+        layout.columns = 1;
+        layout.rows.add(row);
+        return layout;
     }
 
     private static HudNode label(String id) {

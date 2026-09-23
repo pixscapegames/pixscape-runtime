@@ -10,7 +10,7 @@ public class HudResourceRequirementsTest {
     @Test
     public void windowOnlyNodeCollectsTitleFontAndDefaultOrCustomStyle() {
         HudResourceRequirements builtin = requirements(node("root", "WINDOW",
-                "\"window\":{\"title\":\"Inventory\",\"fontAssetId\":42},\"children\":[]"));
+                "\"window\":{\"title\":\"Inventory\",\"fontAssetId\":42}," + emptyTable()));
         Assert.assertFalse(builtin.requiresSkin());
         Assert.assertTrue(builtin.requiresAtlas());
         Assert.assertTrue(builtin.requiresBuiltInLabelStyle());
@@ -18,7 +18,7 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
 
         HudResourceRequirements custom = requirements(node("root", "WINDOW",
-                "\"window\":{\"title\":\"Inventory\",\"styleName\":\"panel\"},\"children\":[]"));
+                "\"window\":{\"title\":\"Inventory\",\"styleName\":\"panel\"}," + emptyTable()));
         Assert.assertTrue(custom.requiresSkin());
         Assert.assertTrue(custom.requiresAtlas());
         Assert.assertFalse(custom.requiresBuiltInWindowStyle());
@@ -27,7 +27,7 @@ public class HudResourceRequirementsTest {
     @Test
     public void dialogCollectsTheSameWindowStyleAndFontResources() {
         String builtinDialog = node("dialog", "DIALOG",
-                "\"dialog\":{\"title\":\"Settings\",\"fontAssetId\":42},\"children\":[]");
+                "\"dialog\":{\"title\":\"Settings\",\"fontAssetId\":42}," + emptyTable());
         HudResourceRequirements builtin = requirements(node("root", "GROUP",
                 "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
                         + builtinDialog + "}]") );
@@ -36,7 +36,7 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
 
         String skinDialog = node("dialog", "DIALOG",
-                "\"dialog\":{\"title\":\"Settings\",\"styleName\":\"panel\"},\"children\":[]");
+                "\"dialog\":{\"title\":\"Settings\",\"styleName\":\"panel\"}," + emptyTable());
         HudResourceRequirements custom = requirements(node("root", "GROUP",
                 "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
                         + skinDialog + "}]") );
@@ -63,7 +63,7 @@ public class HudResourceRequirementsTest {
     @Test
     public void layoutKindsRequireNoResources() {
         assertRequirements(node("group", "GROUP", "\"children\":[]"), false, false);
-        assertRequirements(node("table", "TABLE", "\"children\":[]"), false, false);
+        assertRequirements(node("table", "TABLE", emptyTable()), false, false);
         assertRequirements(node("stack", "STACK", "\"children\":[]"), false, false);
         assertRequirements(node("container", "CONTAINER", "\"container\":{},\"children\":[{"
                 + "\"placementKind\":\"DIRECT\",\"node\":"
@@ -74,8 +74,8 @@ public class HudResourceRequirementsTest {
     public void nestedLayoutOnlyTreeRequiresNoResources() {
         String stack = node("stack", "STACK", "\"children\":[{\"placementKind\":\"DIRECT\","
                 + "\"node\":" + node("leaf-layout", "GROUP", "\"children\":[]") + "}]");
-        String table = node("table", "TABLE", "\"children\":[{\"placementKind\":\"CELL\","
-                + "\"cell\":{},\"node\":" + stack + "}]");
+        String table = node("table", "TABLE", "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{"
+                + "\"id\":\"cell-stack\",\"constraints\":{},\"content\":" + stack + "}]}]}");
         assertRequirements(node("root", "GROUP", "\"children\":[{"
                 + "\"placementKind\":\"DIRECT\",\"node\":" + table + "}]"),
                 false, false);
@@ -276,7 +276,7 @@ public class HudResourceRequirementsTest {
 
     private static HudResourceRequirements requirements(String root) {
         HudValidationResult validation = new HudDocumentValidator().validate(
-                new HudDocumentCodec().read("{\"schemaVersion\":1,\"root\":" + root + "}"));
+                new HudDocumentCodec().read("{\"schemaVersion\":2,\"root\":" + root + "}"));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
         return HudResourceRequirements.from(validation.validatedDocument());
     }
@@ -284,5 +284,9 @@ public class HudResourceRequirementsTest {
     private static String node(String id, String kind, String fields) {
         return "{\"id\":\"" + id + "\",\"kind\":\""
                 + kind + "\"," + fields + "}";
+    }
+
+    private static String emptyTable() {
+        return "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{\"id\":\"empty\",\"constraints\":{}}]}]}";
     }
 }

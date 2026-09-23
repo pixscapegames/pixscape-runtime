@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "clipped-panel",
     "kind": "CONTAINER",
@@ -11,17 +11,15 @@
         "node": {
           "id": "clipped-content",
           "kind": "TABLE",
-          "children": [
-            {
-              "placementKind": "CELL",
-              "cell": { "prefWidth": 640, "prefHeight": 320, "fillX": true, "fillY": true },
-              "node": {
+          "table": { "columns": 1, "rows": [ { "cells": [
+            { "id": "cell-clipped-label", "constraints": {
+              "prefWidth": 640, "prefHeight": 320, "fillX": true, "fillY": true }, "content": {
                 "id": "clipped-label",
                 "kind": "LABEL",
                 "label": { "text": "Content outside the Container is clipped", "styleName": "hud-body" }
               }
             }
-          ]
+          ] } ] }
         }
       }
     ]

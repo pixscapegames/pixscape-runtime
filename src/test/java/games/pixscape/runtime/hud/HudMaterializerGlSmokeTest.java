@@ -145,7 +145,7 @@ public class HudMaterializerGlSmokeTest {
                                     + "\"documentId\":\"hud/layout.json\"}",
                             false, "UTF-8");
                     root.child("hud/layout.json").writeString(
-                            "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+                            "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
                                     + "\"kind\":\"GROUP\",\"children\":[{"
                                     + "\"placementKind\":\"DIRECT\",\"node\":{"
                                     + "\"id\":\"stack\",\"kind\":\"STACK\","

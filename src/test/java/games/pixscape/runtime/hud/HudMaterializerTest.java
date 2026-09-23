@@ -55,6 +55,9 @@ import com.github.tommyettinger.textra.TypingLabel;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudCellConstraints;
+import games.pixscape.runtime.hud.document.HudTableCell;
+import games.pixscape.runtime.hud.document.HudTableLayout;
+import games.pixscape.runtime.hud.document.HudTableRow;
 import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudContainerData;
 import games.pixscape.runtime.hud.document.HudNode;
@@ -179,7 +182,7 @@ public class HudMaterializerTest {
     @Test
     public void materializesLayoutOnlyTreeWithoutSkinOrAtlas() throws Exception {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("layout-only"));
-        String serialized = "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+        String serialized = "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
                 + "\"kind\":\"GROUP\",\"children\":[{\"placementKind\":\"DIRECT\","
                 + "\"node\":{\"id\":\"stack\",\"kind\":\"STACK\","
                 + "\"children\":[]}}]}}";
@@ -292,7 +295,7 @@ public class HudMaterializerTest {
         button.textButton.text = "One line";
         HudCellConstraints constraints = new HudCellConstraints();
         constraints.prefWidth = 220f;
-        root.children.add(HudChild.cell(button, constraints));
+        root.table = table("cell-button", button, constraints);
 
         MaterializedHud first = materialize(new HudDocumentV1(root));
         Table firstTable = (Table) first.root();
@@ -303,7 +306,7 @@ public class HudMaterializerTest {
         Assert.assertEquals(220f, firstButton.getWidth(), 0.01f);
         Assert.assertEquals(firstButton.getPrefHeight(), firstHeight, 0.01f);
 
-        root.children.get(0).node.textButton.text = "One line\nSecond line";
+        root.table.rows.get(0).cells.get(0).content.textButton.text = "One line\nSecond line";
         MaterializedHud second = materialize(new HudDocumentV1(root));
         Table secondTable = (Table) second.root();
         secondTable.pack();
@@ -1120,7 +1123,7 @@ public class HudMaterializerTest {
         root.actor.width = 240f;
         root.actor.height = 160f;
         HudNode content = new HudNode("content", HudNodeKind.TABLE);
-        root.children.add(HudChild.cell(content, new HudCellConstraints()));
+        root.table = table("cell-content", content, new HudCellConstraints());
         MaterializedHud hud = materialize(new HudDocumentV1(root));
         try {
             Assert.assertTrue(hud.root() instanceof Window);
@@ -1144,6 +1147,7 @@ public class HudMaterializerTest {
         root.window = new HudWindowData();
         root.window.styleName = "custom";
         root.window.fontAssetId = 42;
+        root.table = table("cell-window", null, new HudCellConstraints());
         Window.WindowStyle shared = new Window.WindowStyle();
         BitmapFont override = selectedResources.builtInLabelStyle().font;
         HudVisualResources visual = new HudVisualResources() {
@@ -1175,6 +1179,7 @@ public class HudMaterializerTest {
         dialogNode.dialog = new HudDialogData();
         dialogNode.dialog.styleName = "custom";
         dialogNode.dialog.fontAssetId = 42;
+        dialogNode.table = table("cell-dialog", null, new HudCellConstraints());
         dialogNode.actor.width = 200f;
         dialogNode.actor.height = 140f;
         root.children.add(HudChild.free(dialogNode, new HudFreePlacement()));
@@ -1229,7 +1234,7 @@ public class HudMaterializerTest {
         closer.textButton = new HudTextButtonData();
         closer.textButton.text = "Close";
         closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
-        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        dialogNode.table = table("cell-closer", closer, new HudCellConstraints());
         HudFreePlacement dialogPlacement = new HudFreePlacement();
         dialogPlacement.offsetX = 130f;
         dialogPlacement.offsetY = 60f;
@@ -1411,7 +1416,7 @@ public class HudMaterializerTest {
         closer.textButton = new HudTextButtonData();
         closer.textButton.text = "Close";
         closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
-        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        dialogNode.table = table("cell-closer", closer, new HudCellConstraints());
         HudFreePlacement dialogPlacement = new HudFreePlacement();
         dialogPlacement.horizontalAnchor = games.pixscape.runtime.hud.document.HudHorizontalAnchor.RIGHT;
         dialogPlacement.verticalAnchor = games.pixscape.runtime.hud.document.HudVerticalAnchor.TOP;
@@ -1545,7 +1550,7 @@ public class HudMaterializerTest {
         closer.textButton = new HudTextButtonData();
         closer.textButton.text = "Close";
         closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
-        dialogNode.children.add(HudChild.cell(closer, new HudCellConstraints()));
+        dialogNode.table = table("cell-closer", closer, new HudCellConstraints());
         HudFreePlacement placement = new HudFreePlacement();
         placement.offsetX = 130f;
         placement.offsetY = 60f;
@@ -1848,7 +1853,7 @@ public class HudMaterializerTest {
         HudCellConstraints contentSize = new HudCellConstraints();
         contentSize.prefWidth = 240f;
         contentSize.prefHeight = 180f;
-        windowNode.children.add(HudChild.cell(new HudNode("content", HudNodeKind.GROUP), contentSize));
+        windowNode.table = table("cell-content", new HudNode("content", HudNodeKind.GROUP), contentSize);
         paneNode.children.add(HudChild.direct(windowNode));
         MaterializedHud hud = materialize(new HudDocumentV1(paneNode));
         Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
@@ -2087,6 +2092,7 @@ public class HudMaterializerTest {
         root.actor.width = 100f;
         root.actor.height = 100f;
         root.tooltip = new HudTooltipData();
+        root.table = table("cell-root", null, new HudCellConstraints());
         HudValidationResult validation = new HudDocumentValidator().validate(
                 new HudDocumentV1(root), selectedResources);
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
@@ -2237,6 +2243,7 @@ public class HudMaterializerTest {
     }
 
     private MaterializedHud materialize(HudDocumentV1 document) {
+        ensureExplicitTableLayouts(document.root);
         HudValidationResult result = new HudDocumentValidator().validate(document, selectedResources);
         Assert.assertTrue(result.issues().toString(), result.isValid());
         return new HudMaterializer().materialize(result.validatedDocument(), selectedResources);
@@ -2347,6 +2354,35 @@ public class HudMaterializerTest {
     private static void assertPosition(Actor actor, float x, float y) {
         Assert.assertEquals(x, actor.getX(), 0.001f);
         Assert.assertEquals(y, actor.getY(), 0.001f);
+    }
+
+    private static HudTableLayout table(String cellId, HudNode content, HudCellConstraints constraints) {
+        HudTableCell cell = new HudTableCell();
+        cell.id = cellId;
+        cell.content = content;
+        cell.constraints = constraints;
+        HudTableRow row = new HudTableRow();
+        row.cells.add(cell);
+        HudTableLayout table = new HudTableLayout();
+        table.columns = 1;
+        table.rows.add(row);
+        return table;
+    }
+
+    /** Test-fixture invariant: every native tabular actor owns an explicit empty grid. */
+    private static void ensureExplicitTableLayouts(HudNode node) {
+        if (node == null) return;
+        if ((node.kind == HudNodeKind.TABLE || node.kind == HudNodeKind.WINDOW
+                || node.kind == HudNodeKind.DIALOG) && node.table == null) {
+            node.table = table("auto-cell-" + node.id, null, new HudCellConstraints());
+        }
+        if (node.children != null) for (HudChild child : node.children) {
+            if (child != null) ensureExplicitTableLayouts(child.node);
+        }
+        if (node.table != null && node.table.rows != null) for (HudTableRow row : node.table.rows) {
+            if (row == null || row.cells == null) continue;
+            for (HudTableCell cell : row.cells) if (cell != null) ensureExplicitTableLayouts(cell.content);
+        }
     }
 
     private Object glValue(String name, Object[] args, Class<?> returnType, int[] nextHandle) {

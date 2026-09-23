@@ -1,14 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "smoke-table",
     "kind": "TABLE",
     "actor": { "width": 320, "height": 180 },
-    "children": [
-      {
-        "placementKind": "CELL",
-        "cell": { "fillX": true, "fillY": true, "expandX": true, "expandY": true },
-        "node": {
+    "table": { "columns": 1, "rows": [ { "cells": [
+      { "id": "cell-smoke-free", "constraints": {
+        "fillX": true, "fillY": true, "expandX": true, "expandY": true }, "content": {
           "id": "smoke-free",
           "kind": "GROUP",
           "children": [
@@ -67,20 +65,18 @@
                     "node": {
                       "id": "smoke-clipped-content",
                       "kind": "TABLE",
-                      "children": [
-                        {
-                          "placementKind": "CELL",
-                          "cell": {
+                      "table": { "columns": 1, "rows": [ { "cells": [
+                        { "id": "cell-smoke-clipped-label", "constraints": {
                             "prefWidth": 200, "prefHeight": 64,
                             "fillX": true, "fillY": true
                           },
-                          "node": {
+                          "content": {
                             "id": "smoke-clipped-label",
                             "kind": "LABEL",
                             "label": { "text": "AB", "styleName": "hud-body" }
                           }
                         }
-                      ]
+                      ] } ] }
                     }
                   }
                 ]
@@ -89,6 +85,6 @@
           ]
         }
       }
-    ]
+    ] } ] }
   }
 }

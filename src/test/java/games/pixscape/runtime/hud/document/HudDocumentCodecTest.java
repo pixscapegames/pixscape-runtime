@@ -17,6 +17,19 @@ public class HudDocumentCodecTest {
 
     private final HudDocumentCodec codec = new HudDocumentCodec();
 
+    private static HudTableLayout table(String cellId, HudNode content, HudCellConstraints constraints) {
+        HudTableCell cell = new HudTableCell();
+        cell.id = cellId;
+        cell.content = content;
+        cell.constraints = constraints;
+        HudTableRow row = new HudTableRow();
+        row.cells.add(cell);
+        HudTableLayout table = new HudTableLayout();
+        table.columns = 1;
+        table.rows.add(row);
+        return table;
+    }
+
     @Test
     public void initialNodeVisibilityDefaultsOnAndRoundTripsOff() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
@@ -43,7 +56,7 @@ public class HudDocumentCodecTest {
         root.window.modal = true;
         root.window.keepWithinStage = false;
         HudNode child = new HudNode("content", HudNodeKind.TABLE);
-        root.children.add(HudChild.cell(child, new HudCellConstraints()));
+        root.table = table("cell-content", child, new HudCellConstraints());
 
         HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
 
@@ -54,7 +67,7 @@ public class HudDocumentCodecTest {
         Assert.assertTrue(restored.window.resizable);
         Assert.assertTrue(restored.window.modal);
         Assert.assertFalse(restored.window.keepWithinStage);
-        Assert.assertEquals(HudPlacementKind.CELL, restored.children.get(0).placementKind);
+        Assert.assertEquals("content", restored.table.rows.get(0).cells.get(0).content.id);
     }
 
     @Test
@@ -66,8 +79,8 @@ public class HudDocumentCodecTest {
         dialog.dialog.styleName = "panel";
         dialog.dialog.fontAssetId = 42;
         dialog.visible = false;
-        dialog.children.add(HudChild.cell(new HudNode("content", HudNodeKind.TABLE),
-                new HudCellConstraints()));
+        dialog.table = table("cell-content", new HudNode("content", HudNodeKind.TABLE),
+                new HudCellConstraints());
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
         button.textButton = new HudTextButtonData();
         button.textButton.text = "Open";
@@ -82,8 +95,7 @@ public class HudDocumentCodecTest {
         Assert.assertFalse(restored.children.get(1).node.visible);
         Assert.assertEquals("panel", restored.children.get(1).node.dialog.styleName);
         Assert.assertEquals(Integer.valueOf(42), restored.children.get(1).node.dialog.fontAssetId);
-        Assert.assertEquals(HudPlacementKind.CELL,
-                restored.children.get(1).node.children.get(0).placementKind);
+        Assert.assertEquals("content", restored.children.get(1).node.table.rows.get(0).cells.get(0).content.id);
         Assert.assertEquals("dialog", restored.children.get(0).node.windowActions.get(0).targetId);
         Assert.assertEquals(HudWindowActionKind.SHOW,
                 restored.children.get(0).node.windowActions.get(0).action);
@@ -351,6 +363,12 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void schemaOneIsExplicitlyRejectedWithoutMigration() {
+        rejected("{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}",
+                HudDocumentLoadCode.UNSUPPORTED_SCHEMA_VERSION);
+    }
+
+    @Test
     public void missingSchemaHasTypedLoadFailure() {
         rejected("{\"root\":null}", HudDocumentLoadCode.MISSING_SCHEMA_VERSION);
     }
@@ -379,7 +397,7 @@ public class HudDocumentCodecTest {
 
     @Test
     public void unknownPlacementKindHasTypedDeserializationFailure() {
-        String json = "{\"schemaVersion\":1,\"root\":{"
+        String json = "{\"schemaVersion\":2,\"root\":{"
                 + "\"id\":\"root\",\"kind\":\"STACK\",\"children\":[{"
                 + "\"placementKind\":\"MAGIC\",\"node\":{"
                 + "\"id\":\"label\",\"kind\":\"LABEL\","

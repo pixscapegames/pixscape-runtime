@@ -790,7 +790,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         fixture.projectDir.child("ui/game.json").writeString(
                 "{\"LabelStyle\":{\"broken\":{}}}", false);
         fixture.projectDir.child("hud/a.json").writeString(
-                "{\"schemaVersion\":1,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
                         + "\"label\":{\"text\":\"HUD\",\"styleName\":\"broken\"},\"children\":[]}}", false);
         try {
             engine.loadScene("A");
@@ -823,7 +823,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         for (String id : new String[]{"a", "b"}) {
             writeHudScreen(fixture.projectDir, id, "hud/" + id + ".json");
             fixture.projectDir.child("hud/" + id + ".json").writeString(
-                    "{\"schemaVersion\":1,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                    "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
                             + "\"label\":{\"text\":\"HUD\",\"styleName\":\"hud-title\"},\"children\":[]}}", false);
         }
         copySceneHud(fixture.projectDir, "a"); copySceneHud(fixture.projectDir, "d");
@@ -860,7 +860,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     private static String hudDocument() {
-        return "{\"schemaVersion\":1,\"root\":{\"id\":\"root\","
+        return "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
                 + "\"kind\":\"GROUP\",\"children\":[]}}";
     }
 

@@ -60,6 +60,7 @@ public final class HudDocumentValidator {
         private final List<HudValidationIssue> issues = new ArrayList<HudValidationIssue>();
         private final Map<String, HudNode> nodeIndex = new LinkedHashMap<String, HudNode>();
         private final Map<String, String> nodePaths = new LinkedHashMap<String, String>();
+        private final Set<String> cellIds = new HashSet<String>();
         private final ObjectSet<HudNode> visiting = new ObjectSet<HudNode>();
         private final ObjectSet<HudNode> visited = new ObjectSet<HudNode>();
         private HudNode root;
@@ -100,13 +101,20 @@ public final class HudDocumentValidator {
             validateTooltip(node, path);
             validateDimensions(node, path);
             validateChildCount(node, path);
+            if (!isTabular(node.kind) && node.table != null) {
+                add(HudValidationIssueCode.INVALID_HIERARCHY,
+                        "Only TABLE, WINDOW, and DIALOG may declare explicit table data.",
+                        usableId(node), path + ".table");
+            }
             if (node == root && node.kind == HudNodeKind.DIALOG) {
                 add(HudValidationIssueCode.INVALID_HIERARCHY,
                         "DIALOG cannot be the HUD root; it requires an authored host and opener.",
                         usableId(node), path);
             }
 
-            if (node.children != null) {
+            if (isTabular(node.kind)) {
+                validateTableLayout(node, path);
+            } else if (node.children != null) {
                 for (int i = 0; i < node.children.size(); i++) {
                     HudChild child = node.children.get(i);
                     String childPath = path + ".children[" + i + "]";
@@ -124,6 +132,68 @@ public final class HudDocumentValidator {
             visiting.remove(node);
         }
 
+        private void validateTableLayout(HudNode node, String path) {
+            if (node.children == null || !node.children.isEmpty()) {
+                add(HudValidationIssueCode.INVALID_CHILD_COUNT,
+                        "A tabular HUD parent must use explicit table data and no generic children.",
+                        usableId(node), path + ".children");
+            }
+            HudTableLayout table = node.table;
+            if (table == null || table.rows == null || table.columns < 1 || table.rows.isEmpty()) {
+                add(HudValidationIssueCode.INVALID_CHILD_COUNT,
+                        "A tabular HUD parent requires at least one explicit row and column.",
+                        usableId(node), path + ".table");
+                return;
+            }
+            for (int rowIndex = 0; rowIndex < table.rows.size(); rowIndex++) {
+                HudTableRow row = table.rows.get(rowIndex);
+                String rowPath = path + ".table.rows[" + rowIndex + "]";
+                if (row == null || row.cells == null || row.cells.isEmpty()) {
+                    add(HudValidationIssueCode.INVALID_CHILD_COUNT,
+                            "Every explicit table row requires cells.", usableId(node), rowPath);
+                    continue;
+                }
+                int coveredColumns = 0;
+                for (int cellIndex = 0; cellIndex < row.cells.size(); cellIndex++) {
+                    HudTableCell cell = row.cells.get(cellIndex);
+                    String cellPath = rowPath + ".cells[" + cellIndex + "]";
+                    if (cell == null) {
+                        add(HudValidationIssueCode.INVALID_HIERARCHY,
+                                "A table row must not contain a null cell.", usableId(node), cellPath);
+                        continue;
+                    }
+                    if (!isNonBlank(cell.id)) {
+                        add(HudValidationIssueCode.MISSING_NODE_ID,
+                                "Every HUD table cell requires a nonblank document-wide ID.",
+                                usableId(node), cellPath + ".id");
+                    } else if (nodeIndex.containsKey(cell.id) || !cellIds.add(cell.id)) {
+                        add(HudValidationIssueCode.DUPLICATE_NODE_ID,
+                                "HUD table cell ID '" + cell.id + "' is duplicated document-wide.",
+                                cell.id, cellPath + ".id");
+                    }
+                    if (cell.colspan < 1) {
+                        add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
+                                "Cell colspan must be strictly positive.", cell.id, cellPath + ".colspan");
+                    } else {
+                        coveredColumns += cell.colspan;
+                    }
+                    if (cell.constraints == null) {
+                        add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
+                                "Every explicit table cell requires constraints.", cell.id,
+                                cellPath + ".constraints");
+                    } else {
+                        validateCellConstraints(cell.constraints, cell.id, cellPath + ".constraints");
+                    }
+                    if (cell.content != null) visit(cell.content, cellPath + ".content");
+                }
+                if (coveredColumns != table.columns) {
+                    add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
+                            "Explicit table row covers " + coveredColumns + " columns; expected "
+                                    + table.columns + ".", usableId(node), rowPath);
+                }
+            }
+        }
+
         private void validateIdentity(HudNode node, String path) {
             if (!isNonBlank(node.id)) {
                 add(HudValidationIssueCode.MISSING_NODE_ID,
@@ -132,7 +202,7 @@ public final class HudDocumentValidator {
                 return;
             }
             HudNode previous = nodeIndex.get(node.id);
-            if (previous != null) {
+            if (previous != null || cellIds.contains(node.id)) {
                 add(HudValidationIssueCode.DUPLICATE_NODE_ID,
                         "HUD node ID '" + node.id + "' is duplicated document-wide.",
                         node.id, path + ".id");
@@ -739,6 +809,7 @@ public final class HudDocumentValidator {
         }
 
         private void validateChildCount(HudNode node, String path) {
+            if (isTabular(node.kind)) return;
             if (node.children == null) {
                 add(HudValidationIssueCode.INVALID_CHILD_COUNT,
                         "HUD node children must be an ordered non-null list.",
@@ -813,20 +884,23 @@ public final class HudDocumentValidator {
         }
 
         private void validateCell(HudChild child, String path) {
-            HudCellConstraints cell = child.cell;
+            validateCellConstraints(child.cell, childId(child), path);
+        }
+
+        private void validateCellConstraints(HudCellConstraints cell, String ownerId, String path) {
             if (cell.horizontalAlign == null || cell.verticalAlign == null) {
                 add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
                         "Cell horizontal and vertical alignment are required.",
-                        childId(child), path);
+                        ownerId, path);
             }
-            cellNumber(cell.minWidth, "minWidth", child, path + ".minWidth");
-            cellNumber(cell.minHeight, "minHeight", child, path + ".minHeight");
-            cellNumber(cell.prefWidth, "prefWidth", child, path + ".prefWidth");
-            cellNumber(cell.prefHeight, "prefHeight", child, path + ".prefHeight");
-            cellNumber(cell.padTop, "padTop", child, path + ".padTop");
-            cellNumber(cell.padRight, "padRight", child, path + ".padRight");
-            cellNumber(cell.padBottom, "padBottom", child, path + ".padBottom");
-            cellNumber(cell.padLeft, "padLeft", child, path + ".padLeft");
+            cellNumber(cell.minWidth, "minWidth", ownerId, path + ".minWidth");
+            cellNumber(cell.minHeight, "minHeight", ownerId, path + ".minHeight");
+            cellNumber(cell.prefWidth, "prefWidth", ownerId, path + ".prefWidth");
+            cellNumber(cell.prefHeight, "prefHeight", ownerId, path + ".prefHeight");
+            cellNumber(cell.padTop, "padTop", ownerId, path + ".padTop");
+            cellNumber(cell.padRight, "padRight", ownerId, path + ".padRight");
+            cellNumber(cell.padBottom, "padBottom", ownerId, path + ".padBottom");
+            cellNumber(cell.padLeft, "padLeft", ownerId, path + ".padLeft");
         }
 
         private void validateFree(HudChild child, String path) {
@@ -844,12 +918,12 @@ public final class HudDocumentValidator {
                     HudValidationIssueCode.INVALID_FREE_PLACEMENT);
         }
 
-        private void cellNumber(Float value, String field, HudChild child, String path) {
+        private void cellNumber(Float value, String field, String ownerId, String path) {
             if (value == null) return;
             if (!isFinite(value) || value < 0f) {
                 add(HudValidationIssueCode.INVALID_CELL_CONSTRAINTS,
                         "Cell " + field + " must be finite and nonnegative.",
-                        childId(child), path);
+                        ownerId, path);
             }
         }
 
@@ -954,9 +1028,7 @@ public final class HudDocumentValidator {
         }
 
         private static boolean parentAccepts(HudNodeKind parent, HudPlacementKind placement) {
-            if (parent == HudNodeKind.TABLE || parent == HudNodeKind.WINDOW
-                    || parent == HudNodeKind.DIALOG)
-                return placement == HudPlacementKind.CELL;
+            if (isTabular(parent)) return false;
             if (parent == HudNodeKind.STACK || parent == HudNodeKind.CONTAINER
                     || parent == HudNodeKind.SCROLL_PANE) {
                 return placement == HudPlacementKind.DIRECT;
@@ -966,6 +1038,11 @@ public final class HudDocumentValidator {
                         || placement == HudPlacementKind.FREE;
             }
             return false;
+        }
+
+        private static boolean isTabular(HudNodeKind kind) {
+            return kind == HudNodeKind.TABLE || kind == HudNodeKind.WINDOW
+                    || kind == HudNodeKind.DIALOG;
         }
 
         private static String parentKind(HudNode parent) {

@@ -1,59 +1,48 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": {
     "id": "screen",
     "kind": "TABLE",
     "actor": { "width": 1920, "height": 1080 },
-    "children": [
-      {
-        "placementKind": "CELL",
-        "cell": {
-          "prefHeight": 96,
-          "padTop": 16, "padRight": 24, "padBottom": 16, "padLeft": 24,
-          "fillX": true, "expandX": true,
-          "horizontalAlign": "LEFT", "verticalAlign": "CENTER",
-          "rowAfter": true
-        },
-        "node": {
-          "id": "title",
-          "kind": "LABEL",
-          "label": { "text": "Mission", "styleName": "hud-title" }
-        }
-      },
-      {
-        "placementKind": "CELL",
-        "cell": {
-          "minWidth": 320, "minHeight": 120,
-          "prefWidth": 640, "prefHeight": 240,
-          "padTop": 12, "padRight": 24, "padBottom": 24, "padLeft": 24,
-          "fillX": true, "fillY": true, "expandX": true, "expandY": true,
-          "rowAfter": true
-        },
-        "node": {
-          "id": "actions",
-          "kind": "TABLE",
-          "children": [
-            {
-              "placementKind": "CELL",
-              "cell": { "prefWidth": 180, "padRight": 8, "horizontalAlign": "RIGHT" },
-              "node": {
-                "id": "status",
-                "kind": "LABEL",
+    "table": {
+      "columns": 1,
+      "rows": [
+        { "cells": [
+          { "id": "cell-title", "constraints": {
+            "prefHeight": 96,
+            "padTop": 16, "padRight": 24, "padBottom": 16, "padLeft": 24,
+            "fillX": true, "expandX": true,
+            "horizontalAlign": "LEFT", "verticalAlign": "CENTER"
+          }, "content": {
+            "id": "title", "kind": "LABEL",
+            "label": { "text": "Mission", "styleName": "hud-title" }
+          } }
+        ] },
+        { "cells": [
+          { "id": "cell-actions", "constraints": {
+            "minWidth": 320, "minHeight": 120,
+            "prefWidth": 640, "prefHeight": 240,
+            "padTop": 12, "padRight": 24, "padBottom": 24, "padLeft": 24,
+            "fillX": true, "fillY": true, "expandX": true, "expandY": true
+          }, "content": {
+            "id": "actions", "kind": "TABLE",
+            "table": { "columns": 2, "rows": [ { "cells": [
+              { "id": "cell-status", "constraints": {
+                "prefWidth": 180, "padRight": 8, "horizontalAlign": "RIGHT"
+              }, "content": {
+                "id": "status", "kind": "LABEL",
                 "label": { "text": "Ready", "styleName": "hud-body" }
-              }
-            },
-            {
-              "placementKind": "CELL",
-              "cell": { "minWidth": 140, "prefWidth": 180, "fillX": true },
-              "node": {
-                "id": "continue",
-                "kind": "TEXT_BUTTON",
+              } },
+              { "id": "cell-continue", "constraints": {
+                "minWidth": 140, "prefWidth": 180, "fillX": true
+              }, "content": {
+                "id": "continue", "kind": "TEXT_BUTTON",
                 "textButton": { "text": "Continue", "styleName": "hud-primary" }
-              }
-            }
-          ]
-        }
-      }
-    ]
+              } }
+            ] } ] }
+          } }
+        ] }
+      ]
+    }
   }
 }

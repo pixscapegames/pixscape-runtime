@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 
-/** Deterministic, GL-free JSON reader/writer for the version-1 HUD construction document. */
+/** Deterministic, GL-free JSON reader/writer for the strict version-2 HUD document. */
 public final class HudDocumentCodec {
     private static final String MEMORY_SOURCE = "<memory>";
 
