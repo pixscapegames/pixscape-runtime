@@ -218,7 +218,9 @@ public final class HudMaterializer {
             case GROUP:
                 return new HudFreeGroup(node.actor.width, node.actor.height);
             case TABLE:
-                return new Table();
+                Table table = new Table();
+                table.setFillParent(node.fillParent);
+                return table;
             case STACK:
                 return new Stack();
             case CONTAINER:
@@ -575,6 +577,8 @@ public final class HudMaterializer {
         if (constraints.minHeight != null) cell.minHeight(constraints.minHeight);
         if (constraints.prefWidth != null) cell.prefWidth(constraints.prefWidth);
         if (constraints.prefHeight != null) cell.prefHeight(constraints.prefHeight);
+        if (constraints.maxWidth != null) cell.maxWidth(constraints.maxWidth);
+        if (constraints.maxHeight != null) cell.maxHeight(constraints.maxHeight);
         cell.pad(constraints.padTop, constraints.padLeft,
                 constraints.padBottom, constraints.padRight);
         cell.fill(constraints.fillX, constraints.fillY);

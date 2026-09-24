@@ -13,6 +13,10 @@ public final class HudCellConstraints {
     public Float prefWidth;
     /** {@code null} leaves the native Scene2D preferred height unchanged. */
     public Float prefHeight;
+    /** {@code null} leaves the native Scene2D maximum width unchanged. */
+    public Float maxWidth;
+    /** {@code null} leaves the native Scene2D maximum height unchanged. */
+    public Float maxHeight;
     public float padTop;
     public float padRight;
     public float padBottom;

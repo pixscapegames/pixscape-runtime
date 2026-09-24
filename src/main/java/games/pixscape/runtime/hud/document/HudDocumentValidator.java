@@ -100,6 +100,11 @@ public final class HudDocumentValidator {
             validateKindAndPayload(node, path);
             validateTooltip(node, path);
             validateDimensions(node, path);
+            if (node.fillParent && (node.kind != HudNodeKind.TABLE || node == root)) {
+                add(HudValidationIssueCode.INVALID_HIERARCHY,
+                        "Only a direct child TABLE may fill the HUD root.", usableId(node),
+                        path + ".fillParent");
+            }
             validateChildCount(node, path);
             if (!isTabular(node.kind) && node.table != null) {
                 add(HudValidationIssueCode.INVALID_HIERARCHY,
@@ -910,6 +915,13 @@ public final class HudDocumentValidator {
         }
 
         private void validatePlacement(HudNode parent, HudChild child, String path) {
+            if (child.node != null && child.node.fillParent
+                    && (parent != root || parent.kind != HudNodeKind.GROUP
+                    || child.placementKind != HudPlacementKind.DIRECT)) {
+                add(HudValidationIssueCode.INVALID_HIERARCHY,
+                        "A fill-parent TABLE must be a direct child of the root GROUP.",
+                        childId(child), path + ".node.fillParent");
+            }
             if (child.node != null && child.node.kind == HudNodeKind.DIALOG
                     && child.node.dialog != null && child.node.dialog.modal
                     && (parent != root || parent.kind != HudNodeKind.GROUP)) {
@@ -978,6 +990,8 @@ public final class HudDocumentValidator {
             cellNumber(cell.minHeight, "minHeight", ownerId, path + ".minHeight");
             cellNumber(cell.prefWidth, "prefWidth", ownerId, path + ".prefWidth");
             cellNumber(cell.prefHeight, "prefHeight", ownerId, path + ".prefHeight");
+            cellNumber(cell.maxWidth, "maxWidth", ownerId, path + ".maxWidth");
+            cellNumber(cell.maxHeight, "maxHeight", ownerId, path + ".maxHeight");
             cellNumber(cell.padTop, "padTop", ownerId, path + ".padTop");
             cellNumber(cell.padRight, "padRight", ownerId, path + ".padRight");
             cellNumber(cell.padBottom, "padBottom", ownerId, path + ".padBottom");

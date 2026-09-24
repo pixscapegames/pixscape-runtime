@@ -6,15 +6,13 @@ import org.junit.Test;
 
 public class HudScreenAssetTest {
     @Test
-    public void defaultsUseSupportedSchemaAndReferenceResolution() {
+    public void defaultsUseSupportedSchemaWithoutResolution() {
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = "hud/default.json";
 
         asset.validate();
 
         Assert.assertEquals(HudScreenAsset.CURRENT_SCHEMA_VERSION, asset.schemaVersion);
-        Assert.assertEquals(1920, asset.referenceWidth);
-        Assert.assertEquals(1080, asset.referenceHeight);
         Assert.assertNull(asset.skinId);
         Assert.assertNull(asset.atlasId);
         Assert.assertEquals("hud/default.json", asset.documentId);
@@ -22,11 +20,9 @@ public class HudScreenAssetTest {
     }
 
     @Test
-    public void customPositiveReferenceResolutionRoundTrips() {
+    public void descriptorRoundTripsWithoutResolution() {
         HudScreenAsset source = new HudScreenAsset();
         source.documentId = "hud/portrait.json";
-        source.referenceWidth = 1080;
-        source.referenceHeight = 1920;
 
         Json json = new Json();
         json.setUsePrototypes(false);
@@ -34,8 +30,8 @@ public class HudScreenAssetTest {
                 HudScreenAsset.class, json.toJson(source));
         restored.validate();
 
-        Assert.assertEquals(1080, restored.referenceWidth);
-        Assert.assertEquals(1920, restored.referenceHeight);
+        Assert.assertEquals("hud/portrait.json", restored.documentId);
+        Assert.assertFalse(json.toJson(restored).contains("referenceWidth"));
     }
 
     @Test
@@ -56,19 +52,12 @@ public class HudScreenAssetTest {
     }
 
     @Test
-    public void invalidSchemaAndReferenceDimensionsAreRejected() {
+    public void invalidSchemaIsRejected() {
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = "hud/invalid.json";
         asset.schemaVersion = 2;
         rejected(asset, "schemaVersion 1");
 
-        asset.schemaVersion = HudScreenAsset.CURRENT_SCHEMA_VERSION;
-        asset.referenceWidth = 0;
-        rejected(asset, "referenceWidth");
-
-        asset.referenceWidth = 1920;
-        asset.referenceHeight = -1;
-        rejected(asset, "referenceHeight");
     }
 
     @Test

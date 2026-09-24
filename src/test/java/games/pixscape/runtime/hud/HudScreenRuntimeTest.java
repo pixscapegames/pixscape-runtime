@@ -603,9 +603,9 @@ public class HudScreenRuntimeTest {
             Assert.assertEquals(0.25f, counter.elapsed, 0f);
             Assert.assertTrue(drawCalls > 0);
             Assert.assertSame(materialized, active.materializedHud());
-            Assert.assertEquals(320f, active.session().viewport().getWorldWidth(), 0f);
-            Assert.assertEquals(180f, active.session().viewport().getWorldHeight(), 0f);
-            Assert.assertEquals(232f, materialized.actor("smoke-button").getX(), 0.01f);
+            Assert.assertEquals(640f, active.session().viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(360f, active.session().viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(552f, materialized.actor("smoke-button").getX(), 0.01f);
         } finally {
             runtime.dispose();
         }
@@ -798,8 +798,7 @@ public class HudScreenRuntimeTest {
         FileHandle root = new FileHandle(temporaryFolder.newFolder("layout-only-project"));
         root.child("hud").mkdirs();
         root.child("hud/layout.hudscreen").writeString(
-                "{\"schemaVersion\":1,\"referenceWidth\":320,"
-                        + "\"referenceHeight\":180,\"documentId\":\"hud/layout.json\"}",
+                "{\"schemaVersion\":1,\"documentId\":\"hud/layout.json\"}",
                 false, "UTF-8");
         root.child("hud/layout.json").writeString(
                 "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
@@ -825,6 +824,89 @@ public class HudScreenRuntimeTest {
             runtime.dispose();
         }
         Assert.assertTrue(active.isDisposed());
+    }
+
+    @Test
+    public void activeScreenFollowsSuccessiveLogicalResizesWithOpenDialog() throws Exception {
+        FileHandle root = project();
+        FileHandle skinFile = root.child("ui/game.json");
+        String skin = skinFile.readString("UTF-8");
+        skinFile.writeString(skin.substring(0, skin.length() - 1)
+                + ",\"com.badlogic.gdx.scenes.scene2d.ui.Window$WindowStyle\":{"
+                + "\"hud-window\":{\"titleFont\":\"default-font\","
+                + "\"background\":\"inventory-panel\"}}}", false, "UTF-8");
+        writeScreen(root, "resize-anchors", "hud/resize-anchors.json");
+        copyFixture(root.child("hud/resize-anchors.json"), "resize-anchors.json");
+        HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
+        try {
+            ActiveHudScreen active = runtime.show("resize-anchors");
+            HudSession session = active.session();
+            HudDialog dialog = active.materializedHud().dialog("center-dialog");
+
+            assertAnchoredScreen(runtime, active, 1280, 720);
+            dialog.open();
+            Assert.assertTrue(dialog.isOpen());
+            Assert.assertSame(session.stage().getRoot(), dialog.getParent());
+
+            assertAnchoredScreen(runtime, active, 1920, 1080);
+            assertAnchoredScreen(runtime, active, 960, 540);
+            dialog.close();
+            Assert.assertFalse(dialog.isOpen());
+            assertAnchoredScreen(runtime, active, 1440, 900);
+            dialog.open();
+            Assert.assertTrue(dialog.isOpen());
+            Assert.assertEquals(620f, dialog.getX(), .001f);
+            Assert.assertEquals(390f, dialog.getY(), .001f);
+        } finally {
+            runtime.dispose();
+        }
+    }
+
+    private void assertAnchoredScreen(HudScreenRuntime runtime, ActiveHudScreen active,
+                                      int width, int height) {
+        graphicsWidth = width;
+        graphicsHeight = height;
+        runtime.resize(width, height);
+        HudSession session = active.session();
+        MaterializedHud hud = active.materializedHud();
+        Assert.assertEquals(width, session.viewport().getWorldWidth(), 0f);
+        Assert.assertEquals(height, session.viewport().getWorldHeight(), 0f);
+        Assert.assertEquals(width, hud.root().getWidth(), 0f);
+        Assert.assertEquals(height, hud.root().getHeight(), 0f);
+
+        Actor topLeft = hud.actor("top-left");
+        Actor topRight = hud.actor("top-right");
+        Actor bottomLeft = hud.actor("bottom-left");
+        Actor bottomRight = hud.actor("bottom-right");
+        HudDialog dialog = hud.dialog("center-dialog");
+        Actor dialogSlot = ((Group) hud.root()).getChildren().get(4);
+        Assert.assertTrue(dialogSlot instanceof HudDialogSlot);
+        Assert.assertEquals(200f, dialog.getWidth(), .001f);
+        Assert.assertEquals(120f, dialog.getHeight(), .001f);
+        Assert.assertEquals(200f, dialogSlot.getWidth(), .001f);
+        Assert.assertEquals(120f, dialogSlot.getHeight(), .001f);
+        Assert.assertEquals(20f, topLeft.getX(), .001f);
+        Assert.assertEquals(height - 20f - topLeft.getHeight(), topLeft.getY(), .001f);
+        Assert.assertEquals(width - 20f - topRight.getWidth(), topRight.getX(), .001f);
+        Assert.assertEquals(height - 20f - topRight.getHeight(), topRight.getY(), .001f);
+        Assert.assertEquals(20f, bottomLeft.getX(), .001f);
+        Assert.assertEquals(20f, bottomLeft.getY(), .001f);
+        Assert.assertEquals(width - 20f - bottomRight.getWidth(), bottomRight.getX(), .001f);
+        Assert.assertEquals(20f, bottomRight.getY(), .001f);
+        Assert.assertEquals((width - 200f) / 2f, dialogSlot.getX(), .001f);
+        Assert.assertEquals((height - 120f) / 2f, dialogSlot.getY(), .001f);
+        if (dialog.isOpen()) {
+            Assert.assertEquals(dialogSlot.getX(), dialog.getX(), .001f);
+            Assert.assertEquals(dialogSlot.getY(), dialog.getY(), .001f);
+        }
+
+        Vector2 pointer = session.stage().screenToStageCoordinates(
+                new Vector2(width - 20f - bottomRight.getWidth() / 2f,
+                        height - 20f - bottomRight.getHeight() / 2f));
+        Assert.assertEquals(bottomRight.getX() + bottomRight.getWidth() / 2f,
+                pointer.x, .001f);
+        Assert.assertEquals(bottomRight.getY() + bottomRight.getHeight() / 2f,
+                pointer.y, .001f);
     }
 
     @Test
@@ -876,7 +958,7 @@ public class HudScreenRuntimeTest {
 
     private static void writeScreen(FileHandle root, String name, String documentId) {
         root.child("hud/" + name + HudScreenAsset.EXTENSION).writeString(
-                "{\"schemaVersion\":1,\"referenceWidth\":320,\"referenceHeight\":180,"
+                "{\"schemaVersion\":1,"
                         + "\"documentId\":\"" + documentId + "\","
                         + "\"skinId\":\"ui/game.json\","
                         + "\"atlasId\":\"ui/game.atlas\","

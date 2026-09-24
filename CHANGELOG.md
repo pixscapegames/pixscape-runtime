@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Breaking changes
+
+* HUD screen metadata no longer accepts `referenceWidth` or `referenceHeight`; development HUD assets containing them must be recreated in the current format.
+
+### Changed
+
+* HUD sessions now size their technical root to the available logical viewport without scaling the whole HUD on resize.
+* Direct root Tables can fill the HUD surface, and native cells support maximum width and height constraints.
+* Removed fixed reference dimensions from HUD screen assets; centered anchored Dialogs follow resize while open.
+
 
 ## [0.2.2]
 

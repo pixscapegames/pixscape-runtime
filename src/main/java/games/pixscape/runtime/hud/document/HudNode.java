@@ -8,6 +8,8 @@ public final class HudNode {
     public String id;
     public HudNodeKind kind;
     public HudActorProperties actor = new HudActorProperties();
+    /** A direct child TABLE of the root GROUP may fill that Group using Table.setFillParent. */
+    public boolean fillParent;
     /** Initial Scene2D visibility; runtime Actor visibility remains independently mutable. */
     public boolean visible = true;
     /** Optional TextTooltip behavior; independent of the node's widget payload. */

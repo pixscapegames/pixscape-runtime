@@ -852,8 +852,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
     private static void writeHudScreen(FileHandle project, String name, String documentId) {
         project.child("hud/" + name + ".hudscreen").writeString(
-                "{\"schemaVersion\":1,\"referenceWidth\":320,"
-                        + "\"referenceHeight\":180,\"documentId\":\"" + documentId + "\","
+                "{\"schemaVersion\":1,\"documentId\":\"" + documentId + "\","
                         + "\"skinId\":\"ui/game.json\",\"atlasId\":\"ui/game.atlas\","
                         + "\"textureProfileId\":\"" + HudTextureProfile.DEFAULT_ID + "\"}",
                 false, "UTF-8");

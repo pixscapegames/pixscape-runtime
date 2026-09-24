@@ -80,6 +80,9 @@ import games.pixscape.runtime.hud.document.HudWindowData;
 import games.pixscape.runtime.hud.document.HudDialogData;
 import games.pixscape.runtime.hud.document.HudDialogResultButton;
 import games.pixscape.runtime.hud.document.HudFreePlacement;
+import games.pixscape.runtime.hud.document.HudHorizontalAlign;
+import games.pixscape.runtime.hud.document.HudHorizontalAnchor;
+import games.pixscape.runtime.hud.document.HudVerticalAnchor;
 import games.pixscape.runtime.hud.document.HudTextButtonData;
 import games.pixscape.runtime.hud.document.HudWindowAction;
 import games.pixscape.runtime.hud.document.HudWindowActionKind;
@@ -2237,6 +2240,111 @@ public class HudMaterializerTest {
             Assert.assertTrue(rebuilt.actor("child").isVisible());
         } finally {
             rebuilt.dispose();
+        }
+    }
+
+    @Test
+    public void directTableFillsResizedRootAndUsesNativeCellAlignmentAndFill() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode tableNode = new HudNode("layout", HudNodeKind.TABLE);
+        tableNode.fillParent = true;
+        HudTableLayout grid = new HudTableLayout();
+        grid.columns = 3;
+        HudTableRow row = new HudTableRow();
+        String[] ids = {"left", "middle", "right"};
+        for (int index = 0; index < ids.length; index++) {
+            HudNode group = new HudNode(ids[index], HudNodeKind.GROUP);
+            group.actor.width = 20f;
+            group.actor.height = 20f;
+            HudTableCell cell = new HudTableCell();
+            cell.id = "cell-" + ids[index];
+            cell.content = group;
+            cell.constraints.expandX = true;
+            cell.constraints.prefWidth = 20f;
+            cell.constraints.prefHeight = 20f;
+            cell.constraints.horizontalAlign = index == 0
+                    ? HudHorizontalAlign.LEFT : index == 2
+                    ? HudHorizontalAlign.RIGHT : HudHorizontalAlign.CENTER;
+            if (index == 1) {
+                cell.constraints.fillX = true;
+                cell.constraints.maxWidth = 100f;
+            }
+            row.cells.add(cell);
+        }
+        grid.rows.add(row);
+        tableNode.table = grid;
+        root.children.add(HudChild.direct(tableNode));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(600, 300);
+            stage.getViewport().update(600, 300, true);
+            hud.root().setSize(600f, 300f);
+            stage.addActor(hud.root());
+            stage.draw();
+            Table tableActor = (Table) hud.actor("layout");
+            Assert.assertEquals(600f, tableActor.getWidth(), .001f);
+            Assert.assertEquals(300f, tableActor.getHeight(), .001f);
+            Assert.assertEquals(0f, hud.actor("left").getX(), .001f);
+            Assert.assertEquals(20f, hud.actor("right").getWidth(), .001f);
+            Assert.assertEquals(100f, hud.actor("middle").getWidth(), .001f);
+            Assert.assertTrue(hud.actor("left").getX() < hud.actor("middle").getX());
+            Assert.assertTrue(hud.actor("middle").getX() < hud.actor("right").getX());
+
+            hud.root().setSize(300f, 200f);
+            ((Layout) hud.root()).validate();
+            stage.draw();
+            Assert.assertEquals(300f, tableActor.getWidth(), .001f);
+            Assert.assertEquals(200f, tableActor.getHeight(), .001f);
+            Assert.assertEquals(20f, hud.actor("right").getWidth(), .001f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
+        }
+    }
+
+    @Test
+    public void centeredModalDialogFollowsRootResizeWhileOpenAndAfterReopen() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialogNode.dialog = new HudDialogData();
+        dialogNode.actor.width = 200f;
+        dialogNode.actor.height = 120f;
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.horizontalAnchor = HudHorizontalAnchor.CENTER;
+        placement.verticalAnchor = HudVerticalAnchor.CENTER;
+        placement.pivotX = .5f;
+        placement.pivotY = .5f;
+        root.children.add(HudChild.free(dialogNode, placement));
+        MaterializedHud hud = materialize(new HudDocumentV1(root));
+        Stage stage = new Stage(new ScreenViewport(), inertDrawBatch());
+        Graphics graphics = Gdx.graphics;
+        try {
+            Gdx.graphics = logicalGraphics(800, 600);
+            stage.getViewport().update(800, 600, true);
+            hud.root().setSize(600f, 400f);
+            stage.addActor(hud.root());
+            ((Layout) hud.root()).validate();
+            HudDialog dialog = hud.dialog("dialog");
+            dialog.open();
+            Assert.assertTrue(dialog.isModal());
+            Assert.assertEquals(200f, dialog.getX(), .001f);
+            Assert.assertEquals(140f, dialog.getY(), .001f);
+
+            hud.root().setSize(800f, 600f);
+            ((Layout) hud.root()).validate();
+            Assert.assertEquals(300f, dialog.getX(), .001f);
+            Assert.assertEquals(240f, dialog.getY(), .001f);
+            dialog.close();
+            dialog.open();
+            Assert.assertEquals(300f, dialog.getX(), .001f);
+            Assert.assertEquals(240f, dialog.getY(), .001f);
+        } finally {
+            hud.dispose();
+            stage.dispose();
+            Gdx.graphics = graphics;
         }
     }
 

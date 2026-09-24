@@ -45,10 +45,12 @@ deleted IDs within an editing history/session, and will remap IDs when cloning. 
 materializer may mirror the ID to `Actor.name` for diagnostics and will build one immutable,
 document-wide ID-to-Actor index.
 
-Free placement is relative to the immediate free-layout parent. For a root free-layout surface,
-that parent's bounds are the reference viewport. Horizontal anchors are left, center, or right;
+Free placement is relative to the immediate free-layout parent. The root `GROUP` is a technical
+layout surface sized to the available logical HUD viewport. A direct child `TABLE` can fill that
+surface with Scene2D `setFillParent`; its children use native cells. Horizontal anchors are left,
+center, or right;
 vertical anchors are bottom, center, or top. Pivots are normalized child-bound coordinates in
-the inclusive range `[0,1]`; offsets are HUD reference units. There are no peer targets or
+the inclusive range `[0,1]`; offsets are logical HUD units. There are no peer targets or
 constraint graph.
 
 Scene2D remains authoritative for runtime behavior and managed layout. The document persists

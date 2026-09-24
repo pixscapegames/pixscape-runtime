@@ -5,8 +5,10 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.Disposable;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import games.pixscape.runtime.render.batch.HudBatch;
 
@@ -17,9 +19,8 @@ import games.pixscape.runtime.render.batch.HudBatch;
  * prepared {@link HudResources} and compiled shader for its entire lifetime; callers must keep
  * both open and must dispose them separately after every borrowing session has been disposed.</p>
  *
- * <p>Version 1 uses a {@link FitViewport}. This preserves the authored logical reference space
- * and aspect ratio, centers its camera, and letterboxes displays with a different aspect ratio.
- * Responsive layout policy remains intentionally deferred.</p>
+ * <p>The HUD uses one logical unit per viewport pixel; resizing changes the layout surface
+ * without scaling the entire actor tree.</p>
  */
 public final class HudSession implements Disposable {
     private HudResources resources;
@@ -27,6 +28,7 @@ public final class HudSession implements Disposable {
     private HudBatch hudBatch;
     private Stage stage;
     private MaterializedHud content;
+    private final Rectangle clipBounds = new Rectangle();
     private boolean disposed;
 
     private HudSession(HudScreenAsset asset, HudResources resources, ShaderProgram hudShader) {
@@ -39,7 +41,7 @@ public final class HudSession implements Disposable {
         asset.validate();
 
         this.resources = resources;
-        viewport = new FitViewport(asset.referenceWidth, asset.referenceHeight);
+        viewport = new ScreenViewport();
         hudBatch = new HudBatch(
                 HudBatch.DEFAULT_CAPACITY, hudShader, resources.textureArrayBundle());
         try {
@@ -75,15 +77,22 @@ public final class HudSession implements Disposable {
     public void draw() {
         requireUsable();
         viewport.apply(false);
-        stage.draw();
+        clipBounds.set(viewport.getScreenX(), viewport.getScreenY(),
+                viewport.getScreenWidth(), viewport.getScreenHeight());
+        if (!ScissorStack.pushScissors(clipBounds)) return;
+        try {
+            stage.draw();
+        } finally {
+            ScissorStack.popScissors();
+        }
     }
 
-    /** Updates the fitted screen bounds and centers the logical-space camera. */
+    /** Updates the logical HUD surface to the available screen bounds. */
     public void resize(int width, int height) {
         resize(0, 0, width, height);
     }
 
-    /** Fits the authored HUD inside a logical screen sub-region, preserving reference aspect ratio. */
+    /** Places the HUD in a logical screen sub-region without global scaling. */
     public void resize(int screenX, int screenY, int width, int height) {
         requireUsable();
         if (width <= 0 || height <= 0) {
@@ -93,6 +102,15 @@ public final class HudSession implements Disposable {
         viewport.setScreenPosition(viewport.getScreenX() + screenX, viewport.getScreenY() + screenY);
         viewport.apply(true);
         layoutContent();
+    }
+
+    /** Updates a host sub-region using the same unscaled HUD layout surface. */
+    public void resizeUnscaled(int screenX, int screenY, int width, int height) {
+        requireUsable();
+        if (width <= 0 || height <= 0) {
+            throw new IllegalArgumentException("HUD viewport size must be positive.");
+        }
+        resize(screenX, screenY, width, height);
     }
 
     /**

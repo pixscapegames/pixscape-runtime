@@ -14,11 +14,12 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.TextureRegistry;
 import org.junit.After;
@@ -146,14 +147,12 @@ public class HudSessionTest {
     }
 
     @Test
-    public void constructionUsesAuthoredFitViewportHudBatchAndBorrowedBundle() throws Exception {
+    public void constructionUsesUnscaledViewportHudBatchAndBorrowedBundle() throws Exception {
         Prepared prepared = prepare();
         HudScreenAsset asset = prepared.asset;
-        asset.referenceWidth = 1920;
-        asset.referenceHeight = 1080;
         HudSession session = HudSession.create(asset, prepared.resources, prepared.shader);
         try {
-            Assert.assertTrue(session.viewport() instanceof FitViewport);
+            Assert.assertTrue(session.viewport() instanceof ScreenViewport);
             Assert.assertEquals(1920f, session.viewport().getWorldWidth(), 0f);
             Assert.assertEquals(1080f, session.viewport().getWorldHeight(), 0f);
             Assert.assertSame(session.hudBatch(), session.stage().getBatch());
@@ -222,20 +221,59 @@ public class HudSessionTest {
     }
 
     @Test
-    public void resizePreservesLogicalSpaceAndCentersCameraAcrossAspectRatios() throws Exception {
+    public void resizeChangesLogicalSurfaceAndCentersCameraAcrossAspectRatios() throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
         try {
             assertResize(session, 1920, 1080);
             assertResize(session, 1280, 720);
             assertResize(session, 3440, 1440);
-            Assert.assertEquals(2560, session.viewport().getScreenWidth());
-            Assert.assertEquals(440, session.viewport().getScreenX());
+            Assert.assertEquals(3440, session.viewport().getScreenWidth());
+            Assert.assertEquals(0, session.viewport().getScreenX());
             assertResize(session, 1080, 1920);
             Assert.assertEquals(1080, session.viewport().getScreenWidth());
-            Assert.assertTrue(session.viewport().getScreenHeight() == 607
-                    || session.viewport().getScreenHeight() == 608);
+            Assert.assertEquals(1920, session.viewport().getScreenHeight());
             Assert.assertThrows(IllegalArgumentException.class, () -> session.resize(0, 1080));
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void unscaledResizeChangesVisibleExtentWithoutFittingTheHud() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("mixed-layout.json", prepared.resources);
+        try {
+            session.install(hud);
+            session.resizeUnscaled(40, 25, 800, 450);
+            Vector2 firstLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 firstRight = session.viewport().project(new Vector2(960f, 540f));
+            Assert.assertEquals(800f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(450f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(800f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(450f, hud.root().getHeight(), 0f);
+
+            session.resizeUnscaled(60, 35, 600, 320);
+            Vector2 secondLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 secondRight = session.viewport().project(new Vector2(960f, 540f));
+
+            Assert.assertEquals(600f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(320f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(300f, session.viewport().getCamera().position.x, 0f);
+            Assert.assertEquals(160f, session.viewport().getCamera().position.y, 0f);
+            Assert.assertEquals(100f, firstRight.x - firstLeft.x, 0.001f);
+            Assert.assertEquals(100f, secondRight.x - secondLeft.x, 0.001f);
+            Assert.assertEquals(600, session.viewport().getScreenWidth());
+            Assert.assertEquals(320, session.viewport().getScreenHeight());
+
+            session.resizeUnscaled(80, 45, 1000, 600);
+            Vector2 expandedLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 expandedRight = session.viewport().project(new Vector2(960f, 540f));
+            Assert.assertEquals(100f, expandedRight.x - expandedLeft.x, 0.001f);
+            Assert.assertEquals(1000, session.viewport().getScreenWidth());
+            Assert.assertEquals(600, session.viewport().getScreenHeight());
         } finally {
             session.dispose();
             prepared.dispose();
@@ -306,7 +344,7 @@ public class HudSessionTest {
     }
 
     @Test
-    public void installsMaterializedTreeAtReferenceSizeAndRelayoutsWithoutRematerializing()
+    public void installsMaterializedTreeAtAvailableSizeAndRelayoutsWithoutRematerializing()
             throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
@@ -323,10 +361,10 @@ public class HudSessionTest {
             hud.root().setSize(1000f, 500f);
             session.resize(1280, 720);
             Assert.assertSame(hud.root(), session.stage().getActors().first());
-            Assert.assertEquals(1920f, hud.root().getWidth(), 0f);
-            Assert.assertEquals(1080f, hud.root().getHeight(), 0f);
-            Assert.assertEquals(1528f, hud.actor("objective").getX(), 0.001f);
-            Assert.assertEquals(976f, hud.actor("objective").getY(), 0.001f);
+            Assert.assertEquals(1280f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(720f, hud.root().getHeight(), 0f);
+            Assert.assertEquals(888f, hud.actor("objective").getX(), 0.001f);
+            Assert.assertEquals(616f, hud.actor("objective").getY(), 0.001f);
         } finally {
             session.dispose();
             Assert.assertNull(hud.root().getParent());
@@ -335,15 +373,15 @@ public class HudSessionTest {
     }
 
     @Test
-    public void fitsInsideOffsetLogicalScreenRegion() throws Exception {
+    public void fillsOffsetLogicalScreenRegion() throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
         try {
             session.resize(50, 70, 1000, 700);
             Assert.assertEquals(50, session.viewport().getScreenX());
-            Assert.assertEquals(138, session.viewport().getScreenY());
+            Assert.assertEquals(70, session.viewport().getScreenY());
             Assert.assertEquals(1000, session.viewport().getScreenWidth());
-            Assert.assertEquals(563, session.viewport().getScreenHeight());
+            Assert.assertEquals(700, session.viewport().getScreenHeight());
         } finally {
             session.dispose();
             prepared.dispose();
@@ -351,19 +389,19 @@ public class HudSessionTest {
     }
 
     @Test
-    public void fittedSubregionCanBeResizedWithoutChangingAuthoredSpace() throws Exception {
+    public void subregionResizeChangesLogicalSurface() throws Exception {
         Prepared prepared = prepare();
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
         try {
             session.resize(50, 70, 1000, 700);
             session.resize(100, 20, 800, 800);
 
-            Assert.assertEquals(1920f, session.viewport().getWorldWidth(), 0f);
-            Assert.assertEquals(1080f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(800f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(800f, session.viewport().getWorldHeight(), 0f);
             Assert.assertEquals(100, session.viewport().getScreenX());
-            Assert.assertEquals(195, session.viewport().getScreenY());
+            Assert.assertEquals(20, session.viewport().getScreenY());
             Assert.assertEquals(800, session.viewport().getScreenWidth());
-            Assert.assertEquals(450, session.viewport().getScreenHeight());
+            Assert.assertEquals(800, session.viewport().getScreenHeight());
         } finally {
             session.dispose();
             prepared.dispose();
@@ -384,7 +422,7 @@ public class HudSessionTest {
             session.draw();
 
             Assert.assertTrue(viewportApplications > beforeDraw);
-            Assert.assertArrayEquals(new int[]{50, 138, 1000, 563}, lastViewport);
+            Assert.assertArrayEquals(new int[]{50, 70, 1000, 700}, lastViewport);
             Assert.assertEquals(321f, session.viewport().getCamera().position.x, 0f);
             Assert.assertEquals(654f, session.viewport().getCamera().position.y, 0f);
         } finally {
@@ -394,17 +432,15 @@ public class HudSessionTest {
     }
 
     @Test
-    public void arbitraryPositiveReferenceDimensionsUseTheSameFitViewportContract()
+    public void arbitraryPositiveViewportDimensionsUseTheSameUnscaledContract()
             throws Exception {
         Prepared prepared = prepare();
-        prepared.asset.referenceWidth = 333;
-        prepared.asset.referenceHeight = 777;
         HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
         try {
             session.resize(20, 30, 900, 600);
 
-            Assert.assertEquals(333f, session.viewport().getWorldWidth(), 0f);
-            Assert.assertEquals(777f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(900f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(600f, session.viewport().getWorldHeight(), 0f);
             Assert.assertTrue(session.viewport().getScreenWidth() > 0);
             Assert.assertTrue(session.viewport().getScreenHeight() > 0);
             Assert.assertTrue(session.viewport().getScreenX() >= 20);
@@ -490,10 +526,10 @@ public class HudSessionTest {
 
     private static void assertResize(HudSession session, int width, int height) {
         session.resize(width, height);
-        Assert.assertEquals(1920f, session.viewport().getWorldWidth(), 0f);
-        Assert.assertEquals(1080f, session.viewport().getWorldHeight(), 0f);
-        Assert.assertEquals(960f, session.viewport().getCamera().position.x, 0f);
-        Assert.assertEquals(540f, session.viewport().getCamera().position.y, 0f);
+        Assert.assertEquals(width, session.viewport().getWorldWidth(), 0f);
+        Assert.assertEquals(height, session.viewport().getWorldHeight(), 0f);
+        Assert.assertEquals(width * 0.5f, session.viewport().getCamera().position.x, 0f);
+        Assert.assertEquals(height * 0.5f, session.viewport().getCamera().position.y, 0f);
     }
 
     private static void assertDisposed(Runnable operation) {

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "id": "root",
+    "kind": "GROUP",
+    "children": [
+      { "placementKind": "FREE", "free": {
+          "horizontalAnchor": "LEFT", "verticalAnchor": "TOP",
+          "pivotX": 0, "pivotY": 1, "offsetX": 20, "offsetY": -20
+        }, "node": { "id": "top-left", "kind": "LABEL", "label": { "text": "TL", "styleName": "hud-body" } } },
+      { "placementKind": "FREE", "free": {
+          "horizontalAnchor": "RIGHT", "verticalAnchor": "TOP",
+          "pivotX": 1, "pivotY": 1, "offsetX": -20, "offsetY": -20
+        }, "node": { "id": "top-right", "kind": "LABEL", "label": { "text": "TR", "styleName": "hud-body" } } },
+      { "placementKind": "FREE", "free": {
+          "horizontalAnchor": "LEFT", "verticalAnchor": "BOTTOM",
+          "pivotX": 0, "pivotY": 0, "offsetX": 20, "offsetY": 20
+        }, "node": { "id": "bottom-left", "kind": "LABEL", "label": { "text": "BL", "styleName": "hud-body" } } },
+      { "placementKind": "FREE", "free": {
+          "horizontalAnchor": "RIGHT", "verticalAnchor": "BOTTOM",
+          "pivotX": 1, "pivotY": 0, "offsetX": -20, "offsetY": 20
+        }, "node": { "id": "bottom-right", "kind": "LABEL", "label": { "text": "BR", "styleName": "hud-body" } } },
+      { "placementKind": "FREE", "free": {
+          "horizontalAnchor": "CENTER", "verticalAnchor": "CENTER",
+          "pivotX": 0.5, "pivotY": 0.5, "offsetX": 0, "offsetY": 0
+        }, "node": { "id": "center-dialog", "kind": "DIALOG",
+          "actor": { "width": 200, "height": 120 },
+          "dialog": { "title": "Center", "styleName": "hud-window",
+            "modal": true, "keepWithinStage": true },
+          "table": { "columns": 1, "rows": [ { "cells": [ { "id": "empty-cell" } ] } ] }
+        } }
+    ]
+  }
+}

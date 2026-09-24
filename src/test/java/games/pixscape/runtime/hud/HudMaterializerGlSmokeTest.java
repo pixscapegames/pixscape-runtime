@@ -48,8 +48,7 @@ public class HudMaterializerGlSmokeTest {
                     HudResourcesTest.writeHudFiles(root);
                     root.child("hud").mkdirs();
                     root.child("hud/game.hudscreen").writeString(
-                            "{\"schemaVersion\":1,\"referenceWidth\":320,"
-                                    + "\"referenceHeight\":180,"
+                            "{\"schemaVersion\":1,"
                                     + "\"documentId\":\"hud/game.json\","
                                     + "\"skinId\":\"ui/game.json\","
                                     + "\"atlasId\":\"ui/game.atlas\","
@@ -140,8 +139,7 @@ public class HudMaterializerGlSmokeTest {
                     FileHandle root = new FileHandle(projectDirectory);
                     root.child("hud").mkdirs();
                     root.child("hud/layout.hudscreen").writeString(
-                            "{\"schemaVersion\":1,\"referenceWidth\":320,"
-                                    + "\"referenceHeight\":180,"
+                            "{\"schemaVersion\":1,"
                                     + "\"documentId\":\"hud/layout.json\"}",
                             false, "UTF-8");
                     root.child("hud/layout.json").writeString(
