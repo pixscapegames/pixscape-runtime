@@ -58,6 +58,7 @@ import games.pixscape.runtime.hud.HudSession;
 import games.pixscape.runtime.hud.MaterializedHud;
 import games.pixscape.runtime.loading.SceneAvailabilityPlan;
 import games.pixscape.runtime.api.GameObjectInstance;
+import games.pixscape.runtime.api.EntityRef;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -314,7 +315,42 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (!load.isReady() && !load.isFailed()) load.update();
 
             Assert.assertTrue(load.isReady());
+            World world = fixture.engine.getWorld();
+            int layer = world.create();
+            world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
+            world.process();
+            GameObjectInstance first = fixture.engine.api().gameObjects()
+                    .spawn("declared", 11f, 22f);
+            GameObjectInstance second = fixture.engine.api().gameObjects()
+                    .spawn("declared", 33f, 44f);
+            world.process();
+            first.root().renderOrder().set(4, 2);
+            second.root().renderOrder().set(4, 7);
+            Assert.assertEquals(11f, first.root().transform().x(), 0f);
+            Assert.assertEquals(22f, first.root().transform().y(), 0f);
+            Assert.assertEquals(33f, second.root().transform().x(), 0f);
+            Assert.assertEquals(44f, second.root().transform().y(), 0f);
+            Assert.assertEquals(2, first.root().renderOrder().zIndex());
+            Assert.assertEquals(7, second.root().renderOrder().zIndex());
+            Assert.assertEquals(1, first.members().length);
+            Assert.assertEquals(1, second.members().length);
+            Assert.assertNotEquals(first.requireMember("child").stableId(),
+                    second.requireMember("child").stableId());
+            Assert.assertEquals(5f, first.requireMember("child").transform().x(), 0f);
+            Assert.assertEquals(5f, second.requireMember("child").transform().x(), 0f);
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> first.requireMember("missing"));
+            EntityRef[] memberSnapshot = first.members();
+            memberSnapshot[0] = null;
+            Assert.assertNotNull(first.members()[0]);
+            first.root().transform().setPosition(55f, 66f);
+            Assert.assertEquals(33f, second.root().transform().x(), 0f);
+            GameObjectAsset definition = new GameObjectAssetLoader().load(
+                    fixture.projectDir.child("gameobjects/declared.gameobject"));
+            Assert.assertEquals(0f, definition.entities.get(0).transform.x, 0f);
+            Assert.assertEquals(5f, definition.entities.get(1).transform.x, 0f);
             GameObjectInstance spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
+            world.process();
             Assert.assertTrue(spawned.exists());
             Assert.assertTrue(spawned.root().stableId() >= 0);
             spawned.despawn();
@@ -1109,6 +1145,18 @@ public class PixscapeEnginePhysicsLifecycleTest {
         root.transform.scaleY = 1f;
         root.gameObject = new GameObjectAsset.GameObjectData();
         asset.entities.add(root);
+        GameObjectAsset.GameObjectEntityData child =
+                new GameObjectAsset.GameObjectEntityData();
+        child.sourceEntityId = 2;
+        child.parentSourceEntityId = 1;
+        child.transform = new GameObjectAsset.TransformData();
+        child.transform.x = 5f;
+        child.transform.y = 6f;
+        child.transform.scaleX = 1f;
+        child.transform.scaleY = 1f;
+        child.identity = new GameObjectAsset.IdentityData();
+        child.identity.name = "child";
+        asset.entities.add(child);
         new GameObjectAssetLoader().save(file, asset);
     }
 

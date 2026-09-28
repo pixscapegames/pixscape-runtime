@@ -62,11 +62,12 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals("", world.getMapper(GameObjectComponent.class)
                 .get(nested).sourceAssetId);
         TransformComponent rootTransform = world.getMapper(TransformComponent.class).get(root);
-        Assert.assertEquals(40f, rootTransform.x, 0f);
-        Assert.assertEquals(60f, rootTransform.y, 0f);
+        Assert.assertEquals(30f, rootTransform.x, 0f);
+        Assert.assertEquals(40f, rootTransform.y, 0f);
         Assert.assertEquals(0.5f, rootTransform.rotationRad, 0f);
         Assert.assertEquals(2f, rootTransform.scaleX, 0f);
         Assert.assertEquals(7f, rootTransform.originX, 0f);
+        Assert.assertEquals(0, world.getMapper(EntityIndexComponent.class).get(root).zIndex);
         TransformComponent childTransform = world.getMapper(TransformComponent.class).get(child);
         Assert.assertEquals(4f, childTransform.x, 0f);
         Assert.assertEquals(5f, childTransform.y, 0f);
@@ -227,7 +228,7 @@ public class GameObjectHierarchySpawnTest {
     private static GameObjectAsset hierarchy() {
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 100;
-        GameObjectAsset.GameObjectEntityData root = data(100, -1, true, 10f, 20f, 2);
+        GameObjectAsset.GameObjectEntityData root = data(100, -1, true, 0f, 0f, 0);
         root.transform.rotationRad = 0.5f;
         root.transform.scaleX = 2f;
         root.transform.scaleY = 2f;

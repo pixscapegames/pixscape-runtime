@@ -29,6 +29,15 @@ public class GameObjectAssetLoaderTest {
         Assert.assertTrue(fileFailure.getMessage().contains("sourceEntityId 1"));
     }
 
+    @Test public void sceneLayerIndexCannotBeStoredInDefinition() {
+        String json = loader.toJson(validNestedAsset());
+        String invalid = json.replaceFirst("\"entityIndex\"\\s*:\\s*\\{",
+                "\"entityIndex\": {\"layerIndex\": 3,");
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.fromJson(invalid));
+        Assert.assertTrue(failure.getMessage().contains("scene layerIndex"));
+    }
+
     @Test
     public void logicalAssetIdIsCanonicalAndProjectRelative() {
         Assert.assertEquals("gameobjects/enemy.gameobject",
@@ -85,6 +94,18 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset asset = validNestedAsset();
         asset.rootSourceEntityId = 99;
         rejected(asset, "rootSourceEntityId 99 is missing");
+    }
+
+    @Test public void scenePositionCannotBeStoredOnAssetRoot() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).transform.x = 12f;
+        rejected(asset, "scene placement belongs to each instance");
+    }
+
+    @Test public void sceneRenderOrderCannotBeStoredOnAssetRoot() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).entityIndex.zIndex = 4;
+        rejected(asset, "scene render order belongs to each instance");
     }
 
     @Test public void duplicateSourceIdIsRejected() {

@@ -279,7 +279,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
         this.physics = new PhysicsApiImpl(engine);
-        this.gameObjects = new GameObjectsApiImpl(engine, entities);
+        this.gameObjects = new GameObjectsApiImpl(engine);
     }
 
     @Override
@@ -3921,28 +3921,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class GameObjectsApiImpl implements GameObjectsAPI {
         private final PixscapeEngine engine;
-        private final EntitiesAPI entities;
 
-        GameObjectsApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
+        GameObjectsApiImpl(PixscapeEngine engine) {
             this.engine = engine;
-            this.entities = entities;
         }
 
         @Override
         public GameObjectInstance spawn(String name, float x, float y) {
             return engine.spawnGameObject(name, x, y);
-        }
-
-        @Override
-        public EntityRef root(String name, float x, float y) {
-            return spawn(name, x, y).root();
-        }
-
-        @Override
-        public EntityRef requireRoot(String name, float x, float y) {
-            EntityRef root = spawn(name, x, y).root();
-            if (!root.exists()) throw new IllegalStateException("GameObject spawn created no root: " + name);
-            return root;
         }
     }
 }

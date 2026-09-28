@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.api.PixscapeAPI;
 import games.pixscape.runtime.api.PixscapeApiImpl;
 import games.pixscape.runtime.api.EntityRef;
+import games.pixscape.runtime.api.EntitiesAPI;
 import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
@@ -59,6 +60,10 @@ import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -460,13 +465,13 @@ public final class PixscapeEngine {
      * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
      * @param fragment Game Object fragment to instantiate
-     * @param offsetX  world-space X offset applied to spawned transforms
-     * @param offsetY  world-space Y offset applied to spawned transforms
-     * @return result containing all created entity IDs
+     * @param rootWorldX world-space X coordinate of the new root
+     * @param rootWorldY world-space Y coordinate of the new root
+     * @return the placed instance, including its root and members
      * @throws IllegalStateException if no world is initialized
      */
     public SpawnResult spawnGameObjectFragment(
-            GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
+            GameObjectRuntimeFragment fragment, float rootWorldX, float rootWorldY) {
         if (world == null || !sceneLoaded) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
@@ -477,7 +482,7 @@ public final class PixscapeEngine {
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        return spawner.spawn(world, fragment, offsetX, offsetY);
+        return spawner.spawn(world, fragment, rootWorldX, rootWorldY);
     }
 
     /**
@@ -487,13 +492,13 @@ public final class PixscapeEngine {
      * and then spawned into the currently loaded scene.</p>
      *
      * @param name    Game Object name or canonical logical asset ID
-     * @param offsetX world-space X offset applied to the real root
-     * @param offsetY world-space Y offset applied to the real root
+     * @param rootWorldX world-space X coordinate of the new root
+     * @param rootWorldY world-space Y coordinate of the new root
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
      * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
-    public GameObjectInstance spawnGameObject(String name, float offsetX, float offsetY) {
+    public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
@@ -510,20 +515,64 @@ public final class PixscapeEngine {
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
-        return new SpawnedGameObjectInstance(api().entities().ofEntityId(result.rootEntityId()));
+        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, rootWorldX, rootWorldY);
+        return new SpawnedGameObjectInstance(world, result, api().entities());
     }
 
     private static final class SpawnedGameObjectInstance implements GameObjectInstance {
         private final EntityRef root;
+        private final EntityRef[] members;
+        private final Map<String, EntityRef> byName = new HashMap<String, EntityRef>();
+        private final Set<String> ambiguousNames = new HashSet<String>();
 
-        SpawnedGameObjectInstance(EntityRef root) {
-            this.root = root;
+        SpawnedGameObjectInstance(World world, SpawnResult result, EntitiesAPI entities) {
+            root = entities.ofEntityId(result.rootEntityId());
+            IntBag created = result.createdEntityIds();
+            ComponentMapper<GameObjectMemberComponent> membership =
+                    world.getMapper(GameObjectMemberComponent.class);
+            ComponentMapper<PixscapeIdentityComponent> identities =
+                    world.getMapper(PixscapeIdentityComponent.class);
+            int count = 0;
+            for (int i = 0; i < created.size(); i++) {
+                if (membership.has(created.get(i))) count++;
+            }
+            members = new EntityRef[count];
+            int index = 0;
+            for (int i = 0; i < created.size(); i++) {
+                int entityId = created.get(i);
+                if (!membership.has(entityId)) continue;
+                EntityRef ref = entities.ofEntityId(entityId);
+                members[index++] = ref;
+                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+                String name = identity != null ? identity.name : null;
+                if (name == null || name.isEmpty()) continue;
+                if (byName.containsKey(name)) ambiguousNames.add(name);
+                else byName.put(name, ref);
+            }
         }
 
         @Override
         public EntityRef root() {
             return root;
+        }
+
+        @Override
+        public EntityRef[] members() {
+            EntityRef[] snapshot = new EntityRef[members.length];
+            System.arraycopy(members, 0, snapshot, 0, members.length);
+            return snapshot;
+        }
+
+        @Override
+        public EntityRef requireMember(String name) {
+            if (ambiguousNames.contains(name)) {
+                throw new IllegalArgumentException("Ambiguous Game Object member name: " + name);
+            }
+            EntityRef member = byName.get(name);
+            if (member == null) {
+                throw new IllegalArgumentException("Missing Game Object member name: " + name);
+            }
+            return member;
         }
 
         @Override

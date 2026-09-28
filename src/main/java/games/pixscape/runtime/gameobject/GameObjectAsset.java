@@ -9,7 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Authored, hierarchical data stored in one {@value #EXTENSION} asset. */
+/**
+ * Authored, hierarchical data stored in one {@value #EXTENSION} asset.
+ * The top-level root is at (0, 0); its scene position and global Layer/z order
+ * belong to each placed instance. Member transforms and z-indices are local.
+ */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
     public static final int SCHEMA_VERSION = 3;
@@ -56,7 +60,7 @@ public final class GameObjectAsset {
         public float x, y, rotationRad, scaleX, scaleY, originX, originY;
     }
 
-    /** zIndex is local to the immediate parent. Effective/global Layer is derived scene state. */
+    /** zIndex is local to the immediate parent; the top-level root must have zero. Effective/global Layer is derived scene state. */
     public static final class EntityIndexData { public int zIndex; }
     public static final class MetaData { public String kind; }
     public static final class IdentityData { public String name; }

@@ -91,6 +91,14 @@ public final class GameObjectAssetLoader {
         if (root.gameObject == null) {
             throw failure(file, "top-level root requires Game Object root semantics");
         }
+        if (root.transform.x != 0f || root.transform.y != 0f) {
+            throw failure(file, "top-level root position must be (0, 0); "
+                    + "scene placement belongs to each instance");
+        }
+        if (root.entityIndex != null && root.entityIndex.zIndex != 0) {
+            throw failure(file, "top-level root zIndex must be 0; "
+                    + "scene render order belongs to each instance");
+        }
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             if (entity == root) continue;
             GameObjectAsset.GameObjectEntityData parent = byId.get(entity.parentSourceEntityId);
@@ -120,6 +128,12 @@ public final class GameObjectAssetLoader {
                 JsonValue id = entity.get("sourceEntityId");
                 throw failure(file, "sourceEntityId " + (id != null ? id.asInt() : -1)
                         + " contains LayerComponent; Game Object entities are content.");
+            }
+            JsonValue index = entity.get("entityIndex");
+            if (index != null && index.has("layerIndex")) {
+                JsonValue id = entity.get("sourceEntityId");
+                throw failure(file, "sourceEntityId " + (id != null ? id.asInt() : -1)
+                        + " contains scene layerIndex; scene placement belongs to each instance");
             }
         }
     }

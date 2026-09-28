@@ -48,15 +48,15 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     public SpawnResult spawn(
             World world, GameObjectRuntimeFragment fragment,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         GameObjectRuntimeFragment.requireCurrentSchema(fragment);
         return spawnAsset(world, fragment.toAsset(), fragment.sourceAssetId,
-                rootOffsetX, rootOffsetY);
+                rootWorldX, rootWorldY);
     }
 
     public SpawnResult spawnAsset(
             World world, GameObjectAsset asset, String sourceAssetId,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         if (world == null) throw new IllegalArgumentException("world must not be null");
         loader.validate(asset, null);
         if (sceneMeta != null && !sceneMeta.physicsEnabled && containsAuthoredPhysics(asset)) {
@@ -81,7 +81,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 sourceToEntity.put(data.sourceEntityId, entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
                         sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
-                        physics.get(data.sourceEntityId), rootOffsetX, rootOffsetY);
+                        physics.get(data.sourceEntityId), rootWorldX, rootWorldY);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
             createJoints(world, asset.joints, sourceToEntity, rootEntityId, created);
@@ -297,11 +297,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             World world, int entityId, GameObjectAsset.GameObjectEntityData data,
             int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
             PreparedAssetBinding preparedBinding, PreparedPhysics preparedPhysics,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         if (data.transform != null) {
             TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
-            value.x = data.transform.x + (data.sourceEntityId == rootSourceId ? rootOffsetX : 0f);
-            value.y = data.transform.y + (data.sourceEntityId == rootSourceId ? rootOffsetY : 0f);
+            value.x = data.sourceEntityId == rootSourceId ? rootWorldX : data.transform.x;
+            value.y = data.sourceEntityId == rootSourceId ? rootWorldY : data.transform.y;
             value.rotationRad = data.transform.rotationRad;
             value.scaleX = data.transform.scaleX;
             value.scaleY = data.transform.scaleY;
@@ -311,7 +311,8 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
         index.layerIndex = 0;
-        index.zIndex = data.entityIndex != null ? data.entityIndex.zIndex : 0;
+        index.zIndex = data.sourceEntityId == rootSourceId || data.entityIndex == null
+                ? 0 : data.entityIndex.zIndex;
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
         identity.stableId = sourceToStable.get(data.sourceEntityId, -1);
         identity.name = data.identity != null && data.identity.name != null ? data.identity.name : "";
