@@ -93,21 +93,19 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void layerChangeSynchronizesFieldsPreservesMetadataAndPublishesLayerAndOrder() throws Exception {
+    public void layerChangeUpdatesEntityIndexAndPublishesLayerAndOrder() throws Exception {
         Fixture fixture = fixture();
         fixture.layer(4);
         EntityRef entity = fixture.target(0, 3);
-        LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
         EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).get(entity.entityId());
-        layer.spatialEnabled = true;
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(entity.entityId()));
         fixture.dirty.clearAll();
 
         entity.renderOrder().layerIndex(4);
 
-        Assert.assertEquals(4, layer.layerIndex);
         Assert.assertEquals(4, index.layerIndex);
         Assert.assertEquals(3, index.zIndex);
-        Assert.assertTrue(layer.spatialEnabled);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(entity.entityId()));
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
     }
@@ -116,13 +114,12 @@ public class RenderOrderFacadeTest {
     public void zIndexBoundariesSucceedAndPreserveLayerWithOrderOnlyDirty() throws Exception {
         Fixture fixture = fixture();
         EntityRef entity = fixture.target(2, 3);
-        LayerComponent layer = fixture.world.getMapper(LayerComponent.class).get(entity.entityId());
 
         fixture.dirty.clearAll();
         entity.renderOrder().zIndex(SortKey64.MIN_Z);
         Assert.assertEquals(SortKey64.MIN_Z, entity.renderOrder().zIndex());
         Assert.assertEquals(2, entity.renderOrder().layerIndex());
-        Assert.assertEquals(2, layer.layerIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(entity.entityId()));
         Assert.assertTrue(fixture.dirty.isDirty(entity.entityId(), DirtyBits.ORDER));
         Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER));
 
@@ -231,20 +228,17 @@ public class RenderOrderFacadeTest {
         TransformComponent rootTransform = fixture.world.getMapper(TransformComponent.class).create(root);
         rootTransform.scaleX = 1f;
         rootTransform.scaleY = 1f;
-        fixture.world.getMapper(LayerComponent.class).create(root).layerIndex = 0;
         fixture.world.getMapper(EntityIndexComponent.class).create(root).layerIndex = 0;
         fixture.world.getMapper(GameObjectMemberComponent.class).create(entity.entityId())
                 .parentStableId = 100;
         fixture.world.getMapper(PixscapeIdentityComponent.class).create(entity.entityId()).stableId = 101;
         fixture.world.getMapper(TransformComponent.class).create(entity.entityId());
-        fixture.world.getMapper(LayerComponent.class).get(entity.entityId()).layerIndex = 3;
         fixture.world.process();
         fixture.engine.getIdentityRegistry().rebuild();
 
         entity.renderOrder().zIndex(9);
         Assert.assertEquals(9, entity.renderOrder().zIndex());
-        Assert.assertEquals(3, fixture.world.getMapper(LayerComponent.class)
-                .get(entity.entityId()).layerIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(entity.entityId()));
 
         IllegalStateException layerFailure = Assert.assertThrows(
                 IllegalStateException.class,
@@ -255,6 +249,32 @@ public class RenderOrderFacadeTest {
                 () -> entity.renderOrder().set(4, 10));
         Assert.assertEquals(0, entity.renderOrder().layerIndex());
         Assert.assertEquals(9, entity.renderOrder().zIndex());
+    }
+
+    @Test
+    public void sceneAuthoredGameObjectRootUsesEntityIndexWithoutLayerComponent() throws Exception {
+        Fixture fixture = fixture();
+        fixture.layer(4);
+        fixture.layer(2);
+        int root = fixture.world.create();
+        fixture.world.getMapper(GameObjectComponent.class).create(root)
+                .sourceAssetId = "gameobjects/snake.gameobject";
+        EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).create(root);
+        index.layerIndex = 4;
+        index.zIndex = 2;
+        fixture.world.process();
+
+        RenderOrderFacade order = fixture.engine.api().entities().ofEntityId(root).renderOrder();
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(root));
+        Assert.assertTrue(order.exists());
+        Assert.assertEquals(4, order.layerIndex());
+        Assert.assertEquals(2, order.zIndex());
+
+        order.set(2, 5);
+        Assert.assertEquals(2, index.layerIndex);
+        Assert.assertEquals(5, index.zIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(root));
+        Assert.assertTrue(fixture.dirty.isDirty(root, DirtyBits.LAYER | DirtyBits.ORDER));
     }
 
     @Test
@@ -279,7 +299,7 @@ public class RenderOrderFacadeTest {
     }
 
     @Test
-    public void partialCapabilitiesUseDefaultsAndInertSettersWithoutCompletion() throws Exception {
+    public void entityIndexAloneSupportsOrderWhileLayerAloneIsInert() throws Exception {
         Fixture fixture = fixture();
         fixture.layer(2);
         int indexOnly = fixture.world.create();
@@ -294,12 +314,12 @@ public class RenderOrderFacadeTest {
 
         RenderOrderFacade indexOnlyFacade = fixture.engine.api().entities()
                 .ofEntityId(indexOnly).renderOrder();
-        Assert.assertFalse(indexOnlyFacade.exists());
-        Assert.assertEquals(-1, indexOnlyFacade.layerIndex());
-        Assert.assertEquals(0, indexOnlyFacade.zIndex());
+        Assert.assertTrue(indexOnlyFacade.exists());
+        Assert.assertEquals(7, indexOnlyFacade.layerIndex());
+        Assert.assertEquals(8, indexOnlyFacade.zIndex());
         indexOnlyFacade.set(2, 1).layerIndex(2).zIndex(1);
-        Assert.assertEquals(7, existingIndex.layerIndex);
-        Assert.assertEquals(8, existingIndex.zIndex);
+        Assert.assertEquals(2, existingIndex.layerIndex);
+        Assert.assertEquals(1, existingIndex.zIndex);
         Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(indexOnly));
 
         RenderOrderFacade layerOnlyFacade = fixture.engine.api().entities()
@@ -310,7 +330,7 @@ public class RenderOrderFacadeTest {
         layerOnlyFacade.set(2, 1).layerIndex(2).zIndex(1);
         Assert.assertEquals(9, existingLayer.layerIndex);
         Assert.assertFalse(fixture.world.getMapper(EntityIndexComponent.class).has(layerOnly));
-        Assert.assertFalse(fixture.dirty.isDirty(
+        Assert.assertTrue(fixture.dirty.isDirty(
                 indexOnly, DirtyBits.LAYER | DirtyBits.ORDER));
         Assert.assertFalse(fixture.dirty.isDirty(
                 layerOnly, DirtyBits.LAYER | DirtyBits.ORDER));
@@ -327,9 +347,6 @@ public class RenderOrderFacadeTest {
 
         int replacement = fixture.world.create();
         Assert.assertEquals(entityId, replacement);
-        LayerComponent replacementLayer =
-                fixture.world.getMapper(LayerComponent.class).create(replacement);
-        replacementLayer.layerIndex = 3;
         EntityIndexComponent replacementIndex =
                 fixture.world.getMapper(EntityIndexComponent.class).create(replacement);
         replacementIndex.layerIndex = 3;
@@ -343,7 +360,7 @@ public class RenderOrderFacadeTest {
 
         facade.layerIndex(99).zIndex(Integer.MAX_VALUE).set(99, Integer.MIN_VALUE);
 
-        Assert.assertEquals(3, replacementLayer.layerIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(replacement));
         Assert.assertEquals(3, replacementIndex.layerIndex);
         Assert.assertEquals(4, replacementIndex.zIndex);
         Assert.assertFalse(fixture.dirty.isDirty(
@@ -358,16 +375,19 @@ public class RenderOrderFacadeTest {
         fixture.engine.getAnimationRegistry().put(animationDefinition());
 
         ParticleRef flame = fixture.engine.api().particles().spawn("Flame", 10f, 20f);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(flame.entity().entityId()));
         flame.entity().renderOrder().layerIndex(4).zIndex(5);
         Assert.assertEquals(4, flame.entity().renderOrder().layerIndex());
         Assert.assertEquals(5, flame.entity().renderOrder().zIndex());
         flame.entity().renderOrder().set(4, 5);
 
         SpriteRef sprite = fixture.engine.api().sprites().spawn(42, 1f, 2f);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(sprite.entity().entityId()));
         sprite.entity().renderOrder().set(4, 6);
         Assert.assertEquals(4, sprite.entity().renderOrder().layerIndex());
 
         AnimationRef animation = fixture.engine.api().animations().spawn(42, 3f, 4f);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(animation.entity().entityId()));
         animation.entity().renderOrder().set(4, 7);
         Assert.assertEquals(7, animation.entity().renderOrder().zIndex());
     }
@@ -404,6 +424,7 @@ public class RenderOrderFacadeTest {
         fixture.layer(4);
         SpawnResult result = engine.spawnGameObjectFragment(fragment, 0f, 0f);
         EntityRef spawned = engine.api().entities().ofEntityId(result.createdEntityIds().get(0));
+        Assert.assertFalse(world.getMapper(LayerComponent.class).has(spawned.entityId()));
 
         spawned.renderOrder().set(4, 8);
         Assert.assertEquals(4, spawned.renderOrder().layerIndex());
@@ -413,8 +434,7 @@ public class RenderOrderFacadeTest {
     private static void assertUnchanged(Fixture fixture, EntityRef entity, int layerIndex, int zIndex) {
         Assert.assertEquals(layerIndex, entity.renderOrder().layerIndex());
         Assert.assertEquals(zIndex, entity.renderOrder().zIndex());
-        Assert.assertEquals(layerIndex, fixture.world.getMapper(LayerComponent.class)
-                .get(entity.entityId()).layerIndex);
+        Assert.assertFalse(fixture.world.getMapper(LayerComponent.class).has(entity.entityId()));
         Assert.assertFalse(fixture.dirty.isDirty(entity.entityId(), DirtyBits.LAYER | DirtyBits.ORDER));
     }
 
@@ -527,9 +547,6 @@ public class RenderOrderFacadeTest {
 
         int actorMetadata(int layerIndex, boolean spatialEnabled) {
             int entityId = world.create();
-            LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.layerIndex = layerIndex;
-            layer.spatialEnabled = spatialEnabled;
             world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = layerIndex;
             world.process();
             return entityId;

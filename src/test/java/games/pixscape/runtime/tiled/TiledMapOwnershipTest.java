@@ -60,7 +60,8 @@ public class TiledMapOwnershipTest {
         IllegalArgumentException failure = Assert.assertThrows(
                 IllegalArgumentException.class,
                 () -> TiledMapOwnership.validateWorld(world));
-        Assert.assertTrue(failure.getMessage().contains("must not also be a Pixscape layer"));
+        Assert.assertTrue(failure.getMessage().contains("entityId=" + entity));
+        Assert.assertTrue(failure.getMessage().contains("both EntityIndexComponent and LayerComponent"));
     }
 
     @Test

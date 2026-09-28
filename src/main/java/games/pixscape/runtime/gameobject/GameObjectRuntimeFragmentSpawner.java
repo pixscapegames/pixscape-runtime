@@ -312,9 +312,6 @@ public final class GameObjectRuntimeFragmentSpawner {
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
         index.layerIndex = 0;
         index.zIndex = data.entityIndex != null ? data.entityIndex.zIndex : 0;
-        if (data.sourceEntityId == rootSourceId) {
-            world.getMapper(LayerComponent.class).create(entityId).layerIndex = 0;
-        }
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
         identity.stableId = sourceToStable.get(data.sourceEntityId, -1);
         identity.name = data.identity != null && data.identity.name != null ? data.identity.name : "";

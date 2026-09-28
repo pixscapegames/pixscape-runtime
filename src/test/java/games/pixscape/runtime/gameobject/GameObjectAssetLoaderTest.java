@@ -1,5 +1,6 @@
 package games.pixscape.runtime.gameobject;
 
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -7,8 +8,26 @@ import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.File;
+
 public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
+
+    @Test
+    public void contentLayerComponentInAssetIsRejectedWithSourceEntityId() throws Exception {
+        String json = loader.toJson(validNestedAsset());
+        String invalid = json.replaceFirst("\"sourceEntityId\"\\s*:\\s*1,",
+                "\"sourceEntityId\": 1, \"LayerComponent\": {},");
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.fromJson(invalid));
+        Assert.assertTrue(failure.getMessage().contains("sourceEntityId 1 contains LayerComponent"));
+        FileHandle file = new FileHandle(File.createTempFile("invalid-content-layer-", ".gameobject"));
+        file.writeString(invalid, false, "UTF-8");
+        IllegalArgumentException fileFailure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.load(file));
+        Assert.assertTrue(fileFailure.getMessage().contains(file.path()));
+        Assert.assertTrue(fileFailure.getMessage().contains("sourceEntityId 1"));
+    }
 
     @Test
     public void logicalAssetIdIsCanonicalAndProjectRelative() {

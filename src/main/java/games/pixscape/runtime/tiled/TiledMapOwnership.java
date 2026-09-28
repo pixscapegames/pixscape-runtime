@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.loading.ContentLayerValidator;
 
 /** Activation-time validation for Tiled Map ownership. */
 public final class TiledMapOwnership {
@@ -19,13 +20,14 @@ public final class TiledMapOwnership {
      */
     public static void validateWorld(World world) {
         if (world == null) throw new IllegalArgumentException("World is required.");
+        ContentLayerValidator.validateWorld(world, "Scene");
 
         ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
         ComponentMapper<EntityIndexComponent> indexes = world.getMapper(EntityIndexComponent.class);
         IntIntMap layersByIndex = new IntIntMap();
 
         IntBag layerEntities = world.getAspectSubscriptionManager().get(
-                Aspect.all(LayerComponent.class)).getEntities();
+                Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class)).getEntities();
         int[] layerData = layerEntities.getData();
         for (int i = 0; i < layerEntities.size(); i++) {
             int entityId = layerData[i];
@@ -42,10 +44,6 @@ public final class TiledMapOwnership {
         int[] mapData = mapEntities.getData();
         for (int i = 0; i < mapEntities.size(); i++) {
             int entityId = mapData[i];
-            if (layers.has(entityId)) {
-                throw new IllegalArgumentException(
-                        "Tiled map entity " + entityId + " must not also be a Pixscape layer.");
-            }
             EntityIndexComponent index = indexes.getSafe(entityId, null);
             if (index == null) {
                 throw new IllegalArgumentException(

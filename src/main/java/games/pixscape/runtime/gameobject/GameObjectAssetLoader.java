@@ -24,7 +24,9 @@ public final class GameObjectAssetLoader {
         requireExtension(file);
         if (!file.exists()) throw failure(file, "asset does not exist");
         String serialized = file.readString("UTF-8");
-        requireSchemaVersion(new JsonReader().parse(serialized), file);
+        JsonValue root = new JsonReader().parse(serialized);
+        requireSchemaVersion(root, file);
+        rejectLayerComponents(root, file);
         GameObjectAsset asset = json.fromJson(GameObjectAsset.class, serialized);
         validate(asset, file);
         return asset;
@@ -46,6 +48,7 @@ public final class GameObjectAssetLoader {
         if (serialized == null) throw failure(null, "JSON is required");
         JsonValue root = new JsonReader().parse(serialized);
         requireSchemaVersion(root, null);
+        rejectLayerComponents(root, null);
         GameObjectAsset asset = json.fromJson(GameObjectAsset.class, serialized);
         validate(asset, null);
         return asset;
@@ -107,6 +110,18 @@ public final class GameObjectAssetLoader {
         }
         validatePhysics(asset, byId, file);
         validateJoints(asset, byId, file);
+    }
+
+    private static void rejectLayerComponents(JsonValue root, FileHandle file) {
+        JsonValue entities = root.get("entities");
+        if (entities == null || !entities.isArray()) return;
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            if (entity.has("LayerComponent") || entity.has("layerComponent")) {
+                JsonValue id = entity.get("sourceEntityId");
+                throw failure(file, "sourceEntityId " + (id != null ? id.asInt() : -1)
+                        + " contains LayerComponent; Game Object entities are content.");
+            }
+        }
     }
 
     private static void validateAuthoredEntity(

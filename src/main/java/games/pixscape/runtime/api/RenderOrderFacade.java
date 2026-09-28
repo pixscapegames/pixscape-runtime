@@ -3,11 +3,12 @@ package games.pixscape.runtime.api;
 /**
  * Runtime layer placement and local z-order controls for one entity.
  *
- * <p>Standalone entities and Game Object roots require existing layer and entity-index
- * components. A Game Object member requires only its own entity-index component: its Layer is
- * inherited from the top-level root and its z-index is local to the member.</p>
+ * <p>Every content entity, including a Game Object root, requires its own
+ * entity-index component. A Game Object member stores its local z-index there;
+ * its effective Layer is inherited from the top-level root. A member cannot
+ * change its global Layer through this facade.</p>
  *
- * <p>When the entity is stale or either required component is missing,
+ * <p>When the entity is stale or its entity-index component is missing,
  * {@link #exists()} returns {@code false}, getters return their documented safe
  * defaults, and setters have no effect. Invalid input still throws when the
  * complete capability exists.</p>

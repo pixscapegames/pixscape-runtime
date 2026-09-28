@@ -95,7 +95,7 @@ public final class SceneLoader {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
         try {
-            validateFinalLayerSchema(serialized, sceneFile);
+            ContentLayerValidator.validateSerializedScene(serialized, "Scene '" + sceneFile.path() + "'");
             WorldSerializationManager validationSerialization =
                     validationWorld.getSystem(WorldSerializationManager.class);
             validationSerialization.setSerializer(
@@ -140,31 +140,6 @@ public final class SceneLoader {
                             + ex.getMessage(), ex);
         } finally {
             identities.bind(null, null);
-        }
-    }
-
-    private static void validateFinalLayerSchema(String serialized, FileHandle sceneFile) {
-        JsonValue root = new JsonReader().parse(serialized);
-        JsonValue identifiers = root.get("componentIdentifiers");
-        JsonValue layerIdentifier = identifiers != null
-                ? identifiers.get(LayerComponent.class.getName())
-                : null;
-        String layerComponentName = layerIdentifier != null
-                ? layerIdentifier.asString()
-                : "LayerComponent";
-        JsonValue entities = root.get("entities");
-        if (entities == null || !entities.isObject()) return;
-
-        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
-            JsonValue components = entity.get("components");
-            if (components == null || !components.isObject()) continue;
-            JsonValue layer = components.get(layerComponentName);
-            if (layer != null && layer.isObject() && layer.has("type")) {
-                throw new IllegalArgumentException(
-                        "Scene '" + sceneFile.path()
-                                + "' uses an obsolete schema-3 LayerComponent representation: "
-                                + "field 'type' is unsupported.");
-            }
         }
     }
 

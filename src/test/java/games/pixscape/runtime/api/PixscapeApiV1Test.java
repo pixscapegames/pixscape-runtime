@@ -279,6 +279,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void spatialApiIgnoresRenderedActorLayerMetadata() throws Exception {
+        // Intentionally invalid content metadata must not override the real Layer.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int sceneLayerEntity = world.create();
@@ -297,6 +298,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void spatialApiSetLayerEnabledChangesOnlyAuthoredLayerEntity() throws Exception {
+        // Intentionally invalid content metadata exercises Layer ownership isolation.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int sceneLayerEntity = world.create();
@@ -317,6 +319,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void movingActorDoesNotActivateTargetSpatialLayerFromActorMetadata() throws Exception {
+        // Intentionally invalid content metadata must not activate a destination Layer.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int targetLayerEntity = world.create();
@@ -494,7 +497,6 @@ public class PixscapeApiV1Test {
         world.edit(e).create(RenderMaterialComponent.class);
         world.edit(e).create(TintComponent.class);
         world.edit(e).create(EntityIndexComponent.class);
-        world.edit(e).create(LayerComponent.class);
         world.process();
 
         EntityRef ref = engine.api().entities().ofEntityId(e);
@@ -1297,7 +1299,7 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(world.getMapper(TextureRegionComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(RenderMaterialComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(VisibilityComponent.class).has(ref.entityId()));
-        Assert.assertTrue(world.getMapper(LayerComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(LayerComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(EntityIndexComponent.class).has(ref.entityId()));
 
         Assert.assertEquals(10f, ref.transform().x(), 0.0001f);
@@ -2174,7 +2176,6 @@ public class PixscapeApiV1Test {
         world.getMapper(OrientedBoundsComponent.class).create(entity);
         world.getMapper(AABBComponent.class).create(entity);
         world.getMapper(EntityIndexComponent.class).create(entity);
-        world.getMapper(LayerComponent.class).create(entity);
         world.getMapper(VisibilityComponent.class).create(entity);
         world.getMapper(TintComponent.class).create(entity);
         AssetRefComponent asset = world.getMapper(AssetRefComponent.class).create(entity);

@@ -23,6 +23,25 @@ import java.io.OutputStream;
 
 public class SceneLoaderLayerSchemaTest {
     @Test
+    public void contentWithLayerComponentIsRejectedBeforeWorldReplacement() throws Exception {
+        FileHandle scene = new FileHandle(File.createTempFile("pixscape-invalid-content-layer-", ".json"));
+        scene.writeString("{\"entities\":{\"5\":{\"components\":{"
+                + "\"LayerComponent\":{},\"EntityIndexComponent\":{}}}}}", false, "UTF-8");
+        World loaded = world();
+        int existing = loaded.create();
+        loaded.process();
+        try {
+            RuntimeException failure = Assert.assertThrows(RuntimeException.class,
+                    () -> SceneLoader.loadScene(loaded, scene, true, new SceneMetaRuntime()));
+            Assert.assertTrue(failure.getMessage().contains(scene.path()));
+            Assert.assertTrue(failure.getMessage().contains("entity=5"));
+            Assert.assertTrue(loaded.getEntityManager().isActive(existing));
+        } finally {
+            loaded.dispose();
+        }
+    }
+
+    @Test
     public void finalSchemaThreeLayerRoundTripsWithoutType() throws Exception {
         FileHandle scene = finalSchemaScene();
         String serialized = scene.readString("UTF-8");

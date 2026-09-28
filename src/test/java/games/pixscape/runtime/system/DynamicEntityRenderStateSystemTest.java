@@ -346,6 +346,39 @@ public class DynamicEntityRenderStateSystemTest {
         world.dispose();
     }
 
+    @Test
+    public void indexedSpriteOrderChangeReachesDrawListAfterSystemsUpdate() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        TiledMapRenderState tiled = new TiledMapRenderState(1);
+        LayerStateSOA layers = new LayerStateSOA(1);
+        layers.enabled[0] = true;
+        DrawList drawList = new DrawList(4);
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(dirty, new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state),
+                        new RenderBuildDrawListSystem(state, tiled, layers, drawList,
+                                new RenderStats(), 16, -1, -1),
+                        new RenderSortSystem(state, tiled, drawList),
+                        new DirtyFlushSystem())
+                .build());
+        int first = createRenderableSprite(world);
+        int second = createRenderableSprite(world);
+        world.getMapper(EntityIndexComponent.class).get(first).zIndex = 1;
+        world.getMapper(EntityIndexComponent.class).get(second).zIndex = 2;
+        world.process();
+        Assert.assertEquals(first, state.entityIdForSlot(drawList.get(0)));
+
+        world.getMapper(EntityIndexComponent.class).get(first).zIndex = 3;
+        dirty.order(first);
+        world.process();
+
+        Assert.assertEquals(second, state.entityIdForSlot(drawList.get(0)));
+        Assert.assertEquals(first, state.entityIdForSlot(drawList.get(1)));
+        Assert.assertFalse(world.getMapper(LayerComponent.class).has(first));
+        world.dispose();
+    }
+
     private static int createRenderableSprite(World world) {
         int entity = world.create();
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
