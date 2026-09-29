@@ -1,0 +1,1236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/hud-document/2.schema.json",
+  "title": "Pixscape HUD document 2",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "root": {
+      "$ref": "#/$defs/node"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "root"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "cellConstraints": {
+      "type": "object",
+      "properties": {
+        "minWidth": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minHeight": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prefWidth": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prefHeight": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maxWidth": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maxHeight": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "padTop": {
+          "type": "number"
+        },
+        "padRight": {
+          "type": "number"
+        },
+        "padBottom": {
+          "type": "number"
+        },
+        "padLeft": {
+          "type": "number"
+        },
+        "fillX": {
+          "type": "boolean"
+        },
+        "fillY": {
+          "type": "boolean"
+        },
+        "expandX": {
+          "type": "boolean"
+        },
+        "expandY": {
+          "type": "boolean"
+        },
+        "horizontalAlign": {
+          "enum": [
+            "LEFT",
+            "CENTER",
+            "RIGHT"
+          ]
+        },
+        "verticalAlign": {
+          "enum": [
+            "BOTTOM",
+            "CENTER",
+            "TOP"
+          ]
+        }
+      }
+    },
+    "freePlacement": {
+      "type": "object",
+      "properties": {
+        "horizontalAnchor": {
+          "enum": [
+            "LEFT",
+            "CENTER",
+            "RIGHT"
+          ]
+        },
+        "verticalAnchor": {
+          "enum": [
+            "TOP",
+            "CENTER",
+            "BOTTOM"
+          ]
+        },
+        "pivotX": {
+          "type": "number"
+        },
+        "pivotY": {
+          "type": "number"
+        },
+        "offsetX": {
+          "type": "number"
+        },
+        "offsetY": {
+          "type": "number"
+        }
+      }
+    },
+    "child": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "$ref": "#/$defs/node"
+        },
+        "placementKind": {
+          "enum": [
+            "DIRECT",
+            "CELL",
+            "FREE"
+          ],
+          "default": "DIRECT"
+        },
+        "cell": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/cellConstraints"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "free": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/freePlacement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "node"
+      ]
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "kind": {
+          "enum": [
+            "GROUP",
+            "TABLE",
+            "STACK",
+            "CONTAINER",
+            "SCROLL_PANE",
+            "WINDOW",
+            "DIALOG",
+            "IMAGE",
+            "LABEL",
+            "TEXTRA_LABEL",
+            "TEXT_BUTTON",
+            "IMAGE_BUTTON",
+            "IMAGE_TEXT_BUTTON",
+            "TEXT_FIELD",
+            "SELECT_BOX",
+            "LIST",
+            "CHECK_BOX",
+            "SLIDER",
+            "PROGRESS_BAR"
+          ]
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        },
+        "fillParent": {
+          "type": "boolean",
+          "default": false
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "tooltip": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "windowActions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "targetId": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "action": {
+                "enum": [
+                  "SHOW",
+                  "HIDE"
+                ],
+                "default": "SHOW"
+              }
+            }
+          },
+          "default": []
+        },
+        "image": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "enum": [
+                    "REGION",
+                    "DRAWABLE"
+                  ]
+                },
+                "resourceName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textraLabel": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "typingEnabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textButton": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imageButton": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "imageUp": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageDown": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageOver": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageDisabled": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageChecked": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageCheckedDown": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageCheckedOver": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imageTextButton": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "imageUp": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageDown": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageOver": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageDisabled": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageChecked": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageCheckedDown": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageCheckedOver": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "REGION",
+                            "DRAWABLE"
+                          ]
+                        },
+                        "resourceName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textField": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "messageText": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "passwordMode": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selectBox": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "selectedIndex": {
+                  "type": "integer"
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "maxListCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "list": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "selectedIndex": {
+                  "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checkBox": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "checked": {
+                  "type": "boolean"
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slider": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "orientation": {
+                  "enum": [
+                    "HORIZONTAL",
+                    "VERTICAL"
+                  ]
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "stepSize": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "progressBar": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "orientation": {
+                  "enum": [
+                    "HORIZONTAL",
+                    "VERTICAL"
+                  ]
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "stepSize": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "container": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "clip": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scrollPane": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scrollingDisabledX": {
+                  "type": "boolean"
+                },
+                "scrollingDisabledY": {
+                  "type": "boolean"
+                },
+                "fadeScrollBars": {
+                  "type": "boolean"
+                },
+                "flickScroll": {
+                  "type": "boolean"
+                },
+                "smoothScrolling": {
+                  "type": "boolean"
+                },
+                "overscrollX": {
+                  "type": "boolean"
+                },
+                "overscrollY": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "movable": {
+                  "type": "boolean"
+                },
+                "resizable": {
+                  "type": "boolean"
+                },
+                "modal": {
+                  "type": "boolean"
+                },
+                "keepWithinStage": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dialog": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "styleName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fontAssetId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "movable": {
+                  "type": "boolean"
+                },
+                "resizable": {
+                  "type": "boolean"
+                },
+                "modal": {
+                  "type": "boolean"
+                },
+                "keepWithinStage": {
+                  "type": "boolean"
+                },
+                "resultButtons": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "button": {
+                        "$ref": "#/$defs/node"
+                      },
+                      "resultId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "closeAfterActivation": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "table": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "columns": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "cells": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "colspan": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "constraints": {
+                              "$ref": "#/$defs/cellConstraints"
+                            },
+                            "content": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/$defs/node"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/child"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ]
+    }
+  },
+  "description": "Recursive Scene2D document. Widget fields are typed here; kind/payload matching, layout and resource rules are checked by HudDocumentValidator in Runtime."
+}

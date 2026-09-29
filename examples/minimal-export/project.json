@@ -1,0 +1,31 @@
+{
+  "projectFileName": "pixscape-minimal-export",
+  "version": "1",
+  "projectKind": "pixscape-runtime-project",
+  "scenesDir": "scenes",
+  "atlasesDir": "atlases",
+  "effectsDir": "effects",
+  "animationsDir": "animations",
+  "shadersDir": "shaders",
+  "audioDir": "audio",
+  "gameObjectsDir": "gameobjects",
+  "scenes": {
+    "Simple": {
+      "sceneSchemaVersion": 3,
+      "name": "Simple",
+      "file": "scene1.json",
+      "nextEntityStableId": 3,
+      "nextPhysicsShapeId": 1,
+      "physicsEnabled": false,
+      "runtimeAvailability": {
+        "sprites": [1],
+        "animations": [],
+        "particles": [],
+        "gameObjects": [],
+        "tiledTiles": [],
+        "tiledAnimations": []
+      }
+    }
+  },
+  "currentSceneName": "Simple"
+}

@@ -1,0 +1,37 @@
+{
+  "metadata": { "version": 1 },
+  "componentIdentifiers": {
+    "games.pixscape.runtime.component.LayerComponent": "LayerComponent",
+    "games.pixscape.runtime.component.EntityIndexComponent": "EntityIndexComponent",
+    "games.pixscape.runtime.component.PixscapeIdentityComponent": "PixscapeIdentityComponent",
+    "games.pixscape.runtime.component.TransformComponent": "TransformComponent",
+    "games.pixscape.runtime.component.VisibilityComponent": "VisibilityComponent",
+    "games.pixscape.runtime.component.DimensionsComponent": "DimensionsComponent",
+    "games.pixscape.runtime.component.AssetRefComponent": "AssetRefComponent",
+    "games.pixscape.runtime.component.TextureRegionComponent": "TextureRegionComponent",
+    "games.pixscape.runtime.component.RenderMaterialComponent": "RenderMaterialComponent"
+  },
+  "archetypes": {
+    "1": ["LayerComponent", "PixscapeIdentityComponent", "VisibilityComponent"],
+    "2": ["EntityIndexComponent", "PixscapeIdentityComponent", "TransformComponent", "VisibilityComponent", "DimensionsComponent", "AssetRefComponent", "TextureRegionComponent", "RenderMaterialComponent"]
+  },
+  "entities": {
+    "0": {
+      "archetype": 1,
+      "components": {
+        "PixscapeIdentityComponent": { "stableId": 1, "name": "Layer" },
+        "LayerComponent": { "layerIndex": 0 }
+      }
+    },
+    "1": {
+      "archetype": 2,
+      "components": {
+        "PixscapeIdentityComponent": { "stableId": 2, "name": "Square" },
+        "EntityIndexComponent": { "layerIndex": 0, "zIndex": 0 },
+        "TransformComponent": { "x": 32, "y": 32 },
+        "DimensionsComponent": { "width": 16, "height": 16 },
+        "AssetRefComponent": { "assetId": 1, "atlasTag": "scene1" }
+      }
+    }
+  }
+}

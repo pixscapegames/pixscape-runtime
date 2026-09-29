@@ -104,6 +104,11 @@ public final class SceneLoader {
                          new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
                 SaveFileFormat format =
                         validationSerialization.load(in, SaveFileFormat.class);
+                // This world contains only the candidate scene. Check the effective
+                // components after archetypes have been materialized, before touching
+                // the caller's world (which may contain other scenes or temporary entities).
+                ContentLayerValidator.validateWorld(
+                        validationWorld, "Scene '" + sceneFile.path() + "'");
                 validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);

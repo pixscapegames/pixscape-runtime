@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/common/1.schema.json",
+  "title": "Shared Pixscape value structures",
+  "$defs": {
+    "intArray": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "default": []
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "description": "LibGDX IntArray. Items may be omitted or null at SceneLoader boundary; only the first size entries are active when present."
+    },
+    "byteArray": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "default": []
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "description": "LibGDX ByteArray. Items may be omitted for zero-filled storage; only the first size entries are active."
+    },
+    "propertyValue": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "STRING",
+            "BOOLEAN",
+            "INTEGER",
+            "FLOAT",
+            "COLOR",
+            "OBJECT",
+            "CLASS"
+          ],
+          "default": "STRING"
+        },
+        "stringValue": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": ""
+        },
+        "booleanValue": {
+          "type": "boolean",
+          "default": false
+        },
+        "integerValue": {
+          "type": "integer",
+          "default": 0
+        },
+        "floatValue": {
+          "type": "number",
+          "default": 0
+        },
+        "className": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": ""
+        },
+        "classProperties": {
+          "$ref": "#/$defs/propertySet",
+          "default": {
+            "values": {}
+          }
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "propertySet": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/propertyValue"
+          },
+          "default": {}
+        }
+      }
+    },
+    "physicsGeometry": {
+      "type": "object",
+      "properties": {
+        "shapeType": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "default": 0
+        },
+        "offsetX": {
+          "type": "number",
+          "default": 0
+        },
+        "offsetY": {
+          "type": "number",
+          "default": 0
+        },
+        "angleDegrees": {
+          "type": "number",
+          "default": 0
+        },
+        "radius": {
+          "type": "number",
+          "default": 0.5
+        },
+        "halfWidth": {
+          "type": "number",
+          "default": 0.5
+        },
+        "halfHeight": {
+          "type": "number",
+          "default": 0.5
+        },
+        "polygonVertices": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": []
+        },
+        "polygonVertexCount": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "physicsShape": {
+      "type": "object",
+      "properties": {
+        "physicsShapeId": {
+          "type": "integer",
+          "default": 0
+        },
+        "spatialBlockId": {
+          "type": "integer",
+          "default": 0
+        },
+        "spatialFootprint": {
+          "type": "boolean",
+          "default": false
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicsGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "density": {
+          "type": "number",
+          "default": 1
+        },
+        "friction": {
+          "type": "number",
+          "default": 0.2
+        },
+        "restitution": {
+          "type": "number",
+          "default": 0
+        },
+        "sensor": {
+          "type": "boolean",
+          "default": false
+        },
+        "categoryBits": {
+          "type": "integer",
+          "default": 1
+        },
+        "maskBits": {
+          "type": "integer",
+          "default": -1
+        },
+        "groupIndex": {
+          "type": "integer",
+          "default": 0
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "spatialShape": {
+      "type": "object",
+      "properties": {
+        "shapeType": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "default": 0
+        },
+        "polyVerts": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": []
+        },
+        "polyCount": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "halfW": {
+          "type": "number",
+          "default": 0.5
+        },
+        "halfH": {
+          "type": "number",
+          "default": 0.5
+        },
+        "radius": {
+          "type": "number",
+          "default": 0.5
+        },
+        "offsetX": {
+          "type": "number",
+          "default": 0
+        },
+        "offsetY": {
+          "type": "number",
+          "default": 0
+        },
+        "angleDeg": {
+          "type": "number",
+          "default": 0
+        },
+        "collisionEnabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "actorOccluder": {
+          "type": "boolean",
+          "default": false
+        },
+        "lightOccluder": {
+          "type": "boolean",
+          "default": false
+        },
+        "particleOccluder": {
+          "type": "boolean",
+          "default": false
+        },
+        "altitude": {
+          "type": "number",
+          "default": 0
+        },
+        "height": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "spatialBlock": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "default": 0
+        },
+        "structureId": {
+          "type": "integer",
+          "default": 0
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "x": {
+          "type": "number",
+          "default": 0
+        },
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "width": {
+          "type": "number",
+          "default": 0
+        },
+        "depth": {
+          "type": "number",
+          "default": 0
+        },
+        "altitude": {
+          "type": "number",
+          "default": 0
+        },
+        "height": {
+          "type": "number",
+          "default": 128
+        },
+        "actorOccluder": {
+          "type": "boolean",
+          "default": true
+        },
+        "lightOccluder": {
+          "type": "boolean",
+          "default": false
+        },
+        "shadowCaster": {
+          "type": "boolean",
+          "default": false
+        },
+        "particleOccluder": {
+          "type": "boolean",
+          "default": false
+        },
+        "linkedTileRefsAuthored": {
+          "type": "boolean",
+          "default": false
+        },
+        "linkedTileRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gx": {
+                "type": "integer"
+              },
+              "gy": {
+                "type": "integer"
+              },
+              "tileAssetId": {
+                "type": "integer"
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

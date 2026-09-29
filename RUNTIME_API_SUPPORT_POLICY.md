@@ -76,8 +76,8 @@ After Runtime 1.0:
 
 | Level | Compatibility |
 |---|---|
-| `HIGH_LEVEL` | Strongest SemVer compatibility. Deprecation should normally precede removal, and unavoidable breaking changes should include migration guidance. |
-| `SUPPORTED_EXPERT` | Documented integration behavior is maintained seriously, but structural changes remain possible when justified. |
+| `HIGH_LEVEL` | The documented public contract follows SemVer: a breaking change requires a major Runtime version. It remains the preferred API, with extra effort to avoid breaks; deprecation should normally precede removal, and unavoidable breaks should include migration guidance. |
+| `SUPPORTED_EXPERT` | The documented public contract also follows SemVer: a breaking change requires a major Runtime version. Its stronger lifecycle, ownership, ordering, mutation, and performance constraints remain part of that contract. Undocumented layout and implementation details remain free to evolve. |
 | `INTERNAL` | No compatibility guarantee. Types may be renamed, moved, changed, or removed between releases. |
 
 Semantic versioning applies to the supported API, not to every Java-public class in the Runtime.
@@ -102,24 +102,38 @@ The following table summarizes the intended API surface. It is not an exhaustive
 
 A supported type can contain individual members with a different contract. In particular, a high-level API may expose an expert getter or native object without making the returned implementation high-level.
 
-## 4. ECS and component access
+## 4. ECS, authored state, and serialized data
 
 Pixscape intentionally keeps Artemis available as an expert extension layer.
 
 Authored components may be inspected and deliberately modified by expert code. Such changes must respect the documented validation, dirty/invalidation, identity, unit, and lifecycle rules.
 
-Authored state and derived Runtime state are not equivalent.
+Authored state, derived Runtime state, and exported file representations are not equivalent.
 
 For example:
 
 - authored transform, animation, physics, Tiled, Spatial, visibility, tint, layer, identity, and similar gameplay state can form part of the expert API;
 - runtime bodies, compiled fixture caches, texture-region synchronization state, render caches, and similar derived data remain implementation details.
 
+An exported file can contain a calculated value or cache that is needed to read the current format. Documenting that value for a file reader does not make its Java field a supported API or freely mutable gameplay state.
+
+Likewise, classifying a type or field as `INTERNAL` does not remove the need to preserve the documented public-format rules when an implementation change affects serialized data.
+
 A component being public does not imply that every field is caller-owned or safe to mutate.
 
 When a high-level facade exists, it remains the preferred API for ordinary gameplay code.
 
-## 5. Expert lifecycle and ownership
+## 5. Public serialized formats
+
+The Java API support levels and file-format compatibility are separate contracts. Format versions are distinct from the Runtime library version.
+
+The schema files present in this repository are described in [schemas/README.md](schemas/README.md). They define the current file structures, while semantic validation and the declared resource dependencies are also required to interpret an export correctly.
+
+A reader written in another language can resolve the documented type identifiers in an exported file without loading the corresponding Java classes. Moving or renaming a Java class must therefore be treated as a format-affecting change when its name is used as a serialized type identifier.
+
+The currently documented formats do not imply universal compatibility with older files, automatic migration, or permanent stability beyond their stated contracts.
+
+## 6. Expert lifecycle and ownership
 
 Expert APIs may expose borrowed, native, frame-local, or engine-owned objects.
 
@@ -138,7 +152,7 @@ Borrowed Runtime objects should not be assumed to survive a World, scene, render
 
 Runtime lifecycle methods and built-in systems execute synchronously on the calling thread, normally the LibGDX render thread. Pixscape Runtime does not provide a general thread-safety guarantee.
 
-## 6. Rendering
+## 7. Rendering
 
 High-level rendering behavior is accessed through the normal Pixscape APIs.
 
@@ -148,7 +162,7 @@ Internal draw-list construction, sorting, synchronization, renderer construction
 
 Supporting custom rendering does not require freezing the renderer's internal architecture.
 
-## 7. Physics
+## 8. Physics
 
 `PhysicsAPI` is the normal bridge from gameplay code to Runtime physics.
 
@@ -160,7 +174,7 @@ Runtime body components, compiled caches, preparation candidates, and publicatio
 
 Native objects should normally be acquired through supported APIs rather than by coupling application code to Runtime storage components.
 
-## 8. Tiled and Spatial
+## 9. Tiled and Spatial
 
 High-level Tiled and Spatial functionality is exposed through their normal Runtime APIs.
 
@@ -170,7 +184,7 @@ Derived render storage, synchronization helpers, cache owners, planners, collect
 
 Expert mutation of authored data must follow the documented dirty, rebuild, identity, and playback rules.
 
-## 9. Engine lifecycle
+## 10. Engine lifecycle
 
 Pixscape supports **one active `PixscapeEngine` per application / LibGDX graphics context**.
 
@@ -184,7 +198,7 @@ Entity references, typed references, borrowed ECS objects, render state, physics
 
 The `PixscapeEngine` Javadoc is the authoritative reference for engine lifecycle details.
 
-## 10. Scene readiness and Runtime Availability
+## 11. Scene readiness and Runtime Availability
 
 `SceneLoadPhase.READY` is the Runtime resource-readiness boundary.
 
@@ -197,13 +211,17 @@ Resources intended for dynamic gameplay use must therefore either:
 - already be direct scene dependencies; or
 - be declared through Runtime Availability.
 
+A Runtime Availability declaration makes a Game Object asset definition available to gameplay. It is not a scene placement and does not provide a scene position. A Game Object definition is independent of its instances; placement belongs to an instance already placed in a scene or to an instance spawned with explicit world coordinates.
+
+See the [GameObjectsAPI](src/main/java/games/pixscape/runtime/api/GameObjectsAPI.java) and [GameObjectAsset](src/main/java/games/pixscape/runtime/gameobject/GameObjectAsset.java) Javadocs for the detailed Game Object and transform contracts.
+
 Platform delivery may itself be asynchronous or progressive. This includes GWT resource delivery. That does not change the READY contract: the scene becomes ready only after the required declared resources have been acquired and prepared.
 
-READY does not mean that every later gameplay operation is free of CPU or GPU work. Operations such as prefab instantiation or deserialization still perform their normal runtime work.
+READY does not mean that every later gameplay operation is free of CPU or GPU work. Spawning a Game Object still reads and deserializes its definition, allocates and publishes an instance, and performs its normal Runtime work.
 
 First-party authoring tools such as Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring change. That behavior is separate from normal gameplay resource loading.
 
-## 11. Choosing an API level
+## 12. Choosing an API level
 
 Use the highest-level API that meets the requirement.
 

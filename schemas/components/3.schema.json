@@ -1,0 +1,1105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/components/3.schema.json",
+  "title": "Pixscape scene component payloads (scene schema 3)",
+  "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
+  "x-pixscape-components": {
+    "games.pixscape.runtime.component.PixscapeIdentityComponent": "PixscapeIdentityComponent",
+    "games.pixscape.runtime.component.LayerComponent": "LayerComponent",
+    "games.pixscape.runtime.component.EntityIndexComponent": "EntityIndexComponent",
+    "games.pixscape.runtime.component.LayerParallaxComponent": "LayerParallaxComponent",
+    "games.pixscape.runtime.component.TransformComponent": "TransformComponent",
+    "games.pixscape.runtime.component.GameObjectComponent": "GameObjectComponent",
+    "games.pixscape.runtime.component.GameObjectMemberComponent": "GameObjectMemberComponent",
+    "games.pixscape.runtime.component.VisibilityComponent": "VisibilityComponent",
+    "games.pixscape.runtime.component.DimensionsComponent": "DimensionsComponent",
+    "games.pixscape.runtime.component.AABBComponent": "AABBComponent",
+    "games.pixscape.runtime.component.OrientedBoundsComponent": "OrientedBoundsComponent",
+    "games.pixscape.runtime.component.AssetRefComponent": "AssetRefComponent",
+    "games.pixscape.runtime.component.TextureRegionComponent": "TextureRegionComponent",
+    "games.pixscape.runtime.component.TintComponent": "TintComponent",
+    "games.pixscape.runtime.component.AnimationComponent": "AnimationComponent",
+    "games.pixscape.runtime.component.TiledAnimationComponent": "TiledAnimationComponent",
+    "games.pixscape.runtime.component.RenderMaterialComponent": "RenderMaterialComponent",
+    "games.pixscape.runtime.component.ShaderParamsComponent": "ShaderParamsComponent",
+    "games.pixscape.runtime.component.RenderRepeatComponent": "RenderRepeatComponent",
+    "games.pixscape.runtime.component.QuadDeformComponent": "QuadDeformComponent",
+    "games.pixscape.runtime.component.PolygonComponent": "PolygonComponent",
+    "games.pixscape.runtime.component.PolylineComponent": "PolylineComponent",
+    "games.pixscape.runtime.component.PixscapeTagComponent": "PixscapeTagComponent",
+    "games.pixscape.runtime.component.CustomPropertiesComponent": "CustomPropertiesComponent",
+    "games.pixscape.runtime.component.TiledLayerComponent": "TiledLayerComponent",
+    "games.pixscape.runtime.component.spatial.SpatialHeightComponent": "SpatialHeightComponent",
+    "games.pixscape.runtime.component.spatial.SpatialShapesComponent": "SpatialShapesComponent",
+    "games.pixscape.runtime.component.spatial.SpatialBlocksComponent": "SpatialBlocksComponent",
+    "games.pixscape.runtime.component.light.PointLightComponent": "PointLightComponent",
+    "games.pixscape.runtime.component.light.ConeLightComponent": "ConeLightComponent",
+    "games.pixscape.runtime.component.ParticleEmitterComponent": "ParticleEmitterComponent",
+    "games.pixscape.runtime.component.ParticleOverridesComponent": "ParticleOverridesComponent",
+    "games.pixscape.runtime.component.physics.PhysicsBodyComponent": "PhysicsBodyComponent",
+    "games.pixscape.runtime.component.physics.PhysicsShapesComponent": "PhysicsShapesComponent",
+    "games.pixscape.runtime.component.physics.PhysicsJointComponent": "PhysicsJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent": "PhysicsDistanceJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent": "PhysicsRevoluteJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent": "PhysicsPrismaticJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsPulleyJointComponent": "PhysicsPulleyJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsMouseJointComponent": "PhysicsMouseJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsGearJointComponent": "PhysicsGearJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsWheelJointComponent": "PhysicsWheelJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsWeldJointComponent": "PhysicsWeldJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsFrictionJointComponent": "PhysicsFrictionJointComponent",
+    "games.pixscape.runtime.component.physics.PhysicsMotorJointComponent": "PhysicsMotorJointComponent"
+  },
+  "$defs": {
+    "PixscapeIdentityComponent": {
+      "type": "object",
+      "properties": {
+        "stableId": {
+          "type": "integer",
+          "default": -1
+        },
+        "name": {
+          "type": "string",
+          "default": "unnamed"
+        }
+      }
+    },
+    "LayerComponent": {
+      "type": "object",
+      "properties": {
+        "layerIndex": {
+          "type": "integer",
+          "default": 0
+        },
+        "spatialEnabled": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "not": {
+        "required": [
+          "type"
+        ]
+      },
+      "description": "Only scene Layer entities may carry this. The obsolete type field is forbidden."
+    },
+    "EntityIndexComponent": {
+      "type": "object",
+      "properties": {
+        "layerIndex": {
+          "type": "integer",
+          "default": 0
+        },
+        "zIndex": {
+          "type": "integer",
+          "default": 0
+        }
+      }
+    },
+    "LayerParallaxComponent": {
+      "type": "object",
+      "properties": {
+        "factorX": {
+          "type": "number",
+          "default": 1
+        },
+        "factorY": {
+          "type": "number",
+          "default": 1
+        }
+      }
+    },
+    "TransformComponent": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "default": 0
+        },
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "originX": {
+          "type": "number",
+          "default": 0
+        },
+        "originY": {
+          "type": "number",
+          "default": 0
+        },
+        "rotationRad": {
+          "type": "number",
+          "default": 0
+        },
+        "scaleX": {
+          "type": "number",
+          "default": 1
+        },
+        "scaleY": {
+          "type": "number",
+          "default": 1
+        }
+      }
+    },
+    "GameObjectComponent": {
+      "type": "object",
+      "properties": {
+        "sourceAssetId": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "GameObjectMemberComponent": {
+      "type": "object",
+      "properties": {
+        "parentStableId": {
+          "type": "integer",
+          "default": -1
+        }
+      }
+    },
+    "VisibilityComponent": {
+      "type": "object",
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "culledByFrustum": {
+          "type": "boolean",
+          "default": true
+        },
+        "inView": {
+          "type": "boolean",
+          "default": false
+        },
+        "padding": {
+          "type": "number",
+          "default": 1
+        }
+      }
+    },
+    "DimensionsComponent": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "default": 0
+        },
+        "height": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "AABBComponent": {
+      "type": "object",
+      "properties": {
+        "minX": {
+          "type": "number",
+          "default": 0
+        },
+        "minY": {
+          "type": "number",
+          "default": 0
+        },
+        "maxX": {
+          "type": "number",
+          "default": 0
+        },
+        "maxY": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "OrientedBoundsComponent": {
+      "type": "object",
+      "properties": {
+        "cx": {
+          "type": "number",
+          "default": 0
+        },
+        "cy": {
+          "type": "number",
+          "default": 0
+        },
+        "ux": {
+          "type": "number",
+          "default": 0
+        },
+        "uy": {
+          "type": "number",
+          "default": 0
+        },
+        "vx": {
+          "type": "number",
+          "default": 0
+        },
+        "vy": {
+          "type": "number",
+          "default": 0
+        },
+        "hx": {
+          "type": "number",
+          "default": 0
+        },
+        "hy": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "AssetRefComponent": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "integer",
+          "default": -1
+        },
+        "atlasTag": {
+          "type": "string",
+          "default": "main"
+        }
+      }
+    },
+    "TextureRegionComponent": {
+      "type": "object",
+      "properties": {}
+    },
+    "TintComponent": {
+      "type": "object",
+      "properties": {
+        "rgba": {
+          "type": "integer",
+          "default": -1
+        }
+      }
+    },
+    "AnimationComponent": {
+      "type": "object",
+      "properties": {
+        "animationAssetIds": {
+          "anyOf": [
+            {
+              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": {
+            "size": 0
+          }
+        },
+        "currentClip": {
+          "type": "string",
+          "default": ""
+        },
+        "fps": {
+          "type": "number",
+          "default": 12
+        },
+        "stateTime": {
+          "type": "number",
+          "default": 0
+        },
+        "playing": {
+          "type": "boolean",
+          "default": true
+        },
+        "loop": {
+          "type": "boolean",
+          "default": true
+        },
+        "frame": {
+          "type": "integer",
+          "default": -1
+        }
+      }
+    },
+    "TiledAnimationComponent": {
+      "type": "object",
+      "properties": {
+        "animationId": {
+          "type": "integer",
+          "default": -1
+        }
+      }
+    },
+    "RenderMaterialComponent": {
+      "type": "object",
+      "properties": {
+        "shaderIdx": {
+          "type": "integer",
+          "default": 0
+        },
+        "blendModeId": {
+          "type": "integer",
+          "default": 1
+        }
+      }
+    },
+    "ShaderParamsComponent": {
+      "type": "object",
+      "properties": {
+        "floats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "RenderRepeatComponent": {
+      "type": "object",
+      "properties": {
+        "repeatX": {
+          "type": "boolean",
+          "default": false
+        },
+        "repeatY": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "QuadDeformComponent": {
+      "type": "object",
+      "properties": {
+        "blX": {
+          "type": "number",
+          "default": 0
+        },
+        "blY": {
+          "type": "number",
+          "default": 0
+        },
+        "brX": {
+          "type": "number",
+          "default": 0
+        },
+        "brY": {
+          "type": "number",
+          "default": 0
+        },
+        "trX": {
+          "type": "number",
+          "default": 0
+        },
+        "trY": {
+          "type": "number",
+          "default": 0
+        },
+        "tlX": {
+          "type": "number",
+          "default": 0
+        },
+        "tlY": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PolygonComponent": {
+      "type": "object",
+      "properties": {
+        "vertices": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": []
+        }
+      }
+    },
+    "PolylineComponent": {
+      "type": "object",
+      "properties": {
+        "vertices": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": []
+        }
+      }
+    },
+    "PixscapeTagComponent": {
+      "type": "object",
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "CustomPropertiesComponent": {
+      "type": "object",
+      "properties": {
+        "properties": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/propertySet",
+          "default": {
+            "values": {}
+          }
+        }
+      }
+    },
+    "TiledLayerComponent": {
+      "type": "object",
+      "properties": {
+        "atlasTag": {
+          "type": "string",
+          "default": "main"
+        },
+        "tileWidth": {
+          "type": "integer",
+          "default": 0
+        },
+        "tileHeight": {
+          "type": "integer",
+          "default": 0
+        },
+        "mapWidthCells": {
+          "type": "integer",
+          "default": 0
+        },
+        "mapHeightCells": {
+          "type": "integer",
+          "default": 0
+        },
+        "chunkSize": {
+          "type": "integer",
+          "default": 0
+        },
+        "originX": {
+          "type": "number",
+          "default": 0
+        },
+        "originY": {
+          "type": "number",
+          "default": 0
+        },
+        "defaultTileAltitude": {
+          "type": "number",
+          "default": 0
+        },
+        "defaultTileHeight": {
+          "type": "number",
+          "default": 0
+        },
+        "spatialEnabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "tileXs": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "default": {
+            "size": 0
+          }
+        },
+        "tileYs": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "default": {
+            "size": 0
+          }
+        },
+        "tileAssetIds": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "default": {
+            "size": 0
+          }
+        },
+        "tileTransformFlags": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/byteArray",
+          "default": {
+            "size": 0
+          }
+        },
+        "projection": {
+          "enum": [
+            "ORTHO",
+            "ISO",
+            null
+          ],
+          "default": null
+        },
+        "tileAltitudes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        },
+        "tileHeights": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        },
+        "tileSpatialFlags": {
+          "anyOf": [
+            {
+              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tileSpatialOverrides": {
+          "anyOf": [
+            {
+              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/byteArray"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      }
+    },
+    "SpatialHeightComponent": {
+      "type": "object",
+      "properties": {
+        "altitude": {
+          "type": "number",
+          "default": 0
+        },
+        "height": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "SpatialShapesComponent": {
+      "type": "object",
+      "properties": {
+        "shapes": {
+          "type": "array",
+          "items": {
+            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/spatialShape"
+          },
+          "default": []
+        }
+      }
+    },
+    "SpatialBlocksComponent": {
+      "type": "object",
+      "properties": {
+        "nextSpatialBlockId": {
+          "type": "integer",
+          "default": 1
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/spatialBlock"
+          },
+          "default": []
+        }
+      }
+    },
+    "PointLightComponent": {
+      "type": "object",
+      "properties": {
+        "r": {
+          "type": "number",
+          "default": 1
+        },
+        "g": {
+          "type": "number",
+          "default": 1
+        },
+        "b": {
+          "type": "number",
+          "default": 1
+        },
+        "intensity": {
+          "type": "number",
+          "default": 1
+        },
+        "radius": {
+          "type": "number",
+          "default": 200
+        },
+        "falloff": {
+          "type": "number",
+          "default": 1.5
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "ConeLightComponent": {
+      "type": "object",
+      "properties": {
+        "r": {
+          "type": "number",
+          "default": 1
+        },
+        "g": {
+          "type": "number",
+          "default": 1
+        },
+        "b": {
+          "type": "number",
+          "default": 1
+        },
+        "intensity": {
+          "type": "number",
+          "default": 1
+        },
+        "radius": {
+          "type": "number",
+          "default": 200
+        },
+        "falloff": {
+          "type": "number",
+          "default": 1.5
+        },
+        "coneAngleDeg": {
+          "type": "number",
+          "default": 45
+        },
+        "rotationDeg": {
+          "type": "number",
+          "default": 0
+        },
+        "softness": {
+          "type": "number",
+          "default": 0.1
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "ParticleEmitterComponent": {
+      "type": "object",
+      "properties": {
+        "effectPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Fresh component is null; a recycled pooled component resets this field to an empty string."
+        },
+        "atlasTag": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Fresh component is null; a recycled pooled component resets this field to an empty string."
+        },
+        "autoStart": {
+          "type": "boolean",
+          "default": true
+        },
+        "looping": {
+          "type": "boolean",
+          "default": true
+        },
+        "autoRemoveWhenComplete": {
+          "type": "boolean",
+          "default": false
+        },
+        "paused": {
+          "type": "boolean",
+          "default": false
+        },
+        "playRequested": {
+          "type": "boolean",
+          "default": false
+        },
+        "restartRequested": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "ParticleOverridesComponent": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "sizeMul": {
+          "type": "number",
+          "default": 1
+        },
+        "alphaMul": {
+          "type": "number",
+          "default": 1
+        },
+        "tintRgba": {
+          "type": "integer",
+          "default": -1
+        }
+      }
+    },
+    "PhysicsBodyComponent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "integer",
+          "default": 2
+        },
+        "fixedRotation": {
+          "type": "boolean",
+          "default": false
+        },
+        "bullet": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowSleep": {
+          "type": "boolean",
+          "default": true
+        },
+        "awake": {
+          "type": "boolean",
+          "default": true
+        },
+        "gravityScale": {
+          "type": "number",
+          "default": 1
+        },
+        "linearDamping": {
+          "type": "number",
+          "default": 0
+        },
+        "angularDamping": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsShapesComponent": {
+      "type": "object",
+      "properties": {
+        "shapes": {
+          "type": "array",
+          "items": {
+            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsShape"
+          },
+          "default": []
+        }
+      }
+    },
+    "PhysicsJointComponent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "integer",
+          "default": 0
+        },
+        "aEid": {
+          "type": "integer",
+          "default": -1
+        },
+        "bEid": {
+          "type": "integer",
+          "default": -1
+        },
+        "collideConnected": {
+          "type": "boolean",
+          "default": false
+        },
+        "anchorAx": {
+          "type": "number",
+          "default": 0
+        },
+        "anchorAy": {
+          "type": "number",
+          "default": 0
+        },
+        "anchorBx": {
+          "type": "number",
+          "default": 0
+        },
+        "anchorBy": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsDistanceJointComponent": {
+      "type": "object",
+      "properties": {
+        "lengthM": {
+          "type": "number",
+          "default": 1
+        },
+        "frequencyHz": {
+          "type": "number",
+          "default": 0
+        },
+        "dampingRatio": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsRevoluteJointComponent": {
+      "type": "object",
+      "properties": {
+        "enableLimit": {
+          "type": "boolean",
+          "default": false
+        },
+        "enableMotor": {
+          "type": "boolean",
+          "default": false
+        },
+        "lowerAngleRad": {
+          "type": "number",
+          "default": 0
+        },
+        "upperAngleRad": {
+          "type": "number",
+          "default": 0
+        },
+        "motorSpeedRad": {
+          "type": "number",
+          "default": 0
+        },
+        "maxMotorTorque": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsPrismaticJointComponent": {
+      "type": "object",
+      "properties": {
+        "axisX": {
+          "type": "number",
+          "default": 1
+        },
+        "axisY": {
+          "type": "number",
+          "default": 0
+        },
+        "lowerTranslationM": {
+          "type": "number",
+          "default": 0
+        },
+        "upperTranslationM": {
+          "type": "number",
+          "default": 0
+        },
+        "motorSpeedMps": {
+          "type": "number",
+          "default": 0
+        },
+        "maxMotorForce": {
+          "type": "number",
+          "default": 0
+        },
+        "enableLimit": {
+          "type": "boolean",
+          "default": false
+        },
+        "enableMotor": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "PhysicsPulleyJointComponent": {
+      "type": "object",
+      "properties": {
+        "groundAx": {
+          "type": "number",
+          "default": 0
+        },
+        "groundAy": {
+          "type": "number",
+          "default": 0
+        },
+        "groundBx": {
+          "type": "number",
+          "default": 0
+        },
+        "groundBy": {
+          "type": "number",
+          "default": 0
+        },
+        "lengthAM": {
+          "type": "number",
+          "default": 0
+        },
+        "lengthBM": {
+          "type": "number",
+          "default": 0
+        },
+        "ratio": {
+          "type": "number",
+          "default": 1
+        }
+      }
+    },
+    "PhysicsMouseJointComponent": {
+      "type": "object",
+      "properties": {
+        "targetX": {
+          "type": "number",
+          "default": 0
+        },
+        "targetY": {
+          "type": "number",
+          "default": 0
+        },
+        "maxForce": {
+          "type": "number",
+          "default": 0
+        },
+        "stiffness": {
+          "type": "number",
+          "default": 0
+        },
+        "damping": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsGearJointComponent": {
+      "type": "object",
+      "properties": {
+        "joint1Eid": {
+          "type": "integer",
+          "default": -1
+        },
+        "joint2Eid": {
+          "type": "integer",
+          "default": -1
+        },
+        "ratio": {
+          "type": "number",
+          "default": 1
+        }
+      }
+    },
+    "PhysicsWheelJointComponent": {
+      "type": "object",
+      "properties": {
+        "frequencyHz": {
+          "type": "number",
+          "default": 4
+        },
+        "dampingRatio": {
+          "type": "number",
+          "default": 0.7
+        },
+        "motorSpeedRad": {
+          "type": "number",
+          "default": 0
+        },
+        "maxMotorTorque": {
+          "type": "number",
+          "default": 0
+        },
+        "axisX": {
+          "type": "number",
+          "default": 0
+        },
+        "axisY": {
+          "type": "number",
+          "default": 1
+        },
+        "enableMotor": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "PhysicsWeldJointComponent": {
+      "type": "object",
+      "properties": {
+        "referenceAngleRad": {
+          "type": "number",
+          "default": 0
+        },
+        "frequencyHz": {
+          "type": "number",
+          "default": 0
+        },
+        "dampingRatio": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsFrictionJointComponent": {
+      "type": "object",
+      "properties": {
+        "maxForce": {
+          "type": "number",
+          "default": 0
+        },
+        "maxTorque": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "PhysicsMotorJointComponent": {
+      "type": "object",
+      "properties": {
+        "linearOffsetX": {
+          "type": "number",
+          "default": 0
+        },
+        "linearOffsetY": {
+          "type": "number",
+          "default": 0
+        },
+        "angularOffsetRad": {
+          "type": "number",
+          "default": 0
+        },
+        "maxForce": {
+          "type": "number",
+          "default": 0
+        },
+        "maxTorque": {
+          "type": "number",
+          "default": 0
+        },
+        "correctionFactor": {
+          "type": "number",
+          "default": 0.3
+        }
+      }
+    }
+  }
+}

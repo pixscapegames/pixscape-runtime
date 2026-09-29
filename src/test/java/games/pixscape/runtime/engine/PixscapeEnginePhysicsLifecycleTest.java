@@ -450,6 +450,31 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void inheritedLayerContentConflictFailsBeforeSceneBecomesActive()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        FileHandle scene = fixture.projectDir.child("scenes/a.json");
+        String source = new FileHandle(
+                "examples/minimal-export/scenes/scene1.json").readString("UTF-8");
+        String invalid = source.replace("\"RenderMaterialComponent\"]",
+                "\"RenderMaterialComponent\", \"LayerComponent\"]")
+                .replace("\"EntityIndexComponent\": { \"layerIndex\": 0, \"zIndex\": 0 },", "");
+        Assert.assertNotEquals(source, invalid);
+        scene.writeString(invalid, false, "UTF-8");
+        try {
+            RuntimeException failure = Assert.assertThrows(RuntimeException.class,
+                    () -> engine.loadScene("A"));
+            Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(scene.path()));
+            Assert.assertTrue(failure.getMessage(), failure.getMessage().contains("entityId="));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.getWorld());
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void linkedValidationFailureDiscardsCandidateAndAllowsRetry()
             throws Exception {
         EngineFixture fixture = createEngineFixture();
