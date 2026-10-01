@@ -21,6 +21,9 @@ public final class PhysicsBodyComponent extends PooledComponent {
     public float linearDamping = 0f;
     public float angularDamping = 0f;
 
+    /** Authored ownership of a Body created solely for a Spatial light footprint. */
+    public boolean technicalSpatialLight = false;
+
     @Override
     protected void reset() {
         type = DYNAMIC;
@@ -31,6 +34,7 @@ public final class PhysicsBodyComponent extends PooledComponent {
         gravityScale = 1f;
         linearDamping = 0f;
         angularDamping = 0f;
+        technicalSpatialLight = false;
     }
 }
 

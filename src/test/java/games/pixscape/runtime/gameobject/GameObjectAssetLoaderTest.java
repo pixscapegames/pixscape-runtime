@@ -200,9 +200,16 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset asset = validNestedAsset();
         GameObjectAsset.GameObjectEntityData physical = asset.entities.get(2);
         physical.physicsBody = body();
+        physical.physicsBody.technicalSpatialLight = true;
+        physical.physicsBody.type = PhysicsBodyComponent.DYNAMIC;
+        physical.physicsBody.gravityScale = 0f;
         GameObjectAsset.PhysicsShapeData footprint = shape(1, circle());
         footprint.enabled = true;
         footprint.spatialFootprint = true;
+        footprint.technicalSpatialLight = true;
+        footprint.sensor = true;
+        footprint.maskBits = 0;
+        footprint.groupIndex = 0;
         physical.physicsShapes.add(footprint);
         physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
         physical.spatialHeight.altitude = 2.5f;
@@ -212,6 +219,8 @@ public class GameObjectAssetLoaderTest {
 
         Assert.assertEquals(3, restored.schemaVersion);
         Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).spatialFootprint);
+        Assert.assertTrue(restored.entities.get(2).physicsBody.technicalSpatialLight);
+        Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).technicalSpatialLight);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialHeight.altitude, 0f);
         Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.height, 0f);
     }

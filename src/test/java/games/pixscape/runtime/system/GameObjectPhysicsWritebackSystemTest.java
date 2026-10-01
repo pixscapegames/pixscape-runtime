@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
@@ -66,6 +67,42 @@ public class GameObjectPhysicsWritebackSystemTest {
         identities.bind(null, null);
         world.dispose();
         box2d.dispose();
+    }
+
+    @Test
+    public void movingTechnicalLightBodyWritesBackToItsSourceTransform() {
+        int light = entity(1, false, -1, false);
+        world.getMapper(PointLightComponent.class).create(light);
+        PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(light);
+        body.type = PhysicsBodyComponent.DYNAMIC;
+        body.gravityScale = 0f;
+        body.technicalSpatialLight = true;
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(light);
+        PhysicsShapeData sensor = new PhysicsShapeData();
+        sensor.physicsShapeId = 1;
+        sensor.geometry = new PhysicsGeometryData();
+        sensor.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        sensor.geometry.radius = 0.05f;
+        sensor.spatialFootprint = true;
+        sensor.technicalSpatialLight = true;
+        sensor.sensor = true;
+        sensor.maskBits = 0;
+        shapes.shapes.add(sensor);
+        PhysicsService.publishPreparedCandidate(shapes,
+                world.getMapper(PhysicsCompiledFixturesComponent.class).create(light),
+                PhysicsService.prepareBodyCandidate(shapes.shapes));
+        identities.rebuild();
+        world.process();
+
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        nativeBody(light).setTransform(1.25f, -0.5f, 0f);
+        world.process();
+
+        Assert.assertEquals(125f, transform(light).x, EPSILON);
+        Assert.assertEquals(-50f, transform(light).y, EPSILON);
+        Assert.assertEquals(125f, worldState().x[light], EPSILON);
+        Assert.assertEquals(-50f, worldState().y[light], EPSILON);
     }
 
     @Test

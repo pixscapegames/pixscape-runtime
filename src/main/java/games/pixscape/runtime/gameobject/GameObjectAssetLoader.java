@@ -229,6 +229,7 @@ public final class GameObjectAssetLoader {
             shape.groupIndex = source.groupIndex;
             shape.enabled = source.enabled;
             shape.spatialFootprint = source.spatialFootprint;
+            shape.technicalSpatialLight = source.technicalSpatialLight;
             try {
                 shape.validateStructure();
             } catch (IllegalArgumentException ex) {

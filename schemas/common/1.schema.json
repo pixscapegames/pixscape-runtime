@@ -177,6 +177,10 @@
           "type": "boolean",
           "default": false
         },
+        "technicalSpatialLight": {
+          "type": "boolean",
+          "default": false
+        },
         "geometry": {
           "anyOf": [
             {

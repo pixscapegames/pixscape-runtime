@@ -259,6 +259,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 shape.groupIndex = source.groupIndex;
                 shape.enabled = source.enabled;
                 shape.spatialFootprint = source.spatialFootprint;
+                shape.technicalSpatialLight = source.technicalSpatialLight;
                 shapes.add(shape);
             }
             result.put(data.sourceEntityId, new PreparedPhysics(
@@ -410,6 +411,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             body.gravityScale = preparedPhysics.body.gravityScale;
             body.linearDamping = preparedPhysics.body.linearDamping;
             body.angularDamping = preparedPhysics.body.angularDamping;
+            body.technicalSpatialLight = preparedPhysics.body.technicalSpatialLight;
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
             PhysicsCompiledFixturesComponent compiled =
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
@@ -492,6 +494,7 @@ public final class GameObjectRuntimeFragmentSpawner {
         result.gravityScale = source.gravityScale;
         result.linearDamping = source.linearDamping;
         result.angularDamping = source.angularDamping;
+        result.technicalSpatialLight = source.technicalSpatialLight;
         return result;
     }
 

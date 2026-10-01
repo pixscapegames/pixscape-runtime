@@ -8,6 +8,7 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -27,6 +28,53 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class PhysicsStableFrameTest {
+    @Test
+    public void filteredSensorLightFootprintRemainsEligibleForSpatialCollector() {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new PhysicsSpatialFootprintSyncSystem(100f)).build());
+        int light = world.create();
+        world.getMapper(PointLightComponent.class).create(light);
+        world.getMapper(TransformComponent.class).create(light);
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(light);
+        index.layerIndex = 1;
+        SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(light);
+        height.height = 1f;
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(light);
+        PhysicsShapeData sensor = new PhysicsShapeData();
+        sensor.physicsShapeId = 1;
+        sensor.geometry = new PhysicsGeometryData();
+        sensor.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        sensor.geometry.radius = 0.05f;
+        sensor.spatialFootprint = true;
+        sensor.technicalSpatialLight = true;
+        sensor.sensor = true;
+        sensor.maskBits = 0;
+        shapes.shapes.add(sensor);
+        PhysicsService.publishPreparedCandidate(shapes,
+                world.getMapper(PhysicsCompiledFixturesComponent.class).create(light),
+                PhysicsService.prepareBodyCandidate(shapes.shapes));
+        world.process();
+
+        DynamicEntityRenderState state = new DynamicEntityRenderState(2);
+        int slot = state.acquireSlotForEntity(light);
+        state.kind[slot] = RenderKind.SPRITE;
+        state.enabled[slot] = true;
+        state.visible[slot] = true;
+        state.textureHandle[slot] = 1;
+        state.layerIndex[slot] = 1;
+        DrawList drawList = new DrawList(2);
+        drawList.addEcsSlot(slot);
+        SpatialActorCollector collector = new SpatialActorCollector();
+        collector.collect(drawList, state, new boolean[]{false, true},
+                world.getEntityManager(), world.getMapper(EntityIndexComponent.class),
+                world.getMapper(TransformComponent.class),
+                world.getMapper(SpatialHeightComponent.class),
+                world.getMapper(SpatialPhysicsFootprintComponent.class));
+        Assert.assertEquals(1, collector.actorCount());
+        Assert.assertEquals(5f, world.getMapper(SpatialPhysicsFootprintComponent.class)
+                .get(light).radiusPx, 0f);
+    }
+
     @Test
     public void oneThousandStableFramesPerformNoPhysicsCompilationOrRebuild() {
         GdxNativesLoader.load();

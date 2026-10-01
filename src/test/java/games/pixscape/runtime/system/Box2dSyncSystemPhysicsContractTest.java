@@ -86,6 +86,39 @@ public class Box2dSyncSystemPhysicsContractTest {
     }
 
     @Test
+    public void filteredSpatialLightFootprintCompilesButCreatesNoGameplayContact() {
+        Harness harness = new Harness();
+        harness.box2d.world.setGravity(new Vector2(0f, -10f));
+        harness.body.type = PhysicsBodyComponent.DYNAMIC;
+        harness.body.gravityScale = 0f;
+        harness.body.technicalSpatialLight = true;
+        harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        harness.source.geometry.radius = 0.05f;
+        harness.source.spatialFootprint = true;
+        harness.source.technicalSpatialLight = true;
+        harness.source.sensor = true;
+        harness.source.maskBits = 0;
+        harness.prepareAndProcess();
+
+        Body nativeBody = harness.world.getMapper(PhysicsRuntimeBodyComponent.class)
+                .get(harness.entityId).body;
+        Assert.assertEquals(0, nativeBody.getFixtureList().first().getFilterData().maskBits);
+        SpatialPhysicsFootprintComponent footprint = harness.world.getMapper(
+                SpatialPhysicsFootprintComponent.class).get(harness.entityId);
+        Assert.assertTrue(footprint.valid);
+        Assert.assertEquals(5f, footprint.radiusPx, 0f);
+        harness.createBody(2, 0f);
+        harness.world.process();
+        for (int i = 0; i < 20; i++) harness.box2d.world.step(1f / 60f, 6, 2);
+        Assert.assertEquals(0, harness.box2d.world.getContactCount());
+        Assert.assertEquals(0f, nativeBody.getPosition().y, 0.0001f);
+        nativeBody.setTransform(2f, 3f, nativeBody.getAngle());
+        harness.box2d.world.step(1f / 60f, 6, 2);
+        Assert.assertEquals(2f, nativeBody.getPosition().x, 0.0001f);
+        Assert.assertEquals(3f, nativeBody.getPosition().y, 0.0001f);
+    }
+
+    @Test
     public void invalidRecompileKeepsPreviousNativeBodyAndCompiledCache() {
         Harness harness = new Harness();
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;

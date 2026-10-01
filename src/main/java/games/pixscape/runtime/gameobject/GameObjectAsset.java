@@ -98,6 +98,7 @@ public final class GameObjectAsset {
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep = true, awake = true;
+        public boolean technicalSpatialLight;
         public float gravityScale = 1f, linearDamping, angularDamping;
     }
     public static final class PhysicsShapeData {
@@ -109,6 +110,7 @@ public final class GameObjectAsset {
         public boolean enabled = true;
         /** Self-contained circular Spatial footprint marker; no Scene Spatial block is referenced. */
         public boolean spatialFootprint;
+        public boolean technicalSpatialLight;
     }
     /** One standalone Scene joint definition owned by this asset, not by its transform hierarchy. */
     public static final class GameObjectJointData {

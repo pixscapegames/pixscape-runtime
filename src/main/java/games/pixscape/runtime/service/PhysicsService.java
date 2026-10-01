@@ -1199,6 +1199,7 @@ public final class PhysicsService {
 
     public static void initDefaultBody(PhysicsBodyComponent b) {
         b.type = PhysicsBodyComponent.DYNAMIC;
+        b.technicalSpatialLight = false;
         b.fixedRotation = false;
         b.bullet = false;
         b.allowSleep = true;
@@ -1219,6 +1220,7 @@ public final class PhysicsService {
         shape.physicsShapeId = physicsShapeId;
         shape.spatialBlockId = 0;
         shape.spatialFootprint = false;
+        shape.technicalSpatialLight = false;
         shape.geometry = new PhysicsGeometryData();
 
         shape.density = 1f;

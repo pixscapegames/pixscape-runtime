@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
@@ -21,6 +22,40 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialRenderOrderSystemTest {
+
+    @Test
+    public void lightSlotAtIntermediateAltitudeSortsAcrossThreeMapLayers() {
+        Fixture fixture = new Fixture(512);
+        fixture.createLayer(4, true);
+        int[] tiles = new int[3];
+        for (int floor = 0; floor < 3; floor++) {
+            int mapLayer = floor * 2 + 1;
+            TiledMapLayerData map = fixture.createBlockMap(1, 1, 16, 16, 300 + floor * 10);
+            SpatialBlockData block = block(10 + floor, 0f, 0f, 1f, 1f);
+            block.altitude = floor * 10f;
+            block.beginAuthoredLinkedTileRefs();
+            block.addLinkedTileRef(0, 0, 101 + floor);
+            fixture.createBlockTiledLayer(mapLayer, map, block);
+            tiles[floor] = fixture.createLinkedTile(map, 0, 0,
+                    101 + floor, mapLayer, 10);
+        }
+        int light = fixture.createActor(8f, 8f, 0, 4, true);
+        fixture.world.getMapper(PointLightComponent.class).create(light);
+        SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class)
+                .get(light);
+        height.altitude = 12f;
+        height.height = 1f;
+        fixture.setActorCircleFootprint(light, 5f);
+
+        fixture.process();
+
+        int[] order = fixture.drawOrder();
+        Assert.assertTrue(indexOf(order, tiles[0]) < indexOf(order, light));
+        Assert.assertTrue(indexOf(order, tiles[1]) < indexOf(order, light));
+        Assert.assertTrue(indexOf(order, light) < indexOf(order, tiles[2]));
+        fixture.assertDrawListIntegrity();
+    }
+
 
     @Test
     public void sameLayerSpatialActorsSortByFootYAfterLegacySort() {

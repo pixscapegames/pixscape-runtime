@@ -8,6 +8,8 @@ public final class PhysicsShapeData {
     public int spatialBlockId = 0;
     /** Explicit owner of this entity's Spatial rendering footprint. */
     public boolean spatialFootprint = false;
+    /** Authored marker for a light's hidden, non-contact Spatial footprint. */
+    public boolean technicalSpatialLight = false;
     public PhysicsGeometryData geometry;
 
     public float density = 1f;
@@ -26,6 +28,7 @@ public final class PhysicsShapeData {
         copy.physicsShapeId = physicsShapeId;
         copy.spatialBlockId = spatialBlockId;
         copy.spatialFootprint = spatialFootprint;
+        copy.technicalSpatialLight = technicalSpatialLight;
         copy.geometry = geometry != null ? geometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
@@ -57,6 +60,10 @@ public final class PhysicsShapeData {
         if (spatialFootprint) {
             validateSpatialFootprint();
         }
+        if (technicalSpatialLight
+                && (!spatialFootprint || !sensor || maskBits != 0 || groupIndex != 0)) {
+            throw invalid("technical Spatial light footprint must be a filtered sensor footprint.");
+        }
         validateFinite(density, "density");
         validateFinite(friction, "friction");
         validateFinite(restitution, "restitution");
@@ -76,6 +83,7 @@ public final class PhysicsShapeData {
                 && physicsShapeId == other.physicsShapeId
                 && spatialBlockId == other.spatialBlockId
                 && spatialFootprint == other.spatialFootprint
+                && technicalSpatialLight == other.technicalSpatialLight
                 && (geometry == null
                 ? other.geometry == null
                 : geometry.contentEquals(other.geometry))

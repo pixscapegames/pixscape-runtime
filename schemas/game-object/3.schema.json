@@ -114,6 +114,9 @@
                 },
                 "spatialFootprint": {
                   "type": "boolean"
+                },
+                "technicalSpatialLight": {
+                  "type": "boolean"
                 }
               }
             },
@@ -565,6 +568,10 @@
                   "awake": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "technicalSpatialLight": {
+                    "type": "boolean",
+                    "default": false
                   },
                   "gravityScale": {
                     "type": "number",

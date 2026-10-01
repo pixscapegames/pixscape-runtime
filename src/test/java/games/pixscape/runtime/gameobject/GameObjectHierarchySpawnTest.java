@@ -158,6 +158,9 @@ public class GameObjectHierarchySpawnTest {
         meta.physicsEnabled = true;
         GameObjectAsset asset = physicalHierarchy();
         GameObjectAsset.GameObjectEntityData member = asset.entities.get(2);
+        member.physicsBody.type = PhysicsBodyComponent.DYNAMIC;
+        member.physicsBody.gravityScale = 0f;
+        member.physicsBody.technicalSpatialLight = true;
         member.spatialHeight = new GameObjectAsset.SpatialHeightData();
         member.spatialHeight.altitude = 3f;
         member.spatialHeight.height = 6f;
@@ -165,6 +168,9 @@ public class GameObjectHierarchySpawnTest {
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.geometry.radius = 2f;
         shape.spatialFootprint = true;
+        shape.technicalSpatialLight = true;
+        shape.sensor = true;
+        shape.maskBits = 0;
 
         SpawnResult result = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), meta, new AtlasRuntimeService())
@@ -178,6 +184,9 @@ public class GameObjectHierarchySpawnTest {
         PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
                 .get(spawnedMember).shapes.first();
         Assert.assertTrue(spawnedShape.spatialFootprint);
+        Assert.assertTrue(spawnedShape.technicalSpatialLight);
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class)
+                .get(spawnedMember).technicalSpatialLight);
         Assert.assertNotEquals(shape.localShapeId, spawnedShape.physicsShapeId);
     }
 
