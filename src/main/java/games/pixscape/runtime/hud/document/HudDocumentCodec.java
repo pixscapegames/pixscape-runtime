@@ -84,6 +84,8 @@ public final class HudDocumentCodec {
                             + "; expected " + HudDocumentV1.CURRENT_SCHEMA_VERSION + ".", null);
         }
 
+        requireUniformCellConstraints(root, source);
+
         try {
             HudDocumentV1 document = createJson().fromJson(HudDocumentV1.class, serialized);
             if (document == null) {
@@ -98,6 +100,34 @@ public final class HudDocumentCodec {
                     "HUD document contains unsupported or malformed values in " + source + ".",
                     failure);
         }
+    }
+
+    private static void requireUniformCellConstraints(JsonValue value, String source) {
+        if (value == null) return;
+        if (value.isObject()) {
+            JsonValue cells = value.get("cells");
+            if (cells != null && cells.isArray()) {
+                for (JsonValue cell = cells.child; cell != null; cell = cell.next) {
+                    JsonValue constraints = cell.isObject() ? cell.get("constraints") : null;
+                    if (constraints == null || !constraints.isObject()
+                            || !isBoolean(constraints.get("uniformX"))
+                            || !isBoolean(constraints.get("uniformY"))) {
+                        throw failure(HudDocumentLoadCode.DESERIALIZATION_FAILURE, source,
+                                "Every HUD table cell requires boolean uniformX and uniformY constraints in "
+                                        + source + ".", null);
+                    }
+                }
+            }
+            for (JsonValue child = value.child; child != null; child = child.next)
+                requireUniformCellConstraints(child, source);
+        } else if (value.isArray()) {
+            for (JsonValue child = value.child; child != null; child = child.next)
+                requireUniformCellConstraints(child, source);
+        }
+    }
+
+    private static boolean isBoolean(JsonValue value) {
+        return value != null && value.isBoolean();
     }
 
     private static Json createJson() {

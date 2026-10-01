@@ -12,7 +12,7 @@
           "id": "clipped-content",
           "kind": "TABLE",
           "table": { "columns": 1, "rows": [ { "cells": [
-            { "id": "cell-clipped-label", "constraints": {
+            { "id": "cell-clipped-label", "constraints": { "uniformX": false, "uniformY": false,
               "prefWidth": 640, "prefHeight": 320, "fillX": true, "fillY": true }, "content": {
                 "id": "clipped-label",
                 "kind": "LABEL",

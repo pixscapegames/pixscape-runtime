@@ -293,6 +293,53 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void uniformCellsUseNativeColumnAndRowLayoutWithExpandAtTwoSurfaceSizes() {
+        for (boolean horizontal : new boolean[]{true, false}) {
+            HudNode root = new HudNode("root", HudNodeKind.TABLE);
+            HudTableLayout layout = new HudTableLayout();
+            layout.columns = horizontal ? 2 : 1;
+            for (int index = 0; index < 2; index++) {
+                HudTableRow row = new HudTableRow();
+                HudTableCell cell = new HudTableCell();
+                cell.id = "cell-" + index;
+                HudNode label = new HudNode("label-" + index, HudNodeKind.LABEL);
+                label.label = new games.pixscape.runtime.hud.document.HudLabelData();
+                label.label.styleName = "hud-body";
+                label.label.text = index == 0 ? "A"
+                        : horizontal ? "Much wider label" : "A\nB\nC";
+                cell.content = label;
+                cell.constraints.uniformX = horizontal;
+                cell.constraints.uniformY = !horizontal;
+                cell.constraints.expandX = horizontal;
+                cell.constraints.expandY = !horizontal;
+                row.cells.add(cell);
+                if (horizontal) {
+                    if (index == 0) layout.rows.add(row);
+                    else layout.rows.get(0).cells.add(cell);
+                } else layout.rows.add(row);
+            }
+            root.table = layout;
+            MaterializedHud hud = materialize(new HudDocumentV1(root));
+            Table table = (Table) hud.root();
+            Label firstLabel = (Label) hud.actor("label-0");
+            Label secondLabel = (Label) hud.actor("label-1");
+            Assert.assertTrue(horizontal
+                    ? firstLabel.getPrefWidth() < secondLabel.getPrefWidth()
+                    : firstLabel.getPrefHeight() < secondLabel.getPrefHeight());
+            for (float size : new float[]{240f, 480f}) {
+                table.setSize(size, size);
+                table.invalidate();
+                table.validate();
+                float first = horizontal ? table.getColumnWidth(0) : table.getRowHeight(0);
+                float second = horizontal ? table.getColumnWidth(1) : table.getRowHeight(1);
+                Assert.assertEquals(first, second, 0.001f);
+                Assert.assertEquals(size / 2f, first, 0.001f);
+            }
+            hud.dispose();
+        }
+    }
+
+    @Test
     public void tableKeepsExplicitWidthAndNativePreferredHeightIndependent() {
         HudNode root = new HudNode("root", HudNodeKind.TABLE);
         HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);

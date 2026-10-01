@@ -89,7 +89,7 @@ public class HudResourceRequirementsTest {
         String stack = node("stack", "STACK", "\"children\":[{\"placementKind\":\"DIRECT\","
                 + "\"node\":" + node("leaf-layout", "GROUP", "\"children\":[]") + "}]");
         String table = node("table", "TABLE", "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{"
-                + "\"id\":\"cell-stack\",\"constraints\":{},\"content\":" + stack + "}]}]}");
+                + "\"id\":\"cell-stack\",\"constraints\":{\"uniformX\":false,\"uniformY\":false},\"content\":" + stack + "}]}]}");
         assertRequirements(node("root", "GROUP", "\"children\":[{"
                 + "\"placementKind\":\"DIRECT\",\"node\":" + table + "}]"),
                 false, false);
@@ -317,6 +317,6 @@ public class HudResourceRequirementsTest {
     }
 
     private static String emptyTable() {
-        return "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{\"id\":\"empty\",\"constraints\":{}}]}]}";
+        return "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{\"id\":\"empty\",\"constraints\":{\"uniformX\":false,\"uniformY\":false}}]}]}";
     }
 }

@@ -21,6 +21,9 @@ public interface ParticleRef {
 
     ParticleRef stop();
 
+    /** Stops emission and removes the effect after its existing particles finish. */
+    ParticleRef complete();
+
     /**
      * Controls continuous emission without removing the particle entity; a
      * persistent particle can later be restarted.

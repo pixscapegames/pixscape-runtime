@@ -25,6 +25,8 @@ public final class HudCellConstraints {
     public boolean fillY;
     public boolean expandX;
     public boolean expandY;
+    public boolean uniformX = false;
+    public boolean uniformY = false;
     public HudHorizontalAlign horizontalAlign = HudHorizontalAlign.CENTER;
     public HudVerticalAlign verticalAlign = HudVerticalAlign.CENTER;
 }

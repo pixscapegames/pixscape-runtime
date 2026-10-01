@@ -347,7 +347,7 @@ hud_child = obj({"node": hud_node, "placementKind": {"enum": ["DIRECT", "CELL", 
                  "free": {"anyOf": [{"$ref": "#/$defs/freePlacement"}, {"type": "null"}], "default": None}}, ("node",))
 hud_cell = obj({"id": NULLABLE_S, "colspan": POS,
                 "constraints": {"$ref": "#/$defs/cellConstraints"},
-                "content": {"anyOf": [hud_node, {"type": "null"}]}})
+                "content": {"anyOf": [hud_node, {"type": "null"}]}}, ("constraints",))
 hud_table = obj({"columns": NONNEG, "rows": arr(obj({"cells": arr(hud_cell)}))})
 nullable_int = {"type": ["integer", "null"]}
 text_style = {"text": NULLABLE_S, "styleName": NULLABLE_S, "fontAssetId": nullable_int}
@@ -383,9 +383,10 @@ widget = {
 hud_defs = {
     "cellConstraints": obj({**{n: {"type": ["number", "null"]} for n in "minWidth minHeight prefWidth prefHeight maxWidth maxHeight".split()},
                             **{n: N for n in "padTop padRight padBottom padLeft".split()},
-                            **{n: B for n in "fillX fillY expandX expandY".split()},
+                            **{n: B for n in "fillX fillY expandX expandY uniformX uniformY".split()},
                             "horizontalAlign": {"enum": ["LEFT", "CENTER", "RIGHT"]},
-                            "verticalAlign": {"enum": ["BOTTOM", "CENTER", "TOP"]}}),
+                            "verticalAlign": {"enum": ["BOTTOM", "CENTER", "TOP"]}},
+                           ("uniformX", "uniformY")),
     "freePlacement": obj({"horizontalAnchor": {"enum": ["LEFT", "CENTER", "RIGHT"]},
                           "verticalAnchor": {"enum": ["TOP", "CENTER", "BOTTOM"]},
                           **{n: N for n in "pivotX pivotY offsetX offsetY".split()}}),

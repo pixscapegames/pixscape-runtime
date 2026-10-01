@@ -51,6 +51,40 @@ public class HudDocumentCodecTest {
     }
 
     @Test
+    public void uniformConstraintsAreExplicitAndRoundTrip() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        HudCellConstraints constraints = new HudCellConstraints();
+        root.table = table("cell", null, constraints);
+        String defaults = codec.write(new HudDocumentV1(root));
+        Assert.assertTrue(defaults.contains("\"uniformX\": false"));
+        Assert.assertTrue(defaults.contains("\"uniformY\": false"));
+        Assert.assertFalse(codec.read(defaults).root.table.rows.get(0).cells.get(0).constraints.uniformX);
+        constraints.uniformX = true;
+        constraints.uniformY = true;
+        HudCellConstraints restored = codec.read(codec.write(new HudDocumentV1(root)))
+                .root.table.rows.get(0).cells.get(0).constraints;
+        Assert.assertTrue(restored.uniformX);
+        Assert.assertTrue(restored.uniformY);
+    }
+
+    @Test
+    public void uniformConstraintsRejectMissingNullWrongTypeAndMissingObject() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        root.table = table("cell", null, new HudCellConstraints());
+        String valid = codec.write(new HudDocumentV1(root));
+        for (String field : new String[]{"uniformX", "uniformY"}) {
+            rejected(valid.replace("\"" + field + "\": false,", ""),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+            rejected(valid.replace("\"" + field + "\": false", "\"" + field + "\": null"),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+            rejected(valid.replace("\"" + field + "\": false", "\"" + field + "\": 1"),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+        }
+        rejected(valid.replaceFirst(",?\\s*\\\"constraints\\\"\\s*:\\s*\\{[^}]*}", ""),
+                HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    @Test
     public void initialNodeVisibilityDefaultsOnAndRoundTripsOff() {
         HudNode root = new HudNode("root", HudNodeKind.GROUP);
         HudNode hidden = new HudNode("hidden", HudNodeKind.GROUP);

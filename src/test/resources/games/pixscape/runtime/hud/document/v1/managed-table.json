@@ -8,7 +8,7 @@
       "columns": 1,
       "rows": [
         { "cells": [
-          { "id": "cell-title", "constraints": {
+          { "id": "cell-title", "constraints": { "uniformX": false, "uniformY": false,
             "prefHeight": 96,
             "padTop": 16, "padRight": 24, "padBottom": 16, "padLeft": 24,
             "fillX": true, "expandX": true,
@@ -19,7 +19,7 @@
           } }
         ] },
         { "cells": [
-          { "id": "cell-actions", "constraints": {
+          { "id": "cell-actions", "constraints": { "uniformX": false, "uniformY": false,
             "minWidth": 320, "minHeight": 120,
             "prefWidth": 640, "prefHeight": 240,
             "padTop": 12, "padRight": 24, "padBottom": 24, "padLeft": 24,
@@ -27,13 +27,13 @@
           }, "content": {
             "id": "actions", "kind": "TABLE",
             "table": { "columns": 2, "rows": [ { "cells": [
-              { "id": "cell-status", "constraints": {
+              { "id": "cell-status", "constraints": { "uniformX": false, "uniformY": false,
                 "prefWidth": 180, "padRight": 8, "horizontalAlign": "RIGHT"
               }, "content": {
                 "id": "status", "kind": "LABEL",
                 "label": { "text": "Ready", "styleName": "hud-body" }
               } },
-              { "id": "cell-continue", "constraints": {
+              { "id": "cell-continue", "constraints": { "uniformX": false, "uniformY": false,
                 "minWidth": 140, "prefWidth": 180, "fillX": true
               }, "content": {
                 "id": "continue", "kind": "TEXT_BUTTON",

@@ -80,6 +80,12 @@
         "expandY": {
           "type": "boolean"
         },
+        "uniformX": {
+          "type": "boolean"
+        },
+        "uniformY": {
+          "type": "boolean"
+        },
         "horizontalAlign": {
           "enum": [
             "LEFT",
@@ -94,7 +100,11 @@
             "TOP"
           ]
         }
-      }
+      },
+      "required": [
+        "uniformX",
+        "uniformY"
+      ]
     },
     "freePlacement": {
       "type": "object",
@@ -1205,7 +1215,10 @@
                                 }
                               ]
                             }
-                          }
+                          },
+                          "required": [
+                            "constraints"
+                          ]
                         }
                       }
                     }

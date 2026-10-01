@@ -32,6 +32,9 @@ public interface ParticleFacade {
 
     ParticleFacade stop();
 
+    /** Stops new emission, lets existing particles finish, then removes this runtime emitter. */
+    ParticleFacade complete();
+
     boolean isPaused();
 
     boolean isLooping();

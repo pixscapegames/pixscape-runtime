@@ -27,7 +27,7 @@
           "actor": { "width": 200, "height": 120 },
           "dialog": { "title": "Center", "styleName": "hud-window",
             "modal": true, "keepWithinStage": true },
-          "table": { "columns": 1, "rows": [ { "cells": [ { "id": "empty-cell" } ] } ] }
+          "table": { "columns": 1, "rows": [ { "cells": [ { "id": "empty-cell", "constraints": { "uniformX": false, "uniformY": false } } ] } ] }
         } }
     ]
   }

@@ -583,6 +583,7 @@ public final class HudMaterializer {
                 constraints.padBottom, constraints.padRight);
         cell.fill(constraints.fillX, constraints.fillY);
         cell.expand(constraints.expandX, constraints.expandY);
+        cell.uniform(constraints.uniformX, constraints.uniformY);
         cell.align(cellAlign(constraints.horizontalAlign, constraints.verticalAlign));
     }
 

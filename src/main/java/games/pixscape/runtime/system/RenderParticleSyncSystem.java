@@ -249,6 +249,10 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 fx.start();
                 comp.playRequested = false;
             }
+            if (comp.completionRequested) {
+                fx.allowCompletion();
+                comp.completionRequested = false;
+            }
             if (comp.paused) {
                 continue;
             }

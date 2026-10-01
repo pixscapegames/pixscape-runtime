@@ -38,6 +38,8 @@ public final class ParticleEmitterComponent extends PooledComponent {
     public boolean paused = false;
     public boolean playRequested = false;
     public boolean restartRequested = false;
+    /** Runtime request to stop emission and retire after live particles finish. */
+    public transient boolean completionRequested = false;
 
     public ParticleEmitterComponent() {
     }
@@ -52,6 +54,7 @@ public final class ParticleEmitterComponent extends PooledComponent {
         paused = false;
         playRequested = false;
         restartRequested = false;
+        completionRequested = false;
     }
 
     public ParticleEmitterComponent(String effectPath, String atlasTag) {

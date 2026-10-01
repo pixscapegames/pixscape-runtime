@@ -5,7 +5,7 @@
     "kind": "TABLE",
     "actor": { "width": 320, "height": 180 },
     "table": { "columns": 1, "rows": [ { "cells": [
-      { "id": "cell-smoke-free", "constraints": {
+      { "id": "cell-smoke-free", "constraints": { "uniformX": false, "uniformY": false,
         "fillX": true, "fillY": true, "expandX": true, "expandY": true }, "content": {
           "id": "smoke-free",
           "kind": "GROUP",
@@ -66,7 +66,7 @@
                       "id": "smoke-clipped-content",
                       "kind": "TABLE",
                       "table": { "columns": 1, "rows": [ { "cells": [
-                        { "id": "cell-smoke-clipped-label", "constraints": {
+                        { "id": "cell-smoke-clipped-label", "constraints": { "uniformX": false, "uniformY": false,
                             "prefWidth": 200, "prefHeight": 64,
                             "fillX": true, "fillY": true
                           },

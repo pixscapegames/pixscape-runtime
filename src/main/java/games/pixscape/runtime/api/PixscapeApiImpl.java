@@ -2406,6 +2406,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleFacade complete() {
+            ParticleEmitterComponent c = emitter(false);
+            if (c != null) {
+                c.looping = false;
+                c.autoRemoveWhenComplete = true;
+                c.paused = false;
+                c.playRequested = false;
+                c.restartRequested = false;
+                c.completionRequested = true;
+            }
+            return this;
+        }
+
+        @Override
         public boolean isPaused() {
             ParticleEmitterComponent c = emitter(false);
             return c != null && c.paused;
@@ -3080,6 +3094,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public ParticleRef stop() {
             particles().stop();
+            return this;
+        }
+
+        @Override
+        public ParticleRef complete() {
+            particles().complete();
             return this;
         }
 

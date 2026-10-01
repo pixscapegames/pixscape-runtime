@@ -1524,6 +1524,24 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void spawnedParticleCanFinishEmissionAndRetire() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().spawn("impact.p", 1f, 2f);
+        ParticleEmitterComponent emitter = engine.getWorld().getMapper(ParticleEmitterComponent.class)
+                .get(ref.entityId());
+
+        ref.complete();
+        Assert.assertFalse(emitter.looping);
+        Assert.assertTrue(emitter.autoRemoveWhenComplete);
+        Assert.assertTrue(emitter.completionRequested);
+        engine.getWorld().process();
+
+        Assert.assertFalse(emitter.completionRequested);
+        engine.getWorld().process();
+        Assert.assertFalse(ref.entity().exists());
+    }
+
+    @Test
     public void particleFacadeCreationAlsoRequiresTransformWithoutProxies() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();

@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.hud.HudScreenAssetLoader;
+import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.service.AnimationRegistry;
@@ -40,9 +41,12 @@ public class PublishedExportLoadTest {
         loadEveryScene(root);
         new GameObjectAssetLoader().load(root.child("gameobjects/snake.gameobject"));
         new GameObjectAssetLoader().load(root.child("gameobjects/car.gameobject"));
-        new HudScreenAssetLoader().load(root, "hud/test3");
-        Assert.assertTrue(new HudDocumentValidator().validate(
-                new HudDocumentCodec().read(root.child("hud/test3.json"))).isValid());
+        for (FileHandle descriptor : root.child("hud").list(".hudscreen")) {
+            HudScreenAsset asset = new HudScreenAssetLoader().load(root,
+                    "hud/" + descriptor.nameWithoutExtension());
+            Assert.assertTrue(new HudDocumentValidator().validate(
+                    new HudDocumentCodec().read(root.child(asset.documentId))).isValid());
+        }
     }
 
     private static void loadEveryScene(FileHandle root) {

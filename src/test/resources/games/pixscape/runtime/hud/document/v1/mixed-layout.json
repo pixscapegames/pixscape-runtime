@@ -5,7 +5,7 @@
     "kind": "TABLE",
     "actor": { "width": 1920, "height": 1080 },
     "table": { "columns": 1, "rows": [ { "cells": [
-      { "id": "cell-free-surface", "constraints": {
+      { "id": "cell-free-surface", "constraints": { "uniformX": false, "uniformY": false,
         "fillX": true, "fillY": true, "expandX": true, "expandY": true }, "content": {
           "id": "free-surface",
           "kind": "GROUP",

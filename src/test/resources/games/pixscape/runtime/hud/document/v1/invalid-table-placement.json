@@ -4,7 +4,7 @@
     "id": "table-root",
     "kind": "TABLE",
     "table": { "columns": 1, "rows": [ { "cells": [
-      { "id": "empty-cell", "constraints": {} }
+      { "id": "empty-cell", "constraints": { "uniformX": false, "uniformY": false,} }
     ] } ] },
     "children": [
       {
