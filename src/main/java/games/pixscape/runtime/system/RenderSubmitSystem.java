@@ -5,10 +5,8 @@ import com.artemis.ComponentMapper;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -126,7 +124,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
         float curCutoutThreshold = Float.NaN;
 
-        int lastParamsHash = 0;
 
         int size = frameQueue.size;
 
@@ -164,7 +161,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                     curShader = sh;
 
                     curCutoutThreshold = Float.NaN;
-                    lastParamsHash = 0;
 
                     if (curShader != null) {
                         setUniform1fCached(curShader, "u_time", time);
@@ -172,13 +168,16 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                         setUniform3fCached(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
                     }
                 }
+                metricsBatch.setParameterLayout(ShaderRegistry.getParameterLayout(shaderIdx), stats);
             }
 
             // Blend switch
             final int blendId = frameQueue.blend[i];
 
             if (blendId != curBlendId) {
+                int flushesBeforeBlend = stats.flushes;
                 metricsBatch.flush(stats);
+                if (stats.flushes > flushesBeforeBlend) stats.flushStateChanges++;
 
                 BlendMode blendMode = BlendMode.fromId(blendId);
 
@@ -223,28 +222,12 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                 curPackedColor = packedColor;
             }
 
-            // Per-entity uniforms
-            if (curShader != null && hasShaderParamsMapper) {
-                final int entityId = frameQueue.sourceEntity[i];
-
-                if (entityId >= 0 && mShaderParams.has(entityId)) {
-                    ShaderParamsComponent params = mShaderParams.get(entityId);
-
-                    if (params != null
-                            && params.floats != null
-                            && params.floats.size > 0) {
-
-                        int h = hashShaderParams(params.floats);
-
-                        if (h != lastParamsHash) {
-                            metricsBatch.flush(stats);
-                            curShader.bind();
-                            applyShaderParams(curShader, params.floats);
-                            lastParamsHash = h;
-                        }
-                    }
-                }
+            ShaderParamsComponent params = null;
+            int entityId = frameQueue.sourceEntity[i];
+            if (curShader != null && hasShaderParamsMapper && entityId >= 0 && mShaderParams.has(entityId)) {
+                params = mShaderParams.get(entityId);
             }
+            metricsBatch.setEntityParameters(params == null ? null : params.floats, stats);
 
             byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {
@@ -371,50 +354,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
     private static float max4(float a, float b, float c, float d) {
         return Math.max(Math.max(a, b), Math.max(c, d));
-    }
-
-    private static int hashShaderParams(Array<ShaderFloatParam> floats) {
-        if (floats == null || floats.size == 0) {
-            return 0;
-        }
-
-        int h = 0x9E3779B9;
-
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-
-            if (param == null || param.name == null) {
-                continue;
-            }
-
-            int kh = param.name.hashCode();
-            int vh = Float.floatToIntBits(param.value);
-
-            int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;
-
-            x ^= (x >>> 16);
-
-            h ^= x;
-            h = Integer.rotateLeft(h, 13) * 5 + 0xE6546B64;
-        }
-
-        return h;
-    }
-
-    private void applyShaderParams(ShaderProgram shader, Array<ShaderFloatParam> floats) {
-        if (shader == null || floats == null || floats.size == 0) {
-            return;
-        }
-
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-
-            if (param == null || param.name == null || param.name.length() == 0) {
-                continue;
-            }
-
-            setUniform1fCached(shader, param.name, param.value);
-        }
     }
 
     private int getUniformLocationCached(ShaderProgram shader, String uniformName) {

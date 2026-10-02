@@ -4,10 +4,16 @@
 
 ### Breaking changes
 
+* Custom texture-array material shaders must use the per-entity parameter table instead of per-entity float uniforms. Migrate both desktop and ES3/WebGL2 variants; draw-wide uniforms remain supported.
 * HUD screen metadata no longer accepts `referenceWidth` or `referenceHeight`; development HUD assets containing them must be recreated in the current format.
+
+### Added
+
+* Added a 1,024-row RGBA32F table with up to 16 float parameters per material shader, default row, flat vertex row selection, and generated GLSL parameter-name defines for project shaders.
 
 ### Changed
 
+* Compatible entities with different float values stay in one batch; identical encoded values reuse rows, including the default row, so value differences alone no longer cause flushes.
 * HUD sessions now size their technical root to the available logical viewport without scaling the whole HUD on resize.
 * Direct root Tables can fill the HUD surface, and native cells support maximum width and height constraints.
 * Removed fixed reference dimensions from HUD screen assets; centered anchored Dialogs follow resize while open.

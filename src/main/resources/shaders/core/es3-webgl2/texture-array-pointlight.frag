@@ -4,7 +4,7 @@ precision highp float;
 in vec2 v_uv;
 in vec4 v_color;
 
-uniform float u_falloff;
+#include "pixscape_entity_params.glsl"
 
 out vec4 fragColor;
 
@@ -14,7 +14,7 @@ void main() {
     float d = length(p);
     float x = clamp(d, 0.0, 1.0);
 
-    float atten = pow(1.0 - x, max(u_falloff, 0.0001));
+    float atten = pow(1.0 - x, max(pixscapeEntityFloat(3), 0.0001));
 
     if (d > 1.0) discard;
 
