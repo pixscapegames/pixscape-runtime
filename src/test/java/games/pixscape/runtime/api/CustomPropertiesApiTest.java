@@ -4,8 +4,8 @@ import com.artemis.World;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
 import org.junit.Assert;
 import org.junit.Test;
 

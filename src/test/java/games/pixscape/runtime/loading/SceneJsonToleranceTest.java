@@ -1,8 +1,8 @@
 package games.pixscape.runtime.loading;
 
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import com.artemis.Aspect;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.EntityIndexComponent;

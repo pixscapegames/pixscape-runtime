@@ -5,20 +5,20 @@ import com.artemis.ComponentMapper;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.runtime.animation.AnimationClipDef;
+import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.animation.AnimationClipDef;
-import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DirtyBits;
+import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**

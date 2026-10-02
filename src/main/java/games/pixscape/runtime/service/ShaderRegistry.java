@@ -10,11 +10,7 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.render.ShaderMode;
-import games.pixscape.runtime.render.ShaderOrigin;
-import games.pixscape.runtime.render.ShaderRole;
-import games.pixscape.runtime.render.ShaderVariant;
-import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 

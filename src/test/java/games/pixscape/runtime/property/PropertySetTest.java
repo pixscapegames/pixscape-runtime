@@ -1,7 +1,7 @@
 package games.pixscape.runtime.property;
 
-import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.api.ClassProperty;
 import org.junit.Assert;
 import org.junit.Test;

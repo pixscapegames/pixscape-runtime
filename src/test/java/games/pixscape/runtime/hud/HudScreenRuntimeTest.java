@@ -1,14 +1,9 @@
 package games.pixscape.runtime.hud;
 
 import com.artemis.WorldConfigurationBuilder;
-import com.badlogic.gdx.Application;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.InputAdapter;
-import com.badlogic.gdx.InputMultiplexer;
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Graphics;
-import com.badlogic.gdx.Files;
+import com.badlogic.gdx.*;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -20,6 +15,10 @@ import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.CircleShape;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.api.EntityRef;
 import games.pixscape.runtime.api.PhysicsAPI;
@@ -30,12 +29,7 @@ import games.pixscape.runtime.hud.document.HudValidationIssueCode;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Proxy;
@@ -43,11 +37,6 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.scenes.scene2d.ui.Image;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
-import com.badlogic.gdx.utils.Disposable;
 
 public class HudScreenRuntimeTest {
     private static final String[] ATTRIBUTES = {

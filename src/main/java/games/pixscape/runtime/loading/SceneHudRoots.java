@@ -1,6 +1,7 @@
 package games.pixscape.runtime.loading;
 
 import games.pixscape.runtime.hud.HudScreenAssetId;
+
 import java.util.Collections;
 import java.util.List;
 

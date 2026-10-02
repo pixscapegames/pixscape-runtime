@@ -1,7 +1,6 @@
 package games.pixscape.runtime.tiled;
 
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 

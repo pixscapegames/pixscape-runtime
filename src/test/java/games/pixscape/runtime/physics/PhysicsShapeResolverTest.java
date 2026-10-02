@@ -1,10 +1,9 @@
 package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.math.MathUtils;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -2,11 +2,11 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
-import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 

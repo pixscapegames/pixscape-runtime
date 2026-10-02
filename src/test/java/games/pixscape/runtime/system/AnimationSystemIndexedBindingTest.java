@@ -2,12 +2,12 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.animation.AnimationClipDefData;
-import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;

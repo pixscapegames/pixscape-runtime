@@ -2,11 +2,7 @@ package games.pixscape.runtime.api;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;

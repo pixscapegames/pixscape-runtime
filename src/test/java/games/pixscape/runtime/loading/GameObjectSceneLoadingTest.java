@@ -6,12 +6,7 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.*;
 import org.junit.Assert;
 import org.junit.Test;
 
