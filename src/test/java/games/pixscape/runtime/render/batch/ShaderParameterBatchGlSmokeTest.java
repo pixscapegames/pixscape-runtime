@@ -254,6 +254,28 @@ public class ShaderParameterBatchGlSmokeTest {
                             ShaderRegistry.get("tint"), ShaderRegistry.getParameterLayout(tintIndex),
                             "u_tint", .75f, 128, 0, 0, 191);
 
+                    ShaderProgram beforeFailure = ShaderRegistry.get("test");
+                    String indicesBeforeFailure = projectDir.child("shaders/shader-indices.json")
+                            .readString("UTF-8");
+                    writeProjectShader("zz_broken", "u_invalid", "#version 330 core\ninvalid glsl\n");
+                    try {
+                        ShaderRegistry.reloadForProject(projectDir, "shaders");
+                        Assert.fail("Invalid project shader must abort reload");
+                    } catch (IllegalStateException expected) {
+                        Assert.assertTrue(expected.getMessage().contains("zz_broken"));
+                    }
+                    Assert.assertSame(beforeFailure, ShaderRegistry.get("test"));
+                    Assert.assertEquals(alphaIndex, ShaderRegistry.indexOf("alpha"));
+                    Assert.assertEquals(indicesBeforeFailure, projectDir.child("shaders/shader-indices.json")
+                            .readString("UTF-8"));
+                    assertShaderReference("test", "u_gain", testMaterial, renderState, testSlot);
+                    assertShaderReference("tint", "u_tint", tintMaterial, renderState, tintSlot);
+                    transitionFrame(projection, ShaderRegistry.get("test"),
+                            ShaderRegistry.getParameterLayout(testIndex), 0, "u_gain", .5f,
+                            ShaderRegistry.get("tint"), ShaderRegistry.getParameterLayout(tintIndex),
+                            "u_tint", .75f, 128, 0, 0, 191);
+                    Assert.assertTrue(projectDir.child("shaders/custom/material/zz_broken").deleteDirectory());
+
                     Assert.assertTrue(projectDir.child("shaders/custom/material/alpha").deleteDirectory());
                     ShaderRegistry.reloadForProject(projectDir, "shaders");
                     ShaderRegistry.saveProjectIndices();

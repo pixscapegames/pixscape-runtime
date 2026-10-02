@@ -18,6 +18,11 @@
 * Direct root Tables can fill the HUD surface, and native cells support maximum width and height constraints.
 * Removed fixed reference dimensions from HUD screen assets; centered anchored Dialogs follow resize while open.
 
+### Fixed
+
+* Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
+* Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
+
 
 ## [0.2.2]
 

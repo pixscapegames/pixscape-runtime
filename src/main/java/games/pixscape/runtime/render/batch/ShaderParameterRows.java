@@ -133,11 +133,17 @@ public final class ShaderParameterRows {
         rowIndex[slot] = row + 1;
     }
 
-    private static int hash(float[] values, int offset) {
+    static int hash(float[] values, int offset) {
         int hash = 0x811c9dc5;
         for (int i = 0; i < FLOATS_PER_ROW; i++) {
             hash = (hash ^ Float.floatToIntBits(values[offset + i])) * 0x01000193;
         }
+        // The index uses low bits only; float encodings leave those bits correlated.
+        hash ^= hash >>> 16;
+        hash *= 0x7feb352d;
+        hash ^= hash >>> 15;
+        hash *= 0x846ca68b;
+        hash ^= hash >>> 16;
         return hash;
     }
 }

@@ -19,8 +19,9 @@ import games.pixscape.runtime.render.batch.ShaderParameterLayout;
  *
  * <p>The registry follows Pixscape's one-active-engine/graphics-context contract and is not
  * thread-safe. Registration transfers disposal ownership of the {@link ShaderProgram} to the
- * registry. Returned programs are borrowed; do not dispose them. Project reload or
- * {@link #disposeAll()} invalidates previously returned programs and indexes.</p>
+ * registry. Returned programs are borrowed; do not dispose them. A successful project reload
+ * or {@link #disposeAll()} invalidates previously returned programs. Failed reloads preserve
+ * the active registry and stable shader indexes.</p>
  */
 public final class ShaderRegistry {
 
@@ -38,14 +39,14 @@ public final class ShaderRegistry {
 
     private static final ShaderRegistry INSTANCE = new ShaderRegistry();
 
-    private static final ObjectIntMap<String> nameToIdx = new ObjectIntMap<>();
-    private static final Array<ShaderProgram> byIdx = new Array<>();
-    private static final Array<ShaderMode> modesByIdx = new Array<>();
-    private static final Array<ShaderOrigin> originsByIdx = new Array<>();
-    private static final Array<ShaderRole> rolesByIdx = new Array<>();
-    private static final ObjectMap<String, Array<ShaderFloatParam>> defaultUniforms = new ObjectMap<>();
-    private static final Array<ShaderParameterLayout> parameterLayoutsByIdx = new Array<>();
-    private static final ObjectIntMap<String> reservedIndices = new ObjectIntMap<>();
+    private static ObjectIntMap<String> nameToIdx = new ObjectIntMap<>();
+    private static Array<ShaderProgram> byIdx = new Array<>();
+    private static Array<ShaderMode> modesByIdx = new Array<>();
+    private static Array<ShaderOrigin> originsByIdx = new Array<>();
+    private static Array<ShaderRole> rolesByIdx = new Array<>();
+    private static ObjectMap<String, Array<ShaderFloatParam>> defaultUniforms = new ObjectMap<>();
+    private static Array<ShaderParameterLayout> parameterLayoutsByIdx = new Array<>();
+    private static ObjectIntMap<String> reservedIndices = new ObjectIntMap<>();
     private static final String INDEX_FILE = "shader-indices.json";
     private static final int MAX_SHADERS = 1 << SortKey64.SHADER_BITS;
     private static int nextShaderIndex;
@@ -303,11 +304,18 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     public static void disposeAll() {
-        for (int i = 0, n = byIdx.size; i < n; i++) {
-            ShaderProgram sp = byIdx.get(i);
+        disposePrograms(byIdx);
+        clearActiveRegistry();
+    }
+
+    private static void disposePrograms(Array<ShaderProgram> programs) {
+        for (int i = 0, n = programs.size; i < n; i++) {
+            ShaderProgram sp = programs.get(i);
             if (sp != null) sp.dispose();
         }
+    }
 
+    private static void clearActiveRegistry() {
         byIdx.clear();
         nameToIdx.clear();
         modesByIdx.clear();
@@ -329,27 +337,83 @@ public final class ShaderRegistry {
     }
 
     public static void reloadForProject(FileHandle projectDir, String shadersDir) {
+        RegistrySnapshot previousState = new RegistrySnapshot();
         String oldRoot = projectShadersRoot == null ? null : projectShadersRoot.path();
         String newRoot = projectDir == null || shadersDir == null ? null : projectDir.child(shadersDir).path();
-        ObjectIntMap<String> previous = new ObjectIntMap<>();
         int previousNext = nextShaderIndex;
-        if (oldRoot != null && oldRoot.equals(newRoot)) {
-            for (ObjectIntMap.Entries<String> it = nameToIdx.entries(); it.hasNext(); ) {
-                ObjectIntMap.Entry<String> entry = it.next();
-                previous.put(entry.key, entry.value);
+        startCandidateRegistry();
+        try {
+            setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
+            if (projectShadersRoot != null && !projectShadersRoot.child(INDEX_FILE).exists()
+                    && oldRoot != null && oldRoot.equals(newRoot)) {
+                for (ObjectIntMap.Entries<String> it = previousState.names.entries(); it.hasNext(); ) {
+                    ObjectIntMap.Entry<String> entry = it.next();
+                    reservedIndices.put(entry.key, entry.value);
+                }
+                nextShaderIndex = previousNext;
             }
+            initDefaults();
+        } catch (RuntimeException | Error failure) {
+            disposePrograms(byIdx);
+            previousState.restore();
+            throw failure;
         }
-        disposeAll();
-        setProjectContext(PlatformTarget.AUTO, projectDir, shadersDir);
-        if (projectShadersRoot != null && !projectShadersRoot.child(INDEX_FILE).exists()
-                && oldRoot != null && oldRoot.equals(newRoot)) {
-            for (ObjectIntMap.Entries<String> it = previous.entries(); it.hasNext(); ) {
-                ObjectIntMap.Entry<String> entry = it.next();
-                reservedIndices.put(entry.key, entry.value);
-            }
-            nextShaderIndex = previousNext;
+        disposePrograms(previousState.programs);
+    }
+
+    /** Keeps the previous registry by reference while a replacement is prepared. */
+    private static final class RegistrySnapshot {
+        final ObjectIntMap<String> names = nameToIdx;
+        final Array<ShaderProgram> programs = byIdx;
+        final Array<ShaderMode> modes = modesByIdx;
+        final Array<ShaderOrigin> origins = originsByIdx;
+        final Array<ShaderRole> roles = rolesByIdx;
+        final ObjectMap<String, Array<ShaderFloatParam>> defaults = defaultUniforms;
+        final Array<ShaderParameterLayout> layouts = parameterLayoutsByIdx;
+        final ObjectIntMap<String> reserved = reservedIndices;
+        final int next = nextShaderIndex;
+        final boolean wasInitialized = initialized;
+        final PlatformTarget target = requestedPlatformTarget;
+        final PlatformTarget resolvedTarget = cachedResolvedPlatformTarget;
+        final FileHandle shadersRoot = projectShadersRoot;
+        final ShaderVariant variant = cachedVariant;
+        final GLCaps glCaps = caps;
+
+        void restore() {
+            nameToIdx = names;
+            byIdx = programs;
+            modesByIdx = modes;
+            originsByIdx = origins;
+            rolesByIdx = roles;
+            defaultUniforms = defaults;
+            parameterLayoutsByIdx = layouts;
+            reservedIndices = reserved;
+            nextShaderIndex = next;
+            initialized = wasInitialized;
+            requestedPlatformTarget = target;
+            cachedResolvedPlatformTarget = resolvedTarget;
+            projectShadersRoot = shadersRoot;
+            cachedVariant = variant;
+            caps = glCaps;
         }
-        initDefaults();
+    }
+
+    private static void startCandidateRegistry() {
+        nameToIdx = new ObjectIntMap<>();
+        byIdx = new Array<>();
+        modesByIdx = new Array<>();
+        originsByIdx = new Array<>();
+        rolesByIdx = new Array<>();
+        defaultUniforms = new ObjectMap<>();
+        parameterLayoutsByIdx = new Array<>();
+        reservedIndices = new ObjectIntMap<>();
+        nextShaderIndex = 0;
+        initialized = false;
+        requestedPlatformTarget = PlatformTarget.AUTO;
+        cachedResolvedPlatformTarget = null;
+        projectShadersRoot = null;
+        cachedVariant = null;
+        caps = null;
     }
 
     /** Persists the project's shader slot allocator after a successful Studio reload. */
@@ -1169,7 +1233,12 @@ public final class ShaderRegistry {
             return existing;
         }
 
-        return register(name, sp, mode, origin, role);
+        try {
+            return register(name, sp, mode, origin, role);
+        } catch (RuntimeException | Error failure) {
+            sp.dispose();
+            throw failure;
+        }
     }
 
     private static void ensureMetaSize(int size) {
