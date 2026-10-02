@@ -1,7 +1,7 @@
 package games.pixscape.runtime.service;
 
-import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationClipDef;
+import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.animation.AnimationDefData;
 import org.junit.Assert;

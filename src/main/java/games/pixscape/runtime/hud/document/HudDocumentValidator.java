@@ -1,25 +1,9 @@
 package games.pixscape.runtime.hud.document;
 
 import com.badlogic.gdx.utils.ObjectSet;
-import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
-import games.pixscape.runtime.hud.HudBuiltInImageButtonStyle;
-import games.pixscape.runtime.hud.HudBuiltInImageTextButtonStyle;
-import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
-import games.pixscape.runtime.hud.HudBuiltInTextFieldStyle;
-import games.pixscape.runtime.hud.HudBuiltInSelectBoxStyle;
-import games.pixscape.runtime.hud.HudBuiltInCheckBoxStyle;
-import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
-import games.pixscape.runtime.hud.HudBuiltInProgressBarStyle;
-import games.pixscape.runtime.hud.HudBuiltInScrollPaneStyle;
-import games.pixscape.runtime.hud.HudBuiltInWindowStyle;
-import games.pixscape.runtime.hud.HudBuiltInTextTooltipStyle;
+import games.pixscape.runtime.hud.*;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /** Strict, deterministic, GL-free validator for {@link HudDocumentV1}. */
 public final class HudDocumentValidator {

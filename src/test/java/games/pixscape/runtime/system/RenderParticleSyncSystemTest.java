@@ -12,30 +12,22 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.engine.PixscapeEngine;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import org.junit.Assert;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.io.StringWriter;
 
 public class RenderParticleSyncSystemTest {
 

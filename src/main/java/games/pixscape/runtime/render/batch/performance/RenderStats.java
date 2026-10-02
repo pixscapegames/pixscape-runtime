@@ -36,6 +36,7 @@ public final class RenderStats {
     public int flushes;
     public int flushStateChanges;  // shader/blend
     public int flushCapacity;      // buffer plein
+    public int flushParameterCapacity;
     public int flushEnd;
     public int shaderSwitches;
     public int shaderBinds;
@@ -89,7 +90,7 @@ public final class RenderStats {
 
     public void reset() {
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
-        drawCalls = flushes = flushStateChanges = flushCapacity = flushEnd = shaderSwitches = shaderBinds = textureBinds = 0;
+        drawCalls = flushes = flushStateChanges = flushCapacity = flushParameterCapacity = flushEnd = shaderSwitches = shaderBinds = textureBinds = 0;
         textureArrayBindSkips = projectionUploads = submittedQuads = flushedQuads = flushedVertices = 0;
         framebufferBinds = blendModeSwitches = framebufferSwitches = blendSwitches = 0;
         regionResolveCacheHits = regionResolveCacheMisses = 0L;
@@ -153,6 +154,7 @@ public final class RenderStats {
         batchesAlpha += other.batchesAlpha;
         flushStateChanges += other.flushStateChanges;
         flushCapacity += other.flushCapacity;
+        flushParameterCapacity += other.flushParameterCapacity;
         flushEnd += other.flushEnd;
         buildDrawListScannedEcsSlots += other.buildDrawListScannedEcsSlots;
         ecsActiveRenderSlots += other.ecsActiveRenderSlots;

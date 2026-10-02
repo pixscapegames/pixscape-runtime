@@ -2,8 +2,10 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.hud.SceneHudFiles;
-import java.util.Arrays;
 import org.junit.Test;
+
+import java.util.Arrays;
+
 import static org.junit.Assert.*;
 
 public class SceneHudFilesTest {

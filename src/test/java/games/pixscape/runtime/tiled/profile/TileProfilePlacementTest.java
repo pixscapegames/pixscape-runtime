@@ -1,6 +1,5 @@
 package games.pixscape.runtime.tiled.profile;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;

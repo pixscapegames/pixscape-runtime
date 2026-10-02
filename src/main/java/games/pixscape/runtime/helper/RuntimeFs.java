@@ -1,7 +1,7 @@
 package games.pixscape.runtime.helper;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 public final class RuntimeFs {
 

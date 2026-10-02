@@ -12,12 +12,12 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.Box2dWorldService;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.PhysicsService;
 import org.junit.*;
 
 import java.lang.reflect.Proxy;

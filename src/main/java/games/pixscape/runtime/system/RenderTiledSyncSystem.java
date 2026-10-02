@@ -2,10 +2,10 @@ package games.pixscape.runtime.system;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.utils.IntBag;
 import com.artemis.annotations.All;
 import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -21,12 +21,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
-import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
-import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -37,12 +32,12 @@ import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
-import games.pixscape.runtime.tiled.TiledProjection;
 
 
 @All({EntityIndexComponent.class, TiledLayerComponent.class})

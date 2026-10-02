@@ -6,12 +6,13 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.configuration.RuntimeConfig;
-import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
-import games.pixscape.runtime.particle.ParticleEffectPath;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.hud.HudResources;
 import games.pixscape.runtime.hud.HudTextureProfile;
 import games.pixscape.runtime.hud.SceneHudFiles;
+import games.pixscape.runtime.particle.ParticleEffectPath;
+
 import java.util.List;
 
 /** Small staged plan for the exact file/resource needs of one selected scene. */

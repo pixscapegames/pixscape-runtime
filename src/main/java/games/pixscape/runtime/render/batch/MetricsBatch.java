@@ -2,6 +2,8 @@ package games.pixscape.runtime.render.batch;
 
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
@@ -19,6 +21,18 @@ public interface MetricsBatch extends AutoCloseable {
     void begin(Matrix4 combined, RenderStats stats);
 
     void setShader(ShaderProgram shader, RenderStats stats);
+
+    default void setParameterLayout(ShaderParameterLayout layout, RenderStats stats) {
+        if (layout != null && layout.size() != 0) {
+            throw new UnsupportedOperationException("This batch cannot render per-entity shader parameters");
+        }
+    }
+
+    default void setEntityParameters(Array<ShaderFloatParam> parameters, RenderStats stats) {
+        if (parameters != null && parameters.size != 0) {
+            throw new UnsupportedOperationException("This batch cannot render per-entity shader parameters");
+        }
+    }
 
     void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats);
 

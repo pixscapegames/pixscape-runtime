@@ -9,13 +9,8 @@ import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.loading.FileAvailabilityService;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Collections;
+
+import java.util.*;
 
 /** INTERNAL, GL-free staged file discovery. The Scene plan, not this helper, owns resources. */
 public final class SceneHudFiles {

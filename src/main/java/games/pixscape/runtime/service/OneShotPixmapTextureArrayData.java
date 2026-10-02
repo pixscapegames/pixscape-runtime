@@ -1,11 +1,7 @@
 package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.GL30;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.TextureArray;
-import com.badlogic.gdx.graphics.TextureArrayData;
+import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.utils.Array;
 
 /** Upload data for prepared Pixmaps that deliberately cannot be reloaded. */

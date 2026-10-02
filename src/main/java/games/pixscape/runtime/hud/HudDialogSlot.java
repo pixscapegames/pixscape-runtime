@@ -1,8 +1,8 @@
 package games.pixscape.runtime.hud;
 
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
-import com.badlogic.gdx.math.Vector2;
 
 /** Stable authored placement while native Dialog.show/hide temporarily reparents its actor. */
 final class HudDialogSlot extends WidgetGroup {

@@ -38,6 +38,7 @@ tasks.named('test', Test).configure {
   useJUnit()
   exclude '**/HudMaterializerGlSmokeTest.class'
   exclude '**/TextraHudBatchGlPrototypeTest.class'
+  exclude '**/ShaderParameterBatchGlSmokeTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -57,6 +58,16 @@ tasks.register('textraHudGlPrototype', Test) {
   classpath = sourceSets.test.runtimeClasspath
   useJUnit()
   include '**/TextraHudBatchGlPrototypeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('shaderParameterGlSmoke', Test) {
+  description = 'Runs the shader parameter table through a real desktop GL30 context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/ShaderParameterBatchGlSmokeTest.class'
   shouldRunAfter tasks.named('test')
 }
 

@@ -18,11 +18,7 @@ import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
-import games.pixscape.runtime.service.AtlasAssetBinding;
-import games.pixscape.runtime.service.AtlasRegionMetadata;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.util.List;

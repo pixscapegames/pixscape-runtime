@@ -1,19 +1,13 @@
 package games.pixscape.runtime.gameobject;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.Json;
-import com.badlogic.gdx.utils.JsonReader;
-import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.JsonWriter;
-import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 
 /** Strict reader/writer for the independent Game Object asset schema. */

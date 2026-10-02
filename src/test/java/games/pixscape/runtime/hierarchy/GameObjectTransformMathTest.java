@@ -1,9 +1,9 @@
 package games.pixscape.runtime.hierarchy;
 
 import com.badlogic.gdx.math.Affine2;
+import games.pixscape.runtime.component.TransformComponent;
 import org.junit.Assert;
 import org.junit.Test;
-import games.pixscape.runtime.component.TransformComponent;
 
 public class GameObjectTransformMathTest {
     private static final float EPSILON = 0.001f;
