@@ -1,5 +1,9 @@
 package games.pixscape.runtime.spatial;
 
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+
 /** Allocation-free, pure actor-versus-projected-face relation solver. */
 public final class SpatialFaceRelationSolver {
     public static final byte ACTOR_BEHIND_FACE = 1;
@@ -10,10 +14,22 @@ public final class SpatialFaceRelationSolver {
     public int[] actorRelationStart = new int[0];
     public int[] actorRelationCount = new int[0];
     public int[] relationFaceIndex = new int[0];
+    public int[] relationAnchorIndex = new int[0];
+    public int[] relationMembershipIndex = new int[0];
     public byte[] relationType = new byte[0];
+    public int visualCandidateCount;
+    public int[] actorCandidateStart = new int[0];
+    public int[] actorCandidateCount = new int[0];
+    public int[] candidateAnchorIndex = new int[0];
+    private boolean captureCandidates;
+
+    public void setCaptureCandidates(boolean captureCandidates) {
+        this.captureCandidates = captureCandidates;
+    }
 
     public void solve(SpatialActorCollector actors, SpatialProjectedFaceCache faces) {
         relationCount = 0;
+        visualCandidateCount = 0;
         if (actors == null || faces == null) return;
         ensureActorCapacity(actors.actorCount);
         for (int actor = 0; actor < actors.actorCount; actor++) {
@@ -39,10 +55,53 @@ public final class SpatialFaceRelationSolver {
                     float faceY = faces.slope[face] * x + faces.intercept[face];
                     byte type = SpatialLineRelation.circleRelation(faceY, y,
                             inverseNormalLength(faces, face), radius);
-                    add(face, type);
+                    add(face, -1, -1, type);
                 }
             }
             actorRelationCount[actor] = relationCount - relationStart;
+        }
+    }
+
+    /** Uses tile quad reach to choose anchors, then the physical circle against each face's infinite line. */
+    public void solveVisual(SpatialActorCollector actors, SpatialProjectedFaceCache faces,
+                            SpatialVisualAnchorSelector selector, DynamicEntityRenderState ecs,
+                            TiledMapRenderState tiled, TiledMapLayerData map,
+                            float mapOffsetX, float mapOffsetY) {
+        relationCount = 0;
+        visualCandidateCount = 0;
+        if (actors == null || faces == null) return;
+        ensureActorCapacity(actors.actorCount);
+        for (int actor = 0; actor < actors.actorCount; actor++) {
+            int start = relationCount;
+            actorRelationStart[actor] = start;
+            selector.select(actor, actors, ecs, tiled, map, faces, mapOffsetX, mapOffsetY);
+            if (captureCandidates) {
+                actorCandidateStart[actor] = visualCandidateCount;
+                actorCandidateCount[actor] = selector.candidateCount;
+                ensureCandidateCapacity(visualCandidateCount + selector.candidateCount);
+                System.arraycopy(selector.candidateAnchors, 0, candidateAnchorIndex,
+                        visualCandidateCount, selector.candidateCount);
+            }
+            visualCandidateCount += selector.candidateCount;
+            float x = actors.actorCircleX[actor];
+            float y = actors.actorCircleY[actor];
+            float radius = actors.circleRadius(actor);
+            float bottom = actors.actorAltitude[actor];
+            float top = bottom + actors.actorHeight[actor];
+            for (int candidate = 0; candidate < selector.candidateCount; candidate++) {
+                int anchor = selector.candidateAnchors[candidate];
+                for (int membership = faces.anchorMembershipHead[anchor];
+                     membership >= 0; membership = faces.membershipNext[membership]) {
+                    int face = faces.membershipFace[membership];
+                    if (!(top > faces.faceAltitude[face]
+                            && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+                    float lineY = faces.slope[face] * x + faces.intercept[face];
+                    byte type = SpatialLineRelation.circleRelation(lineY, y,
+                            inverseNormalLength(faces, face), radius);
+                    add(face, anchor, membership, type);
+                }
+            }
+            actorRelationCount[actor] = relationCount - start;
         }
     }
 
@@ -63,9 +122,11 @@ public final class SpatialFaceRelationSolver {
         return 1f / (float) Math.sqrt(slope * slope + 1f);
     }
 
-    private void add(int face, byte type) {
+    private void add(int face, int anchor, int membership, byte type) {
         ensureRelationCapacity(relationCount + 1);
         relationFaceIndex[relationCount] = face;
+        relationAnchorIndex[relationCount] = anchor;
+        relationMembershipIndex[relationCount] = membership;
         relationType[relationCount] = type;
         relationCount++;
     }
@@ -75,12 +136,22 @@ public final class SpatialFaceRelationSolver {
         int next = capacity(actorRelationStart.length, required);
         actorRelationStart = grow(actorRelationStart, next);
         actorRelationCount = grow(actorRelationCount, next);
+        actorCandidateStart = grow(actorCandidateStart, next);
+        actorCandidateCount = grow(actorCandidateCount, next);
+    }
+
+    private void ensureCandidateCapacity(int required) {
+        if (required <= candidateAnchorIndex.length) return;
+        candidateAnchorIndex = grow(candidateAnchorIndex,
+                capacity(candidateAnchorIndex.length, required));
     }
 
     private void ensureRelationCapacity(int required) {
         if (required <= relationFaceIndex.length) return;
         int next = capacity(relationFaceIndex.length, required);
         relationFaceIndex = grow(relationFaceIndex, next);
+        relationAnchorIndex = grow(relationAnchorIndex, next);
+        relationMembershipIndex = grow(relationMembershipIndex, next);
         relationType = grow(relationType, next);
     }
 

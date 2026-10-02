@@ -6,6 +6,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
@@ -16,6 +17,8 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.*;
@@ -49,6 +52,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private final SpatialFaceAnchorResolver faceAnchorResolver = new SpatialFaceAnchorResolver();
     private final SpatialActorCollector actorCollector = new SpatialActorCollector();
     private final SpatialFaceRelationSolver relationSolver = new SpatialFaceRelationSolver();
+    private final SpatialVisualAnchorSelector visualSelector = new SpatialVisualAnchorSelector();
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
+    private final Vector2 mapDisplayOffset = new Vector2();
     private final SpatialFrameSnapshotBuilder snapshotBuilder = new SpatialFrameSnapshotBuilder();
     private final SpatialOrderingKernel orderingKernel = new SpatialOrderingKernel();
 
@@ -61,6 +67,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     @SkipWire
     private GameObjectHierarchySystem gameObjectHierarchy;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private int lastVisualCandidateCount;
+    private int lastFaceRelationCount;
+    private boolean diagnosticsEnabled;
+    private final StringBuilder diagnosticDetail = new StringBuilder(256);
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
         this(ecsState, null, drawList);
@@ -74,11 +84,21 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                                     TiledMapRenderState tiledState,
                                     DrawList drawList,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
+        this(ecsState, tiledState, drawList, spatialRuntimeRegistry, null);
+    }
+
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
+                                    TiledMapRenderState tiledState,
+                                    DrawList drawList,
+                                    SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+                                    LayerDisplayOffsetResolver displayOffsetResolver) {
         this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.drawList = drawList;
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
+        this.displayOffsetResolver = displayOffsetResolver != null
+                ? displayOffsetResolver : new IdentityLayerDisplayOffsetResolver();
     }
 
     @Override
@@ -107,6 +127,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void processSystemInternal() {
+        lastVisualCandidateCount = 0;
+        lastFaceRelationCount = 0;
+        if (diagnosticsEnabled) diagnosticDetail.setLength(0);
         orderingKernel.reset();
         if (ecsState == null || drawList == null || drawList.size <= 1) return;
 
@@ -138,13 +161,45 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             faceAnchorResolver.resolve(runtime.projected, tiledRefToDrawIndex,
                     snapshotBuilder.drawIndexToBucketBefore, snapshotBuilder.drawIndexToBucketAfter,
                     drawList.size);
-            relationSolver.solve(actorCollector, runtime.projected);
+            EntityIndexComponent index = mEntityIndex.getSafe(owner, null);
+            displayOffsetResolver.resolveLayer(index != null ? index.layerIndex : 0, mapDisplayOffset);
+            relationSolver.setCaptureCandidates(diagnosticsEnabled);
+            relationSolver.solveVisual(actorCollector, runtime.projected, visualSelector,
+                    ecsState, tiledState, tiled.data, mapDisplayOffset.x, mapDisplayOffset.y);
+            lastVisualCandidateCount += relationSolver.visualCandidateCount;
+            if (diagnosticsEnabled) appendVisualDiagnostics(owner, runtime.projected);
+            lastFaceRelationCount += relationSolver.relationCount;
             if (relationSolver.relationCount() == 0) continue;
-            orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver);
+            orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver, owner);
         }
 
         orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
         applyComposedDrawList();
+    }
+
+    private void appendVisualDiagnostics(int mapEntity, SpatialProjectedFaceCache faces) {
+        for (int actor = 0; actor < actorCollector.actorCount; actor++) {
+            diagnosticDetail.append("\nmap=").append(mapEntity).append(" actor=").append(actor)
+                    .append(" candidates:");
+            int end = relationSolver.actorCandidateStart[actor] + relationSolver.actorCandidateCount[actor];
+            for (int candidate = relationSolver.actorCandidateStart[actor]; candidate < end; candidate++) {
+                int anchor = relationSolver.candidateAnchorIndex[candidate];
+                diagnosticDetail.append(' ').append(faces.anchorGx[anchor]).append(',')
+                        .append(faces.anchorGy[anchor]);
+            }
+            diagnosticDetail.append(" relations:");
+            end = relationSolver.actorRelationStart[actor] + relationSolver.actorRelationCount[actor];
+            for (int relation = relationSolver.actorRelationStart[actor]; relation < end; relation++) {
+                int anchor = relationSolver.relationAnchorIndex[relation];
+                int face = relationSolver.relationFaceIndex[relation];
+                diagnosticDetail.append(' ').append(faces.anchorGx[anchor]).append(',')
+                        .append(faces.anchorGy[anchor]).append("/structure=")
+                        .append(faces.faceStructureId[face]).append("/face=")
+                        .append(faces.faceCompiledIndex[face]).append('/')
+                        .append(relationSolver.relationType[relation] == SpatialFaceRelationSolver.ACTOR_BEHIND_FACE
+                                ? "behind" : "front");
+            }
+        }
     }
 
     private void rebuildSpatialBlockLayers() {
@@ -360,6 +415,17 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     public int actorOrderingFallbackCount() {
         return orderingKernel.actorOrderingFallbackCount();
     }
+
+    public int visualCandidateCount() { return lastVisualCandidateCount; }
+    public int faceRelationCount() { return lastFaceRelationCount; }
+
+    /** Builds a diagnostic snapshot only when explicitly requested; ordinary frames do not log. */
+    public String diagnosticSummary() {
+        return orderingKernel.diagnosticSummary(lastVisualCandidateCount, lastFaceRelationCount)
+                + (diagnosticsEnabled ? diagnosticDetail.toString() : "");
+    }
+
+    public void setDiagnosticsEnabled(boolean enabled) { diagnosticsEnabled = enabled; }
 
     public void setSystemProfiler(SystemProfiler profiler) {
         this.profiler = SystemProfilers.orDisabled(profiler);

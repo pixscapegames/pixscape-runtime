@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
+import java.util.Arrays;
 
 /** Flat projected actor-occluder faces and canonical layer-local tile anchors. */
 public final class SpatialProjectedFaceCache {
@@ -29,6 +30,10 @@ public final class SpatialProjectedFaceCache {
     public boolean[] anchorResolved = new boolean[0];
     public int[] anchorBeforeBucket = new int[0];
     public int[] anchorAfterBucket = new int[0];
+    /** Derived reverse index. Membership indices refer to faceAnchorIndices. */
+    public int[] anchorMembershipHead = new int[0];
+    public int[] membershipNext = new int[0];
+    public int[] membershipFace = new int[0];
     public int[] structureFaceStart = new int[0];
     public int[] structureFaceCount = new int[0];
     public float[] structureMinX = new float[0];
@@ -112,6 +117,7 @@ public final class SpatialProjectedFaceCache {
         }
 
         buildCanonicalAnchors(map);
+        buildReverseMemberships();
         compiledRevision = compiled.revision();
         projection = map.projection;
         tileWidth = map.tileWidth;
@@ -169,6 +175,12 @@ public final class SpatialProjectedFaceCache {
     }
 
     private int findAnchor(int gx, int gy) {
+        int anchor = anchorForCell(gx, gy);
+        if (anchor >= 0) return anchor;
+        throw new IllegalStateException("Missing canonical Spatial anchor.");
+    }
+
+    public int anchorForCell(int gx, int gy) {
         int low = 0;
         int high = anchorCount - 1;
         while (low <= high) {
@@ -178,7 +190,26 @@ public final class SpatialProjectedFaceCache {
             else if (compare > 0) high = middle - 1;
             else return middle;
         }
-        throw new IllegalStateException("Missing canonical Spatial anchor.");
+        return -1;
+    }
+
+    private void buildReverseMemberships() {
+        ensureAnchorCapacity(anchorCount);
+        if (membershipNext.length < faceAnchorIndexTotal) {
+            int next = capacity(membershipNext.length, faceAnchorIndexTotal);
+            membershipNext = grow(membershipNext, next);
+            membershipFace = grow(membershipFace, next);
+        }
+        Arrays.fill(anchorMembershipHead, 0, anchorCount, -1);
+        for (int face = 0; face < faceCount; face++) {
+            int end = faceAnchorIndexStart[face] + faceAnchorIndexCount[face];
+            for (int membership = faceAnchorIndexStart[face]; membership < end; membership++) {
+                int anchor = faceAnchorIndices[membership];
+                membershipFace[membership] = face;
+                membershipNext[membership] = anchorMembershipHead[anchor];
+                anchorMembershipHead[anchor] = membership;
+            }
+        }
     }
 
     private void writeProjection(int face, float x1, float y1, float x2, float y2) {
@@ -266,6 +297,7 @@ public final class SpatialProjectedFaceCache {
         anchorResolved = grow(anchorResolved, next);
         anchorBeforeBucket = grow(anchorBeforeBucket, next);
         anchorAfterBucket = grow(anchorAfterBucket, next);
+        anchorMembershipHead = grow(anchorMembershipHead, next);
     }
 
     private void ensureStructureCapacity(int required) {

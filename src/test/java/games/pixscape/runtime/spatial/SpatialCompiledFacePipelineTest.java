@@ -174,6 +174,16 @@ public class SpatialCompiledFacePipelineTest {
             }
         }
         Assert.assertEquals(2, sharedMemberships);
+        int reverseMemberships = 0;
+        for (int membership = projected.anchorMembershipHead[sharedAnchor]; membership >= 0;
+             membership = projected.membershipNext[membership]) {
+            Assert.assertEquals(sharedAnchor, projected.faceAnchorIndices[membership]);
+            Assert.assertTrue(projected.membershipFace[membership] >= 0);
+            reverseMemberships++;
+        }
+        Assert.assertEquals(sharedMemberships, reverseMemberships);
+        Assert.assertEquals(sharedAnchor, projected.anchorForCell(0, 0));
+        Assert.assertEquals(-1, projected.anchorForCell(5, 5));
     }
 
     @Test

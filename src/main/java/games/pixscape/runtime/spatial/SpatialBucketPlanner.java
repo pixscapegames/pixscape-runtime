@@ -26,12 +26,14 @@ public final class SpatialBucketPlanner {
     private int[] actorLowerSourceAnchorGy = new int[0];
     private int[] actorLowerSourceFaceIndex = new int[0];
     private int[] actorLowerSourceStructureId = new int[0];
+    private int[] actorLowerSourceMapEntity = new int[0];
     private float[] actorLowerSourceMinX = new float[0];
     private float[] actorLowerSourceMaxX = new float[0];
     private int[] actorUpperSourceAnchorGx = new int[0];
     private int[] actorUpperSourceAnchorGy = new int[0];
     private int[] actorUpperSourceFaceIndex = new int[0];
     private int[] actorUpperSourceStructureId = new int[0];
+    private int[] actorUpperSourceMapEntity = new int[0];
     private float[] actorUpperSourceMinX = new float[0];
     private float[] actorUpperSourceMaxX = new float[0];
     boolean[] actorHasConstraint = new boolean[0];
@@ -76,6 +78,13 @@ public final class SpatialBucketPlanner {
     public void addRelations(SpatialActorCollector actors,
                              SpatialProjectedFaceCache faces,
                              SpatialFaceRelationSolver relations) {
+        addRelations(actors, faces, relations, -1);
+    }
+
+    public void addRelations(SpatialActorCollector actors,
+                             SpatialProjectedFaceCache faces,
+                             SpatialFaceRelationSolver relations,
+                             int mapEntity) {
         if (actors == null || faces == null || relations == null || relations.relationCount == 0) return;
         if (actors.actorCount != actorCount) throw new IllegalStateException("Actor snapshot changed while planning.");
         ensureAnchorScratchCapacity(faces.anchorCount);
@@ -93,6 +102,15 @@ public final class SpatialBucketPlanner {
                 if (face < 0 || face >= faces.faceCount) continue;
                 byte requested = relations.relationType[relation] == SpatialFaceRelationSolver.ACTOR_BEHIND_FACE
                         ? BEHIND : FRONT;
+                int selectedAnchor = relation < relations.relationAnchorIndex.length
+                        ? relations.relationAnchorIndex[relation] : -1;
+                if (selectedAnchor >= 0) {
+                    testedMembershipCount++;
+                    acceptedLocalMembershipCount++;
+                    touchedCount = acceptIntent(faces, stamp, touchedCount, selectedAnchor, requested,
+                            face, relations.relationMembershipIndex[relation]);
+                    continue;
+                }
                 int membershipStart = faces.faceAnchorIndexStart[face];
                 int membershipEnd = membershipStart + faces.faceAnchorIndexCount[face];
                 for (int membership = membershipStart; membership < membershipEnd; membership++) {
@@ -104,20 +122,7 @@ public final class SpatialBucketPlanner {
                     }
                     acceptedLocalMembershipCount++;
                     int anchor = faces.faceAnchorIndices[membership];
-                    if (!faces.anchorResolved[anchor]) continue;
-                    if (anchorVisitStamp[anchor] != stamp) {
-                        anchorVisitStamp[anchor] = stamp;
-                        anchorIntent[anchor] = requested;
-                        anchorSourceFace[anchor] = face;
-                        anchorSourceMembership[anchor] = membership;
-                        touchedAnchorIndices[touchedCount++] = anchor;
-                    } else if (requested > anchorIntent[anchor]
-                            || requested == anchorIntent[anchor]
-                            && preferFace(faces, face, anchorSourceFace[anchor])) {
-                        anchorIntent[anchor] = requested;
-                        anchorSourceFace[anchor] = face;
-                        anchorSourceMembership[anchor] = membership;
-                    }
+                    touchedCount = acceptIntent(faces, stamp, touchedCount, anchor, requested, face, membership);
                 }
             }
             for (int touched = 0; touched < touchedCount; touched++) {
@@ -135,6 +140,7 @@ public final class SpatialBucketPlanner {
                         actorLowerSourceAnchorGy[actor] = faces.anchorGy[anchor];
                         actorLowerSourceFaceIndex[actor] = faces.faceCompiledIndex[face];
                         actorLowerSourceStructureId[actor] = faces.faceStructureId[face];
+                        actorLowerSourceMapEntity[actor] = mapEntity;
                         actorLowerSourceMinX[actor] = faces.faceAnchorScreenMinX[membership];
                         actorLowerSourceMaxX[actor] = faces.faceAnchorScreenMaxX[membership];
                     }
@@ -148,12 +154,32 @@ public final class SpatialBucketPlanner {
                         actorUpperSourceAnchorGy[actor] = faces.anchorGy[anchor];
                         actorUpperSourceFaceIndex[actor] = faces.faceCompiledIndex[face];
                         actorUpperSourceStructureId[actor] = faces.faceStructureId[face];
+                        actorUpperSourceMapEntity[actor] = mapEntity;
                         actorUpperSourceMinX[actor] = faces.faceAnchorScreenMinX[membership];
                         actorUpperSourceMaxX[actor] = faces.faceAnchorScreenMaxX[membership];
                     }
                 }
             }
         }
+    }
+
+    private int acceptIntent(SpatialProjectedFaceCache faces, int stamp, int touchedCount,
+                             int anchor, byte requested, int face, int membership) {
+        if (!faces.anchorResolved[anchor]) return touchedCount;
+        if (anchorVisitStamp[anchor] != stamp) {
+            anchorVisitStamp[anchor] = stamp;
+            anchorIntent[anchor] = requested;
+            anchorSourceFace[anchor] = face;
+            anchorSourceMembership[anchor] = membership;
+            touchedAnchorIndices[touchedCount++] = anchor;
+        } else if (requested > anchorIntent[anchor]
+                || requested == anchorIntent[anchor]
+                && preferFace(faces, face, anchorSourceFace[anchor])) {
+            anchorIntent[anchor] = requested;
+            anchorSourceFace[anchor] = face;
+            anchorSourceMembership[anchor] = membership;
+        }
+        return touchedCount;
     }
 
     public void finish(SpatialActorCollector actors) {
@@ -171,6 +197,34 @@ public final class SpatialBucketPlanner {
 
     public int unresolvedConstraintCount() { return unresolvedConstraintCount; }
     public int actorOrderingFallbackCount() { return actorOrderingFallbackCount; }
+    /** On-demand inspection only; no string building or logging occurs during normal frames. */
+    public String diagnosticSummary(int candidates, int relations) {
+        StringBuilder out = new StringBuilder(96 + actorCount * 120);
+        out.append("candidates=").append(candidates).append(" relations=").append(relations)
+                .append(" conflicts=").append(unresolvedConstraintCount)
+                .append(" orderingFallbacks=").append(actorOrderingFallbackCount);
+        for (int actor = 0; actor < actorCount; actor++) {
+            out.append("\nactor=").append(actor).append(" bucket=").append(actorBucket[actor])
+                    .append(" original=").append(actorOriginalBucket[actor])
+                    .append(" L=").append(actorLowerBound[actor])
+                    .append(" U=").append(actorUpperBound[actor]);
+            if (actorLowerSourceFaceIndex[actor] >= 0) {
+                out.append(" lowerSource(map=").append(actorLowerSourceMapEntity[actor])
+                        .append(",structure=").append(actorLowerSourceStructureId[actor])
+                        .append(",face=").append(actorLowerSourceFaceIndex[actor])
+                        .append(",tile=").append(actorLowerSourceAnchorGx[actor]).append(',')
+                        .append(actorLowerSourceAnchorGy[actor]).append(')');
+            }
+            if (actorUpperSourceFaceIndex[actor] >= 0) {
+                out.append(" upperSource(map=").append(actorUpperSourceMapEntity[actor])
+                        .append(",structure=").append(actorUpperSourceStructureId[actor])
+                        .append(",face=").append(actorUpperSourceFaceIndex[actor])
+                        .append(",tile=").append(actorUpperSourceAnchorGx[actor]).append(',')
+                        .append(actorUpperSourceAnchorGy[actor]).append(')');
+            }
+        }
+        return out.toString();
+    }
     boolean actorHasConstraint(int actor) { return actorHasConstraint[actor]; }
     int lowerSourceAnchorGx(int actor) { return actorLowerSourceAnchorGx[actor]; }
     int lowerSourceAnchorGy(int actor) { return actorLowerSourceAnchorGy[actor]; }
@@ -449,9 +503,9 @@ public final class SpatialBucketPlanner {
     private void ensureActorCapacity(int required) {
         if (required <= actorBucket.length) return; int n=capacity(actorBucket.length,required);
         actorBucket=grow(actorBucket,n); actorOriginalBucket=grow(actorOriginalBucket,n); actorLowerBound=grow(actorLowerBound,n); actorUpperBound=grow(actorUpperBound,n);
-        actorLowerSourceAnchorGx=grow(actorLowerSourceAnchorGx,n); actorLowerSourceAnchorGy=grow(actorLowerSourceAnchorGy,n); actorLowerSourceFaceIndex=grow(actorLowerSourceFaceIndex,n); actorLowerSourceStructureId=grow(actorLowerSourceStructureId,n);
+        actorLowerSourceAnchorGx=grow(actorLowerSourceAnchorGx,n); actorLowerSourceAnchorGy=grow(actorLowerSourceAnchorGy,n); actorLowerSourceFaceIndex=grow(actorLowerSourceFaceIndex,n); actorLowerSourceStructureId=grow(actorLowerSourceStructureId,n); actorLowerSourceMapEntity=grow(actorLowerSourceMapEntity,n);
         actorLowerSourceMinX=grow(actorLowerSourceMinX,n); actorLowerSourceMaxX=grow(actorLowerSourceMaxX,n);
-        actorUpperSourceAnchorGx=grow(actorUpperSourceAnchorGx,n); actorUpperSourceAnchorGy=grow(actorUpperSourceAnchorGy,n); actorUpperSourceFaceIndex=grow(actorUpperSourceFaceIndex,n); actorUpperSourceStructureId=grow(actorUpperSourceStructureId,n);
+        actorUpperSourceAnchorGx=grow(actorUpperSourceAnchorGx,n); actorUpperSourceAnchorGy=grow(actorUpperSourceAnchorGy,n); actorUpperSourceFaceIndex=grow(actorUpperSourceFaceIndex,n); actorUpperSourceStructureId=grow(actorUpperSourceStructureId,n); actorUpperSourceMapEntity=grow(actorUpperSourceMapEntity,n);
         actorUpperSourceMinX=grow(actorUpperSourceMinX,n); actorUpperSourceMaxX=grow(actorUpperSourceMaxX,n);
         finalActorDrawIndex=grow(finalActorDrawIndex,n); actorHasConstraint=grow(actorHasConstraint,n);
     }

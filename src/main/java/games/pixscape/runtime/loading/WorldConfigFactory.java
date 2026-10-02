@@ -472,7 +472,8 @@ public final class WorldConfigFactory {
                         dynamicEntityState,
                         tiledState,
                         drawList,
-                        spatialRuntimeRegistry
+                        spatialRuntimeRegistry,
+                        displayOffsetResolver
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(
                         dynamicEntityState,

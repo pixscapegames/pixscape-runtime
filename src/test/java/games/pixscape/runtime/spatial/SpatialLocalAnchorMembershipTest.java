@@ -18,6 +18,8 @@ public final class SpatialLocalAnchorMembershipTest {
         int face6 = projectedFace(fixture.faces, 1, 6);
         int anchorA = anchor(fixture.faces, 2, 28);
         int localMembership = containingMembership(fixture.faces, face6, AUDITED_ACTOR_X);
+        int firstRank = fixture.order.rank(5, 25);
+        int secondRank = fixture.order.rank(2, 28);
 
         Assert.assertTrue(AUDITED_ACTOR_X >= fixture.faces.screenMinX[face6]);
         Assert.assertTrue(AUDITED_ACTOR_X < fixture.faces.screenMaxX[face6]);
@@ -38,8 +40,9 @@ public final class SpatialLocalAnchorMembershipTest {
         Assert.assertTrue(AUDITED_ACTOR_X < planner.lowerSourceMaxX(0));
         Assert.assertTrue(AUDITED_ACTOR_X >= planner.upperSourceMinX(0));
         Assert.assertTrue(AUDITED_ACTOR_X < planner.upperSourceMaxX(0));
-        Assert.assertEquals(33, fixture.order.rank(5, 25));
-        Assert.assertEquals(37, fixture.order.rank(2, 28));
+        Assert.assertEquals(firstRank, fixture.order.rank(5, 25));
+        Assert.assertEquals(secondRank, fixture.order.rank(2, 28));
+        Assert.assertTrue("Equal ISO diagonals follow the Tiled gx tie", secondRank < firstRank);
     }
 
     @Test

@@ -36,6 +36,21 @@ public class SpatialActorCollectorTest {
     }
 
     @Test
+    public void invisibleRenderSlotIsNotCollectedEvenIfAnOldDrawEntryRemains() {
+        Fixture fixture = new Fixture();
+        int actor = fixture.createActor(10f, 20f, 2, true);
+        fixture.addCircle(actor, 3f, 0f, 0f);
+        fixture.addActorDrawSlot(actor);
+        fixture.state.visible[fixture.renderSlotFor(actor)] = false;
+
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers,
+                fixture.world.getEntityManager(), fixture.entityIndex, fixture.transform,
+                fixture.height, fixture.shapes);
+
+        Assert.assertEquals(0, fixture.collector.actorCount());
+    }
+
+    @Test
     public void excludesTiledSlots() {
         Fixture fixture = new Fixture();
         int tiledSlot = 30;

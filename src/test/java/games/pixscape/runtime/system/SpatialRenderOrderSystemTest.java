@@ -3,15 +3,36 @@ package games.pixscape.runtime.system;
 import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.AABBComponent;
+import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.OrientedBoundsComponent;
+import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -19,9 +40,273 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import java.lang.reflect.Proxy;
 
 public class SpatialRenderOrderSystemTest {
+    private GL20 previousGl;
+    private Graphics previousGraphics;
+
+    @Before
+    public void installGlProxy() {
+        previousGl = Gdx.gl;
+        previousGraphics = Gdx.graphics;
+        Gdx.gl = (GL20) Proxy.newProxyInstance(GL20.class.getClassLoader(), new Class[]{GL20.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.graphics = (Graphics) Proxy.newProxyInstance(Graphics.class.getClassLoader(),
+                new Class[]{Graphics.class}, (proxy, method, args) -> defaultValue(method.getReturnType()));
+    }
+
+    @After
+    public void restoreGlProxy() {
+        Gdx.gl = previousGl;
+        Gdx.graphics = previousGraphics;
+    }
+
+    private static Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0d;
+        if (type == char.class) return (char) 0;
+        return null;
+    }
+
+    @Test
+    public void wideVisualQuadConstrainsEveryCoveredIsoWallTile() {
+        for (boolean alongX : new boolean[]{true, false}) {
+            for (boolean front : new boolean[]{false, true}) {
+                for (int kind = 0; kind < 3; kind++) {
+                    Fixture fixture = new Fixture(512, true);
+                    TiledMapLayerData map = fixture.createBlockMap(9, 9, 90, 30, 300, TiledProjection.ISO);
+                    SpatialBlockData wall = block(10, 0f, 0f, alongX ? 7f : 1f, alongX ? 1f : 7f);
+                    wall.structureId = 10;
+                    wall.beginAuthoredLinkedTileRefs();
+                    for (int i = 0; i < 7; i++) {
+                        int gx = alongX ? i : 0;
+                        int gy = alongX ? 0 : i;
+                        map.setTile(gx, gy, 101 + i);
+                        wall.addLinkedTileRef(gx, gy, 101 + i);
+                    }
+                    fixture.createBlockTiledLayer(1, map, wall);
+                    int[] tiles = new int[7];
+                    for (int i = 0; i < 7; i++) {
+                        int gx = alongX ? i : 0;
+                        int gy = alongX ? 0 : i;
+                        tiles[i] = fixture.createLinkedTile(map, gx, gy, 101 + i, 1, i);
+                        float tx = map.tileToWorldX(gx, gy);
+                        float ty = map.tileToWorldY(gx, gy);
+                        fixture.setTiledQuad(tiles[i], tx, ty, tx + 90f, ty + 30f);
+                    }
+                    int actorLayer = front ? 0 : 2;
+                    fixture.createLayer(actorLayer, true);
+                    float x = map.tileToWorldX(alongX ? 3.5f : 0.5f, alongX ? 0.5f : 3.5f);
+                    float y = map.tileToWorldY(alongX ? 3.5f : 0.5f, alongX ? 0.5f : 3.5f)
+                            + (front ? -300f : 300f);
+                    int actor = fixture.createActor(x, y, 0, actorLayer, true);
+                    if (kind == 1) fixture.world.getMapper(PointLightComponent.class).create(actor);
+                    if (kind == 2) fixture.world.getMapper(ConeLightComponent.class).create(actor);
+                    fixture.setActorCircleFootprint(actor, 1f);
+                    fixture.setActorQuad(actor, x - 600f, y - 500f, x + 600f, y + 500f);
+
+                    fixture.process();
+
+                    int[] order = fixture.drawOrder();
+                    for (int tile : tiles) {
+                        Assert.assertTrue("orientation=" + alongX + ", front=" + front + ", kind=" + kind
+                                        + ", tile=" + tile + ", order=" + java.util.Arrays.toString(order)
+                                        + ", candidates=" + fixture.spatial.visualCandidateCount()
+                                        + ", relations=" + fixture.spatial.faceRelationCount()
+                                        + ", conflicts=" + fixture.spatial.unresolvedConstraintCount(),
+                                front ? indexOf(order, tile) < indexOf(order, actor)
+                                        : indexOf(order, actor) < indexOf(order, tile));
+                    }
+                    assertSameTiledSubsequence(fixture.beforeSpatialOrder, order, tiles);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void visualSelectionKeepsMapAnchorsSeparateAcrossLayers() {
+        Fixture fixture = new Fixture(512, true);
+        int[] tiles = new int[2];
+        for (int i = 0; i < 2; i++) {
+            TiledMapLayerData map = fixture.createBlockMap(2, 2, 90, 30, 300 + i * 10, TiledProjection.ISO);
+            SpatialBlockData block = block(10 + i, 0f, 0f, 1f, 1f);
+            block.structureId = 10 + i;
+            block.beginAuthoredLinkedTileRefs();
+            block.addLinkedTileRef(0, 0, 101 + i);
+            fixture.createBlockTiledLayer(i + 1, map, block);
+            tiles[i] = fixture.createLinkedTile(map, 0, 0, 101 + i, i + 1, 10);
+            fixture.setTiledQuad(tiles[i], 0f, 0f, 90f, 30f);
+        }
+        fixture.createLayer(3, true);
+        int actor = fixture.createActor(45f, 100f, 0, 3, true);
+        fixture.setActorCircleFootprint(actor, 1f);
+        fixture.setActorQuad(actor, -50f, -50f, 140f, 150f);
+
+        fixture.process();
+
+        int[] order = fixture.drawOrder();
+        Assert.assertEquals(2, fixture.spatial.visualCandidateCount());
+        Assert.assertTrue(indexOf(order, actor) < indexOf(order, tiles[0]));
+        Assert.assertTrue(indexOf(order, actor) < indexOf(order, tiles[1]));
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, order, tiles);
+    }
+
+    @Test
+    public void contradictoryVisualFaceRelationsKeepTheOriginalBucketAndExposeSources() {
+        Fixture fixture = new Fixture(512, true);
+        TiledMapLayerData map = fixture.createBlockMap(5, 5, 90, 30, 300, TiledProjection.ISO);
+        SpatialBlockData wall = block(10, 0f, 0f, 1f, 3f);
+        wall.structureId = 10;
+        wall.beginAuthoredLinkedTileRefs();
+        int[] tiles = new int[3];
+        for (int gy = 0; gy < 3; gy++) {
+            map.setTile(0, gy, 101 + gy);
+            wall.addLinkedTileRef(0, gy, 101 + gy);
+        }
+        fixture.createBlockTiledLayer(1, map, wall);
+        for (int gy = 0; gy < 3; gy++) {
+            tiles[gy] = fixture.createLinkedTile(map, 0, gy, 101 + gy, 1, gy);
+            float tx = map.tileToWorldX(0, gy), ty = map.tileToWorldY(0, gy);
+            fixture.setTiledQuad(tiles[gy], tx, ty, tx + 90f, ty + 30f);
+        }
+        fixture.createLayer(0, true);
+        float x = map.tileToWorldX(0.5f, 1.5f);
+        float y = map.tileToWorldY(0.5f, 1.5f) - 30f;
+        int actor = fixture.createActor(x, y, 0, 0, true);
+        fixture.setActorCircleFootprint(actor, 1f);
+        fixture.setActorQuad(actor, x - 150f, y - 90f, x + 150f, y + 90f);
+        fixture.spatial.setDiagnosticsEnabled(true);
+
+        fixture.process();
+
+        Assert.assertEquals(1, fixture.spatial.unresolvedConstraintCount());
+        Assert.assertArrayEquals(fixture.beforeSpatialOrder, fixture.drawOrder());
+        String diagnostic = fixture.spatial.diagnosticSummary();
+        Assert.assertTrue(diagnostic, diagnostic.contains("lowerSource(map="));
+        Assert.assertTrue(diagnostic, diagnostic.contains("upperSource(map="));
+        Assert.assertTrue(diagnostic, diagnostic.contains("candidates:"));
+        Assert.assertTrue(diagnostic, diagnostic.contains("relations:"));
+        assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tiles);
+    }
+
+    @Test
+    public void movingSpatialLightBodyUpdatesFootprintAndCrossesTiledAnchor() {
+        Fixture fixture = new Fixture(512, false, true);
+        try {
+            fixture.createLayer(1, true);
+            TiledMapLayerData map = fixture.createBlockMap(3, 3, 90, 30, 300, TiledProjection.ISO);
+            SpatialBlockData obstacleBlock = block(10, 0f, 0f, 1f, 1f);
+            obstacleBlock.structureId = 10;
+            obstacleBlock.beginAuthoredLinkedTileRefs();
+            obstacleBlock.addLinkedTileRef(0, 0, 101);
+            fixture.createBlockTiledLayer(3, map, obstacleBlock);
+            int obstacle = fixture.createLinkedTile(map, 0, 0, 101, 3, 20);
+            fixture.setTiledQuad(obstacle, 0f, 0f, 90f, 30f);
+            int otherTile = fixture.createLinkedTile(map, 2, 2, 102, 3, 30);
+
+            float initialX = 45f;
+            float initialY = 45f;
+            int light = fixture.world.create();
+            TransformComponent transform = fixture.world.getMapper(TransformComponent.class).create(light);
+            transform.x = initialX;
+            transform.y = initialY;
+            EntityIndexComponent index = fixture.world.getMapper(EntityIndexComponent.class).create(light);
+            index.layerIndex = 1;
+            SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).create(light);
+            height.height = 1f;
+            fixture.world.getMapper(PointLightComponent.class).create(light);
+            DimensionsComponent dimensions = fixture.world.getMapper(DimensionsComponent.class).create(light);
+            dimensions.width = dimensions.height = 160f;
+            transform.originX = transform.originY = 80f;
+            fixture.world.getMapper(OrientedBoundsComponent.class).create(light);
+            fixture.world.getMapper(AABBComponent.class).create(light);
+            fixture.world.getMapper(VisibilityComponent.class).create(light);
+            fixture.world.getMapper(RenderMaterialComponent.class).create(light);
+            PhysicsBodyComponent body = fixture.world.getMapper(PhysicsBodyComponent.class).create(light);
+            body.type = PhysicsBodyComponent.DYNAMIC;
+            body.gravityScale = 0f;
+            body.technicalSpatialLight = true;
+            PhysicsShapesComponent shapes = fixture.world.getMapper(PhysicsShapesComponent.class).create(light);
+            PhysicsShapeData sensor = new PhysicsShapeData();
+            sensor.physicsShapeId = 1;
+            sensor.geometry = new PhysicsGeometryData();
+            sensor.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            sensor.geometry.radius = 0.05f;
+            sensor.spatialFootprint = true;
+            sensor.technicalSpatialLight = true;
+            sensor.sensor = true;
+            sensor.maskBits = 0;
+            sensor.groupIndex = 0;
+            shapes.shapes.add(sensor);
+            PhysicsService.publishPreparedCandidate(shapes,
+                    fixture.world.getMapper(PhysicsCompiledFixturesComponent.class).create(light),
+                    PhysicsService.prepareBodyCandidate(shapes.shapes));
+            fixture.enableActorSlot(light, light, 1, 0, 10);
+
+            fixture.process();
+            int lightSlot = fixture.ecsState.renderSlotForEntity(light);
+            float initialQuadY = fixture.ecsState.y1[lightSlot];
+            Assert.assertTrue(fixture.spatial.visualCandidateCount() > 0);
+            SpatialPhysicsFootprintComponent footprint = fixture.world
+                    .getMapper(SpatialPhysicsFootprintComponent.class).get(light);
+            Assert.assertTrue(footprint.valid);
+            Assert.assertEquals(5f, footprint.radiusPx, 0.0001f);
+            Assert.assertEquals(0f, footprint.localOffsetXPx, 0.0001f);
+            Assert.assertEquals(0f, footprint.localOffsetYPx, 0.0001f);
+            int[] before = fixture.drawOrder();
+            Assert.assertTrue(indexOf(before, light) < indexOf(before, obstacle));
+            Assert.assertTrue(indexOf(before, obstacle) < indexOf(before, otherTile));
+
+            fixture.physicsAuthority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+            fixture.physicsSync.setStepEnabled(true);
+            float movedX = 45f;
+            float movedY = 0f;
+            Body nativeBody = fixture.world.getMapper(PhysicsRuntimeBodyComponent.class).get(light).body;
+            Assert.assertEquals(com.badlogic.gdx.physics.box2d.BodyDef.BodyType.DynamicBody,
+                    nativeBody.getType());
+            Assert.assertEquals(0f, nativeBody.getGravityScale(), 0f);
+            com.badlogic.gdx.physics.box2d.Fixture nativeSensor = nativeBody.getFixtureList().first();
+            Assert.assertTrue(nativeSensor.isSensor());
+            Assert.assertEquals(0, nativeSensor.getFilterData().maskBits);
+            Assert.assertEquals(0, nativeSensor.getFilterData().groupIndex);
+            com.badlogic.gdx.physics.box2d.CircleShape circle =
+                    (com.badlogic.gdx.physics.box2d.CircleShape) nativeSensor.getShape();
+            Assert.assertEquals(0.05f, circle.getRadius(), 0.0001f);
+            Assert.assertEquals(0f, circle.getPosition().x, 0f);
+            Assert.assertEquals(0f, circle.getPosition().y, 0f);
+            fixture.world.setDelta(1f / 60f);
+            nativeBody.setLinearVelocity(0f, -27f);
+            fixture.process();
+
+            Assert.assertEquals(movedX, transform.x, 0.0001f);
+            Assert.assertEquals(movedY, transform.y, 0.0001f);
+            Assert.assertTrue(footprint.valid);
+            Assert.assertEquals(movedX, transform.x + footprint.localOffsetXPx, 0.0001f);
+            Assert.assertEquals(movedY, transform.y + footprint.localOffsetYPx, 0.0001f);
+            Assert.assertEquals(initialQuadY - 45f, fixture.ecsState.y1[lightSlot], 0.001f);
+            Assert.assertTrue(fixture.spatial.visualCandidateCount() > 0);
+            int[] after = fixture.drawOrder();
+            Assert.assertTrue(indexOf(after, obstacle) < indexOf(after, light));
+            Assert.assertTrue(indexOf(after, obstacle) < indexOf(after, otherTile));
+            nativeBody.setLinearVelocity(153f, 0f);
+            fixture.process();
+            Assert.assertEquals(245f, transform.x, 0.001f); // Box2D caps translation to 2 m per step.
+            Assert.assertEquals(0, fixture.spatial.visualCandidateCount());
+            fixture.assertDrawListIntegrity();
+        } finally {
+            fixture.disposePhysics();
+        }
+    }
 
     @Test
     public void lightSlotAtIntermediateAltitudeSortsAcrossThreeMapLayers() {
@@ -1556,6 +1841,10 @@ public class SpatialRenderOrderSystemTest {
         final RenderStats stats;
         final World world;
         final SpatialRenderOrderSystem spatial;
+        final Box2dWorldService box2d;
+        final Box2dSyncSystem physicsSync;
+        final PhysicsPoseAuthority physicsAuthority;
+        final IdentityRegistry identities;
 
         int[] beforeSpatialOrder;
         byte[] beforeSpatialDomains;
@@ -1567,6 +1856,10 @@ public class SpatialRenderOrderSystemTest {
         }
 
         Fixture(int capacity, boolean captureOrder) {
+            this(capacity, captureOrder, false);
+        }
+
+        Fixture(int capacity, boolean captureOrder, boolean physics) {
             state = new RenderDataScratch(capacity);
             ecsState = new DynamicEntityRenderState(capacity);
             tiledState = new TiledMapRenderState(16);
@@ -1578,8 +1871,23 @@ public class SpatialRenderOrderSystemTest {
             stats = new RenderStats();
             spatial = new SpatialRenderOrderSystem(ecsState, tiledState, drawList);
 
-            WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
-                    .with(
+            WorldConfigurationBuilder builder = new WorldConfigurationBuilder();
+            if (physics) {
+                GdxNativesLoader.load();
+                box2d = new Box2dWorldService(PIXELS_PER_METER, new Vector2());
+                physicsSync = new Box2dSyncSystem(box2d);
+                physicsAuthority = new PhysicsPoseAuthority();
+                builder.with(new DirtyTrackerSystem(32), physicsAuthority,
+                        new GameObjectHierarchySystem(32), physicsSync,
+                        new GameObjectPhysicsWritebackSystem(),
+                        new PhysicsSpatialFootprintSyncSystem(PIXELS_PER_METER),
+                        new UpdateWorldGeometrySystem(), new RenderSpriteSyncSystem(ecsState));
+            } else {
+                box2d = null;
+                physicsSync = null;
+                physicsAuthority = null;
+            }
+            builder.with(
                             new RenderBuildDrawListSystem(ecsState, tiledState, layerState, drawList, stats, 128, -1, -1),
                             new RenderSortSystem(ecsState, tiledState, drawList)
                     );
@@ -1590,6 +1898,7 @@ public class SpatialRenderOrderSystemTest {
                 }));
             }
             builder.with(spatial);
+            if (physics) builder.with(new DirtyFlushSystem());
             if (captureOrder) {
                 builder.with(new BeforeSubmitCaptureSystem(drawList, (order, domains) -> {
                     beforeSubmitOrder = order;
@@ -1597,6 +1906,24 @@ public class SpatialRenderOrderSystemTest {
                 }));
             }
             world = new World(builder.build());
+            if (physics) {
+                SceneMetaRuntime meta = new SceneMetaRuntime();
+                meta.gravityX = 0f;
+                meta.gravityY = 0f;
+                meta.nextEntityStableId = 1000;
+                physicsSync.setSceneMeta(meta);
+                identities = new IdentityRegistry();
+                identities.bind(world, meta);
+            } else {
+                identities = null;
+            }
+        }
+
+        void disposePhysics() {
+            if (box2d == null) return;
+            identities.bind(null, null);
+            world.dispose();
+            box2d.dispose();
         }
 
         void createLayer(int layerIndex, boolean spatialEnabled) {
@@ -1890,6 +2217,21 @@ public class SpatialRenderOrderSystemTest {
                     state.a[sourceSlot],
                     state.repeatFlags[sourceSlot]
             );
+        }
+
+        void setTiledQuad(int ref, float minX, float minY, float maxX, float maxY) {
+            tiledState.x1[ref] = tiledState.x4[ref] = minX;
+            tiledState.x2[ref] = tiledState.x3[ref] = maxX;
+            tiledState.y1[ref] = tiledState.y2[ref] = minY;
+            tiledState.y3[ref] = tiledState.y4[ref] = maxY;
+        }
+
+        void setActorQuad(int entity, float minX, float minY, float maxX, float maxY) {
+            int slot = ecsState.renderSlotForEntity(entity);
+            ecsState.x1[slot] = ecsState.x4[slot] = minX;
+            ecsState.x2[slot] = ecsState.x3[slot] = maxX;
+            ecsState.y1[slot] = ecsState.y2[slot] = minY;
+            ecsState.y3[slot] = ecsState.y4[slot] = maxY;
         }
 
         void enableSlot(int slot, int layerIndex, int z, int runtimeOrder) {

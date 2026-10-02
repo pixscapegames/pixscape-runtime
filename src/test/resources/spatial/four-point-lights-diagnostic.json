@@ -1,0 +1,610 @@
+{
+  "description": "Recorded structure 6 and four Point Lights from tiled-iso-demo scene1, 2026-10-01",
+  "mapWidth": 50,
+  "mapHeight": 50,
+  "tileWidth": 256,
+  "tileHeight": 128,
+  "chunkSize": 16,
+  "pixelsPerMeter": 100,
+  "tiles": [
+    {
+      "gx": 18,
+      "gy": 16,
+      "asset": 213
+    },
+    {
+      "gx": 18,
+      "gy": 17,
+      "asset": 163
+    },
+    {
+      "gx": 18,
+      "gy": 18,
+      "asset": 163
+    },
+    {
+      "gx": 18,
+      "gy": 19,
+      "asset": 163
+    },
+    {
+      "gx": 18,
+      "gy": 20,
+      "asset": 166
+    },
+    {
+      "gx": 18,
+      "gy": 21,
+      "asset": 139
+    },
+    {
+      "gx": 19,
+      "gy": 16,
+      "asset": 137
+    },
+    {
+      "gx": 19,
+      "gy": 20,
+      "asset": 154
+    },
+    {
+      "gx": 20,
+      "gy": 20,
+      "asset": 134
+    },
+    {
+      "gx": 21,
+      "gy": 20,
+      "asset": 142
+    },
+    {
+      "gx": 22,
+      "gy": 20,
+      "asset": 134
+    },
+    {
+      "gx": 23,
+      "gy": 20,
+      "asset": 162
+    },
+    {
+      "gx": 24,
+      "gy": 16,
+      "asset": 157
+    },
+    {
+      "gx": 24,
+      "gy": 20,
+      "asset": 146
+    },
+    {
+      "gx": 25,
+      "gy": 16,
+      "asset": 169
+    },
+    {
+      "gx": 25,
+      "gy": 17,
+      "asset": 164
+    },
+    {
+      "gx": 25,
+      "gy": 18,
+      "asset": 164
+    },
+    {
+      "gx": 25,
+      "gy": 19,
+      "asset": 196
+    },
+    {
+      "gx": 25,
+      "gy": 20,
+      "asset": 168
+    },
+    {
+      "gx": 26,
+      "gy": 16,
+      "asset": 165
+    },
+    {
+      "gx": 27,
+      "gy": 16,
+      "asset": 165
+    },
+    {
+      "gx": 27,
+      "gy": 24,
+      "asset": 213
+    },
+    {
+      "gx": 27,
+      "gy": 25,
+      "asset": 163
+    },
+    {
+      "gx": 27,
+      "gy": 26,
+      "asset": 207
+    },
+    {
+      "gx": 27,
+      "gy": 27,
+      "asset": 131
+    },
+    {
+      "gx": 28,
+      "gy": 16,
+      "asset": 149
+    },
+    {
+      "gx": 28,
+      "gy": 24,
+      "asset": 133
+    },
+    {
+      "gx": 29,
+      "gy": 16,
+      "asset": 165
+    },
+    {
+      "gx": 29,
+      "gy": 24,
+      "asset": 233
+    },
+    {
+      "gx": 30,
+      "gy": 16,
+      "asset": 212
+    },
+    {
+      "gx": 30,
+      "gy": 17,
+      "asset": 148
+    },
+    {
+      "gx": 30,
+      "gy": 18,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 19,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 20,
+      "asset": 180
+    },
+    {
+      "gx": 30,
+      "gy": 21,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 22,
+      "asset": 660
+    },
+    {
+      "gx": 30,
+      "gy": 23,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 24,
+      "asset": 169
+    },
+    {
+      "gx": 30,
+      "gy": 25,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 26,
+      "asset": 148
+    },
+    {
+      "gx": 30,
+      "gy": 27,
+      "asset": 132
+    },
+    {
+      "gx": 30,
+      "gy": 28,
+      "asset": 152
+    }
+  ],
+  "blocks": [
+    {
+      "id": 16,
+      "structureId": 6,
+      "x": 30.765005,
+      "y": 16,
+      "width": 0.23499489,
+      "depth": 12.981766,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 30,
+          "gy": 16,
+          "tileAssetId": 212
+        },
+        {
+          "gx": 30,
+          "gy": 17,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 18,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 19,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 20,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 21,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 22,
+          "tileAssetId": 660
+        },
+        {
+          "gx": 30,
+          "gy": 23,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 24,
+          "tileAssetId": 169
+        },
+        {
+          "gx": 30,
+          "gy": 25,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 26,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 27,
+          "tileAssetId": 132
+        },
+        {
+          "gx": 30,
+          "gy": 28,
+          "tileAssetId": 152
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "structureId": 6,
+      "x": 24,
+      "y": 16,
+      "width": 7,
+      "depth": 0.23499489,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 24,
+          "gy": 16,
+          "tileAssetId": 157
+        },
+        {
+          "gx": 25,
+          "gy": 16,
+          "tileAssetId": 169
+        },
+        {
+          "gx": 26,
+          "gy": 16,
+          "tileAssetId": 165
+        },
+        {
+          "gx": 27,
+          "gy": 16,
+          "tileAssetId": 165
+        },
+        {
+          "gx": 28,
+          "gy": 16,
+          "tileAssetId": 165
+        },
+        {
+          "gx": 29,
+          "gy": 16,
+          "tileAssetId": 165
+        },
+        {
+          "gx": 30,
+          "gy": 16,
+          "tileAssetId": 212
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "structureId": 6,
+      "x": 25.765005,
+      "y": 16,
+      "width": 0.23499489,
+      "depth": 5,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 25,
+          "gy": 16,
+          "tileAssetId": 169
+        },
+        {
+          "gx": 25,
+          "gy": 17,
+          "tileAssetId": 164
+        },
+        {
+          "gx": 25,
+          "gy": 18,
+          "tileAssetId": 164
+        },
+        {
+          "gx": 25,
+          "gy": 19,
+          "tileAssetId": 164
+        },
+        {
+          "gx": 25,
+          "gy": 20,
+          "tileAssetId": 168
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "structureId": 6,
+      "x": 18,
+      "y": 20.765005,
+      "width": 8,
+      "depth": 0.23499489,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 18,
+          "gy": 20,
+          "tileAssetId": 166
+        },
+        {
+          "gx": 19,
+          "gy": 20,
+          "tileAssetId": 154
+        },
+        {
+          "gx": 20,
+          "gy": 20,
+          "tileAssetId": 134
+        },
+        {
+          "gx": 21,
+          "gy": 20,
+          "tileAssetId": 142
+        },
+        {
+          "gx": 22,
+          "gy": 20,
+          "tileAssetId": 134
+        },
+        {
+          "gx": 23,
+          "gy": 20,
+          "tileAssetId": 162
+        },
+        {
+          "gx": 24,
+          "gy": 20,
+          "tileAssetId": 146
+        },
+        {
+          "gx": 25,
+          "gy": 20,
+          "tileAssetId": 168
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "structureId": 6,
+      "x": 18,
+      "y": 16,
+      "width": 0.23499489,
+      "depth": 6,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 18,
+          "gy": 16,
+          "tileAssetId": 213
+        },
+        {
+          "gx": 18,
+          "gy": 17,
+          "tileAssetId": 163
+        },
+        {
+          "gx": 18,
+          "gy": 18,
+          "tileAssetId": 163
+        },
+        {
+          "gx": 18,
+          "gy": 19,
+          "tileAssetId": 163
+        },
+        {
+          "gx": 18,
+          "gy": 20,
+          "tileAssetId": 166
+        },
+        {
+          "gx": 18,
+          "gy": 21,
+          "tileAssetId": 139
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "structureId": 6,
+      "x": 18,
+      "y": 16,
+      "width": 2,
+      "depth": 0.23499489,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 18,
+          "gy": 16,
+          "tileAssetId": 213
+        },
+        {
+          "gx": 19,
+          "gy": 16,
+          "tileAssetId": 137
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "structureId": 6,
+      "x": 27,
+      "y": 24,
+      "width": 4,
+      "depth": 0.23499489,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 27,
+          "gy": 24,
+          "tileAssetId": 213
+        },
+        {
+          "gx": 28,
+          "gy": 24,
+          "tileAssetId": 133
+        },
+        {
+          "gx": 29,
+          "gy": 24,
+          "tileAssetId": 133
+        },
+        {
+          "gx": 30,
+          "gy": 24,
+          "tileAssetId": 169
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "structureId": 6,
+      "x": 27,
+      "y": 24,
+      "width": 0.23499489,
+      "depth": 4,
+      "altitude": 0,
+      "height": 155.93677,
+      "refs": [
+        {
+          "gx": 27,
+          "gy": 24,
+          "tileAssetId": 213
+        },
+        {
+          "gx": 27,
+          "gy": 25,
+          "tileAssetId": 163
+        },
+        {
+          "gx": 27,
+          "gy": 26,
+          "tileAssetId": 163
+        },
+        {
+          "gx": 27,
+          "gy": 27,
+          "tileAssetId": 155
+        }
+      ]
+    }
+  ],
+  "lights": [
+    {
+      "name": "diagnostic-1",
+      "stableId": 592,
+      "x": 222.78172,
+      "y": 3215.8137,
+      "zIndex": 7,
+      "radius": 387.93887,
+      "altitude": 0,
+      "height": 1,
+      "footprintRadiusM": 0.05
+    },
+    {
+      "name": "diagnostic-2",
+      "stableId": 590,
+      "x": 314.41608,
+      "y": 3254.2378,
+      "zIndex": 6,
+      "radius": 387.93887,
+      "altitude": 0,
+      "height": 1,
+      "footprintRadiusM": 0.05
+    },
+    {
+      "name": "diagnostic-3",
+      "stableId": 593,
+      "x": 364.0518,
+      "y": 3173.2087,
+      "zIndex": 5,
+      "radius": 387.93887,
+      "altitude": 0,
+      "height": 1,
+      "footprintRadiusM": 0.05
+    },
+    {
+      "name": "diagnostic-4",
+      "stableId": 594,
+      "x": 406.9605,
+      "y": 3114.6035,
+      "zIndex": 4,
+      "radius": 387.93887,
+      "altitude": 0,
+      "height": 1,
+      "footprintRadiusM": 0.05
+    }
+  ]
+}
