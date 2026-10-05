@@ -228,8 +228,8 @@ public final class TiledMapLayerData {
         chunk.set(lx, ly, assetId, flags);
         if (previousAsset != assetId || previousFlags != TileTransformFlags.sanitize(flags)) {
             markContentChanged();
+            markVisualBoundsDirty();
         }
-        markVisualBoundsDirty();
     }
 
     /** Opens an isolated candidate mutation. Nested atomic mutations are not supported. */

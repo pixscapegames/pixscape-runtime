@@ -180,6 +180,102 @@ public class TiledMapLayerDataTest {
         Assert.assertEquals(gy, map.worldToTileY(worldX, worldY));
     }
 
+    @Test
+    public void identicalWritePreservesCleanVisualAndContentState() {
+        TiledMapLayerData map = cleanMapWithTile();
+        int revision = map.contentRevision();
+        int stateRevision = map.contentStateRevision();
+
+        // Sanitized flags are also a no-op.
+        map.setTile(0, 0, 1, (byte) 0x80);
+
+        Assert.assertFalse(map.visualBoundsDirty);
+        Assert.assertEquals(revision, map.contentRevision());
+        Assert.assertEquals(stateRevision, map.contentStateRevision());
+        assertChunkClean(map.getChunk(0, 0));
+    }
+
+    @Test
+    public void identicalWritePreservesIndependentVisualInvalidation() {
+        TiledMapLayerData map = cleanMapWithTile();
+        int revision = map.contentStateRevision();
+        // Animation and resource/profile publication use this same invalidation entry point.
+        map.markVisualBoundsDirty();
+        map.setTile(0, 0, 1);
+        Assert.assertTrue(map.visualBoundsDirty);
+        Assert.assertEquals(revision, map.contentStateRevision());
+        assertChunkClean(map.getChunk(0, 0));
+    }
+
+    @Test
+    public void realAssetAndFlagChangesStillInvalidateVisualAndContentState() {
+        TiledMapLayerData map = cleanMapWithTile();
+        int revision = map.contentStateRevision();
+        map.setTile(0, 0, 2);
+        Assert.assertTrue(map.visualBoundsDirty);
+        Assert.assertEquals(revision + 1, map.contentStateRevision());
+        Assert.assertEquals(TileChunk.DirtyState.PARTIAL, map.getChunk(0, 0).dirtyState);
+        Assert.assertTrue(map.getChunk(0, 0).contentDirty);
+        Assert.assertTrue(map.getChunk(0, 0).collisionDirty);
+
+        resetChunkDirtyState(map.getChunk(0, 0));
+        map.visualBoundsDirty = false;
+        map.setTile(0, 0, 2, TileTransformFlags.FLIP_H);
+        Assert.assertTrue(map.visualBoundsDirty);
+        Assert.assertEquals(revision + 2, map.contentStateRevision());
+        Assert.assertEquals(TileTransformFlags.FLIP_H, map.getTileTransformFlags(0, 0));
+        Assert.assertEquals(TileChunk.DirtyState.PARTIAL, map.getChunk(0, 0).dirtyState);
+    }
+
+    @Test
+    public void bulkNoOpDoesNotInvalidateButRealChangePublishesAtCommit() {
+        TiledMapLayerData map = cleanMapWithTile();
+        int revision = map.contentRevision();
+        int stateRevision = map.contentStateRevision();
+        map.beginContentMutation();
+        map.setTile(0, 0, 1);
+        Assert.assertFalse(map.visualBoundsDirty);
+        Assert.assertEquals(stateRevision, map.contentStateRevision());
+        map.endContentMutation();
+        Assert.assertEquals(revision, map.contentRevision());
+
+        map.beginContentMutation();
+        map.setTile(0, 0, 2);
+        map.setTile(0, 0, 2);
+        Assert.assertTrue(map.visualBoundsDirty);
+        Assert.assertEquals(stateRevision + 1, map.contentStateRevision());
+        Assert.assertEquals(revision, map.contentRevision());
+        map.endContentMutation();
+        Assert.assertEquals(revision + 1, map.contentRevision());
+    }
+
+    @Test
+    public void atomicNoOpPreservesCleanStateAndIndependentDirty() {
+        TiledMapLayerData map = cleanMapWithTile();
+        int revision = map.contentStateRevision();
+        map.beginAtomicMutation();
+        map.setTileStaged(0, 0, 1, TileTransformFlags.NONE);
+        map.commitAtomicMutation();
+        Assert.assertFalse(map.visualBoundsDirty);
+        Assert.assertEquals(revision, map.contentStateRevision());
+        assertChunkClean(map.getChunk(0, 0));
+
+        map.markVisualBoundsDirty();
+        map.beginAtomicMutation();
+        map.setTileStaged(0, 0, 1, TileTransformFlags.NONE);
+        map.commitAtomicMutation();
+        Assert.assertTrue(map.visualBoundsDirty);
+        Assert.assertEquals(revision, map.contentStateRevision());
+    }
+
+    private static TiledMapLayerData cleanMapWithTile() {
+        TiledMapLayerData map = cleanMap();
+        map.setTile(0, 0, 1);
+        resetChunkDirtyState(map.getChunk(0, 0));
+        map.visualBoundsDirty = false;
+        return map;
+    }
+
     private static TiledMapLayerData cleanMap() {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 32, 16, 4);
         for (int cy = 0; cy < map.getChunksY(); cy++) {

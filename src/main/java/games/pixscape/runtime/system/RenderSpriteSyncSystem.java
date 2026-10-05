@@ -148,16 +148,26 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
         work.clear();
 
         addList(dirty.geometryEntities());
-        addList(dirty.materialEntities());
-        addList(dirty.colorEntities());
-        addList(dirty.orderEntities());
-        addList(dirty.layerEntities());
+        addList(dirty.materialEntities(), DirtyBits.GEOMETRY);
+        addList(dirty.colorEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL);
+        addList(dirty.orderEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR);
+        addList(dirty.layerEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR | DirtyBits.ORDER);
     }
 
     private void addList(IntArray list) {
         if (list == null || list.size == 0) return;
         for (int i = 0, n = list.size; i < n; i++) {
             work.add(list.get(i));
+        }
+    }
+
+    private void addList(IntArray list, int earlierCategories) {
+        if (list == null || list.size == 0) return;
+        // DirtyTracker keeps each coarse bit and its list ticket in sync, including consume().
+        // Geometry preparation clears only sub-bits. Preserve first appearance without ACKing any category.
+        for (int i = 0, n = list.size; i < n; i++) {
+            int e = list.get(i);
+            if ((dirty.coarseBits(e) & earlierCategories) == 0) work.add(e);
         }
     }
 
