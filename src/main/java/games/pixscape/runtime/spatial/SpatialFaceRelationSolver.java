@@ -22,6 +22,9 @@ public final class SpatialFaceRelationSolver {
     public int[] actorCandidateCount = new int[0];
     public int[] candidateAnchorIndex = new int[0];
     private boolean captureCandidates;
+    private int[] positiveBehindStamp = new int[0];
+    private int[] negativeBehindStamp = new int[0];
+    private int localStamp;
 
     public void setCaptureCandidates(boolean captureCandidates) {
         this.captureCandidates = captureCandidates;
@@ -62,7 +65,7 @@ public final class SpatialFaceRelationSolver {
         }
     }
 
-    /** Uses tile quad reach to choose anchors, then the physical circle against each face's infinite line. */
+    /** Uses visual reach for anchors and finite compiled branches for physical reach. */
     public void solveVisual(SpatialActorCollector actors, SpatialProjectedFaceCache faces,
                             SpatialVisualAnchorSelector selector, DynamicEntityRenderState ecs,
                             TiledMapRenderState tiled, TiledMapLayerData map,
@@ -95,10 +98,30 @@ public final class SpatialFaceRelationSolver {
                     int face = faces.membershipFace[membership];
                     if (!(top > faces.faceAltitude[face]
                             && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+                    // A support line classifies sides; only its finite branch can supply a constraint.
+                    // A merged straight branch still constrains every visually touched supporting tile.
+                    // Closed intervals include endpoint tangencies on both adjacent branches deterministically.
+                    if (x + radius < faces.screenMinX[face] - RELATION_EPSILON
+                            || x - radius > faces.screenMaxX[face] + RELATION_EPSILON) continue;
                     float lineY = faces.slope[face] * x + faces.intercept[face];
                     byte type = SpatialLineRelation.circleRelation(lineY, y,
                             inverseNormalLength(faces, face), radius);
                     add(face, anchor, membership, type);
+                }
+            }
+            retainLocallySupportedJunctionFronts(faces, start, x, y, radius);
+            // Outside branch X reach, use the nearest real endpoint's cap wedge. In particular,
+            // the closed side of a lateral corner is front, but its north sector remains behind.
+            // Never add endpoint caps beside a relevant branch from another candidate.
+            if (relationCount == start) {
+                for (int candidate = 0; candidate < selector.candidateCount; candidate++) {
+                    int anchor = selector.candidateAnchors[candidate];
+                    int membership = endpointMembership(faces, anchor, x, y, bottom, top);
+                    if (membership >= 0) {
+                        int face = faces.membershipFace[membership];
+                        float capY = faces.slope[face] * x + faces.intercept[face];
+                        add(face, anchor, membership, SpatialLineRelation.relation(capY, y));
+                    }
                 }
             }
             actorRelationCount[actor] = relationCount - start;
@@ -106,6 +129,84 @@ public final class SpatialFaceRelationSolver {
     }
 
     public int relationCount() { return relationCount; }
+
+    private void retainLocallySupportedJunctionFronts(SpatialProjectedFaceCache faces, int start,
+                                                     float x, float y, float radius) {
+        if (positiveBehindStamp.length < faces.structureCount) {
+            positiveBehindStamp = new int[faces.structureCount];
+            negativeBehindStamp = new int[faces.structureCount];
+        }
+        if (localStamp == Integer.MAX_VALUE) {
+            java.util.Arrays.fill(positiveBehindStamp, 0);
+            java.util.Arrays.fill(negativeBehindStamp, 0);
+            localStamp = 0;
+        }
+        int stamp = ++localStamp;
+        for (int r = start; r < relationCount; r++) {
+            if (relationType[r] != ACTOR_BEHIND_FACE) continue;
+            int face = relationFaceIndex[r], structure = faces.faceStructureIndex[face];
+            if (faces.slope[face] > 0f) positiveBehindStamp[structure] = stamp;
+            if (faces.slope[face] < 0f) negativeBehindStamp[structure] = stamp;
+        }
+        int write = start;
+        for (int r = start; r < relationCount; r++) {
+            int face = relationFaceIndex[r], m = relationMembershipIndex[r];
+            int structure = faces.faceStructureIndex[face];
+            boolean crossingBranch = faces.slope[face] > 0f ? negativeBehindStamp[structure] == stamp
+                    : faces.slope[face] < 0f && positiveBehindStamp[structure] == stamp;
+            // A junction's crossing BEHIND branch already masks the selected visual quad.
+            // Only local ground-column support can justify FRONT on the other branch's tile.
+            // Without a crossing branch, a wide actor wholly in front of a straight wall
+            // still belongs ahead of every visually touched supporting tile.
+            boolean nonlocal = x + radius < faces.faceAnchorScreenMinX[m] - RELATION_EPSILON
+                    || x - radius > faces.faceAnchorScreenMaxX[m] + RELATION_EPSILON;
+            if (relationType[r] == ACTOR_IN_FRONT_OF_FACE && crossingBranch && nonlocal
+                    && !faces.supportsLateralApproximation(m, x, y)) continue;
+            relationFaceIndex[write] = face; relationAnchorIndex[write] = relationAnchorIndex[r];
+            relationMembershipIndex[write] = m; relationType[write++] = relationType[r];
+        }
+        relationCount = write;
+    }
+
+    private static int endpointMembership(SpatialProjectedFaceCache faces, int anchor,
+                                         float x, float y, float bottom, float top) {
+        float nearestDistance = Float.POSITIVE_INFINITY;
+        float endpointX = 0f, endpointY = 0f;
+        for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
+            int face = faces.membershipFace[m];
+            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+            for (int end = 0; end < 2; end++) {
+                float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
+                float ey = faces.slope[face] * ex + faces.intercept[face];
+                float dx = x - ex, dy = y - ey;
+                float distance = dx * dx + dy * dy;
+                if (distance < nearestDistance || distance == nearestDistance
+                        && (ex < endpointX || ex == endpointX && ey < endpointY)) {
+                    nearestDistance = distance; endpointX = ex; endpointY = ey;
+                }
+            }
+        }
+        float capY = Float.NEGATIVE_INFINITY;
+        int capMembership = -1;
+        for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
+            int face = faces.membershipFace[m];
+            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+            for (int end = 0; end < 2; end++) {
+                float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
+                float ey = faces.slope[face] * ex + faces.intercept[face];
+                if (Math.abs(ex - endpointX) <= RELATION_EPSILON
+                        && Math.abs(ey - endpointY) <= RELATION_EPSILON) {
+                    float lineY = faces.slope[face] * x + faces.intercept[face];
+                    if (lineY > capY || lineY == capY && (capMembership < 0
+                            || face < faces.membershipFace[capMembership])) {
+                        capY = lineY;
+                        capMembership = m;
+                    }
+                }
+            }
+        }
+        return capMembership;
+    }
 
     private static boolean overlapsSemiOpen(float circleMinX,
                                             float circleMaxX,

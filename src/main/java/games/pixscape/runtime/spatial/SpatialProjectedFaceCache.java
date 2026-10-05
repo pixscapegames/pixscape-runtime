@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
+import com.badlogic.gdx.utils.LongMap;
 import java.util.Arrays;
 
 /** Flat projected actor-occluder faces and canonical layer-local tile anchors. */
@@ -12,6 +13,7 @@ public final class SpatialProjectedFaceCache {
     public int structureCount;
     public int[] faceStructureId = new int[0];
     public int[] faceCompiledIndex = new int[0];
+    int[] faceStructureIndex = new int[0];
     public float[] faceAltitude = new float[0];
     public float[] faceHeight = new float[0];
     public float[] screenMinX = new float[0];
@@ -34,6 +36,18 @@ public final class SpatialProjectedFaceCache {
     public int[] anchorMembershipHead = new int[0];
     public int[] membershipNext = new int[0];
     public int[] membershipFace = new int[0];
+    /** Real lateral endpoint pairs, indexed by their shared tile (never T continuations). */
+    int[] anchorCornerHead = new int[0];
+    int[] cornerNext = new int[0];
+    int[] cornerMembershipA = new int[0];
+    int[] cornerMembershipB = new int[0];
+    int[] cornerOpening = new int[0];
+    private int cornerCount;
+    private long[] faceMinVertex = new long[0];
+    private long[] faceMaxVertex = new long[0];
+    private byte[] faceOrientation = new byte[0];
+    private int[] membershipWestCorner = new int[0];
+    private int[] membershipEastCorner = new int[0];
     public int[] structureFaceStart = new int[0];
     public int[] structureFaceCount = new int[0];
     public float[] structureMinX = new float[0];
@@ -48,6 +62,7 @@ public final class SpatialProjectedFaceCache {
     private int tileHeight;
     private float originX;
     private float originY;
+    private float planeAltitude;
     private int revision;
     private int projectionCount;
     private final float[] endpoints = new float[4];
@@ -56,7 +71,8 @@ public final class SpatialProjectedFaceCache {
         if (compiled == null || map == null) return false;
         if (compiledRevision == compiled.revision() && projection == map.projection
                 && tileWidth == map.tileWidth && tileHeight == map.tileHeight
-                && Float.compare(originX, map.originX) == 0 && Float.compare(originY, map.originY) == 0) return false;
+                && Float.compare(originX, map.originX) == 0 && Float.compare(originY, map.originY) == 0
+                && Float.compare(planeAltitude, map.defaultTileAltitude) == 0) return false;
 
         int faceCapacity = 0;
         int membershipCapacity = 0;
@@ -87,6 +103,12 @@ public final class SpatialProjectedFaceCache {
                 if (Math.abs(endpoints[2] - endpoints[0]) <= SpatialFaceRelationSolver.RELATION_EPSILON) continue;
 
                 int face = faceCount++;
+                faceOrientation[face] = set.orientation(compiledFace);
+                faceStructureIndex[face] = structureIndex;
+                long startVertex = vertexKey(set.startX(compiledFace), set.startY(compiledFace));
+                long endVertex = vertexKey(set.endX(compiledFace), set.endY(compiledFace));
+                faceMinVertex[face] = endpoints[0] < endpoints[2] ? startVertex : endVertex;
+                faceMaxVertex[face] = endpoints[0] < endpoints[2] ? endVertex : startVertex;
                 faceStructureId[face] = structure.structureId();
                 faceCompiledIndex[face] = compiledFace;
                 faceAltitude[face] = structure.altitude();
@@ -118,12 +140,14 @@ public final class SpatialProjectedFaceCache {
 
         buildCanonicalAnchors(map);
         buildReverseMemberships();
+        buildLateralCorners();
         compiledRevision = compiled.revision();
         projection = map.projection;
         tileWidth = map.tileWidth;
         tileHeight = map.tileHeight;
         originX = map.originX;
         originY = map.originY;
+        planeAltitude = map.defaultTileAltitude;
         revision++;
         projectionCount++;
         return true;
@@ -131,6 +155,21 @@ public final class SpatialProjectedFaceCache {
 
     public int revision() { return revision; }
     public int projectionCount() { return projectionCount; }
+
+    boolean isLateralSector(int corner, float x, float y) {
+        int a = membershipFace[cornerMembershipA[corner]], b = membershipFace[cornerMembershipB[corner]];
+        int opening = cornerOpening[corner];
+        float vertexX = opening < 0 ? screenMaxX[a] : screenMinX[a];
+        if (opening < 0 ? x >= vertexX : x <= vertexX) return false;
+        float ya = slope[a] * x + intercept[a], yb = slope[b] * x + intercept[b];
+        return y > Math.min(ya, yb) && y < Math.max(ya, yb);
+    }
+
+    boolean supportsLateralApproximation(int membership, float x, float y) {
+        int west = membershipWestCorner[membership], east = membershipEastCorner[membership];
+        return west >= 0 && isLateralSector(west, x, y)
+                || east >= 0 && isLateralSector(east, x, y);
+    }
 
     private void buildCanonicalAnchors(TiledMapLayerData map) {
         for (int i = 0; i < faceAnchorIndexTotal; i++) {
@@ -224,6 +263,80 @@ public final class SpatialProjectedFaceCache {
         inverseNormalLength[face] = 1f / (float) Math.sqrt(slope[face] * slope[face] + 1f);
     }
 
+    private static long vertexKey(float x, float y) {
+        return ((long) Float.floatToIntBits(x == 0f ? 0f : x) << 32)
+                | (Float.floatToIntBits(y == 0f ? 0f : y) & 0xffffffffL);
+    }
+
+    /** Cold rebuild: index exact compiled vertices; intersect sorted memberships linearly. */
+    private void buildLateralCorners() {
+        if (anchorCornerHead.length < anchorCount) anchorCornerHead = new int[capacity(anchorCornerHead.length, anchorCount)];
+        Arrays.fill(anchorCornerHead, 0, anchorCount, -1);
+        if (membershipWestCorner.length < faceAnchorIndexTotal) {
+            membershipWestCorner = new int[faceAnchorIndexTotal];
+            membershipEastCorner = new int[faceAnchorIndexTotal];
+        }
+        Arrays.fill(membershipWestCorner, 0, faceAnchorIndexTotal, -1);
+        Arrays.fill(membershipEastCorner, 0, faceAnchorIndexTotal, -1);
+        cornerCount = 0;
+        LongMap<Integer> starts = new LongMap<>(), ends = new LongMap<>();
+        LongMap<Boolean> continuations = new LongMap<>();
+        for (int structure = 0; structure < structureCount; structure++) {
+            starts.clear(); ends.clear(); continuations.clear();
+            int end = structureFaceStart[structure] + structureFaceCount[structure];
+            for (int face = structureFaceStart[structure]; face < end; face++) {
+                int me = faceAnchorIndexStart[face] + faceAnchorIndexCount[face];
+                for (int m = faceAnchorIndexStart[face]; m < me; m++) {
+                    // A wall crossing both sides of this cell makes this a continuation/T,
+                    // even if another exterior pair happens to form a notch there.
+                    if (screenMinX[face] < faceAnchorScreenMinX[m]
+                            && screenMaxX[face] > faceAnchorScreenMaxX[m])
+                        continuations.put(faceAnchorIndices[m], Boolean.TRUE);
+                }
+            }
+            for (int face = structureFaceStart[structure]; face < end; face++) {
+                Integer a = starts.put(faceMinVertex[face], face);
+                Integer b = ends.put(faceMaxVertex[face], face);
+                if (a != null) addLateralCorner(a, face, 1, continuations);
+                if (b != null) addLateralCorner(b, face, -1, continuations);
+            }
+        }
+    }
+
+    private void addLateralCorner(int a, int b, int opening, LongMap<Boolean> continuations) {
+        if (slope[a] * slope[b] >= 0f) return;
+        // Concave opening between two walls, not the convex end cap of one rectangle.
+        byte vertical = opening < 0 ? CompiledSpatialStructure.MIN_X : CompiledSpatialStructure.MAX_X;
+        byte horizontal = opening < 0 ? CompiledSpatialStructure.MAX_Y : CompiledSpatialStructure.MIN_Y;
+        if (!(faceOrientation[a] == vertical && faceOrientation[b] == horizontal
+                || faceOrientation[b] == vertical && faceOrientation[a] == horizontal)) return;
+        int ma = faceAnchorIndexStart[a], mb = faceAnchorIndexStart[b];
+        int ea = ma + faceAnchorIndexCount[a], eb = mb + faceAnchorIndexCount[b];
+        while (ma < ea && mb < eb) {
+            int aa = faceAnchorIndices[ma], ab = faceAnchorIndices[mb];
+            if (aa < ab) { ma++; continue; }
+            if (ab < aa) { mb++; continue; }
+            if (continuations.containsKey(aa)) { ma++; mb++; continue; }
+            float vertexX = opening < 0 ? screenMaxX[a] : screenMinX[a];
+            if (vertexX < faceAnchorScreenMinX[ma] || vertexX > faceAnchorScreenMaxX[ma]
+                    || vertexX < faceAnchorScreenMinX[mb] || vertexX > faceAnchorScreenMaxX[mb]) {
+                ma++; mb++; continue;
+            }
+            if (cornerCount == cornerNext.length) {
+                int n = capacity(cornerCount, cornerCount + 1);
+                cornerNext = grow(cornerNext, n); cornerMembershipA = grow(cornerMembershipA, n);
+                cornerMembershipB = grow(cornerMembershipB, n); cornerOpening = grow(cornerOpening, n);
+            }
+            int[] membershipCorners = opening < 0 ? membershipWestCorner : membershipEastCorner;
+            membershipCorners[ma] = membershipCorners[mb] = cornerCount;
+            cornerMembershipA[cornerCount] = ma++;
+            cornerMembershipB[cornerCount] = mb++;
+            cornerOpening[cornerCount] = opening;
+            cornerNext[cornerCount] = anchorCornerHead[aa];
+            anchorCornerHead[aa] = cornerCount++;
+        }
+    }
+
     private static void sortPairs(int[] gx, int[] gy, int count) {
         for (int i = 1; i < count; i++) {
             int x = gx[i];
@@ -265,8 +378,11 @@ public final class SpatialProjectedFaceCache {
     private void ensureFaceCapacity(int required) {
         if (required <= faceStructureId.length) return;
         int next = capacity(faceStructureId.length, required);
+        faceMinVertex = new long[next]; faceMaxVertex = new long[next];
+        faceOrientation = new byte[next];
         faceStructureId = grow(faceStructureId, next);
         faceCompiledIndex = grow(faceCompiledIndex, next);
+        faceStructureIndex = grow(faceStructureIndex, next);
         faceAltitude = grow(faceAltitude, next);
         faceHeight = grow(faceHeight, next);
         screenMinX = grow(screenMinX, next);

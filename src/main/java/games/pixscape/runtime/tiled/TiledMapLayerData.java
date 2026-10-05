@@ -8,12 +8,17 @@ public final class TiledMapLayerData {
 
     private static final float EPSILON = 0.0001f;
 
-    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and elevation. */
+    /** Converts an absolute altitude to displacement from this map's drawn plane. */
+    public float spatialElevationOffset(float absoluteAltitude) {
+        return absoluteAltitude - defaultTileAltitude;
+    }
+
+    /** Authoritative Spatial projection of grid coordinates at an absolute altitude. */
     public void projectSpatialPoint(float gx, float gy, float elevation, float[] out, int offset) {
         if (out == null || offset < 0 || offset + 1 >= out.length) return;
         float cellOffsetX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
         out[offset] = tileToWorldX(gx, gy) + cellOffsetX;
-        out[offset + 1] = tileToWorldY(gx, gy) + elevation;
+        out[offset + 1] = tileToWorldY(gx, gy) + spatialElevationOffset(elevation);
     }
 
     // =========================
@@ -29,6 +34,7 @@ public final class TiledMapLayerData {
     public float originX;
     public float originY;
     public boolean spatialEnabled;
+    /** Absolute altitude of the drawn map plane and default for new tile volumes. */
     public float defaultTileAltitude;
     public float defaultTileHeight;
 

@@ -21,35 +21,39 @@ import java.util.Arrays;
 /** Small, checkout-independent snapshot of the four observed Point Light placements. */
 public final class SpatialFourLightsDiagnosticRegressionTest {
     @Test
-    public void currentExtendedFaceRelationsReproduceAllFourPlacements() {
+    public void finiteBranchesRemoveTheFourAuditedExtendedLinePlacements() {
         Fixture f = new Fixture();
         Result one = f.run(1, false);
         Result two = f.run(2, false);
         Result three = f.run(3, false);
         Result four = f.run(4, false);
+        System.out.println("FOUR_LIGHTS 1="+one+" 2="+two+" 3="+three+" 4="+four);
 
         Assert.assertEquals(one, f.run(1, false));
         Assert.assertEquals(two, f.run(2, false));
         Assert.assertEquals(three, f.run(3, false));
         Assert.assertEquals(four, f.run(4, false));
         Assert.assertTrue(one.lower <= one.upper);
-        Assert.assertTrue("The light remains before the curved tile", one.bucket <= f.before(27, 24));
-        Assert.assertTrue(two.lower > two.upper);
-        Assert.assertEquals(two.original, two.bucket);
+        Assert.assertTrue(f.after(27, 24) <= one.bucket);
+        Assert.assertTrue(two.lower <= two.upper);
+        Assert.assertTrue(f.after(27, 24) <= two.bucket);
         Assert.assertTrue(three.lower <= three.upper);
         Assert.assertTrue(f.after(27, 24) <= three.bucket);
         Assert.assertTrue(three.bucket <= f.before(25, 20));
-        Assert.assertTrue(four.lower > four.upper);
-        Assert.assertEquals(four.original, four.bucket);
+        Assert.assertTrue(four.lower <= four.upper);
+        Assert.assertTrue(f.after(27, 24) <= four.bucket);
         Assert.assertEquals(0, one.orderingFallbacks + two.orderingFallbacks
                 + three.orderingFallbacks + four.orderingFallbacks);
 
-        Assert.assertTrue(one.hasRelation(28, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
-        Assert.assertTrue(one.hasRelation(27, 24, 6, 3, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
-        Assert.assertTrue(one.hasRelation(27, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
-        Assert.assertTrue(two.hasRelation(29, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
-        Assert.assertTrue(three.hasRelation(27, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
-        Assert.assertTrue(four.hasRelation(25, 19, 6, 2, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
+        Assert.assertFalse(one.hasRelation(28, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
+        // The old FRONT intent came from a distant membership of the crossing branch.
+        Assert.assertFalse(one.hasRelation(27, 24, 6, 3, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
+        Assert.assertTrue(f.isOutsideLocalSegment(1, 3, 27, 24));
+        Assert.assertFalse(one.hasRelation(27, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
+        Assert.assertFalse(two.hasRelation(29, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
+        Assert.assertFalse(three.hasRelation(27, 24, 6, 15, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
+        Assert.assertTrue(f.isOutsideFiniteFace(3, 15));
+        Assert.assertFalse(four.hasRelation(25, 19, 6, 2, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
         Assert.assertTrue(four.hasRelation(25, 20, 6, 14, SpatialFaceRelationSolver.ACTOR_BEHIND_FACE));
         Assert.assertTrue(f.isOutsideFiniteFace(1, 15));
         Assert.assertTrue(f.isOutsideFiniteFace(2, 15));
@@ -70,16 +74,16 @@ public final class SpatialFourLightsDiagnosticRegressionTest {
     }
 
     @Test
-    public void removingOnlyTheEmptyQuadCandidatesDoesNotRepairTheCurvedCorner() {
+    public void emptyQuadCandidatesCannotRestoreInfiniteBranchConstraints() {
         Fixture f = new Fixture();
         f.setCandidateVisible(28, 24, false);
         Result one = f.run(1, false);
-        Assert.assertTrue(one.bucket <= f.before(27, 24));
+        Assert.assertTrue(f.after(27, 24) <= one.bucket);
         f.setCandidateVisible(28, 24, true);
         f.setCandidateVisible(29, 24, false);
         Result two = f.run(2, false);
         Assert.assertTrue(two.lower <= two.upper);
-        Assert.assertTrue(two.bucket <= f.before(27, 24));
+        Assert.assertTrue(f.after(27, 24) <= two.bucket);
         f.setCandidateVisible(29, 24, true);
         f.setCandidateVisible(25, 19, false);
         Result four = f.run(4, false);
@@ -201,7 +205,7 @@ public final class SpatialFourLightsDiagnosticRegressionTest {
                         .append(solver.relationType[i]).append('/');
             }
             if (finiteOnly) {
-                // Diagnostic counterfactual only: production intentionally uses infinite lines.
+                // Redundant finite-branch filter retained to verify the former counterfactual.
                 int write = 0;
                 for (int i = 0; i < solver.relationCount; i++) {
                     int face = solver.relationFaceIndex[i];
@@ -239,6 +243,18 @@ public final class SpatialFourLightsDiagnosticRegressionTest {
                         || x - radius > faces.screenMaxX[face];
             }
             throw new AssertionError("Missing compiled face " + compiledFace);
+        }
+
+        boolean isOutsideLocalSegment(int number,int compiledFace,int gx,int gy) {
+            JsonValue light=light(number);
+            float x=light.getFloat("x"),r=light.getFloat("footprintRadiusM")*root.getFloat("pixelsPerMeter");
+            int anchor=faces.anchorForCell(gx,gy);
+            for(int m=faces.anchorMembershipHead[anchor];m>=0;m=faces.membershipNext[m]) {
+                int face=faces.membershipFace[m];
+                if(faces.faceStructureId[face]==6&&faces.faceCompiledIndex[face]==compiledFace)
+                    return x+r<faces.faceAnchorScreenMinX[m]||x-r>faces.faceAnchorScreenMaxX[m];
+            }
+            throw new AssertionError("Missing local segment");
         }
 
         int before(int gx, int gy) { return faces.anchorBeforeBucket[faces.anchorForCell(gx, gy)]; }
@@ -285,5 +301,9 @@ public final class SpatialFourLightsDiagnosticRegressionTest {
         }
 
         @Override public int hashCode() { return bucket; }
+        @Override public String toString() {
+            return "candidates="+candidates+" relations="+relations+" L="+lower+" U="+upper
+                    +" bucket="+bucket+" conflicts="+conflicts+" fallbacks="+orderingFallbacks;
+        }
     }
 }

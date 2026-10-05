@@ -162,7 +162,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void contradictoryVisualFaceRelationsKeepTheOriginalBucketAndExposeSources() {
+    public void unrelatedExtendedFacesNoLongerManufactureAVisualIntervalConflict() {
         Fixture fixture = new Fixture(512, true);
         TiledMapLayerData map = fixture.createBlockMap(5, 5, 90, 30, 300, TiledProjection.ISO);
         SpatialBlockData wall = block(10, 0f, 0f, 1f, 3f);
@@ -189,14 +189,15 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertEquals(1, fixture.spatial.unresolvedConstraintCount());
-        Assert.assertArrayEquals(fixture.beforeSpatialOrder, fixture.drawOrder());
+        Assert.assertEquals(0, fixture.spatial.unresolvedConstraintCount());
         String diagnostic = fixture.spatial.diagnosticSummary();
+        System.out.println("FINITE_VISUAL "+diagnostic);
         Assert.assertTrue(diagnostic, diagnostic.contains("lowerSource(map="));
-        Assert.assertTrue(diagnostic, diagnostic.contains("upperSource(map="));
         Assert.assertTrue(diagnostic, diagnostic.contains("candidates:"));
         Assert.assertTrue(diagnostic, diagnostic.contains("relations:"));
         assertSameTiledSubsequence(fixture.beforeSpatialOrder, fixture.drawOrder(), tiles);
+        for (int tile : tiles) Assert.assertTrue(indexOf(fixture.drawOrder(), actor)
+                > indexOf(fixture.drawOrder(), tile));
     }
 
     @Test

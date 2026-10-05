@@ -20,6 +20,8 @@
 
 ### Fixed
 
+* Spatial blocks now project absolute altitude relative to the map's default altitude (its drawn plane), keeping same-altitude bases aligned with tile anchors. Projected face and tile-order caches track plane changes; authored vertical intervals remain absolute.
+
 * Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
 * Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
 
