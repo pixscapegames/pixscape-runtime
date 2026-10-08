@@ -22,6 +22,53 @@ import org.junit.Test;
 public class SpatialRenderOrderSystemTest {
 
     @Test
+    public void editorReadsTheCollectedEnvelopeWithoutChangingTheRenderQuad() {
+        Fixture f = new Fixture(512);
+        f.createLayer(0, true);
+        int actor = f.createActor(10, 200, 0, 0, true);
+        f.createActor(50, 200, 0, 0, true);
+        f.setActorCircleFootprint(actor, 9, 4, -5);
+        SpatialHeightComponent height = f.world.getMapper(SpatialHeightComponent.class).get(actor);
+        height.altitude = 160; height.height = 250;
+        int slot = f.ecsState.renderSlotForEntity(actor);
+        f.ecsState.offsetX[slot] = 7; f.ecsState.offsetY[slot] = -3;
+        float originalX = f.ecsState.x1[slot], originalY = f.ecsState.y1[slot];
+        f.process();
+        float[] quad = new float[8];
+        Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
+        Assert.assertArrayEquals(new float[]{-104,192,146,192,146,442,-104,442}, quad, .0001f);
+        Assert.assertEquals(originalX, f.ecsState.x1[slot], 0);
+        Assert.assertEquals(originalY, f.ecsState.y1[slot], 0);
+        height.height = 100; f.process();
+        Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
+        Assert.assertArrayEquals(new float[]{-29,192,71,192,71,292,-29,292}, quad, .0001f);
+        f.setActorCircleFootprint(actor, 90, 4, -5); f.process();
+        Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
+        Assert.assertArrayEquals(new float[]{-29,192,71,192,71,292,-29,292}, quad, .0001f);
+        f.setActorCircleFootprint(actor, 90, 14, 15); f.process();
+        Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
+        Assert.assertArrayEquals(new float[]{-19,212,81,212,81,312,-19,312}, quad, .0001f);
+        height.height = 0; f.process();
+        Assert.assertFalse(f.spatial.writeActorInfluenceQuad(actor, quad));
+    }
+
+    @Test public void selectedEnvelopeIsAvailableForASingleActorAndClearsWhenDisabled() {
+        Fixture f = new Fixture(512);
+        f.createLayer(0, true);
+        int actor = f.createActor(10, 200, 0, 0, true);
+        f.setActorCircleFootprint(actor, 9, 0, 0);
+        f.world.getMapper(SpatialHeightComponent.class).get(actor).height = 40;
+        f.process();
+        float[] quad = new float[8];
+        Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
+        Assert.assertArrayEquals(new float[]{-10,200,30,200,30,240,-10,240}, quad, .0001f);
+        Assert.assertFalse(f.spatial.writeActorInfluenceQuad(-1, quad));
+        f.ecsState.enabled[f.ecsState.renderSlotForEntity(actor)] = false;
+        f.process();
+        Assert.assertFalse(f.spatial.writeActorInfluenceQuad(actor, quad));
+    }
+
+    @Test
     public void sameLayerSpatialActorsSortByFootYAfterLegacySort() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);

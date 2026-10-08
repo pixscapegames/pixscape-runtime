@@ -10,6 +10,7 @@
 ### Added
 
 * Added a 1,024-row RGBA32F table with up to 16 float parameters per material shader, default row, flat vertex row selection, and generated GLSL parameter-name defines for project shaders.
+* Added on-demand Spatial diagnostics for candidate tiles, face relations, rejected junction constraints, insertion bounds and fallbacks.
 
 ### Changed
 
@@ -17,11 +18,23 @@
 * HUD sessions now size their technical root to the available logical viewport without scaling the whole HUD on resize.
 * Direct root Tables can fill the HUD surface, and native cells support maximum width and height constraints.
 * Removed fixed reference dimensions from HUD screen assets; centered anchored Dialogs follow resize while open.
+* Spatial actor–tile candidates now use an adjustable H×H influence square whose lower-edge centre is the effective projected footprint centre. H is the authored spatial height; footprint radius, texture size and animation frames do not enlarge the square.
+* Prepared Spatial anchor, membership and wall-continuation data are reused during rendering, with a frame-local actor lookup for Studio overlays.
 
 ### Fixed
 
 * Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
 * Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
+* Unified Spatial projection and inverse conversion around absolute altitude relative to the drawn map plane, applying the ISO cell anchor and display offsets once. Plane changes invalidate derived projection/order data and prepare linked Physics fixtures before publication.
+* Actor–face relations compare the footprint and face in the actor's altitude plane, including endpoint caps, while retaining authored heights and strict vertical-overlap thresholds.
+* Recognized local longitudinal wall continuations preserve qualified relations across stacked map volumes. Isolated upper blocks, caps and orthogonal junctions retain independent decisions.
+* Limited rejection of distant FRONT constraints to directly authored local junctions with a qualified BEHIND witness; unrelated straight-wall relations remain active.
+* Restored deterministic ISO diagonal/gx tie-breaking and retained opposing constraints on indivisible tiles as explicit conflicts instead of silently giving BEHIND priority.
+
+### Tests
+
+* Added regression coverage for map-plane projection/inverses, atomic linked Physics updates, local junctions, wall-continuation thresholds, actor altitude, influence-square geometry and Runtime overlay access.
+* Preserved historical candidate fixtures and unresolved corner cases to protect downstream behavior. General multi-map composition remains unresolved; prototype B is not integrated and known conflicts/fallbacks remain.
 
 
 ## [0.2.2]

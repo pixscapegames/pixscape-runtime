@@ -20,6 +20,9 @@ public final class SpatialActorCollector {
     public int actorCount;
 
     public int[] actorSlot = new int[0];
+    private int[] actorIndexBySlot = new int[0];
+    /** Frame snapshot identity for on-demand diagnostics; ECS ids are not durable identities. */
+    public int entityId(int actor) { return actorEntityId[actor]; }
     int[] actorEntityId = new int[0];
     int[] actorDrawIndex = new int[0];
     int[] actorLayerIndex = new int[0];
@@ -39,7 +42,13 @@ public final class SpatialActorCollector {
     float[] actorBaseEndY = new float[0];
 
     public void clear() {
+        for (int actor = 0; actor < actorCount; actor++) actorIndexBySlot[actorSlot[actor]] = -1;
         actorCount = 0;
+    }
+
+    /** Complete frame-local lookup; cleared before collecting the next draw list. */
+    public int actorIndexForSlot(int slot) {
+        return slot >= 0 && slot < actorIndexBySlot.length ? actorIndexBySlot[slot] : -1;
     }
 
     public void collect(DrawList drawList,
@@ -113,6 +122,12 @@ public final class SpatialActorCollector {
         return actorCount;
     }
 
+    /** Uses the exact effective footprint and spatial height collected for this frame. */
+    public void writeInfluenceQuad(int actor, float offsetX, float offsetY, float[] out) {
+        SpatialActorGeometry.writeInfluenceQuad(actorCircleX[actor], actorCircleY[actor],
+                actorHeight[actor], offsetX, offsetY, out);
+    }
+
     float circleRadius(int actor) {
         if (actor < 0 || actor >= actorCount || actor >= actorCircleRadius.length) return 0f;
         float radius = actorCircleRadius[actor];
@@ -154,6 +169,12 @@ public final class SpatialActorCollector {
         ensureActorCapacity(actorCount + 1);
         int actor = actorCount++;
         actorSlot[actor] = slot;
+        if (slot >= actorIndexBySlot.length) {
+            int previous = actorIndexBySlot.length;
+            actorIndexBySlot = grow(actorIndexBySlot, Math.max(slot + 1, Math.max(8, previous * 2)));
+            java.util.Arrays.fill(actorIndexBySlot, previous, actorIndexBySlot.length, -1);
+        }
+        actorIndexBySlot[slot] = actor;
         actorEntityId[actor] = entity;
         actorDrawIndex[actor] = drawIndex;
         actorLayerIndex[actor] = state.layerIndex[slot];

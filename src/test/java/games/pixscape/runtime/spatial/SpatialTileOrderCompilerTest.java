@@ -10,8 +10,27 @@ import org.junit.Test;
 
 public class SpatialTileOrderCompilerTest {
     @Test
-    public void fallbackUsesDescendingHorizontalThenDescendingRemainingCoordinate() {
+    public void isoFallbackUsesDescendingProjectedDiagonalAndTiledHorizontalTie() {
         TiledMapLayerData map = map(20, 20);
+        map.setTile(10, 12, 1);
+        map.setTile(7, 16, 1);
+        map.setTile(10, 9, 1);
+        map.setTile(5, 5, 1);
+        map.setTile(6, 4, 1);
+
+        SpatialTileOrderCache order = compile(map, new SpatialBlocksComponent());
+
+        Assert.assertEquals(0, order.rank(7, 16));
+        Assert.assertEquals(1, order.rank(10, 12));
+        Assert.assertEquals(2, order.rank(10, 9));
+        Assert.assertEquals(3, order.rank(5, 5));
+        Assert.assertEquals(4, order.rank(6, 4));
+        Assert.assertEquals(-1, order.rank(0, 0));
+    }
+
+    @Test
+    public void orthoFallbackRetainsDescendingHorizontalOrder() {
+        TiledMapLayerData map = new TiledMapLayerData(20, 20, 32, 16, 4, TiledProjection.ORTHO);
         map.setTile(10, 12, 1);
         map.setTile(7, 16, 1);
         map.setTile(10, 9, 1);
@@ -21,7 +40,6 @@ public class SpatialTileOrderCompilerTest {
         Assert.assertEquals(0, order.rank(10, 12));
         Assert.assertEquals(1, order.rank(10, 9));
         Assert.assertEquals(2, order.rank(7, 16));
-        Assert.assertEquals(-1, order.rank(0, 0));
     }
 
     @Test

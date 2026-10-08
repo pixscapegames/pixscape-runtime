@@ -4,7 +4,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 
 import java.util.Arrays;
 
-/** Runtime-owned, transactionally published compilation of every Spatial V3 structure in one layer. */
+/** Runtime-owned, transactionally published compilation of every Spatial V3 structure in one Tiled Map owner. */
 public final class SpatialCompiledLayerCache {
     private SpatialBlocksComponent source;
     private int sourceRevision = Integer.MIN_VALUE;
@@ -35,6 +35,9 @@ public final class SpatialCompiledLayerCache {
     public int structureCount() { return structureCount; }
     public CompiledSpatialStructure structure(int index) { return structures[index]; }
     public int compilationCount() { return compilationCount; }
+
+    // Author provenance is consumed only while rebuilding projected junctions.
+    SpatialBlocksComponent source() { return source; }
 
     private static int[] collectStructureIds(SpatialBlocksComponent component) {
         if (component == null || component.blocks == null || component.blocks.size == 0) return new int[0];

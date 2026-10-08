@@ -1,6 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
@@ -10,6 +11,7 @@ public final class SpatialTileOrderCompiler {
     private static final long ORDER_CAPACITY = 1L << 30;
 
     private int nodeCount;
+    private boolean isometricOrder;
     private int[] nodeGx = new int[0];
     private int[] nodeGy = new int[0];
     private int[] nodeByCell = new int[0];
@@ -39,6 +41,7 @@ public final class SpatialTileOrderCompiler {
             throw new SpatialTileOrderInvariantException("Spatial tile order layer " + layerEntity
                     + " has an unsupported map capacity.");
         }
+        isometricOrder = map.projection == TiledProjection.ISO;
         buildNodes(map);
         if ((long) nodeCount > ORDER_CAPACITY) {
             throw new SpatialTileOrderInvariantException("Spatial tile order layer " + layerEntity
@@ -58,6 +61,7 @@ public final class SpatialTileOrderCompiler {
 
     int[] compileGraphForTest(int layerEntity, int[] gx, int[] gy, int[] from, int[] to) {
         if (gx.length != gy.length || from.length != to.length) throw new IllegalArgumentException();
+        isometricOrder = true;
         ensureNodeCapacity(gx.length);
         nodeCount = gx.length;
         System.arraycopy(gx, 0, nodeGx, 0, nodeCount);
@@ -314,8 +318,14 @@ public final class SpatialTileOrderCompiler {
         return size;
     }
 
-    /** Earlier means larger gx, then larger gy, then the stable row-major node identity. */
+    /** ISO follows descending projected depth and the Tiled gx tie; ORTHO retains its order. */
     int compareNodes(int first, int second) {
+        if (isometricOrder) {
+            long firstDiagonal = (long) nodeGx[first] + nodeGy[first];
+            long secondDiagonal = (long) nodeGx[second] + nodeGy[second];
+            if (firstDiagonal != secondDiagonal) return firstDiagonal > secondDiagonal ? -1 : 1;
+            if (nodeGx[first] != nodeGx[second]) return nodeGx[first] < nodeGx[second] ? -1 : 1;
+        }
         if (nodeGx[first] != nodeGx[second]) return nodeGx[first] > nodeGx[second] ? -1 : 1;
         if (nodeGy[first] != nodeGy[second]) return nodeGy[first] > nodeGy[second] ? -1 : 1;
         return first < second ? -1 : first == second ? 0 : 1;

@@ -218,6 +218,61 @@ public class TiledMapCollisionFacadeTest {
         }
     }
 
+    @Test
+    public void changingDrawnPlaneRebuildsLinkedNativeFixtureAndKeepsAbsoluteBlock() throws Exception {
+        Harness harness = new Harness(true);
+        try {
+            int map = harness.createMapWithLinkedSpatialPhysics(51);
+            harness.process();
+            SpatialBlocksComponent blocks = harness.world.getMapper(SpatialBlocksComponent.class).get(map);
+            SpatialBlockData block = blocks.blocks.first();
+            PhysicsCompiledFixturesComponent compiled = harness.world.getMapper(PhysicsCompiledFixturesComponent.class).get(map);
+            int generation = compiled.generation;
+            Vector2 before = new Vector2();
+            ((com.badlogic.gdx.physics.box2d.PolygonShape) harness.nativeBody(map).getFixtureList().first().getShape()).getVertex(0, before);
+            harness.engine.api().tiled().requireEntityId(map).spatial().setDefaultVolume(131f, 12f);
+            harness.process();
+            Vector2 after = new Vector2();
+            ((com.badlogic.gdx.physics.box2d.PolygonShape) harness.nativeBody(map).getFixtureList().first().getShape()).getVertex(0, after);
+            Assert.assertEquals(before.x, after.x, 0.00001f);
+            Assert.assertEquals(before.y - 128f / 100f, after.y, 0.00001f);
+            Assert.assertSame(block, blocks.blocks.first());
+            Assert.assertEquals(3f, block.altitude, 0f);
+            Assert.assertEquals(2, blocks.nextSpatialBlockId);
+            Assert.assertEquals(51, harness.shapes(map).shapes.first().physicsShapeId);
+            Assert.assertEquals(generation + 1, compiled.generation);
+            harness.engine.api().tiled().requireEntityId(map).spatial().setDefaultVolume(131f, 12f);
+            Assert.assertEquals(generation + 1, compiled.generation);
+        } finally { harness.dispose(); }
+    }
+
+    @Test
+    public void rejectedDrawnPlanePreparationLeavesAuthoredAndNativePhysicsUntouched() throws Exception {
+        Harness harness = new Harness(true);
+        try {
+            int map = harness.createMapWithLinkedSpatialPhysics(51);
+            harness.process();
+            PhysicsCompiledFixturesComponent compiled = harness.world.getMapper(PhysicsCompiledFixturesComponent.class).get(map);
+            Object fixtures = compiled.fixtures;
+            Object shapes = harness.shapes(map).shapes;
+            Object nativeBody = harness.nativeBody(map);
+            int generation = compiled.generation;
+            harness.scene.pixelsPerMeter = 0f;
+            try {
+                harness.engine.api().tiled().requireEntityId(map).spatial().setDefaultVolume(131f, 12f);
+                Assert.fail("Invalid document scale must reject before publication");
+            } catch (IllegalStateException expected) {
+                Assert.assertTrue(expected.getMessage().contains("pixelsPerMeter"));
+            }
+            Assert.assertEquals(3f, harness.tiled(map).defaultTileAltitude, 0f);
+            Assert.assertEquals(3f, harness.tiled(map).data.defaultTileAltitude, 0f);
+            Assert.assertSame(fixtures, compiled.fixtures);
+            Assert.assertSame(shapes, harness.shapes(map).shapes);
+            Assert.assertSame(nativeBody, harness.nativeBody(map));
+            Assert.assertEquals(generation, compiled.generation);
+        } finally { harness.dispose(); }
+    }
+
     private static final class Harness {
         final PixscapeEngine engine;
         final SceneMetaRuntime scene;

@@ -6,6 +6,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
@@ -16,9 +17,12 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.IdentityLayerDisplayOffsetResolver;
+import games.pixscape.runtime.render.LayerDisplayOffsetResolver;
 import games.pixscape.runtime.render.RenderSourceDomain;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 import java.util.Arrays;
 
@@ -37,30 +41,39 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialPhysicsFootprint;
 
     private EntitySubscription layersSub;
-    private EntitySubscription blockLayersSub;
+    private EntitySubscription tiledMapsSub;
 
     private boolean[] spatialLayers = new boolean[0];
     private int[] activeSpatialLayerIndices = new int[0];
     private int activeSpatialLayerCount;
 
-    private int[] faceLayerEntities = new int[0];
-    private int faceLayerCount;
+    private int[] faceMapEntities = new int[0];
+    private int faceMapCount;
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
     private final SpatialFaceAnchorResolver faceAnchorResolver = new SpatialFaceAnchorResolver();
     private final SpatialActorCollector actorCollector = new SpatialActorCollector();
-    private final SpatialFaceRelationSolver relationSolver = new SpatialFaceRelationSolver();
+    private SpatialFaceRelationSolver relationSolver = new SpatialFaceRelationSolver();
+    private final SpatialWallContinuationCache wallContinuations = new SpatialWallContinuationCache();
+    private SpatialLayerFaceRuntime[] preparedMaps = new SpatialLayerFaceRuntime[0];
+    private TiledMapLayerData[] preparedMapData = new TiledMapLayerData[0];
+    private int[] preparedMapLayers = new int[0];
+    private float[] preparedMapOffsetX = new float[0], preparedMapOffsetY = new float[0];
+    private final SpatialVisualAnchorSelector visualSelector = new SpatialVisualAnchorSelector();
+    private final LayerDisplayOffsetResolver displayOffsetResolver;
+    private final Vector2 mapDisplayOffset = new Vector2();
     private final SpatialFrameSnapshotBuilder snapshotBuilder = new SpatialFrameSnapshotBuilder();
     private final SpatialOrderingKernel orderingKernel = new SpatialOrderingKernel();
 
-    private int[] slotToDrawIndex = new int[0];
     private int[] tiledRefToDrawIndex = new int[0];
-    private int[] mappedSlots = new int[0];
-    private int mappedSlotCount;
     private int[] mappedTiledRefs = new int[0];
     private int mappedTiledRefCount;
     @SkipWire
     private GameObjectHierarchySystem gameObjectHierarchy;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private int lastVisualCandidateCount;
+    private int lastFaceRelationCount;
+    private boolean diagnosticsEnabled;
+    private final StringBuilder diagnosticDetail = new StringBuilder(256);
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, DrawList drawList) {
         this(ecsState, null, drawList);
@@ -74,11 +87,21 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                                     TiledMapRenderState tiledState,
                                     DrawList drawList,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
+        this(ecsState, tiledState, drawList, spatialRuntimeRegistry, null);
+    }
+
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
+                                    TiledMapRenderState tiledState,
+                                    DrawList drawList,
+                                    SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+                                    LayerDisplayOffsetResolver displayOffsetResolver) {
         this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.drawList = drawList;
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
+        this.displayOffsetResolver = displayOffsetResolver != null
+                ? displayOffsetResolver : new IdentityLayerDisplayOffsetResolver();
     }
 
     @Override
@@ -86,9 +109,22 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         layersSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
-        blockLayersSub = world.getAspectSubscriptionManager()
+        tiledMapsSub = world.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
                         .exclude(LayerComponent.class));
+    }
+
+    /**
+     * On-demand editor overlay of the envelope used for the latest composed frame.
+     * Writes into caller-owned storage; ineligible or culled actors have no envelope.
+     */
+    public boolean writeActorInfluenceQuad(int entityId, float[] out) {
+        if (!isEnabled() || ecsState == null) return false;
+        int slot = ecsState.renderSlotForEntity(entityId);
+        int actor = actorCollector.actorIndexForSlot(slot);
+        if (actor < 0 || actorCollector.entityId(actor) != entityId) return false;
+        actorCollector.writeInfluenceQuad(actor, ecsState.offsetX[slot], ecsState.offsetY[slot], out);
+        return true;
     }
 
     @Override
@@ -107,25 +143,38 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     private void processSystemInternal() {
+        lastVisualCandidateCount = 0;
+        lastFaceRelationCount = 0;
+        if (diagnosticsEnabled) diagnosticDetail.setLength(0);
         orderingKernel.reset();
-        if (ecsState == null || drawList == null || drawList.size <= 1) return;
+        actorCollector.clear();
+        if (ecsState == null || drawList == null || drawList.size == 0) return;
 
         rebuildSpatialLayers();
         collectSpatialActors();
-        if (actorCollector.actorCount() == 0) return;
+        if (actorCollector.actorCount() == 0 || drawList.size == 1) return;
 
         snapshotBuilder.build(drawList, ecsState.getRenderCapacity(), actorCollector);
-        rebuildSpatialBlockLayers();
+        collectSpatialMaps();
         orderingKernel.begin(actorCollector, snapshotBuilder);
-        if (faceLayerCount == 0) {
+        if (faceMapCount == 0) {
             orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
             applyComposedDrawList();
             return;
         }
 
-        buildDrawIndexMaps();
-        for (int layer = 0; layer < faceLayerCount; layer++) {
-            int owner = faceLayerEntities[layer];
+        buildTiledDrawIndexMap();
+        if (preparedMaps.length < faceMapCount) {
+            int capacity = Math.max(faceMapCount, Math.max(8, preparedMaps.length * 2));
+            preparedMaps = new SpatialLayerFaceRuntime[capacity];
+            preparedMapData = new TiledMapLayerData[capacity];
+            preparedMapLayers = new int[capacity];
+            preparedMapOffsetX = new float[capacity];
+            preparedMapOffsetY = new float[capacity];
+        }
+        int preparedCount = 0;
+        for (int mapIndex = 0; mapIndex < faceMapCount; mapIndex++) {
+            int owner = faceMapEntities[mapIndex];
             TiledLayerComponent tiled = mTiled.getSafe(owner, null);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
             if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
@@ -134,35 +183,108 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             runtime.compiled.ensure(blocks);
             runtime.projected.ensure(runtime.compiled, tiled.data);
             runtime.tileOrder.ensure(owner, tiled.data, blocks, runtime.compiled);
-            if (runtime.projected.faceCount == 0) continue;
+            preparedMaps[preparedCount] = runtime;
+            preparedMapData[preparedCount] = tiled.data;
+            EntityIndexComponent index = mEntityIndex.getSafe(owner, null);
+            preparedMapLayers[preparedCount] = index != null ? index.layerIndex : 0;
             faceAnchorResolver.resolve(runtime.projected, tiledRefToDrawIndex,
                     snapshotBuilder.drawIndexToBucketBefore, snapshotBuilder.drawIndexToBucketAfter,
                     drawList.size);
-            relationSolver.solve(actorCollector, runtime.projected);
-            if (relationSolver.relationCount() == 0) continue;
-            orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver);
+            displayOffsetResolver.resolveLayer(index != null ? index.layerIndex : 0, mapDisplayOffset);
+            preparedMapOffsetX[preparedCount] = mapDisplayOffset.x;
+            preparedMapOffsetY[preparedCount++] = mapDisplayOffset.y;
+            relationSolver = runtime.relations;
+            relationSolver.setCaptureCandidates(diagnosticsEnabled);
+            relationSolver.solveVisual(actorCollector, runtime.projected, visualSelector,
+                    ecsState, tiledState, tiled.data, mapDisplayOffset.x, mapDisplayOffset.y);
+            lastVisualCandidateCount += relationSolver.visualCandidateCount;
+        }
+
+        wallContinuations.ensure(preparedMaps, preparedMapData, preparedMapLayers, preparedCount);
+        wallContinuations.capture(preparedMaps, actorCollector.actorCount, preparedMapOffsetX, preparedMapOffsetY);
+        for (int mapIndex = 0; mapIndex < preparedCount; mapIndex++) {
+            SpatialLayerFaceRuntime runtime = preparedMaps[mapIndex];
+            relationSolver = runtime.relations;
+            relationSolver.applyWallContinuations(actorCollector, runtime.projected, wallContinuations, mapIndex);
+            if (diagnosticsEnabled) appendVisualDiagnostics(runtime.layerEntity, runtime.projected);
+            lastFaceRelationCount += relationSolver.relationCount;
+            if (relationSolver.relationCount() > 0)
+                orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver, runtime.layerEntity);
         }
 
         orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
         applyComposedDrawList();
     }
 
-    private void rebuildSpatialBlockLayers() {
-        faceLayerCount = 0;
-        if (blockLayersSub == null) return;
+    private void appendVisualDiagnostics(int mapEntity, SpatialProjectedFaceCache faces) {
+        for (int actor = 0; actor < actorCollector.actorCount; actor++) {
+            PixscapeIdentityComponent mapIdentity = mIdentity.getSafe(mapEntity, null);
+            int actorEntity = actorCollector.entityId(actor);
+            PixscapeIdentityComponent actorIdentity = mIdentity.getSafe(actorEntity, null);
+            diagnosticDetail.append("\nmap=").append(mapEntity).append(" actor=").append(actor)
+                    .append(" mapStableId=").append(mapIdentity != null ? mapIdentity.stableId : -1)
+                    .append(" actorEntity=").append(actorEntity)
+                    .append(" actorStableId=").append(actorIdentity != null ? actorIdentity.stableId : -1)
+                    .append(" candidates:");
+            int end = relationSolver.actorCandidateStart[actor] + relationSolver.actorCandidateCount[actor];
+            for (int candidate = relationSolver.actorCandidateStart[actor]; candidate < end; candidate++) {
+                int anchor = relationSolver.candidateAnchorIndex[candidate];
+                diagnosticDetail.append(' ').append(faces.anchorGx[anchor]).append(',')
+                        .append(faces.anchorGy[anchor]);
+            }
+            diagnosticDetail.append(" relations:");
+            end = relationSolver.actorRelationStart[actor] + relationSolver.actorRelationCount[actor];
+            for (int relation = relationSolver.actorRelationStart[actor]; relation < end; relation++) {
+                int anchor = relationSolver.relationAnchorIndex[relation];
+                int face = relationSolver.relationFaceIndex[relation];
+                int membership = relationSolver.relationMembershipIndex[relation];
+                diagnosticDetail.append(' ').append(faces.anchorGx[anchor]).append(',')
+                        .append(faces.anchorGy[anchor]).append("/structure=")
+                        .append(faces.faceStructureId[face]).append("/face=")
+                        .append(faces.faceCompiledIndex[face])
+                        .append("/membership=").append(membership)
+                        .append("/ref=").append(faces.anchorTiledRef[anchor])
+                        .append("/reach=[").append(faces.faceAnchorScreenMinX[membership]).append(',')
+                        .append(faces.faceAnchorScreenMaxX[membership]).append(']')
+                        .append("/bound=").append(relationSolver.relationType[relation] == SpatialFaceRelationSolver.ACTOR_BEHIND_FACE
+                                ? faces.anchorBeforeBucket[anchor] : faces.anchorAfterBucket[anchor]).append('/')
+                        .append(relationSolver.relationType[relation] == SpatialFaceRelationSolver.ACTOR_BEHIND_FACE
+                                ? "behind" : "front");
+            }
+            diagnosticDetail.append(" rejected:");
+            for (int r = 0; r < relationSolver.rejectedCount; r++) {
+                if (relationSolver.rejectedActor[r] != actor) continue;
+                int anchor = relationSolver.rejectedAnchor[r];
+                int face = relationSolver.rejectedFace[r];
+                int m = relationSolver.rejectedMembership[r];
+                diagnosticDetail.append(' ').append(faces.anchorGx[anchor]).append(',')
+                        .append(faces.anchorGy[anchor]).append("/structure=").append(faces.faceStructureId[face])
+                        .append("/face=").append(faces.faceCompiledIndex[face]).append("/membership=").append(m)
+                        .append("/ref=").append(faces.anchorTiledRef[anchor])
+                        .append("/reach=[").append(faces.faceAnchorScreenMinX[m]).append(',')
+                        .append(faces.faceAnchorScreenMaxX[m]).append(']')
+                        .append("/front/reason=DISTANT_DIRECT_JUNCTION_FRONT/witnessFace=")
+                        .append(faces.faceCompiledIndex[relationSolver.rejectedWitnessFace[r]]);
+            }
+        }
+    }
 
-        IntBag layers = blockLayersSub.getEntities();
-        int[] data = layers.getData();
-        for (int i = 0, n = layers.size(); i < n; i++) {
+    private void collectSpatialMaps() {
+        faceMapCount = 0;
+        if (tiledMapsSub == null) return;
+
+        IntBag maps = tiledMapsSub.getEntities();
+        int[] data = maps.getData();
+        for (int i = 0, n = maps.size(); i < n; i++) {
             int entity = data[i];
             TiledLayerComponent tiled = mTiled.getSafe(entity, null);
             if (tiled == null) continue;
             if (tiled.data == null) continue;
             if (!isSpatialTiledMap(tiled)) continue;
 
-            ensureFaceLayerCapacity(faceLayerCount + 1);
-            faceLayerEntities[faceLayerCount] = entity;
-            faceLayerCount++;
+            ensureFaceMapCapacity(faceMapCount + 1);
+            faceMapEntities[faceMapCount] = entity;
+            faceMapCount++;
         }
     }
 
@@ -200,29 +322,20 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 gameObjectHierarchy != null ? gameObjectHierarchy.worldTransforms() : null);
     }
 
-    private void buildDrawIndexMaps() {
-        int ecsRenderCapacity = ecsState.getRenderCapacity();
-        ensureSlotToDrawIndexCapacity(ecsRenderCapacity);
-        for (int i = 0; i < mappedSlotCount; i++) {
-            slotToDrawIndex[mappedSlots[i]] = -1;
-        }
-        mappedSlotCount = 0;
+    private void buildTiledDrawIndexMap() {
         int tiledRefCapacity = tiledState != null ? tiledState.getCapacity() : 0;
         ensureTiledRefToDrawIndexCapacity(tiledRefCapacity);
         for (int i = 0; i < mappedTiledRefCount; i++) {
             tiledRefToDrawIndex[mappedTiledRefs[i]] = -1;
         }
         mappedTiledRefCount = 0;
-        ensureMappedEntryCapacity(drawList.size);
+        ensureMappedTiledRefCapacity(drawList.size);
         int[] data = drawList.data();
         byte[] domains = drawList.domainData();
         for (int drawIndex = 0; drawIndex < drawList.size; drawIndex++) {
             int slot = data[drawIndex];
             byte domain = domains[drawIndex];
-            if (domain == RenderSourceDomain.SOURCE_ECS && slot >= 0 && slot < ecsRenderCapacity) {
-                slotToDrawIndex[slot] = drawIndex;
-                mappedSlots[mappedSlotCount++] = slot;
-            } else if (domain == RenderSourceDomain.SOURCE_TILED
+            if (domain == RenderSourceDomain.SOURCE_TILED
                     && slot >= 0
                     && slot < tiledRefToDrawIndex.length) {
                 tiledRefToDrawIndex[slot] = drawIndex;
@@ -272,8 +385,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
     }
 
+    /** Counts Tiled Map owners; the legacy helper name does not denote ordinary layers. */
     int tiledLayerEntityCount() {
-        return blockLayersSub != null ? blockLayersSub.getEntities().size() : 0;
+        return tiledMapsSub != null ? tiledMapsSub.getEntities().size() : 0;
     }
 
     private void ensureSpatialLayerCapacity(int required) {
@@ -292,30 +406,20 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         activeSpatialLayerIndices = Arrays.copyOf(activeSpatialLayerIndices, next);
     }
 
-    private void ensureMappedEntryCapacity(int required) {
-        if (required <= mappedSlots.length) return;
-        int next = Math.max(8, mappedSlots.length);
+    private void ensureMappedTiledRefCapacity(int required) {
+        if (required <= mappedTiledRefs.length) return;
+        int next = Math.max(8, mappedTiledRefs.length);
         while (required > next) next <<= 1;
-        mappedSlots = Arrays.copyOf(mappedSlots, next);
         mappedTiledRefs = Arrays.copyOf(mappedTiledRefs, next);
     }
 
-    private void ensureFaceLayerCapacity(int required) {
-        if (required <= faceLayerEntities.length) return;
-        int next = Math.max(4, faceLayerEntities.length);
+    private void ensureFaceMapCapacity(int required) {
+        if (required <= faceMapEntities.length) return;
+        int next = Math.max(4, faceMapEntities.length);
         while (required > next) next <<= 1;
         int[] expandedEntities = new int[next];
-        System.arraycopy(faceLayerEntities, 0, expandedEntities, 0, faceLayerEntities.length);
-        faceLayerEntities = expandedEntities;
-    }
-
-    private void ensureSlotToDrawIndexCapacity(int required) {
-        if (required <= slotToDrawIndex.length) return;
-        int oldLength = slotToDrawIndex.length;
-        int next = Math.max(8, slotToDrawIndex.length);
-        while (required > next) next <<= 1;
-        slotToDrawIndex = grow(slotToDrawIndex, next);
-        Arrays.fill(slotToDrawIndex, oldLength, next, -1);
+        System.arraycopy(faceMapEntities, 0, expandedEntities, 0, faceMapEntities.length);
+        faceMapEntities = expandedEntities;
     }
 
     private void ensureTiledRefToDrawIndexCapacity(int required) {
@@ -334,8 +438,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     }
 
     int getActorWorkArrayCapacity() {
-        return faceLayerEntities.length
-                + slotToDrawIndex.length
+        return faceMapEntities.length
                 + tiledRefToDrawIndex.length
                 + snapshotBuilder.drawIndexToBucketBefore.length
                 + snapshotBuilder.drawIndexToBucketAfter.length
@@ -360,6 +463,17 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     public int actorOrderingFallbackCount() {
         return orderingKernel.actorOrderingFallbackCount();
     }
+
+    public int visualCandidateCount() { return lastVisualCandidateCount; }
+    public int faceRelationCount() { return lastFaceRelationCount; }
+
+    /** Builds a diagnostic snapshot only when explicitly requested; ordinary frames do not log. */
+    public String diagnosticSummary() {
+        return orderingKernel.diagnosticSummary(lastVisualCandidateCount, lastFaceRelationCount)
+                + (diagnosticsEnabled ? diagnosticDetail.toString() : "");
+    }
+
+    public void setDiagnosticsEnabled(boolean enabled) { diagnosticsEnabled = enabled; }
 
     public void setSystemProfiler(SystemProfiler profiler) {
         this.profiler = SystemProfilers.orDisabled(profiler);

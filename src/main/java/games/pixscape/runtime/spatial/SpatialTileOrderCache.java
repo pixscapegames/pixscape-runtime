@@ -21,6 +21,7 @@ public final class SpatialTileOrderCache {
     private int tileHeight;
     private float originX;
     private float originY;
+    private float planeAltitude;
 
     private int[] rankByCell = new int[0];
     private int[] ownerBlockIdByCell = new int[0];
@@ -46,7 +47,8 @@ public final class SpatialTileOrderCache {
                 && projection == map.projection && mapWidth == map.mapWidth && mapHeight == map.mapHeight
                 && tileWidth == map.tileWidth && tileHeight == map.tileHeight
                 && Float.compare(originX, map.originX) == 0
-                && Float.compare(originY, map.originY) == 0) return false;
+                && Float.compare(originY, map.originY) == 0
+                && Float.compare(planeAltitude, map.defaultTileAltitude) == 0) return false;
 
         rebuild(layerEntity, map, blocks, compiled);
         return true;
@@ -75,6 +77,7 @@ public final class SpatialTileOrderCache {
         tileHeight = map.tileHeight;
         originX = map.originX;
         originY = map.originY;
+        planeAltitude = map.defaultTileAltitude;
         orderRevision++;
         tileOrderCompileCount++;
     }

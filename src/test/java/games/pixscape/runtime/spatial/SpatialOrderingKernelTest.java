@@ -7,7 +7,7 @@ import org.junit.Test;
 
 public class SpatialOrderingKernelTest {
     @Test
-    public void sameAnchorBehindDominatesFrontIndependentOfRelationOrder() {
+    public void sameAnchorOppositionRemainsUnresolvedIndependentOfRelationOrder() {
         assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
                 SpatialFaceRelationSolver.ACTOR_BEHIND_FACE});
         assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_BEHIND_FACE,
@@ -452,10 +452,10 @@ public class SpatialOrderingKernelTest {
         planner.begin(actors, new int[]{4}, 6);
         planner.addRelations(actors, faces, relations);
         planner.finish(actors);
-        Assert.assertEquals(2, planner.actorBucket[0]);
-        Assert.assertEquals(Integer.MIN_VALUE, planner.actorLowerBound[0]);
+        Assert.assertEquals(4, planner.actorBucket[0]);
+        Assert.assertEquals(3, planner.actorLowerBound[0]);
         Assert.assertEquals(2, planner.actorUpperBound[0]);
-        Assert.assertEquals(0, planner.unresolvedConstraintCount());
+        Assert.assertEquals(1, planner.unresolvedConstraintCount());
     }
 
     private static void assertOverlappingTileIntervalsPreserveActorOrder(float firstY,

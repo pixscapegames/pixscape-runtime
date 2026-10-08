@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 /** Reduces exact-anchor intents and resolves stable actor insertion intervals jointly. */
 public final class SpatialBucketPlanner {
     private static final byte FRONT = 1;
-    private static final byte BEHIND = 2; // max() makes BEHIND dominate FRONT at a shared anchor.
+    private static final byte BEHIND = 2;
 
     public int actorCount;
     public int bucketCount;
@@ -26,12 +26,14 @@ public final class SpatialBucketPlanner {
     private int[] actorLowerSourceAnchorGy = new int[0];
     private int[] actorLowerSourceFaceIndex = new int[0];
     private int[] actorLowerSourceStructureId = new int[0];
+    private int[] actorLowerSourceMapEntity = new int[0];
     private float[] actorLowerSourceMinX = new float[0];
     private float[] actorLowerSourceMaxX = new float[0];
     private int[] actorUpperSourceAnchorGx = new int[0];
     private int[] actorUpperSourceAnchorGy = new int[0];
     private int[] actorUpperSourceFaceIndex = new int[0];
     private int[] actorUpperSourceStructureId = new int[0];
+    private int[] actorUpperSourceMapEntity = new int[0];
     private float[] actorUpperSourceMinX = new float[0];
     private float[] actorUpperSourceMaxX = new float[0];
     boolean[] actorHasConstraint = new boolean[0];
@@ -39,8 +41,16 @@ public final class SpatialBucketPlanner {
     private byte[] anchorIntent = new byte[0];
     private int[] anchorSourceFace = new int[0];
     private int[] anchorSourceMembership = new int[0];
+    private int[] anchorFrontSourceFace = new int[0];
+    private int[] anchorFrontSourceMembership = new int[0];
     private int[] touchedAnchorIndices = new int[0];
+    private int[] anchorIntentStructure = new int[0];
+    private boolean[] anchorHasMultipleStructures = new boolean[0];
     private int currentStamp;
+    private int[] membershipIntentStamp = new int[0];
+    private byte[] membershipIntent = new byte[0];
+    private int unresolvedLateralCornerCount;
+    private boolean[] actorHasUnresolvedCorner = new boolean[0];
     private int[] bucketActorCount = new int[0];
     private int[] bucketActorOffset = new int[0];
     private int[] bucketWrite = new int[0];
@@ -69,6 +79,7 @@ public final class SpatialBucketPlanner {
             actorLowerSourceFaceIndex[actor] = actorUpperSourceFaceIndex[actor] = -1;
             actorLowerSourceStructureId[actor] = actorUpperSourceStructureId[actor] = 0;
             actorHasConstraint[actor] = false;
+            actorHasUnresolvedCorner[actor] = false;
             finalActorDrawIndex[actor] = -1;
         }
     }
@@ -76,9 +87,20 @@ public final class SpatialBucketPlanner {
     public void addRelations(SpatialActorCollector actors,
                              SpatialProjectedFaceCache faces,
                              SpatialFaceRelationSolver relations) {
+        addRelations(actors, faces, relations, -1);
+    }
+
+    public void addRelations(SpatialActorCollector actors,
+                             SpatialProjectedFaceCache faces,
+                             SpatialFaceRelationSolver relations,
+                             int mapEntity) {
         if (actors == null || faces == null || relations == null || relations.relationCount == 0) return;
         if (actors.actorCount != actorCount) throw new IllegalStateException("Actor snapshot changed while planning.");
         ensureAnchorScratchCapacity(faces.anchorCount);
+        if (membershipIntent.length < faces.membershipFace.length) {
+            membershipIntent = new byte[faces.membershipFace.length];
+            membershipIntentStamp = new int[faces.membershipFace.length];
+        }
         for (int actor = 0; actor < actorCount; actor++) {
             int touchedCount = 0;
             int stamp = nextStamp();
@@ -93,6 +115,15 @@ public final class SpatialBucketPlanner {
                 if (face < 0 || face >= faces.faceCount) continue;
                 byte requested = relations.relationType[relation] == SpatialFaceRelationSolver.ACTOR_BEHIND_FACE
                         ? BEHIND : FRONT;
+                int selectedAnchor = relation < relations.relationAnchorIndex.length
+                        ? relations.relationAnchorIndex[relation] : -1;
+                if (selectedAnchor >= 0) {
+                    testedMembershipCount++;
+                    acceptedLocalMembershipCount++;
+                    touchedCount = acceptIntent(faces, stamp, touchedCount, selectedAnchor, requested,
+                            face, relations.relationMembershipIndex[relation]);
+                    continue;
+                }
                 int membershipStart = faces.faceAnchorIndexStart[face];
                 int membershipEnd = membershipStart + faces.faceAnchorIndexCount[face];
                 for (int membership = membershipStart; membership < membershipEnd; membership++) {
@@ -104,28 +135,24 @@ public final class SpatialBucketPlanner {
                     }
                     acceptedLocalMembershipCount++;
                     int anchor = faces.faceAnchorIndices[membership];
-                    if (!faces.anchorResolved[anchor]) continue;
-                    if (anchorVisitStamp[anchor] != stamp) {
-                        anchorVisitStamp[anchor] = stamp;
-                        anchorIntent[anchor] = requested;
-                        anchorSourceFace[anchor] = face;
-                        anchorSourceMembership[anchor] = membership;
-                        touchedAnchorIndices[touchedCount++] = anchor;
-                    } else if (requested > anchorIntent[anchor]
-                            || requested == anchorIntent[anchor]
-                            && preferFace(faces, face, anchorSourceFace[anchor])) {
-                        anchorIntent[anchor] = requested;
-                        anchorSourceFace[anchor] = face;
-                        anchorSourceMembership[anchor] = membership;
-                    }
+                    touchedCount = acceptIntent(faces, stamp, touchedCount, anchor, requested, face, membership);
                 }
             }
             for (int touched = 0; touched < touchedCount; touched++) {
                 int anchor = touchedAnchorIndices[touched];
+                if (anchorIntent[anchor] == (FRONT | BEHIND)
+                        && isUnresolvedLateralCorner(faces, anchor, stamp,
+                        relations.visualRelations ? relations.actorProjectedX[actor] : actorX,
+                        relations.visualRelations ? relations.actorProjectedY[actor] : actors.actorCircleY[actor], radius)) {
+                    unresolvedLateralCornerCount++;
+                    actorHasUnresolvedCorner[actor] = true;
+                }
                 int face = anchorSourceFace[anchor];
                 int membership = anchorSourceMembership[anchor];
                 actorHasConstraint[actor] = true;
-                if (anchorIntent[anchor] == FRONT) {
+                if ((anchorIntent[anchor] & FRONT) != 0) {
+                    face = anchorFrontSourceFace[anchor];
+                    membership = anchorFrontSourceMembership[anchor];
                     int candidate = faces.anchorAfterBucket[anchor];
                     if (candidate > actorLowerBound[actor]
                             || candidate == actorLowerBound[actor]
@@ -135,10 +162,14 @@ public final class SpatialBucketPlanner {
                         actorLowerSourceAnchorGy[actor] = faces.anchorGy[anchor];
                         actorLowerSourceFaceIndex[actor] = faces.faceCompiledIndex[face];
                         actorLowerSourceStructureId[actor] = faces.faceStructureId[face];
+                        actorLowerSourceMapEntity[actor] = mapEntity;
                         actorLowerSourceMinX[actor] = faces.faceAnchorScreenMinX[membership];
                         actorLowerSourceMaxX[actor] = faces.faceAnchorScreenMaxX[membership];
                     }
-                } else {
+                }
+                if ((anchorIntent[anchor] & BEHIND) != 0) {
+                    face = anchorSourceFace[anchor];
+                    membership = anchorSourceMembership[anchor];
                     int candidate = faces.anchorBeforeBucket[anchor];
                     if (candidate < actorUpperBound[actor]
                             || candidate == actorUpperBound[actor]
@@ -148,12 +179,58 @@ public final class SpatialBucketPlanner {
                         actorUpperSourceAnchorGy[actor] = faces.anchorGy[anchor];
                         actorUpperSourceFaceIndex[actor] = faces.faceCompiledIndex[face];
                         actorUpperSourceStructureId[actor] = faces.faceStructureId[face];
+                        actorUpperSourceMapEntity[actor] = mapEntity;
                         actorUpperSourceMinX[actor] = faces.faceAnchorScreenMinX[membership];
                         actorUpperSourceMaxX[actor] = faces.faceAnchorScreenMaxX[membership];
                     }
                 }
             }
         }
+    }
+
+    private int acceptIntent(SpatialProjectedFaceCache faces, int stamp, int touchedCount,
+                             int anchor, byte requested, int face, int membership) {
+        if (!faces.anchorResolved[anchor]) return touchedCount;
+        if (membership >= 0 && membership < membershipIntent.length) {
+            membershipIntentStamp[membership] = stamp;
+            membershipIntent[membership] = requested;
+        }
+        if (anchorVisitStamp[anchor] != stamp) {
+            anchorVisitStamp[anchor] = stamp;
+            anchorIntent[anchor] = 0;
+            anchorIntentStructure[anchor] = faces.faceStructureId[face];
+            anchorHasMultipleStructures[anchor] = false;
+            touchedAnchorIndices[touchedCount++] = anchor;
+        }
+        if (anchorIntentStructure[anchor] != faces.faceStructureId[face]) anchorHasMultipleStructures[anchor] = true;
+        boolean first = (anchorIntent[anchor] & requested) == 0;
+        if (requested == FRONT && (first || preferFace(faces, face, anchorFrontSourceFace[anchor]))) {
+            anchorFrontSourceFace[anchor] = face;
+            anchorFrontSourceMembership[anchor] = membership;
+        } else if (requested == BEHIND && (first || preferFace(faces, face, anchorSourceFace[anchor]))) {
+            anchorSourceFace[anchor] = face;
+            anchorSourceMembership[anchor] = membership;
+        }
+        // Opposite relevant branches on one indivisible tile are incompatible, not an ID tie.
+        anchorIntent[anchor] |= requested;
+        return touchedCount;
+    }
+
+    public int unresolvedLateralCornerCount() { return unresolvedLateralCornerCount; }
+    public boolean hasUnresolvedCorner(int actor) { return actorHasUnresolvedCorner[actor]; }
+    public boolean hasLocalFallback(int actor) { return hasContradictoryInterval(actor); }
+    public boolean hasRelation(int actor) { return actorHasConstraint[actor]; }
+
+    private boolean isUnresolvedLateralCorner(SpatialProjectedFaceCache faces, int anchor, int stamp,
+                                             float x, float y, float radius) {
+        if (anchor >= faces.anchorCornerHead.length || anchorHasMultipleStructures[anchor]) return false;
+        for (int corner = faces.anchorCornerHead[anchor]; corner >= 0; corner = faces.cornerNext[corner]) {
+            int a = faces.cornerMembershipA[corner], b = faces.cornerMembershipB[corner];
+            if (membershipIntentStamp[a] == stamp && membershipIntentStamp[b] == stamp
+                    && membershipIntent[a] != membershipIntent[b]
+                    && faces.isLocalLateralSector(corner, x, y, radius)) return true;
+        }
+        return false;
     }
 
     public void finish(SpatialActorCollector actors) {
@@ -171,6 +248,49 @@ public final class SpatialBucketPlanner {
 
     public int unresolvedConstraintCount() { return unresolvedConstraintCount; }
     public int actorOrderingFallbackCount() { return actorOrderingFallbackCount; }
+    /** On-demand inspection only; no string building or logging occurs during normal frames. */
+    public String diagnosticSummary(int candidates, int relations) {
+        StringBuilder out = new StringBuilder(96 + actorCount * 120);
+        out.append("candidates=").append(candidates).append(" relations=").append(relations)
+                .append(" conflicts=").append(unresolvedConstraintCount)
+                .append(" globalFallbacks=").append(actorOrderingFallbackCount)
+                .append(" unresolvedCorners=").append(unresolvedLateralCornerCount);
+        for (int actor = 0; actor < actorCount; actor++) {
+            out.append("\nactor=").append(actor).append(" bucket=").append(actorBucket[actor])
+                    .append(" original=").append(actorOriginalBucket[actor])
+                    .append(" L=").append(actorLowerBound[actor])
+                    .append(" U=").append(actorUpperBound[actor])
+                    .append(" unresolvedCorner=").append(actorHasUnresolvedCorner[actor])
+                    .append(" localFallback=").append(hasContradictoryInterval(actor))
+                      .append(" conflictKind=").append(conflictKind(actor))
+                    .append(" noRelation=").append(!actorHasConstraint[actor]);
+            if (actorLowerSourceFaceIndex[actor] >= 0) {
+                out.append(" lowerSource(map=").append(actorLowerSourceMapEntity[actor])
+                        .append(",structure=").append(actorLowerSourceStructureId[actor])
+                        .append(",face=").append(actorLowerSourceFaceIndex[actor])
+                        .append(",tile=").append(actorLowerSourceAnchorGx[actor]).append(',')
+                        .append(actorLowerSourceAnchorGy[actor]).append(')');
+            }
+            if (actorUpperSourceFaceIndex[actor] >= 0) {
+                out.append(" upperSource(map=").append(actorUpperSourceMapEntity[actor])
+                        .append(",structure=").append(actorUpperSourceStructureId[actor])
+                        .append(",face=").append(actorUpperSourceFaceIndex[actor])
+                        .append(",tile=").append(actorUpperSourceAnchorGx[actor]).append(',')
+                        .append(actorUpperSourceAnchorGy[actor]).append(')');
+            }
+        }
+        return out.toString();
+    }
+
+    /** Diagnosis only: no admission or fallback policy follows from this label. */
+    public String conflictKind(int actor) {
+        if (!hasContradictoryInterval(actor)) return "NONE";
+        if (actorHasUnresolvedCorner[actor]) return "LOCAL_X";
+        if (actorLowerSourceMapEntity[actor] != actorUpperSourceMapEntity[actor]
+                || actorLowerSourceAnchorGx[actor] != actorUpperSourceAnchorGx[actor]
+                || actorLowerSourceAnchorGy[actor] != actorUpperSourceAnchorGy[actor]) return "MULTI_TILE";
+        return "UNCLASSIFIED";
+    }
     boolean actorHasConstraint(int actor) { return actorHasConstraint[actor]; }
     int lowerSourceAnchorGx(int actor) { return actorLowerSourceAnchorGx[actor]; }
     int lowerSourceAnchorGy(int actor) { return actorLowerSourceAnchorGy[actor]; }
@@ -183,11 +303,13 @@ public final class SpatialBucketPlanner {
     public void clear() {
         actorCount = 0; bucketCount = 0; unresolvedConstraintCount = 0; actorOrderingFallbackCount = 0;
         testedMembershipCount = 0; acceptedLocalMembershipCount = 0; rejectedNonlocalMembershipCount = 0;
+        unresolvedLateralCornerCount = 0;
     }
 
     private int nextStamp() {
         if (currentStamp == Integer.MAX_VALUE) {
             for (int i = 0; i < anchorVisitStamp.length; i++) anchorVisitStamp[i] = 0;
+            for (int i = 0; i < membershipIntentStamp.length; i++) membershipIntentStamp[i] = 0;
             currentStamp = 0;
         }
         return ++currentStamp;
@@ -449,13 +571,13 @@ public final class SpatialBucketPlanner {
     private void ensureActorCapacity(int required) {
         if (required <= actorBucket.length) return; int n=capacity(actorBucket.length,required);
         actorBucket=grow(actorBucket,n); actorOriginalBucket=grow(actorOriginalBucket,n); actorLowerBound=grow(actorLowerBound,n); actorUpperBound=grow(actorUpperBound,n);
-        actorLowerSourceAnchorGx=grow(actorLowerSourceAnchorGx,n); actorLowerSourceAnchorGy=grow(actorLowerSourceAnchorGy,n); actorLowerSourceFaceIndex=grow(actorLowerSourceFaceIndex,n); actorLowerSourceStructureId=grow(actorLowerSourceStructureId,n);
+        actorLowerSourceAnchorGx=grow(actorLowerSourceAnchorGx,n); actorLowerSourceAnchorGy=grow(actorLowerSourceAnchorGy,n); actorLowerSourceFaceIndex=grow(actorLowerSourceFaceIndex,n); actorLowerSourceStructureId=grow(actorLowerSourceStructureId,n); actorLowerSourceMapEntity=grow(actorLowerSourceMapEntity,n);
         actorLowerSourceMinX=grow(actorLowerSourceMinX,n); actorLowerSourceMaxX=grow(actorLowerSourceMaxX,n);
-        actorUpperSourceAnchorGx=grow(actorUpperSourceAnchorGx,n); actorUpperSourceAnchorGy=grow(actorUpperSourceAnchorGy,n); actorUpperSourceFaceIndex=grow(actorUpperSourceFaceIndex,n); actorUpperSourceStructureId=grow(actorUpperSourceStructureId,n);
+        actorUpperSourceAnchorGx=grow(actorUpperSourceAnchorGx,n); actorUpperSourceAnchorGy=grow(actorUpperSourceAnchorGy,n); actorUpperSourceFaceIndex=grow(actorUpperSourceFaceIndex,n); actorUpperSourceStructureId=grow(actorUpperSourceStructureId,n); actorUpperSourceMapEntity=grow(actorUpperSourceMapEntity,n);
         actorUpperSourceMinX=grow(actorUpperSourceMinX,n); actorUpperSourceMaxX=grow(actorUpperSourceMaxX,n);
-        finalActorDrawIndex=grow(finalActorDrawIndex,n); actorHasConstraint=grow(actorHasConstraint,n);
+        finalActorDrawIndex=grow(finalActorDrawIndex,n); actorHasConstraint=grow(actorHasConstraint,n); actorHasUnresolvedCorner=grow(actorHasUnresolvedCorner,n);
     }
-    private void ensureAnchorScratchCapacity(int required){if(required<=anchorVisitStamp.length)return;int n=capacity(anchorVisitStamp.length,required);anchorVisitStamp=grow(anchorVisitStamp,n);anchorIntent=grow(anchorIntent,n);anchorSourceFace=grow(anchorSourceFace,n);anchorSourceMembership=grow(anchorSourceMembership,n);touchedAnchorIndices=grow(touchedAnchorIndices,n);}
+    private void ensureAnchorScratchCapacity(int required){if(required<=anchorVisitStamp.length)return;int n=capacity(anchorVisitStamp.length,required);anchorVisitStamp=grow(anchorVisitStamp,n);anchorIntent=grow(anchorIntent,n);anchorIntentStructure=grow(anchorIntentStructure,n);anchorHasMultipleStructures=grow(anchorHasMultipleStructures,n);anchorSourceFace=grow(anchorSourceFace,n);anchorSourceMembership=grow(anchorSourceMembership,n);anchorFrontSourceFace=grow(anchorFrontSourceFace,n);anchorFrontSourceMembership=grow(anchorFrontSourceMembership,n);touchedAnchorIndices=grow(touchedAnchorIndices,n);}
     private void ensureBucketCapacity(int required){if(required<=bucketActorCount.length)return;int n=capacity(bucketActorCount.length,required);bucketActorCount=grow(bucketActorCount,n);bucketActorOffset=grow(bucketActorOffset,n);bucketWrite=grow(bucketWrite,n);}
     private void ensureSortedCapacity(int required){if(required>sortedActorIndex.length)sortedActorIndex=grow(sortedActorIndex,capacity(sortedActorIndex.length,required));}
     private void ensureActorOrderCapacity(int required){

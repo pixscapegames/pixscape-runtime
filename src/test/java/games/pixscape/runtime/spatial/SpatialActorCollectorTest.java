@@ -135,6 +135,10 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(29f, fixture.collector.actorBaseStartY[0], 0.0001f);
         Assert.assertEquals(13f, fixture.collector.actorBaseEndX[0], 0.0001f);
         Assert.assertEquals(29f, fixture.collector.actorBaseEndY[0], 0.0001f);
+        float[] influence = new float[8];
+        fixture.collector.writeInfluenceQuad(0, 100f, -50f, influence);
+        // The effective rotated circle is already projected; altitude=3 is not added again.
+        Assert.assertArrayEquals(new float[]{105.5f, -25, 112.5f, -25, 112.5f, -18, 105.5f, -18}, influence, .0001f);
     }
 
     @Test
@@ -156,6 +160,12 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(2, fixture.collector.actorLayerIndex[0]);
         Assert.assertEquals(100f, fixture.collector.actorFootX[0], .0001f);
         Assert.assertEquals(205f, fixture.collector.actorFootY[0], .0001f);
+        float[] influence = new float[8];
+        fixture.collector.writeInfluenceQuad(0, 0, 0, influence);
+        Assert.assertEquals(100 - fixture.height.get(actor).height * .5f, influence[0], .0001f);
+        Assert.assertEquals(100 + fixture.height.get(actor).height * .5f, influence[2], .0001f);
+        Assert.assertEquals(205, influence[1], .0001f);
+        Assert.assertEquals(205 + fixture.height.get(actor).height, influence[5], .0001f);
     }
 
     @Test

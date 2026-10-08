@@ -6,6 +6,7 @@ public final class SpatialLayerFaceRuntime {
     public final SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
     public final SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
     public final SpatialTileOrderCache tileOrder = new SpatialTileOrderCache();
+    public final SpatialFaceRelationSolver relations = new SpatialFaceRelationSolver();
     public Object failedSource;
     public int failedSourceRevision = Integer.MIN_VALUE;
 }

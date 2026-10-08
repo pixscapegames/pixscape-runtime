@@ -8,12 +8,12 @@ public final class TiledMapLayerData {
 
     private static final float EPSILON = 0.0001f;
 
-    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and elevation. */
-    public void projectSpatialPoint(float gx, float gy, float elevation, float[] out, int offset) {
+    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and absolute altitude. */
+    public void projectSpatialPoint(float gx, float gy, float absoluteAltitude, float[] out, int offset) {
         if (out == null || offset < 0 || offset + 1 >= out.length) return;
         float cellOffsetX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
         out[offset] = tileToWorldX(gx, gy) + cellOffsetX;
-        out[offset + 1] = tileToWorldY(gx, gy) + elevation;
+        out[offset + 1] = tileToWorldY(gx, gy) + spatialAltitudeOffset(absoluteAltitude);
     }
 
     // =========================
@@ -29,6 +29,23 @@ public final class TiledMapLayerData {
     public float originX;
     public float originY;
     public boolean spatialEnabled;
+    /** Converts absolute volume altitude to displacement from the already drawn map plane. */
+    public float spatialAltitudeOffset(float absoluteAltitude) {
+        return absoluteAltitude - defaultTileAltitude;
+    }
+
+    /** Exact continuous inverse of projectSpatialPoint, including the ISO cell anchor once. */
+    public float spatialWorldToTileX(float x, float y, float absoluteAltitude) {
+        float anchorX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
+        return projectWorldToTileX(x - anchorX, y - spatialAltitudeOffset(absoluteAltitude));
+    }
+
+    public float spatialWorldToTileY(float x, float y, float absoluteAltitude) {
+        float anchorX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
+        return projectWorldToTileY(x - anchorX, y - spatialAltitudeOffset(absoluteAltitude));
+    }
+
+    /** Absolute altitude of the drawn reference plane; also the effective altitude without override. */
     public float defaultTileAltitude;
     public float defaultTileHeight;
 

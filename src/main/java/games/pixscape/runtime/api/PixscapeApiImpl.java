@@ -17,17 +17,23 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
+import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -3474,11 +3480,64 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (c != null && c.data != null) {
                 requireFinite("Tiled default Spatial volume", altitude, height);
                 float sanitizedHeight = Math.max(0f, height);
+                if (Float.compare(c.data.defaultTileAltitude, altitude) == 0
+                        && Float.compare(c.data.defaultTileHeight, sanitizedHeight) == 0
+                        && Float.compare(c.defaultTileAltitude, altitude) == 0
+                        && Float.compare(c.defaultTileHeight, sanitizedHeight) == 0) return this;
+                World world = handle.world();
+                PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(handle.entityId, null);
+                boolean linked = false;
+                if (shapes != null && shapes.shapes != null) {
+                    for (int i = 0; i < shapes.shapes.size; i++) {
+                        if (shapes.shapes.get(i) != null && shapes.shapes.get(i).spatialBlockId > 0) {
+                            linked = true;
+                            break;
+                        }
+                    }
+                }
+                PhysicsCompiledFixturesComponent compiled = null;
+                PreparedPhysicsBodyCandidate physics = null;
+                TiledMapLayerData source = c.data;
+                TiledMapLayerData candidate = new TiledMapLayerData(source.mapWidth, source.mapHeight,
+                        source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
+                candidate.originX = source.originX;
+                candidate.originY = source.originY;
+                candidate.defaultTileAltitude = altitude;
+                candidate.defaultTileHeight = sanitizedHeight;
+                SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(handle.entityId, null);
+                if (blocks != null) {
+                    SpatialCompiledLayerCache spatial = new SpatialCompiledLayerCache();
+                    spatial.ensure(blocks);
+                    new SpatialProjectedFaceCache().ensure(spatial, candidate);
+                }
+                if (linked) {
+                    compiled = world.getMapper(PhysicsCompiledFixturesComponent.class)
+                            .getSafe(handle.entityId, null);
+                    if (compiled == null || !compiled.valid) {
+                        throw new IllegalStateException("Linked Tiled physics requires a valid prepared fixture cache.");
+                    }
+                    SceneMetaRuntime meta = handle.tracker.engine.getActiveSceneMeta();
+                    if (meta == null || !isFinite(meta.pixelsPerMeter) || meta.pixelsPerMeter <= 0f) {
+                        throw new IllegalStateException("Linked Tiled physics requires a finite positive scene pixelsPerMeter.");
+                    }
+                    physics = PhysicsService.prepareBodyCandidate(world, handle.entityId, shapes.shapes,
+                            meta.pixelsPerMeter, candidate);
+                }
+                // Publish only after every detached preparation has succeeded.
                 c.defaultTileAltitude = altitude;
                 c.defaultTileHeight = sanitizedHeight;
                 c.data.defaultTileAltitude = altitude;
                 c.data.defaultTileHeight = sanitizedHeight;
                 c.data.markAllChunksContentDirty();
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (linked) {
+                    PhysicsService.publishPreparedCandidate(shapes, compiled, physics);
+                    if (dirty != null) dirty.physics(handle.entityId, PhysicsDirtyBits.ALL);
+                }
+                if (dirty != null) {
+                    dirty.layer(handle.entityId);
+                    dirty.order(handle.entityId);
+                }
             }
             return this;
         }

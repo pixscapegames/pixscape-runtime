@@ -1260,6 +1260,13 @@ public final class PhysicsService {
             int ownerEntityId,
             Array<PhysicsShapeData> sources,
             float pixelsPerMeter) {
+        return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, null);
+    }
+
+    /** Cold preparation against a detached map projection, before authored map publication. */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            World world, int ownerEntityId, Array<PhysicsShapeData> sources,
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap) {
         if (!containsLinkedShape(sources)) {
             return prepareBodyCandidate(sources);
         }
@@ -1334,7 +1341,7 @@ public final class PhysicsService {
                 resolved.add(SHAPE_RESOLVER.resolveLinked(
                         copy,
                         blocksById.get(copy.spatialBlockId),
-                        tiled.data,
+                        candidateMap != null ? candidateMap : tiled.data,
                         transform.x,
                         transform.y,
                         transform.rotationRad,

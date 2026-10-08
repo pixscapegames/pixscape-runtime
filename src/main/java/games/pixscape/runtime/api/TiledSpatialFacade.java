@@ -25,7 +25,7 @@ public interface TiledSpatialFacade {
     TiledSpatialFacade setEnabled(boolean enabled);
 
     /**
-     * Default bottom altitude used by tiles without a per-cell override.
+     * Absolute altitude of the drawn map plane, also used by tiles without a per-cell override.
      */
     float defaultAltitude();
 
@@ -35,7 +35,10 @@ public interface TiledSpatialFacade {
     float defaultHeight();
 
     /**
-     * Sets the default spatial volume used by tiles without per-cell overrides.
+     * Sets the drawn plane altitude and default volume used by tiles without per-cell overrides.
+     * Explicit block and tile-override altitudes remain absolute; tile sprites do not move.
+     * Linked fixtures are prepared against the new projection before publishing the change.
+     * A preparation failure throws and leaves the authored plane and fixture caches unchanged.
      *
      * <p>Negative height values are clamped to zero.</p>
      */
