@@ -143,13 +143,21 @@ public class RenderSpriteDirtyUnionTest {
         Assert.assertEquals(RenderRepeatFlags.NONE, state.repeatFlags[s]);
         Assert.assertEquals(InternalTextures.whiteHandle(), state.textureHandle[p]);
         Assert.assertEquals(InternalTextures.whiteHandle(), state.textureHandle[c]);
-        Assert.assertEquals(Color.toFloatBits(.1f,.2f,.3f,.5f), state.colorPacked[p], 0f);
-        Assert.assertEquals(.25f, state.a[c], 0f);
+        Assert.assertEquals(Color.toFloatBits(.2f,.4f,.6f,1f), state.colorPacked[p], 0f);
+        Assert.assertEquals(1f, state.a[c], 0f);
         Assert.assertEquals(0f, state.u1[p], 0f); Assert.assertEquals(1f, state.u2[p], 0f);
         float[] pointBefore = record(point), coneBefore = record(cone);
         dirty.clearFrame(); dirty.mark(point, ALL); dirty.mark(cone, ALL);
         sync.prepareRuntimeAvailability(); assertWork(point, cone);
         Assert.assertArrayEquals(pointBefore, record(point), 0f); Assert.assertArrayEquals(coneBefore, record(cone), 0f);
+        for (float intensity : new float[]{0f, .25f, 1f, 3f, 10f}) {
+            light.intensity = intensity;
+            world.getMapper(ConeLightComponent.class).get(cone).intensity = intensity;
+            dirty.clearFrame(); dirty.color(point); dirty.color(cone);
+            sync.prepareRuntimeAvailability();
+            Assert.assertEquals(Color.toFloatBits(.2f,.4f,.6f,1f), state.colorPacked[p], 0f);
+            Assert.assertEquals(Color.WHITE.toFloatBits(), state.colorPacked[c], 0f);
+        }
     }
 
     @Test public void stabilizedWorkBufferIsReused() {

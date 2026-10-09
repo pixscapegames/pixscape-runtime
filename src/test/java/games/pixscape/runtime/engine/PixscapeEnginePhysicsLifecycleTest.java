@@ -70,6 +70,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEnginePhysicsLifecycleTest {
+    // Lifecycle/identity fixtures use a fake GL; real rendering has its own GL integration tests.
+    private static void disableRendering(PixscapeEngine engine) {
+        engine.setRenderSubmitSystemSupplier(() -> new com.artemis.BaseSystem() {
+            @Override protected void processSystem() { }
+        });
+    }
+
     private static final String[] HUD_ATTRIBUTES = {
             "a_position", "a_color", "a_texCoord0", "a_layer"
     };
@@ -945,6 +952,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 return manager;
             }
         });
+        disableRendering(engine);
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
         engine.setConfigurationCustomizer(builder ->
                 builder.with(new CandidateWorldProbeSystem(worldProbe)));

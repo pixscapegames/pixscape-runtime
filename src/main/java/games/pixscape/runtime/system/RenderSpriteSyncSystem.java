@@ -236,6 +236,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
             // Kind + enabled
             state.kind[renderSlot] = RenderKind.SPRITE;
+            state.light[renderSlot] = (byte) (isLight ? 1 : 0);
             if (isLight) {
                 boolean en = (pointLight != null) ? pointLight.enabled : coneLight.enabled;
                 state.enabled[renderSlot] = en;
@@ -335,17 +336,15 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                     float alpha;
 
                     if (pointLight != null) {
-                        float intensity = pointLight.intensity;
-                        r = pointLight.r * intensity;
-                        g = pointLight.g * intensity;
-                        blue = pointLight.b * intensity;
-                        alpha = intensity;
+                        r = pointLight.r;
+                        g = pointLight.g;
+                        blue = pointLight.b;
+                        alpha = 1f;
                     } else {
-                        float intensity = coneLight.intensity;
-                        r = coneLight.r * intensity;
-                        g = coneLight.g * intensity;
-                        blue = coneLight.b * intensity;
-                        alpha = intensity;
+                        r = coneLight.r;
+                        g = coneLight.g;
+                        blue = coneLight.b;
+                        alpha = 1f;
                     }
 
                     state.colorPacked[renderSlot] = Color.toFloatBits(r, g, blue, alpha);

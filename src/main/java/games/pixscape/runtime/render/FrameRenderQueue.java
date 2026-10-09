@@ -38,6 +38,8 @@ public final class FrameRenderQueue {
     public float[] u1, v1, u2, v2;
     public float[] colorPacked;
     public byte[] repeatFlags;
+    /** Derived light identity; independent of shader and blend selection. */
+    public byte[] light;
 
     public byte[] sourceDomain;
     public int[] sourceSlot;
@@ -143,6 +145,7 @@ public final class FrameRenderQueue {
         this.sourceDomain[index] = sourceDomain;
         this.sourceSlot[index] = sourceSlot;
         this.sourceEntity[index] = sourceEntity;
+        this.light[index] = 0;
     }
 
     public void swap(int a, int b) {
@@ -179,6 +182,7 @@ public final class FrameRenderQueue {
         swap(v2, a, b);
         swap(colorPacked, a, b);
         swap(repeatFlags, a, b);
+        swap(light, a, b);
 
         swap(sourceDomain, a, b);
         swap(sourceSlot, a, b);
@@ -208,6 +212,7 @@ public final class FrameRenderQueue {
         float[] oldV2 = v2;
         float[] oldColorPacked = colorPacked;
         byte[] oldRepeatFlags = repeatFlags;
+        byte[] oldLight = light;
 
         byte[] oldSourceDomain = sourceDomain;
         int[] oldSourceSlot = sourceSlot;
@@ -235,6 +240,7 @@ public final class FrameRenderQueue {
         v2 = new float[newCapacity];
         colorPacked = new float[newCapacity];
         repeatFlags = new byte[newCapacity];
+        light = new byte[newCapacity];
 
         sourceDomain = new byte[newCapacity];
         sourceSlot = new int[newCapacity];
@@ -264,6 +270,7 @@ public final class FrameRenderQueue {
             copy(oldV2, v2, count);
             copy(oldColorPacked, colorPacked, count);
             copy(oldRepeatFlags, repeatFlags, count);
+            copy(oldLight, light, count);
 
             copy(oldSourceDomain, sourceDomain, count);
             copy(oldSourceSlot, sourceSlot, count);

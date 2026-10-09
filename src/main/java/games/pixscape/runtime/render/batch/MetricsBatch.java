@@ -36,6 +36,14 @@ public interface MetricsBatch extends AutoCloseable {
 
     void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats);
 
+    default void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
+        if (src != srcAlpha || dst != dstAlpha) {
+            throw new UnsupportedOperationException("World light composition requires separate alpha blend factors");
+        }
+        setBlendMode(enabled, src, dst, stats);
+    }
+
+
     void setColor(float r, float g, float b, float a);
 
     default void setPackedColor(float packed) {

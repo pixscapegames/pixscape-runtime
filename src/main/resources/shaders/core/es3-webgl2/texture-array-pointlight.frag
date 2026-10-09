@@ -18,5 +18,5 @@ void main() {
 
     if (d > 1.0) discard;
 
-    fragColor = vec4(v_color.rgb * atten, v_color.a * atten);
+    fragColor = vec4(v_color.rgb * (atten * pixscapeEntityFloat(4)), v_color.a * atten);
 }

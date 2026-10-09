@@ -83,7 +83,7 @@ public class RenderSubmitSystemFrameQueueTest {
                 new RenderStatsSink(1f)
         );
 
-        submit.render();
+        submit.renderPass(games.pixscape.runtime.render.LightCompositionPass.ORIGINAL, 0);
 
         Assert.assertEquals(1, batch.drawCalls);
         Assert.assertEquals(42, batch.textureHandle);
@@ -142,6 +142,9 @@ public class RenderSubmitSystemFrameQueueTest {
         }
 
         public void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats) {
+        }
+
+        public void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
         }
 
         public void setColor(float r, float g, float b, float a) {

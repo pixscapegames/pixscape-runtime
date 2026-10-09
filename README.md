@@ -75,6 +75,45 @@ The Runtime can also be integrated directly into existing LibGDX projects for de
 * Direct quad deformation
 * Render diagnostics for texture binds, flushes, projection uploads and region-cache resolution
 
+### World light composition
+
+The default renderer draws original world colors to RGBA8, then replays the final
+ordered queue into a zero-initialized RGBA16F light field, starting at its first
+light. Later images attenuate earlier contributions using their material's actual
+fragment alpha and discard. The final RGB is `original * (ambient + lightField)`;
+ambient is applied only here, and the HUD is drawn afterwards.
+
+Point/cone intensity is a nonnegative finite float in the existing per-entity
+GPU table (`u_lightIntensity`), separate from packed vertex color. Values above
+1 accumulate in the half-float field without wrapping the color channels.
+Custom light materials must declare and apply this parameter; the light component
+owns its value. Intensity scales emitted RGB, while alpha retains halo coverage.
+
+Targets are reused, resized to the current physical viewport and disposed with
+the World. Their texture storage is 12 bytes per viewport pixel. The existing
+geometry batches and per-entity parameter table remain in use. This is image
+composition in the existing order, without additional spatial rules or shadows.
+
+GL3, GLES3 or WebGL2 and renderable, blendable RGBA16F are required. A cold
+numerical GPU check verifies unclamped additive blending and alpha masking;
+failure is explicit, with no lower precision fallback. WebGL enables its color
+buffer extension before allocation. Nearest sampling needs no float-linear
+extension, and the field does not require RGBA32F blending.
+
+Supported decor blends are ALPHA, PREMULT_ALPHA, OPAQUE, CUTOUT, ADDITIVE and
+ADDITIVE_ALPHA; lights require ADDITIVE or ADDITIVE_ALPHA. Multiplicative decor
+blends are explicitly unsupported. Custom OPAQUE/CUTOUT fragments must expose
+`uniform float u_worldCoverage` and set their output alpha to 1 when it exceeds
+0.5, **after** their normal discard decision. Custom transparent fragments keep
+their normal alpha. Rendered world shaders receive neutral `u_ambientMul`.
+Fragment coordinates are local to the world viewport's intermediate target.
+Materials requiring screen framebuffer access or a destination-dependent blend
+need a separate compatibility evaluation.
+
+Expert submitters using `RenderSubmitSystem` directly must call
+`prepareComposition()` at the frame boundary before processing the World;
+`PixscapeEngine` handles this for its default submitter.
+
 ### Tiled Maps
 
 Tiled Maps are first-class Runtime entities with their own identity and configuration.

@@ -1942,6 +1942,8 @@ public final class PixscapeEngine {
     }
 
     private void processWorld() {
+        RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+        if (submit != null && submit.isEnabled()) submit.prepareComposition();
         if (systemProfiler.enabled()) {
             systemProfiler.beginFrame();
         }

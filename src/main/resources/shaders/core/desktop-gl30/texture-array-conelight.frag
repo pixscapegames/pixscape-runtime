@@ -24,5 +24,5 @@ void main() {
     float atten = pow(1.0 - clamp(d, 0.0, 1.0), max(pixscapeEntityFloat(7), 0.0001));
     float a = atten * cone;
 
-    fragColor = vec4(v_color.rgb * a, v_color.a * a);
+    fragColor = vec4(v_color.rgb * (a * pixscapeEntityFloat(8)), v_color.a * a);
 }

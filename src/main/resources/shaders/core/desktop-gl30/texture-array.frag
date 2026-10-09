@@ -10,10 +10,12 @@ uniform sampler2DArray u_array;
 uniform float u_cutoutThreshold;
 uniform vec3  u_ambientMul;
 
+uniform float u_worldCoverage;
 out vec4 fragColor;
 
 void main() {
     vec4 tex = texture(u_array, vec3(v_uv, v_layer));
     if (u_cutoutThreshold >= 0.0 && tex.a < u_cutoutThreshold) discard;
     fragColor = pixscapeApplyMaterial(tex, v_color, u_ambientMul);
+    if (u_worldCoverage > 0.5) fragColor.a = 1.0;
 }

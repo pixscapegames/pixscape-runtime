@@ -24,6 +24,7 @@ public final class DynamicEntityRenderState {
     public int[] entityIdToRenderSlot;
     public int[] renderSlotToEntityId;
     public int[] kind;
+    public byte[] light;
     public boolean[] enabled;
     public boolean[] visible;
 
@@ -61,6 +62,7 @@ public final class DynamicEntityRenderState {
 
         renderSlotToEntityId = new int[renderCapacity];
         kind = new int[renderCapacity];
+        light = new byte[renderCapacity];
         enabled = new boolean[renderCapacity];
         visible = new boolean[renderCapacity];
 
@@ -224,6 +226,7 @@ public final class DynamicEntityRenderState {
 
         renderSlotToEntityId = grow(renderSlotToEntityId, next);
         kind = grow(kind, next);
+        light = grow(light, next);
         enabled = grow(enabled, next);
         visible = grow(visible, next);
 
@@ -288,6 +291,7 @@ public final class DynamicEntityRenderState {
 
     private void copySlot(int from, int to) {
         kind[to] = kind[from];
+        light[to] = light[from];
         enabled[to] = enabled[from];
         visible[to] = visible[from];
 
@@ -326,6 +330,7 @@ public final class DynamicEntityRenderState {
     private void clearSlot(int slot) {
         renderSlotToEntityId[slot] = NO_SLOT;
         kind[slot] = RenderKind.NONE;
+        light[slot] = 0;
         enabled[slot] = false;
         visible[slot] = false;
 

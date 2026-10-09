@@ -8,6 +8,7 @@ flat in int v_texIndex;
 
 uniform sampler2D u_textures[16];
 uniform vec3 u_ambientMul;
+uniform float u_worldCoverage;
 out vec4 fragColor;
 
 void main() {
@@ -31,4 +32,5 @@ void main() {
     default: texel = texture(u_textures[15], v_uv); break;
   }
   fragColor = pixscapeApplyMaterial(texel, v_color, u_ambientMul);
+    if (u_worldCoverage > 0.5) fragColor.a = 1.0;
 }

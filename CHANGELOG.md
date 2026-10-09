@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+* Fixed point/cone light intensity above 1 corrupting packed color channels; intensity now scales RGB through the per-entity GPU parameter table, independently of halo alpha.
+
 ### Breaking changes
+
+* Default world rendering now requires renderable and blendable RGBA16F (GL3/GLES3/WebGL2). Multiplicative decor blends and non-additive light blends fail explicitly; custom opaque/cutout materials must implement the `u_worldCoverage` contract documented in the README.
 
 * Custom texture-array material shaders must use the per-entity parameter table instead of per-entity float uniforms. Migrate both desktop and ES3/WebGL2 variants; draw-wide uniforms remain supported.
 * HUD screen metadata no longer accepts `referenceWidth` or `referenceHeight`; development HUD assets containing them must be recreated in the current format.
@@ -13,6 +17,8 @@
 * Added on-demand Spatial diagnostics for candidate tiles, face relations, rejected junction constraints, insertion bounds and fallbacks.
 
 ### Changed
+
+* World colors are multiplied once by ambient plus the ordered HDR light field. The light replay skips the prefix before the first light, retains material alpha/discard and per-entity parameter batching, and leaves HUD rendering outside world lighting.
 
 * Compatible entities with different float values stay in one batch; identical encoded values reuse rows, including the default row, so value differences alone no longer cause flushes.
 * HUD sessions now size their technical root to the available logical viewport without scaling the whole HUD on resize.

@@ -35,6 +35,8 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final RenderStats stats;
     private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
+    private final WorldLightComposition composition = new WorldLightComposition();
+    private LightParameterBinding lightParameters;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
@@ -76,6 +78,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     }
 
     @Override
+    protected void initialize() { lightParameters = new LightParameterBinding(world); }
+
+    @Override
     protected void begin() {
         time += world.getDelta();
         cam.update();
@@ -100,7 +105,23 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
+    public void prepareComposition() { composition.prepare(); }
+
+    @Override protected void dispose() { composition.dispose(); }
+
     void render() {
+        composition.beginOriginal();
+        try {
+            renderPass(LightCompositionPass.ORIGINAL, 0);
+            composition.beginField();
+            int first = 0;
+            while (first < frameQueue.size && frameQueue.light[first] == 0) first++;
+            renderPass(LightCompositionPass.FIELD, first);
+            composition.compose(ambientMulR, ambientMulG, ambientMulB, stats);
+        } finally { composition.end(); }
+    }
+
+    void renderPass(int pass, int first) {
 
         final boolean hasShaderParamsMapper = mShaderParams != null;
 
@@ -129,7 +150,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
 
-        for (int i = 0; i < size; i++) {
+        for (int i = first; i < size; i++) {
+            boolean light = frameQueue.light[i] != 0;
+            if (LightCompositionPass.skip(pass, light, frameQueue.blend[i])) continue;
             final int texHandle = frameQueue.textureHandle[i];
             if (texHandle == 0) continue;
 
@@ -165,36 +188,31 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                     if (curShader != null) {
                         setUniform1fCached(curShader, "u_time", time);
                         setUniform2fCached(curShader, "u_layerOffset", 0f, 0f);
-                        setUniform3fCached(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
+                        setUniform3fCached(curShader, "u_ambientMul", 1f, 1f, 1f);
                     }
                 }
                 metricsBatch.setParameterLayout(ShaderRegistry.getParameterLayout(shaderIdx), stats);
+                curBlendId = Integer.MIN_VALUE;
             }
 
             // Blend switch
             final int blendId = frameQueue.blend[i];
 
-            if (blendId != curBlendId) {
+            int blendKey = blendId + (light ? 16 : 0);
+            if (blendKey != curBlendId) {
                 int flushesBeforeBlend = stats.flushes;
                 metricsBatch.flush(stats);
                 if (stats.flushes > flushesBeforeBlend) stats.flushStateChanges++;
 
                 BlendMode blendMode = BlendMode.fromId(blendId);
 
-                Blend.apply(blendMode);
-
-                metricsBatch.setBlendMode(
-                        blendMode.blending,
-                        blendMode.srcFactor,
-                        blendMode.dstFactor,
-                        stats
-                );
+                LightCompositionPass.apply(pass, light, blendId, metricsBatch, curShader, stats);
 
                 if (stats != null) {
                     stats.blendSwitches++;
                 }
 
-                curBlendId = blendId;
+                curBlendId = blendKey;
 
                 if (!blendMode.blending) {
                     stats.batchesOpaque++;
@@ -227,7 +245,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             if (curShader != null && hasShaderParamsMapper && entityId >= 0 && mShaderParams.has(entityId)) {
                 params = mShaderParams.get(entityId);
             }
-            metricsBatch.setEntityParameters(params == null ? null : params.floats, stats);
+            metricsBatch.setEntityParameters(light ? lightParameters.bind(entityId,
+                    ShaderRegistry.getParameterLayout(shaderIdx), params == null ? null : params.floats)
+                    : params == null ? null : params.floats, stats);
 
             byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {

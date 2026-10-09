@@ -172,6 +172,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 renderSlot,
                 sourceEntity
         );
+        frameQueue.light[frameQueue.size - 1] = ecsState.light[renderSlot];
     }
 
     private void addTiledQuad(int tiledRenderRef) {

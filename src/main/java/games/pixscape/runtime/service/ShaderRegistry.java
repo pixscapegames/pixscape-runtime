@@ -484,6 +484,7 @@ public final class ShaderRegistry {
         addDefaultUniform(point, "u_centerY", 0f);
         addDefaultUniform(point, "u_radius", 1f);
         addDefaultUniform(point, "u_falloff", 1.5f);
+        addDefaultUniform(point, "u_lightIntensity", 1f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
         registerParameterLayout(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT, point);
 
@@ -496,6 +497,7 @@ public final class ShaderRegistry {
         addDefaultUniform(cone, "u_coneCos", 0.8660254f);
         addDefaultUniform(cone, "u_softness", 0.1f);
         addDefaultUniform(cone, "u_falloff", 1.5f);
+        addDefaultUniform(cone, "u_lightIntensity", 1f);
         defaultUniforms.put(RuntimeFs.TEXTURE_ARRAY_CONELIGHT, cone);
         registerParameterLayout(RuntimeFs.TEXTURE_ARRAY_CONELIGHT, cone);
     }

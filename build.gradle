@@ -39,6 +39,7 @@ tasks.named('test', Test).configure {
   exclude '**/HudMaterializerGlSmokeTest.class'
   exclude '**/TextraHudBatchGlPrototypeTest.class'
   exclude '**/ShaderParameterBatchGlSmokeTest.class'
+  exclude '**/WorldLightCompositionGlSmokeTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -48,6 +49,16 @@ tasks.register('hudGlSmoke', Test) {
   classpath = sourceSets.test.runtimeClasspath
   useJUnit()
   include '**/HudMaterializerGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('lightCompositionGlSmoke', Test) {
+  description = 'Runs ordered world light composition in a real desktop GL context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/WorldLightCompositionGlSmokeTest.class'
   shouldRunAfter tasks.named('test')
 }
 

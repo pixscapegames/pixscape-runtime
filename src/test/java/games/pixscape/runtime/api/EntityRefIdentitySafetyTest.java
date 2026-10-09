@@ -27,6 +27,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 
 public class EntityRefIdentitySafetyTest {
+    // Lifecycle/identity fixtures use a fake GL; real rendering has its own GL integration tests.
+    private static void disableRendering(PixscapeEngine engine) {
+        engine.setRenderSubmitSystemSupplier(() -> new com.artemis.BaseSystem() {
+            @Override protected void processSystem() { }
+        });
+    }
+
     private Application previousApp;
     private GL20 previousGl;
     private GL20 previousGl20;
@@ -96,6 +103,7 @@ public class EntityRefIdentitySafetyTest {
     @Test
     public void recycledEntityIdDoesNotRetargetRefsOrChildFacades() {
         PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
         try {
             engine.initEmptyRuntime();
             World world = engine.getWorld();
@@ -166,6 +174,7 @@ public class EntityRefIdentitySafetyTest {
     @Test
     public void supportedWorldRebuildPermanentlyInvalidatesOldRefs() {
         PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
         try {
             engine.initEmptyRuntime();
             World firstWorld = engine.getWorld();
@@ -198,6 +207,7 @@ public class EntityRefIdentitySafetyTest {
     @Test
     public void stableIdLookupBindsOneIncarnationAndDoesNotRecyclePersistentIdentity() {
         PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
         try {
             engine.initEmptyRuntime();
             World world = engine.getWorld();
@@ -231,6 +241,7 @@ public class EntityRefIdentitySafetyTest {
     @Test
     public void factoryRefCapturesCurrentIncarnationBeforeWorldProcessing() throws Exception {
         PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
         try {
             engine.initEmptyRuntime();
             prepareParticlePool(
