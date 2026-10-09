@@ -838,6 +838,8 @@ public final class ShaderRegistry {
         );
 
         if (shader != null) {
+            shader.bind();
+            if (shader.hasUniform("u_cutoutThreshold")) shader.setUniformf("u_cutoutThreshold", -1f);
             registerOrReplace(
                     mode.defaultShaderName(),
                     shader,

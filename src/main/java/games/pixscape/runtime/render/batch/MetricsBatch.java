@@ -59,6 +59,17 @@ public interface MetricsBatch extends AutoCloseable {
 
     void end(RenderStats stats);
 
+    /** Discards pending geometry without drawing it and invalidates submission state. */
+    default void abort() {
+        throw new UnsupportedOperationException("This batch cannot abort a failed submission");
+    }
+
+    /** Cleanup must not replace the original submission error. */
+    default void abort(Throwable failure) {
+        try { abort(); }
+        catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
+    }
+
     void close();
 
     default void setTextureArrayBundle(AtlasRuntimeService.TextureArrayBundle bundle) {

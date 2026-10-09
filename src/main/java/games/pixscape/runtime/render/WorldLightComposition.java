@@ -140,6 +140,11 @@ public final class WorldLightComposition implements Disposable {
         if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST); else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
     public void end() { if (active) { restoreTarget(); active = false; } }
+    public void end(Throwable failure) {
+        if (failure == null) { end(); return; }
+        try { end(); }
+        catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
+    }
     public long textureBytes() { return (long) width * height * 12; }
     public void dispose() {
         end(); if (original != null) original.dispose(); if (field != null) field.dispose();

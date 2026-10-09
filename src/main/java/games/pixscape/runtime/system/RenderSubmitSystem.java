@@ -110,15 +110,20 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     @Override protected void dispose() { composition.dispose(); }
 
     void render() {
-        composition.beginOriginal();
+        Throwable failure = null;
         try {
+            composition.beginOriginal();
             renderPass(LightCompositionPass.ORIGINAL, 0);
             composition.beginField();
             int first = 0;
             while (first < frameQueue.size && frameQueue.light[first] == 0) first++;
             renderPass(LightCompositionPass.FIELD, first);
             composition.compose(ambientMulR, ambientMulG, ambientMulB, stats);
-        } finally { composition.end(); }
+        } catch (RuntimeException | Error error) {
+            failure = error;
+            metricsBatch.abort(error);
+            throw error;
+        } finally { composition.end(failure); }
     }
 
     void renderPass(int pass, int first) {

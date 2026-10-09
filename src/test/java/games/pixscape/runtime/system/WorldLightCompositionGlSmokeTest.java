@@ -124,6 +124,55 @@ public class WorldLightCompositionGlSmokeTest {
                         nested.begin();queue.clear();pixel(submit,camera,stats,.25f,.5f,.75f,.25f,.5f,.75f);
                         entry(queue,mask,BlendMode.ALPHA,false);pixel(submit,camera,stats,.165f,.27f,.385f,.25f,.5f,.75f);
                     } finally { nested.end(); nested.dispose();Gdx.gl.glViewport(0,0,64,32); }
+                    com.badlogic.gdx.graphics.glutils.FrameBuffer failureTarget=new com.badlogic.gdx.graphics.glutils.FrameBuffer(Pixmap.Format.RGBA8888,64,32,false);
+                    try {
+                        failureTarget.begin();Gdx.gl.glViewport(2,3,60,28);
+                        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);Gdx.gl.glScissor(4,5,52,20);
+                        int first=world.create(),second=world.create();
+                        games.pixscape.runtime.component.light.PointLightComponent valid=world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(first);
+                        games.pixscape.runtime.component.light.PointLightComponent invalid=world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(second);
+                        valid.intensity=1f;invalid.intensity=Float.NaN;
+                        queue.clear();entry(queue,base,BlendMode.ALPHA,false);
+                        int pointShader=ShaderRegistry.indexOf(games.pixscape.runtime.helper.RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
+                        entry(queue,pointShader,BlendMode.ADDITIVE,true);queue.sourceEntity[1]=first;
+                        entry(queue,pointShader,BlendMode.ADDITIVE,true);queue.sourceEntity[2]=second;
+                        submit.prepareComposition();
+                        try {world.process();Assert.fail("Invalid light must fail after pending first light");}
+                        catch(IllegalArgumentException expected) {Assert.assertTrue(expected.getMessage(),expected.getMessage().contains("intensity"));}
+                        finally {}
+                        Assert.assertEquals(0,((Number)field(batch,"quadCount")).intValue());
+                        Assert.assertEquals(0,((Number)field(batch,"vertCount")).intValue());
+                        Assert.assertEquals(false,field(batch,"drawing"));Assert.assertNull(field(batch,"shader"));
+                        java.nio.IntBuffer state=BufferUtils.newIntBuffer(4);
+                        Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,state);Assert.assertEquals(failureTarget.getFramebufferHandle(),state.get(0));
+                        Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,state);Assert.assertEquals(2,state.get(0));Assert.assertEquals(3,state.get(1));Assert.assertEquals(60,state.get(2));Assert.assertEquals(28,state.get(3));
+                        Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
+                        Gdx.gl.glGetIntegerv(GL20.GL_SCISSOR_BOX,state);Assert.assertEquals(4,state.get(0));Assert.assertEquals(5,state.get(1));Assert.assertEquals(52,state.get(2));Assert.assertEquals(20,state.get(3));
+                        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glViewport(0,0,64,32);
+                        ShaderParameterRows rows=(ShaderParameterRows)field(batch,"parameterRows");
+                        Assert.assertEquals(1,rows.rowCount());Assert.assertEquals(0,rows.currentId());
+                        valid.intensity=2f;invalid.intensity=0f;
+                        float recoveredEnergy=2f*(float)Math.pow(1f-Math.sqrt(.265625f*.265625f+.46875f*.46875f),1.5);
+                        pixel(submit,camera,stats,.4f*(.2f+recoveredEnergy),.2f*(.2f+recoveredEnergy),.1f*(.2f+recoveredEnergy));
+                    } finally {failureTarget.end();failureTarget.dispose();Gdx.gl.glViewport(0,0,64,32);Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);}
+                    // Explicit abort of each real fallback batch must discard CPU geometry without a draw.
+                    MetricsBatch[] fallbacks=new MetricsBatch[]{new MeshBatch(64),new MultiTextureMeshBatch(64)};
+                    try {
+                        for(int i=0;i<fallbacks.length;i++) {
+                            MetricsBatch fallback=fallbacks[i];int calls=stats.drawCalls;
+                            fallback.begin(camera.combined,stats);
+                            fallback.setShader(ShaderRegistry.get(i==0?ShaderMode.TEXTURE_2D.defaultShaderName():ShaderMode.MULTI_TEXTURE.defaultShaderName()),stats);
+                            fallback.setColor(1,1,1,1);
+                            fallback.draw(TextureRegistry.handleOf(cutoutTexture),0,0,0,32,64,32,64,0,0,0,1,1,stats);
+                            Assert.assertTrue(((Number)field(fallback,"quadCount")).intValue()>0);
+                            fallback.abort();fallback.end(stats);
+                            Assert.assertEquals(calls,stats.drawCalls);Assert.assertNull(field(fallback,"shader"));
+                            fallback.begin(camera.combined,stats);
+                            fallback.setShader(ShaderRegistry.get(i==0?ShaderMode.TEXTURE_2D.defaultShaderName():ShaderMode.MULTI_TEXTURE.defaultShaderName()),stats);
+                            fallback.draw(TextureRegistry.handleOf(cutoutTexture),0,0,0,32,64,32,64,0,0,0,1,1,stats);fallback.end(stats);
+                            Assert.assertEquals(calls+1,stats.drawCalls);
+                        }
+                    } finally {for(MetricsBatch fallback:fallbacks)fallback.close();}
                     // Repeated world quads remain visible with the camera moved; all copies use original UVs.
                     queue.clear();entry(queue,base,BlendMode.ALPHA,false);queue.x3[0]=queue.x4[0]=8;queue.y2[0]=queue.y3[0]=8;
                     queue.repeatFlags[0]=RenderRepeatFlags.ANY;camera.position.x+=16;camera.update();
@@ -135,6 +184,10 @@ public class WorldLightCompositionGlSmokeTest {
                     System.out.println("RGBA16F composition verified on "+Gdx.gl.glGetString(GL20.GL_RENDERER));
                 } catch (Throwable t) { failure[0]=t; }
                 finally { Gdx.app.exit(); }
+            }
+            Object field(Object object,String name) {
+                try {java.lang.reflect.Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object);}
+                catch(ReflectiveOperationException e){throw new AssertionError(e);}
             }
             int constant(String name, String value) { return constant(name,value,""); }
             int constant(String name, String value, String before) { return constant(name,value,before,false); }
