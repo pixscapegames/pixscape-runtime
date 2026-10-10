@@ -7,6 +7,11 @@ package games.pixscape.runtime.render;
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
+    public int lightingRevision;
+    public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface> lightingSurfaces =
+            new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface>();
+    public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry> lightingMaps =
+            new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry>();
 
     private static final int MIN_CAPACITY = 8;
 
@@ -59,6 +64,7 @@ public final class TiledMapRenderState {
     }
 
     public void setCapacity(int newCapacity) {
+        lightingSurfaces.clear();lightingMaps.clear();lightingRevision++;
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("TiledMapRenderState capacity must be > 0");
         }
@@ -197,6 +203,7 @@ public final class TiledMapRenderState {
     }
 
     public void disableRef(int tiledRenderRef) {
+        if(lightingSurfaces.remove(tiledRenderRef)!=null)lightingRevision++;
         if (tiledRenderRef < 0 || tiledRenderRef >= capacity) {
             return;
         }

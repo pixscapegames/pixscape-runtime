@@ -377,6 +377,54 @@
           "default": []
         }
       }
+    },
+    "localLightingSurface": {
+      "type": "object",
+      "properties": {
+        "xyz": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "uv": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "normals": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "triangles": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "receiveLight": {
+          "type": "boolean",
+          "default": true
+        },
+        "shadowCaster": {
+          "type": "boolean",
+          "default": false
+        },
+        "twoSided": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "xyz",
+        "uv",
+        "normals",
+        "triangles"
+      ]
     }
   }
 }

@@ -43,6 +43,9 @@ import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 @All({EntityIndexComponent.class, TiledLayerComponent.class})
 @Exclude(LayerComponent.class)
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
+    @Override protected void removed(int entityId) {
+        tiledState.lightingMaps.remove(entityId);tiledState.lightingRevision++;
+    }
 
     private static final int CHUNK_OUTSIDE = 0;
     private static final int CHUNK_FULLY_INSIDE = 1;
@@ -52,6 +55,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
+    @com.artemis.annotations.SkipWire private DirtyTrackerSystem lightingDirty;
+    @Override protected void initialize(){lightingDirty=world.getSystem(DirtyTrackerSystem.class);}
 
     private final OrthographicCamera camera;
     private final TiledMapRenderState tiledState;
@@ -180,6 +185,19 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         EntityIndexComponent index = mEntityIndex.get(e);
 
         TiledMapLayerData map = tiled.data;
+        games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
+        if (lighting == null) {
+            lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
+            tiledState.lightingMaps.put(e, lighting);
+        }
+        lighting.descriptions(tiled.lightingDescriptions);
+        if(lightingDirty!=null && (lightingDirty.coarseBits(e)&(DirtyBits.GEOMETRY|DirtyBits.MATERIAL))!=0
+                && tiled.lightingDescriptions.size>0)lighting.invalidate();
+        if (lighting.ensure(map, mSpatialBlocks.getSafe(e, null), tiled.lightingPlaneAltitude)) {
+            tiledState.lightingRevision++;
+            // Geometry changed: refresh image/receiver registration through the existing chunk boundary.
+            for (TileChunk chunk : map.getChunks()) chunk.dirtyState = TileChunk.DirtyState.FULL;
+        }
         currentTileOrder = null;
         currentMapEntity = e;
         if (map.projection == TiledProjection.ISO
@@ -334,6 +352,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
             TiledMapLayerData map = tiled.data;
             currentMapEntity = entityId;
+            games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
+            if(lighting==null){lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();tiledState.lightingMaps.put(entityId,lighting);}
+            lighting.descriptions(tiled.lightingDescriptions);
+            if(lighting.ensure(map,mSpatialBlocks.getSafe(entityId,null),tiled.lightingPlaneAltitude))tiledState.lightingRevision++;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
             if (map.projection == TiledProjection.ISO
@@ -894,6 +916,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 RenderRepeatFlags.NONE
         );
         chunk.setRenderableLocalIndex(localIndex, true);
+        games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
+        if (lighting != null) {
+            games.pixscape.runtime.render.lighting.LightingSurface surface=lighting.receiver(map,
+                    mTiled.get(currentMapEntity).lightingPlaneAltitude, gx, gy, assetId, transformFlags, tmpQuad);
+            surface.ownerEntity=currentMapEntity;
+            if(tiledState.lightingSurfaces.get(tiledRenderRef)!=surface)tiledState.lightingRevision++;
+            tiledState.lightingSurfaces.put(tiledRenderRef,surface);
+        }
         chunk.markRenderMetadataDirty();
     }
 

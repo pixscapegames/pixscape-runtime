@@ -48,7 +48,8 @@
     "games.pixscape.runtime.component.physics.PhysicsWheelJointComponent": "PhysicsWheelJointComponent",
     "games.pixscape.runtime.component.physics.PhysicsWeldJointComponent": "PhysicsWeldJointComponent",
     "games.pixscape.runtime.component.physics.PhysicsFrictionJointComponent": "PhysicsFrictionJointComponent",
-    "games.pixscape.runtime.component.physics.PhysicsMotorJointComponent": "PhysicsMotorJointComponent"
+    "games.pixscape.runtime.component.physics.PhysicsMotorJointComponent": "PhysicsMotorJointComponent",
+    "games.pixscape.runtime.component.SurfaceLightingComponent": "SurfaceLightingComponent"
   },
   "$defs": {
     "PixscapeIdentityComponent": {
@@ -502,6 +503,10 @@
           "type": "number",
           "default": 0
         },
+        "lightingPlaneAltitude": {
+          "type": "number",
+          "default": 0
+        },
         "spatialEnabled": {
           "type": "boolean",
           "default": false
@@ -579,6 +584,26 @@
             }
           ],
           "default": null
+        },
+        "lightingDescriptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assetId": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "geometry": {
+                "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/localLightingSurface"
+              }
+            },
+            "required": [
+              "assetId",
+              "geometry"
+            ]
+          },
+          "default": []
         }
       }
     },
@@ -650,9 +675,31 @@
           "type": "number",
           "default": 1.5
         },
+        "height": {
+          "type": "number",
+          "default": 128
+        },
         "enabled": {
           "type": "boolean",
           "default": true
+        },
+        "shadowQuality": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "default": 1
+        },
+        "shadowResolution": {
+          "type": "integer",
+          "enum": [
+            256,
+            512,
+            1024
+          ],
+          "default": 512
         }
       }
     },
@@ -695,9 +742,31 @@
           "type": "number",
           "default": 0.1
         },
+        "height": {
+          "type": "number",
+          "default": 128
+        },
         "enabled": {
           "type": "boolean",
           "default": true
+        },
+        "shadowQuality": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "default": 1
+        },
+        "shadowResolution": {
+          "type": "integer",
+          "enum": [
+            256,
+            512,
+            1024
+          ],
+          "default": 512
         }
       }
     },
@@ -1098,6 +1167,54 @@
         "correctionFactor": {
           "type": "number",
           "default": 0.3
+        }
+      }
+    },
+    "SurfaceLightingComponent": {
+      "type": "object",
+      "properties": {
+        "altitude": {
+          "type": "number",
+          "default": 0
+        },
+        "anchorU": {
+          "type": "number",
+          "default": 0.5
+        },
+        "anchorV": {
+          "type": "number",
+          "default": 0
+        },
+        "directionX": {
+          "type": "number",
+          "default": 1
+        },
+        "directionY": {
+          "type": "number",
+          "default": -1
+        },
+        "alphaThreshold": {
+          "type": "number",
+          "default": 0.5
+        },
+        "receiveLight": {
+          "type": "boolean",
+          "default": true
+        },
+        "shadowCaster": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "anyOf": [
+            {
+              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/localLightingSurface"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       }
     }

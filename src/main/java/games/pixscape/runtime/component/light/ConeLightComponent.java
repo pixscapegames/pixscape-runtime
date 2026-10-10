@@ -29,6 +29,10 @@ public class ConeLightComponent extends PooledComponent {
 
     // Enabled flag (important for the editor)
     public boolean enabled = true;
+    /** Source Z in common lighting pixel units. */
+    public float height = 128f;
+    public int shadowQuality = 1;
+    public int shadowResolution = 512;
 
     @Override
     protected void reset() {
@@ -42,5 +46,6 @@ public class ConeLightComponent extends PooledComponent {
         softness = 0.1f;
         falloff = 1.5f;
         enabled = true;
+        height = 128f; shadowQuality = 1; shadowResolution = 512;
     }
 }

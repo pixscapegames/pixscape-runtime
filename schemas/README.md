@@ -15,7 +15,7 @@ match the generator without changing them.
 | --- | --- | --- |
 | `project/1.schema.json` | project `"1"` | Export entry point and scene metadata |
 | `scene/3.schema.json` | scene `3` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
-| `components/3.schema.json` | scene `3` | 45 supported Runtime component type IDs, including non-pooled shader parameters |
+| `components/3.schema.json` | scene `3` | 46 supported Runtime component type IDs, including surface lighting and non-pooled shader parameters |
 | `common/1.schema.json` | shared definitions `1` | LibGDX arrays, properties, physics and Spatial payloads |
 | `game-object/3.schema.json` | Game Object `3` | Independent definition and local entity/joint IDs |
 | `animations/unversioned.schema.json` | none | Sprite animation registry; no version field is emitted |
@@ -27,6 +27,12 @@ match the generator without changing them.
 These are *file format* numbers. They do not follow the Runtime library's
 version. The schemas describe the current Runtime/Studio export, without a
 future compatibility promise.
+
+The additive 2.5D lighting fields keep these format versions. Missing light
+height/quality/resolution default to `128`, `1` and `512`; the map lighting
+plane defaults to `0`. Sprite shadow casting remains opt-in. See
+[the geometric and material contract](../docs/lighting-2_5d.md) before adding
+local XYZ/UV descriptions or registering maps at different physical altitudes.
 
 ## Run the checks
 

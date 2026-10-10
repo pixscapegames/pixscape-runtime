@@ -43,4 +43,8 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.LocalSurfaceDescription"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.TileSurfaceDescription"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.LocalSurfaceDescription"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.TileSurfaceDescription"/>
 </module>

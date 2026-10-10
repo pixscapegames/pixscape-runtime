@@ -377,10 +377,18 @@ public final class GameObjectRuntimeFragmentSpawner {
             RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
             repeat.repeatX = data.repeat.repeatX; repeat.repeatY = data.repeat.repeatY;
         }
+        if(data.surfaceLighting!=null){
+            games.pixscape.runtime.component.SurfaceLightingComponent source=data.surfaceLighting;
+            games.pixscape.runtime.component.SurfaceLightingComponent target=world.getMapper(games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entityId);
+            target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
+            target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
+            target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
+        }
         if (data.pointLight != null) {
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);
             light.r = data.pointLight.r; light.g = data.pointLight.g; light.b = data.pointLight.b;
             light.intensity = data.pointLight.intensity; light.radius = data.pointLight.radius;
+            light.height=data.pointLight.height;light.shadowQuality=data.pointLight.shadowQuality;light.shadowResolution=data.pointLight.shadowResolution;
             light.falloff = data.pointLight.falloff; light.enabled = data.pointLight.enabled;
         }
         if (data.coneLight != null) {
@@ -390,6 +398,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
             light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
+            light.height=data.coneLight.height;light.shadowQuality=data.coneLight.shadowQuality;light.shadowResolution=data.coneLight.shadowResolution;
         }
         if (data.spatialHeight != null) {
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);

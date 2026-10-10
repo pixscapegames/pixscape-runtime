@@ -36,6 +36,8 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
     private final WorldLightComposition composition = new WorldLightComposition();
+    private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
+            new games.pixscape.runtime.render.lighting.LightingRenderer();
     private LightParameterBinding lightParameters;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -105,23 +107,27 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    public void prepareComposition() { composition.prepare(); }
+    public void prepareComposition() { composition.prepare(); lighting.prepare(world, composition); }
+    public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
-    @Override protected void dispose() { composition.dispose(); }
+    @Override protected void dispose() { lighting.dispose(); composition.dispose(); }
 
     void render() {
         Throwable failure = null;
         try {
             composition.beginOriginal();
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
             renderPass(LightCompositionPass.ORIGINAL, 0);
-            composition.beginField();
-            int first = 0;
-            while (first < frameQueue.size && frameQueue.light[first] == 0) first++;
-            renderPass(LightCompositionPass.FIELD, first);
-            composition.compose(ambientMulR, ambientMulG, ambientMulB, stats);
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
+            lighting.render(frameQueue, layerState, cam, composition, stats);
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
+            composition.compose(frameQueue.lighting.diagnostic==0?ambientMulR:0,
+                    frameQueue.lighting.diagnostic==0?ambientMulG:0,frameQueue.lighting.diagnostic==0?ambientMulB:0,stats);
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(4);
         } catch (RuntimeException | Error error) {
             failure = error;
             metricsBatch.abort(error);
+            lighting.abort();
             throw error;
         } finally { composition.end(failure); }
     }

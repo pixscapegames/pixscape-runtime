@@ -22,9 +22,9 @@ public final class SpatialBlockData {
     public float height = DEFAULT_HEIGHT;
     /** Participates in actor spatial ordering. */
     public boolean actorOccluder = true;
-    /** Compiled as light-occlusion metadata; the downstream light consumer is not implemented yet. */
+    /** Requests a complete volume caster in 2.5D lighting, independent of image visibility. */
     public boolean lightOccluder = false;
-    /** Compiled as shadow-geometry metadata; the downstream shadow consumer is not implemented yet. */
+    /** Requests a complete volume caster; either this flag or lightOccluder enables it. */
     public boolean shadowCaster = false;
     /** Compiled as particle-occlusion metadata; the downstream particle consumer is not implemented yet. */
     public boolean particleOccluder = false;

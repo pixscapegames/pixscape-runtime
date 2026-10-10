@@ -45,6 +45,7 @@ public final class GameObjectAsset {
         public ShaderParamsData shaderParams;
         public RepeatData repeat;
         public PointLightData pointLight;
+        public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
         public ConeLightData coneLight;
         /** Authored Spatial vertical volume; derived Spatial footprint cache is intentionally absent. */
         public SpatialHeightData spatialHeight;
@@ -87,10 +88,14 @@ public final class GameObjectAsset {
     }
     public static final class RepeatData { public boolean repeatX, repeatY; }
     public static final class PointLightData {
+        public float height=128f;
+        public int shadowQuality=1,shadowResolution=512;
         public float r, g, b, intensity, radius, falloff;
         public boolean enabled;
     }
     public static final class ConeLightData {
+        public float height=128f;
+        public int shadowQuality=1,shadowResolution=512;
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;
     }

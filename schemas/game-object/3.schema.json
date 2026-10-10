@@ -426,6 +426,62 @@
             ],
             "default": null
           },
+          "surfaceLighting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "altitude": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "anchorU": {
+                    "type": "number",
+                    "default": 0.5
+                  },
+                  "anchorV": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "directionX": {
+                    "type": "number",
+                    "default": 1
+                  },
+                  "directionY": {
+                    "type": "number",
+                    "default": -1
+                  },
+                  "alphaThreshold": {
+                    "type": "number",
+                    "default": 0.5
+                  },
+                  "receiveLight": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "shadowCaster": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/localLightingSurface"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "pointLight": {
             "anyOf": [
               {
@@ -455,9 +511,31 @@
                     "type": "number",
                     "default": 1.5
                   },
+                  "height": {
+                    "type": "number",
+                    "default": 128
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "shadowQuality": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "default": 1
+                  },
+                  "shadowResolution": {
+                    "type": "integer",
+                    "enum": [
+                      256,
+                      512,
+                      1024
+                    ],
+                    "default": 512
                   }
                 }
               },
@@ -508,9 +586,31 @@
                     "type": "number",
                     "default": 0.1
                   },
+                  "height": {
+                    "type": "number",
+                    "default": 128
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "shadowQuality": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "default": 1
+                  },
+                  "shadowResolution": {
+                    "type": "integer",
+                    "enum": [
+                      256,
+                      512,
+                      1024
+                    ],
+                    "default": 512
                   }
                 }
               },

@@ -490,6 +490,7 @@ public final class WorldConfigFactory {
         );
 
         if (submitSupplier != null) {
+            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue,layerState));
             builder.with(profiled(submitSupplier.get(), systemProfiler));
         }
     }

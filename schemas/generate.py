@@ -70,7 +70,9 @@ common_defs = {
     "spatialShape": obj({"shapeType": {"type": "integer", "enum": [0, 1, 2]}, "polyVerts": arr(N), "polyCount": NONNEG, "halfW": N, "halfH": N, "radius": N, "offsetX": N, "offsetY": N, "angleDeg": N, "collisionEnabled": B, "actorOccluder": B, "lightOccluder": B, "particleOccluder": B, "altitude": N, "height": N}),
     "spatialBlock": obj({"id": I, "structureId": I, "name": NULLABLE_S, "x": N, "y": N, "width": N, "depth": N, "altitude": N, "height": N, "actorOccluder": B, "lightOccluder": B, "shadowCaster": B, "particleOccluder": B, "linkedTileRefsAuthored": B, "linkedTileRefs": arr(obj({"gx": I, "gy": I, "tileAssetId": I}))}),
 }
+common_defs["localLightingSurface"] = obj({"xyz": arr(N), "uv": arr(N), "normals": arr(N), "triangles": arr(NONNEG), "receiveLight": B, "shadowCaster": B, "twoSided": B}, ("xyz", "uv", "normals", "triangles"))
 common_defaults = {
+    "localLightingSurface": {"receiveLight": True, "shadowCaster": False, "twoSided": False},
     "intArray": {"items": [], "size": 0},
     "byteArray": {"items": [], "size": 0},
     "propertyValue": {"type": "STRING", "stringValue": "", "booleanValue": False,
@@ -148,12 +150,12 @@ components = {
     "PolylineComponent": c({"na": "vertices"}),
     "PixscapeTagComponent": c({"sa": "tags"}),
     "CustomPropertiesComponent": c({}, {"properties": ref(COMMON + "#/$defs/propertySet")}),
-    "TiledLayerComponent": c({"s": "atlasTag", "i": "tileWidth tileHeight mapWidthCells mapHeightCells chunkSize", "n": "originX originY defaultTileAltitude defaultTileHeight", "b": "spatialEnabled", "ia": "tileXs tileYs tileAssetIds", "ba": "tileTransformFlags"}, {"projection": {"enum": ["ORTHO", "ISO", None]}, "tileAltitudes": {"type": ["array", "null"], "items": N}, "tileHeights": {"type": ["array", "null"], "items": N}, "tileSpatialFlags": {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}, "tileSpatialOverrides": {"anyOf": [ref(COMMON + "#/$defs/byteArray"), {"type": "null"}]}}),
+    "TiledLayerComponent": c({"s": "atlasTag", "i": "tileWidth tileHeight mapWidthCells mapHeightCells chunkSize", "n": "originX originY defaultTileAltitude defaultTileHeight lightingPlaneAltitude", "b": "spatialEnabled", "ia": "tileXs tileYs tileAssetIds", "ba": "tileTransformFlags"}, {"projection": {"enum": ["ORTHO", "ISO", None]}, "tileAltitudes": {"type": ["array", "null"], "items": N}, "tileHeights": {"type": ["array", "null"], "items": N}, "tileSpatialFlags": {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}, "tileSpatialOverrides": {"anyOf": [ref(COMMON + "#/$defs/byteArray"), {"type": "null"}]}}),
     "SpatialHeightComponent": c({"n": "altitude height"}),
     "SpatialShapesComponent": c({}, {"shapes": arr(ref(COMMON + "#/$defs/spatialShape"))}),
     "SpatialBlocksComponent": c({"i": "nextSpatialBlockId"}, {"blocks": arr(ref(COMMON + "#/$defs/spatialBlock"))}),
-    "PointLightComponent": c({"n": "r g b intensity radius falloff", "b": "enabled"}),
-    "ConeLightComponent": c({"n": "r g b intensity radius falloff coneAngleDeg rotationDeg softness", "b": "enabled"}),
+    "PointLightComponent": c({"n": "r g b intensity radius falloff height", "b": "enabled"}),
+    "ConeLightComponent": c({"n": "r g b intensity radius falloff coneAngleDeg rotationDeg softness height", "b": "enabled"}),
     "ParticleEmitterComponent": c({"s?": "effectPath atlasTag", "b": "autoStart looping autoRemoveWhenComplete paused playRequested restartRequested"}),
     "ParticleOverridesComponent": c({"b": "enabled", "n": "sizeMul alphaMul", "i": "tintRgba"}),
     "PhysicsBodyComponent": c({"i": "type", "b": "fixedRotation bullet allowSleep awake", "n": "gravityScale linearDamping angularDamping"}),
@@ -171,7 +173,17 @@ components = {
     "PhysicsMotorJointComponent": c({"n": "linearOffsetX linearOffsetY angularOffsetRad maxForce maxTorque correctionFactor"}),
 }
 components["AnimationComponent"]["properties"]["animationAssetIds"] = {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}
+components["SurfaceLightingComponent"] = c({"n": "altitude anchorU anchorV directionX directionY alphaThreshold", "b": "receiveLight shadowCaster"}, {"description": {"anyOf": [ref(COMMON + "#/$defs/localLightingSurface"), {"type": "null"}]}})
+components["TiledLayerComponent"]["properties"]["lightingDescriptions"] = arr(obj({"assetId": POS, "geometry": ref(COMMON + "#/$defs/localLightingSurface")}, ("assetId", "geometry")))
+for name in ("PointLightComponent", "ConeLightComponent"):
+    components[name]["properties"]["shadowQuality"] = {"type": "integer", "enum": [0, 1, 2], "default": 1}
+    components[name]["properties"]["shadowResolution"] = {"type": "integer", "enum": [256, 512, 1024], "default": 512}
+    components[name]["properties"]["height"]["default"] = 128
+
 component_defaults = {
+    "SurfaceLightingComponent": {"receiveLight": True, "shadowCaster": False, "altitude": 0,
+                                 "anchorU": 0.5, "anchorV": 0, "directionX": 1, "directionY": -1,
+                                 "alphaThreshold": 0.5, "description": None},
     "PixscapeIdentityComponent": {"stableId": -1, "name": "unnamed"},
     "LayerParallaxComponent": {"factorX": 1, "factorY": 1},
     "TransformComponent": {"scaleX": 1, "scaleY": 1},
@@ -186,6 +198,7 @@ component_defaults = {
     "ShaderParamsComponent": {"floats": []},
     "CustomPropertiesComponent": {"properties": {"values": {}}},
     "TiledLayerComponent": {"atlasTag": "main", "projection": None,
+                            "lightingPlaneAltitude": 0, "lightingDescriptions": [],
                             "tileAltitudes": None, "tileHeights": None,
                             "tileSpatialFlags": None, "tileSpatialOverrides": None},
     "SpatialBlocksComponent": {"nextSpatialBlockId": 1, "blocks": []},
@@ -292,6 +305,7 @@ go_optional = {
     "animation": components["AnimationComponent"],
     "shaderParams": obj({"floats": {"type": "object", "additionalProperties": N}}),
     "repeat": components["RenderRepeatComponent"],
+    "surfaceLighting": components["SurfaceLightingComponent"],
     "pointLight": components["PointLightComponent"],
     "coneLight": components["ConeLightComponent"],
     "spatialHeight": components["SpatialHeightComponent"],

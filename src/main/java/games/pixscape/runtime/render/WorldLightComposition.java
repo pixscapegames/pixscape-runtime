@@ -104,6 +104,14 @@ public final class WorldLightComposition implements Disposable {
         saveTarget(); active = true; bindAndClear(original);
     }
     public void beginField() { bindAndClear(field); }
+    public Texture originalTexture() { return original.getColorBufferTexture(); }
+    public int targetWidth() { return width; }
+    public int targetHeight() { return height; }
+    /** Rebind the HDR field without clearing between independent light contributions. */
+    public void resumeField() {
+        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, field.getFramebufferHandle());
+        Gdx.gl.glViewport(0,0,width,height); Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+    }
 
     public void compose(float r, float g, float b, RenderStats stats) {
         restoreTarget();

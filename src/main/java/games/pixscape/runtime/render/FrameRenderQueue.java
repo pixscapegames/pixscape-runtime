@@ -15,6 +15,9 @@ package games.pixscape.runtime.render;
  * the queue from the engine must not dispose it or retain entry assumptions across rebuilds.</p>
  */
 public final class FrameRenderQueue {
+    /** Published receiver/caster/light data; does not change image ordering. */
+    public final games.pixscape.runtime.render.lighting.LightingFrame lighting =
+            new games.pixscape.runtime.render.lighting.LightingFrame();
     public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
     public static final byte SOURCE_ECS = RenderSourceDomain.SOURCE_ECS;
     public static final byte SOURCE_TILED = RenderSourceDomain.SOURCE_TILED;
@@ -69,6 +72,9 @@ public final class FrameRenderQueue {
     }
 
     public void setCapacity(int newCapacity) {
+        lighting.entities.clear();lighting.tiles.clear();lighting.lights.clear();lighting.casters.clear();
+        lighting.staticCasterCount=0;lighting.diagnostic=0;lighting.timer=null;
+        lighting.casterIndex.rebuild(lighting,0);
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("FrameRenderQueue capacity must be > 0");
         }
