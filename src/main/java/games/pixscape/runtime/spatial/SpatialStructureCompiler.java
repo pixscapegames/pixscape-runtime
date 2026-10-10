@@ -17,13 +17,19 @@ public final class SpatialStructureCompiler {
     }
 
     public static CompiledSpatialStructure compile(Array<SpatialBlockData> authoredWalls, int structureId) {
+        return compile(authoredWalls, new Array<>(SpatialBlockLink.class), structureId);
+    }
+
+    public static CompiledSpatialStructure compile(Array<SpatialBlockData> authoredWalls,
+                                                   Array<SpatialBlockLink> links, int structureId) {
+        SpatialBlockLinks.validate(authoredWalls, links);
         long started = System.nanoTime();
         if (authoredWalls == null) throw failure(structureId, "authored wall collection is missing");
         if (structureId <= 0) throw failure(structureId, "structure id must be positive");
 
         int wallCount = countWalls(authoredWalls, structureId);
         if (wallCount == 0) throw failure(structureId, "structure is empty");
-        WallInput input = collectAndValidate(authoredWalls, structureId, wallCount);
+        WallInput input = collectAndValidate(authoredWalls, links, structureId, wallCount);
         Coordinates coordinates = compressCoordinates(input, structureId);
         FaceCompilation complete = compileFaces(input, coordinates, false);
         FaceCompilation actor = compileFaces(input, coordinates, true);
@@ -49,7 +55,7 @@ public final class SpatialStructureCompiler {
         return count;
     }
 
-    private static WallInput collectAndValidate(Array<SpatialBlockData> authoredWalls,
+    private static WallInput collectAndValidate(Array<SpatialBlockData> authoredWalls, Array<SpatialBlockLink> links,
                                                 int structureId,
                                                 int wallCount) {
         WallInput input = new WallInput(wallCount);
@@ -93,11 +99,11 @@ public final class SpatialStructureCompiler {
             }
             next++;
         }
-        validateTopology(input, structureId);
+        validateTopology(input, links, structureId);
         return input;
     }
 
-    private static void validateTopology(WallInput input, int structureId) {
+    private static void validateTopology(WallInput input, Array<SpatialBlockLink> links, int structureId) {
         int count = input.id.length;
         boolean[] connected = new boolean[count * count];
         for (int first = 0; first < count; first++) {
@@ -116,6 +122,15 @@ public final class SpatialStructureCompiler {
                 }
                 connected[first * count + second] = true;
                 connected[second * count + first] = true;
+            }
+        }
+        com.badlogic.gdx.utils.IntIntMap indices = new com.badlogic.gdx.utils.IntIntMap();
+        for (int i = 0; i < count; i++) indices.put(input.id[i], i);
+        for (SpatialBlockLink link : links) {
+            int a = indices.get(link.firstBlockId, -1), b = indices.get(link.secondBlockId, -1);
+            if (a >= 0 && b >= 0) {
+                connected[a * count + b] = true;
+                connected[b * count + a] = true;
             }
         }
         boolean[] visited = new boolean[count];

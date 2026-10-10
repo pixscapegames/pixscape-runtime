@@ -645,6 +645,49 @@
             "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/spatialBlock"
           },
           "default": []
+        },
+        "links": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": [
+              "firstBlockId",
+              "secondBlockId"
+            ],
+            "properties": {
+              "firstBlockId": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "secondBlockId": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "firstFace": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "default": 0
+              },
+              "secondFace": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "default": 0
+              }
+            }
+          }
         }
       }
     },

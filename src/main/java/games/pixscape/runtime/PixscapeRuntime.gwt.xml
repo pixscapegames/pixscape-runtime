@@ -24,6 +24,7 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.tiled"/>
 
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.spatial"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockLink"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialShapeData"/>
 

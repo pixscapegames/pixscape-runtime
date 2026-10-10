@@ -308,6 +308,7 @@ public final class SceneLoader {
                 max = Math.max(max, block.id);
             }
         }
+        games.pixscape.runtime.spatial.SpatialBlockLinks.validate(component.blocks, component.links);
         if (component.nextSpatialBlockId <= max) {
             throw identityFailure(sceneFile, "spatialBlockId", entityId, max, component.nextSpatialBlockId,
                     "high-water must be greater than max ID");

@@ -20,7 +20,7 @@ public final class SpatialCompiledLayerCache {
         int[] ids = collectStructureIds(component);
         CompiledSpatialStructure[] next = new CompiledSpatialStructure[ids.length];
         for (int i = 0; i < ids.length; i++) {
-            next[i] = SpatialStructureCompiler.compile(component.blocks, ids[i]);
+            next[i] = SpatialStructureCompiler.compile(component.blocks, component.links, ids[i]);
         }
         source = component;
         sourceRevision = requestedRevision;

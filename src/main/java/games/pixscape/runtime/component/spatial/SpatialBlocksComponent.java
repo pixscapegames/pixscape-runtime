@@ -4,6 +4,7 @@ import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLink;
 
 /**
  * Passive authored rectangular walls owned by a Tiled Map entity.
@@ -14,6 +15,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
  */
 public final class SpatialBlocksComponent extends PooledComponent {
     public Array<SpatialBlockData> blocks = new Array<>(SpatialBlockData[]::new);
+    public Array<SpatialBlockLink> links = new Array<>(SpatialBlockLink.class);
     public int nextSpatialBlockId = 1;
     /** Non-serialized authored snapshot revision, incremented only after an atomic replacement. */
     public transient int revision;
@@ -26,6 +28,8 @@ public final class SpatialBlocksComponent extends PooledComponent {
             blocks.clear();
         }
         nextSpatialBlockId = 1;
+        if (links == null) links = new Array<>(SpatialBlockLink.class);
+        else links.clear();
         revision = 0;
     }
 
