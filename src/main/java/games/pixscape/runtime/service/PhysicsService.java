@@ -1267,6 +1267,14 @@ public final class PhysicsService {
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             World world, int ownerEntityId, Array<PhysicsShapeData> sources,
             float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap) {
+        return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, candidateMap, null);
+    }
+
+    /** Cold preparation against complete detached wall data; authored ECS state stays untouched. */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            World world, int ownerEntityId, Array<PhysicsShapeData> sources,
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap,
+            SpatialBlocksComponent candidateBlocks) {
         if (!containsLinkedShape(sources)) {
             return prepareBodyCandidate(sources);
         }
@@ -1297,7 +1305,7 @@ public final class PhysicsService {
                     "Linked physics shape ownerEntityId=" + ownerEntityId
                             + " has no TiledLayerComponent.data.");
         }
-        SpatialBlocksComponent spatial = world.getMapper(SpatialBlocksComponent.class)
+        SpatialBlocksComponent spatial = candidateBlocks != null ? candidateBlocks : world.getMapper(SpatialBlocksComponent.class)
                 .getSafe(ownerEntityId, null);
         if (spatial == null) {
             throw new IllegalArgumentException(

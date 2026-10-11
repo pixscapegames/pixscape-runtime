@@ -13,15 +13,29 @@ Z points up. The common projection is `screenX = X - Y` and
 `X = screenY - Z + screenX/2`, `Y = screenY - Z - screenX/2`.
 
 Tiled placement retains the existing `projectSpatialPoint` result, including its
-single cell anchor. `TiledLayerComponent.lightingPlaneAltitude` explicitly
-registers the map's default tile plane in this common world. A spatial point
-with authored absolute altitude A has `Z = lightingPlaneAltitude + A -
-defaultTileAltitude`. Its XY is the inverse of its existing image projection
-at that Z. This preserves the drawn asset exactly. The default is zero; maps
-that represent physically different levels must be registered explicitly.
-There is no rule based on map ID, asset ID or scene name, and no change to the
-spatial solver. For ISO tiles, tile width/height already establish projected
-cell distances; source radius and height use the resulting pixel metric.
+single cell anchor. The drawn-plane altitude is `defaultTileAltitude` (D).
+Physical Z is the authored absolute altitude A, and XY is reconstructed from
+that projected point at Z=A. Thus the standard lighting plane is derived as
+P=D; there is no independent serialized or editable lighting plane. Changing
+map D changes the common XY registration and planar receivers, without moving
+native tile images. Block A, block height H, map D and render index are distinct.
+Map ID, layer index and zIndex never establish a floor.
+
+Feature-era files containing `lightingPlaneAltitude` are rejected before load
+or export. Explicit conversion must remove that field and review D and absolute
+block/tile altitudes under the single convention. No automatic repair or dual
+registration remains. Removing the old field does not repair incompatible
+footprints or linked-tile regions. Rebase a map separately from a wall join;
+when preserving projected block faces, shift absolute block/override altitudes
+by the same D delta. Review unassociated planar receivers separately.
+
+Automatic wall reconstruction supports ISO maps. Plain planar receivers also
+support ordinary ORTHO maps; ORTHO/ISO volume joins are unsupported. ISO cell
+sizes establish the metric; no cell size or image dimension implies a wall
+height. Local tile descriptions remain offsets from the cell's physical anchor
+at Z=D, including local Z offsets. Their XYZ/UV registration is checked against
+the native image. Sprite descriptions remain relative to their absolute-altitude
+sheet foot; source heights and sheet altitudes remain absolute.
 
 A light's native quad center supplies its ground XY, independently of image
 culling; `height` supplies Z. Radius bounds the 3D attenuation sphere. Cone
@@ -142,7 +156,7 @@ Custom effects in worlds without enabled lights keep their original path.
 Free and Pro use the same Runtime geometry/renderer and history commands.
 Light properties expose height, quality and resolution; sprite properties
 expose reception/casting, foot, altitude, direction and threshold. Map properties
-expose plane Z. F8 in the canvas cycles opt-in position, normal and coverage
+expose `Altitude:` and `Default height:`. F8 in the canvas cycles opt-in position, normal and coverage
 diagnostics, then normal rendering. Coverage is amber for approximations,
 green for described geometry, magenta for missing normals. Black original RGB
 channels can hide diagnostic channels because composition still uses original

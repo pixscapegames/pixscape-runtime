@@ -150,7 +150,7 @@ components = {
     "PolylineComponent": c({"na": "vertices"}),
     "PixscapeTagComponent": c({"sa": "tags"}),
     "CustomPropertiesComponent": c({}, {"properties": ref(COMMON + "#/$defs/propertySet")}),
-    "TiledLayerComponent": c({"s": "atlasTag", "i": "tileWidth tileHeight mapWidthCells mapHeightCells chunkSize", "n": "originX originY defaultTileAltitude defaultTileHeight lightingPlaneAltitude", "b": "spatialEnabled", "ia": "tileXs tileYs tileAssetIds", "ba": "tileTransformFlags"}, {"projection": {"enum": ["ORTHO", "ISO", None]}, "tileAltitudes": {"type": ["array", "null"], "items": N}, "tileHeights": {"type": ["array", "null"], "items": N}, "tileSpatialFlags": {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}, "tileSpatialOverrides": {"anyOf": [ref(COMMON + "#/$defs/byteArray"), {"type": "null"}]}}),
+    "TiledLayerComponent": c({"s": "atlasTag", "i": "tileWidth tileHeight mapWidthCells mapHeightCells chunkSize", "n": "originX originY defaultTileAltitude defaultTileHeight", "b": "spatialEnabled", "ia": "tileXs tileYs tileAssetIds", "ba": "tileTransformFlags"}, {"projection": {"enum": ["ORTHO", "ISO", None]}, "tileAltitudes": {"type": ["array", "null"], "items": N}, "tileHeights": {"type": ["array", "null"], "items": N}, "tileSpatialFlags": {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}, "tileSpatialOverrides": {"anyOf": [ref(COMMON + "#/$defs/byteArray"), {"type": "null"}]}}),
     "SpatialHeightComponent": c({"n": "altitude height"}),
     "SpatialShapesComponent": c({}, {"shapes": arr(ref(COMMON + "#/$defs/spatialShape"))}),
     "SpatialBlocksComponent": c({"i": "nextSpatialBlockId"}, {"blocks": arr(ref(COMMON + "#/$defs/spatialBlock"))}),
@@ -172,6 +172,7 @@ components = {
     "PhysicsFrictionJointComponent": c({"n": "maxForce maxTorque"}),
     "PhysicsMotorJointComponent": c({"n": "linearOffsetX linearOffsetY angularOffsetRad maxForce maxTorque correctionFactor"}),
 }
+components["SpatialBlocksComponent"]["properties"]["links"] = {'type': 'array', 'default': [], 'items': {'type': 'object', 'required': ['firstBlockId', 'secondBlockId'], 'properties': {'firstBlockId': {'type': 'integer', 'minimum': 1}, 'secondBlockId': {'type': 'integer', 'minimum': 1}, 'firstFace': {'type': 'integer', 'enum': [0, 1, 2, 4, 8], 'default': 0}, 'secondFace': {'type': 'integer', 'enum': [0, 1, 2, 4, 8], 'default': 0}}}}
 components["AnimationComponent"]["properties"]["animationAssetIds"] = {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}
 components["SurfaceLightingComponent"] = c({"n": "altitude anchorU anchorV directionX directionY alphaThreshold", "b": "receiveLight shadowCaster"}, {"description": {"anyOf": [ref(COMMON + "#/$defs/localLightingSurface"), {"type": "null"}]}})
 components["TiledLayerComponent"]["properties"]["lightingDescriptions"] = arr(obj({"assetId": POS, "geometry": ref(COMMON + "#/$defs/localLightingSurface")}, ("assetId", "geometry")))
@@ -198,7 +199,7 @@ component_defaults = {
     "ShaderParamsComponent": {"floats": []},
     "CustomPropertiesComponent": {"properties": {"values": {}}},
     "TiledLayerComponent": {"atlasTag": "main", "projection": None,
-                            "lightingPlaneAltitude": 0, "lightingDescriptions": [],
+                            "lightingDescriptions": [],
                             "tileAltitudes": None, "tileHeights": None,
                             "tileSpatialFlags": None, "tileSpatialOverrides": None},
     "SpatialBlocksComponent": {"nextSpatialBlockId": 1, "blocks": []},

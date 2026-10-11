@@ -16,7 +16,7 @@ public final class MapLightingGeometry {
     private final LongMap<Receiver> receivers = new LongMap<Receiver>();
     private int revision = Integer.MIN_VALUE;
     private TiledMapLayerData previous;
-    private float plane, ox, oy, altitude;
+    private float ox, oy, altitude;
     private int tw, th;
     private final IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
     private Array<TileSurfaceDescription> authoredDescriptions;
@@ -25,9 +25,9 @@ public final class MapLightingGeometry {
         if(authoredDescriptions!=values){authoredDescriptions=values;invalidate();}
     }
 
-    public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks, float planeZ) {
+    public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.revision;
-        if (previous == map && revision == r && plane == planeZ && ox == map.originX
+        if (previous == map && revision == r && ox == map.originX
                 && oy == map.originY && altitude == map.defaultTileAltitude
                 && tw == map.tileWidth && th == map.tileHeight) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
@@ -50,20 +50,20 @@ public final class MapLightingGeometry {
                 if (!owners.contains(b, true)) owners.add(b);
             }
             if (b.shadowCaster || b.lightOccluder) {
-                Array<float[]> faces = faces(map, planeZ, b, false);
+                Array<float[]> faces = faces(map, b, false);
                 for (int j = 0; j < faces.size; j++) {
                     LightingSurface s = new LightingSurface(triangulate(faces.get(j), null));
                     s.shadowCaster = true; s.receiveLight = false; casters.add(s);
                 }
             }
         }
-        previous = map; revision = r; plane = planeZ; ox = map.originX; oy = map.originY;
+        previous = map; revision = r; ox = map.originX; oy = map.originY;
         altitude = map.defaultTileAltitude; tw = map.tileWidth; th = map.tileHeight;
         return true;
     }
 
     /** Builds a disjoint UV partition: alpha is applied exactly once at each image pixel. */
-    public LightingSurface receiver(TiledMapLayerData map, float planeZ, int gx, int gy,
+    public LightingSurface receiver(TiledMapLayerData map, int gx, int gy,
                                      int assetId, byte flags, float[] quad) {
         long cell = key(gx, gy);
         Receiver cached = receivers.get(cell);
@@ -73,7 +73,7 @@ public final class MapLightingGeometry {
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
             if(flags!=0)throw new IllegalArgumentException("Local volume description needs explicit transformed variant for tile flags");
-            float[] origin=new float[3];LightingCoordinates.mapPoint(map,planeZ,gx,gy,map.defaultTileAltitude,origin,0);
+            float[] origin=new float[3];LightingCoordinates.mapPoint(map,gx,gy,map.defaultTileAltitude,origin,0);
             for(int i=0;i<description.xyz.length/3;i++){
                 float u=description.uv[i*2],v=description.uv[i*2+1];
                 float sx=quad[0]+u*(quad[6]-quad[0])+v*(quad[2]-quad[0]);
@@ -94,13 +94,13 @@ public final class MapLightingGeometry {
             float[] p = new float[32];
             float[] u = {0,0,1,1}, v = {0,1,1,0};
             for (int i = 0; i < 4; i++) vertex(p, i * 8,
-                    LightingCoordinates.worldX(quad[i * 2], quad[i * 2 + 1], planeZ),
-                    LightingCoordinates.worldY(quad[i * 2], quad[i * 2 + 1], planeZ), planeZ,
+                    LightingCoordinates.worldX(quad[i * 2], quad[i * 2 + 1], map.defaultTileAltitude),
+                    LightingCoordinates.worldY(quad[i * 2], quad[i * 2 + 1], map.defaultTileAltitude), map.defaultTileAltitude,
                     u[i], v[i], 0,0,1);
             polygons.add(p);
         } else for (int i = 0; i < owners.size; i++) {
             SpatialBlockData b = owners.get(i);
-            Array<float[]> fs = faces(map, planeZ, b, true);
+            Array<float[]> fs = faces(map, b, true);
             for (int f = 0; f < fs.size; f++) {
                 float[] p = fs.get(f);
                 for (int n = 0; n < p.length; n += 8) {
@@ -171,7 +171,7 @@ public final class MapLightingGeometry {
         for(int i=0;i<n;i++){int j=(i+1)%n;area+=polygon[i*8+3]*polygon[j*8+4]-polygon[j*8+3]*polygon[i*8+4];}
         return Math.abs(area)*.5f;
     }
-    private static Array<float[]> faces(TiledMapLayerData m, float p, SpatialBlockData b, boolean visible) {
+    private static Array<float[]> faces(TiledMapLayerData m, SpatialBlockData b, boolean visible) {
         float x = b.x, y = b.y, a = x+b.width, c = y+b.depth, z = b.altitude, t = z+b.height;
         float[][] cells = {{x,y,z,a,y,z,a,y,t,x,y,t},{x,c,z,x,y,z,x,y,t,x,c,t},
                 {x,y,t,a,y,t,a,c,t,x,c,t},{a,c,z,x,c,z,x,c,t,a,c,t},{a,y,z,a,c,z,a,c,t,a,y,t},
@@ -180,7 +180,7 @@ public final class MapLightingGeometry {
         for (int i = 0; i < (visible ? 3 : 6); i++) {
             float[] q = new float[32], point = new float[3];
             for (int n = 0; n < 4; n++) {
-                LightingCoordinates.mapPoint(m,p,cells[i][n*3],cells[i][n*3+1],cells[i][n*3+2],point,0);
+                LightingCoordinates.mapPoint(m,cells[i][n*3],cells[i][n*3+1],cells[i][n*3+2],point,0);
                 vertex(q,n*8,point[0],point[1],point[2],0,0,0,0,0);
             }
             float ax=q[8]-q[0], ay=q[9]-q[1], az=q[10]-q[2];

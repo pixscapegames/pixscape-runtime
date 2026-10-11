@@ -22,6 +22,21 @@ import java.io.OutputStream;
 
 public class SceneLoaderTiledMapConfigurationTest {
 
+    @Test public void obsoleteIndependentLightingPlaneIsRejectedBeforeClearingWorld() throws Exception {
+        FileHandle file=writeScene(true);
+        String serialized=file.readString("UTF-8");
+        serialized=serialized.replace("\"TiledLayerComponent\": {", "\"TiledLayerComponent\": {\"lightingPlaneAltitude\":128,");
+        if(!serialized.contains("lightingPlaneAltitude"))
+            serialized=serialized.replace("\"TiledLayerComponent\":{", "\"TiledLayerComponent\":{\"lightingPlaneAltitude\":128,");
+        Assert.assertTrue(serialized,serialized.contains("lightingPlaneAltitude"));file.writeString(serialized,false,"UTF-8");
+        World target=world();int existing=target.create();target.process();
+        try {
+            try {SceneLoader.loadScene(target,file,true,new SceneMetaRuntime());Assert.fail();}
+            catch(RuntimeException expected) {Assert.assertTrue(expected.toString(),expected.toString().contains("lightingPlaneAltitude"));}
+            Assert.assertTrue(target.getEntityManager().isActive(existing));
+        } finally {target.dispose();}
+    }
+
     @Test
     public void missingMapConfigurationIsRejectedWithoutSceneMetaFallback() throws Exception {
         FileHandle file = writeScene(false);

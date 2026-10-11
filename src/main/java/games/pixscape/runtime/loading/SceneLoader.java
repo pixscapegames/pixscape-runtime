@@ -49,6 +49,7 @@ public final class SceneLoader {
         SceneMetaRuntime.validateSceneSchemaVersion(
                 sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
                 sceneMeta != null ? sceneMeta.name : inFile.path());
+        validateMapLightingConvention(serialized, inFile.path());
         validateSerializedScene(serialized, sceneMeta, inFile);
 
         if (clearContentFirst) {
@@ -377,6 +378,20 @@ public final class SceneLoader {
                 vis.inView = true;
             }
             dirty.mark(e, DirtyBits.EVERYTHING);
+        }
+    }
+
+    /** Cold load/export check: feature-era independent planes require explicit conversion. */
+    public static void validateMapLightingConvention(String serialized, String source) {
+        JsonValue root=new JsonReader().parse(serialized), identifiers=root.get("componentIdentifiers");
+        JsonValue name=identifiers!=null ? identifiers.get(TiledLayerComponent.class.getName()) : null;
+        String mapName=name!=null ? name.asString() : "TiledLayerComponent";
+        JsonValue entities=root.get("entities");
+        for(JsonValue entity=entities!=null ? entities.child : null;entity!=null;entity=entity.next) {
+            JsonValue components=entity.get("components"),map=components!=null ? components.get(mapName) : null;
+            if(map!=null && map.has("lightingPlaneAltitude"))
+                throw new IllegalArgumentException(source+" entity="+entity.name
+                        +" contains obsolete lightingPlaneAltitude. Explicitly convert this feature-era scene to the drawn-plane altitude convention before loading/exporting.");
         }
     }
 
