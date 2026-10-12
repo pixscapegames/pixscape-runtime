@@ -1,0 +1,103 @@
+package games.pixscape.runtime.render.lighting;
+
+import com.badlogic.gdx.*;
+import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import games.pixscape.runtime.service.TextureRegistry;
+import org.junit.*;
+import java.lang.reflect.*;
+
+public final class LightingBatchBackendCheck {
+    private static final int REPLAY_CAPACITY=12288;
+    public static void assertHtmlAndNativeWriteIdenticalActiveVertices() {
+        final Throwable[] failure={null};
+        Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();
+        cfg.setInitialVisible(false);cfg.setWindowedMode(32,32);cfg.disableAudio(true);
+        new Lwjgl3Application(new ApplicationAdapter(){
+            @Override public void create(){
+                Application nativeApp=Gdx.app;
+                Application htmlApp=null;
+                LightingBatch nativeBatch=null,htmlBatch=null;
+                try {
+                    nativeBatch=new LightingBatch();
+                    Gdx.app=(Application)Proxy.newProxyInstance(Application.class.getClassLoader(),
+                            new Class<?>[]{Application.class},(proxy,method,args)->{
+                                if(method.getName().equals("getType"))return Application.ApplicationType.WebGL;
+                                if(method.getName().equals("equals"))return proxy==args[0];
+                                if(method.getName().equals("hashCode"))return System.identityHashCode(proxy);
+                                return method.invoke(nativeApp,args);
+                            });
+                    htmlApp=Gdx.app;
+                    htmlBatch=new LightingBatch();
+                    Gdx.app=nativeApp;
+                    Field backend=LightingBatch.class.getDeclaredField("htmlVertexCopies");backend.setAccessible(true);
+                    Assert.assertFalse(backend.getBoolean(nativeBatch));
+                    Assert.assertTrue("Backend is captured at construction",backend.getBoolean(htmlBatch));
+                    float[] vertices=new float[48];
+                    for(int i=0;i<vertices.length;i++)vertices[i]=(i-21)*.125f;
+                    LightingSurface surface=new LightingSurface(vertices);
+                    surface.twoSided=true;surface.approximate=true;surface.alphaThreshold=.37f;
+                    float[] quad={-7,3,-4,19,25,19,22,3};
+                    Field data=LightingBatch.class.getDeclaredField("data");data.setAccessible(true);
+                    Field count=LightingBatch.class.getDeclaredField("vertices");count.setAccessible(true);
+                    for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
+                        nativeBatch.abort();htmlBatch.abort();
+                        nativeBatch.begin(null,null);htmlBatch.begin(null,null);
+                        float color=new Color(.3f,.5f,.7f,.6f).toFloatBits();
+                        nativeBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
+                        htmlBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
+                        Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
+                        float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
+                        for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
+                    }
+                }catch(Throwable error){failure[0]=error;}
+                finally {
+                    Gdx.app=htmlApp==null?nativeApp:htmlApp;if(htmlBatch!=null)htmlBatch.dispose();
+                    Gdx.app=nativeApp;if(nativeBatch!=null)nativeBatch.dispose();Gdx.app.exit();
+                }
+            }
+        },cfg);
+        if(failure[0]!=null)throw new AssertionError("Backend vertex equivalence failed",failure[0]);
+    }
+    public static void assertReplayEligibilityUsesBatchLimits() {
+        final Throwable[] failure={null};
+        Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();
+        cfg.setInitialVisible(false);cfg.setWindowedMode(32,32);cfg.disableAudio(true);
+        new Lwjgl3Application(new ApplicationAdapter(){
+            @Override public void create(){
+                LightingBatch batch=null;Texture[] textures=new Texture[5];
+                try {
+                    TextureRegistry.clear();batch=new LightingBatch();
+                    for(int i=0;i<textures.length;i++){
+                        Pixmap pixmap=new Pixmap(1,1,Pixmap.Format.RGBA8888);
+                        textures[i]=new Texture(pixmap);pixmap.dispose();TextureRegistry.handleOf(textures[i]);
+                    }
+                    LightingFrame atLimit=frame(textures[0],REPLAY_CAPACITY);
+                    Assert.assertTrue("A batch exactly at capacity is replayable",batch.canReplay(atLimit));
+                    LightingFrame aboveLimit=frame(textures[0],REPLAY_CAPACITY+1);
+                    Assert.assertFalse("P3 must fall back before doing partial work above capacity",batch.canReplay(aboveLimit));
+                    LightingFrame fourTextures=new LightingFrame();
+                    for(int i=0;i<4;i++)add(fourTextures,textures[i],3);
+                    Assert.assertTrue("Four texture pages are the real batch limit",batch.canReplay(fourTextures));
+                    add(fourTextures,textures[4],3);
+                    Assert.assertFalse("A fifth page must select the normal P2+P1 path",batch.canReplay(fourTextures));
+                }catch(Throwable error){failure[0]=error;}
+                finally {
+                    if(batch!=null)batch.dispose();for(Texture texture:textures)if(texture!=null)texture.dispose();
+                    TextureRegistry.clear();Gdx.app.exit();
+                }
+            }
+        },cfg);
+        if(failure[0]!=null)throw new AssertionError("P3 replay eligibility failed",failure[0]);
+    }
+    private static LightingFrame frame(Texture texture,int vertices){
+        LightingFrame frame=new LightingFrame();add(frame,texture,vertices);return frame;
+    }
+    private static void add(LightingFrame frame,Texture texture,int vertices){
+        LightingFrame.Caster caster=new LightingFrame.Caster();
+        caster.surface=new LightingSurface(new float[vertices*8]);caster.texture=TextureRegistry.handleOf(texture);
+        frame.casters.add(caster);frame.casterIndex.candidates.add(frame.casters.size-1);
+    }
+}

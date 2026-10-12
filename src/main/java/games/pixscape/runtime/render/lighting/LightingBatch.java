@@ -1,6 +1,7 @@
 package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.NumberUtils;
@@ -12,8 +13,12 @@ final class LightingBatch {
     private static final int STRIDE=18, CAPACITY=12288;
     private final float[] data=new float[CAPACITY*STRIDE];
     private final int[] handles=new int[4];
+    private final int[] replayHandles=new int[4];
     private final Mesh mesh;
-    private int vertices,textures,blend=-1;
+    // GWT emulates tiny array copies with temporary JS arrays; keep native copies unchanged.
+    private final boolean htmlVertexCopies=Gdx.app.getType()==Application.ApplicationType.WebGL;
+    private int vertices,textures,blend=-1,replayVertices,replayTextures;
+    private boolean retainReplay;
     private ShaderProgram shader;
     private RenderStats stats;
     LightingBatch(){
@@ -24,7 +29,33 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"));
     }
-    void begin(ShaderProgram shader,RenderStats stats){this.shader=shader;this.stats=stats;vertices=textures=0;blend=-1;}
+    void begin(ShaderProgram shader,RenderStats stats){begin(shader,stats,false);}
+    void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
+        this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayVertices=replayTextures=0;
+    }
+    /** Checks whether one complete shadow batch can be prepared before any face submits it. */
+    boolean canReplay(LightingFrame frame){
+        int total=0,textureCount=0;
+        for(int i=0;i<frame.casterIndex.candidates.size;i++){
+            LightingFrame.Caster caster=frame.casters.get(frame.casterIndex.candidates.get(i));
+            if(caster==null || caster.surface==null || caster.surface.vertices==null || caster.surface.vertices.length%8!=0 ||
+                    caster.texture==0 || TextureRegistry.getByHandle(caster.texture)==null)return false;
+            int count=caster.surface.vertices.length/8;
+            if(count>CAPACITY-total)return false;
+            total+=count;
+            boolean found=false;
+            for(int j=0;j<textureCount;j++)if(replayHandles[j]==caster.texture){found=true;break;}
+            if(!found){if(textureCount==4)return false;replayHandles[textureCount++]=caster.texture;}
+        }
+        return total!=0;
+    }
+    void replay(){
+        if(replayVertices==0 || replayTextures==0)throw new IllegalStateException("Lighting replay has no prepared shadow batch");
+        shader.bind();
+        bindTextures(replayHandles,replayTextures);
+        mesh.render(shader,GL20.GL_TRIANGLES,0,replayVertices);
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+    }
     void draw(LightingSurface surface,int texture,float u1,float v1,float u2,float v2,float color,
               int blendMode,float[] quad,float offsetX,float offsetY,boolean shadow,boolean supported){
         if(blend!=blendMode){flush();blend=blendMode;
@@ -41,9 +72,11 @@ final class LightingBatch {
         for(int i=0;i<source.length;i+=8){
             if(vertices==CAPACITY){flush();textures=1;handles[0]=texture;slot=0;}
             int o=vertices++*STRIDE;
-            System.arraycopy(source,i,data,o,3);
+            if(htmlVertexCopies){data[o]=source[i];data[o+1]=source[i+1];data[o+2]=source[i+2];}
+            else System.arraycopy(source,i,data,o,3);
             float u=source[i+3],v=source[i+4];data[o+3]=u1+u*(u2-u1);data[o+4]=v2+v*(v1-v2);
-            System.arraycopy(source,i+5,data,o+5,3);
+            if(htmlVertexCopies){data[o+5]=source[i+5];data[o+6]=source[i+6];data[o+7]=source[i+7];}
+            else System.arraycopy(source,i+5,data,o+5,3);
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             data[o+12]=slot;data[o+13]=(surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
             data[o+14]=surface.twoSided?1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
@@ -56,16 +89,21 @@ final class LightingBatch {
     void flush(){
         if(vertices==0)return;
         shader.bind();
-        for(int i=0;i<textures;i++){Texture t=TextureRegistry.getByHandle(handles[i]);
-            if(t==null)throw new IllegalStateException("Lighting texture handle is not registered: "+handles[i]);t.bind(i);}
-        // All active sampler uniforms need complete, non-attachment textures on WebGL.
-        // A preceding accumulation leaves the scratch attachment bound on unit 1.
-        Texture first=TextureRegistry.getByHandle(handles[0]);
-        for(int i=textures;i<4;i++)first.bind(i);
+        bindTextures(handles,textures);
         mesh.setVertices(data,0,vertices*STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);
+        if(retainReplay){replayVertices=vertices;replayTextures=textures;System.arraycopy(handles,0,replayHandles,0,textures);}
         if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
         vertices=0;textures=0;
     }
-    void abort(){vertices=0;textures=0;blend=-1;}
+    private static void bindTextures(int[] source,int count){
+        for(int i=0;i<count;i++){Texture t=TextureRegistry.getByHandle(source[i]);
+            if(t==null)throw new IllegalStateException("Lighting texture handle is not registered: "+source[i]);t.bind(i);}
+        // All active sampler uniforms need complete, non-attachment textures on WebGL.
+        // A preceding accumulation leaves the scratch attachment bound on unit 1.
+        Texture first=TextureRegistry.getByHandle(source[0]);
+        if(first==null)throw new IllegalStateException("Lighting texture handle is not registered: "+source[0]);
+        for(int i=count;i<4;i++)first.bind(i);
+    }
+    void abort(){vertices=textures=replayVertices=replayTextures=0;blend=-1;retainReplay=false;}
     void dispose(){mesh.dispose();}
 }

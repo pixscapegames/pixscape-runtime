@@ -106,6 +106,8 @@ public final class LightingRenderer {
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,WorldLightComposition composition,RenderStats stats){
         LightingFrame frame=queue.lighting;shadowCpuNs=receiverCpuNs=accumulationCpuNs=0;selectedCasters=shadowDraws=receiverDraws=0;
         composition.beginField();
+        // Clear every frame, including empty frames, before skipping work without consumers.
+        if(queue.size==0 && frame.diagnostic==0)return;
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
         for(int li=0;li<lightCount;li++){
             LightingFrame.Light l=frame.diagnostic==0?frame.lights.get(li):diagnosticLight;long start=System.nanoTime();int draws=stats.drawCalls;
@@ -165,11 +167,14 @@ public final class LightingRenderer {
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
         selectedCasters+=frame.casterIndex.candidates.size;
+        boolean replay=batch.canReplay(frame);
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
             up.set(UPS[face*3],UPS[face*3+1],UPS[face*3+2]);view.setToLookAt(eye,target,up);matrix.set(projection).mul(view);
-            shadow.bind();shadow.setUniformMatrix("u_matrix",matrix);batch.begin(shadow,stats);
+            shadow.bind();shadow.setUniformMatrix("u_matrix",matrix);
+            if(replay && face>0){batch.replay();continue;}
+            batch.begin(shadow,stats,replay);
             for(int i=0;i<frame.casterIndex.candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(frame.casterIndex.candidates.get(i));
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);

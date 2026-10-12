@@ -15,6 +15,12 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @Test public void htmlAndNativeWriteIdenticalActiveVertices() {
+        LightingBatchBackendCheck.assertHtmlAndNativeWriteIdenticalActiveVertices();
+    }
+    @Test public void shadowReplayEligibilityUsesBatchLimits() {
+        LightingBatchBackendCheck.assertReplayEligibilityUsesBatchLimits();
+    }
     @Test public void litFractionalEdgesAndIndependentLightsRestoreTarget() {
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();
@@ -48,6 +54,71 @@ public class WorldLightCompositionGlSmokeTest {
                 q.lighting.lights.add(light);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
                 pixel.clear();Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
                 int two=pixel.get(0)&255;Assert.assertTrue("Independent light must increase contribution",two>one);
+                // A strictly empty frame clears the field, skips light passes, and restores the next frame.
+                final int[] lightPasses={0};
+                q.lighting.timer=new LightingPassTimer(){
+                    public void begin(int pass){if(pass==SHADOW||pass==RECEIVERS||pass==ACCUMULATION)lightPasses[0]++;}
+                    public void end(int pass){}
+                };
+                for(int transition=0;transition<3;transition++){
+                    q.size=0;lightPasses[0]=0;
+                    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+                    Assert.assertEquals("Empty queue must skip light passes",0,lightPasses[0]);
+                    assertFieldCleared(submit);
+                    pixel.clear();Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                    for(int c=0;c<4;c++)Assert.assertEquals("Empty frame must not retain coverage",0,pixel.get(c)&255);
+                    for(int diagnostic=1;diagnostic<=3;diagnostic++){
+                        q.lighting.diagnostic=diagnostic;lightPasses[0]=0;world.process();
+                        Assert.assertTrue("Diagnostics retain their pass lifecycle",lightPasses[0]>0);
+                    }
+                    q.lighting.diagnostic=0;q.size=1;
+                    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+                    pixel.clear();Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                    Assert.assertEquals("Immediate return restores both lights",two,pixel.get(0)&255);
+                }
+                q.lighting.entities.get(entity).receiveLight=false;lightPasses[0]=0;
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+                Assert.assertTrue("Unlit surfaces still consume passes to mask contributions",lightPasses[0]>0);
+                Assert.assertTrue(submit.lightingRenderer().receiverDraws>0);
+                q.lighting.entities.get(entity).receiveLight=true;q.lighting.timer=null;
+                // This caster projects entirely left of the camera, but shadows the receiver center.
+                q.lighting.lights.clear();q.lighting.lights.add(light);
+                light.x=-32;light.y=64;light.z=64;light.quality=1;
+                float[] occluderVertices=new float[48];
+                float[] ox={-12,-12,12,12},oy={20,44,44,20};
+                for(int i=0;i<6;i++){
+                    int c=corner[i],o=i*8;occluderVertices[o]=ox[c];occluderVertices[o+1]=oy[c];
+                    occluderVertices[o+2]=32;occluderVertices[o+3]=c>=2?1:0;
+                    occluderVertices[o+4]=c==1||c==2?1:0;occluderVertices[o+7]=1;
+                    Assert.assertTrue("Whole caster is outside the camera",LightingCoordinates.screenX(ox[c],oy[c])<0);
+                }
+                LightingFrame.Caster offscreen=new LightingFrame.Caster();
+                offscreen.surface=new LightingSurface(occluderVertices);offscreen.surface.alphaThreshold=.1f;
+                offscreen.texture=handle;offscreen.u2=offscreen.v2=1;offscreen.bounds();
+                q.lighting.casters.add(offscreen);
+                final Throwable[] replayFailure={null};
+                q.lighting.timer=new LightingPassTimer(){
+                    public void begin(int pass){}
+                    public void end(int pass){if(pass==SHADOW)try {assertReplayPrepared(submit);}catch(Throwable failure){replayFailure[0]=failure;}}
+                };
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();pixel.clear();
+                if(replayFailure[0]!=null)throw new AssertionError("Eligible shadow casters must prepare one reusable batch",replayFailure[0]);
+                q.lighting.timer=null;
+                Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                int withOffscreenCaster=pixel.get(0)&255;
+                Assert.assertEquals(1,submit.lightingRenderer().selectedCasters);
+                q.lighting.casters.clear();
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();pixel.clear();
+                Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                Assert.assertTrue("Offscreen caster must actually darken the visible receiver",(pixel.get(0)&255)>withOffscreenCaster+3);
+                LightingFrame.Caster invalidCaster=new LightingFrame.Caster();
+                invalidCaster.surface=new LightingSurface(occluderVertices);invalidCaster.texture=0;invalidCaster.bounds();
+                q.lighting.casters.add(invalidCaster);
+                try {world.process();Assert.fail("An invalid shadow texture must not be skipped by P3 preflight");}
+                catch(IllegalStateException expected){Assert.assertTrue(expected.getMessage().contains("texture handle"));}
+                q.lighting.casters.clear();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+                Assert.assertEquals("A rejected shadow batch must recover on the next frame",GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+                light.x=32;light.y=0;light.z=128;
                 light.quality=2;Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
                 Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
                 Assert.assertEquals(128,pixel.get(3)&255,3);
@@ -80,10 +151,42 @@ public class WorldLightCompositionGlSmokeTest {
                 Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
                 q.shader[0]=originalShader;Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glViewport(0,0,64,32);
                 submit.prepareComposition();world.process();Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+                q.size=0;Gdx.gl.glViewport(2,3,60,28);Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+                submit.prepareComposition();world.process();
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,state);
+                Assert.assertEquals("Empty frame restores the nested target",nested.getFramebufferHandle(),state.get(0));
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,state);
+                Assert.assertEquals(2,state.get(0));Assert.assertEquals(3,state.get(1));
+                Assert.assertEquals(60,state.get(2));Assert.assertEquals(28,state.get(3));
+                Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
+                q.size=1;submit.prepareComposition();world.process();
                 nested.end();nested.dispose();
                 world.dispose();world=null;batch.close();texture.dispose();ShaderRegistry.disposeAll();
             }catch(Throwable error){failure[0]=error;}finally{Gdx.app.exit();}}
         },config);
         if(failure[0]!=null)throw new AssertionError("Real GL 2.5D test failed",failure[0]);
+    }
+    private static void assertFieldCleared(RenderSubmitSystem submit) throws Exception {
+        java.lang.reflect.Field compositionField=RenderSubmitSystem.class.getDeclaredField("composition");
+        compositionField.setAccessible(true);
+        java.lang.reflect.Field targetField=WorldLightComposition.class.getDeclaredField("field");
+        targetField.setAccessible(true);
+        com.badlogic.gdx.graphics.glutils.FrameBuffer target=(com.badlogic.gdx.graphics.glutils.FrameBuffer)
+                targetField.get(compositionField.get(submit));
+        java.nio.IntBuffer binding=BufferUtils.newIntBuffer(1);
+        Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,binding);
+        java.nio.FloatBuffer pixel=BufferUtils.newFloatBuffer(4);
+        try {
+            Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,target.getFramebufferHandle());
+            Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_FLOAT,pixel);
+            for(int c=0;c<4;c++)Assert.assertEquals("Empty frame clears the reused light field",0f,pixel.get(c),0f);
+        } finally {Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,binding.get(0));}
+    }
+    private static void assertReplayPrepared(RenderSubmitSystem submit) throws Exception {
+        java.lang.reflect.Field batchField=games.pixscape.runtime.render.lighting.LightingRenderer.class.getDeclaredField("batch");
+        batchField.setAccessible(true);Object lightingBatch=batchField.get(submit.lightingRenderer());
+        java.lang.reflect.Field replayField=lightingBatch.getClass().getDeclaredField("replayVertices");
+        replayField.setAccessible(true);
+        Assert.assertTrue("Eligible shadow casters must prepare one reusable batch",replayField.getInt(lightingBatch)>0);
     }
 }
