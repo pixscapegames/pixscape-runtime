@@ -9,6 +9,11 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 public final class LightCompositionPass {
     public static final int ORIGINAL = 0;
     public static final int FIELD = 1;
+    public static final int ORIGINAL_EXEMPT = 2;
+    public static final int MASK = 3;
+    public static final int CONTRIBUTION = 4;
+    /** Ordered replay selector; resolved per entry before applying blend state. */
+    public static final int AMBIENT = 5;
 
     private LightCompositionPass() {}
 
@@ -18,10 +23,10 @@ public final class LightCompositionPass {
         BlendMode blend = BlendMode.fromId(blendId);
         int src = source(pass, light, blend), dst = destination(pass, light, blend);
         batch.setBlendMode(true, src, dst,
-                pass == ORIGINAL ? coverageSource(blend) : src,
-                pass == ORIGINAL ? coverageDestination(blend) : dst, stats);
+                pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageSource(blend) : src,
+                pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageDestination(blend) : dst, stats);
         if (shader != null) {
-            boolean opaque = pass == ORIGINAL && !blend.blending;
+            boolean opaque = pass != FIELD && !blend.blending;
             if (opaque && !shader.hasUniform("u_worldCoverage")) {
                 throw new IllegalArgumentException("Opaque/cutout material must support u_worldCoverage for light composition");
             }
@@ -32,7 +37,7 @@ public final class LightCompositionPass {
     }
 
     public static boolean skip(int pass, boolean light, int blend) {
-        if (pass == ORIGINAL) return light;
+        if (pass == ORIGINAL || pass == AMBIENT || pass == CONTRIBUTION || pass == ORIGINAL_EXEMPT) return light;
         return !light && (blend == BlendMode.ADDITIVE.id || blend == BlendMode.ADDITIVE_ALPHA.id);
     }
 
@@ -47,11 +52,12 @@ public final class LightCompositionPass {
     }
 
     public static int source(int pass, boolean light, BlendMode blend) {
-        return pass == FIELD && !light ? GL20.GL_ZERO : (blend.blending ? blend.srcFactor : GL20.GL_ONE);
+        return pass == ORIGINAL_EXEMPT || (pass == FIELD || pass == MASK) && !light
+                ? GL20.GL_ZERO : (blend.blending ? blend.srcFactor : GL20.GL_ONE);
     }
 
     public static int destination(int pass, boolean light, BlendMode blend) {
-        if (pass != FIELD || light) return blend.blending ? blend.dstFactor : GL20.GL_ZERO;
+        if (pass != FIELD && pass != MASK || light) return blend.blending ? blend.dstFactor : GL20.GL_ZERO;
         return blend == BlendMode.OPAQUE || blend == BlendMode.CUTOUT ? GL20.GL_ZERO : GL20.GL_ONE_MINUS_SRC_ALPHA;
     }
 

@@ -151,6 +151,48 @@ or silently rendering a custom light as a point source. Standard lighting reads
 the point/cone component fields, not the old procedural shader's parameter row.
 Custom effects in worlds without enabled lights keep their original path.
 
+## Particle instances and ambient exemption
+
+Select a Particle FX instance in Studio Free or Pro and enable **Ignore ambient
+lighting** to keep its own color independent of scene ambiance. It defaults to
+false and applies to every internal emitter in that instance. Undo/redo, copy,
+scene save/reload and Runtime export retain the instance value. Playback and
+the `.p` resource are unchanged. The Runtime particle facade exposes
+`setIgnoreAmbientLighting(boolean)` and `isIgnoringAmbientLighting()`.
+This does not create a receiver, local-light reception, caster or light, and
+does not extend Game Object authoring.
+
+The existing RGBA8 color pass C retains coverage and blends, with exempt
+standard particle RGB set to zero. A single ordered auxiliary pass E accumulates
+their own RGB in RGBA16F and masks it with subsequent decor. Composition is
+`C * (ambient + existing light field) + E`, with final alpha taken from C.
+ALPHA and ADDITIVE_ALPHA contributions are premultiplied; PREMULT_ALPHA is
+already premultiplied. Additive contributions have zero coverage. OPAQUE and
+CUTOUT replace coverage after their real alpha test. Non-exempt additive decor
+does not affect E. The same quad corners, diagonal, UVs and final queue order
+are used. Existing lights and shadow maps are rendered once as before.
+
+Standard materials share a four-page premultiplied batch. Admitted custom
+materials and repeated geometry replay the original material submitter at
+their original queue position, with prepared parameter references, textures,
+vertices and the same frame time. For a non-exempt custom material, fixed
+function blending discards its output RGB and masks using the shader's actual
+output alpha/discard, including vertex deformation. Animation and events are
+not advanced during replay. Material switches may add draws within the one
+E pass. Existing rejection of custom coverage/repeats with active local lights
+still applies. Studio's temporary unpacked preview still uses its established
+2D preview material until repacking.
+
+E is skipped when no admitted exempt quad is visible; inactive composition
+does not read its previous contents. Targets are prepared at the existing GPU
+boundary and reused through resize and World disposal. E costs 8 bytes per
+pixel (15.82 MiB at 1920x1080), plus a reusable 2048-quad batch; its target is
+resident even while inactive. Existing lighting diagnostics and P1/P2/P3 paths
+are unchanged.
+HDR E accumulation can exceed the old intermediate RGBA8 additive clipping:
+bright overlapping exempt additives may therefore remain brighter behind a
+later translucent mask. No range composition is introduced to mimic clipping.
+
 ## Studio, lifecycle and backends
 
 Free and Pro use the same Runtime geometry/renderer and history commands.

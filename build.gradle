@@ -41,6 +41,7 @@ tasks.named('test', Test).configure {
   exclude '**/ShaderParameterBatchGlSmokeTest.class'
   exclude '**/WorldLightCompositionGlSmokeTest.class'
   exclude '**/NormalMapGlSmokeTest.class'
+  exclude '**/AmbientContributionGlSmokeTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -61,6 +62,7 @@ tasks.register('lightCompositionGlSmoke', Test) {
   useJUnit()
   include '**/WorldLightCompositionGlSmokeTest.class'
   include '**/NormalMapGlSmokeTest.class'
+  include '**/AmbientContributionGlSmokeTest.class'
   shouldRunAfter tasks.named('test')
 }
 

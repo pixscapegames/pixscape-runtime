@@ -4,6 +4,21 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class FrameRenderQueueTest {
+    @Test public void participationFollowsQueueSwapsGrowthAndSlotReuse() {
+        FrameRenderQueue q=new FrameRenderQueue(1);
+        q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_VFX,0,-1);
+        games.pixscape.runtime.component.ShaderParamsComponent parameters=new games.pixscape.runtime.component.ShaderParamsComponent();
+        q.shaderParameters[0]=parameters;q.ambientMaterial[0]=2;
+        q.ignoreAmbientLighting[0]=true;q.ensureCapacity(2);Assert.assertTrue(q.ignoreAmbientLighting[0]);
+        Assert.assertSame(parameters,q.shaderParameters[0]);Assert.assertEquals(2,q.ambientMaterial[0]);
+        q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_ECS,0,1);
+        q.swap(0,1);Assert.assertFalse(q.ignoreAmbientLighting[0]);Assert.assertTrue(q.ignoreAmbientLighting[1]);
+        Assert.assertSame(parameters,q.shaderParameters[1]);Assert.assertNull(q.shaderParameters[0]);Assert.assertEquals(2,q.ambientMaterial[1]);
+        q.clear();q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_ECS,0,1);
+        Assert.assertFalse(q.ignoreAmbientLighting[0]);
+        Assert.assertNull(q.shaderParameters[0]);Assert.assertEquals(0,q.ambientMaterial[0]);
+        q.reset();Assert.assertNull(q.shaderParameters[1]);
+    }
 
     @Test
     public void setCapacityAllocatesAllFieldsAndClearsSize() {

@@ -13,6 +13,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
  * Copies finalized draw-list source slots into draw-ready frame queue data.
  */
 public final class RenderExtractFrameQueueSystem extends BaseSystem implements ProfiledSystem {
+    private com.artemis.ComponentMapper<games.pixscape.runtime.component.ShaderParamsComponent> mShaderParams;
     private final DynamicEntityRenderState ecsState;
     private final TiledMapRenderState tiledState;
     private final VfxRenderState vfxState;
@@ -173,6 +174,8 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 sourceEntity
         );
         frameQueue.light[frameQueue.size - 1] = ecsState.light[renderSlot];
+        frameQueue.shaderParameters[frameQueue.size - 1] = sourceEntity >= 0 && mShaderParams != null
+                ? mShaderParams.getSafe(sourceEntity, null) : null;
     }
 
     private void addTiledQuad(int tiledRenderRef) {
@@ -240,6 +243,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 index,
                 -1
         );
+        frameQueue.ignoreAmbientLighting[frameQueue.size - 1] = vfxState.ignoreAmbientLighting[index];
     }
 
     private void resolveLayerDisplayOffset(int layerIndex) {

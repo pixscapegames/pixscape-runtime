@@ -834,6 +834,10 @@
           "type": "boolean",
           "default": true
         },
+        "ignoreAmbientLighting": {
+          "type": "boolean",
+          "default": false
+        },
         "autoRemoveWhenComplete": {
           "type": "boolean",
           "default": false

@@ -17,11 +17,12 @@ public final class WorldLightComposition implements Disposable {
     private final IntBuffer integers = BufferUtils.newIntBuffer(4);
     private final FloatBuffer zeroColor = BufferUtils.newFloatBuffer(4);
     private final int[] viewport = new int[4];
-    private FrameBuffer original, field;
+    private FrameBuffer original, field, ambientContribution;
     private ShaderProgram shader;
     private Mesh quad;
     private int framebuffer, width, height;
-    private boolean scissor, active;
+    private boolean scissor, active, hasAmbientContribution, blend;
+    private int blendSrc, blendDst, blendSrcAlpha, blendDstAlpha, blendEquation, blendEquationAlpha;
 
     public void prepare() {
         if (Gdx.gl30 == null) throw new IllegalStateException("World light composition requires GL3 / GLES3 / WebGL2 and blendable RGBA16F");
@@ -37,7 +38,7 @@ public final class WorldLightComposition implements Disposable {
                 String version = Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Desktop
                         ? "#version 330 core\n" : "#version 300 es\nprecision highp float;\nprecision highp sampler2D;\n";
                 shader = new ShaderProgram(version + "in vec2 a_position; in vec2 a_texCoord0; out vec2 uv; void main(){uv=a_texCoord0;gl_Position=vec4(a_position,0.,1.);}",
-                        version + "in vec2 uv; uniform sampler2D u_original; uniform sampler2D u_field; uniform vec3 u_ambient; uniform int u_probe; uniform vec4 u_probeColor; out vec4 fragColor; void main(){if(u_probe==1){fragColor=u_probeColor;return;} if(u_probe==2){fragColor=texture(u_field,uv)*.5;return;} vec4 c=texture(u_original,uv);fragColor=vec4(c.rgb*(u_ambient+texture(u_field,uv).rgb),c.a);}");
+                        version + "in vec2 uv; uniform sampler2D u_original; uniform sampler2D u_field; uniform sampler2D u_ambientContribution; uniform int u_hasAmbientContribution; uniform vec3 u_ambient; uniform int u_probe; uniform vec4 u_probeColor; out vec4 fragColor; void main(){if(u_probe==1){fragColor=u_probeColor;return;} if(u_probe==2){fragColor=texture(u_field,uv)*.5;return;} vec4 c=texture(u_original,uv);vec3 rgb=c.rgb*(u_ambient+texture(u_field,uv).rgb);if(u_hasAmbientContribution==1)rgb+=texture(u_ambientContribution,uv).rgb;fragColor=vec4(rgb,c.a);}");
                 if (!shader.isCompiled()) throw new IllegalStateException(shader.getLog());
                 quad = new Mesh(true, 4, 6, VertexAttribute.Position(), VertexAttribute.TexCoords(0));
                 // Position() has three components.
@@ -48,29 +49,36 @@ public final class WorldLightComposition implements Disposable {
             }
             int w = Math.max(1, viewport[2]), h = Math.max(1, viewport[3]);
             if (w != width || h != height) allocate(w, h);
-        } catch (RuntimeException failure) {
+        } catch (RuntimeException | Error failure) {
             dispose();
             throw failure;
-        } finally { restoreTarget(); }
+        } finally { restoreTarget(); restoreBlend(); }
     }
 
     private void allocate(int w, int h) {
         FrameBuffer nextOriginal = new FrameBuffer(Pixmap.Format.RGBA8888, w, h, false);
         FrameBuffer nextField = null;
+        FrameBuffer nextContribution = null;
         try {
             GLFrameBuffer.FrameBufferBuilder builder = new GLFrameBuffer.FrameBufferBuilder(w, h);
             builder.addFloatAttachment(GL30.GL_RGBA16F, GL20.GL_RGBA, GL20.GL_FLOAT, true);
             nextField = builder.build();
+            GLFrameBuffer.FrameBufferBuilder contributionBuilder = new GLFrameBuffer.FrameBufferBuilder(w, h);
+            contributionBuilder.addFloatAttachment(GL30.GL_RGBA16F, GL20.GL_RGBA, GL20.GL_FLOAT, true);
+            nextContribution = contributionBuilder.build();
             nextOriginal.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             nextField.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        } catch (RuntimeException failure) {
+            nextContribution.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        } catch (RuntimeException | Error failure) {
             nextOriginal.dispose();
             if (nextField != null) nextField.dispose();
+            if (nextContribution != null) nextContribution.dispose();
             throw new IllegalStateException("RGBA16F world lighting is unavailable; no lower precision fallback", failure);
         }
         if (original != null) original.dispose();
         if (field != null) field.dispose();
-        original = nextOriginal; field = nextField; width = w; height = h;
+        if (ambientContribution != null) ambientContribution.dispose();
+        original = nextOriginal; field = nextField; ambientContribution = nextContribution; width = w; height = h;
     }
 
     /** Cold numerical check: unclamped accumulation, alpha masking, then RGBA8 readback. */
@@ -78,6 +86,7 @@ public final class WorldLightComposition implements Disposable {
         bindAndClear(field);
         shader.bind(); shader.setUniformi("u_probe", 1);
         shader.setUniformi("u_original", 0); shader.setUniformi("u_field", 1);
+        shader.setUniformi("u_ambientContribution", 0);shader.setUniformi("u_hasAmbientContribution", 0);
         // WebGL rejects attachment feedback even when a dynamic shader branch does not sample it.
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE1); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
@@ -101,7 +110,12 @@ public final class WorldLightComposition implements Disposable {
 
     public void beginOriginal() {
         if (original == null) throw new IllegalStateException("prepare() must run before world submission");
-        saveTarget(); active = true; bindAndClear(original);
+        saveTarget(); active = true; hasAmbientContribution = false; bindAndClear(original);
+    }
+    /** Exactly one ordered visual contribution pass, after the existing light field. */
+    public void beginAmbientContribution() {
+        if (!active || hasAmbientContribution) throw new IllegalStateException("Ambient contribution requires one active world submission");
+        hasAmbientContribution = true; bindAndClear(ambientContribution);
     }
     public void beginField() { bindAndClear(field); }
     public Texture originalTexture() { return original.getColorBufferTexture(); }
@@ -115,16 +129,21 @@ public final class WorldLightComposition implements Disposable {
 
     public void compose(float r, float g, float b, RenderStats stats) {
         restoreTarget();
-        active = false;
         original.getColorBufferTexture().bind(0); field.getColorBufferTexture().bind(1);
         shader.bind(); shader.setUniformi("u_original", 0); shader.setUniformi("u_field", 1);
         shader.setUniformi("u_probe", 0); shader.setUniformf("u_ambient", r, g, b);
+        // Inactive frames never bind/sample the previous contribution target.
+        shader.setUniformi("u_hasAmbientContribution", hasAmbientContribution ? 1 : 0);
+        shader.setUniformi("u_ambientContribution", hasAmbientContribution ? 2 : 0);
+        if (hasAmbientContribution) ambientContribution.getColorBufferTexture().bind(2);
         // The original buffer contains premultiplied RGB and independent world coverage.
-        Gdx.gl.glEnable(GL20.GL_BLEND); Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glEnable(GL20.GL_BLEND); Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
+        Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
         draw(); Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        active = false;
         if (stats != null) {
-            stats.drawCalls++; stats.textureBinds += 2; stats.shaderBinds++;
-            stats.framebufferBinds += 3; stats.framebufferSwitches += 3;
+            stats.drawCalls++; stats.textureBinds += hasAmbientContribution ? 3 : 2; stats.shaderBinds++;
+            stats.framebufferBinds += hasAmbientContribution ? 4 : 3; stats.framebufferSwitches += hasAmbientContribution ? 4 : 3;
         }
     }
 
@@ -141,22 +160,35 @@ public final class WorldLightComposition implements Disposable {
         integers.clear(); Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
         for (int i = 0; i < 4; i++) viewport[i] = integers.get(i);
         scissor = Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST);
+        // These passes only toggle scissor enable; never alter its box. Keeping it untouched
+        // also avoids GL_SCISSOR_BOX, which LibGDX's WebGL backend cannot query.
+        blend=Gdx.gl.glIsEnabled(GL20.GL_BLEND);
+        blendSrc=readInteger(GL20.GL_BLEND_SRC_RGB);blendDst=readInteger(GL20.GL_BLEND_DST_RGB);
+        blendSrcAlpha=readInteger(GL20.GL_BLEND_SRC_ALPHA);blendDstAlpha=readInteger(GL20.GL_BLEND_DST_ALPHA);
+        blendEquation=readInteger(GL20.GL_BLEND_EQUATION_RGB);blendEquationAlpha=readInteger(GL20.GL_BLEND_EQUATION_ALPHA);
     }
     private void restoreTarget() {
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, framebuffer);
         Gdx.gl.glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST); else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
-    public void end() { if (active) { restoreTarget(); active = false; } }
+    private int readInteger(int name){integers.clear();Gdx.gl.glGetIntegerv(name,integers);return integers.get(0);}
+    private void restoreBlend(){
+        Gdx.gl.glBlendEquationSeparate(blendEquation,blendEquationAlpha);
+        Gdx.gl.glBlendFuncSeparate(blendSrc,blendDst,blendSrcAlpha,blendDstAlpha);
+        if(blend)Gdx.gl.glEnable(GL20.GL_BLEND);else Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+    public void end() { if (active) { restoreTarget(); restoreBlend(); active = false; } }
     public void end(Throwable failure) {
         if (failure == null) { end(); return; }
         try { end(); }
         catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
     }
-    public long textureBytes() { return (long) width * height * 12; }
+    public long textureBytes() { return (long) width * height * 20; }
     public void dispose() {
         end(); if (original != null) original.dispose(); if (field != null) field.dispose();
+        if (ambientContribution != null) ambientContribution.dispose();
         if (quad != null) quad.dispose(); if (shader != null) shader.dispose();
-        original = field = null; quad = null; shader = null; width = height = 0;
+        original = field = ambientContribution = null; quad = null; shader = null; width = height = 0; hasAmbientContribution = false;
     }
 }

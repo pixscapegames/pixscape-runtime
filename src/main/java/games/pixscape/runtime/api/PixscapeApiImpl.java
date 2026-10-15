@@ -2360,6 +2360,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleFacade setIgnoreAmbientLighting(boolean ignore) {
+            ParticleEmitterComponent c = emitter(true);
+            if (c != null) c.ignoreAmbientLighting = ignore;
+            return this;
+        }
+
+        @Override
+        public boolean isIgnoringAmbientLighting() {
+            ParticleEmitterComponent c = emitter(false);
+            return c != null && c.ignoreAmbientLighting;
+        }
+
+        @Override
         public ParticleFacade play() {
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
