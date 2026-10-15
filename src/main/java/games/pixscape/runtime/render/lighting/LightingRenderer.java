@@ -152,7 +152,10 @@ public final class LightingRenderer {
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
                 int blend=queue.blend[i];if(blend==3 || blend==4)continue;
                 LightingSurface s=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
-                if(s==null || frame.diagnostic==0 && !s.receiveLight)s=missing;
+                if(s==null || frame.diagnostic==0 && !s.receiveLight){
+                    // Unlit ordinary images still mask light with their actual four-corner coverage.
+                    missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
+                    s=missing;}
                 quad[0]=queue.x1[i];quad[1]=queue.y1[i];quad[2]=queue.x2[i];quad[3]=queue.y2[i];
                 quad[4]=queue.x3[i];quad[5]=queue.y3[i];quad[6]=queue.x4[i];quad[7]=queue.y4[i];
                 boolean supported=ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE && queue.repeatFlags[i]==0;

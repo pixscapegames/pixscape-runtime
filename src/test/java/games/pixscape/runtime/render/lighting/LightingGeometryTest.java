@@ -7,6 +7,44 @@ import games.pixscape.runtime.tiled.*;
 import org.junit.*;
 
 public class LightingGeometryTest {
+    @Test public void onlyOrdinaryImagesPublishSimpleQuadTopologyAndRefreshEveryCorner(){
+        games.pixscape.runtime.render.DynamicEntityRenderState dynamic=new games.pixscape.runtime.render.DynamicEntityRenderState(4);
+        games.pixscape.runtime.render.TiledMapRenderState tiled=new games.pixscape.runtime.render.TiledMapRenderState(4);
+        games.pixscape.runtime.render.FrameRenderQueue queue=new games.pixscape.runtime.render.FrameRenderQueue(4);
+        games.pixscape.runtime.render.LayerStateSOA layers=new games.pixscape.runtime.render.LayerStateSOA(1);layers.enabled[0]=true;
+        com.artemis.World world=new com.artemis.World(new com.artemis.WorldConfigurationBuilder().with(
+                new games.pixscape.runtime.system.LightingGeometrySystem(dynamic,tiled,queue,layers)).build());
+        try {
+            int e=world.create(),slot=dynamic.acquireSlotForEntity(e);dynamic.enabled[slot]=true;
+            float[] q={-7,3,-4,19,18,22,22,3};
+            for(int moved=-1;moved<4;moved++){
+                if(moved>=0){q[moved*2]+=3;q[moved*2+1]-=2;}
+                dynamic.x1[slot]=q[0];dynamic.y1[slot]=q[1];dynamic.x2[slot]=q[2];dynamic.y2[slot]=q[3];
+                dynamic.x3[slot]=q[4];dynamic.y3[slot]=q[5];dynamic.x4[slot]=q[6];dynamic.y4[slot]=q[7];world.process();
+                LightingSurface s=queue.lighting.entities.get(e);Assert.assertTrue(s.imageQuad);Assert.assertEquals(48,s.vertices.length);
+                Assert.assertFalse(s.shadowCaster);Assert.assertEquals(0,queue.lighting.casters.size);
+                int[] corners={0,1,2,0,2,3};for(int i=0;i<6;i++){
+                    Assert.assertEquals(q[corners[i]*2],LightingCoordinates.screenX(s.vertices[i*8],s.vertices[i*8+1]),.0001f);
+                    Assert.assertEquals(q[corners[i]*2+1],LightingCoordinates.screenY(s.vertices[i*8],s.vertices[i*8+1],s.vertices[i*8+2]),.0001f);
+                }
+            }
+            games.pixscape.runtime.component.SurfaceLightingComponent authored=world.getMapper(games.pixscape.runtime.component.SurfaceLightingComponent.class).create(e);
+            authored.shadowCaster=true;authored.receiveLight=false;world.process();
+            LightingSurface s=queue.lighting.entities.get(e);Assert.assertTrue(s.imageQuad);Assert.assertFalse(s.receiveLight);
+            Assert.assertEquals(1,queue.lighting.casters.size);Assert.assertSame(s,queue.lighting.casters.first().surface);
+            LocalSurfaceDescription local=new LocalSurfaceDescription();local.xyz=new float[]{0,0,0,1,0,0,0,1,0};
+            local.uv=new float[]{0,0,1,0,0,1};local.normals=new float[]{0,0,1,0,0,1,0,0,1};local.triangles=new int[]{0,1,2};
+            Assert.assertFalse(LocalSurfaceCompiler.compile(local,0,0,0).imageQuad);
+            TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);
+            MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,null);
+            Assert.assertFalse(geometry.receiver(map,0,0,7,(byte)0,q).imageQuad);
+            games.pixscape.runtime.component.DimensionsComponent dim=world.getMapper(games.pixscape.runtime.component.DimensionsComponent.class).create(e);
+            dim.width=dim.height=2;
+            local.xyz=new float[]{-.5f,.5f,0,.5f,-.5f,0,-.5f,.5f,2};
+            authored.description=local;world.process();Assert.assertFalse(queue.lighting.entities.get(e).imageQuad);
+            authored.description=null;world.process();Assert.assertTrue(queue.lighting.entities.get(e).imageQuad);
+        } finally {world.dispose();}
+    }
     @Test public void absoluteAltitudeAndImageProjectionRemainConsistent(){
         TiledMapLayerData map=new TiledMapLayerData(40,40,256,128,16,TiledProjection.ISO);
         map.originX=17;map.originY=-36;map.defaultTileAltitude=128;

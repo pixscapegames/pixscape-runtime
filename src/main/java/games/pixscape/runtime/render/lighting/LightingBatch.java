@@ -122,7 +122,11 @@ final class LightingBatch {
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
             data[o+14]=surface.twoSided?1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
-            if(quad!=null){data[o+16]=quad[0]+u*(quad[6]-quad[0])+v*(quad[2]-quad[0]);
+            // Simple sheets share the color triangles BL-TL-TR / BL-TR-BR, including a freely moved TR.
+            // Local descriptions and tile receivers keep their existing UV topology and placement.
+            if(quad!=null && surface.imageQuad){int c=SpriteSurfaceSupport.corner(i/8)*2;
+                data[o+16]=quad[c];data[o+17]=quad[c+1];}
+            else if(quad!=null){data[o+16]=quad[0]+u*(quad[6]-quad[0])+v*(quad[2]-quad[0]);
                 data[o+17]=quad[1]+u*(quad[7]-quad[1])+v*(quad[3]-quad[1]);}
             else{data[o+16]=LightingCoordinates.screenX(source[i],source[i+1])+offsetX;
                 data[o+17]=LightingCoordinates.screenY(source[i],source[i+1],source[i+2])+offsetY;}

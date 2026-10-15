@@ -52,6 +52,8 @@ public final class LightingBatchBackendCheck {
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
                         for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
+                    assertDeformedImageVertices(nativeBatch);
+                    assertDeformedImageVertices(htmlBatch);
                 }catch(Throwable error){failure[0]=error;}
                 finally {
                     Gdx.app=htmlApp==null?nativeApp:htmlApp;if(htmlBatch!=null)htmlBatch.dispose();
@@ -60,6 +62,44 @@ public final class LightingBatchBackendCheck {
             }
         },cfg);
         if(failure[0]!=null)throw new AssertionError("Backend vertex equivalence failed",failure[0]);
+    }
+    private static void assertDeformedImageVertices(LightingBatch batch)throws Exception {
+        Field dataField=LightingBatch.class.getDeclaredField("data");dataField.setAccessible(true);
+        Field count=LightingBatch.class.getDeclaredField("vertices");count.setAccessible(true);
+        // The final queue includes a presentation offset; reception XYZ must keep its original pose.
+        float[] base={-7,3,-4,19,25,19,22,3};int[] corners={0,1,2,0,2,3};
+        for(int moved=-1;moved<4;moved++)for(boolean mapped:new boolean[]{false,true}){
+            float[] q=base.clone();if(moved>=0){q[moved*2]+=7;q[moved*2+1]-=5;}
+            LightingSurface s=new LightingSurface(new float[48]);s.twoSided=true;
+            SpriteSurfaceSupport.sheet(s.vertices,q,.5f,0,13,1,-1);
+            float[] original=s.vertices.clone(),presented=q.clone();
+            for(int c=0;c<4;c++){presented[c*2]+=11;presented[c*2+1]-=9;}
+            int stride=mapped?25:18;
+            batch.abort();if(mapped)batch.beginMapped(null,null);else batch.begin(null,null);
+            batch.draw(s,17,.2f,.3f,.7f,.9f,Color.WHITE.toFloatBits(),1,presented,0,0,false,true);
+            float[] legacy=java.util.Arrays.copyOf((float[])dataField.get(batch),6*stride);
+            s.imageQuad=true;
+            batch.abort();if(mapped)batch.beginMapped(null,null);else batch.begin(null,null);
+            batch.draw(s,17,.2f,.3f,.7f,.9f,Color.WHITE.toFloatBits(),1,presented,0,0,false,true);
+            float[] data=(float[])dataField.get(batch);Assert.assertEquals(6,count.getInt(batch));
+            for(int i=0;i<6;i++){
+                int o=i*stride,c=corners[i]*2;
+                Assert.assertEquals(presented[c],data[o+16],0);Assert.assertEquals(presented[c+1],data[o+17],0);
+                Assert.assertEquals(LightingCoordinates.screenX(original[i*8],original[i*8+1])+11,data[o+16],.0001f);
+                Assert.assertEquals(LightingCoordinates.screenY(original[i*8],original[i*8+1],original[i*8+2])-9,data[o+17],.0001f);
+                for(int k=0;k<stride;k++)if(k!=16 && k!=17)
+                    Assert.assertEquals("Only screen placement may change",Float.floatToRawIntBits(legacy[o+k]),Float.floatToRawIntBits(data[o+k]));
+            }
+            Assert.assertArrayEquals(original,s.vertices,0);
+            // Casters ignore the image topology flag and continue using their prepared XYZ.
+            batch.abort();batch.begin(null,null);
+            batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
+            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*18);
+            s.imageQuad=false;batch.abort();batch.begin(null,null);
+            batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
+            for(int i=0;i<caster.length;i++)Assert.assertEquals(caster[i],((float[])dataField.get(batch))[i],0);
+        }
+        batch.abort();
     }
     public static void assertReplayEligibilityUsesBatchLimits() {
         final Throwable[] failure={null};

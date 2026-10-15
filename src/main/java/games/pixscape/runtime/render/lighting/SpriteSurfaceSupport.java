@@ -13,7 +13,7 @@ public final class SpriteSurfaceSupport {
             write(vertices,o,px,py,q[c*2+1]-(px+py)*.5f,c,nx,ny,0);
         }
     }
-    private static int corner(int i){return i==0||i==3?0:i==1?1:i==2||i==4?2:3;}
+    static int corner(int i){return i==0||i==3?0:i==1?1:i==2||i==4?2:3;}
     private static void write(float[] a,int o,float x,float y,float z,int c,float nx,float ny,float nz){
         a[o]=x;a[o+1]=y;a[o+2]=z;a[o+3]=c>=2?1:0;a[o+4]=c==1||c==2?1:0;
         a[o+5]=nx;a[o+6]=ny;a[o+7]=nz;

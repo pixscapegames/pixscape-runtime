@@ -73,6 +73,11 @@ public class NormalMapGlSmokeTest {
                     s.normalMap=normals.resolve(2);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();assertPixel(transformedX[flags]);
                     s.normalMap=normals.resolve(1);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();assertPixel(expected[0]);
                 }
+                // Moving TR alone changes coverage, without inventing a new image-space normal convention.
+                s.imageQuad=true;s.normalMap=normals.resolve(2);
+                q.x1[0]=q.x2[0]=0;q.x4[0]=64;q.x3[0]=44;
+                q.y1[0]=q.y4[0]=0;q.y2[0]=32;q.y3[0]=22;
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();assertPixel(expected[1]);
                 // A normal-mapped ground receiver keeps its original geometric positions.
                 q.x1[0]=q.x2[0]=0;q.x3[0]=q.x4[0]=64;q.y1[0]=q.y4[0]=0;q.y2[0]=q.y3[0]=32;q.lighting.diagnostic=0;
                 var receiverMap=new games.pixscape.runtime.tiled.TiledMapLayerData(4,4,8,4,4,games.pixscape.runtime.tiled.TiledProjection.ISO);

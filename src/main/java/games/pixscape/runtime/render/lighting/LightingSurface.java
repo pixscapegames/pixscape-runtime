@@ -4,6 +4,8 @@ package games.pixscape.runtime.render.lighting;
 public final class LightingSurface {
     public final float[] vertices;
     public boolean receiveLight = true, shadowCaster, twoSided, approximate;
+    /** Derived simple-sheet topology: six vertices in SpriteSurfaceSupport.corner order, never a local mesh/tile. */
+    public boolean imageQuad;
     public float alphaThreshold = .5f;
     public int ownerEntity=-1;
     /** Lighting normal only; geometric vertex normals remain authoritative for shadows. */
