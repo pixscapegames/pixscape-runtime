@@ -69,6 +69,7 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals(6, world.getMapper(EntityIndexComponent.class).get(child).zIndex);
         Assert.assertTrue(world.getMapper(PointLightComponent.class).has(light));
         Assert.assertTrue(world.getMapper(ConeLightComponent.class).has(light));
+        Assert.assertEquals(-33.5f, world.getMapper(ConeLightComponent.class).get(light).inclinationDeg, 0f);
 
         PropertySet properties = world.getMapper(CustomPropertiesComponent.class)
                 .get(root).properties;
@@ -239,6 +240,7 @@ public class GameObjectHierarchySpawnTest {
         light.pointLight = new GameObjectAsset.PointLightData();
         light.pointLight.enabled = true;
         light.coneLight = new GameObjectAsset.ConeLightData();
+        light.coneLight.inclinationDeg = -33.5f;
         light.coneLight.enabled = true;
         asset.entities.add(root);
         asset.entities.add(child);

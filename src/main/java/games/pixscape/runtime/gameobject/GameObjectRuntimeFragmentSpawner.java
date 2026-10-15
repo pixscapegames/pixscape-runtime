@@ -396,6 +396,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.r = data.coneLight.r; light.g = data.coneLight.g; light.b = data.coneLight.b;
             light.intensity = data.coneLight.intensity; light.radius = data.coneLight.radius;
             light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
+            light.inclinationDeg = data.coneLight.inclinationDeg;
             light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
             light.height=data.coneLight.height;light.shadowQuality=data.coneLight.shadowQuality;light.shadowResolution=data.coneLight.shadowResolution;

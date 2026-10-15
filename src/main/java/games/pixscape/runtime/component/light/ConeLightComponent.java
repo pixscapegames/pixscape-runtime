@@ -3,6 +3,8 @@ package games.pixscape.runtime.component.light;
 import com.artemis.PooledComponent;
 
 public class ConeLightComponent extends PooledComponent {
+    public static final float MIN_INCLINATION_DEG = -90f;
+    public static final float MAX_INCLINATION_DEG = 90f;
 
     // Linear color
     public float r = 1f;
@@ -20,6 +22,9 @@ public class ConeLightComponent extends PooledComponent {
 
     // Direction (deg, 0 = +X)
     public float rotationDeg = 0f;
+
+    /** Elevation from the horizontal XY plane; positive toward +Z, in -90..90 degrees. */
+    public float inclinationDeg = 0f;
 
     // Cone edge softening (0..1)
     public float softness = 0.1f;
@@ -43,6 +48,7 @@ public class ConeLightComponent extends PooledComponent {
         radius = 200f;
         coneAngleDeg = 45f;
         rotationDeg = 0f;
+        inclinationDeg = 0f;
         softness = 0.1f;
         falloff = 1.5f;
         enabled = true;

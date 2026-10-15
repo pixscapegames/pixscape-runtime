@@ -41,8 +41,12 @@ A light's native quad center supplies its ground XY, independently of image
 culling; `height` supplies Z. Radius bounds the 3D attenuation sphere. Cone
 direction uses the resolved quad's horizontal axis, including hierarchy
 rotation, converted to common XY and normalized. Opening is the full angle of
-the 3D cone around this horizontal direction, with the existing softness band.
-There is no editable inclination. Logical/layer/hierarchy visibility and the
+the 3D cone around its axis, with the existing softness band. `inclinationDeg`
+elevates the normalized XY direction by -90..90 degrees: 0 is horizontal,
+-90 points down and +90 points up. Its default is 0; parent XY transforms
+change azimuth, independently of this inclination. Source position, range,
+shading normals and the existing cube shadow passes are unchanged.
+Logical/layer/hierarchy visibility and the
 light's enabled flag still apply; camera culling does not remove its influence.
 
 ## Authored geometry and derived preparation

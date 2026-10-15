@@ -167,14 +167,19 @@ public final class LightingGeometrySystem extends BaseSystem {
         finite(l.r);finite(l.g);finite(l.b);finite(l.intensity);finite(l.falloff);
         if(l.intensity<0 || l.falloff<=0)throw new IllegalArgumentException("Light intensity must be nonnegative and falloff positive");
         if(c!=null){
-            finite(c.coneAngleDeg);finite(c.softness);
+            finite(c.coneAngleDeg);finite(c.softness);finite(c.inclinationDeg);
+            if(c.inclinationDeg<ConeLightComponent.MIN_INCLINATION_DEG || c.inclinationDeg>ConeLightComponent.MAX_INCLINATION_DEG)
+                throw new IllegalArgumentException("Cone inclination must be within -90..90 degrees");
             if(c.coneAngleDeg<=0 || c.coneAngleDeg>360)throw new IllegalArgumentException("Cone opening must be within (0,360]");
-            // Existing cone direction is an angle in the drawn XY plane, with no new inclination.
-            // Resolved quad direction includes the hierarchy's effective rotation.
+            // Preserve the authored screen azimuth, including the hierarchy's effective rotation.
             float angle=(float)Math.atan2(dynamic.y4[slot]-dynamic.y1[slot],dynamic.x4[slot]-dynamic.x1[slot]);
             float x=MathUtils.cos(angle),y=MathUtils.sin(angle);
             l.dx=y+x*.5f;l.dy=y-x*.5f;l.dz=0;
             float len=(float)Math.sqrt(l.dx*l.dx+l.dy*l.dy);l.dx/=len;l.dy/=len;
+            if(c.inclinationDeg!=0f){
+                float horizontal=Math.abs(c.inclinationDeg)==90f?0f:MathUtils.cosDeg(c.inclinationDeg);
+                l.dx*=horizontal;l.dy*=horizontal;l.dz=MathUtils.sinDeg(c.inclinationDeg);
+            }
             l.cosOuter=MathUtils.cos(c.coneAngleDeg*.5f*MathUtils.degreesToRadians);
             l.cosInner=MathUtils.cos(c.coneAngleDeg*.5f*(1-MathUtils.clamp(c.softness,0,1))*MathUtils.degreesToRadians);
         }

@@ -95,6 +95,7 @@ public final class GameObjectAsset {
     }
     public static final class ConeLightData {
         public float height=128f;
+        public float inclinationDeg;
         public int shadowQuality=1,shadowResolution=512;
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;

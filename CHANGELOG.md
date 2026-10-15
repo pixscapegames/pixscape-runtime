@@ -13,6 +13,8 @@
 
 ### Added
 
+* Added per-instance ambient lighting exemption for particles, preserving transparency, blending and spatial order.
+* Added continuous cone light inclination from -90 to +90 degrees.
 * Added desktop tile normal mapping, with per-tile normals independent of shared color images and atlas layout.
 * Associated normal-map atlases and resources are loaded before a scene becomes ready.
 * Added a 1,024-row RGBA32F table with up to 16 float parameters per material shader, default row, flat vertex row selection, and generated GLSL parameter-name defines for project shaders.
@@ -31,6 +33,7 @@
 
 ### Fixed
 
+* Fixed lighting alignment on deformed images.
 * Completed lighting coverage for tile artwork extending beyond described surfaces.
 * Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
 * Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
