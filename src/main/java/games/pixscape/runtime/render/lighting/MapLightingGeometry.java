@@ -138,12 +138,61 @@ public final class MapLightingGeometry {
             System.arraycopy(t, 0, data, offset, t.length); offset += t.length;
         }
         LightingSurface surface = new LightingSurface(data); surface.approximate = true;
+        surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude);
         cached = new Receiver(); cached.quad = LocalSurfaceDescription.copy(quad); cached.flags = flags; cached.assetId=assetId; cached.surface = surface;
         receivers.put(cell, cached);
         return surface;
     }
 
     private static long key(int x, int y) { return ((long)x << 32) ^ (y & 0xffffffffL); }
+    /** Cold coverage-only approximation. Extrapolates the closest existing UV facet into each
+     * previously undescribed triangle. It never changes a valid vertex or any caster geometry.
+     * An image extending beyond its authored volume does not determine a unique physical depth;
+     * the batch marks these extensions separately in the existing coverage diagnostic. */
+    static float[] completeReceiverVertices(float[] source,float[] quad,float altitude){
+        boolean missing=false;
+        for(int i=0;i<source.length;i+=24)if(missingNormal(source,i)){missing=true;break;}
+        if(!missing)return null;
+        float[] result=LocalSurfaceDescription.copy(source);
+        for(int i=0;i<source.length;i+=24){
+            if(!missingNormal(source,i))continue;
+            float u=(source[i+3]+source[i+11]+source[i+19])/3,v=(source[i+4]+source[i+12]+source[i+20])/3;
+            int nearest=-1;float distance=Float.POSITIVE_INFINITY;
+            for(int j=0;j<source.length;j+=24){
+                if(missingNormal(source,j))continue;
+                float ax=source[j+11]-source[j+3],ay=source[j+12]-source[j+4],bx=source[j+19]-source[j+3],by=source[j+20]-source[j+4];
+                float determinant=ax*by-ay*bx;
+                if(Math.abs(determinant)<.00000001f)continue;
+                float px=u-source[j+3],py=v-source[j+4],a=(px*by-py*bx)/determinant,b=(ax*py-ay*px)/determinant;
+                float d=0;
+                if(a<0||b<0||a+b>1){
+                    d=Math.min(edgeDistance(u,v,source,j,j+8),Math.min(edgeDistance(u,v,source,j+8,j+16),edgeDistance(u,v,source,j+16,j)));
+                }
+                if(d<distance){distance=d;nearest=j;}
+            }
+            for(int k=i;k<i+24;k+=8){
+                if(nearest<0){
+                    if(quad==null)throw new IllegalArgumentException("Surface coverage has no valid geometric facet");
+                    float sx=quad[0]+source[k+3]*(quad[6]-quad[0])+source[k+4]*(quad[2]-quad[0]);
+                    float sy=quad[1]+source[k+3]*(quad[7]-quad[1])+source[k+4]*(quad[3]-quad[1]);
+                    result[k]=LightingCoordinates.worldX(sx,sy,altitude);result[k+1]=LightingCoordinates.worldY(sx,sy,altitude);result[k+2]=altitude;
+                    result[k+5]=result[k+6]=0;result[k+7]=1;
+                }else{
+                    int j=nearest;float ax=source[j+11]-source[j+3],ay=source[j+12]-source[j+4],bx=source[j+19]-source[j+3],by=source[j+20]-source[j+4];
+                    float determinant=ax*by-ay*bx,px=source[k+3]-source[j+3],py=source[k+4]-source[j+4];
+                    float a=(px*by-py*bx)/determinant,b=(ax*py-ay*px)/determinant;
+                    for(int c=0;c<3;c++){result[k+c]=source[j+c]+a*(source[j+8+c]-source[j+c])+b*(source[j+16+c]-source[j+c]);result[k+5+c]=source[j+5+c];}
+                }
+            }
+        }
+        return result;
+    }
+    private static boolean missingNormal(float[] vertices,int offset){return vertices[offset+5]==0&&vertices[offset+6]==0&&vertices[offset+7]==0;}
+    private static float edgeDistance(float u,float v,float[] p,int a,int b){
+        float dx=p[b+3]-p[a+3],dy=p[b+4]-p[a+4],length=dx*dx+dy*dy;
+        float t=length<.00000001f?0:Math.max(0,Math.min(1,((u-p[a+3])*dx+(v-p[a+4])*dy)/length));
+        float x=u-p[a+3]-t*dx,y=v-p[a+4]-t*dy;return x*x+y*y;
+    }
     /** Completes a local image with unlit coverage; overlapping UV triangles are ambiguous. */
     static float[] completeLocal(float[] vertices) {
         Array<float[]> polygons=new Array<float[]>();float area=0;

@@ -434,7 +434,7 @@ public final class PixscapeEngine {
         }
         releasePendingSceneAvailability();
         pendingSceneAvailability = new SceneAvailabilityPlan(
-                fileAvailability, cfg, runtimeProjectDir, resolved);
+                fileAvailability, cfg, runtimeProjectDir, resolved,tilesetProfiles);
         activeSceneLoad = new SceneLoadHandleImpl(pendingSceneAvailability);
         return activeSceneLoad;
     }
@@ -1453,7 +1453,7 @@ public final class PixscapeEngine {
                         candidate.sceneName(),
                         runtimeProjectDir,
                         atlasRuntimeService,
-                        candidate.atlas());
+                        candidate.atlas(),candidate.normalAtlas());
                 rebindAtlas(candidate.sceneTag());
                 forceFullDirtyAfterLoad();
                 return;

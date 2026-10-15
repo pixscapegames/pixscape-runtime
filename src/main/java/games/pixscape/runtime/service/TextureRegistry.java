@@ -107,4 +107,10 @@ public final class TextureRegistry {
         id2tex.clear();
         nextId = 2;
     }
+    /** Lifecycle boundary only; releases the object reference without recycling its handle. */
+    public static void release(Texture texture) {
+        if (findHandle(texture) == WHITE_HANDLE) return;
+        Integer handle=tex2id.remove(texture);
+        if(handle!=null && handle!=WHITE_HANDLE && handle-1<id2tex.size)id2tex.set(handle-1,null);
+    }
 }

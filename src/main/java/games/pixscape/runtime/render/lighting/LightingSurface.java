@@ -6,5 +6,11 @@ public final class LightingSurface {
     public boolean receiveLight = true, shadowCaster, twoSided, approximate;
     public float alphaThreshold = .5f;
     public int ownerEntity=-1;
+    /** Lighting normal only; geometric vertex normals remain authoritative for shadows. */
+    public games.pixscape.runtime.service.NormalMapBinding normalMap;
+    /** Coverage completion only: valid geometric vertices are copied unchanged; casters use vertices. */
+    public float[] receiverVertices;
+    /** Immutable local completion for authored moving surfaces; prepared when their description changes. */
+    public float[] localReceiverVertices;
     public LightingSurface(float[] vertices) { this.vertices = vertices; }
 }

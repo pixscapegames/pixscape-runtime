@@ -5,6 +5,7 @@ import com.artemis.ComponentMapper;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -26,7 +27,24 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<PointLightComponent> points;
     private ComponentMapper<ConeLightComponent> cones;
     private ComponentMapper<DimensionsComponent> dimensions;
+    private ComponentMapper<AssetRefComponent> assetRefs;
+    private ComponentMapper<games.pixscape.runtime.component.TiledAnimationComponent> animations;
+    @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
     @com.artemis.annotations.SkipWire private GameObjectCompositionSystem composition;
+    @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.NormalMapAtlas authoringNormals;
+    @com.artemis.annotations.SkipWire private Runnable authoringNormalCleanup;
+    /** Cold isolated authoring-context publication; ownership ends with this World. */
+    public void publishAuthoringNormals(games.pixscape.runtime.service.NormalMapAtlas normals) {
+        publishAuthoringNormals(normals,null);
+    }
+    public void publishAuthoringNormals(games.pixscape.runtime.service.NormalMapAtlas normals,Runnable cleanup) {
+        disposeAuthoringNormals();authoringNormals=normals;authoringNormalCleanup=cleanup;
+    }
+    private void disposeAuthoringNormals(){
+        if(authoringNormals!=null)authoringNormals.dispose();authoringNormals=null;
+        if(authoringNormalCleanup!=null)authoringNormalCleanup.run();authoringNormalCleanup=null;
+    }
+    @Override protected void dispose(){disposeAuthoringNormals();}
     @Override protected void initialize(){
         composition=world.getSystem(GameObjectCompositionSystem.class);
         world.getAspectSubscriptionManager().get(com.artemis.Aspect.all()).addSubscriptionListener(
@@ -47,6 +65,10 @@ public final class LightingGeometrySystem extends BaseSystem {
     private int staticRevision=Integer.MIN_VALUE;
     public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue,LayerStateSOA layers) {
         this.dynamic=dynamic;this.tiled=tiled;frame=queue.lighting;this.layers=layers;
+    }
+    public LightingGeometrySystem(DynamicEntityRenderState dynamic,TiledMapRenderState tiled,FrameRenderQueue queue,
+            LayerStateSOA layers,games.pixscape.runtime.service.AtlasRuntimeService atlasService){
+        this(dynamic,tiled,queue,layers);this.atlasService=atlasService;
     }
     @Override protected void processSystem() {
         long started=System.nanoTime();
@@ -91,6 +113,10 @@ public final class LightingGeometrySystem extends BaseSystem {
             LocalSurfaceDescription description=authored==null?null:authored.description;
             if(description!=localDescriptions.get(e)){
                 surface=description==null?null:LocalSurfaceCompiler.compile(description,0,0,0);
+                if(surface!=null && surface.receiverVertices!=null){
+                    surface.localReceiverVertices=surface.receiverVertices;
+                    surface.receiverVertices=LocalSurfaceDescription.copy(surface.localReceiverVertices);
+                }
                 localDescriptions.put(e,description);if(surface!=null)frame.entities.put(e,surface);
             }
             if(surface==null){surface=new LightingSurface(new float[48]);surface.twoSided=true;
@@ -102,6 +128,11 @@ public final class LightingGeometrySystem extends BaseSystem {
             corners[4]=dynamic.x3[slot];corners[5]=dynamic.y3[slot];corners[6]=dynamic.x4[slot];corners[7]=dynamic.y4[slot];
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));
+            AssetRefComponent ref=assetRefs.getSafe(e,null);
+            games.pixscape.runtime.component.TiledAnimationComponent animation=animations.getSafe(e,null);
+            int visualId=animation!=null && animation.appliedFrameAssetId>0?animation.appliedFrameAssetId:ref==null?0:ref.assetId;
+            surface.normalMap=atlasService==null || ref==null || visualId<=0?null:atlasService.resolveNormal(visualId,ref.atlasTag);
+            if(surface.normalMap==null && authoringNormals!=null)surface.normalMap=authoringNormals.resolve(visualId);
             if(surface.shadowCaster){
                 LightingFrame.Caster c=spriteCasters.get(e);
                 if(c==null){c=new LightingFrame.Caster();spriteCasters.put(e,c);}
@@ -150,19 +181,11 @@ public final class LightingGeometrySystem extends BaseSystem {
     }
     private static void finite(float value){if(Float.isNaN(value)||Float.isInfinite(value))throw new IllegalArgumentException("Light parameters must be finite");}
     private static void sheet(LightingSurface s,float[] q,SurfaceLightingComponent a){
-        float u=a==null?.5f:a.anchorU,v=a==null?0:a.anchorV,z=a==null?0:a.altitude;
-        float sx=q[0]+u*(q[6]-q[0])+v*(q[2]-q[0]),sy=q[1]+u*(q[7]-q[1])+v*(q[3]-q[1]);
-        float x=LightingCoordinates.worldX(sx,sy,z),y=LightingCoordinates.worldY(sx,sy,z);
-        float dx=a==null?1:a.directionX,dy=a==null?-1:a.directionY,den=dx-dy;
-        if(Math.abs(den)<.000001f)throw new IllegalArgumentException("Sheet direction projects to zero width");
-        float nx=-dy,ny=dx,len=(float)Math.sqrt(nx*nx+ny*ny);nx/=len;ny/=len;
-        for(int i=0;i<6;i++){
-            int corner=i==0||i==3?0:i==1?1:i==2||i==4?2:3,o=i*8;
-            float t=(q[corner*2]-sx)/den,px=x+dx*t,py=y+dy*t;
-            s.vertices[o]=px;s.vertices[o+1]=py;s.vertices[o+2]=q[corner*2+1]-(px+py)*.5f;
-            s.vertices[o+3]=corner>=2?1:0;s.vertices[o+4]=corner==1||corner==2?1:0;
-            s.vertices[o+5]=nx;s.vertices[o+6]=ny;s.vertices[o+7]=0;
-        }
+        sheet(s.vertices,q,a);
+    }
+    private static void sheet(float[] vertices,float[] q,SurfaceLightingComponent a){
+        SpriteSurfaceSupport.sheet(vertices,q,a==null?.5f:a.anchorU,a==null?0:a.anchorV,a==null?0:a.altitude,
+                a==null?1:a.directionX,a==null?-1:a.directionY);
     }
     private static void local(LightingSurface s,float[] q,SurfaceLightingComponent a,DimensionsComponent dim){
         if(dim==null || dim.width<=0 || dim.height<=0)throw new IllegalArgumentException("Local surface requires positive image dimensions");
@@ -186,6 +209,17 @@ public final class LightingGeometrySystem extends BaseSystem {
             float ny=(-g01*d.normals[k*3]+g00*d.normals[k*3+1])/determinant;
             float nz=(d.normals[k*3+2]-g02*nx-g12*ny)/zscale,len=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
             s.vertices[o+5]=nx/len;s.vertices[o+6]=ny/len;s.vertices[o+7]=nz/len;
+        }
+        // The UV topology and extrapolation are compiled once with the local description.
+        // Apply only the existing affine transform here; no facet search or allocation per frame.
+        float[] source=s.localReceiverVertices,target=s.receiverVertices;
+        if(source!=null)for(int o=0;o<source.length;o+=8){
+            float x=source[o],y=source[o+1],z=source[o+2];
+            target[o]=ox+g00*x+g01*y+g02*z;target[o+1]=oy+g10*x+g11*y+g12*z;target[o+2]=a.altitude+z*zscale;
+            float nx=(g11*source[o+5]-g10*source[o+6])/determinant;
+            float ny=(-g01*source[o+5]+g00*source[o+6])/determinant;
+            float nz=(source[o+7]-g02*nx-g12*ny)/zscale,len=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
+            target[o+5]=nx/len;target[o+6]=ny/len;target[o+7]=nz/len;
         }
     }
 }

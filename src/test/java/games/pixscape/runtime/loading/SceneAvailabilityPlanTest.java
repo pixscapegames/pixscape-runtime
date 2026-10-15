@@ -26,6 +26,23 @@ public class SceneAvailabilityPlanTest {
 
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
+    @Test public void normalAtlasIsAcquiredBeforeReadyAndReleasedWithScene() throws Exception {
+        File root=temp.newFolder("normal-atlas");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
+        RuntimeConfig config=config();var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
+        RecordingAssetManager manager=manager(root);final Map<String,TrackingAtlas> objects=new LinkedHashMap<>();
+        manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){
+            public TextureAtlas load(AssetManager m,String name,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){TrackingAtlas a=new TrackingAtlas();if(!name.contains(".normals")){var r=new TextureAtlas.AtlasRegion(new PlanTexture(),0,0,1,1);r.name="color__a7";a.getRegions().add(r);}objects.put(name,a);return a;}
+            public Array<AssetDescriptor> getDependencies(String n,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){return null;}
+        });
+        FileAvailabilityService availability=new FileAvailabilityService(manager,false);
+        SceneAvailabilityPlan plan=new SceneAvailabilityPlan(availability,config,new FileHandle(root),"A",profiles);
+        while(!plan.update()){}
+        assertEquals(1f,plan.progress(),0f);assertNotSame(plan.atlas(),plan.normalAtlas());
+        assertEquals(Integer.valueOf(1),manager.loadCounts.get(path(root,"atlases/A.normals.atlas")));
+        plan.release();for(TrackingAtlas a:objects.values())assertTrue(a.disposed);
+        assertFalse(manager.isLoaded(path(root,"atlases/A.normals.atlas")));availability.dispose();manager.dispose();
+    }
 
     @Test public void sceneAcquisitionFailureReleasesEarlierHudLeasesAndKeepsOriginalFailure() {
         RuntimeConfig config = config();
@@ -536,5 +553,9 @@ public class SceneAvailabilityPlanTest {
             disposed = true;
             super.dispose();
         }
+    }
+    private static final class PlanTexture extends com.badlogic.gdx.graphics.Texture {
+        PlanTexture(){super();}public int getWidth(){return 1;}public int getHeight(){return 1;}
+        public void dispose(){}
     }
 }

@@ -108,6 +108,36 @@ public class LightingGeometryTest {
         d.triangles=new int[]{0,1,2,0,1,2};
         try{LocalSurfaceCompiler.compile(d,0,0,0);Assert.fail();}catch(IllegalArgumentException expected){Assert.assertTrue(expected.getMessage().contains("overlap"));}
     }
+    @Test public void coverageCompletionPreservesEveryValidReceiverAndTheCasterGeometry(){
+        TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData wall=block(1,0,0,2,.25f,16);
+        wall.shadowCaster=true;wall.addLinkedTileRef(0,0,7);blocks.blocks.add(wall);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        float[] quad={-64,-32,-64,64,96,64,96,-32};LightingSurface surface=geometry.receiver(map,0,0,7,(byte)0,quad);
+        float[] original=surface.vertices.clone();Assert.assertNotNull(surface.receiverVertices);Assert.assertEquals(original.length,surface.receiverVertices.length);
+        int valid=0,completed=0;
+        for(int i=0;i<original.length;i+=8){
+            boolean missing=original[i+5]==0&&original[i+6]==0&&original[i+7]==0;float[] p=surface.receiverVertices;
+            if(!missing){valid++;for(int k=0;k<8;k++)Assert.assertEquals(Float.floatToRawIntBits(original[i+k]),Float.floatToRawIntBits(p[i+k]));}
+            else{completed++;Assert.assertTrue(p[i+5]*p[i+5]+p[i+6]*p[i+6]+p[i+7]*p[i+7]>.5f);}
+            Assert.assertEquals(original[i+3],p[i+3],0);Assert.assertEquals(original[i+4],p[i+4],0);
+            Assert.assertEquals(quad[0]+p[i+3]*(quad[6]-quad[0])+p[i+4]*(quad[2]-quad[0]),LightingCoordinates.screenX(p[i],p[i+1]),.001f);
+            Assert.assertEquals(quad[1]+p[i+3]*(quad[7]-quad[1])+p[i+4]*(quad[3]-quad[1]),LightingCoordinates.screenY(p[i],p[i+1],p[i+2]),.001f);
+        }
+        Assert.assertTrue(valid>0);Assert.assertTrue(completed>0);Assert.assertArrayEquals(original,surface.vertices,0);
+        Assert.assertSame(surface,geometry.receiver(map,0,0,7,(byte)0,quad));Assert.assertEquals(6,geometry.casters.size);
+        for(LightingSurface caster:geometry.casters)Assert.assertNull(caster.receiverVertices);
+    }
+    @Test public void fullyDescribedGroundNeedsNoCompletionAndPartialLocalSurfacesKeepTheirValidVertices(){
+        TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);map.defaultTileAltitude=42;
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,null);float[] quad={0,0,0,32,64,32,64,0};
+        LightingSurface ground=geometry.receiver(map,0,0,7,(byte)0,quad);Assert.assertNull(ground.receiverVertices);
+        for(int i=2;i<ground.vertices.length;i+=8)Assert.assertEquals(42,ground.vertices[i],0);
+        LocalSurfaceDescription d=new LocalSurfaceDescription();d.xyz=new float[]{0,0,0,32,0,0,0,0,16};d.uv=new float[]{0,0,1,0,0,1};
+        d.normals=new float[]{0,-1,0,0,-1,0,0,-1,0};d.triangles=new int[]{0,1,2};
+        LightingSurface local=LocalSurfaceCompiler.compile(d,3,7,11);Assert.assertNotNull(local.receiverVertices);
+        for(int i=0;i<24;i++)Assert.assertEquals(Float.floatToRawIntBits(local.vertices[i]),Float.floatToRawIntBits(local.receiverVertices[i]));
+    }
     private static SpatialBlockData block(int id,float x,float y,float w,float depth,float height){
         SpatialBlockData b=new SpatialBlockData();b.id=id;b.structureId=id;b.x=x;b.y=y;b.width=w;b.depth=depth;b.height=height;return b;
     }

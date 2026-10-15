@@ -13,6 +13,8 @@
 
 ### Added
 
+* Added desktop tile normal mapping, with per-tile normals independent of shared color images and atlas layout.
+* Associated normal-map atlases and resources are loaded before a scene becomes ready.
 * Added a 1,024-row RGBA32F table with up to 16 float parameters per material shader, default row, flat vertex row selection, and generated GLSL parameter-name defines for project shaders.
 * Added on-demand Spatial diagnostics for candidate tiles, face relations, rejected junction constraints, insertion bounds and fallbacks.
 
@@ -29,6 +31,7 @@
 
 ### Fixed
 
+* Completed lighting coverage for tile artwork extending beyond described surfaces.
 * Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
 * Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
 * Unified Spatial projection and inverse conversion around absolute altitude relative to the drawn map plane, applying the ISO cell anchor and display offsets once. Plane changes invalidate derived projection/order data and prepare linked Physics fixtures before publication.

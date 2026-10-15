@@ -918,8 +918,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         chunk.setRenderableLocalIndex(localIndex, true);
         games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
         if (lighting != null) {
+            games.pixscape.runtime.service.NormalMapBinding normal=atlasRuntimeService.resolveNormal(visualAssetId,atlasTag);
             games.pixscape.runtime.render.lighting.LightingSurface surface=lighting.receiver(map, gx, gy, assetId, transformFlags, tmpQuad);
             surface.ownerEntity=currentMapEntity;
+            surface.normalMap=normal;
             if(tiledState.lightingSurfaces.get(tiledRenderRef)!=surface)tiledState.lightingRevision++;
             tiledState.lightingSurfaces.put(tiledRenderRef,surface);
         }

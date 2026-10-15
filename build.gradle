@@ -40,6 +40,7 @@ tasks.named('test', Test).configure {
   exclude '**/TextraHudBatchGlPrototypeTest.class'
   exclude '**/ShaderParameterBatchGlSmokeTest.class'
   exclude '**/WorldLightCompositionGlSmokeTest.class'
+  exclude '**/NormalMapGlSmokeTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -59,6 +60,7 @@ tasks.register('lightCompositionGlSmoke', Test) {
   classpath = sourceSets.test.runtimeClasspath
   useJUnit()
   include '**/WorldLightCompositionGlSmokeTest.class'
+  include '**/NormalMapGlSmokeTest.class'
   shouldRunAfter tasks.named('test')
 }
 

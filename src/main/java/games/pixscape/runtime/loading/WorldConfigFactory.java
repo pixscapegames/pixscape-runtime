@@ -317,6 +317,8 @@ public final class WorldConfigFactory {
 
         addRenderPipelineSystems(
                 builder,
+                atlasRuntimeService,
+                tilesetProfiles,
                 camera,
                 dynamicEntityState,
                 vfxState,
@@ -431,6 +433,8 @@ public final class WorldConfigFactory {
 
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
+            AtlasRuntimeService atlasRuntimeService,
+            RuntimeTilesetProfiles tilesetProfiles,
             OrthographicCamera worldCamera,
             DynamicEntityRenderState dynamicEntityState,
             VfxRenderState vfxState,
@@ -490,7 +494,7 @@ public final class WorldConfigFactory {
         );
 
         if (submitSupplier != null) {
-            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue,layerState));
+            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue,layerState,atlasRuntimeService));
             builder.with(profiled(submitSupplier.get(), systemProfiler));
         }
     }

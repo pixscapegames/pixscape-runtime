@@ -49,6 +49,7 @@ public class AtlasRuntimeService {
 
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
+    private final ObjectMap<String, NormalMapAtlas> normalAtlases = new ObjectMap<>();
     private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
     private final ObjectIntMap<String> publicationRevisions = new ObjectIntMap<>();
     private final ObjectSet<String> pendingPublications = new ObjectSet<>();
@@ -63,13 +64,24 @@ public class AtlasRuntimeService {
 
     public void load(String tag, FileHandle atlasFile) {
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        load(tag, atlas, true);
+        NormalMapAtlas normals = null;
+        try {
+            FileHandle normalFile = atlasFile.sibling(tag + NormalMapAtlas.SUFFIX + ".atlas");
+            if (normalFile.exists()) normals = new NormalMapAtlas(tag, normalFile, atlas);
+        } catch (RuntimeException failure) {
+            atlas.dispose(); if (normals != null) normals.dispose();
+            throw failure;
+        }
+        load(tag, atlas, true, normals);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
     /** Publishes an already-created atlas and transfers its ownership to this service. */
     protected final void publishOwnedAtlas(String tag, TextureAtlas atlas) {
         load(tag, atlas, true);
+    }
+    protected final void publishOwnedAtlas(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
+        load(tag, atlas, true, normals);
     }
 
     /**
@@ -81,8 +93,14 @@ public class AtlasRuntimeService {
     public void loadBorrowed(String tag, TextureAtlas atlas) {
         load(tag, atlas, false);
     }
+    public void loadBorrowed(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
+        load(tag, atlas, false, normals);
+    }
 
     private void load(String tag, TextureAtlas atlas, boolean owned) {
+        load(tag, atlas, owned, null);
+    }
+    private void load(String tag, TextureAtlas atlas, boolean owned, NormalMapAtlas normals) {
         if (atlas == null) {
             throw new IllegalArgumentException(
                     "Atlas '" + tag + "' must not be null.");
@@ -97,12 +115,15 @@ public class AtlasRuntimeService {
             }
         } catch (RuntimeException failure) {
             if (owned) atlas.dispose();
+            if (normals != null) normals.dispose();
             throw failure;
         }
 
         TextureAtlas previousAtlas = atlases.get(tag);
         boolean ownedPreviousAtlas = ownedAtlasTags.contains(tag);
         TextureArrayBundle previousBundle = bundles.remove(tag);
+        NormalMapAtlas previousNormals = normalAtlases.remove(tag);
+        if (normals != null) normalAtlases.put(tag, normals);
         indexesByTag.put(tag, index);
         atlases.put(tag, atlas);
         publicationRevisions.put(tag, nextPublicationRevision());
@@ -116,6 +137,7 @@ public class AtlasRuntimeService {
         if (previousAtlas != null && previousAtlas != atlas && ownedPreviousAtlas) {
             previousAtlas.dispose();
         }
+        if (previousNormals != null && previousNormals != normals) previousNormals.dispose();
         if (previousBundle != null) {
             logBundleEvent("dispose", tag, previousBundle.textureArray);
             previousBundle.textureArray.dispose();
@@ -123,6 +145,8 @@ public class AtlasRuntimeService {
     }
 
     public void unload(String tag) {
+        NormalMapAtlas normals = normalAtlases.remove(tag);
+        if (normals != null) normals.dispose();
         indexesByTag.remove(tag);
         boolean ownedAtlas = ownedAtlasTags.remove(tag);
         TextureAtlas a = atlases.remove(tag);
@@ -135,6 +159,8 @@ public class AtlasRuntimeService {
     }
 
     public void unloadAll() {
+        for (NormalMapAtlas normal : normalAtlases.values()) normal.dispose();
+        normalAtlases.clear();
         for (ObjectMap.Entries<String, TextureAtlas> it = atlases.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, TextureAtlas> entry = it.next();
             if (ownedAtlasTags.contains(entry.key)) entry.value.dispose();
@@ -165,6 +191,16 @@ public class AtlasRuntimeService {
 
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
+    }
+    /** O(1), including absent normal data; preparation never happens during lookup. */
+    public NormalMapBinding resolveNormal(int assetId, String tag) {
+        if (assetId <= 0 || tag == null || isBlank(tag)) return null;
+        NormalMapAtlas atlas = normalAtlases.get(tag);
+        return atlas == null ? null : atlas.resolve(assetId);
+    }
+    public long normalTextureBytes() {
+        long bytes = 0; for (NormalMapAtlas atlas : normalAtlases.values()) bytes += atlas.textureBytes();
+        return bytes;
     }
 
     /** Returns whether at least one successfully published atlas is currently usable. */

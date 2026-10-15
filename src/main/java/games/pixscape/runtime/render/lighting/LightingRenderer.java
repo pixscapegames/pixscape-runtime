@@ -21,7 +21,7 @@ import java.nio.IntBuffer;
 
 /** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private ShaderProgram receiver,shadow,accumulate;
+    private ShaderProgram receiver,mappedReceiver,shadow,accumulate;
     private LightingBatch batch;
     private FrameBuffer scratch,atlas;
     private Mesh screen;
@@ -73,11 +73,19 @@ public final class LightingRenderer {
             String sample="uniform sampler2D u_tex0,u_tex1,u_tex2,u_tex3;vec4 image(){if(flags.x<.5)return texture(u_tex0,uv);if(flags.x<1.5)return texture(u_tex1,uv);if(flags.x<2.5)return texture(u_tex2,uv);return texture(u_tex3,uv);}";
             String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;";
             receiver=compile(vertex,version+inputs+sample+RECEIVER);
+            String normalVertex=vertex.replace("void main(){", "in vec3 a_normalUV;in vec4 a_normalBasis;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;void main(){normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;");
+            mappedReceiver=compile(normalVertex,version+inputs+sample+NORMAL_SAMPLE+RECEIVER
+                    .replace("vec3 normal=n/normalLength;", "vec3 geometric=n/normalLength;vec3 normal=lightingNormal(geometric);")
+                    .replace("float c=clamp(abs(cosine),", "float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),")
+                    .replace("dot(tap,normal)","dot(tap,geometric)").replace("dot(delta,normal)","dot(delta,geometric)")
+                    .replace("(n*.5+.5)*alpha", "(lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha"));
             shadow=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
                     version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
             accumulate=compile(version+"in vec3 a_position;in vec2 a_texCoord0;out vec2 uv;void main(){uv=a_texCoord0;gl_Position=vec4(a_position,1.);}",
                     version+"in vec2 uv;uniform sampler2D u_original,u_contribution;out vec4 result;void main(){vec3 base=texture(u_original,uv).rgb,c=texture(u_contribution,uv).rgb;result=vec4(c/max(base,vec3(1./65536.)),0.);}");
             receiver.bind();samplers(receiver);shadow.bind();samplers(shadow);batch=new LightingBatch();
+            mappedReceiver.bind();samplers(mappedReceiver);
+            for(int i=0;i<4;i++)mappedReceiver.setUniformi("u_normal"+i,i+5);
             screen=new Mesh(true,4,6,VertexAttribute.Position(),VertexAttribute.TexCoords(0));
             screen.setVertices(new float[]{-1,-1,0,0,0,-1,1,0,0,1,1,1,0,1,1,1,-1,0,1,0});screen.setIndices(new short[]{0,1,2,2,3,0});
         }
@@ -108,7 +116,15 @@ public final class LightingRenderer {
         composition.beginField();
         // Clear every frame, including empty frames, before skipping work without consumers.
         if(queue.size==0 && frame.diagnostic==0)return;
+        ShaderProgram ordinaryReceiver=receiver;
+        boolean mapped=false;
+        for(int i=0;i<queue.size && !mapped;i++){
+            LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
+            mapped=surface!=null && surface.normalMap!=null;
+        }
+        if(mapped)receiver=mappedReceiver;
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
+        try {
         for(int li=0;li<lightCount;li++){
             LightingFrame.Light l=frame.diagnostic==0?frame.lights.get(li):diagnosticLight;long start=System.nanoTime();int draws=stats.drawCalls;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
@@ -130,7 +146,7 @@ public final class LightingRenderer {
             receiver.setUniformf("u_direction",l.dx,l.dy,l.dz);
             if(atlas!=null)atlas.getColorBufferTexture().bind(4);
             else composition.originalTexture().bind(4); // Sampler must be complete even in an unshadowed branch.
-            batch.begin(receiver,stats);
+            if(mapped)batch.beginMapped(receiver,stats);else batch.begin(receiver,stats);
             for(int i=0;i<queue.size;i++){
                 if(queue.light[i]!=0 || queue.textureHandle[i]==0)continue;
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
@@ -153,6 +169,7 @@ public final class LightingRenderer {
             stats.drawCalls++;stats.textureBinds+=2;accumulationCpuNs+=System.nanoTime()-start;
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.ACCUMULATION);
         }
+        } finally {receiver=ordinaryReceiver;}
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
     }
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
@@ -186,8 +203,14 @@ public final class LightingRenderer {
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8;}
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
+        if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
         if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();
         batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=null;width=height=resolution=0;}
+
+    /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
+    private static final String NORMAL_SAMPLE =
+        "in vec2 normalUV;flat in float normalSlot;flat in vec4 normalBasis;uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"+
+        "vec3 lightingNormal(vec3 geometric){if(normalSlot<-.5)return geometric;vec3 s;if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;else s=texture(u_normal3,normalUV).rgb;s=normalize(s*2.-1.);vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));}";
 
     private static final String RECEIVER =
         "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff,u_resolution,u_atlasScale;uniform int u_quality,u_diagnostic;uniform sampler2D u_shadow;out vec4 result;"+
@@ -197,5 +220,5 @@ public final class LightingRenderer {
         "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 normal=n/normalLength;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float visibility=1.;float c=clamp(abs(cosine),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
         "if(u_quality==1)visibility=visible(delta,distance,bias);if(u_quality==2){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,normal);float dist=abs(den)>.0001?dot(delta,normal)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
         "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*visibility*cone;}"+
-        "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);}";
+        "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);}";
 }
