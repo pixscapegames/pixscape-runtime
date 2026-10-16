@@ -2085,7 +2085,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public float stateTime() {
             AnimationComponent a = anim();
-            return a != null ? a.stateTime : 0f;
+            return a != null ? (float) a.stateTime : 0f;
         }
 
         @Override

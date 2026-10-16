@@ -79,7 +79,7 @@ public final class GameObjectAsset {
         public IntArray animationAssetIds = new IntArray();
         public float fps;
         public boolean playing, loop;
-        public float stateTime;
+        public double stateTime;
         public int frame;
         public String currentClip;
     }

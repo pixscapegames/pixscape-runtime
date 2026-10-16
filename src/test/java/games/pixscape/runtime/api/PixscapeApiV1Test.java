@@ -1806,6 +1806,59 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void longRunningLoopPreservesPauseResumeClipSwitchAndRestart() throws Exception {
+        FixedFramesAtlasRuntimeService atlas = new FixedFramesAtlasRuntimeService(3);
+        PixscapeEngine engine = new PixscapeEngine();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64),
+                        new AnimationSystem(engine.getAnimationRegistry(), atlas)).build());
+        setField(engine, "world", world);
+        try {
+            int entity = createAnimatedSprite(engine, world, "forward", 0, 2,
+                    animationClip("reverse", 2, 0, false));
+            AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+            AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
+            animation.setLoop(true).setStateTime(100344.64f);
+            world.setDelta(0f);
+            world.process();
+            animation.pause();
+            double pausedTime = component.stateTime;
+            int pausedFrame = component.frame;
+            world.setDelta(0.0025f);
+            for (int i = 0; i < 400; i++) world.process();
+            Assert.assertEquals(pausedTime, component.stateTime, 0d);
+            Assert.assertEquals(pausedFrame, component.frame);
+
+            animation.play();
+            for (int i = 0; i < 400; i++) world.process();
+            Assert.assertEquals(pausedTime + 400 * (double) world.getDelta(),
+                    component.stateTime, 0.000001);
+            Assert.assertFalse(animation.isFinished());
+
+            animation.play("reverse");
+            world.setDelta(0f);
+            world.process();
+            Assert.assertEquals(2, animation.frame());
+            Assert.assertEquals(0d, component.stateTime, 0d);
+            world.setDelta(0.5f);
+            world.process();
+            Assert.assertEquals(1, animation.frame());
+            animation.restart();
+            world.setDelta(0f);
+            world.process();
+            Assert.assertEquals(2, animation.frame());
+
+            animation.setClip("forward").setLoop(false);
+            world.setDelta(0.5f);
+            for (int i = 0; i < 4; i++) world.process();
+            Assert.assertEquals(2, animation.frame());
+            Assert.assertTrue(animation.isFinished());
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
     public void authoredSceneActorAnimationDoesNotRequireLayerComponent() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();

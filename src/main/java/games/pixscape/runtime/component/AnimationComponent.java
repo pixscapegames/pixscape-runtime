@@ -10,7 +10,8 @@ public class AnimationComponent extends PooledComponent {
 
     /** Pooled playback baseline; authored spawns replace this with {@code AnimationDef.fps()}. */
     public float fps = 12f;
-    public float stateTime = 0f;
+    /** Double precision keeps small frame deltas advancing after long or saved playback. */
+    public double stateTime = 0d;
 
     public boolean playing = true;
     public boolean loop = true;
