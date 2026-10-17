@@ -78,8 +78,9 @@ public class WorldLightCompositionGlSmokeTest {
                 }
                 q.lighting.entities.get(entity).receiveLight=false;lightPasses[0]=0;
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
-                Assert.assertTrue("Unlit surfaces still consume passes to mask contributions",lightPasses[0]>0);
-                Assert.assertTrue(submit.lightingRenderer().receiverDraws>0);
+                Assert.assertEquals("No lit receiver makes every light ineffective",0,lightPasses[0]);
+                Assert.assertEquals(0,submit.lightingRenderer().receiverDraws);
+                assertFieldCleared(submit);
                 q.lighting.entities.get(entity).receiveLight=true;q.lighting.timer=null;
                 // This caster projects entirely left of the camera, but shadows the receiver center.
                 q.lighting.lights.clear();q.lighting.lights.add(light);
@@ -160,6 +161,10 @@ public class WorldLightCompositionGlSmokeTest {
                 Assert.assertEquals(60,state.get(2));Assert.assertEquals(28,state.get(3));
                 Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
                 q.size=1;submit.prepareComposition();world.process();
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_SCISSOR_BOX,state);
+                Assert.assertEquals("Clipped light restores caller scissor x",4,state.get(0));
+                Assert.assertEquals(5,state.get(1));Assert.assertEquals(52,state.get(2));Assert.assertEquals(20,state.get(3));
+                Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
                 nested.end();nested.dispose();
                 world.dispose();world=null;batch.close();texture.dispose();ShaderRegistry.disposeAll();
             }catch(Throwable error){failure[0]=error;}finally{Gdx.app.exit();}}

@@ -37,6 +37,8 @@ public final class WorldLightComposition implements Disposable {
                 Gdx.graphics.supportsExtension("EXT_color_buffer_half_float");
                 String version = Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Desktop
                         ? "#version 330 core\n" : "#version 300 es\nprecision highp float;\nprecision highp sampler2D;\n";
+                // Optimized E prefix suppression may change E.a. Only E.rgb is meaningful here;
+                // original.a is the authoritative world coverage and must remain the final alpha.
                 shader = new ShaderProgram(version + "in vec2 a_position; in vec2 a_texCoord0; out vec2 uv; void main(){uv=a_texCoord0;gl_Position=vec4(a_position,0.,1.);}",
                         version + "in vec2 uv; uniform sampler2D u_original; uniform sampler2D u_field; uniform sampler2D u_ambientContribution; uniform int u_hasAmbientContribution; uniform vec3 u_ambient; uniform int u_probe; uniform vec4 u_probeColor; out vec4 fragColor; void main(){if(u_probe==1){fragColor=u_probeColor;return;} if(u_probe==2){fragColor=texture(u_field,uv)*.5;return;} vec4 c=texture(u_original,uv);vec3 rgb=c.rgb*(u_ambient+texture(u_field,uv).rgb);if(u_hasAmbientContribution==1)rgb+=texture(u_ambientContribution,uv).rgb;fragColor=vec4(rgb,c.a);}");
                 if (!shader.isCompiled()) throw new IllegalStateException(shader.getLog());
@@ -140,6 +142,7 @@ public final class WorldLightComposition implements Disposable {
         Gdx.gl.glEnable(GL20.GL_BLEND); Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
         Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
         draw(); Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        restoreBlend();
         active = false;
         if (stats != null) {
             stats.drawCalls++; stats.textureBinds += hasAmbientContribution ? 3 : 2; stats.shaderBinds++;
@@ -160,8 +163,7 @@ public final class WorldLightComposition implements Disposable {
         integers.clear(); Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
         for (int i = 0; i < 4; i++) viewport[i] = integers.get(i);
         scissor = Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST);
-        // These passes only toggle scissor enable; never alter its box. Keeping it untouched
-        // also avoids GL_SCISSOR_BOX, which LibGDX's WebGL backend cannot query.
+        // Lighting restores the scissor box before returning; this scope owns its enable state.
         blend=Gdx.gl.glIsEnabled(GL20.GL_BLEND);
         blendSrc=readInteger(GL20.GL_BLEND_SRC_RGB);blendDst=readInteger(GL20.GL_BLEND_DST_RGB);
         blendSrcAlpha=readInteger(GL20.GL_BLEND_SRC_ALPHA);blendDstAlpha=readInteger(GL20.GL_BLEND_DST_ALPHA);

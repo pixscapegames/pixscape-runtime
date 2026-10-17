@@ -34,6 +34,8 @@ public final class LightingRenderer {
     private final FloatBuffer zero=BufferUtils.newFloatBuffer(4);
     private final IntBuffer saved=BufferUtils.newIntBuffer(4);
     private final int[] savedViewport=new int[4];
+    private final int[] savedScissorBounds=new int[4];
+    private final LightingInfluenceBounds influenceBounds=new LightingInfluenceBounds();
     private final Matrix4 projection=new Matrix4(),view=new Matrix4(),matrix=new Matrix4();
     private final Vector3 eye=new Vector3(),target=new Vector3(),up=new Vector3();
     private static final float[] DIRECTIONS={1,0,0,-1,0,0,0,1,0,0,-1,0,0,0,1,0,0,-1};
@@ -124,15 +126,20 @@ public final class LightingRenderer {
         }
         if(mapped)receiver=mappedReceiver;
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
+        boolean clipped=frame.diagnostic==0 && lightCount!=0;
+        if(clipped){LightingScissorState.read(saved,savedScissorBounds);influenceBounds.prepare(queue,camera);}
         try {
         for(int li=0;li<lightCount;li++){
             LightingFrame.Light l=frame.diagnostic==0?frame.lights.get(li):diagnosticLight;long start=System.nanoTime();int draws=stats.drawCalls;
+            // Reject influence, not the source icon. Off-camera casters are still queried for retained lights.
+            if(clipped && !influenceBounds.compute(l,width,height))continue;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
             if(l.quality!=0) shadows(frame,l,stats);
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
             shadowDraws+=stats.drawCalls-draws;shadowCpuNs+=System.nanoTime()-start;
             Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,scratch.getFramebufferHandle());Gdx.gl.glViewport(0,0,width,height);
             Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glDisable(GL20.GL_CULL_FACE);Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+            if(clipped)scissorInfluence();
             zero.clear();Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
             start=System.nanoTime();draws=stats.drawCalls;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.RECEIVERS);
@@ -167,13 +174,24 @@ public final class LightingRenderer {
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.RECEIVERS);
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.ACCUMULATION);
             start=System.nanoTime();composition.resumeField();Gdx.gl.glEnable(GL20.GL_BLEND);Gdx.gl.glBlendFunc(GL20.GL_ONE,GL20.GL_ONE);
+            if(clipped)scissorInfluence();
             composition.originalTexture().bind(0);scratch.getColorBufferTexture().bind(1);
             accumulate.bind();accumulate.setUniformi("u_original",0);accumulate.setUniformi("u_contribution",1);screen.render(accumulate,GL20.GL_TRIANGLES);
             stats.drawCalls++;stats.textureBinds+=2;accumulationCpuNs+=System.nanoTime()-start;
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.ACCUMULATION);
         }
-        } finally {receiver=ordinaryReceiver;}
+        } finally {
+            receiver=ordinaryReceiver;
+            if(clipped){
+                Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+                Gdx.gl.glScissor(savedScissorBounds[0],savedScissorBounds[1],savedScissorBounds[2],savedScissorBounds[3]);
+            }
+        }
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+    }
+    private void scissorInfluence(){
+        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(influenceBounds.x,influenceBounds.y,influenceBounds.width,influenceBounds.height);
     }
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
         if(atlas==null || l.resolution>resolution)

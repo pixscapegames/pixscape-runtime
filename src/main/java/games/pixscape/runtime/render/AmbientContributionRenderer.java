@@ -24,6 +24,16 @@ public final class AmbientContributionRenderer implements Disposable {
     public static void admit(FrameRenderQueue queue, int index, ShaderProgram actual, ShaderProgram standard) {
         queue.ambientMaterial[index] = actual == standard && queue.repeatFlags[index] == 0 ? STANDARD : REPLAY;
     }
+    /** Standard exempt additive VFX has zero source RGB in the original image. Its RGB
+     * destination factor is ONE and original coverage uses ZERO/ONE, so drawing it is
+     * an identity. The submitter must verify its actual standard material and still admit E.
+     */
+    public static boolean isIdentityOriginal(FrameRenderQueue queue, int index) {
+        return queue.lighting.diagnostic == 0 && queue.sourceDomain[index] == FrameRenderQueue.SOURCE_VFX
+                && queue.light[index] == 0 && queue.ignoreAmbientLighting[index]
+                && queue.repeatFlags[index] == 0 && queue.shaderParameters[index] == null
+                && (queue.blend[index] == BlendMode.ADDITIVE.id || queue.blend[index] == BlendMode.ADDITIVE_ALPHA.id);
+    }
     public static int materialPass(int pass, FrameRenderQueue queue, int index) {
         if (pass == LightCompositionPass.AMBIENT)
             return queue.ignoreAmbientLighting[index] ? LightCompositionPass.CONTRIBUTION : LightCompositionPass.MASK;
@@ -37,6 +47,22 @@ public final class AmbientContributionRenderer implements Disposable {
                 && queue.ambientMaterial[index] == STANDARD)
             return NumberUtils.intToFloatColor(NumberUtils.floatToIntColor(color) & 0xff000000);
         return color;
+    }
+    /** One ordered, allocation-free preflight. Prefix masks leave cleared E.rgb at zero,
+     * but may change E.a. Later standard operations use source alpha, never destination
+     * alpha, and final composition reads only E.rgb; original.a remains world coverage.
+     * E.a MUST NOT become an input of composition or blending on this optimized path.
+     * Unknown replay may depend on that alpha, so any REPLAY retains the complete prefix.
+     */
+    static int firstContribution(FrameRenderQueue queue) {
+        int first = 0;
+        boolean found = false;
+        for (int i = 0; i < queue.size; i++) {
+            if (queue.ambientMaterial[i] == REPLAY) return 0;
+            if (!found && queue.ambientMaterial[i] == STANDARD && queue.light[i] == 0
+                    && queue.ignoreAmbientLighting[i]) { first = i; found = true; }
+        }
+        return first;
     }
     public void render(FrameRenderQueue queue, OrthographicCamera camera, WorldLightComposition composition,
                        RenderStats stats, MaterialReplay replay) {
@@ -54,9 +80,10 @@ public final class AmbientContributionRenderer implements Disposable {
             }
         }
         if (!needed) return;
+        int first = firstContribution(queue);
         composition.beginAmbientContribution();
         batch.begin(camera);
-        for (int i = 0; i < queue.size; i++) {
+        for (int i = first; i < queue.size; i++) {
             if (queue.ambientMaterial[i] == 0 || queue.light[i] != 0) continue;
             if (queue.ambientMaterial[i] == REPLAY) {
                 batch.flush(stats);

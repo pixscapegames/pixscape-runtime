@@ -184,6 +184,15 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
             }
 
+            // Identity draws need no batch-state transition, but retain their ordered E admission.
+            if (pass == LightCompositionPass.ORIGINAL && AmbientContributionRenderer.isIdentityOriginal(frameQueue, i)) {
+                ShaderProgram actual = ShaderRegistry.getByIdx(frameQueue.shader[i]);
+                if (actual == null) actual = standardShader;
+                if (standardShader != null && actual == standardShader) {
+                    AmbientContributionRenderer.admit(frameQueue, i, actual, standardShader);
+                    continue;
+                }
+            }
             // Shader switch
             final int shaderIdx = frameQueue.shader[i];
 

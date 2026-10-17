@@ -42,6 +42,8 @@ tasks.named('test', Test).configure {
   exclude '**/WorldLightCompositionGlSmokeTest.class'
   exclude '**/NormalMapGlSmokeTest.class'
   exclude '**/AmbientContributionGlSmokeTest.class'
+  exclude '**/AmbientContributionOptimizationGlTest.class'
+  exclude '**/LightingInfluenceBoundsGlTest.class'
 }
 
 tasks.register('hudGlSmoke', Test) {
@@ -63,6 +65,8 @@ tasks.register('lightCompositionGlSmoke', Test) {
   include '**/WorldLightCompositionGlSmokeTest.class'
   include '**/NormalMapGlSmokeTest.class'
   include '**/AmbientContributionGlSmokeTest.class'
+  include '**/AmbientContributionOptimizationGlTest.class'
+  include '**/LightingInfluenceBoundsGlTest.class'
   shouldRunAfter tasks.named('test')
 }
 
