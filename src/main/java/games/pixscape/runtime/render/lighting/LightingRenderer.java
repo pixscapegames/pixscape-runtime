@@ -21,9 +21,12 @@ import java.nio.IntBuffer;
 
 /** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private ShaderProgram receiver,mappedReceiver,shadow,accumulate;
+    private ShaderProgram receiver,mappedReceiver,actorReceiver,mappedActorReceiver,shadow,accumulate;
     private LightingBatch batch;
-    private FrameBuffer scratch,atlas;
+    private FrameBuffer scratch,atlas,actorAtlas;
+    private int actorResolution;
+    private final com.badlogic.gdx.utils.IntArray decorCasters=new com.badlogic.gdx.utils.IntArray();
+    private final com.badlogic.gdx.utils.IntArray actorCasters=new com.badlogic.gdx.utils.IntArray();
     private Mesh screen;
     private int width,height,resolution;
     private World preparedWorld;
@@ -91,6 +94,7 @@ public final class LightingRenderer {
             screen=new Mesh(true,4,6,VertexAttribute.Position(),VertexAttribute.TexCoords(0));
             screen.setVertices(new float[]{-1,-1,0,0,0,-1,1,0,0,1,1,1,0,1,1,1,-1,0,1,0});screen.setIndices(new short[]{0,1,2,2,3,0});
         }
+        if(ShadowActorSeparation.enabled && actorReceiver==null)prepareSeparatedReceivers();
         int w=composition.targetWidth(),h=composition.targetHeight();
         if(scratch==null || width!=w || height!=h){FrameBuffer next=floatTarget(w,h,false);if(scratch!=null)scratch.dispose();scratch=next;width=w;height=h;}
         int required=0;
@@ -103,6 +107,27 @@ public final class LightingRenderer {
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
         if(required!=resolution){FrameBuffer next=required==0?null:floatTarget(required*3,required*2,true);if(atlas!=null)atlas.dispose();atlas=next;resolution=required;}
+        if(ShadowActorSeparation.enabled && required!=0 && (actorAtlas==null || actorResolution!=required)){
+            FrameBuffer next=floatTarget(required*3,required*2,true);
+            if(actorAtlas!=null)actorAtlas.dispose();actorAtlas=next;actorResolution=required;
+        }else if(required==0 && actorAtlas!=null){actorAtlas.dispose();actorAtlas=null;actorResolution=0;}
+
+    }
+    private void prepareSeparatedReceivers(){
+        saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS,saved);
+        if(saved.get(0)<10)throw new IllegalStateException("Actor shadow separation requires ten fragment texture units");
+        actorReceiver=compile(receiver.getVertexShaderSource(),separatedFragment(receiver.getFragmentShaderSource()));
+        mappedActorReceiver=compile(mappedReceiver.getVertexShaderSource(),separatedFragment(mappedReceiver.getFragmentShaderSource()));
+        actorReceiver.bind();samplers(actorReceiver);actorReceiver.setUniformi("u_actorShadow",9);
+        mappedActorReceiver.bind();samplers(mappedActorReceiver);mappedActorReceiver.setUniformi("u_actorShadow",9);
+        for(int i=0;i<4;i++)mappedActorReceiver.setUniformi("u_normal"+i,i+5);
+    }
+    private static String separatedFragment(String source){
+        // Both atlases store the same normalized radial distance. Combine each PCF tap before comparison.
+        return source.replace("uniform sampler2D u_shadow;","uniform sampler2D u_shadow,u_actorShadow;")
+                .replace("return texture(u_shadow,u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.)).r*u_range;",
+                        "vec2 lookup=u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);float nearest=texture(u_shadow,lookup).r;if(flags.z<1.5){float other=texture(u_actorShadow,lookup).r;if(nearest<0.)nearest=other;else if(other>=0.)nearest=min(nearest,other);}if(nearest<0.)nearest=1.;return nearest*u_range;")
+                .replace("if(flags.z>.5)cosine=abs(cosine);","if(mod(flags.z,2.)>.5)cosine=abs(cosine);");
     }
     private static ShaderProgram compile(String v,String f){ShaderProgram s=new ShaderProgram(v,f);if(!s.isCompiled()){String log=s.getLog();s.dispose();throw new IllegalStateException("2.5D lighting shader: "+log);}return s;}
     private static void samplers(ShaderProgram s){for(int i=0;i<4;i++)s.setUniformi("u_tex"+i,i);}
@@ -124,7 +149,9 @@ public final class LightingRenderer {
             LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
             mapped=surface!=null && surface.normalMap!=null;
         }
-        if(mapped)receiver=mappedReceiver;
+        boolean separated=ShadowActorSeparation.enabled;
+        if(separated)receiver=mapped?mappedActorReceiver:actorReceiver;
+        else if(mapped)receiver=mappedReceiver;
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
         boolean clipped=frame.diagnostic==0 && lightCount!=0;
         if(clipped){LightingScissorState.read(saved,savedScissorBounds);influenceBounds.prepare(queue,camera);}
@@ -134,7 +161,7 @@ public final class LightingRenderer {
             // Reject influence, not the source icon. Off-camera casters are still queried for retained lights.
             if(clipped && !influenceBounds.compute(l,width,height))continue;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
-            if(l.quality!=0) shadows(frame,l,stats);
+            if(l.quality!=0) shadows(frame,l,stats,separated);
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
             shadowDraws+=stats.drawCalls-draws;shadowCpuNs+=System.nanoTime()-start;
             Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,scratch.getFramebufferHandle());Gdx.gl.glViewport(0,0,width,height);
@@ -153,7 +180,12 @@ public final class LightingRenderer {
             receiver.setUniformf("u_direction",l.dx,l.dy,l.dz);
             if(atlas!=null)atlas.getColorBufferTexture().bind(4);
             else composition.originalTexture().bind(4); // Sampler must be complete even in an unshadowed branch.
+            if(separated){
+                if(l.quality!=0)actorAtlas.getColorBufferTexture().bind(9);
+                else composition.originalTexture().bind(9);
+            }
             if(mapped)batch.beginMapped(receiver,stats);else batch.begin(receiver,stats);
+            batch.separateActors(separated);
             for(int i=0;i<queue.size;i++){
                 if(queue.light[i]!=0 || queue.textureHandle[i]==0)continue;
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
@@ -193,19 +225,32 @@ public final class LightingRenderer {
         Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
         Gdx.gl.glScissor(influenceBounds.x,influenceBounds.y,influenceBounds.width,influenceBounds.height);
     }
-    private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
-        if(atlas==null || l.resolution>resolution)
+    private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats,boolean separated){
+        if(atlas==null || l.resolution>resolution || separated && (actorAtlas==null || l.resolution>actorResolution))
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
-        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,atlas.getFramebufferHandle());
+        frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
+        selectedCasters+=frame.casterIndex.candidates.size;
+        if(!separated){shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,false);return;}
+        // One partition of the existing light-local candidates, including useful off-camera casters.
+        decorCasters.clear();actorCasters.clear();
+        for(int i=0;i<frame.casterIndex.candidates.size;i++){
+            int index=frame.casterIndex.candidates.get(i);
+            (frame.casters.get(index).surface.actor?actorCasters:decorCasters).add(index);
+        }
+        shadowMap(frame,l,stats,atlas,decorCasters,true);
+        shadowMap(frame,l,stats,actorAtlas,actorCasters,true);
+    }
+    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,boolean separated){
+        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
-        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
+        // A caster beyond radius can store a value >1. An empty category must not clamp it to 1.
+        // Resolve the negative empty sentinel to the reference clear (1) only after combining maps.
+        zero.clear();zero.put(0,separated?-1:1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
         zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
         shadow.bind();shadow.setUniformf("u_light",l.x,l.y,l.z);shadow.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
-        frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
-        selectedCasters+=frame.casterIndex.candidates.size;
-        boolean replay=batch.canReplay(frame);
+        boolean replay=batch.canReplay(frame,candidates);
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
@@ -213,8 +258,8 @@ public final class LightingRenderer {
             shadow.bind();shadow.setUniformMatrix("u_matrix",matrix);
             if(replay && face>0){batch.replay();continue;}
             batch.begin(shadow,stats,replay);
-            for(int i=0;i<frame.casterIndex.candidates.size;i++){
-                LightingFrame.Caster c=frame.casters.get(frame.casterIndex.candidates.get(i));
+            for(int i=0;i<candidates.size;i++){
+                LightingFrame.Caster c=frame.casters.get(candidates.get(i));
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             }
             batch.flush();
@@ -222,9 +267,11 @@ public final class LightingRenderer {
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
     }
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
-    public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8;}
+    public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8+(long)actorResolution*actorResolution*6*8;}
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
+        if(actorReceiver!=null)actorReceiver.dispose();if(mappedActorReceiver!=null)mappedActorReceiver.dispose();
+        actorReceiver=mappedActorReceiver=null;if(actorAtlas!=null)actorAtlas.dispose();actorAtlas=null;actorResolution=0;
         if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();
         batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=null;width=height=resolution=0;}
 

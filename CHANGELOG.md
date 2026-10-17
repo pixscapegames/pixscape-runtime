@@ -13,6 +13,7 @@
 
 ### Added
 
+* Added an opt-in decor/actor shadow separation prototype: decor receives shadows from both categories, while actors receive only decor shadows, without per-actor shadow maps. The shared shadow-map path remains the default.
 * Added per-instance ambient lighting exemption for particles, preserving transparency, blending and spatial order.
 * Added continuous cone light inclination from -90 to +90 degrees.
 * Added desktop tile normal mapping, with per-tile normals independent of shared color images and atlas layout.
@@ -22,6 +23,8 @@
 
 ### Changed
 
+* Prepared initial world composition, lighting and ambient-exemption resources before scene READY, without advancing gameplay. Viewport and shadow-setting changes retain preparation at the frame boundary.
+* Reused physics body and joint dirty callbacks instead of allocating them on every synchronization pass.
 * World colors are multiplied once by ambient plus the ordered HDR light field. The light replay skips the prefix before the first light, retains material alpha/discard and per-entity parameter batching, and leaves HUD rendering outside world lighting.
 
 * Compatible entities with different float values stay in one batch; identical encoded values reuse rows, including the default row, so value differences alone no longer cause flushes.
@@ -33,6 +36,7 @@
 
 ### Fixed
 
+* Released the engine's reference to retired Tiled render storage during disposal.
 * Fixed lighting alignment on deformed images.
 * Completed lighting coverage for tile artwork extending beyond described surfaces.
 * Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
@@ -45,6 +49,7 @@
 
 ### Tests
 
+* Added regression coverage for separated shadow maps, render preparation before READY, repeated preparation and scene loading, viewport and shadow-resolution changes, and resource disposal.
 * Added regression coverage for map-plane projection/inverses, atomic linked Physics updates, local junctions, wall-continuation thresholds, actor altitude, influence-square geometry and Runtime overlay access.
 * Preserved historical candidate fixtures and unresolved corner cases to protect downstream behavior. General multi-map composition remains unresolved; prototype B is not integrated and known conflicts/fallbacks remain.
 

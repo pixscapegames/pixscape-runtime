@@ -126,6 +126,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             surface.alphaThreshold=dynamic.blend[slot]==0?0:dynamic.blend[slot]==7?.5f:authored==null?.5f:authored.alphaThreshold;
             corners[0]=dynamic.x1[slot];corners[1]=dynamic.y1[slot];corners[2]=dynamic.x2[slot];corners[3]=dynamic.y2[slot];
             corners[4]=dynamic.x3[slot];corners[5]=dynamic.y3[slot];corners[6]=dynamic.x4[slot];corners[7]=dynamic.y4[slot];
+            surface.actor=true;
             surface.imageQuad=description==null;
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));

@@ -15,6 +15,14 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @Test public void sceneReadyIncludesIdempotentRenderResourcesWithoutGameplay() {
+        games.pixscape.runtime.engine.SceneRenderPreparationGlCheck.verify();
+    }
+    @Test public void separatedShadowsKeepNestedTargetsFailuresAndCoverageContracts() {
+        ShadowActorSeparation.enabled=true;
+        try {litFractionalEdgesAndIndependentLightsRestoreTarget();}
+        finally {ShadowActorSeparation.enabled=false;}
+    }
     @Test public void htmlAndNativeWriteIdenticalActiveVertices() {
         LightingBatchBackendCheck.assertHtmlAndNativeWriteIdenticalActiveVertices();
     }
@@ -95,6 +103,7 @@ public class WorldLightCompositionGlSmokeTest {
                 }
                 LightingFrame.Caster offscreen=new LightingFrame.Caster();
                 offscreen.surface=new LightingSurface(occluderVertices);offscreen.surface.alphaThreshold=.1f;
+                offscreen.surface.actor=ShadowActorSeparation.enabled;
                 offscreen.texture=handle;offscreen.u2=offscreen.v2=1;offscreen.bounds();
                 q.lighting.casters.add(offscreen);
                 final Throwable[] replayFailure={null};
@@ -114,6 +123,7 @@ public class WorldLightCompositionGlSmokeTest {
                 Assert.assertTrue("Offscreen caster must actually darken the visible receiver",(pixel.get(0)&255)>withOffscreenCaster+3);
                 LightingFrame.Caster invalidCaster=new LightingFrame.Caster();
                 invalidCaster.surface=new LightingSurface(occluderVertices);invalidCaster.texture=0;invalidCaster.bounds();
+                invalidCaster.surface.actor=ShadowActorSeparation.enabled;
                 q.lighting.casters.add(invalidCaster);
                 try {world.process();Assert.fail("An invalid shadow texture must not be skipped by P3 preflight");}
                 catch(IllegalStateException expected){Assert.assertTrue(expected.getMessage().contains("texture handle"));}
@@ -143,6 +153,8 @@ public class WorldLightCompositionGlSmokeTest {
                 q.shader[0]=ShaderRegistry.register("lighting-unsupported-custom",custom,ShaderMode.MULTI_TEXTURE);
                 com.badlogic.gdx.graphics.glutils.FrameBuffer nested=new com.badlogic.gdx.graphics.glutils.FrameBuffer(Pixmap.Format.RGBA8888,64,32,false);
                 nested.begin();Gdx.gl.glViewport(2,3,60,28);Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);Gdx.gl.glScissor(4,5,52,20);
+                Gdx.gl.glEnable(GL20.GL_BLEND);Gdx.gl.glBlendFuncSeparate(GL20.GL_SRC_ALPHA,GL20.GL_ONE,GL20.GL_ZERO,GL20.GL_ONE);
+                Gdx.gl.glBlendEquationSeparate(GL20.GL_FUNC_REVERSE_SUBTRACT,GL20.GL_FUNC_ADD);
                 submit.prepareComposition();
                 try{world.process();Assert.fail("Custom coverage needs an explicit adapter");}
                 catch(IllegalArgumentException expected){Assert.assertTrue(expected.getMessage().contains("unsupported shader"));}
@@ -150,6 +162,11 @@ public class WorldLightCompositionGlSmokeTest {
                 Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,state);Assert.assertEquals(nested.getFramebufferHandle(),state.get(0));
                 state.clear();Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,state);Assert.assertEquals(2,state.get(0));Assert.assertEquals(60,state.get(2));
                 Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST));
+                Assert.assertTrue(Gdx.gl.glIsEnabled(GL20.GL_BLEND));
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_BLEND_SRC_RGB,state);Assert.assertEquals(GL20.GL_SRC_ALPHA,state.get(0));
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_BLEND_DST_RGB,state);Assert.assertEquals(GL20.GL_ONE,state.get(0));
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_BLEND_SRC_ALPHA,state);Assert.assertEquals(GL20.GL_ZERO,state.get(0));
+                state.clear();Gdx.gl.glGetIntegerv(GL20.GL_BLEND_EQUATION_RGB,state);Assert.assertEquals(GL20.GL_FUNC_REVERSE_SUBTRACT,state.get(0));
                 q.shader[0]=originalShader;Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glViewport(0,0,64,32);
                 submit.prepareComposition();world.process();Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
                 q.size=0;Gdx.gl.glViewport(2,3,60,28);Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);

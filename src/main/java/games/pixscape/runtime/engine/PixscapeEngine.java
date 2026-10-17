@@ -1147,6 +1147,7 @@ public final class PixscapeEngine {
         drawList = null;
         frameQueue = null;
         vfxState = null;
+        tiledState = null;
         stats = null;
         statsSink = null;
         defaultShaderName = null;
@@ -1471,6 +1472,10 @@ public final class PixscapeEngine {
                 return;
             case 4:
                 preparePersistentRenderAndRegistries();
+                return;
+            case 5:
+                // Same context/viewport preparation as a frame boundary, without processing World.
+                prepareRenderResources();
                 return;
             default:
                 throw new IllegalArgumentException("Unknown Runtime availability step: " + step);
@@ -1941,9 +1946,13 @@ public final class PixscapeEngine {
         tagRegistry.bind(world);
     }
 
-    private void processWorld() {
+    private void prepareRenderResources() {
         RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
         if (submit != null && submit.isEnabled()) submit.prepareComposition();
+    }
+
+    private void processWorld() {
+        prepareRenderResources();
         if (systemProfiler.enabled()) {
             systemProfiler.beginFrame();
         }
@@ -1991,7 +2000,7 @@ public final class PixscapeEngine {
     }
 
     private final class SceneLoadHandleImpl implements SceneLoadHandle {
-        private static final int RUNTIME_STEP_COUNT = 5;
+        private static final int RUNTIME_STEP_COUNT = 6;
         private final SceneAvailabilityPlan candidate;
         private SceneLoadPhase phase = SceneLoadPhase.FILES;
         private float progress;

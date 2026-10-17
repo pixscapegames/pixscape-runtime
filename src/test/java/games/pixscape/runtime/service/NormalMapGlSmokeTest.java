@@ -15,6 +15,11 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class NormalMapGlSmokeTest {
+    @Test public void separatedShadowsKeepNormalAxesAndDecorOcclusion(){
+        ShadowActorSeparation.enabled=true;
+        try {spriteAxesAliasesAndGeometricFacesRenderIndependently();}
+        finally {ShadowActorSeparation.enabled=false;}
+    }
     @Test public void spriteAxesAliasesAndGeometricFacesRenderIndependently(){
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();

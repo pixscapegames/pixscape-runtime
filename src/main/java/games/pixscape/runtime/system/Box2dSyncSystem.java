@@ -66,6 +66,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
 
     private DirtyTrackerSystem dirty;
+    private final DirtyTrackerSystem.IntConsumer physicsDirtyConsumer = this::synchronizeDirtyBody;
+    private final DirtyTrackerSystem.IntConsumer jointDirtyConsumer = this::syncOneJoint;
     @SkipWire private GameObjectHierarchySystem hierarchy;
     @SkipWire private PhysicsPoseAuthority poseAuthority;
 
@@ -261,23 +263,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         if (dirty != null) {
-            dirty.consumePhysics(e -> {
-                if (hasAuthoredBody(e)) {
-                    requireCompiledCache(e);
-                }
-                boolean stillWanted = isWantedEntity(e);
-                if (!stillWanted) {
-                    destroyRuntimeBody(e);
-                    return;
-                }
-
-                int mask = dirty.physicsSub(e);
-                PhysicsRuntimeBodyComponent rt =
-                        mRuntime.has(e) ? mRuntime.get(e) : mRuntime.create(e);
-                if ((mask & PhysicsDirtyBits.ALL) != 0 || rt.body == null) {
-                    rebuildBody(e, rt);
-                }
-            });
+            dirty.consumePhysics(physicsDirtyConsumer);
         }
 
         // 3) Ensure wanted bodies exist
@@ -319,7 +305,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
 
         // 5) Joints: only dirty
         if (dirty != null) {
-            dirty.consumeJoints(this::syncOneJoint);
+            dirty.consumeJoints(jointDirtyConsumer);
         }
 
         // 6) Step
@@ -355,6 +341,23 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 refreshConnectedDistanceJointLengths(e);
                 markJointsDirtyForBody(e);
             }
+        }
+    }
+
+    private void synchronizeDirtyBody(int entityId) {
+        if (hasAuthoredBody(entityId)) {
+            requireCompiledCache(entityId);
+        }
+        if (!isWantedEntity(entityId)) {
+            destroyRuntimeBody(entityId);
+            return;
+        }
+
+        int mask = dirty.physicsSub(entityId);
+        PhysicsRuntimeBodyComponent runtimeBody =
+                mRuntime.has(entityId) ? mRuntime.get(entityId) : mRuntime.create(entityId);
+        if ((mask & PhysicsDirtyBits.ALL) != 0 || runtimeBody.body == null) {
+            rebuildBody(entityId, runtimeBody);
         }
     }
 

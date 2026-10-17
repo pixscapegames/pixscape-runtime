@@ -6,6 +6,8 @@ public final class LightingSurface {
     public boolean receiveLight = true, shadowCaster, twoSided, approximate;
     /** Derived simple-sheet topology: six vertices in SpriteSurfaceSupport.corner order, never a local mesh/tile. */
     public boolean imageQuad;
+    /** Derived provenance: ordinary ECS image supports are actors; Tiled/compiled map supports are decor. */
+    public boolean actor;
     public float alphaThreshold = .5f;
     public int ownerEntity=-1;
     /** Lighting normal only; geometric vertex normals remain authoritative for shadows. */

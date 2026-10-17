@@ -673,7 +673,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertEquals(1, disposals[0]); Assert.assertTrue(environmentA.isDisposed());
             while (b.phase() == SceneLoadPhase.RUNTIME && ((Integer) get(b, "runtimeStep")) < 4) b.update();
             int allocations = generatedTextures;
-            b.update(); // Final Runtime step publishes Scene and presents the default.
+            while (!b.isReady() && !b.isFailed()) b.update();
             Assert.assertTrue(String.valueOf(b.failure()), b.isReady());
             Assert.assertSame(planB, get(engine, "activeSceneAvailability"));
             ActiveHudScreen activeB = engine.hudScreenRuntime().activeScreen();
@@ -791,7 +791,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (load.phase() != SceneLoadPhase.RUNTIME && !load.isFailed()) load.update();
             while (((Integer) get(load, "runtimeStep")) < 4 && !load.isFailed()) load.update();
             failHudViewport = true;
-            load.update();
+            while (!load.isReady() && !load.isFailed()) load.update();
             Assert.assertTrue(String.valueOf(load.failure()), load.isReady());
             Assert.assertEquals("A", engine.getActiveSceneMeta().name);
             Assert.assertNotNull(engine.getLastHudFailure());

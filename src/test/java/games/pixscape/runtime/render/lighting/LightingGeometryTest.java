@@ -22,6 +22,7 @@ public class LightingGeometryTest {
                 dynamic.x1[slot]=q[0];dynamic.y1[slot]=q[1];dynamic.x2[slot]=q[2];dynamic.y2[slot]=q[3];
                 dynamic.x3[slot]=q[4];dynamic.y3[slot]=q[5];dynamic.x4[slot]=q[6];dynamic.y4[slot]=q[7];world.process();
                 LightingSurface s=queue.lighting.entities.get(e);Assert.assertTrue(s.imageQuad);Assert.assertEquals(48,s.vertices.length);
+                Assert.assertTrue("ECS provenance does not require Spatial membership",s.actor);
                 Assert.assertFalse(s.shadowCaster);Assert.assertEquals(0,queue.lighting.casters.size);
                 int[] corners={0,1,2,0,2,3};for(int i=0;i<6;i++){
                     Assert.assertEquals(q[corners[i]*2],LightingCoordinates.screenX(s.vertices[i*8],s.vertices[i*8+1]),.0001f);
@@ -38,10 +39,12 @@ public class LightingGeometryTest {
             TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);
             MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,null);
             Assert.assertFalse(geometry.receiver(map,0,0,7,(byte)0,q).imageQuad);
+            Assert.assertFalse("Tiled receivers belong to decor",geometry.receiver(map,0,0,7,(byte)0,q).actor);
             games.pixscape.runtime.component.DimensionsComponent dim=world.getMapper(games.pixscape.runtime.component.DimensionsComponent.class).create(e);
             dim.width=dim.height=2;
             local.xyz=new float[]{-.5f,.5f,0,.5f,-.5f,0,-.5f,.5f,2};
             authored.description=local;world.process();Assert.assertFalse(queue.lighting.entities.get(e).imageQuad);
+            Assert.assertTrue("A custom support keeps its entity provenance",queue.lighting.entities.get(e).actor);
             authored.description=null;world.process();Assert.assertTrue(queue.lighting.entities.get(e).imageQuad);
         } finally {world.dispose();}
     }
@@ -165,6 +168,7 @@ public class LightingGeometryTest {
         Assert.assertTrue(valid>0);Assert.assertTrue(completed>0);Assert.assertArrayEquals(original,surface.vertices,0);
         Assert.assertSame(surface,geometry.receiver(map,0,0,7,(byte)0,quad));Assert.assertEquals(6,geometry.casters.size);
         for(LightingSurface caster:geometry.casters)Assert.assertNull(caster.receiverVertices);
+        for(LightingSurface caster:geometry.casters)Assert.assertFalse("Compiled map volumes belong to decor",caster.actor);
     }
     @Test public void fullyDescribedGroundNeedsNoCompletionAndPartialLocalSurfacesKeepTheirValidVertices(){
         TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);map.defaultTileAltitude=42;

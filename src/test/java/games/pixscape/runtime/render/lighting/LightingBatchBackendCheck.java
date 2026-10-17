@@ -38,18 +38,20 @@ public final class LightingBatchBackendCheck {
                     float[] vertices=new float[48];
                     for(int i=0;i<vertices.length;i++)vertices[i]=(i-21)*.125f;
                     LightingSurface surface=new LightingSurface(vertices);
-                    surface.twoSided=true;surface.approximate=true;surface.alphaThreshold=.37f;
+                    surface.twoSided=true;surface.actor=true;surface.approximate=true;surface.alphaThreshold=.37f;
                     float[] quad={-7,3,-4,19,25,19,22,3};
                     Field data=LightingBatch.class.getDeclaredField("data");data.setAccessible(true);
                     Field count=LightingBatch.class.getDeclaredField("vertices");count.setAccessible(true);
-                    for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
+                    for(boolean separate:new boolean[]{false,true})for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
                         nativeBatch.abort();htmlBatch.abort();
                         nativeBatch.begin(null,null);htmlBatch.begin(null,null);
+                        nativeBatch.separateActors(separate);htmlBatch.separateActors(separate);
                         float color=new Color(.3f,.5f,.7f,.6f).toFloatBits();
                         nativeBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         htmlBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
+                        Assert.assertEquals(separate?3f:1f,a[14],0);
                         for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
                     assertDeformedImageVertices(nativeBatch);
@@ -123,6 +125,9 @@ public final class LightingBatchBackendCheck {
                     Assert.assertTrue("Four texture pages are the real batch limit",batch.canReplay(fourTextures));
                     add(fourTextures,textures[4],3);
                     Assert.assertFalse("A fifth page must select the normal P2+P1 path",batch.canReplay(fourTextures));
+                    com.badlogic.gdx.utils.IntArray subset=new com.badlogic.gdx.utils.IntArray(new int[]{0,1});
+                    Assert.assertTrue("Replay eligibility is local to each category",batch.canReplay(fourTextures,subset));
+                    subset.clear();Assert.assertFalse("An empty category must not replay stale vertices",batch.canReplay(fourTextures,subset));
                 }catch(Throwable error){failure[0]=error;}
                 finally {
                     if(batch!=null)batch.dispose();for(Texture texture:textures)if(texture!=null)texture.dispose();

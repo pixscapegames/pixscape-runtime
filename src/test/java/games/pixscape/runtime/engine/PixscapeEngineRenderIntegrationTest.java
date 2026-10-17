@@ -87,6 +87,20 @@ public class PixscapeEngineRenderIntegrationTest {
     }
 
     @Test
+    public void disposingEngineReleasesOwnedTiledStorage() throws Exception {
+        PixscapeEngine engine = new PixscapeEngine();
+        java.lang.reflect.Field tiledField = PixscapeEngine.class.getDeclaredField("tiledState");
+        tiledField.setAccessible(true);
+        tiledField.set(engine, new TiledMapRenderState(10000));
+
+        engine.dispose();
+
+        Assert.assertNull("A retained engine must not retain retired scene geometry", tiledField.get(engine));
+        engine.dispose();
+        Assert.assertNull(tiledField.get(engine));
+    }
+
+    @Test
     public void engineHooksAndCustomSubmitPreserveRenderPhaseOrdering() {
         PixscapeEngine engine = new PixscapeEngine();
         List<String> events = new ArrayList<>();

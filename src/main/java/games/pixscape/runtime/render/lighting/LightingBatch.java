@@ -17,7 +17,7 @@ final class LightingBatch {
     private final int[] replayHandles=new int[4];
     private final int[] normalHandles=new int[4], boundNormals=new int[4];
     private int normalTextures;
-    private boolean mapped;
+    private boolean mapped, actorSeparation;
     private final Mesh mesh, mappedMesh;
     // GWT emulates tiny array copies with temporary JS arrays; keep native copies unchanged.
     private final boolean htmlVertexCopies=Gdx.app.getType()==Application.ApplicationType.WebGL;
@@ -44,17 +44,19 @@ final class LightingBatch {
     void begin(ShaderProgram shader,RenderStats stats){begin(shader,stats,false);}
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
         this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayVertices=replayTextures=0;
-        mapped=false;stride=BASE_STRIDE;normalTextures=0;
+        mapped=false;actorSeparation=false;stride=BASE_STRIDE;normalTextures=0;
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
         for(int i=0;i<4;i++)boundNormals[i]=0;
     }
+    void separateActors(boolean enabled){actorSeparation=enabled;}
     /** Checks whether one complete shadow batch can be prepared before any face submits it. */
-    boolean canReplay(LightingFrame frame){
+    boolean canReplay(LightingFrame frame){return canReplay(frame,frame.casterIndex.candidates);}
+    boolean canReplay(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates){
         int total=0,textureCount=0;
-        for(int i=0;i<frame.casterIndex.candidates.size;i++){
-            LightingFrame.Caster caster=frame.casters.get(frame.casterIndex.candidates.get(i));
+        for(int i=0;i<candidates.size;i++){
+            LightingFrame.Caster caster=frame.casters.get(candidates.get(i));
             if(caster==null || caster.surface==null || caster.surface.vertices==null || caster.surface.vertices.length%8!=0 ||
                     caster.texture==0 || TextureRegistry.getByHandle(caster.texture)==null)return false;
             int count=caster.surface.vertices.length/8;
@@ -121,7 +123,7 @@ final class LightingBatch {
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
-            data[o+14]=surface.twoSided?1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
+            data[o+14]=(surface.twoSided?1:0)+(actorSeparation&&surface.actor?2:0);data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
             // Simple sheets share the color triangles BL-TL-TR / BL-TR-BR, including a freely moved TR.
             // Local descriptions and tile receivers keep their existing UV topology and placement.
             if(quad!=null && surface.imageQuad){int c=SpriteSurfaceSupport.corner(i/8)*2;
