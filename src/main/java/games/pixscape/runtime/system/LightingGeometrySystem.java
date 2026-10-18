@@ -29,6 +29,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<DimensionsComponent> dimensions;
     private ComponentMapper<AssetRefComponent> assetRefs;
     private ComponentMapper<games.pixscape.runtime.component.TiledAnimationComponent> animations;
+    private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> actorAnimations;
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
     @com.artemis.annotations.SkipWire private GameObjectCompositionSystem composition;
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.NormalMapAtlas authoringNormals;
@@ -69,6 +70,22 @@ public final class LightingGeometrySystem extends BaseSystem {
     public LightingGeometrySystem(DynamicEntityRenderState dynamic,TiledMapRenderState tiled,FrameRenderQueue queue,
             LayerStateSOA layers,games.pixscape.runtime.service.AtlasRuntimeService atlasService){
         this(dynamic,tiled,queue,layers);this.atlasService=atlasService;
+    }
+    /** Cold scene preparation: reserve actor storage without advancing animation or processing World. */
+    public void prepareRuntimeAvailability() {
+        for(int slot=0;slot<dynamic.activeCount;slot++){
+            int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
+            SurfaceLightingComponent a=surfaces.getSafe(e,null);
+            if(a!=null){
+                if(a.actorShadow!=null)a.actorShadow.validate();
+                if(a.actorShadowClips!=null)for(com.badlogic.gdx.utils.IntMap.Entry<com.badlogic.gdx.utils.ObjectMap<String,ActorShadowProfile>> asset:a.actorShadowClips)
+                    for(com.badlogic.gdx.utils.ObjectMap.Entry<String,ActorShadowProfile> clip:asset.value)clip.value.validate();
+            }
+            if((a==null || a.description==null) && frame.entities.get(e)==null){
+                LightingSurface s=new LightingSurface(new float[48]);s.actorShadow=new ActorShadowGeometry();
+                s.twoSided=true;s.approximate=true;frame.entities.put(e,s);
+            }
+        }
     }
     @Override protected void processSystem() {
         long started=System.nanoTime();
@@ -119,7 +136,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                 }
                 localDescriptions.put(e,description);if(surface!=null)frame.entities.put(e,surface);
             }
-            if(surface==null){surface=new LightingSurface(new float[48]);surface.twoSided=true;
+            if(surface==null){surface=new LightingSurface(new float[48]);surface.actorShadow=new ActorShadowGeometry();surface.twoSided=true;
                 surface.approximate=true;frame.entities.put(e,surface);}
             surface.receiveLight=(authored==null || authored.receiveLight) && (description==null || description.receiveLight);
             surface.shadowCaster=authored!=null && authored.shadowCaster && (description==null || description.shadowCaster);
@@ -131,6 +148,14 @@ public final class LightingGeometrySystem extends BaseSystem {
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));
             AssetRefComponent ref=assetRefs.getSafe(e,null);
+            if(surface.actorShadow!=null){
+                games.pixscape.runtime.component.AnimationComponent actorAnimation=actorAnimations.getSafe(e,null);
+                ActorShadowProfile profile=authored==null?null:authored.shadowProfile(ref==null?0:ref.assetId,actorAnimation==null?null:actorAnimation.currentClip);
+                surface.actorShadow.calibrate(corners,profile,authored==null?0:authored.altitude,dynamic.u1[slot]>dynamic.u2[slot],dynamic.v1[slot]>dynamic.v2[slot]);
+                surface.actorShadow.writeReceiver(surface.vertices,corners);
+                surface.shadowVertices=surface.actorShadow.active?surface.actorShadow.calibrated:null;
+                surface.shadowVertexCount=surface.actorShadow.active?surface.actorShadow.vertexCount:0;
+            }
             games.pixscape.runtime.component.TiledAnimationComponent animation=animations.getSafe(e,null);
             int visualId=animation!=null && animation.appliedFrameAssetId>0?animation.appliedFrameAssetId:ref==null?0:ref.assetId;
             surface.normalMap=atlasService==null || ref==null || visualId<=0?null:atlasService.resolveNormal(visualId,ref.atlasTag);

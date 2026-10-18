@@ -15,11 +15,6 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class NormalMapGlSmokeTest {
-    @Test public void separatedShadowsKeepNormalAxesAndDecorOcclusion(){
-        ShadowActorSeparation.enabled=true;
-        try {spriteAxesAliasesAndGeometricFacesRenderIndependently();}
-        finally {ShadowActorSeparation.enabled=false;}
-    }
     @Test public void spriteAxesAliasesAndGeometricFacesRenderIndependently(){
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();
@@ -52,7 +47,8 @@ public class NormalMapGlSmokeTest {
                 LightingSurface s=new LightingSurface(vertices);q.lighting.entities.put(1,s);q.lighting.diagnostic=2;
                 submit.prepareComposition();submit.setEnabled(true);
                 float[][] expected={{-.57735f,-.57735f,.57735f},{.7071f,-.7071f,0},{.40825f,.40825f,.81650f}};
-                for(int id=1;id<=3;id++)for(int face=0;face<2;face++){
+                for(boolean actor:new boolean[]{false,true})for(int id=1;id<=3;id++)for(int face=0;face<2;face++){
+                    s.actor=actor;
                     s.normalMap=normals.resolve(id);
                     for(int i=0;i<6;i++){vertices[i*8+5]=face;vertices[i*8+7]=1-face;}
                     Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
@@ -107,8 +103,48 @@ public class NormalMapGlSmokeTest {
                 upright.normalMap=normals.resolve(1);q.lighting.entities.put(1,upright);
                 for(int i=0;i<6;i++)casterVertices[i*8+1]-=20;
                 caster.bounds();q.lighting.casters.add(caster);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();sample.clear();Gdx.gl.glReadPixels(pixelWidth/2,pixelHeight/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);shadowed=sample.get(0)&255;
+                byte[] wallShadow=renderBytes(world,pixelWidth,pixelHeight);
+                caster.surface.actor=true;
+                Assert.assertArrayEquals("An actor caster casts the same shadow onto a decor wall",wallShadow,renderBytes(world,pixelWidth,pixelHeight));
                 q.lighting.casters.clear();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();sample.clear();Gdx.gl.glReadPixels(pixelWidth/2,pixelHeight/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);
                 Assert.assertTrue("Neighbor must occlude the upright wall",(sample.get(0)&255)>shadowed+3);
+                // Actors see decor occlusion only; even a nearer actor/self caster cannot hide a wall.
+                upright.actor=true;
+                LightingFrame.Caster self=new LightingFrame.Caster();self.surface=upright;self.texture=TextureRegistry.handleOf(color);
+                self.u2=self.v2=1;self.bounds();
+                float[] nearActorVertices=casterVertices.clone();
+                for(int o=0;o<nearActorVertices.length;o+=8){nearActorVertices[o]=(nearActorVertices[o]+light.x)*.5f;
+                    nearActorVertices[o+1]=(nearActorVertices[o+1]+light.y)*.5f;nearActorVertices[o+2]=(nearActorVertices[o+2]+light.z)*.5f;}
+                LightingFrame.Caster nearerActor=new LightingFrame.Caster();nearerActor.surface=new LightingSurface(nearActorVertices);
+                nearerActor.surface.actor=true;nearerActor.texture=TextureRegistry.handleOf(color);nearerActor.u2=nearerActor.v2=1;nearerActor.bounds();
+                for(boolean mapped:new boolean[]{false,true})for(int blend:new int[]{0,1,2,7}){
+                    upright.normalMap=mapped?normals.resolve(1):null;q.blend[0]=blend;
+                    light.quality=0;byte[] unshadowed=renderBytes(world,pixelWidth,pixelHeight);
+                    for(int quality:new int[]{1,2}){
+                        light.quality=quality;caster.surface.actor=true;q.lighting.casters.add(caster);q.lighting.casters.add(self);
+                        Assert.assertArrayEquals("Other actor and own caster never occlude the actor",unshadowed,renderBytes(world,pixelWidth,pixelHeight));
+                        q.lighting.casters.clear();caster.surface.actor=false;q.lighting.casters.add(caster);
+                        byte[] decorOccluded=renderBytes(world,pixelWidth,pixelHeight);
+                        Assert.assertFalse("Opaque decor must occlude direct actor light",java.util.Arrays.equals(unshadowed,decorOccluded));
+                        q.lighting.casters.add(self);q.lighting.casters.add(nearerActor);
+                        Assert.assertArrayEquals("Self and nearer actor cannot replace or hide decor occlusion",decorOccluded,renderBytes(world,pixelWidth,pixelHeight));
+                        q.lighting.casters.clear();
+                        // Empty decor after a nonempty frame must not retain old occlusion.
+                        caster.surface.actor=true;q.lighting.casters.add(caster);
+                        Assert.assertArrayEquals("Decor atlas clears when only actor casters remain",unshadowed,renderBytes(world,pixelWidth,pixelHeight));
+                        q.lighting.casters.clear();
+                    }
+                }
+                // Actual alpha opening in a decor support transmits the direct contribution.
+                Pixmap holeImage=new Pixmap(16,16,Pixmap.Format.RGBA8888);holeImage.setColor(Color.WHITE);holeImage.fill();
+                holeImage.setBlending(Pixmap.Blending.None);holeImage.setColor(0,0,0,0);holeImage.fillRectangle(4,4,8,8);Texture hole=new Texture(holeImage);holeImage.dispose();
+                try{
+                    caster.surface.actor=false;light.quality=1;upright.normalMap=null;q.blend[0]=1;light.intensity=1;q.lighting.casters.add(caster);
+                    byte[] opaque=renderBytes(world,pixelWidth,pixelHeight);caster.texture=TextureRegistry.handleOf(hole);
+                    byte[] opening=renderBytes(world,pixelWidth,pixelHeight);int brightened=0,maxGain=0;
+                    for(int i=0;i<opening.length;i+=4){maxGain=Math.max(maxGain,(opening[i]&255)-(opaque[i]&255));if((opening[i]&255)>(opaque[i]&255)+3)brightened++;}
+                    Assert.assertTrue("Light through transparent wall alpha must illuminate actor pixels; maxGain="+maxGain,brightened>0);
+                }finally{q.lighting.casters.clear();hole.dispose();}
                 Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
             }catch(Throwable e){failure[0]=e;}finally{
                 if(world!=null)world.dispose();if(batch!=null)batch.close();if(normals!=null)normals.dispose();if(color!=null)color.dispose();
@@ -116,6 +152,12 @@ public class NormalMapGlSmokeTest {
             }
         }},cfg);
         if(failure[0]!=null)throw new AssertionError("Normal GL integration",failure[0]);
+    }
+    private static byte[] renderBytes(World world,int width,int height){
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+        ByteBuffer pixels=BufferUtils.newByteBuffer(width*height*4);
+        Gdx.gl.glReadPixels(0,0,width,height,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixels);
+        byte[] result=new byte[pixels.capacity()];pixels.get(result);return result;
     }
     private static void assertPixel(float[] expected){ByteBuffer pixel=BufferUtils.newByteBuffer(4);Gdx.gl.glReadPixels(Gdx.graphics.getBackBufferWidth()/2,Gdx.graphics.getBackBufferHeight()/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
         for(int i=0;i<3;i++)Assert.assertEquals("World normal component "+i,Math.round((expected[i]*.5f+.5f)*255),pixel.get(i)&255,3);}

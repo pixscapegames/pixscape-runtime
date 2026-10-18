@@ -383,6 +383,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
             target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
             target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
+            source.copyActorShadowsTo(target);
         }
         if (data.pointLight != null) {
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);

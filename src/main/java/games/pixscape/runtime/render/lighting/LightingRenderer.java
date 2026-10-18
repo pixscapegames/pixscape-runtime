@@ -21,12 +21,9 @@ import java.nio.IntBuffer;
 
 /** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private ShaderProgram receiver,mappedReceiver,actorReceiver,mappedActorReceiver,shadow,accumulate;
+    private ShaderProgram receiver,mappedReceiver,shadow,accumulate;
     private LightingBatch batch;
-    private FrameBuffer scratch,atlas,actorAtlas;
-    private int actorResolution;
-    private final com.badlogic.gdx.utils.IntArray decorCasters=new com.badlogic.gdx.utils.IntArray();
-    private final com.badlogic.gdx.utils.IntArray actorCasters=new com.badlogic.gdx.utils.IntArray();
+    private FrameBuffer scratch,atlas,decorAtlas;
     private Mesh screen;
     private int width,height,resolution;
     private World preparedWorld;
@@ -94,7 +91,6 @@ public final class LightingRenderer {
             screen=new Mesh(true,4,6,VertexAttribute.Position(),VertexAttribute.TexCoords(0));
             screen.setVertices(new float[]{-1,-1,0,0,0,-1,1,0,0,1,1,1,0,1,1,1,-1,0,1,0});screen.setIndices(new short[]{0,1,2,2,3,0});
         }
-        if(ShadowActorSeparation.enabled && actorReceiver==null)prepareSeparatedReceivers();
         int w=composition.targetWidth(),h=composition.targetHeight();
         if(scratch==null || width!=w || height!=h){FrameBuffer next=floatTarget(w,h,false);if(scratch!=null)scratch.dispose();scratch=next;width=w;height=h;}
         int required=0;
@@ -106,28 +102,14 @@ public final class LightingRenderer {
             if(c!=null && c.enabled && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
-        if(required!=resolution){FrameBuffer next=required==0?null:floatTarget(required*3,required*2,true);if(atlas!=null)atlas.dispose();atlas=next;resolution=required;}
-        if(ShadowActorSeparation.enabled && required!=0 && (actorAtlas==null || actorResolution!=required)){
-            FrameBuffer next=floatTarget(required*3,required*2,true);
-            if(actorAtlas!=null)actorAtlas.dispose();actorAtlas=next;actorResolution=required;
-        }else if(required==0 && actorAtlas!=null){actorAtlas.dispose();actorAtlas=null;actorResolution=0;}
-
-    }
-    private void prepareSeparatedReceivers(){
-        saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS,saved);
-        if(saved.get(0)<10)throw new IllegalStateException("Actor shadow separation requires ten fragment texture units");
-        actorReceiver=compile(receiver.getVertexShaderSource(),separatedFragment(receiver.getFragmentShaderSource()));
-        mappedActorReceiver=compile(mappedReceiver.getVertexShaderSource(),separatedFragment(mappedReceiver.getFragmentShaderSource()));
-        actorReceiver.bind();samplers(actorReceiver);actorReceiver.setUniformi("u_actorShadow",9);
-        mappedActorReceiver.bind();samplers(mappedActorReceiver);mappedActorReceiver.setUniformi("u_actorShadow",9);
-        for(int i=0;i<4;i++)mappedActorReceiver.setUniformi("u_normal"+i,i+5);
-    }
-    private static String separatedFragment(String source){
-        // Both atlases store the same normalized radial distance. Combine each PCF tap before comparison.
-        return source.replace("uniform sampler2D u_shadow;","uniform sampler2D u_shadow,u_actorShadow;")
-                .replace("return texture(u_shadow,u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.)).r*u_range;",
-                        "vec2 lookup=u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);float nearest=texture(u_shadow,lookup).r;if(flags.z<1.5){float other=texture(u_actorShadow,lookup).r;if(nearest<0.)nearest=other;else if(other>=0.)nearest=min(nearest,other);}if(nearest<0.)nearest=1.;return nearest*u_range;")
-                .replace("if(flags.z>.5)cosine=abs(cosine);","if(mod(flags.z,2.)>.5)cosine=abs(cosine);");
+        if(required!=resolution){
+            FrameBuffer next=required==0?null:floatTarget(required*3,required*2,true);
+            FrameBuffer nextDecor=null;
+            try{if(required!=0)nextDecor=floatTarget(required*3,required*2,true);}
+            catch(RuntimeException | Error failure){if(next!=null)next.dispose();throw failure;}
+            if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();
+            atlas=next;decorAtlas=nextDecor;resolution=required;
+        }
     }
     private static ShaderProgram compile(String v,String f){ShaderProgram s=new ShaderProgram(v,f);if(!s.isCompiled()){String log=s.getLog();s.dispose();throw new IllegalStateException("2.5D lighting shader: "+log);}return s;}
     private static void samplers(ShaderProgram s){for(int i=0;i<4;i++)s.setUniformi("u_tex"+i,i);}
@@ -143,15 +125,11 @@ public final class LightingRenderer {
         composition.beginField();
         // Clear every frame, including empty frames, before skipping work without consumers.
         if(queue.size==0 && frame.diagnostic==0)return;
-        ShaderProgram ordinaryReceiver=receiver;
         boolean mapped=false;
         for(int i=0;i<queue.size && !mapped;i++){
             LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
             mapped=surface!=null && surface.normalMap!=null;
         }
-        boolean separated=ShadowActorSeparation.enabled;
-        if(separated)receiver=mapped?mappedActorReceiver:actorReceiver;
-        else if(mapped)receiver=mappedReceiver;
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
         boolean clipped=frame.diagnostic==0 && lightCount!=0;
         if(clipped){LightingScissorState.read(saved,savedScissorBounds);influenceBounds.prepare(queue,camera);}
@@ -161,7 +139,7 @@ public final class LightingRenderer {
             // Reject influence, not the source icon. Off-camera casters are still queried for retained lights.
             if(clipped && !influenceBounds.compute(l,width,height))continue;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
-            if(l.quality!=0) shadows(frame,l,stats,separated);
+            if(l.quality!=0) shadows(frame,l,stats);
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
             shadowDraws+=stats.drawCalls-draws;shadowCpuNs+=System.nanoTime()-start;
             Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,scratch.getFramebufferHandle());Gdx.gl.glViewport(0,0,width,height);
@@ -170,22 +148,9 @@ public final class LightingRenderer {
             zero.clear();Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
             start=System.nanoTime();draws=stats.drawCalls;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.RECEIVERS);
-            receiver.bind();receiver.setUniformMatrix("u_matrix",camera.combined);receiver.setUniformf("u_light",l.x,l.y,l.z);
-            receiver.setUniformf("u_color",l.r*l.intensity,l.g*l.intensity,l.b*l.intensity);
-            receiver.setUniformf("u_range",l.radius);receiver.setUniformf("u_falloff",l.falloff);
-            receiver.setUniformi("u_quality",l.quality);receiver.setUniformf("u_resolution",l.resolution);
-            receiver.setUniformf("u_atlasScale",resolution==0?1f:(float)l.resolution/resolution);
-            receiver.setUniformi("u_shadow",4);receiver.setUniformi("u_diagnostic",frame.diagnostic);
-            receiver.setUniformf("u_cone",l.cone?1:0,l.cosOuter,l.cosInner);
-            receiver.setUniformf("u_direction",l.dx,l.dy,l.dz);
-            if(atlas!=null)atlas.getColorBufferTexture().bind(4);
-            else composition.originalTexture().bind(4); // Sampler must be complete even in an unshadowed branch.
-            if(separated){
-                if(l.quality!=0)actorAtlas.getColorBufferTexture().bind(9);
-                else composition.originalTexture().bind(9);
-            }
-            if(mapped)batch.beginMapped(receiver,stats);else batch.begin(receiver,stats);
-            batch.separateActors(separated);
+            ShaderProgram lightReceiver=mapped?mappedReceiver:receiver;
+            int activeClass=-1;
+            boolean preparedReceiver=false;
             for(int i=0;i<queue.size;i++){
                 if(queue.light[i]!=0 || queue.textureHandle[i]==0)continue;
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
@@ -195,6 +160,17 @@ public final class LightingRenderer {
                     // Unlit ordinary images still mask light with their actual four-corner coverage.
                     missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
                     s=missing;}
+                int receiverClass=s.actor?1:0;
+                if(receiverClass!=activeClass){
+                    batch.flush();
+                    if(!preparedReceiver){receiverUniforms(lightReceiver,l,frame,camera);preparedReceiver=true;}
+                    // One decor-only atlas is shared by every actor, including the caster itself.
+                    // Flush before rebinding so interleaved transparent receivers keep their queue order.
+                    if(l.quality!=0)(s.actor?decorAtlas:atlas).getColorBufferTexture().bind(4);
+                    else composition.originalTexture().bind(4);
+                    if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
+                    activeClass=receiverClass;
+                }
                 quad[0]=queue.x1[i];quad[1]=queue.y1[i];quad[2]=queue.x2[i];quad[3]=queue.y2[i];
                 quad[4]=queue.x3[i];quad[5]=queue.y3[i];quad[6]=queue.x4[i];quad[7]=queue.y4[i];
                 boolean supported=ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE && queue.repeatFlags[i]==0;
@@ -213,7 +189,6 @@ public final class LightingRenderer {
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.ACCUMULATION);
         }
         } finally {
-            receiver=ordinaryReceiver;
             if(clipped){
                 Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
                 Gdx.gl.glScissor(savedScissorBounds[0],savedScissorBounds[1],savedScissorBounds[2],savedScissorBounds[3]);
@@ -225,32 +200,38 @@ public final class LightingRenderer {
         Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
         Gdx.gl.glScissor(influenceBounds.x,influenceBounds.y,influenceBounds.width,influenceBounds.height);
     }
-    private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats,boolean separated){
-        if(atlas==null || l.resolution>resolution || separated && (actorAtlas==null || l.resolution>actorResolution))
+    private void receiverUniforms(ShaderProgram shader,LightingFrame.Light l,LightingFrame frame,OrthographicCamera camera){
+        shader.bind();shader.setUniformMatrix("u_matrix",camera.combined);shader.setUniformf("u_light",l.x,l.y,l.z);
+        shader.setUniformf("u_color",l.r*l.intensity,l.g*l.intensity,l.b*l.intensity);
+        shader.setUniformf("u_range",l.radius);shader.setUniformf("u_falloff",l.falloff);
+        shader.setUniformi("u_diagnostic",frame.diagnostic);shader.setUniformf("u_cone",l.cone?1:0,l.cosOuter,l.cosInner);
+        shader.setUniformf("u_direction",l.dx,l.dy,l.dz);
+        shader.setUniformi("u_quality",l.quality);shader.setUniformf("u_resolution",l.resolution);
+        shader.setUniformf("u_atlasScale",resolution==0?1f:(float)l.resolution/resolution);shader.setUniformi("u_shadow",4);
+    }
+    private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
+        if(atlas==null || decorAtlas==null || l.resolution>resolution)
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
         selectedCasters+=frame.casterIndex.candidates.size;
-        if(!separated){shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,false);return;}
-        // One partition of the existing light-local candidates, including useful off-camera casters.
-        decorCasters.clear();actorCasters.clear();
-        for(int i=0;i<frame.casterIndex.candidates.size;i++){
-            int index=frame.casterIndex.candidates.get(i);
-            (frame.casters.get(index).surface.actor?actorCasters:decorCasters).add(index);
-        }
-        shadowMap(frame,l,stats,atlas,decorCasters,true);
-        shadowMap(frame,l,stats,actorAtlas,actorCasters,true);
+        shadowMap(frame,l,stats,decorAtlas,frame.casterIndex.candidates,true);
+        shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,false);
     }
-    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,boolean separated){
+    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly){
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
-        // A caster beyond radius can store a value >1. An empty category must not clamp it to 1.
-        // Resolve the negative empty sentinel to the reference clear (1) only after combining maps.
-        zero.clear();zero.put(0,separated?-1:1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
+        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
         zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
         shadow.bind();shadow.setUniformf("u_light",l.x,l.y,l.z);shadow.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
-        boolean replay=batch.canReplay(frame,candidates);
+        for(int i=0;i<candidates.size;i++){
+            LightingSurface s=frame.casters.get(candidates.get(i)).surface;
+            if(decorOnly && s.actor)continue;
+            s.shadowVertices=s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
+            s.shadowVertexCount=s.shadowVertices==null?0:s.actorShadow.vertexCount;
+        }
+        boolean replay=batch.canReplay(frame,candidates,decorOnly);
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
@@ -260,6 +241,7 @@ public final class LightingRenderer {
             batch.begin(shadow,stats,replay);
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
+                if(decorOnly && c.surface.actor)continue;
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             }
             batch.flush();
@@ -267,26 +249,27 @@ public final class LightingRenderer {
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
     }
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
-    public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8+(long)actorResolution*actorResolution*6*8;}
+    public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8*2;}
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
-        if(actorReceiver!=null)actorReceiver.dispose();if(mappedActorReceiver!=null)mappedActorReceiver.dispose();
-        actorReceiver=mappedActorReceiver=null;if(actorAtlas!=null)actorAtlas.dispose();actorAtlas=null;actorResolution=0;
-        if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();
-        batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=null;width=height=resolution=0;}
+        if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();
+        batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=decorAtlas=null;width=height=resolution=0;}
 
     /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
     private static final String NORMAL_SAMPLE =
         "in vec2 normalUV;flat in float normalSlot;flat in vec4 normalBasis;uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"+
         "vec3 lightingNormal(vec3 geometric){if(normalSlot<-.5)return geometric;vec3 s;if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;else s=texture(u_normal3,normalUV).rgb;s=normalize(s*2.-1.);vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));}";
 
+    // Only one-sided decor receives the geometric horizon fade (3..5 degrees above its plane).
+    // n is the oriented common-XYZ geometric normal, including in the mapped shader; never use its lighting normal.
+    // The factor covers the entire direct value, including its 10% floor. Ambient/original color and actors are independent.
     private static final String RECEIVER =
-        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff,u_resolution,u_atlasScale;uniform int u_quality,u_diagnostic;uniform sampler2D u_shadow;out vec4 result;"+
+        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality;uniform sampler2D u_shadow;"+
         "float depthAt(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return texture(u_shadow,u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.)).r*u_range;}"+
         "float visible(vec3 d,float distance,float bias){return distance-bias<=depthAt(d)?1.:0.;}"+
         "void main(){vec4 texel=image();if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;vec3 outputColor=t.rgb;"+
         "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 normal=n/normalLength;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float visibility=1.;float c=clamp(abs(cosine),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
         "if(u_quality==1)visibility=visible(delta,distance,bias);if(u_quality==2){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,normal);float dist=abs(den)>.0001?dot(delta,normal)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
-        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*visibility*cone;}"+
+        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*visibility*cone;if(flags.z==0.){float cG=dot(n/normalLength,distance>0.?-delta/distance:vec3(0));value*=smoothstep(.052335956,.087155743,max(0.,cG));}}"+
         "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);}";
 }

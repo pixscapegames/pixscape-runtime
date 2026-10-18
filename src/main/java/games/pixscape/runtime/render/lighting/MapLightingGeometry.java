@@ -16,6 +16,8 @@ public final class MapLightingGeometry {
     private final LongMap<Receiver> receivers = new LongMap<Receiver>();
     private int revision = Integer.MIN_VALUE;
     private TiledMapLayerData previous;
+    private SpatialBlocksComponent previousBlocks;
+    private TiledProjection projection;
     private float ox, oy, altitude;
     private int tw, th;
     private final IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
@@ -27,7 +29,7 @@ public final class MapLightingGeometry {
 
     public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.revision;
-        if (previous == map && revision == r && ox == map.originX
+        if (previous == map && previousBlocks == blocks && projection == map.projection && revision == r && ox == map.originX
                 && oy == map.originY && altitude == map.defaultTileAltitude
                 && tw == map.tileWidth && th == map.tileHeight) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
@@ -40,6 +42,7 @@ public final class MapLightingGeometry {
                 throw new IllegalArgumentException("Tile surface descriptions require unique positive asset IDs");
             d.geometry.validate();descriptions.put(d.assetId,d.geometry);
         }
+        Array<SpatialBlockData> casterBlocks=new Array<SpatialBlockData>();
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData b = blocks.blocks.get(i);
             for (int j = 0; j < b.linkedTileRefs.size; j++) {
@@ -49,15 +52,26 @@ public final class MapLightingGeometry {
                 if (owners == null) { owners = new Array<SpatialBlockData>(); memberships.put(key, owners); }
                 if (!owners.contains(b, true)) owners.add(b);
             }
-            if (b.shadowCaster || b.lightOccluder) {
-                Array<float[]> faces = faces(map, b, false);
+            if (b.shadowCaster || b.lightOccluder) casterBlocks.add(b);
+        }
+        // Coplanar overlapping triangles can tie in the depth attachment while their
+        // radial float outputs differ by an ULP. Keep submission deterministic too,
+        // without changing any caster plane, vertex, flag or within-volume face order.
+        casterBlocks.sort(new java.util.Comparator<SpatialBlockData>(){
+            public int compare(SpatialBlockData a,SpatialBlockData b){
+                int c=Float.compare(a.x,b.x);if(c!=0)return c;c=Float.compare(a.y,b.y);if(c!=0)return c;
+                c=Float.compare(a.altitude,b.altitude);if(c!=0)return c;c=Float.compare(a.width,b.width);if(c!=0)return c;
+                c=Float.compare(a.depth,b.depth);return c!=0?c:Float.compare(a.height,b.height);
+            }
+        });
+        for(int i=0;i<casterBlocks.size;i++){
+                Array<float[]> faces = faces(map, casterBlocks.get(i), false);
                 for (int j = 0; j < faces.size; j++) {
                     LightingSurface s = new LightingSurface(triangulate(faces.get(j), null));
                     s.shadowCaster = true; s.receiveLight = false; casters.add(s);
                 }
-            }
         }
-        previous = map; revision = r; ox = map.originX; oy = map.originY;
+        previous = map; previousBlocks = blocks; projection = map.projection; revision = r; ox = map.originX; oy = map.originY;
         altitude = map.defaultTileAltitude; tw = map.tileWidth; th = map.tileHeight;
         return true;
     }
@@ -67,7 +81,9 @@ public final class MapLightingGeometry {
                                      int assetId, byte flags, float[] quad) {
         long cell = key(gx, gy);
         Receiver cached = receivers.get(cell);
-        boolean same = cached != null && cached.flags == flags && cached.assetId==assetId;
+        // A texture-only animation frame cannot invalidate an automatic physical partition.
+        boolean same = cached != null && cached.flags == flags && (cached.assetId==assetId
+                || !descriptions.containsKey(cached.assetId)&&!descriptions.containsKey(assetId));
         if (same) for (int i=0;i<8;i++) if(cached.quad[i]!=quad[i]) {same=false;break;}
         if (same) return cached.surface;
         LocalSurfaceDescription description=descriptions.get(assetId);
@@ -90,6 +106,7 @@ public final class MapLightingGeometry {
         if (owners != null && flags != 0)
             throw new IllegalArgumentException("Automatic volume receiver does not support transformed tiles; provide local geometry");
         Array<float[]> polygons = new Array<float[]>();
+        Array<ReceiverFace> candidates = owners != null && owners.size > 1 ? new Array<ReceiverFace>() : null;
         if (owners == null) {
             float[] p = new float[32];
             float[] u = {0,0,1,1}, v = {0,1,1,0};
@@ -111,13 +128,16 @@ public final class MapLightingGeometry {
                 p = clip(p, 3, 0, true); p = clip(p, 3, 1, false);
                 p = clip(p, 4, 0, true); p = clip(p, 4, 1, false);
                 if (p.length >= 24 && uvArea(p)>.000001f) {
-                    // Later local faces own overlaps; native image order is never changed.
-                    Array<float[]> next = new Array<float[]>();
-                    for (int k = 0; k < polygons.size; k++) subtract(polygons.get(k), p, next);
-                    next.add(p); polygons = next;
+                    if(candidates!=null)candidates.add(new ReceiverFace(p,quad));
+                    else {
+                        Array<float[]> next = new Array<float[]>();
+                        for (int k = 0; k < polygons.size; k++) subtract(polygons.get(k), p, next);
+                        next.add(p); polygons = next;
+                    }
                 }
             }
         }
+        if(candidates!=null)polygons=visiblePartition(candidates);
         if (owners != null) {
             float[] full = new float[32];
             vertex(full,0,0,0,0,0,0,0,0,0);vertex(full,8,0,0,0,0,1,0,0,0);
@@ -145,6 +165,75 @@ public final class MapLightingGeometry {
     }
 
     private static long key(int x, int y) { return ((long)x << 32) ^ (y & 0xffffffffL); }
+    /** Cold tile-local partition. Larger Z is nearer along the display ray (-1,-1,+1).
+     * Depth on a projected plane is affine in UV, so a crossing requires a line cut,
+     * not a global face sort. Casters and authored memberships remain unchanged. */
+    private static Array<float[]> visiblePartition(Array<ReceiverFace> faces){
+        // Canonical geometry order also fixes triangulation and coverage extrapolation ties.
+        faces.sort();
+        Array<float[]> result=new Array<float[]>();
+        for(int i=0;i<faces.size;i++){
+            ReceiverFace face=faces.get(i);
+            if(i>0&&face.compareTo(faces.get(i-1))==0)continue;
+            Array<float[]> parts=new Array<float[]>();parts.add(face.polygon);
+            for(int j=0;j<faces.size&&parts.size>0;j++){
+                if(i==j)continue;
+                ReceiverFace other=faces.get(j);
+                if(face.maxU<=other.minU||other.maxU<=face.minU||face.maxV<=other.minV||other.maxV<=face.minV)continue;
+                float[] front=other.inFrontOf(face,j<i);
+                if(front==null)continue;
+                Array<float[]> next=new Array<float[]>();
+                for(int k=0;k<parts.size;k++)subtract(parts.get(k),front,next);
+                parts=next;
+            }
+            result.addAll(parts);
+        }
+        return result;
+    }
+    private static final class ReceiverFace implements Comparable<ReceiverFace>{
+        final float[] polygon;
+        final double u,v,c;
+        float minU=Float.POSITIVE_INFINITY,minV=Float.POSITIVE_INFINITY;
+        float maxU=Float.NEGATIVE_INFINITY,maxV=Float.NEGATIVE_INFINITY;
+        ReceiverFace(float[] p,float[] quad){
+            polygon=p;
+            double nx=p[5],ny=p[6],nz=p[7],den=nz-nx-ny;
+            // Solve N.P=constant using X=sy-z+sx/2, Y=sy-z-sx/2.
+            // Unlike a fit through clipped vertices, this keeps coplanar ties exact.
+            double sx=(nx-ny)*.5,sy=nx+ny;
+            u=(-sx*(quad[6]-quad[0])-sy*(quad[7]-quad[1]))/den;
+            v=(-sx*(quad[2]-quad[0])-sy*(quad[3]-quad[1]))/den;
+            c=(nx*p[0]+ny*p[1]+nz*p[2]-sx*quad[0]-sy*quad[1])/den;
+            for(int k=0;k<p.length;k+=8){minU=Math.min(minU,p[k+3]);maxU=Math.max(maxU,p[k+3]);minV=Math.min(minV,p[k+4]);maxV=Math.max(maxV,p[k+4]);}
+        }
+        public int compareTo(ReceiverFace b){
+            int d=Double.compare(u,b.u);if(d!=0)return d;
+            d=Double.compare(v,b.v);if(d!=0)return d;
+            d=Double.compare(c,b.c);if(d!=0)return d;
+            // Equal depth planes: normals, then physical vertices; never IDs or insertion order.
+            for(int k=5;k<8;k++){d=Float.compare(polygon[k],b.polygon[k]);if(d!=0)return d;}
+            for(int k=0;k<Math.min(polygon.length,b.polygon.length);k++){d=Float.compare(polygon[k],b.polygon[k]);if(d!=0)return d;}
+            return Integer.compare(polygon.length,b.polygon.length);
+        }
+        float[] inFrontOf(ReceiverFace b,boolean winsTie){
+            double a=u-b.u,d=v-b.v,e=c-b.c;
+            if(a==0&&d==0&&e==0)return winsTie?polygon:null;
+            double min=Double.POSITIVE_INFINITY,max=Double.NEGATIVE_INFINITY;
+            for(int k=0;k<polygon.length;k+=8){double z=a*polygon[k+3]+d*polygon[k+4]+e;min=Math.min(min,z);max=Math.max(max,z);}
+            if(max<=0)return null;
+            if(min>=0)return polygon;
+            // Preserve XYZ, normals and native UV together at the exact depth crossing.
+            int n=polygon.length/8,at=0;float[] temp=new float[(n+2)*8];
+            for(int i=0;i<n;i++){
+                int j=(i+n-1)%n;
+                double z0=a*polygon[j*8+3]+d*polygon[j*8+4]+e,z1=a*polygon[i*8+3]+d*polygon[i*8+4]+e;
+                boolean in0=z0>=0,in1=z1>=0;
+                if(in0!=in1){double t=z0/(z0-z1);for(int k=0;k<8;k++)temp[at++]=(float)(polygon[j*8+k]+t*((double)polygon[i*8+k]-polygon[j*8+k]));}
+                if(in1){System.arraycopy(polygon,i*8,temp,at,8);at+=8;}
+            }
+            float[] out=new float[at];System.arraycopy(temp,0,out,0,at);return out;
+        }
+    }
     /** Cold coverage-only approximation. Extrapolates the closest existing UV facet into each
      * previously undescribed triangle. It never changes a valid vertex or any caster geometry.
      * An image extending beyond its authored volume does not determine a unique physical depth;

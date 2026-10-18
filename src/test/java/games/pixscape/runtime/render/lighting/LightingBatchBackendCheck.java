@@ -42,20 +42,21 @@ public final class LightingBatchBackendCheck {
                     float[] quad={-7,3,-4,19,25,19,22,3};
                     Field data=LightingBatch.class.getDeclaredField("data");data.setAccessible(true);
                     Field count=LightingBatch.class.getDeclaredField("vertices");count.setAccessible(true);
-                    for(boolean separate:new boolean[]{false,true})for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
+                    for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
                         nativeBatch.abort();htmlBatch.abort();
                         nativeBatch.begin(null,null);htmlBatch.begin(null,null);
-                        nativeBatch.separateActors(separate);htmlBatch.separateActors(separate);
                         float color=new Color(.3f,.5f,.7f,.6f).toFloatBits();
                         nativeBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         htmlBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
-                        Assert.assertEquals(separate?3f:1f,a[14],0);
+                        Assert.assertEquals(1f,a[14],0);
                         for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
                     assertDeformedImageVertices(nativeBatch);
                     assertDeformedImageVertices(htmlBatch);
+                    assertReceiverProvenance(nativeBatch);
+                    assertReceiverProvenance(htmlBatch);
                 }catch(Throwable error){failure[0]=error;}
                 finally {
                     Gdx.app=htmlApp==null?nativeApp:htmlApp;if(htmlBatch!=null)htmlBatch.dispose();
@@ -64,6 +65,17 @@ public final class LightingBatchBackendCheck {
             }
         },cfg);
         if(failure[0]!=null)throw new AssertionError("Backend vertex equivalence failed",failure[0]);
+    }
+    private static void assertReceiverProvenance(LightingBatch batch)throws Exception {
+        Field dataField=LightingBatch.class.getDeclaredField("data");dataField.setAccessible(true);
+        LightingSurface surface=new LightingSurface(new float[48]);
+        for(boolean actor:new boolean[]{false,true})for(boolean twoSided:new boolean[]{false,true})for(boolean shadow:new boolean[]{false,true}){
+            surface.actor=actor;surface.twoSided=twoSided;batch.abort();batch.begin(null,null);
+            batch.draw(surface,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,shadow,true);
+            float[] vertices=(float[])dataField.get(batch);
+            float expected=twoSided?1:actor&&!shadow?-1:0;
+            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*18+14],0);
+        }
     }
     private static void assertDeformedImageVertices(LightingBatch batch)throws Exception {
         Field dataField=LightingBatch.class.getDeclaredField("data");dataField.setAccessible(true);

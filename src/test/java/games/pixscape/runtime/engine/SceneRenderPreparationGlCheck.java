@@ -16,7 +16,6 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneLoadHandle;
-import games.pixscape.runtime.render.lighting.ShadowActorSeparation;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import org.junit.Assert;
 
@@ -53,10 +52,7 @@ public final class SceneRenderPreparationGlCheck {
                 + "\"nextPhysicsShapeId\":1}}}", false, "UTF-8");
         project.child("atlases/test.atlas").writeString("", false, "UTF-8");
         writeScene(project.child("scenes/test.json"));
-        boolean originalSeparation = ShadowActorSeparation.enabled;
         try {
-            for (boolean separated : new boolean[]{false, true}) {
-                ShadowActorSeparation.enabled = separated;
                 int[] processed = {0};
                 PixscapeEngine engine = new PixscapeEngine().setConfigurationCustomizer(builder ->
                         builder.with(new BaseSystem() {
@@ -78,16 +74,17 @@ public final class SceneRenderPreparationGlCheck {
                         Object batch = get(renderer, "batch");
                         Object scratch = get(renderer, "scratch");
                         Object atlas = get(renderer, "atlas");
+                        Object decorAtlas = get(renderer, "decorAtlas");
                         Assert.assertNotNull("Lighting batch must exist at READY", batch);
                         Assert.assertNotNull(scratch);
-                        Assert.assertNotNull(atlas);
-                        Assert.assertEquals(separated, get(renderer, "actorAtlas") != null);
+                        Assert.assertNotNull(atlas);Assert.assertNotNull(decorAtlas);
                         for (int repeat = 0; repeat < 3; repeat++) { load.update(); submit.prepareComposition(); }
                         engine.update(0);
                         engine.render();
                         Assert.assertSame(batch, get(renderer, "batch"));
                         Assert.assertSame(scratch, get(renderer, "scratch"));
                         Assert.assertSame(atlas, get(renderer, "atlas"));
+                        Assert.assertSame(decorAtlas, get(renderer, "decorAtlas"));
 
                         // A legitimate viewport change replaces only size-dependent targets once.
                         Gdx.gl.glViewport(0, 0, 48, 24);
@@ -106,12 +103,10 @@ public final class SceneRenderPreparationGlCheck {
                         Assert.assertSame(batch, get(renderer, "batch"));
                         light.shadowQuality = 0;
                         submit.prepareComposition();
-                        Assert.assertNull(get(renderer, "atlas"));
-                        Assert.assertNull(get(renderer, "actorAtlas"));
+                        Assert.assertNull(get(renderer, "atlas"));Assert.assertNull(get(renderer, "decorAtlas"));
                         light.shadowQuality = 2;
                         submit.prepareComposition();
-                        Assert.assertNotNull(get(renderer, "atlas"));
-                        Assert.assertEquals(separated, get(renderer, "actorAtlas") != null);
+                        Assert.assertNotNull(get(renderer, "atlas"));Assert.assertNotNull(get(renderer, "decorAtlas"));
                         int added = engine.getWorld().create();
                         PointLightComponent addedLight = engine.getWorld().getMapper(PointLightComponent.class).create(added);
                         addedLight.shadowQuality = 1;
@@ -125,8 +120,7 @@ public final class SceneRenderPreparationGlCheck {
                         Assert.assertEquals(GL20.GL_NO_ERROR, Gdx.gl.glGetError());
                     }
                 } finally { engine.dispose(); engine.dispose(); }
-            }
-        } finally { ShadowActorSeparation.enabled = originalSeparation; root.deleteDirectory(); }
+        } finally { root.deleteDirectory(); }
     }
 
     private static void writeScene(FileHandle file) throws Exception {

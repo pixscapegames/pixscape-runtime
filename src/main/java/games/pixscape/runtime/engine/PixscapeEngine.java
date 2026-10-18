@@ -1499,6 +1499,8 @@ public final class PixscapeEngine {
         requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
         requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
         requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
+        LightingGeometrySystem lightingGeometry=world.getSystem(LightingGeometrySystem.class);
+        if(lightingGeometry!=null)lightingGeometry.prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
         requireSystem(DirtyFlushSystem.class).finishRuntimeAvailability();
     }

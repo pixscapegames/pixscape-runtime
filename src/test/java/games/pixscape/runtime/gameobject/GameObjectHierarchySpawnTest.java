@@ -22,6 +22,25 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
+    @Test public void freeActorFootEndpointsAndThicknessSurviveAssetSerializationAndRuntimeSpawn(){
+        GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
+        child.surfaceLighting=new SurfaceLightingComponent();
+        child.surfaceLighting.actorShadow=new games.pixscape.runtime.render.lighting.ActorShadowProfile(.25f,.1f,.75f,.2f,.35f);
+        child.surfaceLighting.actorShadowClips=new com.badlogic.gdx.utils.IntMap<>();
+        var clips=new com.badlogic.gdx.utils.ObjectMap<String,games.pixscape.runtime.render.lighting.ActorShadowProfile>();
+        clips.put("idle",child.surfaceLighting.actorShadow.copy());child.surfaceLighting.actorShadowClips.put(42,clips);
+        GameObjectAssetLoader loader=new GameObjectAssetLoader();GameObjectAsset loaded=loader.fromJson(loader.toJson(asset));
+        Assert.assertEquals(.75f,loaded.entities.get(1).surfaceLighting.shadowProfile(42,"idle").rightU,0);
+        World world=new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
+        try{
+            SpawnResult spawned=new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(),new SceneMetaRuntime(),new AtlasRuntimeService())
+                    .spawnAsset(world,loaded,"gameobjects/actor-foot-test.gameobject",0,0);world.process();
+            SurfaceLightingComponent s=world.getMapper(SurfaceLightingComponent.class).get(spawned.createdEntityIds().get(1));
+            Assert.assertEquals(.25f,s.actorShadow.leftU,0);Assert.assertEquals(.35f,s.actorShadow.thickness,0);
+            loaded.entities.get(1).surfaceLighting.shadowProfile(42,"idle").leftU=.9f;
+            Assert.assertEquals(.25f,s.shadowProfile(42,"idle").leftU,0);Assert.assertNull(s.shadowProfile(42,"missing"));
+        }finally{world.dispose();}
+    }
     @Test
     public void fragmentCreatesRealHierarchyWithFreshIdsAndRemappedReferences() {
         World world = new World(new WorldConfigurationBuilder()

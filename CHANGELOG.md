@@ -13,7 +13,8 @@
 
 ### Added
 
-* Added an opt-in decor/actor shadow separation prototype: decor receives shadows from both categories, while actors receive only decor shadows, without per-actor shadow maps. The shared shadow-map path remains the default.
+* Finalized actor shadows: actors cast onto decor and receive decor occlusion, while actor-to-actor shadows and actor self-shadowing are excluded. Two shared atlases are reused independently of actor count; ambient and normal mapping are preserved.
+* Added normalized two-point foot calibration, persisted per animation asset and clip, with single-sheet thickness compensation from the exact calibrated support at zero to an approximately constant breadth at maximum thickness.
 * Added per-instance ambient lighting exemption for particles, preserving transparency, blending and spatial order.
 * Added continuous cone light inclination from -90 to +90 degrees.
 * Added desktop tile normal mapping, with per-tile normals independent of shared color images and atlas layout.
@@ -36,6 +37,10 @@
 
 ### Fixed
 
+* Unified calibrated actor caster/receiver heights and preserved foot contacts, alpha coverage, profile copies and Game Object snapshots.
+* Vertical joins can align physical wall faces outside their linked image-anchor cells, without forcing thinner walls or snapping them back during editing.
+* Shared tile receivers now use the nearest projected geometric face, independently of volume insertion order; canonical caster submission also stabilizes coplanar depth ties.
+* Smoothed direct lighting on one-sided simple decor faces between 3 and 5 degrees of grazing incidence, including the minimum direct contribution, without changing ambient, range, shadow bias or filtering.
 * Released the engine's reference to retired Tiled render storage during disposal.
 * Fixed lighting alignment on deformed images.
 * Completed lighting coverage for tile artwork extending beyond described surfaces.
@@ -49,6 +54,7 @@
 
 ### Tests
 
+* Added regression coverage for foot profiles, compensation, projection/reception, grazing reception and shared-face ownership, including volume permutations and cache invalidation. See [Shadows V2](docs/shadows-v2.md) for validation scope and known limits.
 * Added regression coverage for separated shadow maps, render preparation before READY, repeated preparation and scene loading, viewport and shadow-resolution changes, and resource disposal.
 * Added regression coverage for map-plane projection/inverses, atomic linked Physics updates, local junctions, wall-continuation thresholds, actor altitude, influence-square geometry and Runtime overlay access.
 * Preserved historical candidate fixtures and unresolved corner cases to protect downstream behavior. General multi-map composition remains unresolved; prototype B is not integrated and known conflicts/fallbacks remain.

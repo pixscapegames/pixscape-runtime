@@ -15,13 +15,11 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @Test public void grazingDecorKeepsActorReceptionAndAmbient() {
+        GrazingLightGlCheck.verify();
+    }
     @Test public void sceneReadyIncludesIdempotentRenderResourcesWithoutGameplay() {
         games.pixscape.runtime.engine.SceneRenderPreparationGlCheck.verify();
-    }
-    @Test public void separatedShadowsKeepNestedTargetsFailuresAndCoverageContracts() {
-        ShadowActorSeparation.enabled=true;
-        try {litFractionalEdgesAndIndependentLightsRestoreTarget();}
-        finally {ShadowActorSeparation.enabled=false;}
     }
     @Test public void htmlAndNativeWriteIdenticalActiveVertices() {
         LightingBatchBackendCheck.assertHtmlAndNativeWriteIdenticalActiveVertices();
@@ -103,7 +101,7 @@ public class WorldLightCompositionGlSmokeTest {
                 }
                 LightingFrame.Caster offscreen=new LightingFrame.Caster();
                 offscreen.surface=new LightingSurface(occluderVertices);offscreen.surface.alphaThreshold=.1f;
-                offscreen.surface.actor=ShadowActorSeparation.enabled;
+                offscreen.surface.actor=true;
                 offscreen.texture=handle;offscreen.u2=offscreen.v2=1;offscreen.bounds();
                 q.lighting.casters.add(offscreen);
                 final Throwable[] replayFailure={null};
@@ -121,9 +119,16 @@ public class WorldLightCompositionGlSmokeTest {
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();pixel.clear();
                 Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
                 Assert.assertTrue("Offscreen caster must actually darken the visible receiver",(pixel.get(0)&255)>withOffscreenCaster+3);
+                q.lighting.entities.get(entity).actor=true;offscreen.surface.actor=false;q.lighting.casters.add(offscreen);
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();pixel.clear();Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                int decorBlockedActor=pixel.get(0)&255;
+                light.intensity=0;Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();pixel.clear();Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
+                int ambientOnly=pixel.get(0)&255;Assert.assertTrue("Ambient remains visible behind opaque decor",ambientOnly>0);
+                Assert.assertEquals("Opaque decor removes direct contribution, preserves ambient",ambientOnly,decorBlockedActor);
+                light.intensity=1;q.lighting.entities.get(entity).actor=false;offscreen.surface.actor=true;q.lighting.casters.clear();
                 LightingFrame.Caster invalidCaster=new LightingFrame.Caster();
                 invalidCaster.surface=new LightingSurface(occluderVertices);invalidCaster.texture=0;invalidCaster.bounds();
-                invalidCaster.surface.actor=ShadowActorSeparation.enabled;
+                invalidCaster.surface.actor=true;
                 q.lighting.casters.add(invalidCaster);
                 try {world.process();Assert.fail("An invalid shadow texture must not be skipped by P3 preflight");}
                 catch(IllegalStateException expected){Assert.assertTrue(expected.getMessage().contains("texture handle"));}

@@ -8,6 +8,10 @@ public final class LightingSurface {
     public boolean imageQuad;
     /** Derived provenance: ordinary ECS image supports are actors; Tiled/compiled map supports are decor. */
     public boolean actor;
+    /** Prepared only for ordinary image actors; independent of the receiver vertices/normals. */
+    public ActorShadowGeometry actorShadow;
+    public float[] shadowVertices;
+    public int shadowVertexCount;
     public float alphaThreshold = .5f;
     public int ownerEntity=-1;
     /** Lighting normal only; geometric vertex normals remain authoritative for shadows. */

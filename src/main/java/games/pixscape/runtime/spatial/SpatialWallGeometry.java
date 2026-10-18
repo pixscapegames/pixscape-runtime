@@ -30,8 +30,7 @@ public final class SpatialWallGeometry {
         REF_OUTSIDE_RECTANGLE,
         DUPLICATE_REF,
         REF_OUTSIDE_MAP,
-        EMPTY_MAP_CELL,
-        FOOTPRINT_OUTSIDE_LINKED_REGION
+        EMPTY_MAP_CELL
     }
 
     /** Mutable caller-owned output for continuous exclusive footprint bounds. */
@@ -163,12 +162,8 @@ public final class SpatialWallGeometry {
             if (!map.isInside(ref.gx, ref.gy)) return CoverageValidation.REF_OUTSIDE_MAP;
             if (map.getTile(ref.gx, ref.gy) <= 0) return CoverageValidation.EMPTY_MAP_CELL;
         }
-        if (bounds.minX < linked.minGx - GEOMETRY_EPSILON
-                || bounds.maxX > linked.maxGxExclusive + GEOMETRY_EPSILON
-                || bounds.minY < linked.minGy - GEOMETRY_EPSILON
-                || bounds.maxY > linked.maxGyExclusive + GEOMETRY_EPSILON) {
-            return CoverageValidation.FOOTPRINT_OUTSIDE_LINKED_REGION;
-        }
+        // Linked cells identify image anchors, not limits on physical wall geometry.
+        // In particular, matching faces across map planes can cross a linked-cell edge.
         return CoverageValidation.VALID;
     }
 
