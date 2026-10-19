@@ -61,6 +61,7 @@ public final class SceneRenderPreparationGlCheck {
                 try {
                     engine.loadProject(root);
                     engine.resize(64, 32);
+                    games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle previousBundle=null;
                     for (int scene = 0; scene < 3; scene++) {
                         Gdx.gl.glViewport(0, 0, 64, 32);
                         int beforeProcesses = processed[0];
@@ -72,6 +73,11 @@ public final class SceneRenderPreparationGlCheck {
                         RenderSubmitSystem submit = engine.system(RenderSubmitSystem.class);
                         Object renderer = submit.lightingRenderer();
                         Object batch = get(renderer, "batch");
+                        games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle=
+                                ((games.pixscape.runtime.render.batch.TextureArrayMeshBatch)engine.getMetricsBatch()).getBundle();
+                        Assert.assertNotNull("The array shader must be prepared before READY",get(renderer,"shadowArray"));
+                        Assert.assertSame("Borrow the published main-batch bundle before READY",bundle,get(renderer,"shadowBundle"));
+                        if(previousBundle!=null)Assert.assertNotSame("A scene replacement publishes a fresh bundle",previousBundle,bundle);
                         Object scratch = get(renderer, "scratch");
                         Object atlas = get(renderer, "atlas");
                         Object decorAtlas = get(renderer, "decorAtlas");
@@ -81,6 +87,8 @@ public final class SceneRenderPreparationGlCheck {
                         for (int repeat = 0; repeat < 3; repeat++) { load.update(); submit.prepareComposition(); }
                         engine.update(0);
                         engine.render();
+                        if(previousBundle!=null)Assert.assertEquals("The owner retires the previous scene's array",0,previousBundle.textureArray.getTextureObjectHandle());
+                        previousBundle=bundle;
                         Assert.assertSame(batch, get(renderer, "batch"));
                         Assert.assertSame(scratch, get(renderer, "scratch"));
                         Assert.assertSame(atlas, get(renderer, "atlas"));

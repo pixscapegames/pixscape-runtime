@@ -16,12 +16,14 @@ import games.pixscape.runtime.component.light.*;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-/** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
+/** Internal Runtime/Studio consumer, not a supported public API. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private ShaderProgram receiver,mappedReceiver,shadow,accumulate;
+    private ShaderProgram receiver,mappedReceiver,shadow,shadowArray,accumulate;
+    private TextureArrayBundle shadowBundle;
     private LightingBatch batch;
     private FrameBuffer scratch,atlas,decorAtlas;
     private Mesh screen;
@@ -48,7 +50,9 @@ public final class LightingRenderer {
             0,0,0,0,0,0,0,0, 0,0,0,0,1,0,0,0, 0,0,0,1,1,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,1,1,0,0,0, 0,0,0,1,0,0,0,0});
 
-    public void prepare(World world,WorldLightComposition composition) {
+    /** Borrows the main batch's published bundle. Its owner alone creates, replaces and disposes it. */
+    public void prepare(World world,WorldLightComposition composition,TextureArrayBundle bundle) {
+        shadowBundle=bundle;
         // Admit pending component additions without running gameplay or rendering systems.
         if(world.getInvocationStrategy() instanceof games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)
             ((games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)world.getInvocationStrategy()).synchronizeEntitySubscriptions();
@@ -83,6 +87,9 @@ public final class LightingRenderer {
                     .replace("(n*.5+.5)*alpha", "(lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha"));
             shadow=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
                     version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
+            shadowArray=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
+                    version+(Gdx.app.getType()==Application.ApplicationType.Desktop?"":"precision highp sampler2DArray;\n")+inputs+"uniform sampler2DArray u_array;vec4 image(){return texture(u_array,vec3(uv,flags.x));}uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
+            shadowArray.bind();shadowArray.setUniformi("u_array",0);
             accumulate=compile(version+"in vec3 a_position;in vec2 a_texCoord0;out vec2 uv;void main(){uv=a_texCoord0;gl_Position=vec4(a_position,1.);}",
                     version+"in vec2 uv;uniform sampler2D u_original,u_contribution;out vec4 result;void main(){vec3 base=texture(u_original,uv).rgb,c=texture(u_contribution,uv).rgb;result=vec4(c/max(base,vec3(1./65536.)),0.);}");
             receiver.bind();samplers(receiver);shadow.bind();samplers(shadow);batch=new LightingBatch();
@@ -223,7 +230,6 @@ public final class LightingRenderer {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
         zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
         zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
-        shadow.bind();shadow.setUniformf("u_light",l.x,l.y,l.z);shadow.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
         for(int i=0;i<candidates.size;i++){
             LightingSurface s=frame.casters.get(candidates.get(i)).surface;
@@ -231,14 +237,17 @@ public final class LightingRenderer {
             s.shadowVertices=s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
             s.shadowVertexCount=s.shadowVertices==null?0:s.actorShadow.vertexCount;
         }
-        boolean replay=batch.canReplay(frame,candidates,decorOnly);
+        boolean arrayReplay=batch.canReplayArray(frame,candidates,decorOnly,shadowBundle);
+        ShaderProgram program=arrayReplay?shadowArray:shadow;
+        program.bind();program.setUniformf("u_light",l.x,l.y,l.z);program.setUniformf("u_range",l.radius);
+        boolean replay=arrayReplay || batch.canReplay(frame,candidates,decorOnly);
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
             up.set(UPS[face*3],UPS[face*3+1],UPS[face*3+2]);view.setToLookAt(eye,target,up);matrix.set(projection).mul(view);
-            shadow.bind();shadow.setUniformMatrix("u_matrix",matrix);
-            if(replay && face>0){batch.replay();continue;}
-            batch.begin(shadow,stats,replay);
+            program.bind();program.setUniformMatrix("u_matrix",matrix);
+            if(replay && face>0){if(arrayReplay)batch.replayArray();else batch.replay();continue;}
+            if(arrayReplay)batch.beginArray(program,stats,shadowBundle);else batch.begin(program,stats,replay);
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
                 if(decorOnly && c.surface.actor)continue;
@@ -251,6 +260,7 @@ public final class LightingRenderer {
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     public long textureBytes(){return (long)width*height*8+(long)resolution*resolution*6*8*2;}
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
+        if(shadowArray!=null)shadowArray.dispose();shadowArray=null;shadowBundle=null;
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
         if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();
         batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=decorAtlas=null;width=height=resolution=0;}

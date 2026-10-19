@@ -104,7 +104,11 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    public void prepareComposition() { composition.prepare(); ambientContribution.prepare(); lighting.prepare(world, composition); }
+    public void prepareComposition() {
+        composition.prepare();ambientContribution.prepare();
+        lighting.prepare(world,composition,metricsBatch instanceof TextureArrayMeshBatch
+                ?((TextureArrayMeshBatch)metricsBatch).getBundle():null);
+    }
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
     @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose(); }

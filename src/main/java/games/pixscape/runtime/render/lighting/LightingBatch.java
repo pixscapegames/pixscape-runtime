@@ -8,7 +8,7 @@ import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
-/** Ordered triangle batching with four page bindings. User parameter tables are untouched. */
+/** Ordered triangles: borrowed shadow-array addressing, otherwise four 2D pages. User parameter tables are untouched. */
 final class LightingBatch {
     private static final int BASE_STRIDE=18, MAPPED_STRIDE=25, CAPACITY=12288;
     private int stride=BASE_STRIDE;
@@ -23,6 +23,7 @@ final class LightingBatch {
     private final boolean htmlVertexCopies=Gdx.app.getType()==Application.ApplicationType.WebGL;
     private int vertices,textures,blend=-1,replayVertices,replayTextures;
     private boolean retainReplay;
+    private games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle arrayBundle;
     private ShaderProgram shader;
     private RenderStats stats;
     LightingBatch(){
@@ -44,7 +45,7 @@ final class LightingBatch {
     void begin(ShaderProgram shader,RenderStats stats){begin(shader,stats,false);}
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
         this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayVertices=replayTextures=0;
-        mapped=false;stride=BASE_STRIDE;normalTextures=0;
+        mapped=false;stride=BASE_STRIDE;normalTextures=0;arrayBundle=null;
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
@@ -69,6 +70,31 @@ final class LightingBatch {
         }
         return total!=0;
     }
+    /** Checks the selected shadow domain against the main batch's borrowed, immutable layer mapping. */
+    boolean canReplayArray(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly,
+            games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle){
+        if(bundle==null || bundle.textureArray==null || bundle.handle2layer==null ||
+                bundle.textureArray.getTextureObjectHandle()==0)return false;
+        int total=0;
+        for(int i=0;i<candidates.size;i++){
+            LightingFrame.Caster c=frame.casters.get(candidates.get(i));
+            if(decorOnly && c!=null && c.surface!=null && c.surface.actor)continue;
+            if(c==null || c.surface==null || c.surface.vertices==null || c.surface.vertices.length%8!=0 || c.texture==0)return false;
+            int layer=bundle.handle2layer.get(c.texture,-1);
+            if(layer<0 || layer>=bundle.textureArray.getDepth())return false;
+            int count=c.surface.shadowVertices==null?c.surface.vertices.length/8:c.surface.shadowVertexCount;
+            if(count<0 || count>CAPACITY-total)return false;total+=count;
+        }
+        return total!=0;
+    }
+    void beginArray(ShaderProgram shader,RenderStats stats,games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle){
+        begin(shader,stats,true);arrayBundle=bundle;
+    }
+    void replayArray(){
+        if(replayVertices==0 || arrayBundle==null)throw new IllegalStateException("Shadow array replay has no prepared geometry");
+        shader.bind();arrayBundle.textureArray.bind(0);mesh.render(shader,GL20.GL_TRIANGLES,0,replayVertices);
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds++;}
+    }
     void replay(){
         if(replayVertices==0 || replayTextures==0)throw new IllegalStateException("Lighting replay has no prepared shadow batch");
         shader.bind();
@@ -84,8 +110,11 @@ final class LightingBatch {
                 boolean alpha=blend==1||blend==2;Gdx.gl.glBlendFuncSeparate(alpha?GL20.GL_ONE:GL20.GL_ONE,
                         alpha?GL20.GL_ONE_MINUS_SRC_ALPHA:GL20.GL_ZERO,GL20.GL_ONE,alpha?GL20.GL_ONE_MINUS_SRC_ALPHA:GL20.GL_ZERO);}
         }
-        int slot=-1;for(int i=0;i<textures;i++)if(handles[i]==texture){slot=i;break;}
-        if(slot<0){if(textures==4)flush();slot=textures;handles[textures++]=texture;}
+        int slot=arrayBundle==null?-1:arrayBundle.handle2layer.get(texture,-1);
+        if(arrayBundle==null){
+            for(int i=0;i<textures;i++)if(handles[i]==texture){slot=i;break;}
+            if(slot<0){if(textures==4)flush();slot=textures;handles[textures++]=texture;}
+        }else if(slot<0)throw new IllegalStateException("Shadow page left its prepared texture-array bundle");
         games.pixscape.runtime.service.NormalMapBinding normal=shadow?null:surface.normalMap;
         int normalSlot=-1;
         if(mapped && normal!=null){
@@ -141,12 +170,12 @@ final class LightingBatch {
     void flush(){
         if(vertices==0)return;
         shader.bind();
-        bindTextures(handles,textures);
+        if(arrayBundle==null)bindTextures(handles,textures);else arrayBundle.textureArray.bind(0);
         if(mapped)bindNormalTextures();
         Mesh active=mapped?mappedMesh:mesh;
         active.setVertices(data,0,vertices*stride);active.render(shader,GL20.GL_TRIANGLES,0,vertices);
         if(retainReplay){replayVertices=vertices;replayTextures=textures;System.arraycopy(handles,0,replayHandles,0,textures);}
-        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=arrayBundle==null?4:1;}
         vertices=0;textures=0;
     }
     private static void bindTextures(int[] source,int count){
@@ -168,6 +197,6 @@ final class LightingBatch {
             texture.bind(i+5);boundNormals[i]=handle;if(stats!=null)stats.textureBinds++;
         }
     }
-    void abort(){vertices=textures=replayVertices=replayTextures=0;blend=-1;retainReplay=false;}
-    void dispose(){mesh.dispose();mappedMesh.dispose();}
+    void abort(){vertices=textures=replayVertices=replayTextures=0;blend=-1;retainReplay=false;arrayBundle=null;}
+    void dispose(){abort();shader=null;stats=null;mesh.dispose();mappedMesh.dispose();}
 }
