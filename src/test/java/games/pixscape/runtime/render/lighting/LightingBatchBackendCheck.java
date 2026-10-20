@@ -51,7 +51,7 @@ public final class LightingBatchBackendCheck {
                         Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
                         Assert.assertEquals(1f,a[14],0);
-                        for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
+                        for(int i=0;i<6*19;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
                     assertDeformedImageVertices(nativeBatch);
                     assertDeformedImageVertices(htmlBatch);
@@ -74,7 +74,15 @@ public final class LightingBatchBackendCheck {
             batch.draw(surface,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,shadow,true);
             float[] vertices=(float[])dataField.get(batch);
             float expected=twoSided?1:actor&&!shadow?-1:0;
-            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*18+14],0);
+            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*19+14],0);
+        }
+        surface.alphaSheet=new TileAlphaSheet(surface.vertices,new TileAlphaSheet.Part[]{new TileAlphaSheet.Part(0,48,0,0,0,1,0,0,0,0)},TileShadowMode.V3_PLANE,null,new float[]{1,50,3,77});
+        for(boolean actor:new boolean[]{false,true})for(boolean shadow:new boolean[]{false,true}){
+            surface.actor=actor;batch.abort();batch.begin(null,null);batch.draw(surface,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,shadow,true);float[] v=(float[])dataField.get(batch);
+            for(int i=0;i<6;i++){
+                Assert.assertEquals("Only wall reception carries the oriented face",actor||shadow?2:i<3?3:5,v[i*19+14],0);
+                Assert.assertEquals("Physical plane is absent from casting and actor reception",actor||shadow?0:i<3?50:77,v[i*19+18],0);
+            }
         }
     }
     private static void assertDeformedImageVertices(LightingBatch batch)throws Exception {
@@ -88,7 +96,7 @@ public final class LightingBatchBackendCheck {
             SpriteSurfaceSupport.sheet(s.vertices,q,.5f,0,13,1,-1);
             float[] original=s.vertices.clone(),presented=q.clone();
             for(int c=0;c<4;c++){presented[c*2]+=11;presented[c*2+1]-=9;}
-            int stride=mapped?25:18;
+            int stride=mapped?26:19;
             batch.abort();if(mapped)batch.beginMapped(null,null);else batch.begin(null,null);
             batch.draw(s,17,.2f,.3f,.7f,.9f,Color.WHITE.toFloatBits(),1,presented,0,0,false,true);
             float[] legacy=java.util.Arrays.copyOf((float[])dataField.get(batch),6*stride);
@@ -108,7 +116,7 @@ public final class LightingBatchBackendCheck {
             // Casters ignore the image topology flag and continue using their prepared XYZ.
             batch.abort();batch.begin(null,null);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
-            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*18);
+            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*19);
             s.imageQuad=false;batch.abort();batch.begin(null,null);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             for(int i=0;i<caster.length;i++)Assert.assertEquals(caster[i],((float[])dataField.get(batch))[i],0);

@@ -97,7 +97,7 @@ public final class ActorShadowGeometry {
     private void append(float[] source,int offset){
         int o=vertexCount++*3;uv[o]=source[offset];uv[o+1]=source[offset+1];uv[o+2]=source[offset+2];
     }
-    private static int clip(float[] input,int count,float[] output,float a,float b,float c,boolean foot){
+    static int clip(float[] input,int count,float[] output,float a,float b,float c,boolean foot){
         int n=0;
         for(int i=0;i<count;i++){
             int p=i*3,q=((i+1)%count)*3;float x=input[p],y=input[p+1],xx=input[q],yy=input[q+1];

@@ -73,17 +73,15 @@ public final class LightingRenderer {
         if(receiver==null){
             String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                     "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-            String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;";
-            String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;";
-            String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
+            String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_facePlane;";
+            String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;flat out float facePlane;";
+            String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;facePlane=a_facePlane;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
             String sample="uniform sampler2D u_tex0,u_tex1,u_tex2,u_tex3;vec4 image(){if(flags.x<.5)return texture(u_tex0,uv);if(flags.x<1.5)return texture(u_tex1,uv);if(flags.x<2.5)return texture(u_tex2,uv);return texture(u_tex3,uv);}";
-            String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;";
+            String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float facePlane;";
             receiver=compile(vertex,version+inputs+sample+RECEIVER);
             String normalVertex=vertex.replace("void main(){", "in vec3 a_normalUV;in vec4 a_normalBasis;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;void main(){normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;");
             mappedReceiver=compile(normalVertex,version+inputs+sample+NORMAL_SAMPLE+RECEIVER
-                    .replace("vec3 normal=n/normalLength;", "vec3 geometric=n/normalLength;vec3 normal=lightingNormal(geometric);")
-                    .replace("float c=clamp(abs(cosine),", "float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),")
-                    .replace("dot(tap,normal)","dot(tap,geometric)").replace("dot(delta,normal)","dot(delta,geometric)")
+                    .replace("vec3 normal=receiverNormal(geometric);", "vec3 normal=lightingNormal(receiverNormal(geometric));")
                     .replace("(n*.5+.5)*alpha", "(lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha"));
             shadow=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
                     version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
@@ -183,6 +181,8 @@ public final class LightingRenderer {
                 boolean supported=ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE && queue.repeatFlags[i]==0;
                 if(!supported && frame.diagnostic==0)throw new IllegalArgumentException(
                         "2.5D lighting requires standard coverage and color; unsupported shader/repeat at source entity "+queue.sourceEntity[i]);
+                if(s.alphaSheet!=null)s.receiverVertices=s.alphaSheet.forLight(l);
+                else if(s.tileShadowReceiver)s.receiverVertices=s.tileShadow.receiverForLight(l);
                 batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.v1[i],queue.u2[i],queue.v2[i],queue.colorPacked[i],blend,quad,0,0,false,supported);
             }
             batch.flush();receiverDraws+=stats.drawCalls-draws;receiverCpuNs+=System.nanoTime()-start;
@@ -234,8 +234,8 @@ public final class LightingRenderer {
         for(int i=0;i<candidates.size;i++){
             LightingSurface s=frame.casters.get(candidates.get(i)).surface;
             if(decorOnly && s.actor)continue;
-            s.shadowVertices=s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
-            s.shadowVertexCount=s.shadowVertices==null?0:s.actorShadow.vertexCount;
+            s.shadowVertices=s.alphaSheet!=null?s.alphaSheet.forLight(l):s.tileShadow!=null?s.tileShadow.forLight(l):s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
+            s.shadowVertexCount=s.alphaSheet!=null?s.shadowVertices.length/8:s.tileShadow!=null?s.tileShadow.vertexCount:s.shadowVertices==null?0:s.actorShadow.vertexCount;
         }
         boolean arrayReplay=batch.canReplayArray(frame,candidates,decorOnly,shadowBundle);
         ShaderProgram program=arrayReplay?shadowArray:shadow;
@@ -270,16 +270,22 @@ public final class LightingRenderer {
         "in vec2 normalUV;flat in float normalSlot;flat in vec4 normalBasis;uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"+
         "vec3 lightingNormal(vec3 geometric){if(normalSlot<-.5)return geometric;vec3 s;if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;else s=texture(u_normal3,normalUV).rgb;s=normalize(s*2.-1.);vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));}";
 
-    // Only one-sided decor receives the geometric horizon fade (3..5 degrees above its plane).
+    // V2 one-sided decor retains its 3..5 degree fade. Admitted alpha tiles alone use
+    // the bilateral 2.6..3.75 degree quintic ramp in sine space, after any affine inclination.
     // n is the oriented common-XYZ geometric normal, including in the mapped shader; never use its lighting normal.
     // The factor covers the entire direct value, including its 10% floor. Ambient/original color and actors are independent.
+    // Wall sides 3..6 are physical -X,+X,-Y,+Y from V2 face attribution. Their plane never follows the inclined Ng.
+    // Receiver admissibility is min(positive physical-side fade, existing geometric stability fade).
+    // The physical fade is zero behind the represented face; neither shading nor its direct floor can bypass it.
     private static final String RECEIVER =
         "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality;uniform sampler2D u_shadow;"+
         "float depthAt(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return texture(u_shadow,u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.)).r*u_range;}"+
         "float visible(vec3 d,float distance,float bias){return distance-bias<=depthAt(d)?1.:0.;}"+
+        "vec3 receiverNormal(vec3 geometric){if(flags.z<2.5)return geometric;if(flags.z<3.5)return vec3(-1,0,0);if(flags.z<4.5)return vec3(1,0,0);if(flags.z<5.5)return vec3(0,-1,0);return vec3(0,1,0);}"+
         "void main(){vec4 texel=image();if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;vec3 outputColor=t.rgb;"+
-        "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 normal=n/normalLength;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float visibility=1.;float c=clamp(abs(cosine),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
-        "if(u_quality==1)visibility=visible(delta,distance,bias);if(u_quality==2){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,normal);float dist=abs(den)>.0001?dot(delta,normal)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
-        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*visibility*cone;if(flags.z==0.){float cG=dot(n/normalLength,distance>0.?-delta/distance:vec3(0));value*=smoothstep(.052335956,.087155743,max(0.,cG));}}"+
+        "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 normal=receiverNormal(geometric);float geometricWeight=1.,physicalWeight=1.,physicalIncidence=0.;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5&&flags.z<2.5)cosine=abs(cosine);float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
+        "if(u_quality==1)visibility=visible(delta,distance,bias);if(u_quality==2){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,geometric);float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
+        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*visibility*cone;if(flags.z==0.){float cG=dot(n/normalLength,distance>0.?-delta/distance:vec3(0));geometricWeight=smoothstep(.052335956,.087155743,max(0.,cG));}if(flags.z>1.5){float cG=abs(dot(n/normalLength,distance>0.?-delta/distance:vec3(0)));float t=clamp((cG-.045362988)/(.065403129-.045362988),0.,1.);geometricWeight=t*t*t*(t*(t*6.-15.)+10.);}"+
+        "if(flags.z>2.5){bool axisX=flags.z<4.5;vec3 physicalDelta=-delta;if(axisX)physicalDelta.x=u_light.x-facePlane;else physicalDelta.y=u_light.y-facePlane;float sign=flags.z==3.||flags.z==5.?-1.:1.;physicalIncidence=sign*(axisX?physicalDelta.x:physicalDelta.y)/max(length(physicalDelta),.0001);float faceT=clamp(physicalIncidence/.045362988,0.,1.);physicalWeight=faceT*faceT*faceT*(faceT*(faceT*6.-15.)+10.);}value*=min(geometricWeight,physicalWeight);}"+
         "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);}";
 }

@@ -67,6 +67,9 @@ public final class GrazingLightGlCheck {
                             surface.actor=false;surface.twoSided=false;
                         }
                     }
+                    verifyOrientedWall(world,submit,q,surface,vertices,normals,light);
+                    surface.alphaSheet=null;surface.imageQuad=true;
+                    for(int o=0;o<48;o+=8){vertices[o]=vertices[o+1]=vertices[o+2]=0;}
                     surface.normalMap=null;for(int o=0;o<48;o+=8){vertices[o+5]=1;vertices[o+6]=vertices[o+7]=0;}
                     light.x=1;light.y=0;light.z=100;draw(world);float[] ambient=pixel();
                     light.intensity=0;draw(world);Assert.assertArrayEquals("Ambient remains intact when the direct ramp is zero",ambient,pixel(),0);
@@ -79,6 +82,27 @@ public final class GrazingLightGlCheck {
             }
         },cfg);
         if(failure[0]!=null)throw new AssertionError("Grazing decor reception failed",failure[0]);
+    }
+    private static void verifyOrientedWall(World world,RenderSubmitSystem submit,FrameRenderQueue q,LightingSurface s,float[] vertices,NormalMapAtlas normals,LightingFrame.Light light)throws Exception {
+        s.actor=false;s.twoSided=true;
+        for(int side=1;side<=4;side++)for(boolean mapped:new boolean[]{false,true}){
+            boolean axisX=side<=2;float sign=side==1||side==3?-1:1;
+            for(int at=0;at<vertices.length;at+=8){vertices[at]=axisX?70:0;vertices[at+1]=axisX?0:70;vertices[at+2]=0;vertices[at+5]=axisX?.9950372f:0;vertices[at+6]=axisX?0:.9950372f;vertices[at+7]=-.09950372f;}
+            s.alphaSheet=new TileAlphaSheet(vertices,new TileAlphaSheet.Part[]{new TileAlphaSheet.Part(0,48,0,0,0,1,0,0,0,0)},TileShadowMode.V3_PLANE,null,new float[]{side,50,side,50});
+            s.normalMap=mapped?normals.resolve(1):null;light.x=light.y=0;light.z=100;light.quality=0;
+            if(axisX)light.x=50+sign*120;else light.y=50+sign*120;draw(world);Assert.assertTrue("An admitted physical face receives direct light",field(submit)>0);
+            float previous=0;
+            for(int step=0;step<=100;step++){float distance=step*.1f;if(axisX)light.x=50+sign*distance;else light.y=50+sign*distance;draw(world);float value=field(submit);Assert.assertTrue("The physical-side transition is continuous",Math.abs(value-previous)<.03f);previous=value;}
+            for(float behind:new float[]{0,.01f,1,10,30,60,120,250}){
+                if(axisX)light.x=50-sign*behind;else light.y=50-sign*behind;draw(world);
+                Assert.assertEquals("No relighting after crossing the physical plane, side="+side+", mapped="+mapped,0,field(submit),0);
+            }
+            q.lighting.lights.clear();draw(world);float[] ambient=pixel();q.lighting.lights.add(light);draw(world);Assert.assertArrayEquals("Forbidden direct light does not change ambient",ambient,pixel(),0);
+            LightingFrame.Light other=new LightingFrame.Light();other.x=axisX?50+sign*120:0;other.y=axisX?0:50+sign*120;other.z=100;other.radius=512;other.falloff=1.5f;other.intensity=.4f;other.r=other.g=other.b=1;other.resolution=256;
+            q.lighting.lights.add(other);draw(world);float combined=field(submit);q.lighting.lights.removeIndex(0);draw(world);Assert.assertEquals("A forbidden light cannot suppress another light",field(submit),combined,0);Assert.assertTrue(combined>0);
+            q.lighting.lights.clear();q.lighting.lights.add(light);
+        }
+        s.alphaSheet=null;s.twoSided=false;
     }
     private static void draw(World world){Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,0);Gdx.gl.glViewport(0,0,32,32);Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();}
     /** ES syntax check on the accessible desktop compiler; not an execution of WebGL or an Android GLES backend. */

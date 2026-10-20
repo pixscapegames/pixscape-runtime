@@ -10,7 +10,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /** Ordered triangles: borrowed shadow-array addressing, otherwise four 2D pages. User parameter tables are untouched. */
 final class LightingBatch {
-    private static final int BASE_STRIDE=18, MAPPED_STRIDE=25, CAPACITY=12288;
+    private static final int BASE_STRIDE=19, MAPPED_STRIDE=26, CAPACITY=12288;
     private int stride=BASE_STRIDE;
     private final float[] data=new float[CAPACITY*MAPPED_STRIDE];
     private final int[] handles=new int[4];
@@ -32,13 +32,15 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
                 new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"));
+                new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_facePlane"));
         mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
                 new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_facePlane"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"));
     }
@@ -139,24 +141,30 @@ final class LightingBatch {
         float[] source=shadow && surface.shadowVertices!=null?surface.shadowVertices:!shadow && surface.receiverVertices!=null?surface.receiverVertices:surface.vertices;
         int sourceLength=shadow && surface.shadowVertices!=null?surface.shadowVertexCount*8:source.length;
         for(int i=0;i<sourceLength;i+=8){
+            boolean alpha=surface.alphaSheet!=null&&surface.alphaSheet.admits(i);
+            if(shadow&&surface.alphaSheet!=null&&!alpha)continue;
             if(vertices==CAPACITY){flush();textures=1;handles[0]=texture;slot=0;}
             int o=vertices++*stride;
             if(htmlVertexCopies){data[o]=source[i];data[o+1]=source[i+1];data[o+2]=source[i+2];}
             else System.arraycopy(source,i,data,o,3);
             float u=source[i+3],v=source[i+4];data[o+3]=u1+u*(u2-u1);data[o+4]=v2+v*(v1-v2);
             if(mapped){
-            data[o+18]=normalSlot<0?0:normal.u0+normal.ux*u+normal.uy*v;
-            data[o+19]=normalSlot<0?0:normal.v0+normal.vx*u+normal.vy*v;
-            data[o+20]=normalSlot;data[o+21]=ex;data[o+22]=ey;data[o+23]=ux;data[o+24]=uy;
+            data[o+19]=normalSlot<0?0:normal.u0+normal.ux*u+normal.uy*v;
+            data[o+20]=normalSlot<0?0:normal.v0+normal.vx*u+normal.vy*v;
+            data[o+21]=normalSlot;data[o+22]=ex;data[o+23]=ey;data[o+24]=ux;data[o+25]=uy;
             }
             if(htmlVertexCopies){data[o+5]=source[i+5];data[o+6]=source[i+6];data[o+7]=source[i+7];}
             else System.arraycopy(source,i+5,data,o+5,3);
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
-            boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
+            boolean completed=!shadow && !alpha && !surface.tileShadowReceiver && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
             // Receiver side/provenance: 0 = one-sided decor, 1 = two-sided, -1 = one-sided actor.
             // Keep shadow flags unchanged; ordinary local actor meshes may also be one-sided.
-            data[o+14]=surface.twoSided?1:!shadow&&surface.actor?-1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
+            data[o+14]=alpha?2:surface.twoSided?1:!shadow&&surface.actor?-1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
+            // Projection remains bilateral. Only identified opaque wall reception carries its physical face.
+            float side=!shadow&&alpha&&!surface.actor?surface.alphaSheet.receiverSide(i):0;
+            if(side!=0)data[o+14]=2+side;
+            data[o+18]=side==0?0:surface.alphaSheet.receiverPlane(i);
             // Simple sheets share the color triangles BL-TL-TR / BL-TR-BR, including a freely moved TR.
             // Local descriptions and tile receivers keep their existing UV topology and placement.
             if(quad!=null && surface.imageQuad){int c=SpriteSurfaceSupport.corner(i/8)*2;

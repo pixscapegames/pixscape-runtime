@@ -10,10 +10,18 @@ public final class LightingSurface {
     public boolean actor;
     /** Prepared only for ordinary image actors; independent of the receiver vertices/normals. */
     public ActorShadowGeometry actorShadow;
+    /** Optional experimental tile carrier. Remains decor; reception changes only by explicit opt-in below. */
+    public TileShadowGeometry tileShadow;
+    /** Generic prepared tile sheet. The caster and receiver consume its identical vertex array. */
+    public TileAlphaSheet alphaSheet;
+    /** Explicit POC replacement of this image's reception, using its caster's light-dependent sheet. */
+    public boolean tileShadowReceiver;
     public float[] shadowVertices;
     public int shadowVertexCount;
     public float alphaThreshold = .5f;
     public int ownerEntity=-1;
+    /** Derived owner-local block membership for cold replacement of automatic caster portions. */
+    public int sourceBlockId=-1;
     /** Lighting normal only; geometric vertex normals remain authoritative for shadows. */
     public games.pixscape.runtime.service.NormalMapBinding normalMap;
     /** Coverage completion only: valid geometric vertices are copied unchanged; casters use vertices. */

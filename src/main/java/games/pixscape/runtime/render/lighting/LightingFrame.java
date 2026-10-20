@@ -27,6 +27,8 @@ public final class LightingFrame {
                 ActorShadowGeometry a=surface.actorShadow;float dx=Math.abs(a.normalX*a.maximumDisplacement()),dy=Math.abs(a.normalY*a.maximumDisplacement());
                 minX-=dx;maxX+=dx;minY-=dy;maxY+=dy;
             }
+            if(surface.tileShadow!=null)surface.tileShadow.bounds(this);
+            if(surface.alphaSheet!=null)surface.alphaSheet.bounds(this);
         }
         public boolean affects(Light l,float margin) {
             float x=Math.max(minX,Math.min(maxX,l.x))-l.x,y=Math.max(minY,Math.min(maxY,l.y))-l.y,

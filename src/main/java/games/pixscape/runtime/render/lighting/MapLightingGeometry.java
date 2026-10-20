@@ -11,8 +11,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 /** Cold map preparation. All linked memberships are indexed; no owner chosen per tile. */
 public final class MapLightingGeometry {
     public final Array<LightingSurface> casters = new Array<LightingSurface>();
+    private final Array<LightingSurface> opaqueCasters = new Array<LightingSurface>();
     private final LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
-    private static final class Receiver { float[] quad; byte flags; int assetId; LightingSurface surface; }
+    private static final class Receiver { float[] quad; byte flags; int assetId; LightingSurface surface; TileAlphaCompiler.Cell alpha; boolean active=true,animationCertified,animationDeferred; IntMap<Receiver> frames; }
     private final LongMap<Receiver> receivers = new LongMap<Receiver>();
     private int revision = Integer.MIN_VALUE;
     private TiledMapLayerData previous;
@@ -22,19 +23,106 @@ public final class MapLightingGeometry {
     private int tw, th;
     private final IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
     private Array<TileSurfaceDescription> authoredDescriptions;
+    private TileShadowMode mode=TileShadowMode.V2;
+    private TileAlphaContactIndex.MapContacts contacts;
+    public void contacts(TileAlphaContactIndex.MapContacts values){if(contacts!=values){contacts=values;invalidate();}}
+    private boolean alphaDirty;
+    private boolean animatedReceivers;
+    public boolean hasAnimatedReceivers(){return animatedReceivers;}
+    /** Complete positive/negative animation certification is owned by the same cell cache. */
+    public boolean animationPrepared(int gx,int gy,int assetId,byte flags){
+        Receiver r=receivers.get(key(gx,gy));return r!=null&&r.assetId==assetId&&r.flags==flags&&r.animationCertified;
+    }
+    /** Cold enumeration before READY. Variable placement keeps V2, with every frame mesh prepared once.
+     * Stable placement shares one alpha carrier, independently of the source texture page/frame.
+     */
+    public void prepareAnimation(TiledMapLayerData map,int gx,int gy,int assetId,byte flags,int[] frameAssets,float[][] quads){
+        if(frameAssets==null||quads==null||frameAssets.length==0||frameAssets.length!=quads.length)throw new IllegalArgumentException("Animation receiver frames are incomplete");
+        boolean stable=true;
+        for(int i=0;i<quads.length;i++){
+            if(quads[i]==null||quads[i].length!=8||frameAssets[i]<=0)throw new IllegalArgumentException("Animation receiver frame needs an image quad and source asset");
+            for(int k=0;k<8;k++)if(quads[0][k]!=quads[i][k])stable=false;
+        }
+        long cell=key(gx,gy);animatedReceivers=true;
+        Receiver previous=receivers.get(cell);if(previous!=null&&previous.animationDeferred)receivers.remove(cell);
+        if(stable){receiverUnprepared(map,gx,gy,assetId,flags,quads[0],false);Receiver r=receivers.get(cell);r.assetId=assetId;r.animationCertified=true;return;}
+        IntMap<Receiver> frames=new IntMap<Receiver>();Receiver first=null;int fallback=0;
+        for(int i=0;i<quads.length;i++){
+            Receiver cached=frames.get(frameAssets[i]);
+            if(cached!=null){for(int k=0;k<8;k++)if(cached.quad[k]!=quads[i][k])throw new IllegalArgumentException("Repeated animation source has conflicting image placement");continue;}
+            receivers.remove(cell);receiverUnprepared(map,gx,gy,assetId,flags,quads[i],true);cached=receivers.get(cell);
+            frames.put(frameAssets[i],cached);fallback+=cached.surface.vertices.length/24;if(first==null)first=cached;
+        }
+        first.frames=frames;first.animationCertified=true;
+        first.alpha=new TileAlphaCompiler.Cell(gx,gy,first.quad,memberships.get(cell),first.surface,false,
+                "Animation placement changes between frames; prepared V2 receivers retain opaque casters",0,0,fallback);
+        receivers.put(cell,first);alphaDirty=true;
+    }
+    /** Authoring may temporarily have unpacked frames. Keep V2 and a negative certification until
+     * material publication invalidates the map; never retry the complete frame enumeration each frame. */
+    public void deferAnimation(TiledMapLayerData map,int gx,int gy,int assetId,int frameAssetId,byte flags,float[] quad){
+        long cell=key(gx,gy);receivers.remove(cell);receiverUnprepared(map,gx,gy,assetId,flags,quad,true);
+        Receiver r=receivers.get(cell);r.animationCertified=r.animationDeferred=true;r.frames=new IntMap<Receiver>();r.frames.put(frameAssetId,r);
+        r.alpha=TileAlphaCompiler.refused(gx,gy,r.quad,memberships.get(cell),r.surface,"Animation material is incomplete; V2 until material publication");animatedReceivers=true;
+    }
+    private final Coverage coverage=new Coverage();
+    /** Cold diagnostic publication; counts triangles/patches, not source pixels or alpha contours. */
+    public static final class Coverage {
+        public int tiles,horizontal,vertical,fallback,authored,replacedPatches;
+        public final com.badlogic.gdx.utils.ObjectIntMap<String> reasons=new com.badlogic.gdx.utils.ObjectIntMap<String>();
+        private void clear(){tiles=horizontal=vertical=fallback=authored=replacedPatches=0;reasons.clear();}
+    }
+    public Coverage coverage(){return coverage;}
+    public TileShadowMode mode(){return mode;}
+    public void mode(TileShadowMode value){
+        if(value==null)throw new IllegalArgumentException("Tile shadow mode is required");
+        if(mode!=value){mode=value;invalidate();}
+    }
+    public void forget(int gx,int gy){if(receivers.remove(key(gx,gy))!=null)alphaDirty=true;}
+    /** Missing material suspends admission, retaining prepared geometry for a later rebind. */
+    public void suspend(int gx,int gy){Receiver r=receivers.get(key(gx,gy));if(r!=null&&r.active){r.active=false;alphaDirty=true;}}
+    private void activate(Receiver r){if(!r.active){r.active=true;alphaDirty=true;}}
+    /** Called once after the cold chunk mutation/preparation boundary; never from drawing or camera culling. */
+    public boolean finishAlphaSheets(TiledMapLayerData map){
+        if(!alphaDirty)return false;
+        alphaDirty=false;coverage.clear();casters.clear();
+        IntMap<Array<TileAlphaCompiler.Cell>> masks=new IntMap<Array<TileAlphaCompiler.Cell>>();
+        for(LongMap.Entry<Receiver> entry:receivers){
+            Receiver r=entry.value;coverage.tiles++;TileAlphaCompiler.Cell c=r.alpha;
+            if(!r.active){coverage.fallback+=r.surface.vertices.length/24;coverage.reasons.getAndIncrement("Image material unavailable; opaque portions retained",0,1);continue;}
+            if(c==null){if(descriptions.containsKey(r.assetId))coverage.authored++;continue;}
+            coverage.horizontal+=c.horizontal;coverage.vertical+=c.vertical;coverage.fallback+=c.fallback;
+            if(c.reason!=null)coverage.reasons.getAndIncrement(c.reason,0,1);
+            if(c.surface.alphaSheet==null||c.owners==null)continue;
+            for(int i=0;i<c.owners.size;i++){
+                SpatialBlockData b=c.owners.get(i);if(!b.shadowCaster&&!b.lightOccluder)continue;
+                if(Math.min(c.gx+1,b.x+b.width)<=Math.max(c.gx,b.x)||Math.min(c.gy+1,b.y+b.depth)<=Math.max(c.gy,b.y))continue;
+                Array<TileAlphaCompiler.Cell> list=masks.get(b.id);
+                if(list==null){list=new Array<TileAlphaCompiler.Cell>();masks.put(b.id,list);}list.add(c);
+            }
+        }
+        for(int i=0;i<opaqueCasters.size;i++){
+            LightingSurface face=opaqueCasters.get(i);Array<TileAlphaCompiler.Cell> cells=masks.get(face.sourceBlockId);
+            if(cells==null)casters.add(face);else coverage.replacedPatches+=TileAlphaCompiler.replace(map,face,cells,casters);
+        }
+        return true;
+    }
     public void invalidate(){revision=Integer.MIN_VALUE;}
     public void descriptions(Array<TileSurfaceDescription> values){
         if(authoredDescriptions!=values){authoredDescriptions=values;invalidate();}
     }
 
+    /** Constant-time source stamp check; camera state is intentionally absent. */
+    public boolean needsPreparation(TiledMapLayerData map,SpatialBlocksComponent blocks){
+        return previous!=map||previousBlocks!=blocks||projection!=map.projection||revision!=(blocks==null?0:blocks.revision)
+                ||ox!=map.originX||oy!=map.originY||altitude!=map.defaultTileAltitude||tw!=map.tileWidth||th!=map.tileHeight;
+    }
     public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.revision;
-        if (previous == map && previousBlocks == blocks && projection == map.projection && revision == r && ox == map.originX
-                && oy == map.originY && altitude == map.defaultTileAltitude
-                && tw == map.tileWidth && th == map.tileHeight) return false;
+        if (!needsPreparation(map,blocks)) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
             throw new IllegalArgumentException("Lighting volume reconstruction requires an ISO map");
-        memberships.clear(); casters.clear(); receivers.clear();
+        memberships.clear(); casters.clear(); opaqueCasters.clear(); receivers.clear();alphaDirty=true;animatedReceivers=false;
         descriptions.clear();
         if(authoredDescriptions!=null)for(int i=0;i<authoredDescriptions.size;i++){
             TileSurfaceDescription d=authoredDescriptions.get(i);
@@ -43,8 +131,10 @@ public final class MapLightingGeometry {
             d.geometry.validate();descriptions.put(d.assetId,d.geometry);
         }
         Array<SpatialBlockData> casterBlocks=new Array<SpatialBlockData>();
+        com.badlogic.gdx.utils.IntSet blockIds=new com.badlogic.gdx.utils.IntSet();
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData b = blocks.blocks.get(i);
+            if(!blockIds.add(b.id))throw new IllegalArgumentException("Lighting volumes need unique block IDs within a map");
             for (int j = 0; j < b.linkedTileRefs.size; j++) {
                 SpatialBlockData.LinkedTileRef ref = b.linkedTileRefs.get(j);
                 long key = key(ref.gx, ref.gy);
@@ -68,9 +158,10 @@ public final class MapLightingGeometry {
                 Array<float[]> faces = faces(map, casterBlocks.get(i), false);
                 for (int j = 0; j < faces.size; j++) {
                     LightingSurface s = new LightingSurface(triangulate(faces.get(j), null));
-                    s.shadowCaster = true; s.receiveLight = false; casters.add(s);
+                    s.shadowCaster = true; s.receiveLight = false; s.sourceBlockId=casterBlocks.get(i).id; casters.add(s);
                 }
         }
+        opaqueCasters.addAll(casters);
         previous = map; previousBlocks = blocks; projection = map.projection; revision = r; ox = map.originX; oy = map.originY;
         altitude = map.defaultTileAltitude; tw = map.tileWidth; th = map.tileHeight;
         return true;
@@ -79,13 +170,30 @@ public final class MapLightingGeometry {
     /** Builds a disjoint UV partition: alpha is applied exactly once at each image pixel. */
     public LightingSurface receiver(TiledMapLayerData map, int gx, int gy,
                                      int assetId, byte flags, float[] quad) {
+        return receiver(map,gx,gy,assetId,assetId,flags,quad);
+    }
+    public LightingSurface receiver(TiledMapLayerData map,int gx,int gy,int assetId,int frameAssetId,byte flags,float[] quad){
+        Receiver cached=receivers.get(key(gx,gy));
+        if(cached!=null&&cached.frames!=null&&cached.assetId==assetId&&cached.flags==flags){
+            Receiver frame=cached.frames.get(frameAssetId);
+            if(frame==null){
+                if(!cached.animationDeferred)throw new IllegalStateException("Animated tile left its prepared receiver frame set");
+                long cell=key(gx,gy);receivers.remove(cell);receiverUnprepared(map,gx,gy,assetId,flags,quad,true);
+                frame=receivers.get(cell);cached.frames.put(frameAssetId,frame);receivers.put(cell,cached);alphaDirty=true;
+            }
+            activate(cached);
+            return frame.surface;
+        }
+        return receiverUnprepared(map,gx,gy,assetId,flags,quad,false);
+    }
+    private LightingSurface receiverUnprepared(TiledMapLayerData map,int gx,int gy,int assetId,byte flags,float[] quad,boolean retainV2){
         long cell = key(gx, gy);
         Receiver cached = receivers.get(cell);
         // A texture-only animation frame cannot invalidate an automatic physical partition.
-        boolean same = cached != null && cached.flags == flags && (cached.assetId==assetId
+        boolean same = cached != null && cached.frames==null && cached.flags == flags && (cached.assetId==assetId
                 || !descriptions.containsKey(cached.assetId)&&!descriptions.containsKey(assetId));
         if (same) for (int i=0;i<8;i++) if(cached.quad[i]!=quad[i]) {same=false;break;}
-        if (same) return cached.surface;
+        if (same) {activate(cached);return cached.surface;}
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
             if(flags!=0)throw new IllegalArgumentException("Local volume description needs explicit transformed variant for tile flags");
@@ -99,11 +207,11 @@ public final class MapLightingGeometry {
                     throw new IllegalArgumentException("Local tile XYZ/UV registration does not match its native image");
             }
             LightingSurface surface=LocalSurfaceCompiler.compile(description,origin[0],origin[1],origin[2]);
-            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;receivers.put(cell,cached);
+            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;receivers.put(cell,cached);alphaDirty=true;
             return surface;
         }
         Array<SpatialBlockData> owners = memberships.get(key(gx, gy));
-        if (owners != null && flags != 0)
+        if (owners != null && flags != 0 && mode==TileShadowMode.V2&&!retainV2)
             throw new IllegalArgumentException("Automatic volume receiver does not support transformed tiles; provide local geometry");
         Array<float[]> polygons = new Array<float[]>();
         Array<ReceiverFace> candidates = owners != null && owners.size > 1 ? new Array<ReceiverFace>() : null;
@@ -160,8 +268,17 @@ public final class MapLightingGeometry {
         LightingSurface surface = new LightingSurface(data); surface.approximate = true;
         surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude);
         cached = new Receiver(); cached.quad = LocalSurfaceDescription.copy(quad); cached.flags = flags; cached.assetId=assetId; cached.surface = surface;
-        receivers.put(cell, cached);
-        return surface;
+        if(mode!=TileShadowMode.V2&&!retainV2){
+            String rejection=null;
+            if(mode!=TileShadowMode.V3_PLANE&&contacts!=null&&owners!=null)for(int i=0;i<owners.size;i++){
+                String reason=contacts.rejection(owners.get(i).id,gx,gy);if(reason!=null){rejection=reason;break;}
+            }
+            cached.alpha=rejection==null?TileAlphaCompiler.prepare(map,gx,gy,cached.quad,owners,surface,mode,contacts)
+                    :TileAlphaCompiler.refused(gx,gy,cached.quad,owners,surface,rejection);
+            cached.surface=cached.alpha.surface;
+        }
+        receivers.put(cell, cached);alphaDirty=true;
+        return cached.surface;
     }
 
     private static long key(int x, int y) { return ((long)x << 32) ^ (y & 0xffffffffL); }
@@ -331,7 +448,7 @@ public final class MapLightingGeometry {
         }
         return out;
     }
-    private static void imageUV(float[] q,float x,float y,float[] out,int at) {
+    static void imageUV(float[] q,float x,float y,float[] out,int at) {
         float ax=q[6]-q[0],ay=q[7]-q[1],bx=q[2]-q[0],by=q[3]-q[1];
         float d=ax*by-ay*bx;
         if(Math.abs(d)<.000001f) throw new IllegalArgumentException("Degenerate receiver image quad");
@@ -340,12 +457,12 @@ public final class MapLightingGeometry {
     private static void vertex(float[] p,int o,float x,float y,float z,float u,float v,float nx,float ny,float nz){
         p[o]=x;p[o+1]=y;p[o+2]=z;p[o+3]=u;p[o+4]=v;p[o+5]=nx;p[o+6]=ny;p[o+7]=nz;
     }
-    private static float[] triangulate(float[] p,float[] unused) {
+    static float[] triangulate(float[] p,float[] unused) {
         int n=p.length/8;float[] out=new float[Math.max(0,n-2)*24];int at=0;
         for(int i=1;i<n-1;i++)for(int k=0;k<3;k++){int v=k==0?0:k==1?i:i+1;System.arraycopy(p,v*8,out,at,8);at+=8;}
         return out;
     }
-    private static float[] clip(float[] p,int axis,float edge,boolean greater){
+    static float[] clip(float[] p,int axis,float edge,boolean greater){
         return cut(p,axis==3?1:0,axis==4?1:0,-edge,greater);
     }
     private static float[] cut(float[] p,float a,float b,float c,boolean positive){
@@ -358,7 +475,7 @@ public final class MapLightingGeometry {
         }
         float[] out=new float[at];System.arraycopy(temp,0,out,0,at);return out;
     }
-    private static void subtract(float[] subject,float[] mask,Array<float[]> out){
+    static void subtract(float[] subject,float[] mask,Array<float[]> out){
         if(subject.length<24 || uvArea(subject)<.000001f)return;
         if(mask.length<24 || uvArea(mask)<.000001f){out.add(subject);return;}
         float area=0;int n=mask.length/8;

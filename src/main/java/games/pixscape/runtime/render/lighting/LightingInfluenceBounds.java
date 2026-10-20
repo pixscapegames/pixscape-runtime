@@ -27,7 +27,17 @@ public final class LightingInfluenceBounds {
             if(q.repeatFlags[i]!=0 || ShaderRegistry.getOrigin(q.shader[i])!=ShaderOrigin.CORE){uncertain=true;break;}
             LightingSurface s=q.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?q.lighting.tiles.get(q.sourceSlot[i]):q.lighting.entities.get(q.sourceEntity[i]);
             if(s==null || !s.receiveLight)continue;
-            float[] v=s.receiverVertices!=null?s.receiverVertices:s.vertices;
+            float[] v=s.alphaSheet!=null?s.alphaSheet.calibrated:s.tileShadowReceiver?s.tileShadow.calibrated:s.receiverVertices!=null?s.receiverVertices:s.vertices;
+            double sheetX=0,sheetY=0;
+            if(s.alphaSheet!=null){
+                sheetX=Math.abs(xx)*s.alphaSheet.maximumScreenX+Math.abs(xy)*s.alphaSheet.maximumScreenY;
+                sheetY=Math.abs(yx)*s.alphaSheet.maximumScreenX+Math.abs(yy)*s.alphaSheet.maximumScreenY;
+            }else if(s.tileShadowReceiver){
+                TileShadowGeometry g=s.tileShadow;
+                double sx=(g.normalX-g.normalY)*g.halfThickness;
+                double sy=((g.normalX+g.normalY)*.5+g.normalZ)*g.halfThickness;
+                sheetX=Math.abs(xx*sx+xy*sy);sheetY=Math.abs(yx*sx+yy*sy);
+            }
             if(v==null || v.length%8!=0){uncertain=true;break;}
             for(int j=0;j<v.length;j+=8) {
                 double sx,sy;
@@ -43,7 +53,7 @@ public final class LightingInfluenceBounds {
                 double px=(double)v[j]-v[j+1],py=((double)v[j]+v[j+1])*.5+v[j+2];
                 double dx=xx*(sx-px)+xy*(sy-py),dy=yx*(sx-px)+yy*(sy-py);
                 if(!finite(dx) || !finite(dy) || Math.abs(px)>1e7 || Math.abs(py)>1e7){uncertain=true;break;}
-                minX=Math.min(minX,dx);maxX=Math.max(maxX,dx);minY=Math.min(minY,dy);maxY=Math.max(maxY,dy);empty=false;
+                minX=Math.min(minX,dx-sheetX);maxX=Math.max(maxX,dx+sheetX);minY=Math.min(minY,dy-sheetY);maxY=Math.max(maxY,dy+sheetY);empty=false;
             }
         }
     }

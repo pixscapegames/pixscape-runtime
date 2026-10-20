@@ -82,6 +82,15 @@ public final class PixscapeEngine {
 
     // World + rendering
     private World world;
+    private games.pixscape.runtime.render.lighting.TileShadowMode tileShadowMode=games.pixscape.runtime.render.lighting.TileShadowMode.V2;
+    /** Applies a render inspection preference at a cold boundary; no scene data is authored. */
+    public PixscapeEngine setTileShadowMode(games.pixscape.runtime.render.lighting.TileShadowMode value){
+        if(value==null)throw new IllegalArgumentException("Tile shadow mode is required");
+        tileShadowMode=value;
+        if(world!=null){RenderTiledSyncSystem sync=world.getSystem(RenderTiledSyncSystem.class);if(sync!=null)sync.setTileShadowMode(value);}
+        return this;
+    }
+    public games.pixscape.runtime.render.lighting.TileShadowMode getTileShadowMode(){return tileShadowMode;}
     private OrthographicCamera worldCamera;
 
     private DynamicEntityRenderState dynamicEntityState;
@@ -108,6 +117,8 @@ public final class PixscapeEngine {
     private final TagRegistry tagRegistry = new TagRegistry();
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
+    private games.pixscape.runtime.service.AlphaBoundsCatalog alphaBounds = new games.pixscape.runtime.service.AlphaBoundsCatalog();
+    public games.pixscape.runtime.service.AlphaBoundsCatalog getAlphaBounds(){return alphaBounds;}
     private RuntimeTilesetProfiles tilesetProfiles = RuntimeTilesetProfiles.empty();
     private PixscapeAPI publicApi;
 
@@ -349,6 +360,7 @@ public final class PixscapeEngine {
         RuntimeProjectIO.loadAnimations(runtimeProjectDir, animationRegistry);
         RuntimeProjectIO.loadTileAnimations(runtimeProjectDir, animatedTileRegistry);
         tilesetProfiles = RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir);
+        alphaBounds=games.pixscape.runtime.service.AlphaBoundsCatalog.load(runtimeProjectDir);
 
         if (cfg.runtimeRootDir == null || isBlank(cfg.runtimeRootDir)) {
             cfg.runtimeRootDir = runtimeProjectDir.path();
@@ -1464,6 +1476,7 @@ public final class PixscapeEngine {
                                 candidate.sceneTag(), meta.runtimeParticleEffectPaths);
                 return;
             case 2:
+                requireSystem(RenderTiledSyncSystem.class).setTileShadowMode(tileShadowMode);
                 requireSystem(RenderTiledSyncSystem.class)
                         .prepareRuntimeAvailability();
                 return;

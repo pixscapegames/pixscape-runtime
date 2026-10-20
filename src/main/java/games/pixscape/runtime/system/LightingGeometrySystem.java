@@ -73,6 +73,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     }
     /** Cold scene preparation: reserve actor storage without advancing animation or processing World. */
     public void prepareRuntimeAvailability() {
+        frame.tiles=tiled.lightingSurfaces;prepareStaticCasters();
         for(int slot=0;slot<dynamic.activeCount;slot++){
             int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
             SurfaceLightingComponent a=surfaces.getSafe(e,null);
@@ -87,9 +88,8 @@ public final class LightingGeometrySystem extends BaseSystem {
             }
         }
     }
-    @Override protected void processSystem() {
-        long started=System.nanoTime();
-        frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
+    /** Shared by READY preparation and explicit tiled mutations. */
+    private void prepareStaticCasters(){
         if(staticRevision!=tiled.lightingRevision){
         frame.casters.clear();
         int serial=0;
@@ -116,6 +116,11 @@ public final class LightingGeometrySystem extends BaseSystem {
         frame.staticCasterCount=frame.casters.size;
         frame.casterIndex.rebuild(frame,frame.staticCasterCount);staticRevision=tiled.lightingRevision;
         }else frame.casters.truncate(frame.staticCasterCount);
+    }
+    @Override protected void processSystem() {
+        long started=System.nanoTime();
+        frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
+        prepareStaticCasters();
         // Animated map images reuse geometry but publish the current texture frame.
         for(int i=0;i<frame.staticCasterCount;i++){
             LightingFrame.Caster c=frame.casters.get(i);int ref=c.tiledRef;if(ref<0)continue;
