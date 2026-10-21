@@ -66,6 +66,7 @@ public final class PixscapeEngine {
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
+    private boolean forwardLighting;
     private AssetManager suppliedAssetManager;
     private FileAvailabilityService fileAvailability;
     private SceneAvailabilityPlan activeSceneAvailability;
@@ -1101,7 +1102,8 @@ public final class PixscapeEngine {
                 ambientMulB,
                 metricsBatch,
                 stats,
-                statsSink
+                statsSink,
+                forwardLighting
         );
     }
 
@@ -2098,6 +2100,12 @@ public final class PixscapeEngine {
 
     public boolean isLoaded() {
         return loaded;
+    }
+
+    /** Selects the whole-world renderer before project/scene preparation. Defaults to the reference. */
+    public PixscapeEngine setForwardLighting(boolean enabled) {
+        if(loaded)throw new IllegalStateException("Forward lighting must be selected before loadProject()");
+        forwardLighting=enabled;return this;
     }
 
     public PixscapeEngine setPlatformTarget(PlatformTarget target) {

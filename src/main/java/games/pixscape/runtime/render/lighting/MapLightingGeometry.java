@@ -99,6 +99,7 @@ public final class MapLightingGeometry {
                     throw new IllegalArgumentException("Local tile XYZ/UV registration does not match its native image");
             }
             LightingSurface surface=LocalSurfaceCompiler.compile(description,origin[0],origin[1],origin[2]);
+            surface.forwardTopology=ForwardTopology.compile(surface,quad);
             cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;receivers.put(cell,cached);
             return surface;
         }
@@ -159,6 +160,7 @@ public final class MapLightingGeometry {
         }
         LightingSurface surface = new LightingSurface(data); surface.approximate = true;
         surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude);
+        surface.forwardTopology=ForwardTopology.compile(surface,quad);
         cached = new Receiver(); cached.quad = LocalSurfaceDescription.copy(quad); cached.flags = flags; cached.assetId=assetId; cached.surface = surface;
         receivers.put(cell, cached);
         return surface;

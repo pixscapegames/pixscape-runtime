@@ -48,25 +48,29 @@ public final class LightingRenderer {
             0,0,0,0,0,0,0,0, 0,0,0,0,1,0,0,0, 0,0,0,1,1,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,1,1,0,0,0, 0,0,0,1,0,0,0,0});
 
-    public void prepare(World world,WorldLightComposition composition) {
+    public void prepare(World world,WorldLightComposition composition) { prepare(world,composition,false); }
+    /** Prepares only the existing shadow producer; no historical receiver targets/programs. */
+    public void prepareShadows(World world) { prepare(world,null,true); }
+    private void prepare(World world,WorldLightComposition composition,boolean shadowsOnly) {
         // Admit pending component additions without running gameplay or rendering systems.
         if(world.getInvocationStrategy() instanceof games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)
             ((games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)world.getInvocationStrategy()).synchronizeEntitySubscriptions();
         saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,saved);int framebuffer=saved.get(0);
         saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,saved);for(int i=0;i<4;i++)savedViewport[i]=saved.get(i);
-        try { prepareResources(world,composition); }
+        try { prepareResources(world,composition,shadowsOnly); }
         catch(RuntimeException | Error failure){dispose();throw failure;}
         finally{Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,framebuffer);
             Gdx.gl.glViewport(savedViewport[0],savedViewport[1],savedViewport[2],savedViewport[3]);}
     }
-    private void prepareResources(World world,WorldLightComposition composition) {
+    private void prepareResources(World world,WorldLightComposition composition,boolean shadowsOnly) {
         if(preparedWorld!=world){
             preparedWorld=world;
             lightSubscription=world.getAspectSubscriptionManager().get(Aspect.one(PointLightComponent.class,ConeLightComponent.class));
             pointMapper=world.getMapper(PointLightComponent.class);coneMapper=world.getMapper(ConeLightComponent.class);
         }
         if(Gdx.gl30==null)throw new IllegalStateException("2.5D lighting requires GL3/GLES3/WebGL2 float render targets");
-        if(receiver==null){
+        prepareShadowProgram();
+        if(receiver==null && !shadowsOnly){
             String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                     "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
             String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;";
@@ -81,18 +85,18 @@ public final class LightingRenderer {
                     .replace("float c=clamp(abs(cosine),", "float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),")
                     .replace("dot(tap,normal)","dot(tap,geometric)").replace("dot(delta,normal)","dot(delta,geometric)")
                     .replace("(n*.5+.5)*alpha", "(lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha"));
-            shadow=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
-                    version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
             accumulate=compile(version+"in vec3 a_position;in vec2 a_texCoord0;out vec2 uv;void main(){uv=a_texCoord0;gl_Position=vec4(a_position,1.);}",
                     version+"in vec2 uv;uniform sampler2D u_original,u_contribution;out vec4 result;void main(){vec3 base=texture(u_original,uv).rgb,c=texture(u_contribution,uv).rgb;result=vec4(c/max(base,vec3(1./65536.)),0.);}");
-            receiver.bind();samplers(receiver);shadow.bind();samplers(shadow);batch=new LightingBatch();
+            receiver.bind();samplers(receiver);
             mappedReceiver.bind();samplers(mappedReceiver);
             for(int i=0;i<4;i++)mappedReceiver.setUniformi("u_normal"+i,i+5);
             screen=new Mesh(true,4,6,VertexAttribute.Position(),VertexAttribute.TexCoords(0));
             screen.setVertices(new float[]{-1,-1,0,0,0,-1,1,0,0,1,1,1,0,1,1,1,-1,0,1,0});screen.setIndices(new short[]{0,1,2,2,3,0});
         }
-        int w=composition.targetWidth(),h=composition.targetHeight();
-        if(scratch==null || width!=w || height!=h){FrameBuffer next=floatTarget(w,h,false);if(scratch!=null)scratch.dispose();scratch=next;width=w;height=h;}
+        if(!shadowsOnly){
+            int w=composition.targetWidth(),h=composition.targetHeight();
+            if(scratch==null || width!=w || height!=h){FrameBuffer next=floatTarget(w,h,false);if(scratch!=null)scratch.dispose();scratch=next;width=w;height=h;}
+        }
         int required=0;
         IntBag entities=lightSubscription.getEntities();
         for(int i=0;i<entities.size();i++){
@@ -110,6 +114,30 @@ public final class LightingRenderer {
             if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();
             atlas=next;decorAtlas=nextDecor;resolution=required;
         }
+    }
+    private void prepareShadowProgram() {
+        if(shadow!=null)return;
+        String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
+                "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
+        String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;";
+        String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;";
+        String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;";
+        String sample="uniform sampler2D u_tex0,u_tex1,u_tex2,u_tex3;vec4 image(){if(flags.x<.5)return texture(u_tex0,uv);if(flags.x<1.5)return texture(u_tex1,uv);if(flags.x<2.5)return texture(u_tex2,uv);return texture(u_tex3,uv);}";
+            shadow=compile(version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;gl_Position=u_matrix*vec4(p,1.);}",
+                    version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
+        shadow.bind();samplers(shadow);batch=new LightingBatch();
+    }
+    /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
+    public Texture shadowTexture(boolean actor) { return (actor?decorAtlas:atlas)==null?null:(actor?decorAtlas:atlas).getColorBufferTexture(); }
+    public float atlasScale(LightingFrame.Light light) {return resolution==0?1f:(float)light.resolution/resolution;}
+    public void renderShadows(LightingFrame frame,RenderStats stats) {
+        shadowCpuNs=receiverCpuNs=accumulationCpuNs=0;selectedCasters=shadowDraws=receiverDraws=0;
+        if(frame.lights.size==0 || frame.lights.first().quality==0)return;
+        long start=System.nanoTime();int draws=stats.drawCalls;
+        if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
+        shadows(frame,frame.lights.first(),stats);
+        if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
+        shadowCpuNs=System.nanoTime()-start;shadowDraws=stats.drawCalls-draws;
     }
     private static ShaderProgram compile(String v,String f){ShaderProgram s=new ShaderProgram(v,f);if(!s.isCompiled()){String log=s.getLog();s.dispose();throw new IllegalStateException("2.5D lighting shader: "+log);}return s;}
     private static void samplers(ShaderProgram s){for(int i=0;i<4;i++)s.setUniformi("u_tex"+i,i);}
@@ -256,14 +284,14 @@ public final class LightingRenderer {
         batch=null;receiver=shadow=accumulate=null;screen=null;scratch=atlas=decorAtlas=null;width=height=resolution=0;}
 
     /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
-    private static final String NORMAL_SAMPLE =
+    static final String NORMAL_SAMPLE =
         "in vec2 normalUV;flat in float normalSlot;flat in vec4 normalBasis;uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"+
         "vec3 lightingNormal(vec3 geometric){if(normalSlot<-.5)return geometric;vec3 s;if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;else s=texture(u_normal3,normalUV).rgb;s=normalize(s*2.-1.);vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));}";
 
     // Only one-sided decor receives the geometric horizon fade (3..5 degrees above its plane).
     // n is the oriented common-XYZ geometric normal, including in the mapped shader; never use its lighting normal.
     // The factor covers the entire direct value, including its 10% floor. Ambient/original color and actors are independent.
-    private static final String RECEIVER =
+    static final String RECEIVER =
         "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality;uniform sampler2D u_shadow;"+
         "float depthAt(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return texture(u_shadow,u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.)).r*u_range;}"+
         "float visible(vec3 d,float distance,float bias){return distance-bias<=depthAt(d)?1.:0.;}"+

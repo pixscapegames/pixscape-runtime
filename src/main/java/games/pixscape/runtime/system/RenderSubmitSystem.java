@@ -38,6 +38,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
     private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
             new games.pixscape.runtime.render.lighting.LightingRenderer();
+    private final games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
     private LightParameterBinding lightParameters;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -54,6 +55,13 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
+        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,false);
+    }
+
+    public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
+                              float ambientMulR,float ambientMulG,float ambientMulB,MetricsBatch batch,
+                              RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
+        this.forward=forwardLighting?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -104,12 +112,19 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    public void prepareComposition() { composition.prepare(); ambientContribution.prepare(); lighting.prepare(world, composition); }
+    public void prepareComposition() {
+        if(forward!=null){
+            if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
+            forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);
+        } else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+    }
+    public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
-    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose(); }
+    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); }
 
     void render() {
+        if(forward!=null){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
         Throwable failure = null;
         try {
             ambientContribution.beginFrame(frameQueue);

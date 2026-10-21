@@ -71,6 +71,10 @@ public final class LightingGeometrySystem extends BaseSystem {
             LayerStateSOA layers,games.pixscape.runtime.service.AtlasRuntimeService atlasService){
         this(dynamic,tiled,queue,layers);this.atlasService=atlasService;
     }
+    /** Cold full-domain admission, including images outside the camera. */
+    public void validateForwardAvailability(games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle) {
+        ForwardAdmission.validateDomains(dynamic,tiled,bundle);
+    }
     /** Cold scene preparation: reserve actor storage without advancing animation or processing World. */
     public void prepareRuntimeAvailability() {
         for(int slot=0;slot<dynamic.activeCount;slot++){
@@ -83,7 +87,11 @@ public final class LightingGeometrySystem extends BaseSystem {
             }
             if((a==null || a.description==null) && frame.entities.get(e)==null){
                 LightingSurface s=new LightingSurface(new float[48]);s.actorShadow=new ActorShadowGeometry();
-                s.twoSided=true;s.approximate=true;frame.entities.put(e,s);
+                s.twoSided=true;s.approximate=true;s.forwardTopology=ForwardTopology.NATIVE;frame.entities.put(e,s);
+            } else if(a!=null && a.description!=null && localDescriptions.get(e)!=a.description) {
+                LightingSurface s=LocalSurfaceCompiler.compile(a.description,0,0,0);
+                if(s.receiverVertices!=null){s.localReceiverVertices=s.receiverVertices;s.receiverVertices=LocalSurfaceDescription.copy(s.localReceiverVertices);}
+                localDescriptions.put(e,a.description);frame.entities.put(e,s);
             }
         }
     }
@@ -145,6 +153,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             corners[4]=dynamic.x3[slot];corners[5]=dynamic.y3[slot];corners[6]=dynamic.x4[slot];corners[7]=dynamic.y4[slot];
             surface.actor=true;
             surface.imageQuad=description==null;
+            if(description==null)surface.forwardTopology=ForwardTopology.NATIVE;
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));
             AssetRefComponent ref=assetRefs.getSafe(e,null);

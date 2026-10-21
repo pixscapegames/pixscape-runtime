@@ -20,5 +20,7 @@ public final class LightingSurface {
     public float[] receiverVertices;
     /** Immutable local completion for authored moving surfaces; prepared when their description changes. */
     public float[] localReceiverVertices;
+    /** Cold native/physical overlay; weights reuse the current transformed receiver publication. */
+    public ForwardTopology forwardTopology;
     public LightingSurface(float[] vertices) { this.vertices = vertices; }
 }

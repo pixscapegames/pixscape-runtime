@@ -15,6 +15,9 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @Test public void forwardOneLightPreservesCoverageAndRejectsUnsupportedFrames() {
+        ForwardLightingGlCheck.verify();
+    }
     @Test public void grazingDecorKeepsActorReceptionAndAmbient() {
         GrazingLightGlCheck.verify();
     }

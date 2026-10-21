@@ -13,6 +13,7 @@ public final class LocalSurfaceCompiler {
         }
         LightingSurface s=new LightingSurface(MapLightingGeometry.completeLocal(vertices));s.receiveLight=d.receiveLight;
         s.receiverVertices=MapLightingGeometry.completeReceiverVertices(s.vertices,null,0);
-        s.shadowCaster=d.shadowCaster;s.twoSided=d.twoSided;return s;
+        s.shadowCaster=d.shadowCaster;s.twoSided=d.twoSided;
+        s.forwardTopology=ForwardTopology.compile(s);return s;
     }
 }
