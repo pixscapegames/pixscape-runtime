@@ -50,6 +50,60 @@ public class RenderTiledSyncSystemTest {
     }
 
     @Test
+    public void preparedOrderSurvivesPanZoomAndRebuildsAfterEditUndoRedoAndReplacement() {
+        Fixture f = createTwoChunksFixture();
+        f.world.process();
+        f.tiledSync.prepareRuntimeAvailability();
+        int entity = onlyMapEntity(f.world);
+        TiledRenderOrder order = f.tiledState.orderForMap(entity);
+        int prepared = order.preparationCount();
+        for (int i = 0; i < 20; i++) {
+            f.camera.position.x = i % 2 == 0 ? 16 : 48;
+            f.camera.zoom = i % 2 == 0 ? 1 : 2;
+            f.camera.update(); f.world.process();
+        }
+        Assert.assertEquals(prepared, order.preparationCount());
+        f.map.setTile(0, 0, 0); f.world.process();
+        Assert.assertEquals(++prepared, order.preparationCount());
+        f.map.setTile(0, 0, 1); f.world.process(); // Restore authored content (undo).
+        Assert.assertEquals(++prepared, order.preparationCount());
+        f.map.setTile(0, 0, 0); f.world.process(); // Redo.
+        Assert.assertEquals(++prepared, order.preparationCount());
+        f.world.process(); Assert.assertEquals(prepared, order.preparationCount());
+        f.world.getMapper(TiledLayerComponent.class).get(entity).data = new TiledMapLayerData(2, 2, 16, 16, 2);
+        f.world.process(); Assert.assertNotSame(order, f.tiledState.orderForMap(entity));
+        f.world.delete(entity); f.world.process(); Assert.assertNull(f.tiledState.orderForMap(entity));
+        f.world.dispose();
+    }
+
+    @Test
+    public void partialVisualPublicationOnlyInvalidatesOrderWhenItsKeyChanges() {
+        Fixture f = createSingleChunkFixture();
+        games.pixscape.runtime.tiled.animation.TileAnimationDefData data =
+                new games.pixscape.runtime.tiled.animation.TileAnimationDefData();
+        data.id = 1; data.frameAssetIds = new int[]{1, 1, 2}; data.frameDurationsMs = new int[]{100, 100, 100};
+        games.pixscape.runtime.tiled.animation.TileAnimationDef animation =
+                new games.pixscape.runtime.tiled.animation.TileAnimationDef(data);
+        f.tiledSync.setAnimatedTileLookup(id -> id == 1 ? animation : null);
+        f.world.process();
+        TiledRenderOrder order = f.tiledState.orderForMap(onlyMapEntity(f.world));
+        int prepared = order.preparationCount();
+        TileChunk chunk = f.map.getChunk(0, 0);
+        chunk.setAnimationFrameIndex(0, 1);
+        chunk.dirtyLocalIndices.add(0); chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
+        f.world.process();
+        Assert.assertEquals(prepared, order.preparationCount());
+        int ref = refFor(f.map, 0, 0);
+        long oldKey = f.tiledState.sortKey[ref];
+        chunk.setAnimationFrameIndex(0, 2);
+        chunk.dirtyLocalIndices.add(0); chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
+        f.world.process();
+        Assert.assertEquals(prepared + 1, order.preparationCount());
+        Assert.assertNotEquals(oldKey, f.tiledState.sortKey[ref]);
+        f.world.dispose();
+    }
+
+    @Test
     public void runtimeAvailabilityCompilesAllPersistentChunksBeforeFirstPan() {
         Fixture fixture = createTwoChunksFixture();
         fixture.world.process();

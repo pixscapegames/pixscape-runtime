@@ -44,6 +44,8 @@ import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 @Exclude(LayerComponent.class)
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
     @Override protected void removed(int entityId) {
+        if (currentMapEntity == entityId) currentRenderOrder = null;
+        tiledState.removeOrderForMap(entityId);
         tiledState.lightingMaps.remove(entityId);tiledState.lightingRevision++;
     }
 
@@ -66,6 +68,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
     private final LayerDisplayOffsetResolver displayOffsetResolver;
     private SpatialTileOrderCache currentTileOrder;
+    private TiledRenderOrder currentRenderOrder;
     private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
 
@@ -181,10 +184,15 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     @Override
     protected void process(int e) {
         TiledLayerComponent tiled = mTiled.get(e);
-        if (tiled == null || tiled.data == null) return;
+        if (tiled == null || tiled.data == null) {
+            tiledState.removeOrderForMap(e);
+            currentRenderOrder = null;
+            return;
+        }
         EntityIndexComponent index = mEntityIndex.get(e);
 
         TiledMapLayerData map = tiled.data;
+        currentRenderOrder = tiledState.prepareOrderForMap(e, map);
         games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
         if (lighting == null) {
             lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
@@ -280,6 +288,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         map.previousChunkMaxY = currentMaxCy;
 
         int visibleRefCount = tiledState.getVisibleRefCount() - visibleRefStart;
+        currentRenderOrder.prepare(tiledState);
         if (visibleRefCount > 0) {
             // Texture handle zero is an explicit sentinel: tile materials are internal to the
             // group and must not participate in global composition ordering.
@@ -291,13 +300,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     index.zIndex,
                     e
             );
-            tiledState.addVisibleMap(
+            tiledState.addPreparedVisibleMap(
                     e,
                     index.layerIndex,
                     index.zIndex,
                     compositionKey,
                     visibleRefStart,
-                    visibleRefCount
+                    visibleRefCount,
+                    currentRenderOrder
             );
         }
     }
@@ -351,6 +361,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             if (index == null || tiled == null || tiled.data == null) continue;
 
             TiledMapLayerData map = tiled.data;
+            currentRenderOrder = tiledState.prepareOrderForMap(entityId, map);
             currentMapEntity = entityId;
             games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
             if(lighting==null){lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();tiledState.lightingMaps.put(entityId,lighting);}
@@ -383,6 +394,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             if (currentTileOrder != null && currentTileOrder.needsKeyRefresh()) {
                 refreshTileKeys(map, index.layerIndex, currentTileOrder);
             }
+            currentRenderOrder.prepare(tiledState);
         }
     }
 
@@ -775,6 +787,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                               String atlasTag) {
 
         persistentChunkCompilationCount++;
+        currentRenderOrder.invalidate();
 
         int layerIndex = mEntityIndex.get(entityId).layerIndex;
 
@@ -826,6 +839,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                int layerIndex) {
 
         if (assetId <= 0) {
+            if (tiledState.enabled[tiledRenderRef]) currentRenderOrder.invalidate();
             tiledState.disableRef(tiledRenderRef);
             chunk.setRenderableLocalIndex(localIndex, false);
             return;
@@ -843,6 +857,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 atlasRuntimeService.resolveBinding(visualAssetId, atlasTag);
 
         if (binding == null) {
+            if (tiledState.enabled[tiledRenderRef]) currentRenderOrder.invalidate();
             tiledState.disableRef(tiledRenderRef);
             chunk.setRenderableLocalIndex(localIndex, false);
             return;
@@ -851,6 +866,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
         RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(visualAssetId);
         if (profile == null) {
+            if (tiledState.enabled[tiledRenderRef]) currentRenderOrder.invalidate();
             reportMissingProfileOnce(visualAssetId, assetId, atlasTag);
             tiledState.disableRef(tiledRenderRef);
             chunk.setRenderableLocalIndex(localIndex, false);
@@ -890,6 +906,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     metadata.textureHandle(), layerIndex, z, tie);
         }
 
+        if (!tiledState.enabled[tiledRenderRef] || tiledState.sortKey[tiledRenderRef] != sortKey) {
+            currentRenderOrder.invalidate();
+        }
         tiledState.setRenderDataForRef(
                 tiledRenderRef,
                 metadata.textureHandle(),
@@ -970,9 +989,11 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     throw missingRequiredRank(map, gx, gy, chunk.assetIds[local], layerIndex,
                             "missing-during-key-refresh");
                 }
-                tiledState.sortKey[ref] = SortKey64.packForBlendOrder30(
+                long key = SortKey64.packForBlendOrder30(
                         tiledState.shader[ref], tiledState.blend[ref], tiledState.textureHandle[ref],
                         layerIndex, rank);
+                if (key != tiledState.sortKey[ref]) currentRenderOrder.invalidate();
+                tiledState.sortKey[ref] = key;
             }
         }
         order.markKeysApplied();

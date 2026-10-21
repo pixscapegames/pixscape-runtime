@@ -7,6 +7,27 @@ package games.pixscape.runtime.render;
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
+    private final com.badlogic.gdx.utils.IntMap<TiledRenderOrder> preparedOrders =
+            new com.badlogic.gdx.utils.IntMap<TiledRenderOrder>();
+    int[] preparedOrderRank;
+    TiledRenderOrder[] preparedOrderOwner;
+
+    public TiledRenderOrder prepareOrderForMap(int entityId, games.pixscape.runtime.tiled.TiledMapLayerData map) {
+        TiledRenderOrder order = preparedOrders.get(entityId);
+        if (order == null || !order.belongsTo(map)) {
+            if (order != null) order.release(this);
+            order = new TiledRenderOrder(map);
+            preparedOrders.put(entityId, order);
+        }
+        return order;
+    }
+
+    public TiledRenderOrder orderForMap(int entityId) { return preparedOrders.get(entityId); }
+    public void removeOrderForMap(int entityId) {
+        TiledRenderOrder old = preparedOrders.remove(entityId);
+        if (old != null) old.release(this);
+    }
+    public long orderRankStorageBytes() { return preparedOrderRank != null ? 4L * preparedOrderRank.length : 0L; }
     public int lightingRevision;
     public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface> lightingSurfaces =
             new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface>();
@@ -27,6 +48,7 @@ public final class TiledMapRenderState {
     private long[] visibleMapCompositionKey;
     private int[] visibleMapRefStart;
     private int[] visibleMapRefCount;
+    private TiledRenderOrder[] visibleMapPreparedOrder;
     private int visibleMapCount;
 
     private int refCount;
@@ -64,6 +86,8 @@ public final class TiledMapRenderState {
     }
 
     public void setCapacity(int newCapacity) {
+        clearVisibleRefs();
+        preparedOrders.clear();
         lightingSurfaces.clear();lightingMaps.clear();lightingRevision++;
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("TiledMapRenderState capacity must be > 0");
@@ -96,6 +120,7 @@ public final class TiledMapRenderState {
     }
 
     public void clearVisibleRefs() {
+        for (int i = 0; i < visibleMapCount; i++) visibleMapPreparedOrder[i] = null;
         visibleRefCount = 0;
         visibleMapCount = 0;
     }
@@ -131,6 +156,15 @@ public final class TiledMapRenderState {
                               long compositionKey,
                               int visibleRefStart,
                               int visibleRefCount) {
+        // A separate publisher may have added refs after Runtime preparation (Studio standalone textures).
+        TiledRenderOrder order = preparedOrders.get(mapEntityId);
+        if (order != null) order.invalidate();
+        addPreparedVisibleMap(mapEntityId, layerIndex, zIndex, compositionKey, visibleRefStart, visibleRefCount, null);
+    }
+
+    /** Only a publisher whose traversal matches the prepared map order may attach that order. */
+    public void addPreparedVisibleMap(int mapEntityId, int layerIndex, int zIndex, long compositionKey,
+                                      int visibleRefStart, int visibleRefCount, TiledRenderOrder order) {
         if (mapEntityId < 0 || visibleRefStart < 0 || visibleRefCount <= 0
                 || visibleRefStart + visibleRefCount > this.visibleRefCount) {
             throw new IllegalArgumentException("Visible Tiled Map group must reference a valid non-empty ref range.");
@@ -142,6 +176,7 @@ public final class TiledMapRenderState {
         visibleMapCompositionKey[visibleMapCount] = compositionKey;
         visibleMapRefStart[visibleMapCount] = visibleRefStart;
         visibleMapRefCount[visibleMapCount] = visibleRefCount;
+        visibleMapPreparedOrder[visibleMapCount] = order;
         visibleMapCount++;
     }
 
@@ -172,6 +207,11 @@ public final class TiledMapRenderState {
             return;
         }
         ensureCapacity(tiledRenderRef + 1);
+
+        TiledRenderOrder order = preparedOrderOwner[tiledRenderRef];
+        if (order != null && (!this.enabled[tiledRenderRef] || this.sortKey[tiledRenderRef] != sortKey)) {
+            order.invalidate();
+        }
 
         this.enabled[tiledRenderRef] = true;
         this.visible[tiledRenderRef] = true;
@@ -208,6 +248,8 @@ public final class TiledMapRenderState {
             return;
         }
         enabled[tiledRenderRef] = false;
+        TiledRenderOrder order = preparedOrderOwner[tiledRenderRef];
+        if (order != null) order.invalidate();
         visible[tiledRenderRef] = false;
         textureHandle[tiledRenderRef] = 0;
     }
@@ -256,6 +298,8 @@ public final class TiledMapRenderState {
         return visibleMapRefCount[groupIndex];
     }
 
+    public TiledRenderOrder visibleMapPreparedOrder(int groupIndex) { return visibleMapPreparedOrder[groupIndex]; }
+
     public int getRefCount() {
         return refCount;
     }
@@ -279,6 +323,8 @@ public final class TiledMapRenderState {
     }
 
     private void allocate(int newCapacity, boolean copyExisting) {
+        int[] oldOrderRank = preparedOrderRank;
+        TiledRenderOrder[] oldOrderOwner = preparedOrderOwner;
         int[] oldVisibleRefs = visibleRefs;
         boolean[] oldEnabled = enabled;
         boolean[] oldVisible = visible;
@@ -307,6 +353,8 @@ public final class TiledMapRenderState {
         byte[] oldRepeatFlags = repeatFlags;
 
         visibleRefs = new int[newCapacity];
+        preparedOrderRank = new int[newCapacity];
+        preparedOrderOwner = new TiledRenderOrder[newCapacity];
         enabled = new boolean[newCapacity];
         visible = new boolean[newCapacity];
         textureHandle = new int[newCapacity];
@@ -334,6 +382,8 @@ public final class TiledMapRenderState {
         repeatFlags = new byte[newCapacity];
 
         if (copyExisting && capacity > 0) {
+            copy(oldOrderRank, preparedOrderRank, refCount);
+            System.arraycopy(oldOrderOwner, 0, preparedOrderOwner, 0, refCount);
             copy(oldVisibleRefs, visibleRefs, visibleRefCount);
 
             copy(oldEnabled, enabled, refCount);
@@ -378,6 +428,9 @@ public final class TiledMapRenderState {
         visibleMapCompositionKey = grow(visibleMapCompositionKey, next, visibleMapCount);
         visibleMapRefStart = grow(visibleMapRefStart, next, visibleMapCount);
         visibleMapRefCount = grow(visibleMapRefCount, next, visibleMapCount);
+        TiledRenderOrder[] orders = new TiledRenderOrder[next];
+        if (visibleMapPreparedOrder != null) System.arraycopy(visibleMapPreparedOrder, 0, orders, 0, visibleMapCount);
+        visibleMapPreparedOrder = orders;
     }
 
     private static int[] grow(int[] source, int capacity, int count) {

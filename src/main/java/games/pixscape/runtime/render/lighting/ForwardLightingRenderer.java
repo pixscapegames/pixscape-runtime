@@ -74,6 +74,11 @@ public final class ForwardLightingRenderer {
         String reference=LightingRenderer.RECEIVER;
         String declarations=reference.substring(0,reference.indexOf("void main()"));
         String direct=reference.substring(reference.indexOf("float value=0.;"),reference.indexOf("result=vec4(outputColor"))
+                // Range and the existing geometric horizon can make direct light exactly zero.
+                // Keep coverage/ambient; only skip work whose final contribution is zero.
+                .replace("if(flags.y>.5&&normalLength>.0001)",
+                        "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&"+
+                        "(flags.z!=0.||dot(n/normalLength,distance>0.?-delta/distance:vec3(0))>.052335956))")
                 .replace("vec3 normal=n/normalLength;","vec3 geometric=n/normalLength;vec3 normal=lightingNormal(geometric);")
                 .replace("float c=clamp(abs(cosine),","float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),")
                 .replace("dot(tap,normal)","dot(tap,geometric)").replace("dot(delta,normal)","dot(delta,geometric)");
