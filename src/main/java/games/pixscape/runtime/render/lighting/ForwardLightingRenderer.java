@@ -26,7 +26,7 @@ public final class ForwardLightingRenderer {
     private AtlasRuntimeService.TextureArrayBundle bundle;
     private int vertices,blend=-1,normalHandle=-1,domain=-1;
     private RenderStats stats;
-    public int worldDraws,presentationDraws,normalFlushes,domainFlushes;
+    public int worldDraws,presentationDraws,normalFlushes,domainFlushes,blendFlushes,capacityFlushes,endFlushes;
     public long uploadedBytes;
 
     public void prepare(World world,AtlasRuntimeService.TextureArrayBundle published) {
@@ -80,13 +80,15 @@ public final class ForwardLightingRenderer {
         return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
                 declarations+LightingRenderer.NORMAL_SAMPLE+
                 "void main(){vec4 texel=texture(u_array,vec3(uv,flags.x));if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;"+
-                "if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"+
+                // Native premultiplied additive emitters carry emission in RGB with zero coverage.
+                // ONE-source blends must retain that RGB even when alpha is zero.
+                "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"+
                 direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);}";
     }
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
         ForwardAdmission.validateQueue(queue,bundle);
-        this.stats=stats;worldDraws=presentationDraws=normalFlushes=domainFlushes=0;uploadedBytes=0;
+        this.stats=stats;worldDraws=presentationDraws=normalFlushes=domainFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
         vertices=0;blend=normalHandle=domain=-1;
         target.begin();
         try {
@@ -102,7 +104,7 @@ public final class ForwardLightingRenderer {
                 LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?queue.lighting.tiles.get(queue.sourceSlot[i]):queue.lighting.entities.get(queue.sourceEntity[i]);
                 draw(queue,i,surface,shadows);
             }
-            flush();
+            if(vertices!=0)endFlushes++;flush();
             if(queue.lighting.timer!=null)queue.lighting.timer.end(LightingPassTimer.RECEIVERS);
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(4);
             target.present();stats.drawCalls++;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
@@ -130,7 +132,7 @@ public final class ForwardLightingRenderer {
         }
         if(normalHandle!=page){if(vertices!=0)normalFlushes++;flush();normalHandle=page;TextureRegistry.getByHandle(page).bind(2);stats.textureBinds++;}
         int mode=q.blend[i];
-        if(blend!=mode){flush();blend=mode;
+        if(blend!=mode){if(vertices!=0)blendFlushes++;flush();blend=mode;
             boolean additive=mode==3||mode==4;
             int src=mode==1||mode==4?GL20.GL_SRC_ALPHA:GL20.GL_ONE;
             int dst=additive?GL20.GL_ONE:mode==0||mode==7?GL20.GL_ZERO:GL20.GL_ONE_MINUS_SRC_ALPHA;
@@ -146,7 +148,7 @@ public final class ForwardLightingRenderer {
         float[] physical=s==null?null:s.receiverVertices==null?s.vertices:s.receiverVertices;
         int layer=bundle.handle2layer.get(q.textureHandle[i],-1);
         for(int k=0;k<topology.vertexCount;k++){
-            if(vertices==CAPACITY)flush();int out=vertices++*STRIDE,w=k*5;
+            if(vertices==CAPACITY){capacityFlushes++;flush();}int out=vertices++*STRIDE,w=k*5;
             int triangle=(int)topology.weights[w],source=s==null?-1:topology.source[k];
             float pa=topology.weights[w+1],pb=topology.weights[w+2],pc=1-pa-pb;
             float ca=topology.weights[w+3],cb=topology.weights[w+4],cc=1-ca-cb;

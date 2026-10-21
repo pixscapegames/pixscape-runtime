@@ -45,6 +45,11 @@ public final class ForwardLightingGlCheck {
         q.addQuad(TextureRegistry.handleOf(texture),shader,4,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_VFX,0,10);
         q.ignoreAmbientLighting[0]=true;submit.setEnabled(true);
         clear();world.process();int exempt=red(32,16);Assert.assertTrue("Exempt VFX survives nearly black ambient",exempt>240);
+        // Synthetic ADDITIVE policy witness; native emitters express ONE emission through
+        // PREMULT_ALPHA with zero coverage (covered by ForwardParticleGlCheck below).
+        q.blend[0]=BlendMode.ADDITIVE.id;q.colorPacked[0]=Color.toFloatBits(.5f,.25f,.125f,0);
+        clear();world.process();Assert.assertTrue("ONE emission must not be discarded at zero alpha",red(32,16)>120);
+        q.blend[0]=BlendMode.ADDITIVE_ALPHA.id;q.colorPacked[0]=Color.WHITE.toFloatBits();
         q.ignoreAmbientLighting[0]=false;clear();world.process();Assert.assertTrue(red(32,16)<5);
         q.ignoreAmbientLighting[0]=true;
         q.addQuad(TextureRegistry.handleOf(texture),shader,0,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_ECS,0,11);
@@ -64,6 +69,7 @@ public final class ForwardLightingGlCheck {
         Assert.assertTrue("GLSL ES compile: "+esProgram.getLog(),esProgram.isCompiled());esProgram.dispose();
         Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
         world.dispose();batch.close();bundle.textureArray.dispose();texture.dispose();
+        ForwardParticleGlCheck.verify();
     }
     private static void clear(){Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);}
     private static int red(int x,int y){Pixmap p=Pixmap.createFromFrameBuffer(x,y,1,1);try{return p.getPixel(0,0)>>>24;}finally{p.dispose();}}
