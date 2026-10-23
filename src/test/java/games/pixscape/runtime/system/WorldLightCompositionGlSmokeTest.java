@@ -107,6 +107,7 @@ public class WorldLightCompositionGlSmokeTest {
                 offscreen.surface.actor=true;
                 offscreen.texture=handle;offscreen.u2=offscreen.v2=1;offscreen.bounds();
                 q.lighting.casters.add(offscreen);
+                submit.lightingRenderer().prepareFrame(q.lighting);
                 final Throwable[] replayFailure={null};
                 q.lighting.timer=new LightingPassTimer(){
                     public void begin(int pass){}
@@ -133,8 +134,8 @@ public class WorldLightCompositionGlSmokeTest {
                 invalidCaster.surface=new LightingSurface(occluderVertices);invalidCaster.texture=0;invalidCaster.bounds();
                 invalidCaster.surface.actor=true;
                 q.lighting.casters.add(invalidCaster);
-                try {world.process();Assert.fail("An invalid shadow texture must not be skipped by P3 preflight");}
-                catch(IllegalStateException expected){Assert.assertTrue(expected.getMessage().contains("texture handle"));}
+                try {submit.lightingRenderer().prepareFrame(q.lighting);Assert.fail("An invalid shadow texture must be rejected before submission");}
+                catch(LightingAdmissionException expected){Assert.assertTrue(expected.getMessage().contains("texture"));}
                 q.lighting.casters.clear();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
                 Assert.assertEquals("A rejected shadow batch must recover on the next frame",GL20.GL_NO_ERROR,Gdx.gl.glGetError());
                 light.x=32;light.y=0;light.z=128;
@@ -215,7 +216,7 @@ public class WorldLightCompositionGlSmokeTest {
     private static void assertReplayPrepared(RenderSubmitSystem submit) throws Exception {
         java.lang.reflect.Field batchField=games.pixscape.runtime.render.lighting.LightingRenderer.class.getDeclaredField("batch");
         batchField.setAccessible(true);Object lightingBatch=batchField.get(submit.lightingRenderer());
-        java.lang.reflect.Field replayField=lightingBatch.getClass().getDeclaredField("replayVertices");
+        java.lang.reflect.Field replayField=lightingBatch.getClass().getDeclaredField("replayCount");
         replayField.setAccessible(true);
         Assert.assertTrue("Eligible shadow casters must prepare one reusable batch",replayField.getInt(lightingBatch)>0);
     }

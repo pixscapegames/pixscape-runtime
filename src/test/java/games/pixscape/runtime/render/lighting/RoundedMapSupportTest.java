@@ -64,11 +64,52 @@ public class RoundedMapSupportTest {
         assertNull(geometry.receiver(map,27,24,0,(byte)0,quad).curveNormals);
         assertEquals(1,geometry.roundedProfileCompilationCount());assertEquals(2,geometry.roundedGeometryCompilationCount());
     }
-    @Test public void profileReplacementInvalidatesAndUndeclaredMapsKeepAutomaticSupport(){
+    @Test public void incompatibleProfileReplacementIsAtomicAndUndeclaredMapsKeepAutomaticSupport(){
         LightingSurface s=surface();Array<TileSurfaceDescription> next=new Array<TileSurfaceDescription>();TileSurfaceDescription d=descriptions.first().copy();
         d.rounded.radiusCells=.9f;d.rounded.centerGX=d.rounded.centerGY=.9f;next.add(d);geometry.descriptions(next);
-        assertNotSame(s,surface());assertEquals(2,geometry.roundedProfileCompilationCount());
+        try{prepare();fail();}catch(LightingAdmissionException expected){}
+        assertSame(s,geometry.receiver(map,27,24,7,(byte)0,quad));
         geometry.descriptions(new Array<TileSurfaceDescription>());assertNull(surface().curveNormals);
+    }
+    private boolean prepare(){return geometry.ensure(map,blocks,(m,c,i,q,required)->{System.arraycopy(quad,0,q,0,8);return true;},"scene",1);}
+    @Test public void fullAdmissionPreparesOffscreenSupportAndAtomicallyReplacesBothCasterKinds(){
+        assertTrue(prepare());assertEquals(1,geometry.roundedGeometryCompilationCount());
+        LightingSurface old=surface();int count=geometry.casters.size;
+        for(SpatialBlockData b:blocks.blocks)b.height+=20;blocks.revision++;
+        assertTrue(prepare());LightingSurface updated=surface();assertNotSame(old,updated);
+        assertEquals(count,geometry.casters.size);assertEquals(2,geometry.roundedGeometryCompilationCount());
+        float max=0;for(int i=2;i<updated.casterSurface.vertices.length;i+=8)max=Math.max(max,updated.casterSurface.vertices[i]);
+        assertEquals(177.34424f,max,.0001);
+        for(int i=0;i<100;i++)assertFalse(prepare());
+        assertEquals(2,geometry.roundedGeometryCompilationCount());
+    }
+    @Test public void localRegistrationAndUnavailableResourcesRejectBeforePublication(){
+        prepare();LightingSurface old=surface();LightingSurface oldOpaque=geometry.casters.first();
+        TileSurfaceDescription d=new TileSurfaceDescription();d.assetId=7;d.geometry=new LocalSurfaceDescription();
+        d.geometry.xyz=new float[]{0,0,0,1,0,0,0,1,0};d.geometry.uv=new float[]{0,0,1,0,0,1};
+        d.geometry.normals=new float[]{0,0,1,0,0,1,0,0,1};
+        d.geometry.triangles=new int[]{0,1,2};
+        Array<TileSurfaceDescription> next=new Array<>();next.add(d);geometry.descriptions(next);
+        try{prepare();fail();}catch(LightingAdmissionException expected){assertTrue(expected.getMessage().contains("registration"));}
+        assertSame(oldOpaque,geometry.casters.first());assertSame(old,geometry.receiver(map,27,24,7,(byte)0,quad));
+        geometry.descriptions(descriptions);
+        try{geometry.ensure(map,blocks,(m,c,i,q,r)->false,"scene",2);fail();}catch(LightingAdmissionException expected){assertTrue(expected.getMessage().contains("unavailable"));}
+        assertSame(oldOpaque,geometry.casters.first());
+    }
+    @Test public void structuralAdmissionSubtractsInLocalCoordinatesBeforeTranslation(){
+        for(int position:new int[]{1,2,27,63}){
+            TiledMapLayerData m=new TiledMapLayerData(80,80,256,128,16,TiledProjection.ISO);m.setTile(position,position,7);
+            SpatialBlocksComponent bs=new SpatialBlocksComponent();
+            for(SpatialBlockData b:blocks.blocks){SpatialBlockData copy=b.copy();copy.x=copy.y=position;
+                copy.linkedTileRefs.first().gx=copy.linkedTileRefs.first().gy=position;bs.blocks.add(copy);}
+            TileSurfaceDescription d=descriptions.first().copy();d.rounded.radiusCells=d.rounded.centerGX=d.rounded.centerGY=1.4f;
+            MapLightingGeometry g=new MapLightingGeometry();Array<TileSurfaceDescription> ds=new Array<>();ds.add(d);g.descriptions(ds);
+            assertTrue("Structural admission at "+position,g.ensure(m,bs));
+            // Separately admit the valid profile against its translated native quad.
+            d=descriptions.first().copy();ds=new Array<>();ds.add(d);g.descriptions(ds);
+            final float sx=(position-27-(position-24))*128,sy=(position-27+position-24)*64;
+            assertTrue(g.ensure(m,bs,(mm,c,i,q,r)->{for(int k=0;k<8;k++)q[k]=quad[k]+(k%2==0?sx:sy);return true;},"scene",1));
+        }
     }
     @Test public void invalidCandidateDoesNotReplacePublishedGeometry(){
         LightingSurface s=surface();Array<TileSurfaceDescription> invalid=new Array<TileSurfaceDescription>();invalid.add(descriptions.first().copy());invalid.add(descriptions.first().copy());

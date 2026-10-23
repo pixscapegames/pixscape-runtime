@@ -38,6 +38,7 @@ public final class LightingFrame {
     public final Array<Caster> casters=new Array<Caster>();
     public final CasterIndex casterIndex=new CasterIndex();
     public int staticCasterCount;
+    public int staticCasterRevision;
     public IntMap<LightingSurface> tiles=new IntMap<LightingSurface>();
     public final IntMap<LightingSurface> entities=new IntMap<LightingSurface>();
     /** Off by default: 1 positions, 2 normals, 3 approximated/missing coverage. */

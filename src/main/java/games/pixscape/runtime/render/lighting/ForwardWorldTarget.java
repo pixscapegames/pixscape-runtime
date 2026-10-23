@@ -17,6 +17,7 @@ final class ForwardWorldTarget {
     private final FloatBuffer zero=BufferUtils.newFloatBuffer(4);
     private final int[] viewport=new int[4],scissorBox=new int[4];
     private int framebuffer,src,dst,srcAlpha,dstAlpha,equation,equationAlpha;
+    private int depthFunction,depthWrite;
     private boolean scissor,blend,depth,cull,active;
     int width,height;
 
@@ -51,6 +52,7 @@ final class ForwardWorldTarget {
         integers.clear();Gdx.gl.glGetIntegerv(GL20.GL_SCISSOR_BOX,integers);for(int i=0;i<4;i++)scissorBox[i]=integers.get(i);
         scissor=Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST);blend=Gdx.gl.glIsEnabled(GL20.GL_BLEND);
         depth=Gdx.gl.glIsEnabled(GL20.GL_DEPTH_TEST);cull=Gdx.gl.glIsEnabled(GL20.GL_CULL_FACE);
+        depthFunction=read(GL20.GL_DEPTH_FUNC);depthWrite=read(GL20.GL_DEPTH_WRITEMASK);
         src=read(GL20.GL_BLEND_SRC_RGB);dst=read(GL20.GL_BLEND_DST_RGB);srcAlpha=read(GL20.GL_BLEND_SRC_ALPHA);dstAlpha=read(GL20.GL_BLEND_DST_ALPHA);
         equation=read(GL20.GL_BLEND_EQUATION_RGB);equationAlpha=read(GL20.GL_BLEND_EQUATION_ALPHA);
     }
@@ -63,7 +65,7 @@ final class ForwardWorldTarget {
     }
     private void restoreTarget(){Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,framebuffer);Gdx.gl.glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);Gdx.gl.glScissor(scissorBox[0],scissorBox[1],scissorBox[2],scissorBox[3]);enable(GL20.GL_SCISSOR_TEST,scissor);}
     private static void enable(int flag,boolean on){if(on)Gdx.gl.glEnable(flag);else Gdx.gl.glDisable(flag);}
-    private void restore(){restoreTarget();Gdx.gl.glBlendFuncSeparate(src,dst,srcAlpha,dstAlpha);Gdx.gl.glBlendEquationSeparate(equation,equationAlpha);enable(GL20.GL_BLEND,blend);enable(GL20.GL_DEPTH_TEST,depth);enable(GL20.GL_CULL_FACE,cull);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
+    private void restore(){restoreTarget();Gdx.gl.glBlendFuncSeparate(src,dst,srcAlpha,dstAlpha);Gdx.gl.glBlendEquationSeparate(equation,equationAlpha);enable(GL20.GL_BLEND,blend);enable(GL20.GL_DEPTH_TEST,depth);Gdx.gl.glDepthFunc(depthFunction);Gdx.gl.glDepthMask(depthWrite!=0);enable(GL20.GL_CULL_FACE,cull);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     void end(){if(active){restore();active=false;}}
     long textureBytes(){return target==null?0:(long)width*height*8;}
     void dispose(){end();if(target!=null)target.dispose();if(quad!=null)quad.dispose();if(present!=null)present.dispose();target=null;quad=null;present=null;width=height=0;}

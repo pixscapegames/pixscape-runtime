@@ -24,6 +24,9 @@ public final class LightingSurface {
     public ForwardTopology forwardTopology;
     /** Optional cold XYZ macro-orientation per receiver vertex; never used for shadow depth/bias. */
     public float[] curveNormals;
+    /** Immutable rounded-support overlay: XYZ, geometric normal, physical UV, lighting normal.
+     * Rebuilt with the support, never shared with moving actor/local-description buffers. */
+    public float[] forwardAttributes;
     /** Optional explicit caster view of this tile's support, sharing its existing alpha binding. */
     public LightingSurface casterSurface;
     public LightingSurface(float[] vertices) { this.vertices = vertices; }

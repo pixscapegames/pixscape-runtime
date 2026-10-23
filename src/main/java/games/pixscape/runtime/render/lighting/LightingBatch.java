@@ -14,24 +14,29 @@ final class LightingBatch {
     private int stride=BASE_STRIDE;
     private final float[] data=new float[CAPACITY*MAPPED_STRIDE];
     private final int[] handles=new int[4];
-    private final int[] replayHandles=new int[4];
+    private final int[] planningHandles=new int[4];
+    private static final class ReplayBatch {
+        final Mesh mesh;
+        final int[] handles=new int[4];
+        int vertices,textures;
+        ReplayBatch(){mesh=baseMesh();}
+    }
+    private final com.badlogic.gdx.utils.Array<ReplayBatch> replayBatches=new com.badlogic.gdx.utils.Array<ReplayBatch>();
+    private int replayCount;
+    long uploadedBytes;
+    int uploads;
     private final int[] normalHandles=new int[4], boundNormals=new int[4];
     private int normalTextures;
     private boolean mapped;
     private final Mesh mesh, mappedMesh;
     // GWT emulates tiny array copies with temporary JS arrays; keep native copies unchanged.
     private final boolean htmlVertexCopies=Gdx.app.getType()==Application.ApplicationType.WebGL;
-    private int vertices,textures,blend=-1,replayVertices,replayTextures;
+    private int vertices,textures,blend=-1;
     private boolean retainReplay;
     private ShaderProgram shader;
     private RenderStats stats;
     LightingBatch(){
-        mesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
-                new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
-                new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
-                new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"));
+        mesh=baseMesh();
         mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
@@ -41,40 +46,60 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"));
     }
+    private static Mesh baseMesh(){return new Mesh(false,CAPACITY,0,
+            new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
+            new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
+            new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
+            new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
+            new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
+            new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"));}
+    /** Explicit frame preparation, before submission. Release excess scene capacity here only. */
+    void prepareReplayCapacity(int count){
+        abort();
+        while(replayBatches.size<count)replayBatches.add(new ReplayBatch());
+        while(replayBatches.size>count)replayBatches.pop().mesh.dispose();
+        replayBatches.shrink();
+    }
+    int replayCapacity(){return replayBatches.size;}
+    long replayBytes(){return (long)replayBatches.size*CAPACITY*BASE_STRIDE*4;}
     void begin(ShaderProgram shader,RenderStats stats){begin(shader,stats,false);}
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
-        this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayVertices=replayTextures=0;
+        this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayCount=0;
         mapped=false;stride=BASE_STRIDE;normalTextures=0;
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
         for(int i=0;i<4;i++)boundNormals[i]=0;
     }
-    /** Checks whether one complete shadow batch can be prepared before any face submits it. */
-    boolean canReplay(LightingFrame frame){return canReplay(frame,frame.casterIndex.candidates);}
-    boolean canReplay(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates){return canReplay(frame,candidates,false);}
-    boolean canReplay(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly){
-        int total=0,textureCount=0;
+    /** Allocation-free exact batch plan, using the actor topology count (light deformation keeps it). */
+    int requiredReplayBatches(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly){
+        int total=0,textureCount=0,batches=0;
         for(int i=0;i<candidates.size;i++){
             LightingFrame.Caster caster=frame.casters.get(candidates.get(i));
             if(decorOnly && caster!=null && caster.surface!=null && caster.surface.actor)continue;
             if(caster==null || caster.surface==null || caster.surface.vertices==null || caster.surface.vertices.length%8!=0 ||
-                    caster.texture==0 || TextureRegistry.getByHandle(caster.texture)==null)return false;
-            int count=caster.surface.shadowVertices==null?caster.surface.vertices.length/8:caster.surface.shadowVertexCount;
-            if(count>CAPACITY-total)return false;
-            total+=count;
+                    caster.texture==0 || TextureRegistry.getByHandle(caster.texture)==null)
+                throw new LightingAdmissionException("Shadow caster has no valid prepared geometry/texture");
+            int count=caster.surface.actorShadow!=null&&caster.surface.actorShadow.active
+                    ?caster.surface.actorShadow.vertexCount:caster.surface.vertices.length/8;
+            if(count==0)continue;
             boolean found=false;
-            for(int j=0;j<textureCount;j++)if(replayHandles[j]==caster.texture){found=true;break;}
-            if(!found){if(textureCount==4)return false;replayHandles[textureCount++]=caster.texture;}
+            for(int j=0;j<textureCount;j++)if(planningHandles[j]==caster.texture){found=true;break;}
+            if(!found){if(textureCount==4){if(total>0)batches++;total=textureCount=0;}planningHandles[textureCount++]=caster.texture;}
+            while(count>0){
+                if(total==CAPACITY){batches++;total=0;textureCount=1;planningHandles[0]=caster.texture;}
+                int n=Math.min(count,CAPACITY-total);total+=n;count-=n;
+            }
         }
-        return total!=0;
+        return batches+(total==0?0:1);
     }
     void replay(){
-        if(replayVertices==0 || replayTextures==0)throw new IllegalStateException("Lighting replay has no prepared shadow batch");
         shader.bind();
-        bindTextures(replayHandles,replayTextures);
-        mesh.render(shader,GL20.GL_TRIANGLES,0,replayVertices);
-        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+        for(int i=0;i<replayCount;i++){
+            ReplayBatch b=replayBatches.get(i);bindTextures(b.handles,b.textures);
+            b.mesh.render(shader,GL20.GL_TRIANGLES,0,b.vertices);
+            if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+        }
     }
     void draw(LightingSurface surface,int texture,float u1,float v1,float u2,float v2,float color,
               int blendMode,float[] quad,float offsetX,float offsetY,boolean shadow,boolean supported){
@@ -144,8 +169,13 @@ final class LightingBatch {
         bindTextures(handles,textures);
         if(mapped)bindNormalTextures();
         Mesh active=mapped?mappedMesh:mesh;
+        if(retainReplay){
+            if(mapped||replayCount>=replayBatches.size)throw new IllegalStateException("Shadow replay capacity must be prepared before submission");
+            ReplayBatch b=replayBatches.get(replayCount++);active=b.mesh;
+            b.vertices=vertices;b.textures=textures;System.arraycopy(handles,0,b.handles,0,textures);
+        }
         active.setVertices(data,0,vertices*stride);active.render(shader,GL20.GL_TRIANGLES,0,vertices);
-        if(retainReplay){replayVertices=vertices;replayTextures=textures;System.arraycopy(handles,0,replayHandles,0,textures);}
+        uploads++;uploadedBytes+=(long)vertices*stride*4;
         if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
         vertices=0;textures=0;
     }
@@ -168,6 +198,6 @@ final class LightingBatch {
             texture.bind(i+5);boundNormals[i]=handle;if(stats!=null)stats.textureBinds++;
         }
     }
-    void abort(){vertices=textures=replayVertices=replayTextures=0;blend=-1;retainReplay=false;}
-    void dispose(){mesh.dispose();mappedMesh.dispose();}
+    void abort(){vertices=textures=replayCount=0;blend=-1;retainReplay=false;}
+    void dispose(){abort();for(ReplayBatch b:replayBatches)b.mesh.dispose();replayBatches.clear();mesh.dispose();mappedMesh.dispose();}
 }

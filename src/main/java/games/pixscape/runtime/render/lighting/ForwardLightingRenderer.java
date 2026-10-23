@@ -121,7 +121,7 @@ public final class ForwardLightingRenderer {
             target.present();stats.drawCalls++;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
             stats.framebufferBinds+=3;stats.framebufferSwitches+=3;
             if(queue.lighting.timer!=null)queue.lighting.timer.end(4);
-        } finally {vertices=0;target.end();}
+        } finally {vertices=0;shadows.abort();target.end();}
     }
     private void lightUniforms(LightingFrame frame,LightingRenderer shadows){
         LightingFrame.Light l=frame.lights.size==0?null:frame.lights.first();
@@ -158,6 +158,7 @@ public final class ForwardLightingRenderer {
         ForwardTopology topology=s==null?ForwardTopology.NATIVE:s.forwardTopology;
         float[] physical=s==null?null:s.receiverVertices==null?s.vertices:s.receiverVertices;
         float[] curve=s!=null&&roundedLightingEnabled?s.curveNormals:null;
+        float[] immutable=s==null?null:s.forwardAttributes;
         int layer=bundle.handle2layer.get(q.textureHandle[i],-1);
         for(int k=0;k<topology.vertexCount;k++){
             if(vertices==CAPACITY){capacityFlushes++;flush();}int out=vertices++*STRIDE,w=k*5;
@@ -167,15 +168,16 @@ public final class ForwardLightingRenderer {
             int c0=ForwardTopology.CORNERS[triangle*3],c1=ForwardTopology.CORNERS[triangle*3+1],c2=ForwardTopology.CORNERS[triangle*3+2];
             data[out]=ca*quad[c0*2]+cb*quad[c1*2]+cc*quad[c2*2];data[out+1]=ca*quad[c0*2+1]+cb*quad[c1*2+1]+cc*quad[c2*2+1];
             float u=ca*(c0>=2?1:0)+cb*(c1>=2?1:0)+cc*(c2>=2?1:0),v=ca*(c0==1||c0==2?1:0)+cb*(c1==1||c1==2?1:0)+cc*(c2==1||c2==2?1:0);
-            float pu=source<0?u:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
+            int cached=k*11;
+            float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
             data[out+2]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+3]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
-            for(int c=0;c<3;c++){data[out+4+c]=source<0?0:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+7+c]=source<0?0:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
+            for(int c=0;c<3;c++){data[out+4+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+7+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
             data[out+10]=r;data[out+11]=g;data[out+12]=b;data[out+13]=a;
             data[out+14]=layer;data[out+15]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+16]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+17]=s!=null&&s.twoSided?1:s!=null&&s.actor?-1:0;
             data[out+18]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+19]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+20]=normal==null?-1:0;
             data[out+21]=ex;data[out+22]=ey;data[out+23]=ux;data[out+24]=uy;
             int csource=source/8*3;
-            for(int c=0;c<3;c++)data[out+25+c]=curve==null||source<0?0:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
+            for(int c=0;c<3;c++)data[out+25+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
         }
         stats.drawnQuads++;
     }

@@ -13,16 +13,18 @@ public final class MapLightingGeometry {
     public final Array<LightingSurface> casters = new Array<LightingSurface>();
     private LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
     private static final class Receiver { float[] quad; byte flags; int assetId; LightingSurface surface; }
-    private final LongMap<Receiver> receivers = new LongMap<Receiver>();
+    private LongMap<Receiver> receivers = new LongMap<Receiver>();
     private int revision = Integer.MIN_VALUE;
     private TiledMapLayerData previous;
     private SpatialBlocksComponent previousBlocks;
     private TiledProjection projection;
     private float ox, oy, altitude;
     private int tw, th;
-    private final IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
+    private IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
     private Array<TileSurfaceDescription> authoredDescriptions;
-    private final RoundedMapSupport rounded=new RoundedMapSupport();
+    private RoundedMapSupport rounded=new RoundedMapSupport();
+    private int resourceRevision;
+    private String resourceTag;
     private boolean hasRounded;
     private int contentRevision;
     public int roundedProfileCompilationCount(){return rounded.profileCompilations;}
@@ -32,12 +34,56 @@ public final class MapLightingGeometry {
         if(authoredDescriptions!=values){authoredDescriptions=values;invalidate();}
     }
 
+    /** Resolves the actual native image at the resource publication boundary, never a guessed quad. */
+    public interface NativeQuads {
+        boolean resolve(TiledMapLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
+                        int cell, float[] quad, boolean required);
+    }
+
+    /** Complete detached preparation. No live caster or receiver changes on admission failure. */
+    public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks, NativeQuads quads,
+                          String tag, int resources) {
+        if (!needsUpdate(map,blocks) && resourceRevision==resources
+                && (resourceTag==null?tag==null:resourceTag.equals(tag))) return false;
+        MapLightingGeometry next=new MapLightingGeometry();
+        next.authoredDescriptions=authoredDescriptions;
+        next.rounded=new RoundedMapSupport(rounded);
+        try {
+            next.ensure(map,blocks);
+            float[] quad=new float[8];
+            com.badlogic.gdx.utils.IntSet explicit=new com.badlogic.gdx.utils.IntSet();
+            if(authoredDescriptions!=null)for(TileSurfaceDescription d:authoredDescriptions)explicit.add(d.assetId);
+            for(games.pixscape.runtime.tiled.TileChunk chunk:map.getChunks())for(int i=0;i<chunk.cellCount();i++){
+                int asset=chunk.assetIds[i];if(asset<=0)continue;
+                boolean required=explicit.contains(asset);
+                boolean available=quads.resolve(map,chunk,i,quad,required);
+                if(required&&!available)throw new IllegalArgumentException("Native image unavailable for tile asset "+asset);
+                if(available)
+                    next.receiver(map,chunk.chunkX*map.chunkSize+i%chunk.chunkWidth,
+                            chunk.chunkY*map.chunkSize+i/chunk.chunkWidth,asset,chunk.transformFlags[i],quad);
+            }
+        } catch(IllegalArgumentException invalid) {
+            throw new LightingAdmissionException("Tile lighting candidate rejected: "+invalid.getMessage(),invalid);
+        }
+        memberships=next.memberships;descriptions=next.descriptions;receivers=next.receivers;rounded=next.rounded;
+        casters.clear();casters.addAll(next.casters);hasRounded=next.hasRounded;contentRevision=next.contentRevision;
+        previous=next.previous;previousBlocks=next.previousBlocks;projection=next.projection;revision=next.revision;
+        ox=next.ox;oy=next.oy;altitude=next.altitude;tw=next.tw;th=next.th;
+        resourceRevision=resources;resourceTag=tag;
+        return true;
+    }
+
+    private boolean needsUpdate(TiledMapLayerData map, SpatialBlocksComponent blocks){
+        return previous!=map || previousBlocks!=blocks || projection!=map.projection
+                || revision!=(blocks==null?0:blocks.revision) || ox!=map.originX || oy!=map.originY
+                || altitude!=map.defaultTileAltitude || tw!=map.tileWidth || th!=map.tileHeight
+                || (authoredDescriptions!=null&&authoredDescriptions.size>0&&contentRevision!=map.contentRevision());
+    }
+
+    /** Structural preparation only. Production publication uses the native-quad overload above. */
     public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.revision;
-        if (previous == map && previousBlocks == blocks && projection == map.projection && revision == r && ox == map.originX
-                && oy == map.originY && altitude == map.defaultTileAltitude
-                && tw == map.tileWidth && th == map.tileHeight
-                && (!hasRounded||contentRevision==map.contentRevision())) return false;
+        if (!needsUpdate(map,blocks)) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
             throw new IllegalArgumentException("Lighting volume reconstruction requires an ISO map");
         LongMap<Array<SpatialBlockData>> nextMemberships=new LongMap<Array<SpatialBlockData>>();

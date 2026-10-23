@@ -93,7 +93,7 @@ public class NormalMapGlSmokeTest {
                 LightingFrame.Caster caster=new LightingFrame.Caster();caster.surface=new LightingSurface(casterVertices);caster.surface.alphaThreshold=.1f;caster.texture=TextureRegistry.handleOf(color);caster.u2=caster.v2=1;caster.bounds();
                 // A casting surface may also carry a different reception support; shadows must ignore it.
                 caster.surface.normalMap=normals.resolve(1);caster.surface.receiverVertices=complete.vertices;
-                submit.prepareComposition();q.lighting.casters.add(caster);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
+                submit.prepareComposition();q.lighting.casters.add(caster);submit.lightingRenderer().prepareFrame(q.lighting);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
                 ByteBuffer sample=BufferUtils.newByteBuffer(4);Gdx.gl.glReadPixels(Gdx.graphics.getBackBufferWidth()/2,Gdx.graphics.getBackBufferHeight()/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);int shadowed=sample.get(0)&255;
                 Assert.assertEquals(1,submit.lightingRenderer().selectedCasters);q.lighting.casters.clear();
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();sample.clear();Gdx.gl.glReadPixels(Gdx.graphics.getBackBufferWidth()/2,Gdx.graphics.getBackBufferHeight()/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);

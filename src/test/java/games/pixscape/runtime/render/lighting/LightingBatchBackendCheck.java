@@ -129,17 +129,24 @@ public final class LightingBatchBackendCheck {
                         textures[i]=new Texture(pixmap);pixmap.dispose();TextureRegistry.handleOf(textures[i]);
                     }
                     LightingFrame atLimit=frame(textures[0],REPLAY_CAPACITY);
-                    Assert.assertTrue("A batch exactly at capacity is replayable",batch.canReplay(atLimit));
-                    LightingFrame aboveLimit=frame(textures[0],REPLAY_CAPACITY+1);
-                    Assert.assertFalse("P3 must fall back before doing partial work above capacity",batch.canReplay(aboveLimit));
+                    Assert.assertEquals(1,batch.requiredReplayBatches(atLimit,atLimit.casterIndex.candidates,false));
+                    LightingFrame aboveLimit=frame(textures[0],REPLAY_CAPACITY+3);
+                    Assert.assertEquals(2,batch.requiredReplayBatches(aboveLimit,aboveLimit.casterIndex.candidates,false));
                     LightingFrame fourTextures=new LightingFrame();
                     for(int i=0;i<4;i++)add(fourTextures,textures[i],3);
-                    Assert.assertTrue("Four texture pages are the real batch limit",batch.canReplay(fourTextures));
+                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates,false));
                     add(fourTextures,textures[4],3);
-                    Assert.assertFalse("A fifth page must select the normal P2+P1 path",batch.canReplay(fourTextures));
+                    Assert.assertEquals(2,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates,false));
                     com.badlogic.gdx.utils.IntArray subset=new com.badlogic.gdx.utils.IntArray(new int[]{0,1});
-                    Assert.assertTrue("Replay eligibility is local to each category",batch.canReplay(fourTextures,subset));
-                    subset.clear();Assert.assertFalse("An empty category must not replay stale vertices",batch.canReplay(fourTextures,subset));
+                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,subset,false));
+                    subset.clear();Assert.assertEquals(0,batch.requiredReplayBatches(fourTextures,subset,false));
+                    assertGpuReplay(batch,atLimit,false);
+                    assertGpuReplay(batch,aboveLimit,false);
+                    assertGpuReplay(batch,fourTextures,false);
+                    fourTextures.casters.peek().surface.actor=true;
+                    assertGpuReplay(batch,fourTextures,true);
+                    assertGpuReplay(batch,new LightingFrame(),false);
+                    Assert.assertEquals("Empty scene releases GPU replay storage",0,batch.replayBytes());
                 }catch(Throwable error){failure[0]=error;}
                 finally {
                     if(batch!=null)batch.dispose();for(Texture texture:textures)if(texture!=null)texture.dispose();
@@ -148,6 +155,32 @@ public final class LightingBatchBackendCheck {
             }
         },cfg);
         if(failure[0]!=null)throw new AssertionError("P3 replay eligibility failed",failure[0]);
+    }
+    private static void assertGpuReplay(LightingBatch batch,LightingFrame frame,boolean decorOnly)throws Exception{
+        int count=batch.requiredReplayBatches(frame,frame.casterIndex.candidates,decorOnly);
+        batch.prepareReplayCapacity(count);
+        com.badlogic.gdx.graphics.glutils.ShaderProgram shader=new com.badlogic.gdx.graphics.glutils.ShaderProgram(
+                "attribute vec3 a_position;void main(){gl_Position=vec4(a_position,1.);}",
+                "void main(){gl_FragColor=vec4(1.);}");
+        Assert.assertTrue(shader.getLog(),shader.isCompiled());
+        com.badlogic.gdx.graphics.GL20 original=Gdx.gl;
+        int[] uploads={0},draws={0},creates={0};
+        com.badlogic.gdx.graphics.GL20 proxy=(com.badlogic.gdx.graphics.GL20)Proxy.newProxyInstance(
+                com.badlogic.gdx.graphics.GL20.class.getClassLoader(),new Class[]{com.badlogic.gdx.graphics.GL20.class},(p,m,a)->{
+                    if(m.getName().equals("glBufferData")||m.getName().equals("glBufferSubData"))uploads[0]++;
+                    if(m.getName().equals("glDrawArrays"))draws[0]++;
+                    if(m.getName().equals("glGenBuffer"))creates[0]++;
+                    try{return m.invoke(original,a);}catch(InvocationTargetException ex){throw ex.getCause();}
+                });
+        try{
+            Gdx.gl=Gdx.gl20=proxy;batch.begin(shader,null,true);
+            for(LightingFrame.Caster c:frame.casters)if(!decorOnly||!c.surface.actor)
+                batch.draw(c.surface,c.texture,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
+            batch.flush();for(int i=1;i<6;i++)batch.replay();
+            Assert.assertEquals("Upload once per GPU batch, not per face",count,uploads[0]);
+            Assert.assertEquals(count*6,draws[0]);Assert.assertEquals(0,creates[0]);
+            batch.abort();int before=draws[0];batch.replay();Assert.assertEquals("Abort cannot replay stale geometry",before,draws[0]);
+        }finally{Gdx.gl=Gdx.gl20=original;shader.dispose();}
     }
     private static LightingFrame frame(Texture texture,int vertices){
         LightingFrame frame=new LightingFrame();add(frame,texture,vertices);return frame;

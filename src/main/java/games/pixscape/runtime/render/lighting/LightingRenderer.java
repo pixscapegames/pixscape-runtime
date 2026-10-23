@@ -42,6 +42,10 @@ public final class LightingRenderer {
     private static final float[] UPS={0,-1,0,0,-1,0,0,0,1,0,0,-1,0,-1,0,0,-1,0};
     public long shadowCpuNs,receiverCpuNs,accumulationCpuNs;
     public int selectedCasters,shadowDraws,receiverDraws;
+    public long shadowUploadedBytes,shadowPreparationCpuNs;
+    public int shadowUploads;
+    private final games.pixscape.runtime.system.LightingGeometrySystem.ShadowPreparation shadowPreparation=this::prepareFrame;
+    private int preparedCasterCount,preparedCasterRevision;
     private final LightingFrame.Light diagnosticLight=new LightingFrame.Light();
     {diagnosticLight.radius=1;diagnosticLight.falloff=1;diagnosticLight.resolution=512;}
     private final LightingSurface missing=new LightingSurface(new float[]{
@@ -65,6 +69,8 @@ public final class LightingRenderer {
     private void prepareResources(World world,WorldLightComposition composition,boolean shadowsOnly) {
         if(preparedWorld!=world){
             preparedWorld=world;
+            games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+            if(geometry!=null)geometry.setShadowPreparation(shadowPreparation);
             lightSubscription=world.getAspectSubscriptionManager().get(Aspect.one(PointLightComponent.class,ConeLightComponent.class));
             pointMapper=world.getMapper(PointLightComponent.class);coneMapper=world.getMapper(ConeLightComponent.class);
         }
@@ -130,7 +136,23 @@ public final class LightingRenderer {
     /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
     public Texture shadowTexture(boolean actor) { return (actor?decorAtlas:atlas)==null?null:(actor?decorAtlas:atlas).getColorBufferTexture(); }
     public float atlasScale(LightingFrame.Light light) {return resolution==0?1f:(float)light.resolution/resolution;}
+    /** After geometry publication, before queue submission. No GPU changes when capacity is stable. */
+    public void prepareFrame(LightingFrame frame){
+        long start=System.nanoTime();int required=0;
+        for(int i=0;i<frame.lights.size;i++){
+            LightingFrame.Light light=frame.lights.get(i);if(light.quality==0)continue;
+            frame.casterIndex.query(frame,light,256,frame.staticCasterCount);
+            required=Math.max(required,batch.requiredReplayBatches(frame,frame.casterIndex.candidates,false));
+            required=Math.max(required,batch.requiredReplayBatches(frame,frame.casterIndex.candidates,true));
+        }
+        boolean sceneChanged=preparedCasterRevision!=frame.staticCasterRevision||frame.casters.size<preparedCasterCount;
+        if(required>batch.replayCapacity()||sceneChanged&&required<batch.replayCapacity())batch.prepareReplayCapacity(required);
+        preparedCasterCount=frame.casters.size;preparedCasterRevision=frame.staticCasterRevision;
+        shadowPreparationCpuNs=System.nanoTime()-start;
+    }
+    public long shadowReplayBytes(){return batch==null?0:batch.replayBytes();}
     public void renderShadows(LightingFrame frame,RenderStats stats) {
+        shadowUploads=0;shadowUploadedBytes=0;if(batch!=null){batch.uploads=0;batch.uploadedBytes=0;}
         shadowCpuNs=receiverCpuNs=accumulationCpuNs=0;selectedCasters=shadowDraws=receiverDraws=0;
         if(frame.lights.size==0 || frame.lights.first().quality==0)return;
         long start=System.nanoTime();int draws=stats.drawCalls;
@@ -138,6 +160,7 @@ public final class LightingRenderer {
         shadows(frame,frame.lights.first(),stats);
         if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
         shadowCpuNs=System.nanoTime()-start;shadowDraws=stats.drawCalls-draws;
+        shadowUploads=batch.uploads;shadowUploadedBytes=batch.uploadedBytes;
     }
     private static ShaderProgram compile(String v,String f){ShaderProgram s=new ShaderProgram(v,f);if(!s.isCompiled()){String log=s.getLog();s.dispose();throw new IllegalStateException("2.5D lighting shader: "+log);}return s;}
     private static void samplers(ShaderProgram s){for(int i=0;i<4;i++)s.setUniformi("u_tex"+i,i);}
@@ -259,17 +282,17 @@ public final class LightingRenderer {
             s.shadowVertices=s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
             s.shadowVertexCount=s.shadowVertices==null?0:s.actorShadow.vertexCount;
         }
-        boolean replay=batch.canReplay(frame,candidates,decorOnly);
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
             up.set(UPS[face*3],UPS[face*3+1],UPS[face*3+2]);view.setToLookAt(eye,target,up);matrix.set(projection).mul(view);
             shadow.bind();shadow.setUniformMatrix("u_matrix",matrix);
-            if(replay && face>0){batch.replay();continue;}
-            batch.begin(shadow,stats,replay);
+            if(face>0){batch.replay();continue;}
+            batch.begin(shadow,stats,true);
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
                 if(decorOnly && c.surface.actor)continue;
+                if(c.surface.shadowVertices!=null?c.surface.shadowVertexCount==0:c.surface.vertices.length==0)continue;
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             }
             batch.flush();

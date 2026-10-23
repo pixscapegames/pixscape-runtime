@@ -26,6 +26,37 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+    @Test public void explicitCasterPublicationDoesNotDependOnCameraAndFailedCandidateKeepsReferences(){
+        Fixture f=createProfilePlacementFixture(profilesWith(profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,games.pixscape.runtime.tiled.TiledProjection.ISO)),
+                games.pixscape.runtime.tiled.TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,-10000,-10000);
+        f.world.process();int e=onlyMapEntity(f.world);
+        TiledLayerComponent t=f.world.getMapper(TiledLayerComponent.class).get(e);
+        games.pixscape.runtime.component.spatial.SpatialBlocksComponent blocks=f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(e);
+        for(int i=0;i<2;i++){
+            games.pixscape.runtime.spatial.SpatialBlockData b=new games.pixscape.runtime.spatial.SpatialBlockData();b.id=blocks.allocateNextSpatialBlockId();
+            b.width=i==0?3:.25f;b.depth=i==0?.25f:3;b.height=157.34424f;b.shadowCaster=true;
+            games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef r=new games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef();r.tileAssetId=1;b.linkedTileRefs.add(r);blocks.blocks.add(b);
+        }
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription d=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();d.assetId=1;d.rounded=new games.pixscape.runtime.render.lighting.RoundedWallDescription();
+        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();t.lightingDescriptions.add(d);f.world.process();
+        int ref=refFor(f.map,0,0);games.pixscape.runtime.render.lighting.LightingSurface first=f.tiledState.lightingSurfaces.get(ref);
+        Assert.assertNotNull(first.casterSurface);Assert.assertEquals(0,f.tiledState.getVisibleRefCount());
+        int opaqueCount=f.tiledState.lightingMaps.get(e).casters.size;
+        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height+=20;blocks.revision++;f.world.process();
+        games.pixscape.runtime.render.lighting.LightingSurface second=f.tiledState.lightingSurfaces.get(ref);Assert.assertNotSame(first,second);
+        float max=0;for(int i=2;i<second.casterSurface.vertices.length;i+=8)max=Math.max(max,second.casterSurface.vertices[i]);Assert.assertEquals(177.34424f,max,.0001f);
+        Assert.assertEquals(opaqueCount,f.tiledState.lightingMaps.get(e).casters.size);
+        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height=450;blocks.revision++;
+        try{f.world.process();Assert.fail();}catch(games.pixscape.runtime.render.lighting.LightingAdmissionException expected){}
+        Assert.assertSame(second,f.tiledState.lightingSurfaces.get(ref));Assert.assertEquals(opaqueCount,f.tiledState.lightingMaps.get(e).casters.size);
+        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height=177.34424f;blocks.revision++;f.world.process();
+        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();f.world.process();Assert.assertNull(f.tiledState.lightingSurfaces.get(ref).casterSurface);
+        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();t.lightingDescriptions.add(d);f.world.process();
+        games.pixscape.runtime.render.lighting.LightingSurface restored=f.tiledState.lightingSurfaces.get(ref);Assert.assertNotNull(restored.casterSurface);
+        int compiled=f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount();
+        f.camera.position.set(228,264,0);f.world.process();Assert.assertSame(restored,f.tiledState.lightingSurfaces.get(ref));
+        Assert.assertEquals(compiled,f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount());f.world.dispose();
+    }
 
     private static final DisplayOffsetResolverCreator RUNTIME_DISPLAY_OFFSETS =
             new DisplayOffsetResolverCreator() {
@@ -200,7 +231,7 @@ public class RenderTiledSyncSystemTest {
 
         // Initial frame in view => FULL build.
         fixture.world.process();
-        Assert.assertEquals("Initial build should resolve non-empty tiles for padding and slot build", 6, fixture.atlas.resolveCalls);
+        Assert.assertEquals("Cold admission, padding and slot publication resolve non-empty tiles", 9, fixture.atlas.resolveCalls);
         Assert.assertEquals(2, fixture.drawList.size);
         Assert.assertEquals("Only renderable tiled refs should be published for draw-list extraction", 2, fixture.tiledState.getVisibleRefCount());
         Assert.assertEquals(fixture.tiledState.getVisibleRefCount(), fixture.stats.tiledRenderableRefsVisible);

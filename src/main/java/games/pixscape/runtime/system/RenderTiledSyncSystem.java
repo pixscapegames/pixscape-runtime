@@ -22,6 +22,9 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
+import games.pixscape.runtime.render.lighting.LightingAdmissionException;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -71,6 +74,36 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private TiledRenderOrder currentRenderOrder;
     private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
+    private String lightingAtlasTag;
+    private final MapLightingGeometry.NativeQuads lightingQuads = this::resolveLightingQuad;
+
+    private boolean resolveLightingQuad(TiledMapLayerData map,TileChunk chunk,int cell,float[] quad,boolean required){
+        int asset=TileAnimationResolver.resolveVisualAssetId(chunk.assetIds[cell],chunk.getAnimFrameIndex(cell),tileAnimationLookup);
+        AtlasAssetBinding binding=atlasRuntimeService.resolveBinding(asset,lightingAtlasTag);
+        RuntimeTilesetProfile profile=tilesetProfiles.profileForTileAsset(asset);
+        if(binding==null||profile==null){
+            if(required)throw new LightingAdmissionException("Tile asset "+asset+": native image or tileset profile unavailable in atlas "+lightingAtlasTag);
+            return false;
+        }
+        AtlasRegionMetadata metadata=binding.metadata();
+        TileQuadTransforms.buildSpriteQuad(map,chunk.chunkX*map.chunkSize+cell%chunk.chunkWidth,
+                chunk.chunkY*map.chunkSize+cell/chunk.chunkWidth,metadata.pixelWidth(),metadata.pixelHeight(),
+                profile,chunk.transformFlags[cell],quad);
+        return true;
+    }
+
+    /** Shared cold preflight for commands, load and rendering. Does not publish render state. */
+    public void validateLighting(TiledLayerComponent tiled,SpatialBlocksComponent blocks,
+                                 com.badlogic.gdx.utils.Array<TileSurfaceDescription> descriptions){
+        MapLightingGeometry candidate=new MapLightingGeometry();candidate.descriptions(descriptions);
+        ensureLighting(candidate,tiled,blocks);
+    }
+
+    private boolean ensureLighting(MapLightingGeometry lighting,TiledLayerComponent tiled,SpatialBlocksComponent blocks){
+        lightingAtlasTag=tiled.atlasTag;
+        return lighting.ensure(tiled.data,blocks,lightingQuads,tiled.atlasTag,
+                atlasRuntimeService.publicationRevision(tiled.atlasTag));
+    }
 
     private final Rectangle viewBounds = new Rectangle();
     private final Rectangle mapViewBounds = new Rectangle();
@@ -201,7 +234,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         lighting.descriptions(tiled.lightingDescriptions);
         if(lightingDirty!=null && (lightingDirty.coarseBits(e)&DirtyBits.GEOMETRY)!=0
                 && tiled.lightingDescriptions.size>0)lighting.invalidate();
-        if (lighting.ensure(map, mSpatialBlocks.getSafe(e, null))) {
+        boolean lightingChanged=ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(e,null));
+        if (lightingChanged) {
             tiledState.lightingRevision++;
             // Geometry changed: refresh image/receiver registration through the existing chunk boundary.
             for (TileChunk chunk : map.getChunks()) chunk.dirtyState = TileChunk.DirtyState.FULL;
@@ -218,6 +252,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);
             currentTileOrder = runtime.tileOrder;
             if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, index.layerIndex, currentTileOrder);
+        }
+        if(lightingChanged){
+            // Native quads were admitted together above. Publish all affected receivers and
+            // caster bindings before camera culling, including removals and off-screen edits.
+            ensureAllChunkRenderRefs(map);
+            for(TileChunk chunk:map.getChunks())rebuildChunk(chunk,map,e,tiled.atlasTag);
         }
         if (!map.visible) return;
         validateCompositionZ(e, index.zIndex);
@@ -366,7 +406,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
             if(lighting==null){lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();tiledState.lightingMaps.put(entityId,lighting);}
             lighting.descriptions(tiled.lightingDescriptions);
-            if(lighting.ensure(map,mSpatialBlocks.getSafe(entityId,null)))tiledState.lightingRevision++;
+            if(ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(entityId,null))){
+                tiledState.lightingRevision++;
+                for(TileChunk chunk:map.getChunks())chunk.dirtyState=TileChunk.DirtyState.FULL;
+            }
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
             if (map.projection == TiledProjection.ISO

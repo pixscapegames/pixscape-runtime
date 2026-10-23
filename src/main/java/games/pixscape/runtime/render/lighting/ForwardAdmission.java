@@ -40,8 +40,8 @@ public final class ForwardAdmission {
     }
     public static void validateQueue(FrameRenderQueue q,AtlasRuntimeService.TextureArrayBundle bundle) {
         validateBundle(bundle);
-        if(q.lighting.diagnostic!=0)throw new IllegalArgumentException("Forward lighting requires normal rendering; select the reference for historical diagnostics");
-        if(q.lighting.lights.size>1)throw new IllegalArgumentException("Forward lighting refuses "+q.lighting.lights.size+" active lights; maximum is one");
+        if(q.lighting.diagnostic!=0)throw new LightingAdmissionException("Forward lighting requires normal rendering; select the reference for historical diagnostics");
+        if(q.lighting.lights.size>1)throw new LightingAdmissionException("Forward lighting refuses "+q.lighting.lights.size+" active lights; maximum is one");
         for(int i=0;i<q.size;i++) {
             int e=q.sourceEntity[i];
             if(q.light[i]!=0){if(ShaderRegistry.getOrigin(q.shader[i])!=ShaderOrigin.CORE)throw refused(e,"custom light shader");LightCompositionPass.validate(true,q.blend[i]);continue;}
@@ -74,7 +74,7 @@ public final class ForwardAdmission {
             if(s!=null&&s.forwardTopology==null)throw refused(owner,"topology missing at tiled ref "+ref);
         }
     }
-    private static void validateBundle(AtlasRuntimeService.TextureArrayBundle b){if(b==null||b.textureArray==null||b.textureArray.getTextureObjectHandle()==0||b.handle2layer==null)throw new IllegalArgumentException("Forward lighting requires a live, owner-published color texture array");}
+    private static void validateBundle(AtlasRuntimeService.TextureArrayBundle b){if(b==null||b.textureArray==null||b.textureArray.getTextureObjectHandle()==0||b.handle2layer==null)throw new LightingAdmissionException("Forward lighting requires a live, owner-published color texture array");}
     private static void validateTexture(int e,int handle,AtlasRuntimeService.TextureArrayBundle b){
         int layer=b.handle2layer.get(handle,-1);
         if(handle==0||layer<0||layer>=b.textureArray.getDepth())throw refused(e,"color texture handle "+handle+" is absent from the active bundle");
@@ -86,5 +86,5 @@ public final class ForwardAdmission {
         if(!standard||ShaderRegistry.getOrigin(shader)!=ShaderOrigin.CORE||ShaderRegistry.getParameterLayout(shader).size()!=0)throw refused(e,"unsupported material shader "+shader);
         if(blend!=0&&blend!=1&&blend!=2&&blend!=7&&!(vfx&&(blend==3||blend==4)))throw refused(e,"unsupported blend "+blend);
     }
-    private static IllegalArgumentException refused(int e,String reason){return new IllegalArgumentException("Forward lighting refused source entity "+e+": "+reason+"; select the reference path explicitly");}
+    private static IllegalArgumentException refused(int e,String reason){return new LightingAdmissionException("Forward lighting refused source entity "+e+": "+reason+"; correct the scene or select the reference path explicitly");}
 }

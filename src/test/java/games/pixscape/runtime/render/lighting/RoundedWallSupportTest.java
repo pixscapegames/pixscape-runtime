@@ -38,8 +38,45 @@ public class RoundedWallSupportTest {
         float[] v=support().receiver.vertices;double area=0;
         for(int o=0;o<v.length;o+=24)area+=Math.abs((v[o+11]-v[o+3])*(v[o+20]-v[o+4])-(v[o+12]-v[o+4])*(v[o+19]-v[o+3]))*.5;
         assertEquals(1,area,.0001);
+        // Independent geometric check: pairwise triangle intersection, not area cancellation.
+        for(int a=0;a<v.length;a+=24)for(int b=a+24;b<v.length;b+=24){
+            java.util.List<double[]> polygon=new java.util.ArrayList<>();
+            for(int k=0;k<3;k++)polygon.add(new double[]{v[a+k*8+3],v[a+k*8+4]});
+            double orientation=(v[b+11]-v[b+3])*(v[b+20]-v[b+4])-(v[b+12]-v[b+4])*(v[b+19]-v[b+3]);
+            if(Math.abs(orientation)<1e-12)continue;
+            for(int edge=0;edge<3&&!polygon.isEmpty();edge++){
+                int p=b+edge*8,q=b+(edge+1)%3*8;
+                java.util.List<double[]> clipped=new java.util.ArrayList<>();
+                for(int k=0;k<polygon.size();k++){
+                    double[] x=polygon.get((k+polygon.size()-1)%polygon.size()),y=polygon.get(k);
+                    double dx=((v[q+3]-v[p+3])*(x[1]-v[p+4])-(v[q+4]-v[p+4])*(x[0]-v[p+3]))*Math.signum(orientation);
+                    double dy=((v[q+3]-v[p+3])*(y[1]-v[p+4])-(v[q+4]-v[p+4])*(y[0]-v[p+3]))*Math.signum(orientation);
+                    if((dx>=0)!=(dy>=0)){double t=dx/(dx-dy);clipped.add(new double[]{x[0]+t*(y[0]-x[0]),x[1]+t*(y[1]-x[1])});}
+                    if(dy>=0)clipped.add(y);
+                }
+                polygon=clipped;
+            }
+            double overlap=0;for(int k=0;k<polygon.size();k++){double[] p=polygon.get(k),q=polygon.get((k+1)%polygon.size());overlap+=p[0]*q[1]-q[0]*p[1];}
+            assertEquals("Triangle overlap "+a/24+" / "+b/24,0,Math.abs(overlap)*.5,1e-9);
+        }
+    }
+    @Test public void immutableOverlayKeepsExactGeometricAndLightingInterpolants(){
+        RoundedWallSupport support=support();LightingSurface s=support.receiver;ForwardTopology t=s.forwardTopology;
+        float[] p=s.receiverVertices==null?s.vertices:s.receiverVertices;
+        for(int i=0;i<t.vertexCount;i++){
+            int source=t.source[i];if(source<0)continue;
+            float a=t.weights[i*5+1],b=t.weights[i*5+2],c=1-a-b;
+            for(int j=0;j<3;j++){
+                assertEquals(a*p[source+j]+b*p[source+8+j]+c*p[source+16+j],s.forwardAttributes[i*11+j],0);
+                assertEquals(a*p[source+5+j]+b*p[source+13+j]+c*p[source+21+j],s.forwardAttributes[i*11+3+j],0);
+                int ns=source/8*3;
+                assertEquals(a*s.curveNormals[ns+j]+b*s.curveNormals[ns+3+j]+c*s.curveNormals[ns+6+j],s.forwardAttributes[i*11+8+j],0);
+            }
+        }
     }
     @Test public void invalidAndUnboundedProfilesAreRejected(){
+        try{new RoundedWallSupport(3699.2f,3187.2f,179.2f,30,0,158,6,Q);fail();}catch(IllegalArgumentException expected){}
+        try{new RoundedWallSupport(3648,3136,128,30,0,450,6,Q);fail();}catch(IllegalArgumentException expected){}
         for(int n:new int[]{0,2,9,100})try{new RoundedWallSupport(0,0,128,30,0,158,n,Q);fail();}catch(IllegalArgumentException expected){}
         try{new RoundedWallSupport(0,0,30,30,0,158,6,Q);fail();}catch(IllegalArgumentException expected){}
     }

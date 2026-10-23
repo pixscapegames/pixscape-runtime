@@ -22,6 +22,13 @@ final class RoundedMapSupport {
     private IntMap<Placement> cuts=new IntMap<Placement>();
     int profileCompilations,geometryCompilations;
 
+    RoundedMapSupport() {}
+    /** The preparation below replaces indexes and placements; shared compiled supports are immutable. */
+    RoundedMapSupport(RoundedMapSupport source){
+        profiles=source.profiles;placements=source.placements;
+        profileCompilations=source.profileCompilations;geometryCompilations=source.geometryCompilations;
+    }
+
     /** Cold O(descriptions + authored cells + linked memberships), with O(1) lookups afterwards.
      * Candidate indexes publish together. Unchanged occurrences retain their world-space support. */
     void prepare(TiledMapLayerData map,LongMap<Array<SpatialBlockData>> memberships,Array<TileSurfaceDescription> descriptions){
@@ -53,7 +60,7 @@ final class RoundedMapSupport {
     private static Placement resolve(TiledMapLayerData map,int gx,int gy,Profile profile,Array<SpatialBlockData> owners){
         if(owners==null||owners.size!=2)throw invalid(gx,gy,"requires exactly two explicitly linked walls");
         RoundedWallDescription d=profile.description;SpatialBlockData x=null,y=null;
-        float startX=gx+d.centerGX-d.radiusCells,startY=gy+d.centerGY-d.radiusCells;
+        float startX=gx+(d.centerGX-d.radiusCells),startY=gy+(d.centerGY-d.radiusCells);
         for(int i=0;i<owners.size;i++){
             SpatialBlockData b=owners.get(i);
             if(b.x!=startX||b.y!=startY||(!b.shadowCaster&&!b.lightOccluder))throw invalid(gx,gy,"wall anchor or caster flags do not match the declared profile");

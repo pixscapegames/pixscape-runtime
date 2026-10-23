@@ -61,6 +61,7 @@ public final class ForwardLightingGlCheck {
         q.lighting.lights.add(new LightingFrame.Light());q.lighting.lights.add(new LightingFrame.Light());
         try{world.process();Assert.fail("Second light must be rejected");}catch(IllegalArgumentException expected){Assert.assertTrue(expected.getMessage().contains("active lights"));}
         q.lighting.lights.clear();
+        assertDrawFailureRestoresState(world);
         Object atlas=field(submit.lightingRenderer(),"atlas");Object topology=ForwardTopology.NATIVE;
         for(int i=0;i<3;i++){camera.position.x+=.25f;camera.update();submit.prepareComposition();clear();world.process();Assert.assertSame(atlas,field(submit.lightingRenderer(),"atlas"));Assert.assertSame(topology,ForwardTopology.NATIVE);}
         // Macro orientation replaces the geometric horizon AND the no-map Lambert,
@@ -96,6 +97,33 @@ public final class ForwardLightingGlCheck {
         ForwardParticleGlCheck.verify();
     }
     private static void clear(){Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);}
+    private static void assertDrawFailureRestoresState(World world){
+        final GL20 original=Gdx.gl;final GL30 original30=Gdx.gl30;
+        java.nio.IntBuffer state=com.badlogic.gdx.utils.BufferUtils.newIntBuffer(4);
+        original.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,state);int framebuffer=state.get(0);
+        original.glEnable(GL20.GL_DEPTH_TEST);original.glDepthFunc(GL20.GL_GREATER);original.glDepthMask(false);
+        original.glEnable(GL20.GL_SCISSOR_TEST);original.glScissor(2,3,20,15);
+        GL30 rejecting=(GL30)java.lang.reflect.Proxy.newProxyInstance(GL30.class.getClassLoader(),new Class[]{GL30.class},(p,m,a)->{
+            if(m.getName().equals("glDrawArrays")){
+                original.glDepthFunc(GL20.GL_LESS);original.glDepthMask(true);
+                throw new LightingAdmissionException("Injected recoverable draw refusal");
+            }
+            try{return m.invoke(original30,a);}catch(java.lang.reflect.InvocationTargetException ex){throw ex.getCause();}
+        });
+        try{
+            Gdx.gl=Gdx.gl20=Gdx.gl30=rejecting;
+            try{world.process();Assert.fail("Draw refusal must propagate to the viewport boundary");}
+            catch(LightingAdmissionException expected){Assert.assertTrue(expected.getMessage().contains("Injected"));}
+        }finally{Gdx.gl=Gdx.gl20=original;Gdx.gl30=original30;}
+        original.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,state);Assert.assertEquals(framebuffer,state.get(0));
+        original.glGetIntegerv(GL20.GL_DEPTH_FUNC,state);Assert.assertEquals(GL20.GL_GREATER,state.get(0));
+        original.glGetIntegerv(GL20.GL_DEPTH_WRITEMASK,state);Assert.assertEquals(0,state.get(0));
+        Assert.assertTrue(original.glIsEnabled(GL20.GL_DEPTH_TEST));Assert.assertTrue(original.glIsEnabled(GL20.GL_SCISSOR_TEST));
+        original.glGetIntegerv(GL20.GL_SCISSOR_BOX,state);Assert.assertEquals(2,state.get(0));Assert.assertEquals(3,state.get(1));Assert.assertEquals(20,state.get(2));Assert.assertEquals(15,state.get(3));
+        original.glGetIntegerv(GL20.GL_VIEWPORT,state);Assert.assertEquals(64,state.get(2));Assert.assertEquals(32,state.get(3));
+        original.glDisable(GL20.GL_DEPTH_TEST);original.glDisable(GL20.GL_SCISSOR_TEST);original.glDepthFunc(GL20.GL_LESS);original.glDepthMask(true);
+        clear();world.process(); // No stale aborted batch survives the correction.
+    }
     private static LightingSurface neutralFacet(boolean left){
         float[] v=new float[48],n=new float[18];int[] corners={0,1,2,0,2,3};
         for(int i=0;i<6;i++){int c=corners[i];boolean right=c>=2;v[i*8+3]=right?1:0;v[i*8+4]=c==1||c==2?1:0;v[i*8+(left?5:6)]=1;

@@ -30,6 +30,26 @@ public final class ForwardTopology {
     }
     public static ForwardTopology compile(LightingSurface surface) { return compile(surface,UNIT_QUAD); }
 
+    /** Cold composition for immutable supports only. Atlas/material/screen values remain dynamic. */
+    public static void prepareImmutableAttributes(LightingSurface surface){
+        ForwardTopology t=surface.forwardTopology;
+        float[] p=surface.receiverVertices==null?surface.vertices:surface.receiverVertices,n=surface.curveNormals;
+        float[] out=new float[t.vertexCount*11];
+        for(int k=0;k<t.vertexCount;k++){
+            int source=t.source[k];if(source<0)continue;
+            int w=k*5,o=k*11;float a=t.weights[w+1],b=t.weights[w+2],c=1-a-b;
+            for(int j=0;j<3;j++){
+                out[o+j]=a*p[source+j]+b*p[source+8+j]+c*p[source+16+j];
+                out[o+3+j]=a*p[source+5+j]+b*p[source+13+j]+c*p[source+21+j];
+                int ns=source/8*3;
+                out[o+8+j]=n==null?0:a*n[ns+j]+b*n[ns+3+j]+c*n[ns+6+j];
+            }
+            out[o+6]=a*p[source+3]+b*p[source+11]+c*p[source+19];
+            out[o+7]=a*p[source+4]+b*p[source+12]+c*p[source+20];
+        }
+        surface.forwardAttributes=out;
+    }
+
     /** Runs at support construction/invalidation, never from a submit or camera/light update. */
     public static ForwardTopology compile(LightingSurface surface,float[] quad) {
         if(surface.imageQuad)return NATIVE;

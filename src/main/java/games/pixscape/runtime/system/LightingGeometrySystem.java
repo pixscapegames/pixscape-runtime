@@ -18,6 +18,10 @@ import games.pixscape.runtime.render.lighting.*;
 
 /** Publishes source geometry before submission, using complete source domains rather than visible queue. */
 public final class LightingGeometrySystem extends BaseSystem {
+    public interface ShadowPreparation { void prepare(LightingFrame frame); }
+    @com.artemis.annotations.SkipWire private ShadowPreparation shadowPreparation;
+    /** Frame-publication resource boundary; never called by render submission. */
+    public void setShadowPreparation(ShadowPreparation preparation){shadowPreparation=preparation;}
     private final DynamicEntityRenderState dynamic;
     private final TiledMapRenderState tiled;
     private final LightingFrame frame;
@@ -123,6 +127,9 @@ public final class LightingGeometrySystem extends BaseSystem {
             frame.casters.add(c);
         }
         frame.staticCasterCount=frame.casters.size;
+        for(com.badlogic.gdx.utils.IntMap.Entries<LightingFrame.Caster> entries=staticCasters.entries();entries.hasNext();)
+            if(entries.next().key>=serial)entries.remove();
+        frame.staticCasterRevision=tiled.lightingRevision;
         frame.casterIndex.rebuild(frame,frame.staticCasterCount);staticRevision=tiled.lightingRevision;
         }else frame.casters.truncate(frame.staticCasterCount);
         // Animated map images reuse geometry but publish the current texture frame.
@@ -178,6 +185,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                 c.bounds();frame.casters.add(c);
             }
         }
+        if(shadowPreparation!=null)shadowPreparation.prepare(frame);
         frame.preparationCpuNs=System.nanoTime()-started;
     }
     private void publishLight(int e,int slot){

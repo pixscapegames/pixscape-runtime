@@ -60,6 +60,7 @@ public final class RoundedWallSupport {
             emit(top,i*48,t,t,0,0,1,quad);
             emit(bottom,i*48,d,d,0,0,-1,quad);
         }
+        validateCoverage(front,top,outerXY,innerXY,quad);
         // The silhouette is x-monotone. Complete only its upper and lower strips,
         // rather than successively subtracting every triangle and fragmenting empty UV space.
         receiver=new LightingSurface(join(front,top,coverage(outerXY,innerXY,base,height,quad)));
@@ -78,11 +79,38 @@ public final class RoundedWallSupport {
             receiver.curveNormals[o]=x/length;receiver.curveNormals[o+1]=y/length;
         }
         receiver.approximate=true;
+        ForwardTopology.prepareImmutableAttributes(receiver);
         texturedCaster=new LightingSurface(join(front,back,top));
         texturedCaster.shadowCaster=true;texturedCaster.receiveLight=false;
         receiver.shadowCaster=true;receiver.casterSurface=texturedCaster;
         // This POC has no base opening. The bottom is solid; callers bind the existing white texture.
         bottomCaster=new LightingSurface(bottom);bottomCaster.shadowCaster=true;bottomCaster.receiveLight=false;
+    }
+
+    /** Admission proof for this restricted strip construction, not an area-only heuristic.
+     * Both boundaries must be monotone, span the native width, and all physical faces
+     * must remain inside the image without folded triangles. The shared strip edges
+     * then partition the image from v=0 to v=1 without gaps or overlaps. */
+    private static void validateCoverage(float[] front,float[] top,float[] outer,float[] inner,float[] q){
+        float width=q[6]-q[0];
+        float left=(outer[0]-outer[1]-q[0])/width;
+        int last=outer.length-2;
+        float right=(outer[last]-outer[last+1]-q[0])/width;
+        if(Math.abs(left)>1e-6f||Math.abs(right-1)>1e-6f)
+            throw new IllegalArgumentException("Rounded support must span the native image width");
+        for(float[] boundary:new float[][]{outer,inner})for(int i=2;i<boundary.length;i+=2)
+            if(boundary[i]-boundary[i+1]<=boundary[i-2]-boundary[i-1])
+                throw new IllegalArgumentException("Rounded support projection must be strictly monotone");
+        for(float[] face:new float[][]{front,top}){
+            for(int i=0;i<face.length;i+=8)
+                if(face[i+3]<0||face[i+3]>1||face[i+4]<0||face[i+4]>1)
+                    throw new IllegalArgumentException("Rounded support UV lies outside its native image");
+            for(int i=0;i<face.length;i+=24){
+                double ax=(double)face[i+11]-face[i+3],ay=(double)face[i+12]-face[i+4];
+                double bx=(double)face[i+19]-face[i+3],by=(double)face[i+20]-face[i+4];
+                if(ax*by-ay*bx<0)throw new IllegalArgumentException("Rounded support has a folded UV face");
+            }
+        }
     }
 
     private static boolean finite(float f){return !Float.isNaN(f)&&!Float.isInfinite(f);}
