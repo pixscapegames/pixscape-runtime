@@ -4,6 +4,21 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class RenderStatsTest {
+    @Test public void frameTransferAndPassCountersResetAndAccumulate() {
+        RenderStats frame=new RenderStats(),total=new RenderStats();
+        frame.forwardLighting=true;frame.worldDraws=2;frame.shadowDraws=12;frame.presentationDraws=1;
+        frame.replayDraws=10;frame.bufferUploads=4;frame.bufferUploadBytes=1024;
+        frame.uploadedVertices=36;frame.drawnVertices=100;frame.drawnIndices=6;
+        total.add(frame);total.add(frame);
+        Assert.assertTrue(total.forwardLighting);Assert.assertEquals(4,total.worldDraws);
+        Assert.assertEquals(24,total.shadowDraws);Assert.assertEquals(2,total.presentationDraws);
+        Assert.assertEquals(20,total.replayDraws);Assert.assertEquals(8,total.bufferUploads);
+        Assert.assertEquals(2048,total.bufferUploadBytes);Assert.assertEquals(72,total.uploadedVertices);
+        Assert.assertEquals(200,total.drawnVertices);Assert.assertEquals(12,total.drawnIndices);
+        total.reset();Assert.assertFalse(total.forwardLighting);Assert.assertEquals(0,total.worldDraws);
+        Assert.assertEquals(0,total.replayDraws);Assert.assertEquals(0,total.bufferUploadBytes);
+        Assert.assertEquals(0,total.drawnVertices);Assert.assertEquals(0,total.drawnIndices);
+    }
 
     @Test
     public void resetClearsTextureArrayInstrumentationFields() {

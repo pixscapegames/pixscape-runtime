@@ -51,7 +51,7 @@ public final class LightingBatchBackendCheck {
                         Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
                         Assert.assertEquals(1f,a[14],0);
-                        for(int i=0;i<6*18;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
+                        for(int i=0;i<6*21;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
                     assertDeformedImageVertices(nativeBatch);
                     assertDeformedImageVertices(htmlBatch);
@@ -74,7 +74,7 @@ public final class LightingBatchBackendCheck {
             batch.draw(surface,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,shadow,true);
             float[] vertices=(float[])dataField.get(batch);
             float expected=twoSided?1:actor&&!shadow?-1:0;
-            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*18+14],0);
+            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*21+14],0);
         }
     }
     private static void assertDeformedImageVertices(LightingBatch batch)throws Exception {
@@ -88,7 +88,7 @@ public final class LightingBatchBackendCheck {
             SpriteSurfaceSupport.sheet(s.vertices,q,.5f,0,13,1,-1);
             float[] original=s.vertices.clone(),presented=q.clone();
             for(int c=0;c<4;c++){presented[c*2]+=11;presented[c*2+1]-=9;}
-            int stride=mapped?25:18;
+            int stride=mapped?28:21;
             batch.abort();if(mapped)batch.beginMapped(null,null);else batch.begin(null,null);
             batch.draw(s,17,.2f,.3f,.7f,.9f,Color.WHITE.toFloatBits(),1,presented,0,0,false,true);
             float[] legacy=java.util.Arrays.copyOf((float[])dataField.get(batch),6*stride);
@@ -108,7 +108,7 @@ public final class LightingBatchBackendCheck {
             // Casters ignore the image topology flag and continue using their prepared XYZ.
             batch.abort();batch.begin(null,null);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
-            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*18);
+            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*21);
             s.imageQuad=false;batch.abort();batch.begin(null,null);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             for(int i=0;i<caster.length;i++)Assert.assertEquals(caster[i],((float[])dataField.get(batch))[i],0);
@@ -173,12 +173,17 @@ public final class LightingBatchBackendCheck {
                     try{return m.invoke(original,a);}catch(InvocationTargetException ex){throw ex.getCause();}
                 });
         try{
-            Gdx.gl=Gdx.gl20=proxy;batch.begin(shader,null,true);
+            games.pixscape.runtime.render.batch.performance.RenderStats stats=new games.pixscape.runtime.render.batch.performance.RenderStats();
+            Gdx.gl=Gdx.gl20=proxy;batch.begin(shader,stats,true);
             for(LightingFrame.Caster c:frame.casters)if(!decorOnly||!c.surface.actor)
                 batch.draw(c.surface,c.texture,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             batch.flush();for(int i=1;i<6;i++)batch.replay();
             Assert.assertEquals("Upload once per GPU batch, not per face",count,uploads[0]);
             Assert.assertEquals(count*6,draws[0]);Assert.assertEquals(0,creates[0]);
+            Assert.assertEquals(draws[0],stats.drawCalls);Assert.assertEquals(count,stats.flushes);
+            Assert.assertEquals(count*5,stats.replayDraws);Assert.assertEquals(uploads[0],stats.bufferUploads);
+            int flushes=stats.flushes;batch.flush();Assert.assertEquals(flushes,stats.flushes);
+            stats.reset();Assert.assertEquals(0,stats.bufferUploads);Assert.assertEquals(0,stats.replayDraws);
             batch.abort();int before=draws[0];batch.replay();Assert.assertEquals("Abort cannot replay stale geometry",before,draws[0]);
         }finally{Gdx.gl=Gdx.gl20=original;shader.dispose();}
     }

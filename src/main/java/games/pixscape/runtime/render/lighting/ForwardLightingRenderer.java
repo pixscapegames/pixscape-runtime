@@ -83,13 +83,10 @@ public final class ForwardLightingRenderer {
                 .replace("if(flags.y>.5&&normalLength>.0001)",
                         "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&"+
                         "(flags.z!=0.||dot(macroNormal(n/normalLength),distance>0.?-delta/distance:vec3(0))>.052335956))")
-                .replace("vec3 normal=n/normalLength;","vec3 geometric=n/normalLength;vec3 normal=lightingNormal(macroNormal(geometric));")
-                .replace("float c=clamp(abs(cosine),","float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),")
-                .replace("dot(tap,normal)","dot(tap,geometric)").replace("dot(delta,normal)","dot(delta,geometric)")
-                .replace("float cG=dot(n/normalLength,","float cG=dot(macroNormal(n/normalLength),");
+                .replace("vec3 normal=macroNormal(geometric);","vec3 normal=lightingNormal(macroNormal(geometric));");
         return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
                 declarations+LightingRenderer.NORMAL_SAMPLE+
-                "in vec3 curveNormal;vec3 macroNormal(vec3 plane){return dot(curveNormal,curveNormal)>.0001?normalize(curveNormal):plane;}"+
+                LightingRenderer.MACRO_NORMAL+
                 "void main(){vec4 texel=texture(u_array,vec3(uv,flags.x));if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;"+
                 // Native premultiplied additive emitters carry emission in RGB with zero coverage.
                 // ONE-source blends must retain that RGB even when alpha is zero.
@@ -118,7 +115,7 @@ public final class ForwardLightingRenderer {
             if(vertices!=0)endFlushes++;flush();
             if(queue.lighting.timer!=null)queue.lighting.timer.end(LightingPassTimer.RECEIVERS);
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(4);
-            target.present();stats.drawCalls++;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
+            target.present();stats.drawCalls++;stats.presentationDraws++;stats.drawnIndices+=6;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
             stats.framebufferBinds+=3;stats.framebufferSwitches+=3;
             if(queue.lighting.timer!=null)queue.lighting.timer.end(4);
         } finally {vertices=0;shadows.abort();target.end();}
@@ -181,7 +178,8 @@ public final class ForwardLightingRenderer {
         }
         stats.drawnQuads++;
     }
-    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*STRIDE*4;worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;vertices=0;}
+    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*STRIDE*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
+        stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*STRIDE*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
     public long textureBytes(){return target.textureBytes();}
     public int targetWidth(){return target.width;}
     public int targetHeight(){return target.height;}

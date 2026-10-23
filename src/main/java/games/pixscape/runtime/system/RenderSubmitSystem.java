@@ -124,17 +124,22 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); }
 
     void render() {
+        stats.forwardLighting=forward!=null;
         if(forward!=null){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
         Throwable failure = null;
         try {
             ambientContribution.beginFrame(frameQueue);
             composition.beginOriginal();
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
+            int drawsBefore=stats.drawCalls;
             renderPass(LightCompositionPass.ORIGINAL, 0);
+            stats.colorDraws+=stats.drawCalls-drawsBefore;
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
             lighting.render(frameQueue, layerState, cam, composition, stats);
+            drawsBefore=stats.drawCalls;
             if (frameQueue.lighting.diagnostic == 0)
                 ambientContribution.render(frameQueue, cam, composition, stats, this);
+            stats.ambientDraws+=stats.drawCalls-drawsBefore;
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
             composition.compose(frameQueue.lighting.diagnostic==0?ambientMulR:0,
                     frameQueue.lighting.diagnostic==0?ambientMulG:0,frameQueue.lighting.diagnostic==0?ambientMulB:0,stats);

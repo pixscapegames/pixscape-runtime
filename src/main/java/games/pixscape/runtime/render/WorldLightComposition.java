@@ -145,7 +145,7 @@ public final class WorldLightComposition implements Disposable {
         restoreBlend();
         active = false;
         if (stats != null) {
-            stats.drawCalls++; stats.textureBinds += hasAmbientContribution ? 3 : 2; stats.shaderBinds++;
+            stats.drawCalls++; stats.presentationDraws++;stats.drawnIndices+=6;stats.textureBinds += hasAmbientContribution ? 3 : 2; stats.shaderBinds++;
             stats.framebufferBinds += hasAmbientContribution ? 4 : 3; stats.framebufferSwitches += hasAmbientContribution ? 4 : 3;
         }
     }

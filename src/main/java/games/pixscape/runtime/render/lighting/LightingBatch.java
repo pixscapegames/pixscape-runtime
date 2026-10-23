@@ -10,7 +10,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /** Ordered triangle batching with four page bindings. User parameter tables are untouched. */
 final class LightingBatch {
-    private static final int BASE_STRIDE=18, MAPPED_STRIDE=25, CAPACITY=12288;
+    private static final int SHADOW_STRIDE=18, BASE_STRIDE=21, MAPPED_STRIDE=28, CAPACITY=12288;
     private int stride=BASE_STRIDE;
     private final float[] data=new float[CAPACITY*MAPPED_STRIDE];
     private final int[] handles=new int[4];
@@ -19,7 +19,7 @@ final class LightingBatch {
         final Mesh mesh;
         final int[] handles=new int[4];
         int vertices,textures;
-        ReplayBatch(){mesh=baseMesh();}
+        ReplayBatch(){mesh=baseMesh(false);}
     }
     private final com.badlogic.gdx.utils.Array<ReplayBatch> replayBatches=new com.badlogic.gdx.utils.Array<ReplayBatch>();
     private int replayCount;
@@ -36,7 +36,7 @@ final class LightingBatch {
     private ShaderProgram shader;
     private RenderStats stats;
     LightingBatch(){
-        mesh=baseMesh();
+        mesh=baseMesh(true);
         mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
@@ -44,15 +44,19 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"));
+                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
     }
-    private static Mesh baseMesh(){return new Mesh(false,CAPACITY,0,
+    private static Mesh baseMesh(boolean receiver){
+        VertexAttribute[] attributes={
             new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
             new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
             new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
             new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
             new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
-            new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"));}
+            new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
+            new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal")};
+        return new Mesh(false,CAPACITY,0,receiver?attributes:java.util.Arrays.copyOf(attributes,attributes.length-1));}
     /** Explicit frame preparation, before submission. Release excess scene capacity here only. */
     void prepareReplayCapacity(int count){
         abort();
@@ -61,11 +65,11 @@ final class LightingBatch {
         replayBatches.shrink();
     }
     int replayCapacity(){return replayBatches.size;}
-    long replayBytes(){return (long)replayBatches.size*CAPACITY*BASE_STRIDE*4;}
+    long replayBytes(){return (long)replayBatches.size*CAPACITY*SHADOW_STRIDE*4;}
     void begin(ShaderProgram shader,RenderStats stats){begin(shader,stats,false);}
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
         this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayCount=0;
-        mapped=false;stride=BASE_STRIDE;normalTextures=0;
+        mapped=false;stride=retainReplay?SHADOW_STRIDE:BASE_STRIDE;normalTextures=0;
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
@@ -98,7 +102,7 @@ final class LightingBatch {
         for(int i=0;i<replayCount;i++){
             ReplayBatch b=replayBatches.get(i);bindTextures(b.handles,b.textures);
             b.mesh.render(shader,GL20.GL_TRIANGLES,0,b.vertices);
-            if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+            if(stats!=null){stats.drawCalls++;stats.replayDraws++;stats.drawnVertices+=b.vertices;stats.textureBinds+=4;}
         }
     }
     void draw(LightingSurface surface,int texture,float u1,float v1,float u2,float v2,float color,
@@ -147,6 +151,14 @@ final class LightingBatch {
             }
             if(htmlVertexCopies){data[o+5]=source[i+5];data[o+6]=source[i+6];data[o+7]=source[i+7];}
             else System.arraycopy(source,i+5,data,o+5,3);
+            // Shadow replay keeps its original compact layout: it never consumes facade normals.
+            if(!retainReplay){
+                int macro=o+(mapped?25:18),normalIndex=i/8*3;
+                float[] curve=shadow?null:surface.curveNormals;
+                data[macro]=curve==null?source[i+5]:curve[normalIndex];
+                data[macro+1]=curve==null?source[i+6]:curve[normalIndex+1];
+                data[macro+2]=curve==null?source[i+7]:curve[normalIndex+2];
+            }
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
@@ -176,7 +188,9 @@ final class LightingBatch {
         }
         active.setVertices(data,0,vertices*stride);active.render(shader,GL20.GL_TRIANGLES,0,vertices);
         uploads++;uploadedBytes+=(long)vertices*stride*4;
-        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;}
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;
+            stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*stride*4;
+            stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;}
         vertices=0;textures=0;
     }
     private static void bindTextures(int[] source,int count){

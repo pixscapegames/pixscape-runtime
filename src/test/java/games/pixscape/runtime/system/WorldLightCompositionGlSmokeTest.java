@@ -15,6 +15,7 @@ import org.junit.*;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @org.junit.Test public void legacyRoundedReceptionIsContinuous() { games.pixscape.runtime.render.lighting.LegacyRoundedGlCheck.verify(); }
     @Test public void forwardOneLightPreservesCoverageAndRejectsUnsupportedFrames() {
         ForwardLightingGlCheck.verify();
     }

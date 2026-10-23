@@ -87,7 +87,9 @@ final class AmbientContributionBatch implements Disposable {
             texture.bind(t);
         }
         mesh.setVertices(data,0,quads*4*STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,quads*6);
-        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;stats.shaderBinds++;}
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;stats.shaderBinds++;
+            stats.bufferUploads++;stats.bufferUploadBytes+=(long)quads*4*STRIDE*4;
+            stats.uploadedVertices+=quads*4;stats.drawnIndices+=quads*6;}
         abort();
     }
     void abort(){quads=textures=0;}

@@ -33,6 +33,15 @@ public final class RenderStats {
 
     // GPU / state
     public int drawCalls;
+    /** World renderer only; excludes UI/debug overlays and resource preparation. */
+    public boolean forwardLighting;
+    public int worldDraws, colorDraws, receiverDraws, accumulationDraws, shadowDraws, presentationDraws, ambientDraws;
+    public int replayDraws;
+    /** Mesh vertex-buffer update requests submitted during this frame (not GL allocation calls). */
+    public int bufferUploads, uploadedVertices;
+    public long bufferUploadBytes;
+    /** Non-indexed vertex elements and indexed index elements submitted, including replays. */
+    public long drawnVertices, drawnIndices;
     public int flushes;
     public int flushStateChanges;  // shader/blend
     public int flushCapacity;      // buffer plein
@@ -89,6 +98,10 @@ public final class RenderStats {
     public int vfxGrowthCount;
 
     public void reset() {
+        forwardLighting=false;
+        worldDraws=colorDraws=receiverDraws=accumulationDraws=shadowDraws=presentationDraws=ambientDraws=0;
+        replayDraws=bufferUploads=uploadedVertices=0;
+        bufferUploadBytes=drawnVertices=drawnIndices=0;
         extractedQuads = culledQuads = occludedQuads = drawnQuads = 0;
         drawCalls = flushes = flushStateChanges = flushCapacity = flushParameterCapacity = flushEnd = shaderSwitches = shaderBinds = textureBinds = 0;
         textureArrayBindSkips = projectionUploads = submittedQuads = flushedQuads = flushedVertices = 0;
@@ -130,6 +143,12 @@ public final class RenderStats {
     }
 
     public void add(RenderStats other) {
+        forwardLighting|=other.forwardLighting;
+        worldDraws+=other.worldDraws;colorDraws+=other.colorDraws;receiverDraws+=other.receiverDraws;
+        accumulationDraws+=other.accumulationDraws;shadowDraws+=other.shadowDraws;
+        presentationDraws+=other.presentationDraws;ambientDraws+=other.ambientDraws;replayDraws+=other.replayDraws;
+        bufferUploads+=other.bufferUploads;uploadedVertices+=other.uploadedVertices;
+        bufferUploadBytes+=other.bufferUploadBytes;drawnVertices+=other.drawnVertices;drawnIndices+=other.drawnIndices;
         extractedQuads += other.extractedQuads;
         culledQuads += other.culledQuads;
         occludedQuads += other.occludedQuads;
