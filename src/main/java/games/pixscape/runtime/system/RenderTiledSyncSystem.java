@@ -75,10 +75,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
     private String lightingAtlasTag;
-    private final MapLightingGeometry.NativeQuads lightingQuads = this::resolveLightingQuad;
+    private final MapLightingGeometry.NativeQuads lightingQuads = new MapLightingGeometry.NativeQuads() {
+        public boolean resolve(TiledMapLayerData map,TileChunk chunk,int cell,float[] quad,boolean required){
+            return resolveLightingQuad(map,chunk,cell,chunk.getAnimFrameIndex(cell),quad,required);
+        }
+        public int frameCount(int assetId){return TileAnimationResolver.frameCount(assetId,tileAnimationLookup);}
+        public boolean resolveFrame(TiledMapLayerData map,TileChunk chunk,int cell,int frame,float[] quad){
+            return resolveLightingQuad(map,chunk,cell,frame,quad,true);
+        }
+    };
 
-    private boolean resolveLightingQuad(TiledMapLayerData map,TileChunk chunk,int cell,float[] quad,boolean required){
-        int asset=TileAnimationResolver.resolveVisualAssetId(chunk.assetIds[cell],chunk.getAnimFrameIndex(cell),tileAnimationLookup);
+    private boolean resolveLightingQuad(TiledMapLayerData map,TileChunk chunk,int cell,int frame,float[] quad,boolean required){
+        int asset=TileAnimationResolver.resolveVisualAssetId(chunk.assetIds[cell],frame,tileAnimationLookup);
         AtlasAssetBinding binding=atlasRuntimeService.resolveBinding(asset,lightingAtlasTag);
         RuntimeTilesetProfile profile=tilesetProfiles.profileForTileAsset(asset);
         if(binding==null||profile==null){
@@ -949,6 +957,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     metadata.textureHandle(), layerIndex, z, tie);
         }
 
+        // Admission must complete before publishing any quad, binding or renderable flag.
+        MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
+        games.pixscape.runtime.render.lighting.LightingSurface surface = lighting == null ? null
+                : lighting.receiver(map,gx,gy,assetId,transformFlags,tmpQuad);
+        games.pixscape.runtime.service.NormalMapBinding normal = lighting == null ? null
+                : atlasRuntimeService.resolveNormal(visualAssetId,atlasTag);
         if (!tiledState.enabled[tiledRenderRef] || tiledState.sortKey[tiledRenderRef] != sortKey) {
             currentRenderOrder.invalidate();
         }
@@ -978,10 +992,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 RenderRepeatFlags.NONE
         );
         chunk.setRenderableLocalIndex(localIndex, true);
-        games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
         if (lighting != null) {
-            games.pixscape.runtime.service.NormalMapBinding normal=atlasRuntimeService.resolveNormal(visualAssetId,atlasTag);
-            games.pixscape.runtime.render.lighting.LightingSurface surface=lighting.receiver(map, gx, gy, assetId, transformFlags, tmpQuad);
             surface.ownerEntity=currentMapEntity;
             surface.normalMap=normal;
             if(tiledState.lightingSurfaces.get(tiledRenderRef)!=surface)tiledState.lightingRevision++;
@@ -1075,6 +1086,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public void setAnimatedTileLookup(TileAnimationLookup tileAnimationLookup) {
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
+        for(MapLightingGeometry lighting:tiledState.lightingMaps.values())lighting.invalidate();
     }
 
     @Override

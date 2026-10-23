@@ -78,7 +78,12 @@ final class RoundedMapSupport {
         Placement p=placements.get(key(gx,gy));if(p==null)return null;
         boolean same=p.quad!=null;for(int i=0;same&&i<8;i++)same=p.quad[i]==quad[i];
         if(!same){
-            RoundedWallSupport support=new RoundedWallSupport(p.cx,p.cy,p.radius,p.thickness,p.base,p.height,p.profile.tangents,quad);
+            RoundedWallSupport support;
+            try {
+                support=new RoundedWallSupport(p.cx,p.cy,p.radius,p.thickness,p.base,p.height,p.profile.tangents,quad);
+            } catch(IllegalArgumentException invalid) {
+                throw new LightingAdmissionException("Rounded tile ("+gx+","+gy+"): "+invalid.getMessage(),invalid);
+            }
             if(p.support!=null)casters.removeValue(p.support.bottomCaster,true);
             p.quad=LocalSurfaceDescription.copy(quad);p.support=support;geometryCompilations++;
             casters.add(support.bottomCaster);

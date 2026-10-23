@@ -21,11 +21,123 @@ import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.profile.*;
+import games.pixscape.runtime.render.lighting.*;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.animation.*;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+    @Test public void allAnimationFramesAreAdmittedBeforePublicationAndCorrectionResumes(){
+        Fixture f=roundedAnimationFixture(512);
+        try {
+            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
+            LightingSurface previous=f.tiledState.lightingSurfaces.get(ref);
+            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
+            LightingSurface[] casters=geometry.casters.toArray(LightingSurface.class);
+            long key=f.tiledState.sortKey[ref];
+            SizedCountingAtlasRuntimeService atlas=(SizedCountingAtlasRuntimeService)f.atlas;
+            atlas.secondHeight=128;atlas.resources++;
+            try {f.world.process();Assert.fail("Second frame must be rejected before it is displayed");}
+            catch(LightingAdmissionException expected){
+                Assert.assertTrue(expected.getMessage(),expected.getMessage().contains("asset 1 at (0,0) frame 1"));
+            }
+            Assert.assertSame(previous,f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertArrayEquals(casters,geometry.casters.toArray(LightingSurface.class));
+            Assert.assertEquals(key,f.tiledState.sortKey[ref]);
+            Assert.assertEquals(0,f.map.getChunk(0,0).getAnimFrameIndex(0));
+            atlas.secondHeight=512;atlas.resources++;f.world.process();
+            Assert.assertNotNull(f.tiledState.lightingSurfaces.get(ref));
+        } finally {f.world.dispose();}
+    }
+
+    @Test public void compatibleAnimationReusesGeometryAndNeverDuplicatesCasters(){
+        Fixture f=roundedAnimationFixture(512);
+        try {
+            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
+            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
+            LightingSurface surface=f.tiledState.lightingSurfaces.get(ref);
+            int count=geometry.casters.size,compiled=geometry.roundedGeometryCompilationCount();
+            Assert.assertEquals(1,compiled);
+            for(int frame=0;frame<20;frame++){
+                int calls=f.atlas.resolveCalls;
+                setFrame(f,frame%2);f.world.process();
+                Assert.assertSame(surface,f.tiledState.lightingSurfaces.get(ref));
+                Assert.assertEquals(401+frame%2,f.tiledState.textureHandle[ref]);
+                Assert.assertEquals(count,geometry.casters.size);
+                Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
+                Assert.assertEquals("Only the active binding is resolved on a hot update",1,f.atlas.resolveCalls-calls);
+            }
+        } finally {f.world.dispose();}
+    }
+
+    @Test public void variantAdmissionRestoresActiveQuadReceiverAndCaster(){
+        Fixture f=roundedAnimationFixture(640);
+        try {
+            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
+            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
+            int count=geometry.casters.size;
+            LightingSurface first=f.tiledState.lightingSurfaces.get(ref);
+            Assert.assertEquals(401,f.tiledState.textureHandle[ref]);
+            int compiled=geometry.roundedGeometryCompilationCount();
+            // A stale last-variant receiver would compile again here.
+            setFrame(f,0);f.world.process();Assert.assertSame(first,f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
+            setFrame(f,1);f.world.process();Assert.assertNotSame(first,f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(402,f.tiledState.textureHandle[ref]);Assert.assertEquals(count,geometry.casters.size);
+            geometry.invalidate();f.world.process();
+            compiled=geometry.roundedGeometryCompilationCount();
+            LightingSurface second=f.tiledState.lightingSurfaces.get(ref);
+            setFrame(f,1);f.world.process();Assert.assertSame(second,f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
+            Assert.assertEquals(count,geometry.casters.size);
+        } finally {f.world.dispose();}
+    }
+
+    @Test public void lateFrameRefusalIsTypedAndDoesNotPartiallyWriteTheSlot(){
+        Fixture f=roundedAnimationFixture(512);
+        try {
+            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
+            LightingSurface previous=f.tiledState.lightingSurfaces.get(ref);
+            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
+            LightingSurface[] casters=geometry.casters.toArray(LightingSurface.class);
+            long key=f.tiledState.sortKey[ref];
+            // Simulate a late resource change, without its normal publication invalidation.
+            ((SizedCountingAtlasRuntimeService)f.atlas).secondHeight=128;setFrame(f,1);
+            try {f.world.process();Assert.fail();}catch(LightingAdmissionException expected){}
+            Assert.assertEquals(401,f.tiledState.textureHandle[ref]);Assert.assertEquals(key,f.tiledState.sortKey[ref]);
+            Assert.assertSame(previous,f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertArrayEquals(casters,geometry.casters.toArray(LightingSurface.class));
+        } finally {f.world.dispose();}
+    }
+
+    private static void setFrame(Fixture f,int frame){
+        TileChunk chunk=f.map.getChunk(0,0);chunk.setAnimationFrameIndex(0,frame);
+        chunk.dirtyLocalIndices.add(0);chunk.dirtyState=TileChunk.DirtyState.PARTIAL;
+    }
+
+    private static Fixture roundedAnimationFixture(int secondHeight){
+        RuntimeTilesetProfile p=profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,TiledProjection.ISO);
+        p.tileAssetIds=new int[]{1,2};
+        Fixture f=createProfilePlacementFixture(profilesWith(p),TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,228,264);
+        ((SizedCountingAtlasRuntimeService)f.atlas).secondHeight=secondHeight;
+        f.world.process();int e=onlyMapEntity(f.world);
+        SpatialBlocksComponent blocks=f.world.getMapper(SpatialBlocksComponent.class).create(e);
+        for(int i=0;i<2;i++){
+            SpatialBlockData b=new SpatialBlockData();b.id=blocks.allocateNextSpatialBlockId();
+            b.width=i==0?3:.25f;b.depth=i==0?.25f:3;b.height=157.34424f;b.shadowCaster=true;
+            SpatialBlockData.LinkedTileRef r=new SpatialBlockData.LinkedTileRef();r.tileAssetId=1;b.linkedTileRefs.add(r);blocks.blocks.add(b);
+        }
+        TileSurfaceDescription d=new TileSurfaceDescription();d.assetId=1;d.rounded=new RoundedWallDescription();
+        TiledLayerComponent tiled=f.world.getMapper(TiledLayerComponent.class).get(e);
+        tiled.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();tiled.lightingDescriptions.add(d);
+        TileAnimationDefData data=new TileAnimationDefData();data.id=1;data.frameAssetIds=new int[]{1,2};data.frameDurationsMs=new int[]{100,100};
+        TileAnimationDef def=new TileAnimationDef(data);f.tiledSync.setAnimatedTileLookup(id->id==1?def:null);
+        return f;
+    }
     @Test public void explicitCasterPublicationDoesNotDependOnCameraAndFailedCandidateKeepsReferences(){
         Fixture f=createProfilePlacementFixture(profilesWith(profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,games.pixscape.runtime.tiled.TiledProjection.ISO)),
                 games.pixscape.runtime.tiled.TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,-10000,-10000);
@@ -1840,6 +1952,8 @@ public class RenderTiledSyncSystemTest {
     private static final class SizedCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
         private final int spriteWidth;
         private final int spriteHeight;
+        int secondHeight,resources;
+        @Override public int publicationRevision(String tag){return resources;}
 
         private SizedCountingAtlasRuntimeService(int spriteWidth, int spriteHeight) {
             this.spriteWidth = spriteWidth;
@@ -1849,6 +1963,7 @@ public class RenderTiledSyncSystemTest {
         @Override
         public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
+            if(assetId==2&&secondHeight>0)return AtlasBindingTestFactory.single(2,"frame-2",0,0,1,1,402,spriteWidth,secondHeight);
             if (assetId == 1) {
                 return AtlasBindingTestFactory.single(
                         assetId,

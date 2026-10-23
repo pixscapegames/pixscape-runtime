@@ -38,6 +38,11 @@ public final class MapLightingGeometry {
     public interface NativeQuads {
         boolean resolve(TiledMapLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
                         int cell, float[] quad, boolean required);
+        default int frameCount(int assetId) { return 0; }
+        default boolean resolveFrame(TiledMapLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
+                                     int cell, int frame, float[] quad) {
+            return resolve(map,chunk,cell,quad,true);
+        }
     }
 
     /** Complete detached preparation. No live caster or receiver changes on admission failure. */
@@ -56,6 +61,18 @@ public final class MapLightingGeometry {
             for(games.pixscape.runtime.tiled.TileChunk chunk:map.getChunks())for(int i=0;i<chunk.cellCount();i++){
                 int asset=chunk.assetIds[i];if(asset<=0)continue;
                 boolean required=explicit.contains(asset);
+                int gx=chunk.chunkX*map.chunkSize+i%chunk.chunkWidth;
+                int gy=chunk.chunkY*map.chunkSize+i/chunk.chunkWidth;
+                if(required)for(int frame=0,count=quads.frameCount(asset);frame<count;frame++){
+                    try {
+                        if(!quads.resolveFrame(map,chunk,i,frame,quad))
+                            throw new LightingAdmissionException("Native image unavailable");
+                        next.receiver(map,gx,gy,asset,chunk.transformFlags[i],quad);
+                    } catch(IllegalArgumentException invalid) {
+                        throw new LightingAdmissionException("Tile asset "+asset+" at ("+gx+","+gy+") frame "+frame+": "+invalid.getMessage(),invalid);
+                    }
+                }
+                // Restore the displayed frame after examining variants, including its caster.
                 boolean available=quads.resolve(map,chunk,i,quad,required);
                 if(required&&!available)throw new IllegalArgumentException("Native image unavailable for tile asset "+asset);
                 if(available)
@@ -154,7 +171,7 @@ public final class MapLightingGeometry {
         }
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
-            if(flags!=0)throw new IllegalArgumentException("Local volume description needs explicit transformed variant for tile flags");
+            if(flags!=0)throw new LightingAdmissionException("Local volume description needs explicit transformed variant for tile flags");
             float[] origin=new float[3];LightingCoordinates.mapPoint(map,gx,gy,map.defaultTileAltitude,origin,0);
             for(int i=0;i<description.xyz.length/3;i++){
                 float u=description.uv[i*2],v=description.uv[i*2+1];
@@ -162,7 +179,7 @@ public final class MapLightingGeometry {
                 float sy=quad[1]+u*(quad[7]-quad[1])+v*(quad[3]-quad[1]);
                 float x=origin[0]+description.xyz[i*3],y=origin[1]+description.xyz[i*3+1],z=origin[2]+description.xyz[i*3+2];
                 if(Math.abs(LightingCoordinates.screenX(x,y)-sx)>.02f || Math.abs(LightingCoordinates.screenY(x,y,z)-sy)>.02f)
-                    throw new IllegalArgumentException("Local tile XYZ/UV registration does not match its native image");
+                    throw new LightingAdmissionException("Local tile XYZ/UV registration does not match its native image");
             }
             LightingSurface surface=LocalSurfaceCompiler.compile(description,origin[0],origin[1],origin[2]);
             surface.forwardTopology=ForwardTopology.compile(surface,quad);
@@ -171,7 +188,7 @@ public final class MapLightingGeometry {
         }
         Array<SpatialBlockData> owners = memberships.get(key(gx, gy));
         if (owners != null && flags != 0)
-            throw new IllegalArgumentException("Automatic volume receiver does not support transformed tiles; provide local geometry");
+            throw new LightingAdmissionException("Automatic volume receiver does not support transformed tiles; provide local geometry");
         Array<float[]> polygons = new Array<float[]>();
         Array<ReceiverFace> candidates = owners != null && owners.size > 1 ? new Array<ReceiverFace>() : null;
         if (owners == null) {
