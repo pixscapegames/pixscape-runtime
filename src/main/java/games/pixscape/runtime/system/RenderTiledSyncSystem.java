@@ -101,6 +101,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     /** Shared cold preflight for commands, load and rendering. Does not publish render state. */
+    public int lightingResourceRevision(String atlasTag){return atlasRuntimeService.publicationRevision(atlasTag);}
     public void validateLighting(TiledLayerComponent tiled,SpatialBlocksComponent blocks,
                                  com.badlogic.gdx.utils.Array<TileSurfaceDescription> descriptions){
         MapLightingGeometry candidate=new MapLightingGeometry();candidate.descriptions(descriptions);

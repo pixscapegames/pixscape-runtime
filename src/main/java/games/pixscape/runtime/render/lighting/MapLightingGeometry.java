@@ -27,8 +27,32 @@ public final class MapLightingGeometry {
     private String resourceTag;
     private boolean hasRounded;
     private int contentRevision;
+    private int publicationRevision;
+    private Preview activePreview;
+    public int publicationRevision(){return publicationRevision;}
     public int roundedProfileCompilationCount(){return rounded.profileCompilations;}
     public int roundedGeometryCompilationCount(){return rounded.geometryCompilations;}
+    public RoundedWallSupport roundedSupport(int gx,int gy){return rounded.support(gx,gy);}
+    /** Cold gesture capture. The caller must discard it when map/resources/authored revisions change. */
+    public Preview beginRoundedPreview(int gx,int gy) {
+        if(activePreview!=null)activePreview.restore();
+        Receiver receiver=receivers.get(key(gx,gy));RoundedWallSupport support=rounded.support(gx,gy);
+        if(receiver==null||support==null)throw new IllegalArgumentException("Rounded receiver is not prepared");
+        int bottom=casters.indexOf(support.bottomCaster,true);
+        if(bottom<0)throw new IllegalStateException("Rounded bottom caster missing");
+        activePreview=new Preview(receiver,support,bottom);return activePreview;
+    }
+    /** O(1) transient swap; existing opaque wall cuts and all other occurrences remain untouched. */
+    public final class Preview {
+        private final Receiver receiver;private final RoundedWallSupport initial;private final int bottom;
+        private Preview(Receiver receiver,RoundedWallSupport initial,int bottom){this.receiver=receiver;this.initial=initial;this.bottom=bottom;}
+        public boolean isCurrent(){return activePreview==this;}
+        public void show(RoundedWallSupport support){
+            if(!isCurrent())throw new IllegalStateException("Rounded preview context is stale");
+            receiver.surface=support.receiver;casters.set(bottom,support.bottomCaster);
+        }
+        public LightingSurface restore(){if(isCurrent()){show(initial);activePreview=null;}return initial.receiver;}
+    }
     public void invalidate(){revision=Integer.MIN_VALUE;}
     public void descriptions(Array<TileSurfaceDescription> values){
         if(authoredDescriptions!=values){authoredDescriptions=values;invalidate();}
@@ -50,6 +74,7 @@ public final class MapLightingGeometry {
                           String tag, int resources) {
         if (!needsUpdate(map,blocks) && resourceRevision==resources
                 && (resourceTag==null?tag==null:resourceTag.equals(tag))) return false;
+        if(activePreview!=null)activePreview.restore();
         MapLightingGeometry next=new MapLightingGeometry();
         next.authoredDescriptions=authoredDescriptions;
         next.rounded=new RoundedMapSupport(rounded);
@@ -87,6 +112,7 @@ public final class MapLightingGeometry {
         previous=next.previous;previousBlocks=next.previousBlocks;projection=next.projection;revision=next.revision;
         ox=next.ox;oy=next.oy;altitude=next.altitude;tw=next.tw;th=next.th;
         resourceRevision=resources;resourceTag=tag;
+        publicationRevision++;
         return true;
     }
 
@@ -164,6 +190,7 @@ public final class MapLightingGeometry {
                 || !descriptions.containsKey(cached.assetId)&&!descriptions.containsKey(assetId));
         if (same) for (int i=0;i<8;i++) if(cached.quad[i]!=quad[i]) {same=false;break;}
         if (same) return cached.surface;
+        if(activePreview!=null&&activePreview.receiver==cached)activePreview.restore();
         LightingSurface curved=rounded.receiver(gx,gy,quad,casters);
         if(curved!=null){
             cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=curved;receivers.put(cell,cached);

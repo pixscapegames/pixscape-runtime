@@ -8,8 +8,8 @@ import games.pixscape.runtime.tiled.*;
 final class RoundedMapSupport {
     private static final class Profile {
         final RoundedWallDescription description;
-        final RoundedWallSupport.Profile tangents=new RoundedWallSupport.Profile(6);
-        Profile(RoundedWallDescription d){description=d.copy();}
+        final RoundedWallSupport.Profile tangents;
+        Profile(RoundedWallDescription d){description=d.copy();tangents=new RoundedWallSupport.Profile(d);}
     }
     private static final class Placement {
         Profile profile;int xWall,yWall;float cx,cy,radius,thickness,base,height;
@@ -58,22 +58,12 @@ final class RoundedMapSupport {
         profiles=nextProfiles;placements=next;cuts=nextCuts;profileCompilations+=builtProfiles;
     }
     private static Placement resolve(TiledMapLayerData map,int gx,int gy,Profile profile,Array<SpatialBlockData> owners){
-        if(owners==null||owners.size!=2)throw invalid(gx,gy,"requires exactly two explicitly linked walls");
-        RoundedWallDescription d=profile.description;SpatialBlockData x=null,y=null;
-        float startX=gx+(d.centerGX-d.radiusCells),startY=gy+(d.centerGY-d.radiusCells);
-        for(int i=0;i<owners.size;i++){
-            SpatialBlockData b=owners.get(i);
-            if(b.x!=startX||b.y!=startY||(!b.shadowCaster&&!b.lightOccluder))throw invalid(gx,gy,"wall anchor or caster flags do not match the declared profile");
-            if(b.width>=d.radiusCells&&b.depth>0&&b.depth<d.radiusCells)x=b;
-            if(b.depth>=d.radiusCells&&b.width>0&&b.width<d.radiusCells)y=b;
-        }
-        if(x==null||y==null||x==y||x.depth!=y.width||x.altitude!=y.altitude||x.height!=y.height||x.height<=0)
-            throw invalid(gx,gy,"walls must be perpendicular with equal thickness, altitude and height");
-        Placement p=new Placement();p.profile=profile;p.xWall=x.id;p.yWall=y.id;
-        float[] point=new float[3];LightingCoordinates.mapPoint(map,gx+d.centerGX,gy+d.centerGY,x.altitude,point,0);
-        p.cx=point[0];p.cy=point[1];p.radius=d.radiusCells*map.tileHeight;p.thickness=x.depth*map.tileHeight;p.base=x.altitude;p.height=x.height;
+        RoundedWallPlacement resolved=new RoundedWallPlacement(map,gx,gy,profile.description,owners);
+        Placement p=new Placement();p.profile=profile;p.xWall=resolved.xWall;p.yWall=resolved.yWall;
+        p.cx=resolved.cx;p.cy=resolved.cy;p.radius=resolved.radius;p.thickness=resolved.thickness;p.base=resolved.base;p.height=resolved.height;
         return p;
     }
+    RoundedWallSupport support(int gx,int gy){Placement p=placements.get(key(gx,gy));return p==null?null:p.support;}
     LightingSurface receiver(int gx,int gy,float[] quad,Array<LightingSurface> casters){
         Placement p=placements.get(key(gx,gy));if(p==null)return null;
         boolean same=p.quad!=null;for(int i=0;same&&i<8;i++)same=p.quad[i]==quad[i];

@@ -13,12 +13,25 @@ public final class RoundedWallSupport {
     /** Intrinsic tangent directions; shared by occurrences of one published asset/profile version. */
     public static final class Profile {
         final int segments; final double[] cos,sin; final double denominator;
+        final float[] explicit;
         public Profile(int segments){
             if(segments<3||segments>8)throw new IllegalArgumentException("Quarter wall requires 3..8 facets");
-            this.segments=segments;cos=new double[segments];sin=new double[segments];
+            this.segments=segments;explicit=null;cos=new double[segments];sin=new double[segments];
             double step=Math.PI*.5/(segments-1);denominator=Math.cos(step*.5);
             for(int i=1;i<segments;i++){double angle=Math.PI+(i-.5)*step;cos[i]=Math.cos(angle);sin[i]=Math.sin(angle);}
         }
+        public Profile(RoundedWallDescription description) {
+            description.validate();
+            if(description.profileXY==null) {
+                Profile initial=new Profile(6);segments=initial.segments;cos=initial.cos;sin=initial.sin;
+                denominator=initial.denominator;explicit=null;
+            } else {
+                explicit=LocalSurfaceDescription.copy(description.profileXY);segments=explicit.length/2-1;
+                cos=null;sin=null;denominator=1;
+            }
+        }
+        /** Detached editable coordinates; reading does not convert authored legacy data. */
+        public float[] vertices() {return explicit==null?profile(0,0,1,this):LocalSurfaceDescription.copy(explicit);}
     }
 
     /** Tangent end facets exactly match -X and -Y walls; no image analysis is performed. */
@@ -42,7 +55,7 @@ public final class RoundedWallSupport {
             throw new IllegalArgumentException("Experimental quarter wall requires an untransformed native quad");
         this.segments=segments;
         outerXY=profile(cx,cy,radius,profile);
-        innerXY=profile(cx,cy,radius-thickness,profile);
+        innerXY=profile.explicit==null?profile(cx,cy,radius-thickness,profile):offset(outerXY,thickness);
         float[] front=new float[segments*48],back=new float[segments*48];
         float[] top=new float[segments*48],bottom=new float[segments*48];
         for(int i=0;i<segments;i++) {
@@ -71,6 +84,7 @@ public final class RoundedWallSupport {
         for(int i=0;i<physical.length;i+=8){
             int o=i/8*3;
             if(Math.abs(physical[i+7])>.5f){receiver.curveNormals[o+2]=physical[i+7];continue;}
+            if(profile.explicit!=null) {smoothNormal(outerXY,physical[i],physical[i+1],receiver.curveNormals,o);continue;}
             float x=physical[i]-cx,y=physical[i+1]-cy;
             // Exact terminal orientations, including duplicated vertices on the shared vertical edges.
             if(x>=0){receiver.curveNormals[o+1]=-1;continue;}
@@ -117,6 +131,10 @@ public final class RoundedWallSupport {
     private static float[] profile(float cx,float cy,float r,Profile profile){
         int n=profile.segments;
         float[] result=new float[(n+1)*2];
+        if(profile.explicit!=null) {
+            for(int i=0;i<result.length;i+=2){result[i]=cx+r*profile.explicit[i];result[i+1]=cy+r*profile.explicit[i+1];}
+            return result;
+        }
         result[0]=cx-r;result[1]=cy;result[n*2]=cx;result[n*2+1]=cy-r;
         for(int i=1;i<n;i++){
             double distance=r/profile.denominator;
@@ -124,6 +142,42 @@ public final class RoundedWallSupport {
             result[i*2+1]=(float)(cy+distance*profile.sin[i]);
         }
         return result;
+    }
+    private static float[] offset(float[] p,float thickness) {
+        int n=p.length/2;float[] q=new float[p.length];
+        for(int v=0;v<n;v++) {
+            int a=Math.max(0,v-1)*2,b=Math.min(n-2,v)*2;
+            double ax=p[a+2]-p[a],ay=p[a+3]-p[a+1],al=Math.sqrt(ax*ax+ay*ay);
+            double bx=p[b+2]-p[b],by=p[b+3]-p[b+1],bl=Math.sqrt(bx*bx+by*by);
+            double nx=-ay/al,ny=ax/al,mx=-by/bl,my=bx/bl,den=1+nx*mx+ny*my;
+            if(den<1e-6)throw new IllegalArgumentException("Invalid corner thickness offset");
+            q[v*2]=(float)(p[v*2]+thickness*(nx+mx)/den);
+            q[v*2+1]=(float)(p[v*2+1]+thickness*(ny+my)/den);
+        }
+        for(int i=2;i<q.length;i+=2) {
+            double dx=q[i]-q[i-2],dy=q[i+1]-q[i-1];
+            if(dx*(p[i]-p[i-2])+dy*(p[i+1]-p[i-1])<=1e-8 || dx<-.00001 || dy>.00001)
+                throw new IllegalArgumentException("Wall thickness collapses or reverses a corner segment");
+        }
+        return q;
+    }
+    private static void smoothNormal(float[] p,float x,float y,float[] out,int o) {
+        // All facade vertices are on the compiled outer strip (including its UV-completion splits).
+        int n=p.length/2;float sx=x-y;
+        if(sx<=p[0]-p[1]){out[o]=-1;out[o+1]=0;return;}
+        if(sx>=p[p.length-2]-p[p.length-1]){out[o]=0;out[o+1]=-1;return;}
+        int segment=0;while(segment<n-2 && sx>p[(segment+1)*2]-p[(segment+1)*2+1])segment++;
+        float u0=p[segment*2]-p[segment*2+1],u1=p[segment*2+2]-p[segment*2+3];
+        float t=Math.max(0,Math.min(1,(sx-u0)/(u1-u0)));
+        double a=normalAngle(p,segment),b=normalAngle(p,segment+1),angle=a+(b-a)*t;
+        out[o]=(float)Math.cos(angle);out[o+1]=(float)Math.sin(angle);
+    }
+    private static double normalAngle(float[] p,int v) {
+        int n=p.length/2;if(v==0)return Math.PI;if(v==n-1)return Math.PI*1.5;
+        double a=Math.atan2(-(p[v*2]-p[v*2-2]),p[v*2+1]-p[v*2-1]);
+        double b=Math.atan2(-(p[v*2+2]-p[v*2]),p[v*2+3]-p[v*2+1]);
+        if(a<0)a+=Math.PI*2;if(b<0)b+=Math.PI*2;
+        return (a+b)*.5;
     }
     private static void emit(float[] out,int offset,float[][] xyz,float[][] material,
                              float nx,float ny,float nz,float[] q){
