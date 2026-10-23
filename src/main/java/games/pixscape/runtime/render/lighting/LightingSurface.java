@@ -22,5 +22,9 @@ public final class LightingSurface {
     public float[] localReceiverVertices;
     /** Cold native/physical overlay; weights reuse the current transformed receiver publication. */
     public ForwardTopology forwardTopology;
+    /** Optional cold XYZ macro-orientation per receiver vertex; never used for shadow depth/bias. */
+    public float[] curveNormals;
+    /** Optional explicit caster view of this tile's support, sharing its existing alpha binding. */
+    public LightingSurface casterSurface;
     public LightingSurface(float[] vertices) { this.vertices = vertices; }
 }

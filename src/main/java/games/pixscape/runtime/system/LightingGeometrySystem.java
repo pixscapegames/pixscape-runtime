@@ -117,7 +117,8 @@ public final class LightingGeometrySystem extends BaseSystem {
             if(!surface.shadowCaster || !world.getEntityManager().isActive(surface.ownerEntity) || !tiled.enabled[entry.key])continue;
             LightingFrame.Caster c=staticCasters.get(serial);
             if(c==null){c=new LightingFrame.Caster();staticCasters.put(serial,c);}serial++;
-            if(c.surface!=surface){c.surface=surface;c.bounds();}
+            LightingSurface caster=surface.casterSurface==null?surface:surface.casterSurface;
+            if(c.surface!=caster){c.surface=caster;c.bounds();}
             int ref=entry.key;c.tiledRef=ref;c.texture=tiled.textureHandle[ref];c.u1=tiled.u1[ref];c.v1=tiled.v1[ref];c.u2=tiled.u2[ref];c.v2=tiled.v2[ref];
             frame.casters.add(c);
         }

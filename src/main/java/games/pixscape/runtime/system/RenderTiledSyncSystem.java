@@ -199,7 +199,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             tiledState.lightingMaps.put(e, lighting);
         }
         lighting.descriptions(tiled.lightingDescriptions);
-        if(lightingDirty!=null && (lightingDirty.coarseBits(e)&(DirtyBits.GEOMETRY|DirtyBits.MATERIAL))!=0
+        if(lightingDirty!=null && (lightingDirty.coarseBits(e)&DirtyBits.GEOMETRY)!=0
                 && tiled.lightingDescriptions.size>0)lighting.invalidate();
         if (lighting.ensure(map, mSpatialBlocks.getSafe(e, null))) {
             tiledState.lightingRevision++;

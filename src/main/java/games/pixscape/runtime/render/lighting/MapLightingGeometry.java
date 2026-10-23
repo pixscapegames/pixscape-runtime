@@ -11,7 +11,7 @@ import games.pixscape.runtime.tiled.TiledProjection;
 /** Cold map preparation. All linked memberships are indexed; no owner chosen per tile. */
 public final class MapLightingGeometry {
     public final Array<LightingSurface> casters = new Array<LightingSurface>();
-    private final LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
+    private LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
     private static final class Receiver { float[] quad; byte flags; int assetId; LightingSurface surface; }
     private final LongMap<Receiver> receivers = new LongMap<Receiver>();
     private int revision = Integer.MIN_VALUE;
@@ -22,6 +22,11 @@ public final class MapLightingGeometry {
     private int tw, th;
     private final IntMap<LocalSurfaceDescription> descriptions=new IntMap<LocalSurfaceDescription>();
     private Array<TileSurfaceDescription> authoredDescriptions;
+    private final RoundedMapSupport rounded=new RoundedMapSupport();
+    private boolean hasRounded;
+    private int contentRevision;
+    public int roundedProfileCompilationCount(){return rounded.profileCompilations;}
+    public int roundedGeometryCompilationCount(){return rounded.geometryCompilations;}
     public void invalidate(){revision=Integer.MIN_VALUE;}
     public void descriptions(Array<TileSurfaceDescription> values){
         if(authoredDescriptions!=values){authoredDescriptions=values;invalidate();}
@@ -31,16 +36,20 @@ public final class MapLightingGeometry {
         int r = blocks == null ? 0 : blocks.revision;
         if (previous == map && previousBlocks == blocks && projection == map.projection && revision == r && ox == map.originX
                 && oy == map.originY && altitude == map.defaultTileAltitude
-                && tw == map.tileWidth && th == map.tileHeight) return false;
+                && tw == map.tileWidth && th == map.tileHeight
+                && (!hasRounded||contentRevision==map.contentRevision())) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
             throw new IllegalArgumentException("Lighting volume reconstruction requires an ISO map");
-        memberships.clear(); casters.clear(); receivers.clear();
-        descriptions.clear();
+        LongMap<Array<SpatialBlockData>> nextMemberships=new LongMap<Array<SpatialBlockData>>();
+        IntMap<LocalSurfaceDescription> nextDescriptions=new IntMap<LocalSurfaceDescription>();
+        com.badlogic.gdx.utils.IntSet assetIds=new com.badlogic.gdx.utils.IntSet();boolean nextHasRounded=false;
         if(authoredDescriptions!=null)for(int i=0;i<authoredDescriptions.size;i++){
             TileSurfaceDescription d=authoredDescriptions.get(i);
-            if(d.assetId<=0 || d.geometry==null || descriptions.containsKey(d.assetId))
+            if(d==null)throw new IllegalArgumentException("Null tile surface description");
+            d.validate();
+            if(!assetIds.add(d.assetId))
                 throw new IllegalArgumentException("Tile surface descriptions require unique positive asset IDs");
-            d.geometry.validate();descriptions.put(d.assetId,d.geometry);
+            if(d.geometry!=null)nextDescriptions.put(d.assetId,d.geometry);else nextHasRounded=true;
         }
         Array<SpatialBlockData> casterBlocks=new Array<SpatialBlockData>();
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
@@ -48,12 +57,15 @@ public final class MapLightingGeometry {
             for (int j = 0; j < b.linkedTileRefs.size; j++) {
                 SpatialBlockData.LinkedTileRef ref = b.linkedTileRefs.get(j);
                 long key = key(ref.gx, ref.gy);
-                Array<SpatialBlockData> owners = memberships.get(key);
-                if (owners == null) { owners = new Array<SpatialBlockData>(); memberships.put(key, owners); }
+                Array<SpatialBlockData> owners = nextMemberships.get(key);
+                if (owners == null) { owners = new Array<SpatialBlockData>(); nextMemberships.put(key, owners); }
                 if (!owners.contains(b, true)) owners.add(b);
             }
             if (b.shadowCaster || b.lightOccluder) casterBlocks.add(b);
         }
+        rounded.prepare(map,nextMemberships,authoredDescriptions);
+        memberships=nextMemberships;descriptions.clear();descriptions.putAll(nextDescriptions);
+        casters.clear();receivers.clear();hasRounded=nextHasRounded;contentRevision=map.contentRevision();
         // Coplanar overlapping triangles can tie in the depth attachment while their
         // radial float outputs differ by an ULP. Keep submission deterministic too,
         // without changing any caster plane, vertex, flag or within-volume face order.
@@ -67,10 +79,13 @@ public final class MapLightingGeometry {
         for(int i=0;i<casterBlocks.size;i++){
                 Array<float[]> faces = faces(map, casterBlocks.get(i), false);
                 for (int j = 0; j < faces.size; j++) {
-                    LightingSurface s = new LightingSurface(triangulate(faces.get(j), null));
+                    float[] triangles=rounded.trim(casterBlocks.get(i).id,triangulate(faces.get(j), null));
+                    if(triangles.length==0)continue;
+                    LightingSurface s = new LightingSurface(triangles);
                     s.shadowCaster = true; s.receiveLight = false; casters.add(s);
                 }
         }
+        rounded.appendBottoms(casters);
         previous = map; previousBlocks = blocks; projection = map.projection; revision = r; ox = map.originX; oy = map.originY;
         altitude = map.defaultTileAltitude; tw = map.tileWidth; th = map.tileHeight;
         return true;
@@ -86,6 +101,11 @@ public final class MapLightingGeometry {
                 || !descriptions.containsKey(cached.assetId)&&!descriptions.containsKey(assetId));
         if (same) for (int i=0;i<8;i++) if(cached.quad[i]!=quad[i]) {same=false;break;}
         if (same) return cached.surface;
+        LightingSurface curved=rounded.receiver(gx,gy,quad,casters);
+        if(curved!=null){
+            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=curved;receivers.put(cell,cached);
+            return curved;
+        }
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
             if(flags!=0)throw new IllegalArgumentException("Local volume description needs explicit transformed variant for tile flags");
