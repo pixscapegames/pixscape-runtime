@@ -36,7 +36,7 @@ public final class GrazingLightGlCheck {
                     FrameRenderQueue q=new FrameRenderQueue(4);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
                     OrthographicCamera camera=new OrthographicCamera(32,32);camera.position.set(16,16,0);camera.update();
                     batch=new MultiTextureMeshBatch(32);RenderStats stats=new RenderStats();
-                    RenderSubmitSystem submit=new RenderSubmitSystem(layers,q,camera,.2f,.2f,.2f,batch,stats,new RenderStatsSink(100));
+                    RenderSubmitSystem submit=new RenderSubmitSystem(layers,q,camera,.2f,.2f,.2f,batch,stats,new RenderStatsSink(100),false);
                     world=new World(new WorldConfigurationBuilder().with(submit).build());submit.setEnabled(false);
                     int receiver=world.create();PointLightComponent component=world.getMapper(PointLightComponent.class).create(world.create());component.shadowQuality=0;world.process();
                     q.addQuad(TextureRegistry.handleOf(color),ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName()),1,0,0,0,0,
@@ -47,35 +47,36 @@ public final class GrazingLightGlCheck {
                     LightingFrame.Light light=new LightingFrame.Light();light.radius=512;light.falloff=1.5f;light.intensity=.4f;light.r=light.g=light.b=1;light.resolution=256;
                     q.lighting.lights.add(light);submit.prepareComposition();compileEs300OnDesktop(submit);submit.setEnabled(true);
                     // Distinct orientations, deliberately nonunit normals: normalization is part of the contract.
-                    for(float[] n:new float[][]{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{.6f,.8f,0}})for(boolean mapped:new boolean[]{false,true}){
-                        for(int o=0;o<48;o+=8){vertices[o+5]=7*n[0];vertices[o+6]=7*n[1];vertices[o+7]=0;}
+                    for(float[] n:new float[][]{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{.6f,.8f,0}})for(boolean mapped:new boolean[]{false,true})for(boolean curved:new boolean[]{false,true}){
+                        surface.curveNormals=curved?new float[18]:null;
+                        for(int o=0;o<48;o+=8){vertices[o+5]=(curved?-7:7)*n[0];vertices[o+6]=(curved?-7:7)*n[1];vertices[o+7]=0;
+                            if(curved){surface.curveNormals[o/8*3]=n[0];surface.curveNormals[o/8*3+1]=n[1];}}
                         surface.normalMap=mapped?normals.resolve(1):null;
-                        for(float angle:new float[]{-6,0,2,2.9f,3.1f,4,4.9f,5.1f,6,20}){
+                        for(int step=-24;step<=80;step++){
+                            float angle=step*.25f;
                             double a=Math.toRadians(angle);light.x=100*n[0]*(float)Math.sin(a);light.y=100*n[1]*(float)Math.sin(a);light.z=100*(float)Math.cos(a);
                             surface.actor=true;surface.twoSided=false;draw(world);float actor=field(submit);
                             surface.actor=false;draw(world);float decor=field(submit);
                             Assert.assertTrue("Actor keeps direct minimum",actor>0);
                             // Decode the actual 8-bit tangent texel and the documented image
-                            // basis, independently of the shader source. Geometric normals
-                            // still govern shadow bias, but not this lighting horizon.
+                            // basis, independently of the shader source. Macro orientation
+                            // additionally rejects back-facing decor, without replacing relief.
                             double mappedX=.7071067812/255+.4082482905/255-.5773502692;
                             double mappedY=-.7071067812/255+.4082482905/255-.5773502692;
                             double mappedZ=.8164965809/255+.5773502692;
                             double length=Math.sqrt(mappedX*mappedX+mappedY*mappedY+mappedZ*mappedZ);
                             double cosine=mapped?(mappedX*light.x+mappedY*light.y+mappedZ*light.z)/(100*length):Math.sin(a);
-                            if(cosine<=.052335956)Assert.assertEquals("Lighting normal rejects the back/grazing direct contribution",0,decor,0);
-                            else if(cosine>=.087155743)Assert.assertEquals("Lighting horizon fully open",actor,decor,0);
-                            else {
-                                double t=(cosine-.052335956)/(.087155743-.052335956);double gate=t*t*(3-2*t);
-                                // RGBA16F output quantization only; zero and reference endpoints above use exact equality.
-                                Assert.assertEquals("Lighting normal controls the unchanged three-to-five-degree ramp",actor*gate,decor,.0005);
-                            }
+                            double relief=smoothstep(.052335956,.087155743,cosine);
+                            double facade=smoothstep(0,.052335956,Math.sin(a));
+                            if(angle<=0||relief==0)Assert.assertEquals("No direct behind the facade or rejected by relief",0,decor,0);
+                            else if(relief==1&&facade==1)Assert.assertEquals("Front-lit relief unchanged",actor,decor,0);
+                            else Assert.assertEquals("Continuous independent facade and relief gates",actor*relief*facade,decor,.0005);
                             surface.twoSided=true;draw(world);float twoSidedDecor=field(submit);
                             surface.actor=true;draw(world);Assert.assertEquals("Two-sided decor/actor reception remains independent",twoSidedDecor,field(submit),0);
                             surface.actor=false;surface.twoSided=false;
                         }
                     }
-                    surface.normalMap=null;for(int o=0;o<48;o+=8){vertices[o+5]=1;vertices[o+6]=vertices[o+7]=0;}
+                    surface.curveNormals=null;surface.normalMap=null;for(int o=0;o<48;o+=8){vertices[o+5]=1;vertices[o+6]=vertices[o+7]=0;}
                     light.x=1;light.y=0;light.z=100;draw(world);float[] ambient=pixel();
                     light.intensity=0;draw(world);Assert.assertArrayEquals("Ambient remains intact when the direct ramp is zero",ambient,pixel(),0);
                     light.intensity=.4f;light.x=40;light.z=100;draw(world);float one=field(submit);
@@ -88,6 +89,7 @@ public final class GrazingLightGlCheck {
         },cfg);
         if(failure[0]!=null)throw new AssertionError("Grazing decor reception failed",failure[0]);
     }
+    private static double smoothstep(double lo,double hi,double x){double t=Math.max(0,Math.min(1,(x-lo)/(hi-lo)));return t*t*(3-2*t);}
     private static void draw(World world){Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,0);Gdx.gl.glViewport(0,0,32,32);Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();}
     /** ES syntax check on the accessible desktop compiler; not an execution of WebGL or an Android GLES backend. */
     private static void compileEs300OnDesktop(RenderSubmitSystem submit)throws Exception {

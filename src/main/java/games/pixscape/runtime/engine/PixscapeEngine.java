@@ -66,7 +66,7 @@ public final class PixscapeEngine {
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
-    private boolean forwardLighting;
+    private boolean forwardLighting = true;
     private AssetManager suppliedAssetManager;
     private FileAvailabilityService fileAvailability;
     private SceneAvailabilityPlan activeSceneAvailability;
@@ -2111,7 +2111,8 @@ public final class PixscapeEngine {
         return loaded;
     }
 
-    /** Selects the whole-world renderer before project/scene preparation. Defaults to the reference. */
+    /** Selects the whole-world renderer before project/scene preparation. Defaults to forward;
+     * pass false to explicitly select the legacy reference renderer. */
     public PixscapeEngine setForwardLighting(boolean enabled) {
         if(loaded)throw new IllegalStateException("Forward lighting must be selected before loadProject()");
         forwardLighting=enabled;return this;

@@ -84,7 +84,7 @@ public final class ForwardLightingRenderer {
                 .replace("if(flags.y>.5&&normalLength>.0001)",
                         "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&"+
                         "(flags.z!=0.||dot(lightingNormal(macroNormal(n/normalLength)),distance>0.?-delta/distance:vec3(0))>.052335956))")
-                .replace("vec3 normal=macroNormal(geometric);","vec3 normal=lightingNormal(macroNormal(geometric));");
+                .replace("vec3 normal=facade;","vec3 normal=lightingNormal(facade);");
         return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float exclusionId,materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
                 declarations+LightingRenderer.NORMAL_SAMPLE+
                 LightingRenderer.MACRO_NORMAL+

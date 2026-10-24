@@ -41,6 +41,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
     private LightParameterBinding lightParameters;
     private float time = 0f;
+    private boolean rendererReported;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
 
@@ -55,7 +56,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
-        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,false);
+        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,true);
     }
 
     public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
@@ -117,6 +118,11 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
             forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);
         } else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+        if (!rendererReported) {
+            Gdx.app.log("Lighting", "renderer=" + (forward != null ? "forward" : "legacy")
+                    + " prepared (Runtime; no automatic fallback)");
+            rendererReported = true;
+        }
     }
     public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
