@@ -8,6 +8,28 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class RoundedMapSupportTest {
+    @Test public void alphaWallContributionsAreTrimmedOutsideTheCurveAndIdentitiesRemainSeparate(){
+        for(SpatialBlockData block:blocks.blocks){block.silhouetteShadowCaster=true;block.linkedTileRefsAuthored=true;}
+        LightingSurface corner=surface();RoundedWallSupport curve=geometry.roundedSupport(27,24);
+        assertTrue(corner.roundedIdentity);assertTrue(curve.texturedCaster.roundedIdentity);
+        assertEquals(corner.roundedCellKey,curve.texturedCaster.roundedCellKey);
+        assertEquals(corner.roundedCellKey,curve.bottomCaster.roundedCellKey);
+        assertEquals("No opaque wall cube or opaque bottom remains",0,geometry.casters.size);
+        assertEquals(2,corner.casterContributions.size);
+        assertSame(curve.bottomCaster,corner.casterContributions.get(1));
+        // A neighboring tile also projects onto both parent walls. Its alpha
+        // contributions must retain the cuts imposed by the curved replacement.
+        for(SpatialBlockData block:blocks.blocks)block.addLinkedTileRef(28,24,8);
+        blocks.revision++;geometry.ensure(map,blocks);
+        LightingSurface wall=geometry.receiver(map,28,24,8,(byte)0,quad);
+        assertEquals(2,wall.casterContributions.size);
+        ShadowExclusionIdentities ids=new ShadowExclusionIdentities();int curvedId=ids.idForCorner(215,corner.roundedCellKey);
+        for(LightingSurface caster:wall.casterContributions){
+            assertNotEquals(curvedId,ids.idFor(215,caster.pocSourceBlockId));
+            for(int i=0;i<caster.vertices.length;i+=8)
+                assertTrue("No old L inside rounded replacement",caster.vertices[i]>=3648-.001f||caster.vertices[i+1]>=3136-.001f);
+        }
+    }
     private final float[] quad={384,3264,384,3776,640,3776,640,3264};
     private final TiledMapLayerData map=new TiledMapLayerData(80,80,256,128,16,TiledProjection.ISO);
     private final SpatialBlocksComponent blocks=new SpatialBlocksComponent();

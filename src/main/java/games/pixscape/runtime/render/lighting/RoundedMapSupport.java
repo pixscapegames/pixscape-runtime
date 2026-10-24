@@ -23,6 +23,13 @@ final class RoundedMapSupport {
     int profileCompilations,geometryCompilations;
 
     RoundedMapSupport() {}
+    void connectShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
+        for(LongMap.Entry<Placement> e:placements){
+            int corner=ids.idForCorner(owner,e.key);
+            groups.connect(corner,ids.idFor(owner,e.value.xWall));
+            groups.connect(corner,ids.idFor(owner,e.value.yWall));
+        }
+    }
     /** The preparation below replaces indexes and placements; shared compiled supports are immutable. */
     RoundedMapSupport(RoundedMapSupport source){
         profiles=source.profiles;placements=source.placements;
@@ -74,13 +81,13 @@ final class RoundedMapSupport {
             } catch(IllegalArgumentException invalid) {
                 throw new LightingAdmissionException("Rounded tile ("+gx+","+gy+"): "+invalid.getMessage(),invalid);
             }
-            if(p.support!=null)casters.removeValue(p.support.bottomCaster,true);
             p.quad=LocalSurfaceDescription.copy(quad);p.support=support;geometryCompilations++;
-            casters.add(support.bottomCaster);
+            for(LightingSurface surface:new LightingSurface[]{support.receiver,support.texturedCaster,support.bottomCaster}){
+                surface.roundedIdentity=true;surface.roundedCellKey=key(gx,gy);
+            }
         }
         return p.support.receiver;
     }
-    void appendBottoms(Array<LightingSurface> casters){for(Placement p:placements.values())if(p.support!=null)casters.add(p.support.bottomCaster);}
     float[] trim(int blockId,float[] vertices){
         Placement p=cuts.get(blockId);if(p==null)return vertices;
         int axis=blockId==p.xWall?0:1;float edge=axis==0?p.cx:p.cy;FloatArray out=new FloatArray();

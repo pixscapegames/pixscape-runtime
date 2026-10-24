@@ -10,7 +10,8 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 
 /** Ordered triangle batching with four page bindings. User parameter tables are untouched. */
 final class LightingBatch {
-    private static final int SHADOW_STRIDE=18, BASE_STRIDE=21, MAPPED_STRIDE=28, CAPACITY=12288;
+    // The flat exclusion identity is retained by shadow replay, but never interpolated.
+    private static final int SHADOW_STRIDE=19, BASE_STRIDE=22, MAPPED_STRIDE=29, CAPACITY=12288;
     private int stride=BASE_STRIDE;
     private final float[] data=new float[CAPACITY*MAPPED_STRIDE];
     private final int[] handles=new int[4];
@@ -45,6 +46,7 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
     }
     private static Mesh baseMesh(boolean receiver){
@@ -55,6 +57,7 @@ final class LightingBatch {
             new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
             new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
             new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
+            new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
             new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal")};
         return new Mesh(false,CAPACITY,0,receiver?attributes:java.util.Arrays.copyOf(attributes,attributes.length-1));}
     /** Explicit frame preparation, before submission. Release excess scene capacity here only. */
@@ -153,7 +156,7 @@ final class LightingBatch {
             else System.arraycopy(source,i+5,data,o+5,3);
             // Shadow replay keeps its original compact layout: it never consumes facade normals.
             if(!retainReplay){
-                int macro=o+(mapped?25:18),normalIndex=i/8*3;
+                int macro=o+(mapped?26:19),normalIndex=i/8*3;
                 float[] curve=shadow?null:surface.curveNormals;
                 data[macro]=curve==null?source[i+5]:curve[normalIndex];
                 data[macro+1]=curve==null?source[i+6]:curve[normalIndex+1];
@@ -173,6 +176,7 @@ final class LightingBatch {
                 data[o+17]=quad[1]+u*(quad[7]-quad[1])+v*(quad[3]-quad[1]);}
             else{data[o+16]=LightingCoordinates.screenX(source[i],source[i+1])+offsetX;
                 data[o+17]=LightingCoordinates.screenY(source[i],source[i+1],source[i+2])+offsetY;}
+            data[o+(mapped?25:18)]=shadow?surface.casterShadowGroup():surface.receiverShadowGroup(i);
         }
     }
     void flush(){

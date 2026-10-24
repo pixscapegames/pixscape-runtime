@@ -8,6 +8,11 @@ public final class NormalMapBinding {
     public final float u0, ux, uy, v0, vx, vy;
     public final float colorWidth,colorHeight;
 
+    /** Diagnostic snapshot deserialization only; does not create or register a GPU resource. */
+    private NormalMapBinding() {
+        textureHandle=0;u0=ux=uy=v0=vx=vy=colorWidth=colorHeight=0;
+    }
+
     NormalMapBinding(AtlasRegion color, AtlasRegion normal) {
         textureHandle = TextureRegistry.handleOf(normal.getTexture());
         float cw = color.rotate ? color.getRegionHeight() : color.getRegionWidth();

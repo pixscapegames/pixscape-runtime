@@ -11,6 +11,7 @@ import java.nio.FloatBuffer;
 /** One HDR world attachment, presented without tone mapping. Owns no atlas resources. */
 final class ForwardWorldTarget {
     private FrameBuffer target;
+    FrameBuffer diagnosticBuffer(){return target;}
     private Mesh quad;
     private ShaderProgram present;
     private final IntBuffer integers=BufferUtils.newIntBuffer(4);

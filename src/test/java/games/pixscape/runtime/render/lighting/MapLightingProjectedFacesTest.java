@@ -59,6 +59,9 @@ public class MapLightingProjectedFacesTest {
         LightingSurface surface=receiver(map,QUAD,a,b);
         assertAt(surface,QUAD,new float[]{39,-8,100},new float[]{39,-8,100,0,-1,0});
         assertAt(surface,QUAD,new float[]{40,-9,100},new float[]{40,-9,100,-1,0,0});
+        Assert.assertEquals(8,ownerAt(surface,QUAD,39,-8,100));
+        Assert.assertEquals(1,ownerAt(surface,QUAD,40,-9,100));
+        Assert.assertEquals(2,surface.casterContributions.size);
         samePartition(surface,receiver(map,QUAD,b,a));
         verifyAgainstCameraRays(surface,QUAD,map,new SpatialBlockData[]{a,b});
     }
@@ -116,6 +119,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test public void coplanarCasterSubmissionUsesGeometryWithoutChangingAnyFace(){
         TiledMapLayerData map=map(32,16);SpatialBlockData a=block(98,0,0,3,.5f,0,80),b=block(1,2,0,3,.5f,0,80);
+        a.linkedTileRefsAuthored=b.linkedTileRefsAuthored=false; // Explicit opaque reference only.
         SpatialBlocksComponent blocks=new SpatialBlocksComponent();blocks.blocks.add(a);blocks.blocks.add(b);
         MapLightingGeometry forward=new MapLightingGeometry();forward.ensure(map,blocks);
         blocks.blocks.reverse();blocks.revision++;MapLightingGeometry reverse=new MapLightingGeometry();reverse.ensure(map,blocks);
@@ -137,10 +141,10 @@ public class MapLightingProjectedFacesTest {
         LightingSurface first=geometry.receiver(map,0,0,7,(byte)0,QUAD);
         for(int i=0;i<1000;i++){Assert.assertFalse(geometry.ensure(map,blocks));Assert.assertSame(first,geometry.receiver(map,0,0,7,(byte)0,QUAD));}
         Assert.assertSame("A texture-only frame reuses the automatic partition",first,geometry.receiver(map,0,0,8,(byte)0,QUAD));
-        float[] casters=geometry.casters.first().vertices.clone();
+        float[] casters=first.casterSurface.vertices.clone();
         a.x+=.25f;blocks.revision++;Assert.assertTrue(geometry.ensure(map,blocks));
         Assert.assertNotSame(first,geometry.receiver(map,0,0,7,(byte)0,QUAD));
-        Assert.assertFalse(java.util.Arrays.equals(casters,geometry.casters.first().vertices));
+        Assert.assertFalse(java.util.Arrays.equals(casters,geometry.receiver(map,0,0,7,(byte)0,QUAD).casterSurface.vertices));
         a.linkedTileRefs.clear();blocks.revision++;Assert.assertTrue(geometry.ensure(map,blocks));
         LightingSurface unassociated=geometry.receiver(map,0,0,7,(byte)0,QUAD);
         for(int i=0;i<unassociated.vertices.length;i+=8)Assert.assertEquals(1,unassociated.vertices[i+7],0);
@@ -155,9 +159,11 @@ public class MapLightingProjectedFacesTest {
 
     @Test public void casterGeometryAndSingleOwnerReceiversStayUnchangedByExtraNonOverlappingMembership(){
         TiledMapLayerData map=map(32,16);SpatialBlockData a=block(1,0,0,3,.5f,0,50);
+        a.linkedTileRefsAuthored=false; // Receiver-only membership, opaque reference.
         float[] quad={0,5,0,45,30,45,30,5};
         LightingSurface single=receiver(map,quad,a);
         SpatialBlockData remote=block(2,100,100,2,.5f,0,20);
+        remote.linkedTileRefsAuthored=false;
         LightingSurface multiple=receiver(map,quad,a,remote);
         for(int y=0;y<9;y++)for(int x=0;x<9;x++){
             float u=(x+.37f)/9,v=(y+.63f)/9;
@@ -172,6 +178,16 @@ public class MapLightingProjectedFacesTest {
     }
 
     private static TiledMapLayerData map(int w,int h){return new TiledMapLayerData(64,64,w,h,16,TiledProjection.ISO);}
+    private static int ownerAt(LightingSurface s,float[] q,float x,float y,float z){
+        float u=(LightingCoordinates.screenX(x,y)-q[0])/(q[6]-q[0]);
+        float v=(LightingCoordinates.screenY(x,y,z)-q[1])/(q[3]-q[1]);
+        for(int i=0;i<s.vertices.length;i+=24){float[] p=s.vertices;
+            float ax=p[i+11]-p[i+3],ay=p[i+12]-p[i+4],bx=p[i+19]-p[i+3],by=p[i+20]-p[i+4];
+            float det=ax*by-ay*bx;if(Math.abs(det)<1e-10f)continue;
+            float a=((u-p[i+3])*by-(v-p[i+4])*bx)/det,b=(ax*(v-p[i+4])-ay*(u-p[i+3]))/det;
+            if(a>=0&&b>=0&&a+b<=1)return s.receiverBlockIds[i/24];
+        }throw new AssertionError("No receiver at witness");
+    }
     private static SpatialBlockData block(int id,float x,float y,float w,float d,float z,float h){
         SpatialBlockData b=new SpatialBlockData();b.id=b.structureId=id;b.x=x;b.y=y;b.width=w;b.depth=d;b.altitude=z;b.height=h;
         b.shadowCaster=true;b.addLinkedTileRef(0,0,7);return b;

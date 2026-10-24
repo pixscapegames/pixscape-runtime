@@ -119,9 +119,79 @@ public class LightingGeometryTest {
         for(int i=0;i<receiver.vertices.length;i+=8){float z=receiver.vertices[i+2];first|=Math.abs(z-128)<.01f;second|=Math.abs(z-160)<.01f;}
         Assert.assertTrue(first);Assert.assertTrue(second);
         a.shadowCaster=true;blocks.revision++;geometry.ensure(map,blocks);
-        Assert.assertEquals(6,geometry.casters.size);
+        Assert.assertEquals(0,geometry.casters.size);
+        Assert.assertEquals(1,geometry.receiver(map,0,0,7,(byte)0,quad).casterContributions.size);
         b.lightOccluder=true;blocks.revision++;geometry.ensure(map,blocks);
-        Assert.assertEquals(12,geometry.casters.size);
+        Assert.assertEquals(0,geometry.casters.size);
+        Assert.assertEquals(2,geometry.receiver(map,0,0,7,(byte)0,quad).casterContributions.size);
+    }
+    @Test public void silhouetteCasterUsesTheLinkedImageProjectionAndReplacesTheWhiteVolume(){
+        TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData barrel=block(1,2.1f,3.2f,.75f,.63f,54.244385f);
+        barrel.shadowCaster=true;barrel.silhouetteShadowCaster=true;barrel.addLinkedTileRef(2,3,1885);blocks.blocks.add(barrel);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        Assert.assertEquals("The white static volume must be removed in B",0,geometry.casters.size);
+        float[] quad=new float[8];map.tileToRenderQuad(2,3,quad);LightingSurface tile=geometry.receiver(map,2,3,1885,(byte)0,quad);
+        Assert.assertTrue(tile.shadowCaster);Assert.assertNotNull(tile.casterSurface);
+        LightingSurface caster=tile.casterSurface;Assert.assertTrue(caster.vertices.length>0);
+        for(int i=0;i<caster.vertices.length;i+=8){
+            Assert.assertTrue(caster.vertices[i+3]>=-.000001f&&caster.vertices[i+3]<=1.000001f);
+            Assert.assertTrue(caster.vertices[i+4]>=-.000001f&&caster.vertices[i+4]<=1.000001f);
+            Assert.assertEquals(quad[0]+caster.vertices[i+3]*(quad[6]-quad[0])+caster.vertices[i+4]*(quad[2]-quad[0]),
+                    LightingCoordinates.screenX(caster.vertices[i],caster.vertices[i+1]),.0001f);
+            Assert.assertEquals(quad[1]+caster.vertices[i+3]*(quad[7]-quad[1])+caster.vertices[i+4]*(quad[3]-quad[1]),
+                    LightingCoordinates.screenY(caster.vertices[i],caster.vertices[i+1],caster.vertices[i+2]),.0001f);
+        }
+    }
+    @Test public void pocCasterExclusionKeepsTheReceiverAndRemovesOnlyItsShadowCaster(){
+        TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData barrel=block(44,2.1f,3.2f,.75f,.63f,54.244385f);
+        barrel.shadowCaster=true;barrel.silhouetteShadowCaster=true;barrel.addLinkedTileRef(2,3,1885);blocks.blocks.add(barrel);
+        String previous=System.getProperty("pixscape.poc.excludeShadowCasterBlockId");
+        try {
+            System.setProperty("pixscape.poc.excludeShadowCasterBlockId","44");
+            MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+            float[] quad=new float[8];map.tileToRenderQuad(2,3,quad);LightingSurface tile=geometry.receiver(map,2,3,1885,(byte)0,quad);
+            Assert.assertFalse(tile.shadowCaster);Assert.assertNull(tile.casterSurface);
+            Assert.assertTrue("The receiver is retained for diagnostic C",tile.vertices.length>0);
+            Assert.assertEquals("No full-volume replacement is admitted",0,geometry.casters.size);
+        } finally {
+            if(previous==null)System.clearProperty("pixscape.poc.excludeShadowCasterBlockId");
+            else System.setProperty("pixscape.poc.excludeShadowCasterBlockId",previous);
+        }
+    }
+    @Test public void pocTiledSelfExclusionFindsOnlyTheLinkedAlphaCaster(){
+        LightingSurface receiver=new LightingSurface(new float[0]);receiver.pocSourceBlockId=44;
+        LightingSurface selfSurface=new LightingSurface(new float[0]);selfSurface.pocSourceBlockId=44;receiver.casterSurface=selfSurface;
+        LightingFrame.Caster self=new LightingFrame.Caster();self.surface=selfSurface;
+        LightingFrame.Caster other=new LightingFrame.Caster();other.surface=new LightingSurface(new float[0]);other.surface.pocSourceBlockId=45;
+        LightingFrame frame=new LightingFrame();frame.casters.add(self);frame.casters.add(other);
+        Assert.assertSame(self,LightingRenderer.pocTiledSelfCaster(frame,receiver,44));
+        Assert.assertNull(LightingRenderer.pocTiledSelfCaster(frame,receiver,45));
+        Assert.assertNotSame("A distinct caster remains in the alternate shadow map",other,LightingRenderer.pocTiledSelfCaster(frame,receiver,44));
+    }
+    @Test public void barrelSupportCoversTheRecordedOpaqueImageExtent(){
+        // Real copied-scene support: tile (26,29), 256x512 bottom-centred image, block 44.
+        TiledMapLayerData map=new TiledMapLayerData(50,50,256,128,16,TiledProjection.ISO);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData barrel=block(44,26.153797f,29.179745f,.7476578f,.62960434f,54.244385f);
+        barrel.shadowCaster=true;barrel.silhouetteShadowCaster=true;barrel.addLinkedTileRef(26,29,1885);blocks.blocks.add(barrel);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        // Native tileset profile: image is 256x512 and anchored at the cell's bottom centre.
+        float cellX=(26-29)*128f,cellY=(26+29)*64f;
+        float[] quad={cellX,cellY,cellX,cellY+512,cellX+256,cellY+512,cellX+256,cellY};
+        LightingSurface caster=geometry.receiver(map,26,29,1885,(byte)0,quad).casterSurface;
+        float minU=Float.POSITIVE_INFINITY,minV=Float.POSITIVE_INFINITY,maxU=Float.NEGATIVE_INFINITY,maxV=Float.NEGATIVE_INFINITY;
+        for(int i=0;i<caster.vertices.length;i+=8){minU=Math.min(minU,caster.vertices[i+3]);maxU=Math.max(maxU,caster.vertices[i+3]);minV=Math.min(minV,caster.vertices[i+4]);maxV=Math.max(maxV,caster.vertices[i+4]);}
+        // Alpha>=.5 bounds measured from the real source: x=[66,189], v=[41,154] / 511.
+        Assert.assertTrue(minU<=66f/255);Assert.assertTrue(maxU>=189f/255);
+        Assert.assertTrue(minV<=41f/511);Assert.assertTrue(maxV>=154f/511);
+    }
+    @Test public void silhouetteCasterAdmitsSeveralAuthoredCellContributions(){
+        TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData block=block(1,1,1,1,1,32);
+        block.shadowCaster=true;block.silhouetteShadowCaster=true;block.addLinkedTileRef(1,1,7);block.addLinkedTileRef(2,1,7);blocks.blocks.add(block);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        Assert.assertEquals(0,geometry.casters.size);
     }
     @Test public void casterIndexDoesNotDependOnVisibleImagesAndMarginDoesNotChangeRadius(){
         LightingFrame frame=new LightingFrame();LightingFrame.Light light=new LightingFrame.Light();light.radius=128;
@@ -166,9 +236,9 @@ public class LightingGeometryTest {
             Assert.assertEquals(quad[1]+p[i+3]*(quad[7]-quad[1])+p[i+4]*(quad[3]-quad[1]),LightingCoordinates.screenY(p[i],p[i+1],p[i+2]),.001f);
         }
         Assert.assertTrue(valid>0);Assert.assertTrue(completed>0);Assert.assertArrayEquals(original,surface.vertices,0);
-        Assert.assertSame(surface,geometry.receiver(map,0,0,7,(byte)0,quad));Assert.assertEquals(6,geometry.casters.size);
-        for(LightingSurface caster:geometry.casters)Assert.assertNull(caster.receiverVertices);
-        for(LightingSurface caster:geometry.casters)Assert.assertFalse("Compiled map volumes belong to decor",caster.actor);
+        Assert.assertSame(surface,geometry.receiver(map,0,0,7,(byte)0,quad));Assert.assertEquals(0,geometry.casters.size);
+        Assert.assertNull(surface.casterSurface.receiverVertices);
+        Assert.assertFalse("Compiled map volumes belong to decor",surface.casterSurface.actor);
     }
     @Test public void fullyDescribedGroundNeedsNoCompletionAndPartialLocalSurfacesKeepTheirValidVertices(){
         TiledMapLayerData map=new TiledMapLayerData(4,4,32,16,4,TiledProjection.ISO);map.defaultTileAltitude=42;

@@ -20,6 +20,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEngineRenderIntegrationTest {
+    @Test public void frameObserverRunsAfterSubmissionWithoutAnApplicationSystemAndIsNotRetained() throws Exception {
+        List<String> events=new ArrayList<>();
+        World observed=new World(new com.artemis.WorldConfigurationBuilder().with(new BaseSystem(){
+            @Override protected void processSystem(){events.add("world");}
+        }).build());
+        PixscapeEngine engine=new PixscapeEngine();
+        java.lang.reflect.Field field=PixscapeEngine.class.getDeclaredField("world");
+        field.setAccessible(true);field.set(engine,observed);
+        try {
+            engine.render(() -> events.add("capture"));
+            engine.render();
+            Assert.assertEquals(java.util.Arrays.asList("world","capture","world"),events);
+            field.set(engine,null);
+            engine.render(() -> events.add("unexpected"));
+            Assert.assertEquals(3,events.size());
+        } finally {field.set(engine,null);observed.dispose();}
+    }
     private Application previousApp;
     private GL20 previousGl;
     private GL20 previousGl20;

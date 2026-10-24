@@ -143,6 +143,21 @@ public class HudMaterializerTest {
     }
 
     @Test
+    public void invisibleTextraLabelDefersTypingUntilItIsEffectivelyVisible() {
+        MaterializedHud hud = materialize(new HudDocumentV1(textraLabel("typing", true)));
+        TypingLabel label = (TypingLabel) hud.root();
+        label.setVisible(false);
+
+        label.act(10f);
+        Assert.assertFalse("A hidden label must not perform TypingLabel progression.", label.hasEnded());
+
+        label.setVisible(true);
+        for (int i = 0; i < 32 && !label.hasEnded(); i++) label.act(1f);
+        Assert.assertTrue("Typing resumes when the authored label becomes visible.", label.hasEnded());
+        hud.dispose();
+    }
+
+    @Test
     public void materializesEmptyAndOccupiedContainersWithoutSyntheticChildren() {
         HudNode empty = new HudNode("empty", HudNodeKind.CONTAINER);
         empty.container = new HudContainerData();

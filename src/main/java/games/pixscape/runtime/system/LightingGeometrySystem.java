@@ -66,6 +66,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private final IntMap<LightingFrame.Light> lights = new IntMap<LightingFrame.Light>();
     private final IntMap<LightingFrame.Caster> spriteCasters = new IntMap<LightingFrame.Caster>();
     private final IntMap<LightingFrame.Caster> staticCasters = new IntMap<LightingFrame.Caster>();
+    private final ShadowExclusionIdentities shadowExclusionIdentities = new ShadowExclusionIdentities();
     private final float[] corners = new float[8];
     private int staticRevision=Integer.MIN_VALUE;
     public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue,LayerStateSOA layers) {
@@ -104,11 +105,14 @@ public final class LightingGeometrySystem extends BaseSystem {
         frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
         if(staticRevision!=tiled.lightingRevision){
         frame.casters.clear();
+        shadowExclusionIdentities.clear();
         int serial=0;
         for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps) {
             if(!world.getEntityManager().isActive(entry.key)) continue;
             for(int i=0;i<entry.value.casters.size;i++) {
                 LightingSurface surface=entry.value.casters.get(i);
+                surface.selfShadowExclusionId=surface.roundedIdentity
+                        ?shadowExclusionIdentities.idForCorner(entry.key,surface.roundedCellKey):0;
                 LightingFrame.Caster c=staticCasters.get(serial);
                 if(c==null){c=new LightingFrame.Caster();staticCasters.put(serial,c);}
                 serial++;
@@ -119,13 +123,36 @@ public final class LightingGeometrySystem extends BaseSystem {
         for(IntMap.Entry<LightingSurface> entry:tiled.lightingSurfaces){
             LightingSurface surface=entry.value;
             if(!surface.shadowCaster || !world.getEntityManager().isActive(surface.ownerEntity) || !tiled.enabled[entry.key])continue;
+            if(surface.receiverBlockIds!=null){
+                surface.receiverExclusionIds=new int[surface.receiverBlockIds.length];
+                for(int i=0;i<surface.receiverBlockIds.length;i++)
+                    surface.receiverExclusionIds[i]=shadowExclusionIdentities.idFor(surface.ownerEntity,surface.receiverBlockIds[i]);
+            }
+            int exclusionId=surface.roundedIdentity?shadowExclusionIdentities.idForCorner(surface.ownerEntity,surface.roundedCellKey)
+                    :surface.pocSourceBlockId<=0?ShadowExclusionIdentities.INVALID
+                    :shadowExclusionIdentities.idFor(surface.ownerEntity,surface.pocSourceBlockId);
+            surface.selfShadowExclusionId=exclusionId;
+            if(surface.casterSurface!=null)surface.casterSurface.selfShadowExclusionId=exclusionId;
+            int contributions=surface.casterContributions==null?1:surface.casterContributions.size;
+            for(int contribution=0;contribution<contributions;contribution++){
             LightingFrame.Caster c=staticCasters.get(serial);
             if(c==null){c=new LightingFrame.Caster();staticCasters.put(serial,c);}serial++;
-            LightingSurface caster=surface.casterSurface==null?surface:surface.casterSurface;
+            LightingSurface caster=surface.casterContributions!=null?surface.casterContributions.get(contribution)
+                    :surface.casterSurface==null?surface:surface.casterSurface;
+            caster.selfShadowExclusionId=caster.roundedIdentity
+                    ?shadowExclusionIdentities.idForCorner(surface.ownerEntity,caster.roundedCellKey)
+                    :shadowExclusionIdentities.idFor(surface.ownerEntity,caster.pocSourceBlockId);
             if(c.surface!=caster){c.surface=caster;c.bounds();}
             int ref=entry.key;c.tiledRef=ref;c.texture=tiled.textureHandle[ref];c.u1=tiled.u1[ref];c.v1=tiled.v1[ref];c.u2=tiled.u2[ref];c.v2=tiled.v2[ref];
             frame.casters.add(c);
+            }
         }
+        WallShadowGroups shadowGroups=new WallShadowGroups();
+        for(IntMap.Entry<MapLightingGeometry> entry:tiled.lightingMaps)
+            if(world.getEntityManager().isActive(entry.key))entry.value.registerShadowGroups(entry.key,shadowExclusionIdentities,shadowGroups);
+        shadowGroups.connectWalls();
+        for(IntMap.Entry<LightingSurface> entry:tiled.lightingSurfaces)shadowGroups.apply(entry.value);
+        for(LightingFrame.Caster caster:frame.casters)shadowGroups.apply(caster.surface);
         frame.staticCasterCount=frame.casters.size;
         for(com.badlogic.gdx.utils.IntMap.Entries<LightingFrame.Caster> entries=staticCasters.entries();entries.hasNext();)
             if(entries.next().key>=serial)entries.remove();

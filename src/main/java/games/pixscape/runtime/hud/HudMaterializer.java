@@ -269,7 +269,7 @@ public final class HudMaterializer {
                         sharedStyle.fontColor == null ? null
                                 : new com.badlogic.gdx.graphics.Color(sharedStyle.fontColor),
                         sharedStyle.background);
-                TypingLabel label = new TypingLabel(node.textraLabel.text, style);
+                TypingLabel label = new HudTypingLabel(node.textraLabel.text, style);
                 if (!node.textraLabel.typingEnabled) label.skipToTheEnd(true, false);
                 return label;
             }

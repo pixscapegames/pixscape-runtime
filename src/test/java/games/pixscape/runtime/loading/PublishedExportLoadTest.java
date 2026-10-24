@@ -22,6 +22,11 @@ import java.io.File;
 
 /** GL-free loading evidence for the published example and the optional local demo corpus. */
 public class PublishedExportLoadTest {
+    @Test public void existingSilhouettePocExportLoadsWithoutSceneMutation(){
+        FileHandle root=new FileHandle(new File("../shadow-volume-silhouette-demo/assets/pixscape-project"));
+        Assume.assumeTrue("Existing POC copy only",root.child("project.json").exists());
+        loadEveryScene(root);
+    }
     @Test
     public void minimalExampleLoadsWithRuntimeAndAtlasDescriptor() {
         FileHandle root = new FileHandle(new File("examples/minimal-export"));

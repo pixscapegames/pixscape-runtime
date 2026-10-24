@@ -12,14 +12,15 @@ import games.pixscape.runtime.service.*;
 import java.nio.IntBuffer;
 
 /** Ordered one-light renderer. Units: color array 0; existing material table reserves 1;
- * one borrowed normal page 2; borrowed full/decor shadow atlas 3. Nine attributes,
- * ten varying declarations (27 scalar components, budgeted as ten vectors),
- * six active sampler uniforms (the four normal samplers alias unit 2),
+ * one borrowed normal page 2; borrowed d1/id1/d2 shadow atlases 3/4/5. Nine attributes,
+ * eleven varying declarations (the extra identity is flat),
+ * eight sampler uniforms (the four normal samplers alias unit 2),
  * no texture uploads or topology work. */
 public final class ForwardLightingRenderer {
-    private static final int STRIDE=28,CAPACITY=12288;
+    private static final int STRIDE=29,CAPACITY=12288;
     private final float[] data=new float[CAPACITY*STRIDE],quad=new float[8];
     private final ForwardWorldTarget target=new ForwardWorldTarget();
+    private final ShadowWitnessCapture witnessCapture=new ShadowWitnessCapture();
     private ShaderProgram shader;
     private Mesh mesh;
     private World admittedWorld;
@@ -54,44 +55,45 @@ public final class ForwardLightingRenderer {
             mesh=new Mesh(false,CAPACITY,0,
                     new VertexAttribute(VertexAttributes.Usage.Position,2,"a_screen"),
                     new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
-                    new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_physical"),
+                    new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_physical"),
                     new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
                     new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_material"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
-            shader.bind();shader.setUniformi("u_array",0);shader.setUniformi("u_shadow",3);
+            shader.bind();shader.setUniformi("u_array",0);shader.setUniformi("u_shadow",3);shader.setUniformi("u_shadowIdentity",4);shader.setUniformi("u_shadowSecond",5);
             for(int i=0;i<4;i++)shader.setUniformi("u_normal"+i,2);
         }
         target.prepare();
     }
     private static void check(IntBuffer caps,int name,int minimum,String label){caps.clear();Gdx.gl.glGetIntegerv(name,caps);if(caps.get(0)<minimum)throw new IllegalStateException("Forward lighting requires "+minimum+" "+label+", available "+caps.get(0));}
     public static String vertexSource(String version){return version+
-            "in vec2 a_screen,a_uv;in vec3 a_physical,a_normal,a_curveNormal;in vec4 a_color,a_material;in vec3 a_normalUV;in vec4 a_normalBasis;uniform mat4 u_matrix;"+
-            "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;flat out float materialMode;"+
-            "void main(){uv=a_uv;p=a_physical;n=a_normal;curveNormal=a_curveNormal;color=a_color;materialMode=a_material.y;float blend=mod(materialMode,16.);"+
+            "in vec2 a_screen,a_uv;in vec4 a_physical;in vec3 a_normal,a_curveNormal;in vec4 a_color,a_material;in vec3 a_normalUV;in vec4 a_normalBasis;uniform mat4 u_matrix;"+
+            "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;flat out float exclusionId;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;flat out float materialMode;"+
+            "void main(){uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"+
             "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"+
             "normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";}
     /** Shares the exact reference hard/PCF, geometric bias, horizon and normal-map expressions. */
     public static String fragmentSource(String version){
         String reference=LightingRenderer.RECEIVER;
         String declarations=reference.substring(0,reference.indexOf("void main()"));
-        String direct=reference.substring(reference.indexOf("float value=0.;"),reference.indexOf("result=vec4(outputColor"))
+        String direct=reference.substring(reference.indexOf("float value=0.,"),reference.indexOf("result=vec4(outputColor"))
                 // Range and the existing geometric horizon can make direct light exactly zero.
                 // Keep coverage/ambient; only skip work whose final contribution is zero.
                 .replace("if(flags.y>.5&&normalLength>.0001)",
                         "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&"+
-                        "(flags.z!=0.||dot(macroNormal(n/normalLength),distance>0.?-delta/distance:vec3(0))>.052335956))")
+                        "(flags.z!=0.||dot(lightingNormal(macroNormal(n/normalLength)),distance>0.?-delta/distance:vec3(0))>.052335956))")
                 .replace("vec3 normal=macroNormal(geometric);","vec3 normal=lightingNormal(macroNormal(geometric));");
-        return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
+        return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float exclusionId,materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
                 declarations+LightingRenderer.NORMAL_SAMPLE+
                 LightingRenderer.MACRO_NORMAL+
                 "void main(){vec4 texel=texture(u_array,vec3(uv,flags.x));if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;"+
                 // Native premultiplied additive emitters carry emission in RGB with zero coverage.
                 // ONE-source blends must retain that RGB even when alpha is zero.
                 "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"+
-                direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);}";
+                direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);"+
+                reference.substring(reference.indexOf("if(u_pocDiagnostic==1)"));
     }
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
@@ -113,6 +115,7 @@ public final class ForwardLightingRenderer {
                 draw(queue,i,surface,shadows);
             }
             if(vertices!=0)endFlushes++;flush();
+            if(queue.lighting.lights.size>0)witnessCapture.capture(queue.lighting.lights.first(),null,null,target.diagnosticBuffer(),queue.lighting.lights.first().resolution,0);
             if(queue.lighting.timer!=null)queue.lighting.timer.end(LightingPassTimer.RECEIVERS);
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(4);
             target.present();stats.drawCalls++;stats.presentationDraws++;stats.drawnIndices+=6;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
@@ -121,13 +124,14 @@ public final class ForwardLightingRenderer {
         } finally {vertices=0;shadows.abort();target.end();}
     }
     private void lightUniforms(LightingFrame frame,LightingRenderer shadows){
+        shader.setUniformi("u_pocDiagnostic",LightingRenderer.pocLightingDiagnostic());
         LightingFrame.Light l=frame.lights.size==0?null:frame.lights.first();
         shader.setUniformf("u_light",l==null?0:l.x,l==null?0:l.y,l==null?0:l.z);
         shader.setUniformf("u_color",l==null?0:l.r*l.intensity,l==null?0:l.g*l.intensity,l==null?0:l.b*l.intensity);
         shader.setUniformf("u_range",l==null?1:l.radius);shader.setUniformf("u_falloff",l==null?1:l.falloff);
         shader.setUniformf("u_direction",l==null?1:l.dx,l==null?0:l.dy,l==null?0:l.dz);
         shader.setUniformf("u_cone",l!=null&&l.cone?1:0,l==null?0:l.cosOuter,l==null?0:l.cosInner);
-        shader.setUniformi("u_quality",l==null?0:l.quality);shader.setUniformf("u_resolution",l==null?512:l.resolution);
+        shader.setUniformi("u_quality",l==null?0:l.quality);shader.setUniformf("u_resolution",l==null?512:l.resolution);shader.setUniformi("u_twoDepth",shadows.twoDepthSelfShadowExclusionActive()?1:0);
         shader.setUniformf("u_atlasScale",l==null?1:shadows.atlasScale(l));
     }
     private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
@@ -136,7 +140,10 @@ public final class ForwardLightingRenderer {
         int page=normal==null?TextureRegistry.WHITE_HANDLE:normal.textureHandle;
         if(domain!=receiverDomain){if(vertices!=0)domainFlushes++;flush();domain=receiverDomain;
             Texture atlas=q.lighting.lights.size==0||q.lighting.lights.first().quality==0?null:shadows.shadowTexture(domain==1);
-            (atlas==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):atlas).bind(3);stats.textureBinds++;
+            (atlas==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):atlas).bind(3);
+            Texture identity=shadows.shadowIdentityTexture(domain==1),second=shadows.secondShadowTexture(domain==1);
+            (identity==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):identity).bind(4);
+            (second==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):second).bind(5);stats.textureBinds+=3;
         }
         if(normalHandle!=page){if(vertices!=0)normalFlushes++;flush();normalHandle=page;TextureRegistry.getByHandle(page).bind(2);stats.textureBinds++;}
         int mode=q.blend[i];
@@ -168,13 +175,14 @@ public final class ForwardLightingRenderer {
             int cached=k*11;
             float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
             data[out+2]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+3]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
-            for(int c=0;c<3;c++){data[out+4+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+7+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
-            data[out+10]=r;data[out+11]=g;data[out+12]=b;data[out+13]=a;
-            data[out+14]=layer;data[out+15]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+16]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+17]=s!=null&&s.twoSided?1:s!=null&&s.actor?-1:0;
-            data[out+18]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+19]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+20]=normal==null?-1:0;
-            data[out+21]=ex;data[out+22]=ey;data[out+23]=ux;data[out+24]=uy;
+            for(int c=0;c<3;c++){data[out+4+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+8+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
+            data[out+7]=s==null?0:s.receiverShadowGroup(source);
+            data[out+11]=r;data[out+12]=g;data[out+13]=b;data[out+14]=a;
+            data[out+15]=layer;data[out+16]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+17]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+18]=s!=null&&s.twoSided?1:s!=null&&s.actor?-1:0;
+            data[out+19]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+20]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+21]=normal==null?-1:0;
+            data[out+22]=ex;data[out+23]=ey;data[out+24]=ux;data[out+25]=uy;
             int csource=source/8*3;
-            for(int c=0;c<3;c++)data[out+25+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
+            for(int c=0;c<3;c++)data[out+26+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
         }
         stats.drawnQuads++;
     }

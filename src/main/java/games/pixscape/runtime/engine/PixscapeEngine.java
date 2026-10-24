@@ -698,9 +698,18 @@ public final class PixscapeEngine {
      * on rather than assuming the pre-Pixscape state was restored.</p>
      */
     public void render() {
+        render(null);
+    }
+
+    /** One-frame observation after world submission, before HUD and deferred texture disposal.
+     * The callback is not an ECS system and is never retained across scene loading. */
+    public void render(Runnable afterWorld) {
         if (activeSceneLoad != null
                 && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
-        if (world != null) processWorld();
+        if (world != null) {
+            processWorld();
+            if (afterWorld != null) afterWorld.run();
+        }
         if (hudScreenRuntime != null) hudScreenRuntime.draw();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();

@@ -29,5 +29,28 @@ public final class LightingSurface {
     public float[] forwardAttributes;
     /** Optional explicit caster view of this tile's support, sharing its existing alpha binding. */
     public LightingSurface casterSurface;
+    /** POC provenance for one linked tile/block pair. Zero means that no diagnostic self-caster exists. */
+    public int pocSourceBlockId;
+    /** Cold compact identity shared with the matching silhouette caster; zero is explicitly invalid. */
+    public int selfShadowExclusionId;
+    /** Shadow-only policy. -1 preserves legacy/archived supports; zero never excludes. */
+    public int shadowGroupId=-1;
+    public int[] receiverShadowGroups;
+    public int casterShadowGroup(){return shadowGroupId<0?selfShadowExclusionId:shadowGroupId;}
+    public int receiverShadowGroup(int offset){
+        if(offset<0)return 0;
+        return receiverShadowGroups==null?(shadowGroupId<0?receiverExclusionId(offset):shadowGroupId):receiverShadowGroups[offset/24];
+    }
+    /** A curved occurrence is a support in its own right, never either adjoining wall. */
+    public boolean roundedIdentity;
+    public long roundedCellKey;
+    /** Cold provenance and resolved identity per physical triangle; zero never excludes. */
+    public int[] receiverBlockIds, receiverExclusionIds;
+    /** Independently identified volume contributions sharing this tile's alpha texture. */
+    public com.badlogic.gdx.utils.Array<LightingSurface> casterContributions;
+    public int receiverExclusionId(int sourceFloatOffset){
+        if(sourceFloatOffset<0)return 0;
+        return receiverExclusionIds==null?selfShadowExclusionId:receiverExclusionIds[sourceFloatOffset/24];
+    }
     public LightingSurface(float[] vertices) { this.vertices = vertices; }
 }

@@ -97,8 +97,10 @@ public final class RoundedWallSupport {
         texturedCaster=new LightingSurface(join(front,back,top));
         texturedCaster.shadowCaster=true;texturedCaster.receiveLight=false;
         receiver.shadowCaster=true;receiver.casterSurface=texturedCaster;
-        // This POC has no base opening. The bottom is solid; callers bind the existing white texture.
+        // Keep the existing physical bottom, but submit it through the very same
+        // tile alpha as the other faces: no independent opaque closure remains.
         bottomCaster=new LightingSurface(bottom);bottomCaster.shadowCaster=true;bottomCaster.receiveLight=false;
+        receiver.casterContributions=com.badlogic.gdx.utils.Array.with(texturedCaster,bottomCaster);
     }
 
     /** Admission proof for this restricted strip construction, not an area-only heuristic.

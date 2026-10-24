@@ -55,12 +55,20 @@ public final class GrazingLightGlCheck {
                             surface.actor=true;surface.twoSided=false;draw(world);float actor=field(submit);
                             surface.actor=false;draw(world);float decor=field(submit);
                             Assert.assertTrue("Actor keeps direct minimum",actor>0);
-                            if(angle<=3)Assert.assertEquals("Entire decor direct contribution vanishes, including mapped normal/minimum",0,decor,0);
-                            else if(angle>=5)Assert.assertEquals("Reference is exact above five degrees",actor,decor,0);
+                            // Decode the actual 8-bit tangent texel and the documented image
+                            // basis, independently of the shader source. Geometric normals
+                            // still govern shadow bias, but not this lighting horizon.
+                            double mappedX=.7071067812/255+.4082482905/255-.5773502692;
+                            double mappedY=-.7071067812/255+.4082482905/255-.5773502692;
+                            double mappedZ=.8164965809/255+.5773502692;
+                            double length=Math.sqrt(mappedX*mappedX+mappedY*mappedY+mappedZ*mappedZ);
+                            double cosine=mapped?(mappedX*light.x+mappedY*light.y+mappedZ*light.z)/(100*length):Math.sin(a);
+                            if(cosine<=.052335956)Assert.assertEquals("Lighting normal rejects the back/grazing direct contribution",0,decor,0);
+                            else if(cosine>=.087155743)Assert.assertEquals("Lighting horizon fully open",actor,decor,0);
                             else {
-                                double t=(Math.sin(a)-.052335956)/(.087155743-.052335956);double gate=t*t*(3-2*t);
+                                double t=(cosine-.052335956)/(.087155743-.052335956);double gate=t*t*(3-2*t);
                                 // RGBA16F output quantization only; zero and reference endpoints above use exact equality.
-                                Assert.assertEquals("Geometric normal controls the ramp",actor*gate,decor,.0005);
+                                Assert.assertEquals("Lighting normal controls the unchanged three-to-five-degree ramp",actor*gate,decor,.0005);
                             }
                             surface.twoSided=true;draw(world);float twoSidedDecor=field(submit);
                             surface.actor=true;draw(world);Assert.assertEquals("Two-sided decor/actor reception remains independent",twoSidedDecor,field(submit),0);

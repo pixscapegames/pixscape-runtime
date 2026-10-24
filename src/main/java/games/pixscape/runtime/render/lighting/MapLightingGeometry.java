@@ -3,6 +3,7 @@ package games.pixscape.runtime.render.lighting;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.LongMap;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -14,6 +15,7 @@ public final class MapLightingGeometry {
     private LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
     private static final class Receiver { float[] quad; byte flags; int assetId; LightingSurface surface; }
     private LongMap<Receiver> receivers = new LongMap<Receiver>();
+    private LongMap<Array<Receiver>> receiverVariants = new LongMap<Array<Receiver>>();
     private int revision = Integer.MIN_VALUE;
     private TiledMapLayerData previous;
     private SpatialBlocksComponent previousBlocks;
@@ -30,6 +32,10 @@ public final class MapLightingGeometry {
     private int publicationRevision;
     private Preview activePreview;
     public int publicationRevision(){return publicationRevision;}
+    public void registerShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
+        groups.add(owner,previous,previousBlocks,ids);
+        rounded.connectShadowGroups(owner,ids,groups);
+    }
     public int roundedProfileCompilationCount(){return rounded.profileCompilations;}
     public int roundedGeometryCompilationCount(){return rounded.geometryCompilations;}
     public RoundedWallSupport roundedSupport(int gx,int gy){return rounded.support(gx,gy);}
@@ -38,18 +44,22 @@ public final class MapLightingGeometry {
         if(activePreview!=null)activePreview.restore();
         Receiver receiver=receivers.get(key(gx,gy));RoundedWallSupport support=rounded.support(gx,gy);
         if(receiver==null||support==null)throw new IllegalArgumentException("Rounded receiver is not prepared");
-        int bottom=casters.indexOf(support.bottomCaster,true);
-        if(bottom<0)throw new IllegalStateException("Rounded bottom caster missing");
-        activePreview=new Preview(receiver,support,bottom);return activePreview;
+        activePreview=new Preview(receiver,support);return activePreview;
     }
     /** O(1) transient swap; existing opaque wall cuts and all other occurrences remain untouched. */
     public final class Preview {
-        private final Receiver receiver;private final RoundedWallSupport initial;private final int bottom;
-        private Preview(Receiver receiver,RoundedWallSupport initial,int bottom){this.receiver=receiver;this.initial=initial;this.bottom=bottom;}
+        private final Receiver receiver;private final RoundedWallSupport initial;
+        private Preview(Receiver receiver,RoundedWallSupport initial){this.receiver=receiver;this.initial=initial;}
         public boolean isCurrent(){return activePreview==this;}
         public void show(RoundedWallSupport support){
             if(!isCurrent())throw new IllegalStateException("Rounded preview context is stale");
-            receiver.surface=support.receiver;casters.set(bottom,support.bottomCaster);
+            for(LightingSurface surface:new LightingSurface[]{support.receiver,support.texturedCaster,support.bottomCaster}){
+                surface.roundedIdentity=initial.receiver.roundedIdentity;
+                surface.roundedCellKey=initial.receiver.roundedCellKey;
+                surface.selfShadowExclusionId=initial.receiver.selfShadowExclusionId;
+                surface.shadowGroupId=initial.receiver.shadowGroupId;
+            }
+            receiver.surface=support.receiver;
         }
         public LightingSurface restore(){if(isCurrent()){show(initial);activePreview=null;}return initial.receiver;}
     }
@@ -80,14 +90,22 @@ public final class MapLightingGeometry {
         next.rounded=new RoundedMapSupport(rounded);
         try {
             next.ensure(map,blocks);
+            // A missing linked cell is not visited by the chunk loop below. Reject it
+            // before a detached candidate can replace a live opaque caster.
+            for(LongMap.Entry<Array<SpatialBlockData>> entry:next.memberships){
+                if(!requiresSilhouetteImage(entry.value))continue;
+                int gx=(int)(entry.key>>32),gy=(int)entry.key;
+                if(map.getTile(gx,gy)<=0)
+                    throw new LightingAdmissionException("Silhouette caster linked cell is empty at ("+gx+","+gy+")");
+            }
             float[] quad=new float[8];
             com.badlogic.gdx.utils.IntSet explicit=new com.badlogic.gdx.utils.IntSet();
             if(authoredDescriptions!=null)for(TileSurfaceDescription d:authoredDescriptions)explicit.add(d.assetId);
             for(games.pixscape.runtime.tiled.TileChunk chunk:map.getChunks())for(int i=0;i<chunk.cellCount();i++){
                 int asset=chunk.assetIds[i];if(asset<=0)continue;
-                boolean required=explicit.contains(asset);
                 int gx=chunk.chunkX*map.chunkSize+i%chunk.chunkWidth;
                 int gy=chunk.chunkY*map.chunkSize+i/chunk.chunkWidth;
+                boolean required=explicit.contains(asset)||requiresSilhouetteImage(next.memberships.get(key(gx,gy)));
                 if(required)for(int frame=0,count=quads.frameCount(asset);frame<count;frame++){
                     try {
                         if(!quads.resolveFrame(map,chunk,i,frame,quad))
@@ -107,7 +125,7 @@ public final class MapLightingGeometry {
         } catch(IllegalArgumentException invalid) {
             throw new LightingAdmissionException("Tile lighting candidate rejected: "+invalid.getMessage(),invalid);
         }
-        memberships=next.memberships;descriptions=next.descriptions;receivers=next.receivers;rounded=next.rounded;
+        memberships=next.memberships;descriptions=next.descriptions;receivers=next.receivers;receiverVariants=next.receiverVariants;rounded=next.rounded;
         casters.clear();casters.addAll(next.casters);hasRounded=next.hasRounded;contentRevision=next.contentRevision;
         previous=next.previous;previousBlocks=next.previousBlocks;projection=next.projection;revision=next.revision;
         ox=next.ox;oy=next.oy;altitude=next.altitude;tw=next.tw;th=next.th;
@@ -120,7 +138,8 @@ public final class MapLightingGeometry {
         return previous!=map || previousBlocks!=blocks || projection!=map.projection
                 || revision!=(blocks==null?0:blocks.revision) || ox!=map.originX || oy!=map.originY
                 || altitude!=map.defaultTileAltitude || tw!=map.tileWidth || th!=map.tileHeight
-                || (authoredDescriptions!=null&&authoredDescriptions.size>0&&contentRevision!=map.contentRevision());
+                || ((memberships.size>0||authoredDescriptions!=null&&authoredDescriptions.size>0)
+                    &&contentRevision!=map.contentRevision());
     }
 
     /** Structural preparation only. Production publication uses the native-quad overload above. */
@@ -141,20 +160,34 @@ public final class MapLightingGeometry {
             if(d.geometry!=null)nextDescriptions.put(d.assetId,d.geometry);else nextHasRounded=true;
         }
         Array<SpatialBlockData> casterBlocks=new Array<SpatialBlockData>();
+        com.badlogic.gdx.utils.IntSet blockIds=new com.badlogic.gdx.utils.IntSet();
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData b = blocks.blocks.get(i);
+            if(b==null||b.linkedTileRefs==null)throw new LightingAdmissionException("Null block or association list");
+            if(b.id>0&&!blockIds.add(b.id))throw new LightingAdmissionException("Duplicate block identity "+b.id);
             for (int j = 0; j < b.linkedTileRefs.size; j++) {
                 SpatialBlockData.LinkedTileRef ref = b.linkedTileRefs.get(j);
+                if(ref==null)throw new LightingAdmissionException("Null tile association in block "+b.id);
+                // Studio permits replacing an occupied cell without relinking its wall.
+                // tileAssetId records the authoring snapshot, not a second texture source.
                 long key = key(ref.gx, ref.gy);
                 Array<SpatialBlockData> owners = nextMemberships.get(key);
                 if (owners == null) { owners = new Array<SpatialBlockData>(); nextMemberships.put(key, owners); }
                 if (!owners.contains(b, true)) owners.add(b);
             }
-            if (b.shadowCaster || b.lightOccluder) casterBlocks.add(b);
+        }
+        for(Array<SpatialBlockData> owners:nextMemberships.values())owners.sort(new java.util.Comparator<SpatialBlockData>(){
+            public int compare(SpatialBlockData a,SpatialBlockData b){return Integer.compare(a.id,b.id);}
+        });
+        // Admission must see the complete bipartite graph, not an insertion prefix.
+        if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
+            SpatialBlockData b=blocks.blocks.get(i);
+            if (usesSilhouette(b)) validateSilhouetteCaster(b,nextMemberships);
+            if ((b.shadowCaster || b.lightOccluder) && !usesSilhouette(b) && !pocExcludedCaster(b)) casterBlocks.add(b);
         }
         rounded.prepare(map,nextMemberships,authoredDescriptions);
         memberships=nextMemberships;descriptions.clear();descriptions.putAll(nextDescriptions);
-        casters.clear();receivers.clear();hasRounded=nextHasRounded;contentRevision=map.contentRevision();
+        casters.clear();receivers.clear();receiverVariants.clear();hasRounded=nextHasRounded;contentRevision=map.contentRevision();
         // Coplanar overlapping triangles can tie in the depth attachment while their
         // radial float outputs differ by an ULP. Keep submission deterministic too,
         // without changing any caster plane, vertex, flag or within-volume face order.
@@ -174,10 +207,26 @@ public final class MapLightingGeometry {
                     s.shadowCaster = true; s.receiveLight = false; casters.add(s);
                 }
         }
-        rounded.appendBottoms(casters);
         previous = map; previousBlocks = blocks; projection = map.projection; revision = r; ox = map.originX; oy = map.originY;
         altitude = map.defaultTileAltitude; tw = map.tileWidth; th = map.tileHeight;
         return true;
+    }
+
+    /** Admission uses the complete cell graph; a tile may contribute to distinct volumes. */
+    private static void validateSilhouetteCaster(SpatialBlockData block,
+                                                  LongMap<Array<SpatialBlockData>> memberships) {
+        if(block.id<=0)throw new LightingAdmissionException("Silhouette caster requires a positive authored block identity");
+        if (!block.shadowCaster && !block.lightOccluder)
+            throw new LightingAdmissionException("Silhouette caster needs Shadow caster or Light occluder enabled");
+        if (!block.linkedTileRefsAuthored || block.linkedTileRefs == null || block.linkedTileRefs.size == 0)
+            throw new LightingAdmissionException("Silhouette caster requires authored linked tiles");
+        for(SpatialBlockData.LinkedTileRef ref:block.linkedTileRefs){
+            if(ref==null||ref.tileAssetId<=0)
+                throw new LightingAdmissionException("Silhouette caster requires a linked tile asset");
+            Array<SpatialBlockData> owners=memberships.get(key(ref.gx,ref.gy));
+            if(owners==null||!owners.contains(block,true))
+                throw new LightingAdmissionException("Silhouette caster missing from association graph");
+        }
     }
 
     /** Builds a disjoint UV partition: alpha is applied exactly once at each image pixel. */
@@ -186,18 +235,22 @@ public final class MapLightingGeometry {
         long cell = key(gx, gy);
         Receiver cached = receivers.get(cell);
         // A texture-only animation frame cannot invalidate an automatic physical partition.
-        boolean same = cached != null && cached.flags == flags && (cached.assetId==assetId
-                || !descriptions.containsKey(cached.assetId)&&!descriptions.containsKey(assetId));
-        if (same) for (int i=0;i<8;i++) if(cached.quad[i]!=quad[i]) {same=false;break;}
+        boolean same=matches(cached,assetId,flags,quad);
         if (same) return cached.surface;
+        Array<Receiver> variants=receiverVariants.get(cell);
+        if(variants!=null)for(Receiver variant:variants)if(matches(variant,assetId,flags,quad)){
+            receivers.put(cell,variant);return variant.surface;
+        }
         if(activePreview!=null&&activePreview.receiver==cached)activePreview.restore();
         LightingSurface curved=rounded.receiver(gx,gy,quad,casters);
         if(curved!=null){
-            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=curved;receivers.put(cell,cached);
+            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=curved;remember(cell,cached);
             return curved;
         }
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
+            if(requiresSilhouetteImage(memberships.get(cell)))
+                throw new LightingAdmissionException("Local authored support and linked volume contributions need an explicit ownership contract at ("+gx+","+gy+")");
             if(flags!=0)throw new LightingAdmissionException("Local volume description needs explicit transformed variant for tile flags");
             float[] origin=new float[3];LightingCoordinates.mapPoint(map,gx,gy,map.defaultTileAltitude,origin,0);
             for(int i=0;i<description.xyz.length/3;i++){
@@ -210,14 +263,15 @@ public final class MapLightingGeometry {
             }
             LightingSurface surface=LocalSurfaceCompiler.compile(description,origin[0],origin[1],origin[2]);
             surface.forwardTopology=ForwardTopology.compile(surface,quad);
-            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;receivers.put(cell,cached);
+            cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;remember(cell,cached);
             return surface;
         }
         Array<SpatialBlockData> owners = memberships.get(key(gx, gy));
         if (owners != null && flags != 0)
             throw new LightingAdmissionException("Automatic volume receiver does not support transformed tiles; provide local geometry");
         Array<float[]> polygons = new Array<float[]>();
-        Array<ReceiverFace> candidates = owners != null && owners.size > 1 ? new Array<ReceiverFace>() : null;
+        com.badlogic.gdx.utils.IntArray polygonOwners=new com.badlogic.gdx.utils.IntArray();
+        Array<ReceiverFace> candidates = owners != null ? new Array<ReceiverFace>() : null;
         if (owners == null) {
             float[] p = new float[32];
             float[] u = {0,0,1,1}, v = {0,1,1,0};
@@ -239,7 +293,7 @@ public final class MapLightingGeometry {
                 p = clip(p, 3, 0, true); p = clip(p, 3, 1, false);
                 p = clip(p, 4, 0, true); p = clip(p, 4, 1, false);
                 if (p.length >= 24 && uvArea(p)>.000001f) {
-                    if(candidates!=null)candidates.add(new ReceiverFace(p,quad));
+                    if(candidates!=null)candidates.add(new ReceiverFace(p,quad,usesSilhouette(b)?b.id:0));
                     else {
                         Array<float[]> next = new Array<float[]>();
                         for (int k = 0; k < polygons.size; k++) subtract(polygons.get(k), p, next);
@@ -248,7 +302,7 @@ public final class MapLightingGeometry {
                 }
             }
         }
-        if(candidates!=null)polygons=visiblePartition(candidates);
+        if(candidates!=null)polygons=visiblePartition(candidates,polygonOwners);
         if (owners != null) {
             float[] full = new float[32];
             vertex(full,0,0,0,0,0,0,0,0,0);vertex(full,8,0,0,0,0,1,0,0,0);
@@ -264,23 +318,178 @@ public final class MapLightingGeometry {
         int size = 0;
         for (int i = 0; i < polygons.size; i++) size += (polygons.get(i).length / 8 - 2) * 24;
         float[] data = new float[size]; int offset = 0;
+        int[] blockIds=new int[size/24];
         for (int i = 0; i < polygons.size; i++) {
             float[] t = triangulate(polygons.get(i), null);
+            int owner=i<polygonOwners.size?polygonOwners.get(i):0;
+            java.util.Arrays.fill(blockIds,offset/24,(offset+t.length)/24,owner);
             System.arraycopy(t, 0, data, offset, t.length); offset += t.length;
         }
         LightingSurface surface = new LightingSurface(data); surface.approximate = true;
+        surface.receiverBlockIds=blockIds;
         surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude);
         surface.forwardTopology=ForwardTopology.compile(surface,quad);
+        if(owners!=null)for(SpatialBlockData owner:owners){
+            if(!usesSilhouette(owner)||pocExcludedCaster(owner))continue;
+            LightingSurface contribution=silhouetteCaster(map,owner,quad);
+            if(surface.casterContributions==null)surface.casterContributions=new Array<LightingSurface>();
+            surface.casterContributions.add(contribution);surface.shadowCaster=true;
+        }
+        if(surface.casterContributions!=null&&surface.casterContributions.size==1){
+            surface.casterSurface=surface.casterContributions.first();
+            surface.pocSourceBlockId=surface.casterSurface.pocSourceBlockId;
+            logPocTiledSelfProbe(surface,quad,gx,gy,assetId,surface.pocSourceBlockId);
+        }
         cached = new Receiver(); cached.quad = LocalSurfaceDescription.copy(quad); cached.flags = flags; cached.assetId=assetId; cached.surface = surface;
-        receivers.put(cell, cached);
+        remember(cell,cached);
         return surface;
+    }
+
+    private boolean matches(Receiver cached,int assetId,byte flags,float[] quad){
+        if(cached==null||cached.flags!=flags||cached.assetId!=assetId
+                &&(descriptions.containsKey(cached.assetId)||descriptions.containsKey(assetId)))return false;
+        for(int i=0;i<8;i++)if(cached.quad[i]!=quad[i])return false;
+        return true;
+    }
+    private void remember(long cell,Receiver receiver){
+        receivers.put(cell,receiver);
+        Array<Receiver> variants=receiverVariants.get(cell);
+        if(variants==null){variants=new Array<Receiver>();receiverVariants.put(cell,variants);}
+        variants.add(receiver);
+    }
+
+    private static boolean requiresSilhouetteImage(Array<SpatialBlockData> owners){
+        if(owners!=null)for(SpatialBlockData owner:owners)if(usesSilhouette(owner))return true;
+        return false;
+    }
+    public static boolean hasSilhouetteCasters(SpatialBlocksComponent blocks){
+        return blocks!=null&&requiresSilhouetteImage(blocks.blocks);
+    }
+    /** One product path. Unauthored/unlinked volumes keep their explicit opaque role. */
+    public static boolean usesSilhouette(SpatialBlockData block){
+        return block!=null&&(block.shadowCaster||block.lightOccluder)
+                &&block.linkedTileRefsAuthored&&block.hasLinkedTileRefs();
+    }
+
+    /** POC-only diagnostic exclusion, sampled at cold geometry preparation, never during a light or camera move. */
+    private static boolean pocExcludedCaster(SpatialBlockData block){
+        String raw=LightingDiagnosticProperties.get("pixscape.poc.excludeShadowCasterBlockId");
+        if(raw==null)return false;
+        try{return block.id==Integer.parseInt(raw);}
+        catch(NumberFormatException ignored){return false;}
+    }
+
+    /** One opt-in POC trace: native image quad and physical receiver/caster triangle data. */
+    private static void logPocTiledSelfProbe(LightingSurface receiver,float[] quad,int gx,int gy,int assetId,int blockId){
+        if(!"true".equalsIgnoreCase(LightingDiagnosticProperties.get("pixscape.poc.logTiledSelfShadowProbe")) || Gdx.app==null)return;
+        StringBuilder out=new StringBuilder("POC tiled self probe: block=").append(blockId)
+                .append(" tile=").append(gx).append(',').append(gy).append(" asset=").append(assetId)
+                .append(" quad=").append(java.util.Arrays.toString(quad));
+        float[] vertices=receiver.vertices;
+        int count=vertices.length/8;
+        out.append(" receiverVertices=");
+        for(int i=0;i<count;i++)out.append('[').append(vertices[i*8]).append(',').append(vertices[i*8+1])
+                .append(',').append(vertices[i*8+2]).append(" uv=").append(vertices[i*8+3]).append(',').append(vertices[i*8+4]).append(']');
+        float[] caster=receiver.casterSurface==null?null:receiver.casterSurface.vertices;
+        count=caster==null?0:caster.length/8;
+        out.append(" casterVertices=");
+        for(int i=0;i<count;i++)out.append('[').append(caster[i*8]).append(',').append(caster[i*8+1])
+                .append(',').append(caster[i*8+2]).append(" uv=").append(caster[i*8+3]).append(',').append(caster[i*8+4]).append(']');
+        appendPocTiledSelfRayProbe(out,receiver);
+        Gdx.app.log("MapLightingGeometry",out.toString());
+    }
+
+    /** Maps one capture pixel's native UV to its receiver triangle, then intersects its light ray with this caster only. */
+    private static void appendPocTiledSelfRayProbe(StringBuilder out,LightingSurface receiver){
+        String rawU=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeU");
+        String rawV=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeV");
+        String rawX=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightX");
+        String rawY=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightY");
+        String rawZ=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightHeight");
+        if(rawU==null||rawV==null||rawX==null||rawY==null||rawZ==null)return;
+        try{
+            float u=Float.parseFloat(rawU),v=Float.parseFloat(rawV);
+            float[] point=new float[3];int receiverTriangle=uvTriangle(receiver.vertices,u,v,point);
+            if(receiverTriangle<0){out.append(" rayProbe=receiver-miss uv=").append(u).append(',').append(v);return;}
+            float sx=Float.parseFloat(rawX),sy=Float.parseFloat(rawY),z=Float.parseFloat(rawZ);
+            float lx=LightingCoordinates.worldX(sx,sy,0),ly=LightingCoordinates.worldY(sx,sy,0);
+            float[] hit=new float[3];int casterTriangle=rayCasterTriangle(receiver.casterSurface.vertices,point,lx,ly,z,hit);
+            out.append(" rayProbe=uv=").append(u).append(',').append(v)
+                    .append(" receiverTriangle=").append(receiverTriangle).append(" point=").append(java.util.Arrays.toString(point))
+                    .append(" light=").append(lx).append(',').append(ly).append(',').append(z)
+                    .append(" casterTriangle=").append(casterTriangle).append(" hit=").append(java.util.Arrays.toString(hit));
+        }catch(NumberFormatException ignored){out.append(" rayProbe=invalid-properties");}
+    }
+
+    /** Returns an actual physical triangle; zero vertices are the explicitly unknown receiver coverage and are excluded. */
+    private static int uvTriangle(float[] vertices,float u,float v,float[] point){
+        for(int i=0;i<vertices.length;i+=24){
+            float ax=vertices[i],ay=vertices[i+1],az=vertices[i+2],au=vertices[i+3],av=vertices[i+4];
+            float bx=vertices[i+8],by=vertices[i+9],bz=vertices[i+10],bu=vertices[i+11],bv=vertices[i+12];
+            float cx=vertices[i+16],cy=vertices[i+17],cz=vertices[i+18],cu=vertices[i+19],cv=vertices[i+20];
+            if(ax==0&&ay==0&&az==0&&bx==0&&by==0&&bz==0&&cx==0&&cy==0&&cz==0)continue;
+            float determinant=(bv-cv)*(au-cu)+(cu-bu)*(av-cv);
+            if(Math.abs(determinant)<.000001f)continue;
+            float wa=((bv-cv)*(u-cu)+(cu-bu)*(v-cv))/determinant;
+            float wb=((cv-av)*(u-cu)+(au-cu)*(v-cv))/determinant, wc=1f-wa-wb;
+            if(wa<-.00001f||wb<-.00001f||wc<-.00001f)continue;
+            point[0]=wa*ax+wb*bx+wc*cx;point[1]=wa*ay+wb*by+wc*cy;point[2]=wa*az+wb*bz+wc*cz;
+            return i/24;
+        }
+        return -1;
+    }
+
+    /** Möller–Trumbore over the finite segment from receiver to point light; skips the originating face at t=0. */
+    private static int rayCasterTriangle(float[] vertices,float[] point,float lx,float ly,float lz,float[] hit){
+        float dx=lx-point[0],dy=ly-point[1],dz=lz-point[2],best=Float.POSITIVE_INFINITY;int result=-1;
+        for(int i=0;i<vertices.length;i+=24){
+            float ax=vertices[i],ay=vertices[i+1],az=vertices[i+2];
+            float e1x=vertices[i+8]-ax,e1y=vertices[i+9]-ay,e1z=vertices[i+10]-az;
+            float e2x=vertices[i+16]-ax,e2y=vertices[i+17]-ay,e2z=vertices[i+18]-az;
+            float hx=dy*e2z-dz*e2y,hy=dz*e2x-dx*e2z,hz=dx*e2y-dy*e2x;
+            float determinant=e1x*hx+e1y*hy+e1z*hz;if(Math.abs(determinant)<.000001f)continue;
+            float inverse=1f/determinant,sx=point[0]-ax,sy=point[1]-ay,sz=point[2]-az;
+            float b=(sx*hx+sy*hy+sz*hz)*inverse;if(b<0||b>1)continue;
+            float qx=sy*e1z-sz*e1y,qy=sz*e1x-sx*e1z,qz=sx*e1y-sy*e1x;
+            float c=(dx*qx+dy*qy+dz*qz)*inverse;if(c<0||b+c>1)continue;
+            float t=(e2x*qx+e2y*qy+e2z*qz)*inverse;
+            if(t<=.0001f||t>=.9999f||t>=best)continue;
+            best=t;result=i/24;hit[0]=point[0]+t*dx;hit[1]=point[1]+t*dy;hit[2]=point[2]+t*dz;
+        }
+        return result;
+    }
+
+    /**
+     * Cold projection from existing volume positions to its linked native image. Every point
+     * uses its reference screen projection; clipped UVs remove the volume outside that image.
+     * Alpha is then sampled once by the existing shadow shader, which retains physical XYZ.
+     */
+    private LightingSurface silhouetteCaster(TiledMapLayerData map,SpatialBlockData block,float[] quad){
+        Array<float[]> projected=new Array<float[]>();int length=0;
+        Array<float[]> volumeFaces=faces(map,block,false);
+        for(int i=0;i<volumeFaces.size;i++){
+            float[] face=volumeFaces.get(i);
+            for(int o=0;o<face.length;o+=8)
+                imageUV(quad,LightingCoordinates.screenX(face[o],face[o+1]),
+                        LightingCoordinates.screenY(face[o],face[o+1],face[o+2]),face,o+3);
+            face=clip(face,3,0,true);face=clip(face,3,1,false);
+            face=clip(face,4,0,true);face=clip(face,4,1,false);
+            if(face.length<24 || uvArea(face)<=.000001f)continue;
+            float[] triangles=rounded.trim(block.id,triangulate(face,null));projected.add(triangles);length+=triangles.length;
+        }
+        if(length==0)throw new LightingAdmissionException("Silhouette caster volume projects outside its linked tile image");
+        float[] vertices=new float[length];int at=0;
+        for(int i=0;i<projected.size;i++){float[] triangles=projected.get(i);System.arraycopy(triangles,0,vertices,at,triangles.length);at+=triangles.length;}
+        LightingSurface result=new LightingSurface(vertices);result.shadowCaster=true;result.receiveLight=false;
+        result.pocSourceBlockId=block.id;
+        return result;
     }
 
     private static long key(int x, int y) { return ((long)x << 32) ^ (y & 0xffffffffL); }
     /** Cold tile-local partition. Larger Z is nearer along the display ray (-1,-1,+1).
      * Depth on a projected plane is affine in UV, so a crossing requires a line cut,
      * not a global face sort. Casters and authored memberships remain unchanged. */
-    private static Array<float[]> visiblePartition(Array<ReceiverFace> faces){
+    private static Array<float[]> visiblePartition(Array<ReceiverFace> faces,com.badlogic.gdx.utils.IntArray owners){
         // Canonical geometry order also fixes triangulation and coverage extrapolation ties.
         faces.sort();
         Array<float[]> result=new Array<float[]>();
@@ -299,16 +508,18 @@ public final class MapLightingGeometry {
                 parts=next;
             }
             result.addAll(parts);
+            for(int k=0;k<parts.size;k++)owners.add(face.owner);
         }
         return result;
     }
     private static final class ReceiverFace implements Comparable<ReceiverFace>{
         final float[] polygon;
+        final int owner;
         final double u,v,c;
         float minU=Float.POSITIVE_INFINITY,minV=Float.POSITIVE_INFINITY;
         float maxU=Float.NEGATIVE_INFINITY,maxV=Float.NEGATIVE_INFINITY;
-        ReceiverFace(float[] p,float[] quad){
-            polygon=p;
+        ReceiverFace(float[] p,float[] quad,int owner){
+            polygon=p;this.owner=owner;
             double nx=p[5],ny=p[6],nz=p[7],den=nz-nx-ny;
             // Solve N.P=constant using X=sy-z+sx/2, Y=sy-z-sx/2.
             // Unlike a fit through clipped vertices, this keeps coplanar ties exact.
@@ -325,7 +536,8 @@ public final class MapLightingGeometry {
             // Equal depth planes: normals, then physical vertices; never IDs or insertion order.
             for(int k=5;k<8;k++){d=Float.compare(polygon[k],b.polygon[k]);if(d!=0)return d;}
             for(int k=0;k<Math.min(polygon.length,b.polygon.length);k++){d=Float.compare(polygon[k],b.polygon[k]);if(d!=0)return d;}
-            return Integer.compare(polygon.length,b.polygon.length);
+            d=Integer.compare(polygon.length,b.polygon.length);
+            return d!=0?d:Integer.compare(owner,b.owner);
         }
         float[] inFrontOf(ReceiverFace b,boolean winsTie){
             double a=u-b.u,d=v-b.v,e=c-b.c;

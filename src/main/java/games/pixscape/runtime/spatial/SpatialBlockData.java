@@ -26,6 +26,11 @@ public final class SpatialBlockData {
     public boolean lightOccluder = false;
     /** Requests a complete volume caster; either this flag or lightOccluder enables it. */
     public boolean shadowCaster = false;
+    /**
+     * Legacy POC field retained for scene compatibility. Authored tile associations now
+     * determine alpha contributions; this flag no longer selects a product rendering path.
+     */
+    public boolean silhouetteShadowCaster = false;
     /** Compiled as particle-occlusion metadata; the downstream particle consumer is not implemented yet. */
     public boolean particleOccluder = false;
     public boolean linkedTileRefsAuthored = false;
@@ -45,6 +50,7 @@ public final class SpatialBlockData {
         b.actorOccluder = actorOccluder;
         b.lightOccluder = lightOccluder;
         b.shadowCaster = shadowCaster;
+        b.silhouetteShadowCaster = silhouetteShadowCaster;
         b.particleOccluder = particleOccluder;
         b.linkedTileRefsAuthored = linkedTileRefsAuthored;
         b.copyLinkedTileRefsFrom(this);

@@ -22,6 +22,9 @@ public class WorldLightCompositionGlSmokeTest {
     @Test public void grazingDecorKeepsActorReceptionAndAmbient() {
         GrazingLightGlCheck.verify();
     }
+    @Test public void twoDepthFixtureExcludesEverySelfFaceAndRetainsExteriorCaster() {
+        games.pixscape.runtime.render.lighting.TwoDepthShadowFixtureGlCheck.verify();
+    }
     @Test public void sceneReadyIncludesIdempotentRenderResourcesWithoutGameplay() {
         games.pixscape.runtime.engine.SceneRenderPreparationGlCheck.verify();
     }
