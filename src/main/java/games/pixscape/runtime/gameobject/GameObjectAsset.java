@@ -100,7 +100,10 @@ public final class GameObjectAsset {
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;
     }
-    public static final class SpatialHeightData { public float altitude, height; }
+    public static final class SpatialHeightData {
+        public float altitude, height;
+        public games.pixscape.runtime.spatial.ActorVolumes volumes;
+    }
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep = true, awake = true;

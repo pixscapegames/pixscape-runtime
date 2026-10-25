@@ -1,7 +1,8 @@
+// Test-only baseline copied from the starting Git commit, for bounded before/after comparisons.
 package games.pixscape.runtime.render.lighting;
 
 /** One open alpha sheet. All storage is owned by the prepared actor, never by a light. */
-public final class ActorShadowGeometry {
+public final class BaselineActorShadowGeometry {
     /** Includes spare capacity for exact boundary degeneracies; no buffer grows during a frame. */
     public static final int VERTICES=48;
     public final float[] calibrated=new float[VERTICES*8];
@@ -18,7 +19,7 @@ public final class ActorShadowGeometry {
     public boolean active;
     public float contactX,contactY,contactZ,width,normalX,normalY,thickness;
 
-    public void calibrate(float[] q,ActorShadowProfile profile,float altitude,boolean flipX,boolean flipY) {
+    public void calibrate(float[] q,BaselineActorShadowProfile profile,float altitude,boolean flipX,boolean flipY) {
         active=profile!=null;
         if(!active)return;
         float lu=flipX?1-profile.leftU:profile.leftU,lv=flipY?1-profile.leftV:profile.leftV;
@@ -35,8 +36,8 @@ public final class ActorShadowGeometry {
             previousA=a;previousB=b;previousC=c;
         }
         thickness=profile.thickness;
-        float lx=ActorShadowImageMapping.x(q,lu,lv),ly=ActorShadowImageMapping.y(q,lu,lv);
-        float rx=ActorShadowImageMapping.x(q,ru,rv),ry=ActorShadowImageMapping.y(q,ru,rv);
+        float lx=BaselineActorShadowImageMapping.x(q,lu,lv),ly=BaselineActorShadowImageMapping.y(q,lu,lv);
+        float rx=BaselineActorShadowImageMapping.x(q,ru,rv),ry=BaselineActorShadowImageMapping.y(q,ru,rv);
         float dx=LightingCoordinates.worldX(rx,ry,altitude)-LightingCoordinates.worldX(lx,ly,altitude);
         float dy=LightingCoordinates.worldY(rx,ry,altitude)-LightingCoordinates.worldY(lx,ly,altitude);
         if(scale<0){dx=-dx;dy=-dy;}
@@ -111,7 +112,7 @@ public final class ActorShadowGeometry {
         return n;
     }
     private void vertex(int o,float[] q,float u,float v,float a,float b,float c,float height,float altitude,boolean contact) {
-        float x=ActorShadowImageMapping.x(q,u,v),y=ActorShadowImageMapping.y(q,u,v);
+        float x=BaselineActorShadowImageMapping.x(q,u,v),y=BaselineActorShadowImageMapping.y(q,u,v);
         float z=contact?altitude:altitude+(a*u+b*v+c)*height;
         calibrated[o]=LightingCoordinates.worldX(x,y,z);calibrated[o+1]=LightingCoordinates.worldY(x,y,z);calibrated[o+2]=z;
         calibrated[o+3]=u;calibrated[o+4]=v;calibrated[o+5]=normalX;calibrated[o+6]=normalY;calibrated[o+7]=0;

@@ -1,8 +1,9 @@
+// Test-only baseline copied from the starting Git commit, for bounded before/after comparisons.
 package games.pixscape.runtime.render.lighting;
 
 /** The rendered BL/TL/TR, BL/TR/BR mapping, shared by caster preparation and canvas handles. */
-public final class ActorShadowImageMapping {
-    private ActorShadowImageMapping() {}
+public final class BaselineActorShadowImageMapping {
+    private BaselineActorShadowImageMapping() {}
     public static float x(float[] q,float u,float v) {
         return u<=v?q[0]+(v-u)*(q[2]-q[0])+u*(q[4]-q[0]):q[0]+(u-v)*(q[6]-q[0])+v*(q[4]-q[0]);
     }

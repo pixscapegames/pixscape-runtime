@@ -78,17 +78,16 @@ final class LightingBatch {
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
         for(int i=0;i<4;i++)boundNormals[i]=0;
     }
-    /** Allocation-free exact batch plan, using the actor topology count (light deformation keeps it). */
-    int requiredReplayBatches(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly){
+    /** Allocation-free exact batch plan, using the published light-independent caster topology. */
+    int requiredReplayBatches(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates){
         int total=0,textureCount=0,batches=0;
         for(int i=0;i<candidates.size;i++){
             LightingFrame.Caster caster=frame.casters.get(candidates.get(i));
-            if(decorOnly && caster!=null && caster.surface!=null && caster.surface.actor)continue;
             if(caster==null || caster.surface==null || caster.surface.vertices==null || caster.surface.vertices.length%8!=0 ||
                     caster.texture==0 || TextureRegistry.getByHandle(caster.texture)==null)
                 throw new LightingAdmissionException("Shadow caster has no valid prepared geometry/texture");
-            int count=caster.surface.actorShadow!=null&&caster.surface.actorShadow.active
-                    ?caster.surface.actorShadow.vertexCount:caster.surface.vertices.length/8;
+            int count=caster.surface.shadowVertices!=null
+                    ?caster.surface.shadowVertexCount:caster.surface.vertices.length/8;
             if(count==0)continue;
             boolean found=false;
             for(int j=0;j<textureCount;j++)if(planningHandles[j]==caster.texture){found=true;break;}

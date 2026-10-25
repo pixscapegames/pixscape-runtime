@@ -8,6 +8,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class RoundedMapSupportTest {
+    @Test public void roundedOccurrenceDoesNotBridgePerpendicularFacadeExclusions(){
+        for(SpatialBlockData block:blocks.blocks)block.structureId=1;
+        LightingSurface corner=surface();
+        ShadowExclusionIdentities ids=new ShadowExclusionIdentities();
+        WallShadowGroups groups=new WallShadowGroups();
+        geometry.registerShadowGroups(215,ids,groups);groups.connectWalls();
+        int a=ids.idFor(215,blocks.blocks.get(0).id),b=ids.idFor(215,blocks.blocks.get(1).id);
+        int c=ids.idForCorner(215,corner.roundedCellKey);
+        assertNotEquals(groups.group(a),groups.group(b));
+        assertNotEquals(groups.group(a),groups.group(c));
+        assertNotEquals(groups.group(b),groups.group(c));
+    }
     @Test public void alphaWallContributionsAreTrimmedOutsideTheCurveAndIdentitiesRemainSeparate(){
         for(SpatialBlockData block:blocks.blocks){block.silhouetteShadowCaster=true;block.linkedTileRefsAuthored=true;}
         LightingSurface corner=surface();RoundedWallSupport curve=geometry.roundedSupport(27,24);

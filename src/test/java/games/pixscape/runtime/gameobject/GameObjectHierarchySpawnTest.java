@@ -22,23 +22,22 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
-    @Test public void freeActorFootEndpointsAndThicknessSurviveAssetSerializationAndRuntimeSpawn(){
+    @Test public void actorVolumesSurviveAssetSerializationAndRuntimeSpawn(){
         GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
-        child.surfaceLighting=new SurfaceLightingComponent();
-        child.surfaceLighting.actorShadow=new games.pixscape.runtime.render.lighting.ActorShadowProfile(.25f,.1f,.75f,.2f,.35f);
-        child.surfaceLighting.actorShadowClips=new com.badlogic.gdx.utils.IntMap<>();
-        var clips=new com.badlogic.gdx.utils.ObjectMap<String,games.pixscape.runtime.render.lighting.ActorShadowProfile>();
-        clips.put("idle",child.surfaceLighting.actorShadow.copy());child.surfaceLighting.actorShadowClips.put(42,clips);
+        child.spatialHeight=new GameObjectAsset.SpatialHeightData();
+        child.spatialHeight.volumes=new games.pixscape.runtime.spatial.ActorVolumes();
+        child.spatialHeight.volumes.staticVolume=new games.pixscape.runtime.spatial.ActorVolumeData();
+        child.spatialHeight.volumes.staticVolume.orientation=37.25f;
         GameObjectAssetLoader loader=new GameObjectAssetLoader();GameObjectAsset loaded=loader.fromJson(loader.toJson(asset));
-        Assert.assertEquals(.75f,loaded.entities.get(1).surfaceLighting.shadowProfile(42,"idle").rightU,0);
+        Assert.assertEquals(37.25f,loaded.entities.get(1).spatialHeight.volumes.staticVolume.orientation,0);
         World world=new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
         try{
             SpawnResult spawned=new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(),new SceneMetaRuntime(),new AtlasRuntimeService())
                     .spawnAsset(world,loaded,"gameobjects/actor-foot-test.gameobject",0,0);world.process();
-            SurfaceLightingComponent s=world.getMapper(SurfaceLightingComponent.class).get(spawned.createdEntityIds().get(1));
-            Assert.assertEquals(.25f,s.actorShadow.leftU,0);Assert.assertEquals(.35f,s.actorShadow.thickness,0);
-            loaded.entities.get(1).surfaceLighting.shadowProfile(42,"idle").leftU=.9f;
-            Assert.assertEquals(.25f,s.shadowProfile(42,"idle").leftU,0);Assert.assertNull(s.shadowProfile(42,"missing"));
+            SpatialHeightComponent s=world.getMapper(SpatialHeightComponent.class).get(spawned.createdEntityIds().get(1));
+            Assert.assertEquals(37.25f,s.volumes.staticVolume.orientation,0);
+            loaded.entities.get(1).spatialHeight.volumes.staticVolume.orientation=90;
+            Assert.assertEquals(37.25f,s.volumes.staticVolume.orientation,0);
         }finally{world.dispose();}
     }
     @Test
@@ -174,6 +173,8 @@ public class GameObjectHierarchySpawnTest {
         GameObjectAsset asset = physicalHierarchy();
         GameObjectAsset.GameObjectEntityData member = asset.entities.get(2);
         member.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        member.spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        member.spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
         member.spatialHeight.altitude = 3f;
         member.spatialHeight.height = 6f;
         GameObjectAsset.PhysicsShapeData shape = member.physicsShapes.get(0);

@@ -50,10 +50,10 @@ final class ForwardWorldTarget {
     private void save(){
         framebuffer=read(GL20.GL_FRAMEBUFFER_BINDING);
         integers.clear();Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,integers);for(int i=0;i<4;i++)viewport[i]=integers.get(i);
-        integers.clear();Gdx.gl.glGetIntegerv(GL20.GL_SCISSOR_BOX,integers);for(int i=0;i<4;i++)scissorBox[i]=integers.get(i);
+        LightingGlState.readScissor(integers,scissorBox);
         scissor=Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST);blend=Gdx.gl.glIsEnabled(GL20.GL_BLEND);
         depth=Gdx.gl.glIsEnabled(GL20.GL_DEPTH_TEST);cull=Gdx.gl.glIsEnabled(GL20.GL_CULL_FACE);
-        depthFunction=read(GL20.GL_DEPTH_FUNC);depthWrite=read(GL20.GL_DEPTH_WRITEMASK);
+        depthFunction=read(GL20.GL_DEPTH_FUNC);depthWrite=LightingGlState.readDepthWriteMask(integers);
         src=read(GL20.GL_BLEND_SRC_RGB);dst=read(GL20.GL_BLEND_DST_RGB);srcAlpha=read(GL20.GL_BLEND_SRC_ALPHA);dstAlpha=read(GL20.GL_BLEND_DST_ALPHA);
         equation=read(GL20.GL_BLEND_EQUATION_RGB);equationAlpha=read(GL20.GL_BLEND_EQUATION_ALPHA);
     }

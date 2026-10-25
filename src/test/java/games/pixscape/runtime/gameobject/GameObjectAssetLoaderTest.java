@@ -205,6 +205,8 @@ public class GameObjectAssetLoaderTest {
         footprint.spatialFootprint = true;
         physical.physicsShapes.add(footprint);
         physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        physical.spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        physical.spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
         physical.spatialHeight.altitude = 2.5f;
         physical.spatialHeight.height = 7.5f;
 
@@ -220,6 +222,8 @@ public class GameObjectAssetLoaderTest {
     public void negativeSpatialHeightIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).spatialHeight = new GameObjectAsset.SpatialHeightData();
+        asset.entities.get(2).spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        asset.entities.get(2).spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
         asset.entities.get(2).spatialHeight.height = -1f;
         rejected(asset, "negative Spatial height");
     }

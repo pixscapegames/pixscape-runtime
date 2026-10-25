@@ -29,19 +29,24 @@ public final class WallShadowGroups {
             if(a.owner==b.owner){
                 joined=a.block.structureId==b.block.structureId
                     &&near(a.block.altitude,b.block.altitude)&&near(a.block.height,b.block.height)
+                    &&sameStrip(a,b)
                     &&(SpatialBlockLinks.contactFace(a.block,b.block)>0||SpatialBlockLinks.overlap(a.block,b.block));
             }else{
                 // Same physical strip, touching storeys and positive longitudinal span.
                 // General overlap, a shared owner or structureId alone never establishes this edge.
                 joined=a.map.tileWidth==b.map.tileWidth&&a.map.tileHeight==b.map.tileHeight
                     &&(near(a.block.altitude+a.block.height,b.block.altitude)||near(b.block.altitude+b.block.height,a.block.altitude))
-                    &&((a.block.width>a.block.depth&&b.block.width>b.block.depth
-                        &&near(a.y0,b.y0)&&near(a.y1,b.y1)&&Math.min(a.x1,b.x1)>Math.max(a.x0,b.x0))
-                    ||(a.block.depth>a.block.width&&b.block.depth>b.block.width
-                        &&near(a.x0,b.x0)&&near(a.x1,b.x1)&&Math.min(a.y1,b.y1)>Math.max(a.y0,b.y0)));
+                    &&sameStrip(a,b)
+                    &&(a.block.width>a.block.depth?Math.min(a.x1,b.x1)>Math.max(a.x0,b.x0)
+                        :Math.min(a.y1,b.y1)>Math.max(a.y0,b.y0));
             }
             if(joined)connect(a.id,b.id);
         }
+    }
+    /** A construction connection is not enough: perpendicular returns must cast onto facades. */
+    private static boolean sameStrip(Wall a,Wall b){
+        return (a.block.width>a.block.depth&&b.block.width>b.block.depth&&near(a.y0,b.y0)&&near(a.y1,b.y1))
+            ||(a.block.depth>a.block.width&&b.block.depth>b.block.width&&near(a.x0,b.x0)&&near(a.x1,b.x1));
     }
     private static boolean near(float a,float b){return Math.abs(a-b)<=SpatialWallGeometry.GEOMETRY_EPSILON;}
     public void apply(LightingSurface s){

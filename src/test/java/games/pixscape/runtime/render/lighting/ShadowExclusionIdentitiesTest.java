@@ -6,6 +6,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 public class ShadowExclusionIdentitiesTest {
+    @Test public void actorsAndRebuiltMapsShareOneMonotonicDomain(){
+        ShadowExclusionIdentities ids=new ShadowExclusionIdentities();
+        int a=ids.idForActor(1),b=ids.idForActor(2),wall=ids.idFor(1,1),corner=ids.idForCorner(1,1);
+        org.junit.Assert.assertEquals(4,new java.util.HashSet<Integer>(java.util.Arrays.asList(a,b,wall,corner)).size());
+        for(int i=0;i<100;i++){assertEquals(a,ids.idForActor(1));assertEquals(wall,ids.idFor(1,1));}
+        ids.removeEntity(1);
+        org.junit.Assert.assertTrue(ids.idForActor(1)>corner);
+        org.junit.Assert.assertTrue(ids.idFor(1,1)>corner);
+        assertEquals(b,ids.idForActor(2));
+        assertEquals(0,ids.idForActor(-1));
+    }
     @Test public void curvedOccurrenceIsDistinctFromBothWallsAndFromOtherMaps(){
         ShadowExclusionIdentities ids=new ShadowExclusionIdentities();long cell=((long)27<<32)^24;
         int curve=ids.idForCorner(215,cell);

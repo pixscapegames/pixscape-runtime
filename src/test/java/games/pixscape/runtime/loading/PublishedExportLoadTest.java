@@ -22,10 +22,15 @@ import java.io.File;
 
 /** GL-free loading evidence for the published example and the optional local demo corpus. */
 public class PublishedExportLoadTest {
-    @Test public void existingSilhouettePocExportLoadsWithoutSceneMutation(){
+    @Test public void existingSilhouettePocLoadsOrExplicitlyRejectsMissingActorVolumesWithoutMutation(){
         FileHandle root=new FileHandle(new File("../shadow-volume-silhouette-demo/assets/pixscape-project"));
         Assume.assumeTrue("Existing POC copy only",root.child("project.json").exists());
-        loadEveryScene(root);
+        try { loadEveryScene(root); }
+        catch (RuntimeException incompatible) {
+            if (!missingActorVolumes(incompatible)) throw incompatible;
+            // Optional user-owned corpus is intentionally not migrated by tests.
+            return;
+        }
     }
     @Test
     public void minimalExampleLoadsWithRuntimeAndAtlasDescriptor() {
@@ -39,13 +44,13 @@ public class PublishedExportLoadTest {
     }
 
     @Test
-    public void optionalLocalDemoExportLoadsBothScenesAndAssociatedDocuments() {
+    public void optionalLocalDemoLoadsScenesAndValidatesOrRejectsOldSpatialGameObjects() {
         FileHandle root = new FileHandle(new File("../tiled-iso-demo/assets/pixscape-project"));
         Assume.assumeTrue("The sibling tiled-iso-demo checkout is optional",
                 root.child("project.json").exists());
         loadEveryScene(root);
-        new GameObjectAssetLoader().load(root.child("gameobjects/snake.gameobject"));
-        new GameObjectAssetLoader().load(root.child("gameobjects/car.gameobject"));
+        loadCurrentGameObjectOrAssertVolumeRejection(root.child("gameobjects/snake.gameobject"));
+        loadCurrentGameObjectOrAssertVolumeRejection(root.child("gameobjects/car.gameobject"));
         for (FileHandle descriptor : root.child("hud").list(".hudscreen")) {
             HudScreenAsset asset = new HudScreenAssetLoader().load(root,
                     "hud/" + descriptor.nameWithoutExtension());
@@ -74,6 +79,21 @@ public class PublishedExportLoadTest {
             }
         } finally {
             world.dispose();
+        }
+    }
+
+    private static boolean missingActorVolumes(Throwable error) {
+        for(Throwable cause=error;cause!=null;cause=cause.getCause()) {
+            String message=cause.getMessage();
+            if(message!=null && (message.contains("has no authored volumes; reconfigure the actor")
+                    || message.contains("Spatial actor volumes are missing:")))return true;
+        }
+        return false;
+    }
+    private static void loadCurrentGameObjectOrAssertVolumeRejection(FileHandle file) {
+        try { new GameObjectAssetLoader().load(file); }
+        catch (RuntimeException incompatible) {
+            if(!missingActorVolumes(incompatible))throw incompatible;
         }
     }
 }

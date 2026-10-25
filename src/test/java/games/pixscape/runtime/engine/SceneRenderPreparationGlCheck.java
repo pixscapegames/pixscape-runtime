@@ -74,17 +74,17 @@ public final class SceneRenderPreparationGlCheck {
                         Object batch = get(renderer, "batch");
                         Object scratch = get(renderer, "scratch");
                         Object atlas = get(renderer, "atlas");
-                        Object decorAtlas = get(renderer, "decorAtlas");
+                        Object secondAtlas = get(renderer, "secondAtlas");
                         Assert.assertNotNull("Lighting batch must exist at READY", batch);
                         Assert.assertNotNull(scratch);
-                        Assert.assertNotNull(atlas);Assert.assertNotNull(decorAtlas);
+                        Assert.assertNotNull(atlas);Assert.assertNotNull(secondAtlas);
                         for (int repeat = 0; repeat < 3; repeat++) { load.update(); submit.prepareComposition(); }
                         engine.update(0);
                         engine.render();
                         Assert.assertSame(batch, get(renderer, "batch"));
                         Assert.assertSame(scratch, get(renderer, "scratch"));
                         Assert.assertSame(atlas, get(renderer, "atlas"));
-                        Assert.assertSame(decorAtlas, get(renderer, "decorAtlas"));
+                        Assert.assertSame(secondAtlas, get(renderer, "secondAtlas"));
 
                         // A legitimate viewport change replaces only size-dependent targets once.
                         Gdx.gl.glViewport(0, 0, 48, 24);
@@ -103,10 +103,10 @@ public final class SceneRenderPreparationGlCheck {
                         Assert.assertSame(batch, get(renderer, "batch"));
                         light.shadowQuality = 0;
                         submit.prepareComposition();
-                        Assert.assertNull(get(renderer, "atlas"));Assert.assertNull(get(renderer, "decorAtlas"));
+                        Assert.assertNull(get(renderer, "atlas"));Assert.assertNull(get(renderer, "secondAtlas"));
                         light.shadowQuality = 2;
                         submit.prepareComposition();
-                        Assert.assertNotNull(get(renderer, "atlas"));Assert.assertNotNull(get(renderer, "decorAtlas"));
+                        Assert.assertNotNull(get(renderer, "atlas"));Assert.assertNotNull(get(renderer, "secondAtlas"));
                         int added = engine.getWorld().create();
                         PointLightComponent addedLight = engine.getWorld().getMapper(PointLightComponent.class).create(added);
                         addedLight.shadowQuality = 1;

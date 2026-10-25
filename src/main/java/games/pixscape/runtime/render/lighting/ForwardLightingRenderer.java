@@ -135,13 +135,13 @@ public final class ForwardLightingRenderer {
         shader.setUniformf("u_atlasScale",l==null?1:shadows.atlasScale(l));
     }
     private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
-        int receiverDomain=s!=null&&s.actor?1:0;
+        int receiverDomain=0;
         NormalMapBinding normal=s==null?null:s.normalMap;
         int page=normal==null?TextureRegistry.WHITE_HANDLE:normal.textureHandle;
         if(domain!=receiverDomain){if(vertices!=0)domainFlushes++;flush();domain=receiverDomain;
-            Texture atlas=q.lighting.lights.size==0||q.lighting.lights.first().quality==0?null:shadows.shadowTexture(domain==1);
+            Texture atlas=q.lighting.lights.size==0||q.lighting.lights.first().quality==0?null:shadows.shadowTexture();
             (atlas==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):atlas).bind(3);
-            Texture identity=shadows.shadowIdentityTexture(domain==1),second=shadows.secondShadowTexture(domain==1);
+            Texture identity=shadows.shadowIdentityTexture(),second=shadows.secondShadowTexture();
             (identity==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):identity).bind(4);
             (second==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):second).bind(5);stats.textureBinds+=3;
         }

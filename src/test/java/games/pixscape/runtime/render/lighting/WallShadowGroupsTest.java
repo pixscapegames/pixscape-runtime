@@ -17,11 +17,13 @@ public class WallShadowGroupsTest {
         base.blocks.add(wall(1,1,0,0,4,.25f,0));base.blocks.add(wall(2,1,4,0,.25f,3,0));
         base.blocks.add(wall(3,1,20,0,4,.25f,0)); // same structure, disconnected
         base.blocks.add(wall(4,2,4,0,.25f,3,0)); // overlap alone does not group
+        base.blocks.add(wall(5,1,-2,0,2,.25f,0)); // collinear continuation
         var upper=new SpatialBlocksComponent();upper.blocks.add(wall(1,9,1,0,2,.25f,128));
         upper.blocks.add(wall(2,9,1,1,2,.25f,128)); // different strip
         groups.add(10,map(),base,ids);groups.add(11,map(),upper,ids);groups.connectWalls();
         int a=groups.group(ids.idFor(10,1));
-        assertEquals(a,groups.group(ids.idFor(10,2)));assertEquals(a,groups.group(ids.idFor(11,1)));
+        assertNotEquals(a,groups.group(ids.idFor(10,2)));assertEquals(a,groups.group(ids.idFor(11,1)));
+        assertEquals(a,groups.group(ids.idFor(10,5)));
         assertNotEquals(a,groups.group(ids.idFor(10,3)));assertNotEquals(a,groups.group(ids.idFor(11,2)));
         assertNotEquals(a,groups.group(ids.idFor(10,4)));
         assertEquals(0,groups.group(0));

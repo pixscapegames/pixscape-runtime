@@ -13,6 +13,8 @@
 
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
+    <!-- ActorVolumes.clips is instantiated by LibGDX Json before its IntMap branch. -->
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntMap"/>
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
 
@@ -25,6 +27,9 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.tiled"/>
 
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.spatial"/>
+    <!-- Artemis inspects nested component data independently of LibGDX Json. -->
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.ActorVolumes"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.ActorVolumeData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockLink"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialShapeData"/>
@@ -46,8 +51,6 @@
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.LocalSurfaceDescription"/>
-    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.ActorShadowProfile"/>
-    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.ActorShadowProfile"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.TileSurfaceDescription"/>
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.RoundedWallDescription"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.RoundedWallDescription"/>

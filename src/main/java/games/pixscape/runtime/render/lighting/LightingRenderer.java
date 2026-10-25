@@ -24,7 +24,7 @@ public final class LightingRenderer {
     private final ShadowWitnessCapture witnessCapture=new ShadowWitnessCapture();
     private ShaderProgram receiver,mappedReceiver,shadow,firstShadow,secondShadow,accumulate;
     private LightingBatch batch;
-    private FrameBuffer scratch,atlas,decorAtlas,secondAtlas,pocWithoutTiledSelfAtlas;
+    private FrameBuffer scratch,atlas,secondAtlas,pocWithoutTiledSelfAtlas;
     private Mesh screen;
     private int width,height,resolution;
     private World preparedWorld;
@@ -127,18 +127,16 @@ public final class LightingRenderer {
         if(twoDepthSelfShadowExclusion())requireTwoDepthAttachments();
         if(required!=resolution){
             FrameBuffer next=required==0?null:(twoDepthSelfShadowExclusion()?twoDepthFirstTarget(required*3,required*2):floatTarget(required*3,required*2,true));
-            FrameBuffer nextDecor=null;
             FrameBuffer nextSecond=null;
             FrameBuffer nextPoc=null;
             try{
-                if(required!=0)nextDecor=floatTarget(required*3,required*2,true);
                 if(required!=0&&twoDepthSelfShadowExclusion())nextSecond=floatTarget(required*3,required*2,true);
                 if(required!=0&&pocTiledSelfExclusionBlockId()!=0)nextPoc=floatTarget(required*3,required*2,true);
             } catch(RuntimeException | Error failure){
-                if(next!=null)next.dispose();if(nextDecor!=null)nextDecor.dispose();if(nextSecond!=null)nextSecond.dispose();throw failure;
+                if(next!=null)next.dispose();if(nextSecond!=null)nextSecond.dispose();throw failure;
             }
-            if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
-            atlas=next;decorAtlas=nextDecor;secondAtlas=nextSecond;pocWithoutTiledSelfAtlas=nextPoc;resolution=required;
+            if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
+            atlas=next;secondAtlas=nextSecond;pocWithoutTiledSelfAtlas=nextPoc;resolution=required;
         } else if(required!=0&&pocTiledSelfExclusionBlockId()!=0&&pocWithoutTiledSelfAtlas==null){
             // The property is diagnostic-only and normally set before startup; this keeps a live Preview recoverable.
             pocWithoutTiledSelfAtlas=floatTarget(required*3,required*2,true);
@@ -171,15 +169,15 @@ public final class LightingRenderer {
         }
     }
     /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
-    public Texture shadowTexture(boolean actor) { return (actor?decorAtlas:atlas)==null?null:(actor?decorAtlas:atlas).getColorBufferTexture(); }
+    public Texture shadowTexture() { return atlas==null?null:atlas.getColorBufferTexture(); }
     /** Forward uses the same completed textures and never constructs a receiver-specific atlas. */
-    public Texture shadowIdentityTexture(boolean actor){
-        FrameBuffer primary=actor?decorAtlas:atlas;
-        return twoDepthSelfShadowExclusionActive()&&!actor?atlas.getTextureAttachments().get(1):primary==null?null:primary.getColorBufferTexture();
+    public Texture shadowIdentityTexture(){
+        FrameBuffer primary=atlas;
+        return twoDepthSelfShadowExclusionActive()?atlas.getTextureAttachments().get(1):primary==null?null:primary.getColorBufferTexture();
     }
-    public Texture secondShadowTexture(boolean actor){
-        FrameBuffer primary=actor?decorAtlas:atlas;
-        return twoDepthSelfShadowExclusionActive()&&!actor?secondAtlas.getColorBufferTexture():primary==null?null:primary.getColorBufferTexture();
+    public Texture secondShadowTexture(){
+        FrameBuffer primary=atlas;
+        return twoDepthSelfShadowExclusionActive()?secondAtlas.getColorBufferTexture():primary==null?null:primary.getColorBufferTexture();
     }
     public boolean twoDepthSelfShadowExclusionActive(){return twoDepthSelfShadowExclusion()&&secondAtlas!=null;}
     public float atlasScale(LightingFrame.Light light) {return resolution==0?1f:(float)light.resolution/resolution;}
@@ -189,8 +187,7 @@ public final class LightingRenderer {
         for(int i=0;i<frame.lights.size;i++){
             LightingFrame.Light light=frame.lights.get(i);if(light.quality==0)continue;
             frame.casterIndex.query(frame,light,256,frame.staticCasterCount);
-            required=Math.max(required,batch.requiredReplayBatches(frame,frame.casterIndex.candidates,false));
-            required=Math.max(required,batch.requiredReplayBatches(frame,frame.casterIndex.candidates,true));
+            required=Math.max(required,batch.requiredReplayBatches(frame,frame.casterIndex.candidates));
         }
         boolean sceneChanged=preparedCasterRevision!=frame.staticCasterRevision||frame.casters.size<preparedCasterCount;
         if(required>batch.replayCapacity()||sceneChanged&&required<batch.replayCapacity())batch.prepareReplayCapacity(required);
@@ -262,7 +259,7 @@ public final class LightingRenderer {
         }
         int lightCount=frame.diagnostic==0?frame.lights.size:1;
         boolean clipped=frame.diagnostic==0 && lightCount!=0;
-        if(clipped){LightingScissorState.read(saved,savedScissorBounds);influenceBounds.prepare(queue,camera);}
+        if(clipped){LightingGlState.readScissor(saved,savedScissorBounds);influenceBounds.prepare(queue,camera);}
         try {
         for(int li=0;li<lightCount;li++){
             LightingFrame.Light l=frame.diagnostic==0?frame.lights.get(li):diagnosticLight;long start=System.nanoTime();int draws=stats.drawCalls;
@@ -294,13 +291,13 @@ public final class LightingRenderer {
                     // Unlit ordinary images still mask light with their actual four-corner coverage.
                     missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
                     s=missing;}
-                int receiverClass=s.actor?1:0;
+                int receiverClass=0;
                 if(receiverClass!=activeClass){
                     batch.flush();
                     if(!preparedReceiver){receiverUniforms(lightReceiver,l,frame,camera);preparedReceiver=true;}
-                    // One decor-only atlas is shared by every actor, including the caster itself.
+                    // All receivers use the same identity-aware shadow maps.
                     // Flush before rebinding so interleaved transparent receivers keep their queue order.
-                    bindReceiverShadowTextures(s.actor,l,composition);
+                    bindReceiverShadowTextures(l,composition);
                     if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
                     activeClass=receiverClass;
                 }
@@ -315,7 +312,7 @@ public final class LightingRenderer {
                     if(pocWithoutTiledSelfAtlas==null)throw new IllegalStateException("POC tiled self-exclusion atlas was not prepared");
                     if(self!=pocPreparedSelfCaster){
                         batch.flush();long exclusionStart=System.nanoTime();int exclusionDraws=stats.drawCalls;
-                        shadowMap(frame,l,stats,pocWithoutTiledSelfAtlas,frame.casterIndex.candidates,false,self,shadow,false);
+                        shadowMap(frame,l,stats,pocWithoutTiledSelfAtlas,frame.casterIndex.candidates,self,shadow,false);
                         long elapsed=System.nanoTime()-exclusionStart;
                         int added=stats.drawCalls-exclusionDraws;
                         pocExclusionNsThisLight+=elapsed;pocExclusionDrawsThisLight+=added;
@@ -331,7 +328,7 @@ public final class LightingRenderer {
                 }
                 batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.v1[i],queue.u2[i],queue.v2[i],queue.colorPacked[i],blend,quad,0,0,false,supported);
                 if(self!=null){
-                    batch.flush();bindReceiverShadowTextures(false,l,composition);
+                    batch.flush();bindReceiverShadowTextures(l,composition);
                     if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
                 }
             }
@@ -373,10 +370,10 @@ public final class LightingRenderer {
     }
 
     /** Binds only completed immutable targets; second pass never reads its own framebuffer. */
-    private void bindReceiverShadowTextures(boolean actor,LightingFrame.Light l,WorldLightComposition composition){
+    private void bindReceiverShadowTextures(LightingFrame.Light l,WorldLightComposition composition){
         if(l.quality==0){composition.originalTexture().bind(4);composition.originalTexture().bind(9);composition.originalTexture().bind(10);return;}
-        FrameBuffer primary=actor?decorAtlas:atlas;primary.getColorBufferTexture().bind(4);
-        if(twoDepthSelfShadowExclusion()&&!actor){
+        FrameBuffer primary=atlas;primary.getColorBufferTexture().bind(4);
+        if(twoDepthSelfShadowExclusion()){
             atlas.getTextureAttachments().get(1).bind(9);secondAtlas.getColorBufferTexture().bind(10);
         } else {primary.getColorBufferTexture().bind(9);primary.getColorBufferTexture().bind(10);}
     }
@@ -389,21 +386,20 @@ public final class LightingRenderer {
         catch(NumberFormatException ignored){return 0;}
     }
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
-        if(atlas==null || decorAtlas==null || l.resolution>resolution)
+        if(atlas==null || l.resolution>resolution)
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
         selectedCasters+=frame.casterIndex.candidates.size;
-        shadowMap(frame,l,stats,decorAtlas,frame.casterIndex.candidates,true,null,shadow,false);
         if(!twoDepthSelfShadowExclusion()){
-            shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,false,null,shadow,false);
+            shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,null,shadow,false);
             return;
         }
-        shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,false,null,firstShadow,true);
+        shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,null,firstShadow,true);
         long start=System.nanoTime(),bytes=batch.uploadedBytes;int draws=stats.drawCalls,uploads=batch.uploads;boolean gpuTimer=beginTwoDepthGpuTimer();secondShadowMap(frame,l,stats);if(gpuTimer)endTwoDepthGpuTimer();
         twoDepthShadowCpuNs+=System.nanoTime()-start;twoDepthShadowDraws+=stats.drawCalls-draws;
         twoDepthShadowUploads+=batch.uploads-uploads;twoDepthShadowUploadedBytes+=batch.uploadedBytes-bytes;
     }
-    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,boolean decorOnly,LightingFrame.Caster excluded,ShaderProgram program,boolean identityTarget){
+    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,LightingFrame.Caster excluded,ShaderProgram program,boolean identityTarget){
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
@@ -412,12 +408,6 @@ public final class LightingRenderer {
         zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
         program.bind();program.setUniformf("u_light",l.x,l.y,l.z);program.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
-        for(int i=0;i<candidates.size;i++){
-            LightingSurface s=frame.casters.get(candidates.get(i)).surface;
-            if(decorOnly && s.actor)continue;
-            s.shadowVertices=s.actorShadow!=null && s.actorShadow.active?s.actorShadow.forLight(l):null;
-            s.shadowVertexCount=s.shadowVertices==null?0:s.actorShadow.vertexCount;
-        }
         for(int face=0;face<6;face++){
             Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
             target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
@@ -427,7 +417,6 @@ public final class LightingRenderer {
             batch.begin(program,stats,true);
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
-                if(decorOnly && c.surface.actor)continue;
                 if(c==excluded)continue;
                 if(c.surface.shadowVertices!=null?c.surface.shadowVertexCount==0:c.surface.vertices.length==0)continue;
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
@@ -439,7 +428,7 @@ public final class LightingRenderer {
     private void secondShadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
         if(secondAtlas==null)throw new IllegalStateException("Two-depth target was not prepared");
         atlas.getTextureAttachments().get(1).bind(4);
-        shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,false,null,secondShadow,false);
+        shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,null,secondShadow,false);
     }
     /** POC-only identity check: no category filtering and no inference from image asset IDs. */
     static LightingFrame.Caster pocTiledSelfCaster(LightingFrame frame,LightingSurface receiver,int blockId){
@@ -462,13 +451,13 @@ public final class LightingRenderer {
     public long textureBytes(){
         long pixels=(long)resolution*resolution*6;
         // A has complete+decor (2 × [R32F + depth]); B has [d1,id1,depth] + d2 + depth + decor.
-        return (long)width*height*8+pixels*(twoDepthSelfShadowExclusion()?28:16)+(pocWithoutTiledSelfAtlas==null?0:pixels*8);
+        return (long)width*height*8+pixels*(twoDepthSelfShadowExclusion()?20:8)+(pocWithoutTiledSelfAtlas==null?0:pixels*8);
     }
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
         if(twoDepthGpuQueries!=null)Gdx.gl30.glDeleteQueries(twoDepthGpuQueries.length,twoDepthGpuQueries,0);twoDepthGpuQueries=null;twoDepthGpuPending=null;twoDepthGpuQueryIndex=0;twoDepthShadowGpuNs=-1;
-        if(firstShadow!=null)firstShadow.dispose();if(secondShadow!=null)secondShadow.dispose();if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(decorAtlas!=null)decorAtlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
-        batch=null;receiver=shadow=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=decorAtlas=secondAtlas=pocWithoutTiledSelfAtlas=null;width=height=resolution=0;}
+        if(firstShadow!=null)firstShadow.dispose();if(secondShadow!=null)secondShadow.dispose();if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
+        batch=null;receiver=shadow=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=secondAtlas=pocWithoutTiledSelfAtlas=null;width=height=resolution=0;}
 
     /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
     static final String NORMAL_SAMPLE =

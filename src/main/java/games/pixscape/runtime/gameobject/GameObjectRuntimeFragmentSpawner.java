@@ -383,7 +383,6 @@ public final class GameObjectRuntimeFragmentSpawner {
             target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
             target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
             target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
-            source.copyActorShadowsTo(target);
         }
         if (data.pointLight != null) {
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);
@@ -406,6 +405,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
             height.altitude = data.spatialHeight.altitude;
             height.height = data.spatialHeight.height;
+            height.volumes = data.spatialHeight.volumes == null ? null : data.spatialHeight.volumes.copy();
         }
         if (preparedPhysics != null) {
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

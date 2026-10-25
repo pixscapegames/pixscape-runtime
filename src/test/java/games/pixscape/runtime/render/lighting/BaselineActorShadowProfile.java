@@ -1,17 +1,18 @@
+// Test-only baseline copied from the starting Git commit, for bounded before/after comparisons.
 package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonValue;
 
 /** Authored caster calibration in the reference image, before atlas mapping and flips. */
-public final class ActorShadowProfile implements Json.Serializable {
+public final class BaselineActorShadowProfile implements Json.Serializable {
     public float leftU, leftV, rightU=1, rightV, thickness;
 
-    public ActorShadowProfile() {}
-    public ActorShadowProfile(float leftV, float rightV, float thickness) {
+    public BaselineActorShadowProfile() {}
+    public BaselineActorShadowProfile(float leftV, float rightV, float thickness) {
         this(0,leftV,1,rightV,thickness);
     }
-    public ActorShadowProfile(float leftU,float leftV,float rightU,float rightV,float thickness) {
+    public BaselineActorShadowProfile(float leftU,float leftV,float rightU,float rightV,float thickness) {
         this.leftU=leftU;this.leftV=leftV;this.rightU=rightU;this.rightV=rightV;this.thickness=thickness;validate();
     }
     public void validate() {
@@ -24,7 +25,7 @@ public final class ActorShadowProfile implements Json.Serializable {
     public static boolean distinct(float u,float v,float otherU,float otherV) {
         float x=u-otherU,y=v-otherV;return x*x+y*y>=.0000000001f;
     }
-    public ActorShadowProfile copy() { return new ActorShadowProfile(leftU,leftV,rightU,rightV,thickness); }
+    public BaselineActorShadowProfile copy() { return new BaselineActorShadowProfile(leftU,leftV,rightU,rightV,thickness); }
     @Override public void write(Json json) {
         json.writeValue("version",2);json.writeValue("leftU",leftU);json.writeValue("leftV",leftV);
         json.writeValue("rightU",rightU);json.writeValue("rightV",rightV);json.writeValue("thickness",thickness);

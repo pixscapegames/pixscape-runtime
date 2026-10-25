@@ -118,6 +118,7 @@ public final class SceneLoader {
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
                 validateTiledMapConfigurations(format, validationWorld, sceneFile);
+                validateActorVolumes(format, validationWorld);
             }
         } catch (Exception e) {
             String detail = e.getMessage();
@@ -129,6 +130,21 @@ public final class SceneLoader {
                     e);
         } finally {
             validationWorld.dispose();
+        }
+    }
+
+    private static void validateActorVolumes(SaveFileFormat format, World world) {
+        for(int i=0;i<format.entities.size();i++) {
+            int e=format.entities.get(i);
+            games.pixscape.runtime.component.spatial.SpatialHeightComponent h=world.getMapper(
+                    games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(e,null);
+            if(h==null)continue;
+            if(h.volumes==null)throw new IllegalArgumentException("Spatial actor "+e+" has no authored volumes; reconfigure the actor");
+            h.volumes.validate();
+            AnimationComponent animation=world.getMapper(AnimationComponent.class).getSafe(e,null);
+            AssetRefComponent asset=world.getMapper(AssetRefComponent.class).getSafe(e,null);
+            if(h.volumes.get(asset==null?0:asset.assetId,animation==null?null:animation.currentClip)==null)
+                throw new IllegalArgumentException("Spatial actor "+e+" has no volume for its active representation");
         }
     }
 

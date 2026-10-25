@@ -34,6 +34,10 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<AssetRefComponent> assetRefs;
     private ComponentMapper<games.pixscape.runtime.component.TiledAnimationComponent> animations;
     private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> actorAnimations;
+    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialHeightComponent> heights;
+    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent> footprints;
+    private ComponentMapper<games.pixscape.runtime.component.TransformComponent> transforms;
+    private final float[] volumeAnchor=new float[3],volumeUV=new float[2];
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
     @com.artemis.annotations.SkipWire private GameObjectCompositionSystem composition;
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.NormalMapAtlas authoringNormals;
@@ -57,7 +61,8 @@ public final class LightingGeometrySystem extends BaseSystem {
                 public void inserted(com.artemis.utils.IntBag entities){}
                 public void removed(com.artemis.utils.IntBag entities){
                     for(int i=0;i<entities.size();i++){int e=entities.get(i);
-                        frame.entities.remove(e);localDescriptions.remove(e);lights.remove(e);spriteCasters.remove(e);}
+                        frame.entities.remove(e);localDescriptions.remove(e);lights.remove(e);spriteCasters.remove(e);
+                        shadowExclusionIdentities.removeEntity(e);}
                     staticRevision=Integer.MIN_VALUE;
                 }
             });
@@ -85,19 +90,19 @@ public final class LightingGeometrySystem extends BaseSystem {
         for(int slot=0;slot<dynamic.activeCount;slot++){
             int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
             SurfaceLightingComponent a=surfaces.getSafe(e,null);
-            if(a!=null){
-                if(a.actorShadow!=null)a.actorShadow.validate();
-                if(a.actorShadowClips!=null)for(com.badlogic.gdx.utils.IntMap.Entry<com.badlogic.gdx.utils.ObjectMap<String,ActorShadowProfile>> asset:a.actorShadowClips)
-                    for(com.badlogic.gdx.utils.ObjectMap.Entry<String,ActorShadowProfile> clip:asset.value)clip.value.validate();
-            }
+            games.pixscape.runtime.component.spatial.SpatialHeightComponent h=heights.getSafe(e,null);
+            if(h!=null){if(h.volumes==null)throw new LightingAdmissionException("Spatial actor "+e+" has no volumes");h.volumes.validate();}
             if((a==null || a.description==null) && frame.entities.get(e)==null){
-                LightingSurface s=new LightingSurface(new float[48]);s.actorShadow=new ActorShadowGeometry();
+                LightingSurface s=new LightingSurface(new float[48]);
                 s.twoSided=true;s.approximate=true;s.forwardTopology=ForwardTopology.NATIVE;frame.entities.put(e,s);
             } else if(a!=null && a.description!=null && localDescriptions.get(e)!=a.description) {
                 LightingSurface s=LocalSurfaceCompiler.compile(a.description,0,0,0);
                 if(s.receiverVertices!=null){s.localReceiverVertices=s.receiverVertices;s.receiverVertices=LocalSurfaceDescription.copy(s.localReceiverVertices);}
                 localDescriptions.put(e,a.description);frame.entities.put(e,s);
             }
+            shadowExclusionIdentities.idForActor(e);
+            LightingSurface prepared=frame.entities.get(e);
+            if(h!=null && prepared!=null && prepared.actorVolume==null)prepared.actorVolume=new ActorVolumeCaster();
         }
     }
     @Override protected void processSystem() {
@@ -105,7 +110,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
         if(staticRevision!=tiled.lightingRevision){
         frame.casters.clear();
-        shadowExclusionIdentities.clear();
+        // Registry survives map rebuilds; dynamic identities must never alias new supports.
         int serial=0;
         for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps) {
             if(!world.getEntityManager().isActive(entry.key)) continue;
@@ -179,7 +184,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                 }
                 localDescriptions.put(e,description);if(surface!=null)frame.entities.put(e,surface);
             }
-            if(surface==null){surface=new LightingSurface(new float[48]);surface.actorShadow=new ActorShadowGeometry();surface.twoSided=true;
+            if(surface==null){surface=new LightingSurface(new float[48]);surface.twoSided=true;
                 surface.approximate=true;frame.entities.put(e,surface);}
             surface.receiveLight=(authored==null || authored.receiveLight) && (description==null || description.receiveLight);
             surface.shadowCaster=authored!=null && authored.shadowCaster && (description==null || description.shadowCaster);
@@ -187,19 +192,14 @@ public final class LightingGeometrySystem extends BaseSystem {
             corners[0]=dynamic.x1[slot];corners[1]=dynamic.y1[slot];corners[2]=dynamic.x2[slot];corners[3]=dynamic.y2[slot];
             corners[4]=dynamic.x3[slot];corners[5]=dynamic.y3[slot];corners[6]=dynamic.x4[slot];corners[7]=dynamic.y4[slot];
             surface.actor=true;
+            surface.selfShadowExclusionId=shadowExclusionIdentities.idForActor(e);
+            surface.shadowGroupId=surface.selfShadowExclusionId;
             surface.imageQuad=description==null;
             if(description==null)surface.forwardTopology=ForwardTopology.NATIVE;
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));
             AssetRefComponent ref=assetRefs.getSafe(e,null);
-            if(surface.actorShadow!=null){
-                games.pixscape.runtime.component.AnimationComponent actorAnimation=actorAnimations.getSafe(e,null);
-                ActorShadowProfile profile=authored==null?null:authored.shadowProfile(ref==null?0:ref.assetId,actorAnimation==null?null:actorAnimation.currentClip);
-                surface.actorShadow.calibrate(corners,profile,authored==null?0:authored.altitude,dynamic.u1[slot]>dynamic.u2[slot],dynamic.v1[slot]>dynamic.v2[slot]);
-                surface.actorShadow.writeReceiver(surface.vertices,corners);
-                surface.shadowVertices=surface.actorShadow.active?surface.actorShadow.calibrated:null;
-                surface.shadowVertexCount=surface.actorShadow.active?surface.actorShadow.vertexCount:0;
-            }
+            publishActorVolume(e,surface,ref);
             games.pixscape.runtime.component.TiledAnimationComponent animation=animations.getSafe(e,null);
             int visualId=animation!=null && animation.appliedFrameAssetId>0?animation.appliedFrameAssetId:ref==null?0:ref.assetId;
             surface.normalMap=atlasService==null || ref==null || visualId<=0?null:atlasService.resolveNormal(visualId,ref.atlasTag);
@@ -214,6 +214,32 @@ public final class LightingGeometrySystem extends BaseSystem {
         }
         if(shadowPreparation!=null)shadowPreparation.prepare(frame);
         frame.preparationCpuNs=System.nanoTime()-started;
+    }
+    private void publishActorVolume(int e,LightingSurface surface,AssetRefComponent ref){
+        surface.shadowVertices=null;surface.shadowVertexCount=0;
+        games.pixscape.runtime.component.spatial.SpatialHeightComponent h=heights.getSafe(e,null);
+        if(h==null)return; // Non-spatial sprites keep their native surface, not a legacy actor profile.
+        games.pixscape.runtime.component.AnimationComponent animation=actorAnimations.getSafe(e,null);
+        games.pixscape.runtime.spatial.ActorVolumeData volume=h.volumes==null?null:h.volumes.get(
+                ref==null?0:ref.assetId,animation==null?null:animation.currentClip);
+        if(volume==null)throw new LightingAdmissionException("Spatial actor "+e+" has no volume for its active representation");
+        games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent foot=footprints.getSafe(e,null);
+        games.pixscape.runtime.component.TransformComponent t=transforms.getSafe(e,null);
+        if(foot==null||!foot.valid||t==null)throw new LightingAdmissionException("Spatial actor "+e+" has no valid footprint anchor");
+        GameObjectHierarchySystem hierarchy=world.getSystem(GameObjectHierarchySystem.class);
+        games.pixscape.runtime.hierarchy.WorldTransformState state=hierarchy==null?null:hierarchy.worldTransforms();
+        boolean resolved=state!=null&&state.isResolved(e);
+        games.pixscape.runtime.spatial.ActorVolumePlacement.anchor(resolved?state.x[e]:t.x,resolved?state.y[e]:t.y,
+                resolved?state.rotationRad[e]:t.rotationRad,foot.localOffsetXPx,foot.localOffsetYPx,h.altitude,volumeAnchor);
+        if(surface.actorVolume==null)surface.actorVolume=new ActorVolumeCaster();
+        surface.actorVolume.update(volume,volumeAnchor[0],volumeAnchor[1],volumeAnchor[2],corners);
+        surface.shadowVertices=surface.actorVolume.vertices;surface.shadowVertexCount=surface.actorVolume.vertexCount;
+        if(surface.imageQuad){
+            // Retain camera-facing shading; the authored volume supplies the physical receiver anchor.
+            float x=volumeAnchor[0]+volume.offsetX,y=volumeAnchor[1]+volume.offsetY,z=volumeAnchor[2]+volume.offsetZ;
+            SilhouetteImageMapping.imageUV(corners,LightingCoordinates.screenX(x,y),LightingCoordinates.screenY(x,y,z),volumeUV,0);
+            SpriteSurfaceSupport.sheet(surface.vertices,corners,volumeUV[0],volumeUV[1],z,1,-1);
+        }
     }
     private void publishLight(int e,int slot){
         VisibilityComponent visible=visibility.getSafe(e,null);

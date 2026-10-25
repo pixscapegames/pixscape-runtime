@@ -18,15 +18,11 @@ public final class LightingFrame {
         public float minX,minY,minZ,maxX,maxY,maxZ;
         public void bounds() {
             minX=minY=minZ=Float.POSITIVE_INFINITY;maxX=maxY=maxZ=Float.NEGATIVE_INFINITY;
-            float[] v=surface.actorShadow!=null && surface.actorShadow.active?surface.actorShadow.calibrated:surface.vertices;
-            int length=surface.actorShadow!=null && surface.actorShadow.active?surface.actorShadow.vertexCount*8:v.length;
+            float[] v=surface.shadowVertices!=null?surface.shadowVertices:surface.vertices;
+            int length=surface.shadowVertices!=null?surface.shadowVertexCount*8:v.length;
             for(int i=0;i<length;i+=8){if(v[i+5]==0 && v[i+6]==0 && v[i+7]==0)continue;
                 minX=Math.min(minX,v[i]);maxX=Math.max(maxX,v[i]);
                 minY=Math.min(minY,v[i+1]);maxY=Math.max(maxY,v[i+1]);minZ=Math.min(minZ,v[i+2]);maxZ=Math.max(maxZ,v[i+2]);}
-            if(surface.actorShadow!=null && surface.actorShadow.active){
-                ActorShadowGeometry a=surface.actorShadow;float dx=Math.abs(a.normalX*a.maximumDisplacement()),dy=Math.abs(a.normalY*a.maximumDisplacement());
-                minX-=dx;maxX+=dx;minY-=dy;maxY+=dy;
-            }
         }
         public boolean affects(Light l,float margin) {
             float x=Math.max(minX,Math.min(maxX,l.x))-l.x,y=Math.max(minY,Math.min(maxY,l.y))-l.y,

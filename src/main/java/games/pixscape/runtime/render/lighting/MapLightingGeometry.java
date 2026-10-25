@@ -34,7 +34,7 @@ public final class MapLightingGeometry {
     public int publicationRevision(){return publicationRevision;}
     public void registerShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
         groups.add(owner,previous,previousBlocks,ids);
-        rounded.connectShadowGroups(owner,ids,groups);
+        // Curved occurrences keep their own identity; they must not bridge two facade groups.
     }
     public int roundedProfileCompilationCount(){return rounded.profileCompilations;}
     public int roundedGeometryCompilationCount(){return rounded.geometryCompilations;}
@@ -466,16 +466,13 @@ public final class MapLightingGeometry {
      */
     private LightingSurface silhouetteCaster(TiledMapLayerData map,SpatialBlockData block,float[] quad){
         Array<float[]> projected=new Array<float[]>();int length=0;
+        SilhouetteFaceCompiler compiler=new SilhouetteFaceCompiler();float[] compiled=new float[144];
         Array<float[]> volumeFaces=faces(map,block,false);
         for(int i=0;i<volumeFaces.size;i++){
             float[] face=volumeFaces.get(i);
-            for(int o=0;o<face.length;o+=8)
-                imageUV(quad,LightingCoordinates.screenX(face[o],face[o+1]),
-                        LightingCoordinates.screenY(face[o],face[o+1],face[o+2]),face,o+3);
-            face=clip(face,3,0,true);face=clip(face,3,1,false);
-            face=clip(face,4,0,true);face=clip(face,4,1,false);
-            if(face.length<24 || uvArea(face)<=.000001f)continue;
-            float[] triangles=rounded.trim(block.id,triangulate(face,null));projected.add(triangles);length+=triangles.length;
+            int count=compiler.compile(face,quad,compiled,0);if(count==0)continue;
+            float[] triangles=new float[count*8];System.arraycopy(compiled,0,triangles,0,triangles.length);
+            triangles=rounded.trim(block.id,triangles);projected.add(triangles);length+=triangles.length;
         }
         if(length==0)throw new LightingAdmissionException("Silhouette caster volume projects outside its linked tile image");
         float[] vertices=new float[length];int at=0;
@@ -656,10 +653,7 @@ public final class MapLightingGeometry {
         return out;
     }
     private static void imageUV(float[] q,float x,float y,float[] out,int at) {
-        float ax=q[6]-q[0],ay=q[7]-q[1],bx=q[2]-q[0],by=q[3]-q[1];
-        float d=ax*by-ay*bx;
-        if(Math.abs(d)<.000001f) throw new IllegalArgumentException("Degenerate receiver image quad");
-        x-=q[0];y-=q[1];out[at]=(x*by-y*bx)/d;out[at+1]=(ax*y-ay*x)/d;
+        SilhouetteImageMapping.imageUV(q,x,y,out,at);
     }
     private static void vertex(float[] p,int o,float x,float y,float z,float u,float v,float nx,float ny,float nz){
         p[o]=x;p[o+1]=y;p[o+2]=z;p[o+3]=u;p[o+4]=v;p[o+5]=nx;p[o+6]=ny;p[o+7]=nz;

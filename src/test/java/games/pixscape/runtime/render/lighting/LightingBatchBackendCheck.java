@@ -129,23 +129,23 @@ public final class LightingBatchBackendCheck {
                         textures[i]=new Texture(pixmap);pixmap.dispose();TextureRegistry.handleOf(textures[i]);
                     }
                     LightingFrame atLimit=frame(textures[0],REPLAY_CAPACITY);
-                    Assert.assertEquals(1,batch.requiredReplayBatches(atLimit,atLimit.casterIndex.candidates,false));
+                    Assert.assertEquals(1,batch.requiredReplayBatches(atLimit,atLimit.casterIndex.candidates));
                     LightingFrame aboveLimit=frame(textures[0],REPLAY_CAPACITY+3);
-                    Assert.assertEquals(2,batch.requiredReplayBatches(aboveLimit,aboveLimit.casterIndex.candidates,false));
+                    Assert.assertEquals(2,batch.requiredReplayBatches(aboveLimit,aboveLimit.casterIndex.candidates));
                     LightingFrame fourTextures=new LightingFrame();
                     for(int i=0;i<4;i++)add(fourTextures,textures[i],3);
-                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates,false));
+                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates));
                     add(fourTextures,textures[4],3);
-                    Assert.assertEquals(2,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates,false));
+                    Assert.assertEquals(2,batch.requiredReplayBatches(fourTextures,fourTextures.casterIndex.candidates));
                     com.badlogic.gdx.utils.IntArray subset=new com.badlogic.gdx.utils.IntArray(new int[]{0,1});
-                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,subset,false));
-                    subset.clear();Assert.assertEquals(0,batch.requiredReplayBatches(fourTextures,subset,false));
-                    assertGpuReplay(batch,atLimit,false);
-                    assertGpuReplay(batch,aboveLimit,false);
-                    assertGpuReplay(batch,fourTextures,false);
+                    Assert.assertEquals(1,batch.requiredReplayBatches(fourTextures,subset));
+                    subset.clear();Assert.assertEquals(0,batch.requiredReplayBatches(fourTextures,subset));
+                    assertGpuReplay(batch,atLimit);
+                    assertGpuReplay(batch,aboveLimit);
+                    assertGpuReplay(batch,fourTextures);
                     fourTextures.casters.peek().surface.actor=true;
-                    assertGpuReplay(batch,fourTextures,true);
-                    assertGpuReplay(batch,new LightingFrame(),false);
+                    assertGpuReplay(batch,fourTextures);
+                    assertGpuReplay(batch,new LightingFrame());
                     Assert.assertEquals("Empty scene releases GPU replay storage",0,batch.replayBytes());
                 }catch(Throwable error){failure[0]=error;}
                 finally {
@@ -156,8 +156,8 @@ public final class LightingBatchBackendCheck {
         },cfg);
         if(failure[0]!=null)throw new AssertionError("P3 replay eligibility failed",failure[0]);
     }
-    private static void assertGpuReplay(LightingBatch batch,LightingFrame frame,boolean decorOnly)throws Exception{
-        int count=batch.requiredReplayBatches(frame,frame.casterIndex.candidates,decorOnly);
+    private static void assertGpuReplay(LightingBatch batch,LightingFrame frame)throws Exception{
+        int count=batch.requiredReplayBatches(frame,frame.casterIndex.candidates);
         batch.prepareReplayCapacity(count);
         com.badlogic.gdx.graphics.glutils.ShaderProgram shader=new com.badlogic.gdx.graphics.glutils.ShaderProgram(
                 "attribute vec3 a_position;void main(){gl_Position=vec4(a_position,1.);}",
@@ -175,7 +175,7 @@ public final class LightingBatchBackendCheck {
         try{
             games.pixscape.runtime.render.batch.performance.RenderStats stats=new games.pixscape.runtime.render.batch.performance.RenderStats();
             Gdx.gl=Gdx.gl20=proxy;batch.begin(shader,stats,true);
-            for(LightingFrame.Caster c:frame.casters)if(!decorOnly||!c.surface.actor)
+            for(LightingFrame.Caster c:frame.casters)
                 batch.draw(c.surface,c.texture,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             batch.flush();for(int i=1;i<6;i++)batch.replay();
             Assert.assertEquals("Upload once per GPU batch, not per face",count,uploads[0]);

@@ -23,13 +23,6 @@ final class RoundedMapSupport {
     int profileCompilations,geometryCompilations;
 
     RoundedMapSupport() {}
-    void connectShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
-        for(LongMap.Entry<Placement> e:placements){
-            int corner=ids.idForCorner(owner,e.key);
-            groups.connect(corner,ids.idFor(owner,e.value.xWall));
-            groups.connect(corner,ids.idFor(owner,e.value.yWall));
-        }
-    }
     /** The preparation below replaces indexes and placements; shared compiled supports are immutable. */
     RoundedMapSupport(RoundedMapSupport source){
         profiles=source.profiles;placements=source.placements;
