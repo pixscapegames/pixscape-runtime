@@ -121,7 +121,7 @@ public final class LightingBatchBackendCheck {
         cfg.setInitialVisible(false);cfg.setWindowedMode(32,32);cfg.disableAudio(true);
         new Lwjgl3Application(new ApplicationAdapter(){
             @Override public void create(){
-                LightingBatch batch=null;Texture[] textures=new Texture[5];
+                LightingBatch batch=null;Texture[] textures=new Texture[9];
                 try {
                     TextureRegistry.clear();batch=new LightingBatch();
                     for(int i=0;i<textures.length;i++){
@@ -147,6 +147,15 @@ public final class LightingBatchBackendCheck {
                     assertGpuReplay(batch,fourTextures);
                     assertGpuReplay(batch,new LightingFrame());
                     Assert.assertEquals("Empty scene releases GPU replay storage",0,batch.replayBytes());
+                    batch.dispose();batch=new LightingBatch(8);
+                    LightingFrame eightTextures=new LightingFrame();
+                    for(int i=0;i<8;i++)add(eightTextures,textures[i],3);
+                    Assert.assertEquals(1,batch.requiredReplayBatches(eightTextures,eightTextures.casterIndex.candidates));
+                    assertGpuReplay(batch,eightTextures);
+                    add(eightTextures,textures[8],3);
+                    Assert.assertEquals(2,batch.requiredReplayBatches(eightTextures,eightTextures.casterIndex.candidates));
+                    assertGpuReplay(batch,eightTextures);
+                    assertGpuReplay(batch,aboveLimit);
                 }catch(Throwable error){failure[0]=error;}
                 finally {
                     if(batch!=null)batch.dispose();for(Texture texture:textures)if(texture!=null)texture.dispose();

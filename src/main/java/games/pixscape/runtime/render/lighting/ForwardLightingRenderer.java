@@ -137,7 +137,10 @@ public final class ForwardLightingRenderer {
     private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
         int receiverDomain=0;
         NormalMapBinding normal=s==null?null:s.normalMap;
-        int page=normal==null?TextureRegistry.WHITE_HANDLE:normal.textureHandle;
+        // Unmapped vertices never sample u_normal. Keep the current page so they
+        // can share a draw with mapped vertices; still initialize a complete sampler
+        // after each render reset, including frames beginning with unmapped sprites.
+        int page=normal==null?(normalHandle<0?TextureRegistry.WHITE_HANDLE:normalHandle):normal.textureHandle;
         if(domain!=receiverDomain){if(vertices!=0)domainFlushes++;flush();domain=receiverDomain;
             Texture atlas=q.lighting.lights.size==0||q.lighting.lights.first().quality==0?null:shadows.shadowTexture();
             (atlas==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):atlas).bind(3);

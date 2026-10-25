@@ -8,17 +8,19 @@ import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
-/** Ordered triangle batching with four page bindings. User parameter tables are untouched. */
+/** Ordered triangles: four receiver pages, capability-sized shadow pages. */
 final class LightingBatch {
     // The flat exclusion identity is retained by shadow replay, but never interpolated.
     private static final int SHADOW_STRIDE=19, BASE_STRIDE=22, MAPPED_STRIDE=29, CAPACITY=12288;
     private int stride=BASE_STRIDE;
+    private final int shadowSlots;
+    private int colorSlots=4;
     private final float[] data=new float[CAPACITY*MAPPED_STRIDE];
-    private final int[] handles=new int[4];
-    private final int[] planningHandles=new int[4];
+    private final int[] handles=new int[8];
+    private final int[] planningHandles=new int[8];
     private static final class ReplayBatch {
         final Mesh mesh;
-        final int[] handles=new int[4];
+        final int[] handles=new int[8];
         int vertices,textures;
         ReplayBatch(){mesh=baseMesh(false);}
     }
@@ -36,7 +38,10 @@ final class LightingBatch {
     private boolean retainReplay;
     private ShaderProgram shader;
     private RenderStats stats;
-    LightingBatch(){
+    LightingBatch(){this(4);}
+    LightingBatch(int shadowSlots){
+        if(shadowSlots!=4 && shadowSlots!=8)throw new IllegalArgumentException("Shadow slots must be four or eight");
+        this.shadowSlots=shadowSlots;
         mesh=baseMesh(true);
         mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
@@ -73,6 +78,7 @@ final class LightingBatch {
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
         this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayCount=0;
         mapped=false;stride=retainReplay?SHADOW_STRIDE:BASE_STRIDE;normalTextures=0;
+        colorSlots=retainReplay?shadowSlots:4;
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
@@ -91,7 +97,7 @@ final class LightingBatch {
             if(count==0)continue;
             boolean found=false;
             for(int j=0;j<textureCount;j++)if(planningHandles[j]==caster.texture){found=true;break;}
-            if(!found){if(textureCount==4){if(total>0)batches++;total=textureCount=0;}planningHandles[textureCount++]=caster.texture;}
+            if(!found){if(textureCount==shadowSlots){if(total>0)batches++;total=textureCount=0;}planningHandles[textureCount++]=caster.texture;}
             while(count>0){
                 if(total==CAPACITY){batches++;total=0;textureCount=1;planningHandles[0]=caster.texture;}
                 int n=Math.min(count,CAPACITY-total);total+=n;count-=n;
@@ -104,7 +110,7 @@ final class LightingBatch {
         for(int i=0;i<replayCount;i++){
             ReplayBatch b=replayBatches.get(i);bindTextures(b.handles,b.textures);
             b.mesh.render(shader,GL20.GL_TRIANGLES,0,b.vertices);
-            if(stats!=null){stats.drawCalls++;stats.replayDraws++;stats.drawnVertices+=b.vertices;stats.textureBinds+=4;}
+            if(stats!=null){stats.drawCalls++;stats.replayDraws++;stats.drawnVertices+=b.vertices;stats.textureBinds+=colorSlots;}
         }
     }
     void draw(LightingSurface surface,int texture,float u1,float v1,float u2,float v2,float color,
@@ -116,7 +122,7 @@ final class LightingBatch {
                         alpha?GL20.GL_ONE_MINUS_SRC_ALPHA:GL20.GL_ZERO,GL20.GL_ONE,alpha?GL20.GL_ONE_MINUS_SRC_ALPHA:GL20.GL_ZERO);}
         }
         int slot=-1;for(int i=0;i<textures;i++)if(handles[i]==texture){slot=i;break;}
-        if(slot<0){if(textures==4)flush();slot=textures;handles[textures++]=texture;}
+        if(slot<0){if(textures==colorSlots)flush();slot=textures;handles[textures++]=texture;}
         games.pixscape.runtime.service.NormalMapBinding normal=shadow?null:surface.normalMap;
         int normalSlot=-1;
         if(mapped && normal!=null){
@@ -191,19 +197,19 @@ final class LightingBatch {
         }
         active.setVertices(data,0,vertices*stride);active.render(shader,GL20.GL_TRIANGLES,0,vertices);
         uploads++;uploadedBytes+=(long)vertices*stride*4;
-        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=4;
+        if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=colorSlots;
             stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*stride*4;
             stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;}
         vertices=0;textures=0;
     }
-    private static void bindTextures(int[] source,int count){
+    private void bindTextures(int[] source,int count){
         for(int i=0;i<count;i++){Texture t=TextureRegistry.getByHandle(source[i]);
             if(t==null)throw new IllegalStateException("Lighting texture handle is not registered: "+source[i]);t.bind(i);}
         // All active sampler uniforms need complete, non-attachment textures on WebGL.
         // A preceding accumulation leaves the scratch attachment bound on unit 1.
         Texture first=TextureRegistry.getByHandle(source[0]);
         if(first==null)throw new IllegalStateException("Lighting texture handle is not registered: "+source[0]);
-        for(int i=count;i<4;i++)first.bind(i);
+        for(int i=count;i<colorSlots;i++)first.bind(i);
     }
     private void bindNormalTextures(){
         for(int i=0;i<4;i++){

@@ -24,6 +24,7 @@ public final class LightingRenderer {
     private final ShadowWitnessCapture witnessCapture=new ShadowWitnessCapture();
     private ShaderProgram receiver,mappedReceiver,shadow,firstShadow,secondShadow,accumulate;
     private LightingBatch batch;
+    private int shadowColorSlots=4;
     private FrameBuffer scratch,atlas,secondAtlas,pocWithoutTiledSelfAtlas;
     private Mesh screen;
     private int width,height,resolution;
@@ -147,16 +148,20 @@ public final class LightingRenderer {
     }
     private void prepareShadowProgram() {
         if(shadow!=null && (!twoDepthSelfShadowExclusion() || secondShadow!=null))return;
+        if(shadow==null){
+            saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS,saved);
+            shadowColorSlots=shadowColorSlotsFor(saved.get(0));
+        }
         String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                 "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
         String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_exclusionId;";
         String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
         String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
-        String sample="uniform sampler2D u_tex0,u_tex1,u_tex2,u_tex3;vec4 image(){if(flags.x<.5)return texture(u_tex0,uv);if(flags.x<1.5)return texture(u_tex1,uv);if(flags.x<2.5)return texture(u_tex2,uv);return texture(u_tex3,uv);}";
+        String sample=shadowImageSource(shadowColorSlots);
         String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
         if(shadow==null){
             shadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
-            shadow.bind();samplers(shadow);batch=new LightingBatch();
+            shadow.bind();samplers(shadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots);
         }
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
         // geometric support ID. Both passes and both receiver paths use that same key.
@@ -165,8 +170,17 @@ public final class LightingRenderer {
         if(twoDepthSelfShadowExclusion()&&secondShadow==null){
             firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
             secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
-            firstShadow.bind();samplers(firstShadow);secondShadow.bind();samplers(secondShadow);secondShadow.setUniformi("u_firstIdentity",4);
+            firstShadow.bind();samplers(firstShadow,shadowColorSlots);secondShadow.bind();samplers(secondShadow,shadowColorSlots);secondShadow.setUniformi("u_firstIdentity",shadowColorSlots);
         }
+    }
+    // Reserve one fragment texture unit for id1 even before the second pass is enabled.
+    static int shadowColorSlotsFor(int fragmentUnits){return fragmentUnits>=9?8:4;}
+    static String shadowImageSource(int slots){
+        StringBuilder source=new StringBuilder("uniform sampler2D ");
+        for(int i=0;i<slots;i++){if(i>0)source.append(',');source.append("u_tex").append(i);}
+        source.append(";vec4 image(){");
+        for(int i=0;i<slots-1;i++)source.append("if(flags.x<").append(i).append(".5)return texture(u_tex").append(i).append(",uv);");
+        return source.append("return texture(u_tex").append(slots-1).append(",uv);}").toString();
     }
     /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
     public Texture shadowTexture() { return atlas==null?null:atlas.getColorBufferTexture(); }
@@ -209,7 +223,8 @@ public final class LightingRenderer {
         shadowUploads=batch.uploads;shadowUploadedBytes=batch.uploadedBytes;
     }
     private static ShaderProgram compile(String v,String f){ShaderProgram s=new ShaderProgram(v,f);if(!s.isCompiled()){String log=s.getLog();s.dispose();throw new IllegalStateException("2.5D lighting shader: "+log);}return s;}
-    private static void samplers(ShaderProgram s){for(int i=0;i<4;i++)s.setUniformi("u_tex"+i,i);}
+    private static void samplers(ShaderProgram s){samplers(s,4);}
+    private static void samplers(ShaderProgram s,int slots){for(int i=0;i<slots;i++)s.setUniformi("u_tex"+i,i);}
     private static FrameBuffer floatTarget(int w,int h,boolean depth){
         GLFrameBuffer.FrameBufferBuilder b=new GLFrameBuffer.FrameBufferBuilder(w,h);
         b.addFloatAttachment(depth?GL30.GL_R32F:GL30.GL_RGBA16F,depth?GL30.GL_RED:GL20.GL_RGBA,GL20.GL_FLOAT,true);
@@ -427,7 +442,7 @@ public final class LightingRenderer {
     }
     private void secondShadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
         if(secondAtlas==null)throw new IllegalStateException("Two-depth target was not prepared");
-        atlas.getTextureAttachments().get(1).bind(4);
+        atlas.getTextureAttachments().get(1).bind(shadowColorSlots);
         shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,null,secondShadow,false);
     }
     /** POC-only identity check: no category filtering and no inference from image asset IDs. */

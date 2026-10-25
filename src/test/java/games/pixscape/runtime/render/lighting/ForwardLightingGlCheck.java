@@ -88,6 +88,7 @@ public final class ForwardLightingGlCheck {
         for(int y=3;y<30;y+=3)Assert.assertTrue("Continuous neutral-material join at y="+y,Math.abs(red(31,y)-red(32,y))<8);
         light.x=-100;clear();world.process();
         for(int x=4;x<60;x+=4)Assert.assertTrue("No clipped-factor light leaking onto the dark side",red(x,16)<5);
+        assertUnmappedNormalBatching(world,q,submit,texture,shader);
         // GLSL ES is compiled by this desktop driver; this is not a GLES/WebGL execution.
         String es="#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
         ShaderProgram esProgram=new ShaderProgram(ForwardLightingRenderer.vertexSource(es),ForwardLightingRenderer.fragmentSource(es));
@@ -97,6 +98,33 @@ public final class ForwardLightingGlCheck {
         ForwardParticleGlCheck.verify();
     }
     private static void clear(){Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);}
+    private static void assertUnmappedNormalBatching(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture color,int shader)throws Exception{
+        Pixmap pix=new Pixmap(1,1,Pixmap.Format.RGBA8888);pix.setColor(.5f,.5f,1,1);pix.fill();
+        Texture a=new Texture(pix),b=new Texture(pix);pix.dispose();
+        java.lang.reflect.Constructor<NormalMapBinding> ctor=NormalMapBinding.class.getDeclaredConstructor(
+                com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion.class,com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion.class);
+        ctor.setAccessible(true);
+        com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion region=new com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion(color,0,0,1,1);
+        NormalMapBinding na=ctor.newInstance(region,new com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion(a,0,0,1,1));
+        NormalMapBinding nb=ctor.newInstance(region,new com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion(b,0,0,1,1));
+        try{
+            q.size=0;q.lighting.lights.clear();q.lighting.tiles.clear();
+            for(int i=0;i<6;i++){
+                q.addQuad(TextureRegistry.handleOf(color),shader,1,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_TILED,i,100+i);
+                LightingSurface s=neutralFacet(true);s.normalMap=i==1||i==3?na:i==4?nb:null;q.lighting.tiles.put(i,s);
+            }
+            for(int frame=0;frame<3;frame++){
+                clear();world.process();
+                Assert.assertEquals("Initial unmapped then two real normal pages",3,submit.forwardRenderer().worldDraws);
+                Assert.assertEquals("No cuts for unmapped entries between/after real pages",2,submit.forwardRenderer().normalFlushes);
+                Assert.assertEquals(0,submit.forwardRenderer().blendFlushes);
+            }
+            // A new frame starts with no normal page retained from the previous one.
+            q.size=1;clear();world.process();Assert.assertEquals(1,submit.forwardRenderer().worldDraws);
+            Assert.assertEquals(0,submit.forwardRenderer().normalFlushes);
+            Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+        }finally{a.dispose();b.dispose();}
+    }
     private static void assertDrawFailureRestoresState(World world){
         final GL20 original=Gdx.gl;final GL30 original30=Gdx.gl30;
         java.nio.IntBuffer state=com.badlogic.gdx.utils.BufferUtils.newIntBuffer(4);
