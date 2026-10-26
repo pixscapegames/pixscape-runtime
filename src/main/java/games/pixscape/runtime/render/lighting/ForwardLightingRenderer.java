@@ -24,7 +24,6 @@ public final class ForwardLightingRenderer {
     private static final int STRIDE=29,CAPACITY=12288;
     private final float[] data=new float[CAPACITY*STRIDE],quad=new float[8];
     private final ForwardWorldTarget target=new ForwardWorldTarget();
-    private final ShadowWitnessCapture witnessCapture=new ShadowWitnessCapture();
     private ShaderProgram shader;
     private Mesh mesh;
     private World admittedWorld;
@@ -82,7 +81,7 @@ public final class ForwardLightingRenderer {
     public static String fragmentSource(String version){
         String reference=LightingRenderer.RECEIVER;
         String declarations=reference.substring(0,reference.indexOf("void main()"));
-        String direct=reference.substring(reference.indexOf("float value=0.,"),reference.indexOf("result=vec4(outputColor"))
+        String direct=reference.substring(reference.indexOf("float value=0."),reference.indexOf("result=vec4(outputColor"))
                 // Range and the existing geometric horizon can make direct light exactly zero.
                 // Keep coverage/ambient; only skip work whose final contribution is zero.
                 .replace("if(flags.y>.5&&normalLength>.0001)",
@@ -96,8 +95,7 @@ public final class ForwardLightingRenderer {
                 // Native premultiplied additive emitters carry emission in RGB with zero coverage.
                 // ONE-source blends must retain that RGB even when alpha is zero.
                 "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"+
-                direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);"+
-                reference.substring(reference.indexOf("if(u_pocDiagnostic==1)"));
+                direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);}";
     }
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
@@ -119,7 +117,6 @@ public final class ForwardLightingRenderer {
                 draw(queue,i,surface,shadows);
             }
             if(vertices!=0)endFlushes++;flush();
-            if(queue.lighting.lights.size>0)witnessCapture.capture(queue.lighting.lights.first(),null,null,target.diagnosticBuffer(),queue.lighting.lights.first().resolution,0);
             if(queue.lighting.timer!=null)queue.lighting.timer.end(LightingPassTimer.RECEIVERS);
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(4);
             target.present();stats.drawCalls++;stats.presentationDraws++;stats.drawnIndices+=6;stats.textureBinds++;stats.shaderBinds++;presentationDraws=1;
@@ -128,7 +125,6 @@ public final class ForwardLightingRenderer {
         } finally {vertices=0;shadows.abort();target.end();}
     }
     private void lightUniforms(LightingFrame frame,LightingRenderer shadows){
-        shader.setUniformi("u_pocDiagnostic",LightingRenderer.pocLightingDiagnostic());
         LightingFrame.Light l=frame.lights.size==0?null:frame.lights.first();
         shader.setUniformf("u_light",l==null?0:l.x,l==null?0:l.y,l==null?0:l.z);
         shader.setUniformf("u_color",l==null?0:l.r*l.intensity,l==null?0:l.g*l.intensity,l==null?0:l.b*l.intensity);

@@ -126,7 +126,7 @@ public class LightingGeometryTest {
         Assert.assertEquals(0,geometry.casters.size);
         Assert.assertEquals(2,geometry.receiver(map,0,0,7,(byte)0,quad).casterContributions.size);
     }
-    @Test public void silhouetteCasterUsesTheLinkedImageProjectionAndReplacesTheWhiteVolume(){
+    @Test public void linkedSilhouetteCasterContributesWithoutDiagnosticOverrides(){
         TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
         SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData barrel=block(1,2.1f,3.2f,.75f,.63f,54.244385f);
         barrel.shadowCaster=true;barrel.silhouetteShadowCaster=true;barrel.addLinkedTileRef(2,3,1885);blocks.blocks.add(barrel);
@@ -144,32 +144,21 @@ public class LightingGeometryTest {
                     LightingCoordinates.screenY(caster.vertices[i],caster.vertices[i+1],caster.vertices[i+2]),.0001f);
         }
     }
-    @Test public void pocCasterExclusionKeepsTheReceiverAndRemovesOnlyItsShadowCaster(){
+    @Test public void authoredNonCasterIsExcludedWhileAnotherLinkedCasterStillContributes(){
         TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
-        SpatialBlocksComponent blocks=new SpatialBlocksComponent();SpatialBlockData barrel=block(44,2.1f,3.2f,.75f,.63f,54.244385f);
-        barrel.shadowCaster=true;barrel.silhouetteShadowCaster=true;barrel.addLinkedTileRef(2,3,1885);blocks.blocks.add(barrel);
-        String previous=System.getProperty("pixscape.poc.excludeShadowCasterBlockId");
-        try {
-            System.setProperty("pixscape.poc.excludeShadowCasterBlockId","44");
-            MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
-            float[] quad=new float[8];map.tileToRenderQuad(2,3,quad);LightingSurface tile=geometry.receiver(map,2,3,1885,(byte)0,quad);
-            Assert.assertFalse(tile.shadowCaster);Assert.assertNull(tile.casterSurface);
-            Assert.assertTrue("The receiver is retained for diagnostic C",tile.vertices.length>0);
-            Assert.assertEquals("No full-volume replacement is admitted",0,geometry.casters.size);
-        } finally {
-            if(previous==null)System.clearProperty("pixscape.poc.excludeShadowCasterBlockId");
-            else System.setProperty("pixscape.poc.excludeShadowCasterBlockId",previous);
-        }
-    }
-    @Test public void pocTiledSelfExclusionFindsOnlyTheLinkedAlphaCaster(){
-        LightingSurface receiver=new LightingSurface(new float[0]);receiver.pocSourceBlockId=44;
-        LightingSurface selfSurface=new LightingSurface(new float[0]);selfSurface.pocSourceBlockId=44;receiver.casterSurface=selfSurface;
-        LightingFrame.Caster self=new LightingFrame.Caster();self.surface=selfSurface;
-        LightingFrame.Caster other=new LightingFrame.Caster();other.surface=new LightingSurface(new float[0]);other.surface.pocSourceBlockId=45;
-        LightingFrame frame=new LightingFrame();frame.casters.add(self);frame.casters.add(other);
-        Assert.assertSame(self,LightingRenderer.pocTiledSelfCaster(frame,receiver,44));
-        Assert.assertNull(LightingRenderer.pocTiledSelfCaster(frame,receiver,45));
-        Assert.assertNotSame("A distinct caster remains in the alternate shadow map",other,LightingRenderer.pocTiledSelfCaster(frame,receiver,44));
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();
+        SpatialBlockData excluded=block(44,2.1f,3.2f,.75f,.63f,54.244385f);
+        excluded.silhouetteShadowCaster=true;excluded.addLinkedTileRef(2,3,1885);blocks.blocks.add(excluded);
+        SpatialBlockData included=block(45,3.1f,3.2f,.75f,.63f,54.244385f);
+        included.shadowCaster=true;included.silhouetteShadowCaster=true;included.addLinkedTileRef(3,3,1885);blocks.blocks.add(included);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        float[] excludedQuad=new float[8];map.tileToRenderQuad(2,3,excludedQuad);LightingSurface excludedTile=geometry.receiver(map,2,3,1885,(byte)0,excludedQuad);
+        Assert.assertFalse(excludedTile.shadowCaster);Assert.assertNull(excludedTile.casterSurface);
+        Assert.assertTrue("The directly excluded volume keeps normal receiver coverage",excludedTile.vertices.length>0);
+        Assert.assertEquals("No full-volume caster is admitted",0,geometry.casters.size);
+        float[] includedQuad=new float[8];map.tileToRenderQuad(3,3,includedQuad);LightingSurface includedTile=geometry.receiver(map,3,3,1885,(byte)0,includedQuad);
+        Assert.assertTrue("The fixture must prove that a real linked caster still contributes",includedTile.shadowCaster);
+        Assert.assertNotNull(includedTile.casterSurface);
     }
     @Test public void barrelSupportCoversTheRecordedOpaqueImageExtent(){
         // Real copied-scene support: tile (26,29), 256x512 bottom-centred image, block 44.

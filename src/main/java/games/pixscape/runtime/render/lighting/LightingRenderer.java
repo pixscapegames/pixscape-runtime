@@ -28,11 +28,10 @@ import java.nio.IntBuffer;
 
 /** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private final ShadowWitnessCapture witnessCapture=new ShadowWitnessCapture();
     private ShaderProgram receiver,mappedReceiver,shadow,firstShadow,secondShadow,accumulate;
     private LightingBatch batch;
     private int shadowColorSlots=4;
-    private FrameBuffer scratch,atlas,secondAtlas,pocWithoutTiledSelfAtlas;
+    private FrameBuffer scratch,atlas,secondAtlas;
     private Mesh screen;
     private int width,height,resolution;
     private World preparedWorld;
@@ -53,9 +52,6 @@ public final class LightingRenderer {
     public int selectedCasters,shadowDraws,receiverDraws;
     public long shadowUploadedBytes,shadowPreparationCpuNs;
     public int shadowUploads;
-    /** Diagnostic-only cost of rerendering one tile receiver's shadow atlas without its own caster. */
-    public long pocTiledSelfExclusionCpuNs;
-    public int pocTiledSelfExclusionDraws;
     /** Cost specific to the shared d2 replay; d1 remains included in {@link #shadowCpuNs}. */
     public long twoDepthShadowCpuNs,twoDepthShadowUploadedBytes;
     public int twoDepthShadowDraws,twoDepthShadowUploads;
@@ -136,18 +132,13 @@ public final class LightingRenderer {
         if(required!=resolution){
             FrameBuffer next=required==0?null:(twoDepthSelfShadowExclusion()?twoDepthFirstTarget(required*3,required*2):floatTarget(required*3,required*2,true));
             FrameBuffer nextSecond=null;
-            FrameBuffer nextPoc=null;
             try{
                 if(required!=0&&twoDepthSelfShadowExclusion())nextSecond=floatTarget(required*3,required*2,true);
-                if(required!=0&&pocTiledSelfExclusionBlockId()!=0)nextPoc=floatTarget(required*3,required*2,true);
             } catch(RuntimeException | Error failure){
                 if(next!=null)next.dispose();if(nextSecond!=null)nextSecond.dispose();throw failure;
             }
-            if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
-            atlas=next;secondAtlas=nextSecond;pocWithoutTiledSelfAtlas=nextPoc;resolution=required;
-        } else if(required!=0&&pocTiledSelfExclusionBlockId()!=0&&pocWithoutTiledSelfAtlas==null){
-            // The property is diagnostic-only and normally set before startup; this keeps a live Preview recoverable.
-            pocWithoutTiledSelfAtlas=floatTarget(required*3,required*2,true);
+            if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();
+            atlas=next;secondAtlas=nextSecond;resolution=required;
         } else if(required!=0&&twoDepthSelfShadowExclusion()&&secondAtlas==null){
             // The mode can be toggled before a recoverable Preview re-prepare, but never per receiver.
             if(atlas!=null)atlas.dispose();atlas=twoDepthFirstTarget(required*3,required*2);secondAtlas=floatTarget(required*3,required*2,true);
@@ -230,7 +221,6 @@ public final class LightingRenderer {
         long start=System.nanoTime();int draws=stats.drawCalls;
         if(frame.timer!=null)frame.timer.begin(LightingPassTimer.SHADOW);
         shadows(frame,frame.lights.first(),stats);
-        witnessCapture.capture(frame.lights.first(),atlas,secondAtlas,null,frame.lights.first().resolution,0);
         if(frame.timer!=null)frame.timer.end(LightingPassTimer.SHADOW);
         shadowCpuNs=System.nanoTime()-start;shadowDraws=stats.drawCalls-draws;
         stats.shadowDraws+=shadowDraws;
@@ -277,7 +267,7 @@ public final class LightingRenderer {
     }
     private void endTwoDepthGpuTimer(){Gdx.gl30.glEndQuery(0x88BF);twoDepthGpuPending[twoDepthGpuQueryIndex]=true;twoDepthGpuQueryIndex=(twoDepthGpuQueryIndex+1)%twoDepthGpuQueries.length;}
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,WorldLightComposition composition,RenderStats stats){
-        LightingFrame frame=queue.lighting;shadowCpuNs=receiverCpuNs=accumulationCpuNs=pocTiledSelfExclusionCpuNs=twoDepthShadowCpuNs=twoDepthShadowUploadedBytes=0;selectedCasters=shadowDraws=receiverDraws=pocTiledSelfExclusionDraws=twoDepthShadowDraws=twoDepthShadowUploads=0;
+        LightingFrame frame=queue.lighting;shadowCpuNs=receiverCpuNs=accumulationCpuNs=twoDepthShadowCpuNs=twoDepthShadowUploadedBytes=0;selectedCasters=shadowDraws=receiverDraws=twoDepthShadowDraws=twoDepthShadowUploads=0;
         composition.beginField();
         // Clear every frame, including empty frames, before skipping work without consumers.
         if(queue.size==0 && frame.diagnostic==0)return;
@@ -307,10 +297,6 @@ public final class LightingRenderer {
             ShaderProgram lightReceiver=mapped?mappedReceiver:receiver;
             int activeClass=-1;
             boolean preparedReceiver=false;
-            LightingFrame.Caster pocPreparedSelfCaster=null;
-            int pocBlockId=pocTiledSelfExclusionBlockId();
-            long pocExclusionNsThisLight=0;
-            int pocExclusionDrawsThisLight=0;
             for(int i=0;i<queue.size;i++){
                 if(queue.light[i]!=0 || queue.textureHandle[i]==0)continue;
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
@@ -335,35 +321,10 @@ public final class LightingRenderer {
                 boolean supported=ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE && queue.repeatFlags[i]==0;
                 if(!supported && frame.diagnostic==0)throw new IllegalArgumentException(
                         "2.5D lighting requires standard coverage and color; unsupported shader/repeat at source entity "+queue.sourceEntity[i]);
-                LightingFrame.Caster self=pocBlockId==0||queue.sourceDomain[i]!=FrameRenderQueue.SOURCE_TILED||l.quality==0
-                        ?null:pocTiledSelfCaster(frame,s,pocBlockId);
-                if(self!=null){
-                    if(pocWithoutTiledSelfAtlas==null)throw new IllegalStateException("POC tiled self-exclusion atlas was not prepared");
-                    if(self!=pocPreparedSelfCaster){
-                        batch.flush();long exclusionStart=System.nanoTime();int exclusionDraws=stats.drawCalls;
-                        shadowMap(frame,l,stats,pocWithoutTiledSelfAtlas,frame.casterIndex.candidates,self,shadow,false);
-                        long elapsed=System.nanoTime()-exclusionStart;
-                        int added=stats.drawCalls-exclusionDraws;
-                        pocExclusionNsThisLight+=elapsed;pocExclusionDrawsThisLight+=added;
-                        pocTiledSelfExclusionCpuNs+=elapsed;pocTiledSelfExclusionDraws+=added;shadowDraws+=added;stats.shadowDraws+=added;
-                        // shadowMap leaves its target and cubemap viewport current; continue the receiver pass in scratch.
-                        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,scratch.getFramebufferHandle());Gdx.gl.glViewport(0,0,width,height);
-                        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
-                        if(clipped)scissorInfluence();else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
-                        pocPreparedSelfCaster=self;
-                    }
-                    batch.flush();pocWithoutTiledSelfAtlas.getColorBufferTexture().bind(4);
-                    if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
-                }
                 batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.v1[i],queue.u2[i],queue.v2[i],queue.colorPacked[i],blend,quad,0,0,false,supported);
-                if(self!=null){
-                    batch.flush();bindReceiverShadowTextures(l,composition);
-                    if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
-                }
             }
-            batch.flush();receiverDraws+=stats.drawCalls-draws-pocExclusionDrawsThisLight;stats.receiverDraws+=stats.drawCalls-draws-pocExclusionDrawsThisLight;receiverCpuNs+=System.nanoTime()-start-pocExclusionNsThisLight;
+            batch.flush();receiverDraws+=stats.drawCalls-draws;stats.receiverDraws+=stats.drawCalls-draws;receiverCpuNs+=System.nanoTime()-start;
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.RECEIVERS);
-            witnessCapture.capture(l,atlas,secondAtlas,scratch,l.resolution,li);
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.ACCUMULATION);
             start=System.nanoTime();composition.resumeField();Gdx.gl.glEnable(GL20.GL_BLEND);Gdx.gl.glBlendFunc(GL20.GL_ONE,GL20.GL_ONE);
             if(clipped)scissorInfluence();
@@ -391,8 +352,6 @@ public final class LightingRenderer {
         shader.setUniformi("u_diagnostic",frame.diagnostic);shader.setUniformf("u_cone",l.cone?1:0,l.cosOuter,l.cosInner);
         shader.setUniformf("u_direction",l.dx,l.dy,l.dz);
         shader.setUniformi("u_quality",l.quality);shader.setUniformf("u_resolution",l.resolution);
-        shader.setUniformi("u_pocDiagnostic",pocLightingDiagnostic());
-        shader.setUniformi("u_pocForceShadowVisibility","true".equalsIgnoreCase(LightingDiagnosticProperties.get("pixscape.poc.forceShadowVisibility"))?1:0);
         shader.setUniformf("u_atlasScale",resolution==0?1f:(float)l.resolution/resolution);shader.setUniformi("u_shadow",4);
         shader.setUniformi("u_shadowIdentity",9);shader.setUniformi("u_shadowSecond",10);
         shader.setUniformi("u_twoDepth",twoDepthSelfShadowExclusion()?1:0);
@@ -407,13 +366,6 @@ public final class LightingRenderer {
         } else {primary.getColorBufferTexture().bind(9);primary.getColorBufferTexture().bind(10);}
     }
 
-    /** Optional POC-only visual isolation: 1 normal, 2 direct, 3 horizon, 4 shadow visibility. */
-    static int pocLightingDiagnostic(){
-        String raw=LightingDiagnosticProperties.get("pixscape.poc.lightingDiagnostic");
-        if(raw==null)return 0;
-        try {int value=Integer.parseInt(raw);return value>=1&&value<=7?value:0;}
-        catch(NumberFormatException ignored){return 0;}
-    }
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
         if(atlas==null || l.resolution>resolution)
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
@@ -459,34 +411,18 @@ public final class LightingRenderer {
         atlas.getTextureAttachments().get(1).bind(shadowColorSlots);
         shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,null,secondShadow,false);
     }
-    /** POC-only identity check: no category filtering and no inference from image asset IDs. */
-    static LightingFrame.Caster pocTiledSelfCaster(LightingFrame frame,LightingSurface receiver,int blockId){
-        if(receiver==null||receiver.pocSourceBlockId!=blockId||receiver.casterSurface==null)return null;
-        for(int i=0;i<frame.casters.size;i++){
-            LightingFrame.Caster candidate=frame.casters.get(i);
-            if(candidate.surface==receiver.casterSurface&&candidate.surface.pocSourceBlockId==blockId)return candidate;
-        }
-        return null;
-    }
-    private static int pocTiledSelfExclusionBlockId(){
-        String raw=LightingDiagnosticProperties.get("pixscape.poc.excludeTiledSelfShadowBlockId");
-        if(raw==null)return 0;
-        try{int value=Integer.parseInt(raw);return value>0?value:0;}
-        catch(NumberFormatException ignored){return 0;}
-    }
-    /** B is deliberately mutually exclusive with the one-receiver R oracle. */
-    private static boolean twoDepthSelfShadowExclusion(){return !"false".equalsIgnoreCase(LightingDiagnosticProperties.get("pixscape.poc.twoDepthSelfShadowExclusion"))&&pocTiledSelfExclusionBlockId()==0;}
+    private static boolean twoDepthSelfShadowExclusion(){return true;}
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     public long textureBytes(){
         long pixels=(long)resolution*resolution*6;
         // A has complete+decor (2 × [R32F + depth]); B has [d1,id1,depth] + d2 + depth + decor.
-        return (long)width*height*8+pixels*(twoDepthSelfShadowExclusion()?20:8)+(pocWithoutTiledSelfAtlas==null?0:pixels*8);
+        return (long)width*height*8+pixels*20;
     }
     public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
         if(twoDepthGpuQueries!=null)Gdx.gl30.glDeleteQueries(twoDepthGpuQueries.length,twoDepthGpuQueries,0);twoDepthGpuQueries=null;twoDepthGpuPending=null;twoDepthGpuQueryIndex=0;twoDepthShadowGpuNs=-1;
-        if(firstShadow!=null)firstShadow.dispose();if(secondShadow!=null)secondShadow.dispose();if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();if(pocWithoutTiledSelfAtlas!=null)pocWithoutTiledSelfAtlas.dispose();
-        batch=null;receiver=shadow=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=secondAtlas=pocWithoutTiledSelfAtlas=null;width=height=resolution=0;}
+        if(firstShadow!=null)firstShadow.dispose();if(secondShadow!=null)secondShadow.dispose();if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();
+        batch=null;receiver=shadow=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=secondAtlas=null;width=height=resolution=0;}
 
     /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
     static final String NORMAL_SAMPLE =
@@ -502,12 +438,12 @@ public final class LightingRenderer {
     // Sprite-oriented tiles (-2) use the normal-map reference axis without facade/horizon gating.
     // Geometric normals still govern shadow bias and PCF depth; visibility/exclusions are unchanged.
     static final String RECEIVER =
-        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic,u_pocDiagnostic,u_pocForceShadowVisibility;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality,u_twoDepth;uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;"+
+        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality,u_twoDepth;uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;"+
         "vec2 shadowUV(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);}"+
         "float visible(vec3 d,float distance,float bias){vec2 uv=shadowUV(d);float first=texture(u_shadow,uv).r*u_range;float id=texture(u_shadowIdentity,uv).r;float depth=u_twoDepth!=0&&exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;return distance-bias<=depth?1.:0.;}"+
         "void main(){vec4 texel=image();if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;vec3 outputColor=t.rgb;"+
-        "float value=0.,pocDirect=0.,pocHorizon=1.,pocVisibility=1.;vec3 pocNormal=vec3(0);vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);vec3 normal=facade;pocNormal=normal;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
-        "if(u_quality==1&&(facadeGate>0.||u_pocDiagnostic!=0))visibility=visible(delta,distance,bias);if(u_quality==2&&(facadeGate>0.||u_pocDiagnostic!=0)){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,geometric);float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
-        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}pocDirect=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*cone;pocVisibility=visibility;value=pocDirect*(u_pocForceShadowVisibility!=0?1.:visibility);if(flags.z==0.){vec3 toLight=distance>0.?-delta/distance:vec3(0);float cG=dot(normal,toLight);pocHorizon=smoothstep(.052335956,.087155743,max(0.,cG));pocHorizon*=facadeGate;value*=pocHorizon;}}"+
-        "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);if(u_pocDiagnostic==1)result=vec4((pocNormal*.5+.5)*alpha,alpha);if(u_pocDiagnostic==2)result=vec4(vec3(pocDirect)*alpha,alpha);if(u_pocDiagnostic==3)result=vec4(vec3(pocHorizon)*alpha,alpha);if(u_pocDiagnostic==4)result=vec4(vec3(pocVisibility)*alpha,alpha);if(u_pocDiagnostic==5)result=vec4(pocDirect,pocHorizon,pocVisibility,1.);if(u_pocDiagnostic==6)result=vec4(p,1.);if(u_pocDiagnostic==7)result=vec4(exclusionId,flags.y,flags.z,1.);}";
+        "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);vec3 normal=facade;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
+        "if(u_quality==1&&facadeGate>0.)visibility=visible(delta,distance,bias);if(u_quality==2&&facadeGate>0.){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,geometric);float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
+        "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*cone*visibility;if(flags.z==0.){vec3 toLight=distance>0.?-delta/distance:vec3(0);float cG=dot(normal,toLight);value*=smoothstep(.052335956,.087155743,max(0.,cG))*facadeGate;}}"+
+        "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);}";
 }

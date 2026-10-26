@@ -1,6 +1,5 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.LongMap;
@@ -183,7 +182,7 @@ public final class MapLightingGeometry {
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData b=blocks.blocks.get(i);
             if (usesSilhouette(b)) validateSilhouetteCaster(b,nextMemberships);
-            if ((b.shadowCaster || b.lightOccluder) && !usesSilhouette(b) && !pocExcludedCaster(b)) casterBlocks.add(b);
+            if ((b.shadowCaster || b.lightOccluder) && !usesSilhouette(b)) casterBlocks.add(b);
         }
         rounded.prepare(map,nextMemberships,authoredDescriptions);
         memberships=nextMemberships;descriptions.clear();descriptions.putAll(nextDescriptions);
@@ -335,7 +334,7 @@ public final class MapLightingGeometry {
         surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude,spriteShading);
         surface.forwardTopology=ForwardTopology.compile(surface,quad);
         if(owners!=null)for(SpatialBlockData owner:owners){
-            if(!usesSilhouette(owner)||pocExcludedCaster(owner))continue;
+            if(!usesSilhouette(owner))continue;
             LightingSurface contribution=silhouetteCaster(map,owner,quad);
             if(surface.casterContributions==null)surface.casterContributions=new Array<LightingSurface>();
             surface.casterContributions.add(contribution);surface.shadowCaster=true;
@@ -343,7 +342,6 @@ public final class MapLightingGeometry {
         if(surface.casterContributions!=null&&surface.casterContributions.size==1){
             surface.casterSurface=surface.casterContributions.first();
             surface.pocSourceBlockId=surface.casterSurface.pocSourceBlockId;
-            logPocTiledSelfProbe(surface,quad,gx,gy,assetId,surface.pocSourceBlockId);
         }
         cached = new Receiver(); cached.quad = LocalSurfaceDescription.copy(quad); cached.flags = flags; cached.assetId=assetId; cached.surface = surface;
         remember(cell,cached);
@@ -374,94 +372,6 @@ public final class MapLightingGeometry {
     public static boolean usesSilhouette(SpatialBlockData block){
         return block!=null&&(block.shadowCaster||block.lightOccluder)
                 &&block.linkedTileRefsAuthored&&block.hasLinkedTileRefs();
-    }
-
-    /** POC-only diagnostic exclusion, sampled at cold geometry preparation, never during a light or camera move. */
-    private static boolean pocExcludedCaster(SpatialBlockData block){
-        String raw=LightingDiagnosticProperties.get("pixscape.poc.excludeShadowCasterBlockId");
-        if(raw==null)return false;
-        try{return block.id==Integer.parseInt(raw);}
-        catch(NumberFormatException ignored){return false;}
-    }
-
-    /** One opt-in POC trace: native image quad and physical receiver/caster triangle data. */
-    private static void logPocTiledSelfProbe(LightingSurface receiver,float[] quad,int gx,int gy,int assetId,int blockId){
-        if(!"true".equalsIgnoreCase(LightingDiagnosticProperties.get("pixscape.poc.logTiledSelfShadowProbe")) || Gdx.app==null)return;
-        StringBuilder out=new StringBuilder("POC tiled self probe: block=").append(blockId)
-                .append(" tile=").append(gx).append(',').append(gy).append(" asset=").append(assetId)
-                .append(" quad=").append(java.util.Arrays.toString(quad));
-        float[] vertices=receiver.vertices;
-        int count=vertices.length/8;
-        out.append(" receiverVertices=");
-        for(int i=0;i<count;i++)out.append('[').append(vertices[i*8]).append(',').append(vertices[i*8+1])
-                .append(',').append(vertices[i*8+2]).append(" uv=").append(vertices[i*8+3]).append(',').append(vertices[i*8+4]).append(']');
-        float[] caster=receiver.casterSurface==null?null:receiver.casterSurface.vertices;
-        count=caster==null?0:caster.length/8;
-        out.append(" casterVertices=");
-        for(int i=0;i<count;i++)out.append('[').append(caster[i*8]).append(',').append(caster[i*8+1])
-                .append(',').append(caster[i*8+2]).append(" uv=").append(caster[i*8+3]).append(',').append(caster[i*8+4]).append(']');
-        appendPocTiledSelfRayProbe(out,receiver);
-        Gdx.app.log("MapLightingGeometry",out.toString());
-    }
-
-    /** Maps one capture pixel's native UV to its receiver triangle, then intersects its light ray with this caster only. */
-    private static void appendPocTiledSelfRayProbe(StringBuilder out,LightingSurface receiver){
-        String rawU=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeU");
-        String rawV=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeV");
-        String rawX=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightX");
-        String rawY=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightY");
-        String rawZ=LightingDiagnosticProperties.get("pixscape.poc.tiledSelfProbeLightHeight");
-        if(rawU==null||rawV==null||rawX==null||rawY==null||rawZ==null)return;
-        try{
-            float u=Float.parseFloat(rawU),v=Float.parseFloat(rawV);
-            float[] point=new float[3];int receiverTriangle=uvTriangle(receiver.vertices,u,v,point);
-            if(receiverTriangle<0){out.append(" rayProbe=receiver-miss uv=").append(u).append(',').append(v);return;}
-            float sx=Float.parseFloat(rawX),sy=Float.parseFloat(rawY),z=Float.parseFloat(rawZ);
-            float lx=LightingCoordinates.worldX(sx,sy,0),ly=LightingCoordinates.worldY(sx,sy,0);
-            float[] hit=new float[3];int casterTriangle=rayCasterTriangle(receiver.casterSurface.vertices,point,lx,ly,z,hit);
-            out.append(" rayProbe=uv=").append(u).append(',').append(v)
-                    .append(" receiverTriangle=").append(receiverTriangle).append(" point=").append(java.util.Arrays.toString(point))
-                    .append(" light=").append(lx).append(',').append(ly).append(',').append(z)
-                    .append(" casterTriangle=").append(casterTriangle).append(" hit=").append(java.util.Arrays.toString(hit));
-        }catch(NumberFormatException ignored){out.append(" rayProbe=invalid-properties");}
-    }
-
-    /** Returns an actual physical triangle; zero vertices are the explicitly unknown receiver coverage and are excluded. */
-    private static int uvTriangle(float[] vertices,float u,float v,float[] point){
-        for(int i=0;i<vertices.length;i+=24){
-            float ax=vertices[i],ay=vertices[i+1],az=vertices[i+2],au=vertices[i+3],av=vertices[i+4];
-            float bx=vertices[i+8],by=vertices[i+9],bz=vertices[i+10],bu=vertices[i+11],bv=vertices[i+12];
-            float cx=vertices[i+16],cy=vertices[i+17],cz=vertices[i+18],cu=vertices[i+19],cv=vertices[i+20];
-            if(ax==0&&ay==0&&az==0&&bx==0&&by==0&&bz==0&&cx==0&&cy==0&&cz==0)continue;
-            float determinant=(bv-cv)*(au-cu)+(cu-bu)*(av-cv);
-            if(Math.abs(determinant)<.000001f)continue;
-            float wa=((bv-cv)*(u-cu)+(cu-bu)*(v-cv))/determinant;
-            float wb=((cv-av)*(u-cu)+(au-cu)*(v-cv))/determinant, wc=1f-wa-wb;
-            if(wa<-.00001f||wb<-.00001f||wc<-.00001f)continue;
-            point[0]=wa*ax+wb*bx+wc*cx;point[1]=wa*ay+wb*by+wc*cy;point[2]=wa*az+wb*bz+wc*cz;
-            return i/24;
-        }
-        return -1;
-    }
-
-    /** Möller–Trumbore over the finite segment from receiver to point light; skips the originating face at t=0. */
-    private static int rayCasterTriangle(float[] vertices,float[] point,float lx,float ly,float lz,float[] hit){
-        float dx=lx-point[0],dy=ly-point[1],dz=lz-point[2],best=Float.POSITIVE_INFINITY;int result=-1;
-        for(int i=0;i<vertices.length;i+=24){
-            float ax=vertices[i],ay=vertices[i+1],az=vertices[i+2];
-            float e1x=vertices[i+8]-ax,e1y=vertices[i+9]-ay,e1z=vertices[i+10]-az;
-            float e2x=vertices[i+16]-ax,e2y=vertices[i+17]-ay,e2z=vertices[i+18]-az;
-            float hx=dy*e2z-dz*e2y,hy=dz*e2x-dx*e2z,hz=dx*e2y-dy*e2x;
-            float determinant=e1x*hx+e1y*hy+e1z*hz;if(Math.abs(determinant)<.000001f)continue;
-            float inverse=1f/determinant,sx=point[0]-ax,sy=point[1]-ay,sz=point[2]-az;
-            float b=(sx*hx+sy*hy+sz*hz)*inverse;if(b<0||b>1)continue;
-            float qx=sy*e1z-sz*e1y,qy=sz*e1x-sx*e1z,qz=sx*e1y-sy*e1x;
-            float c=(dx*qx+dy*qy+dz*qz)*inverse;if(c<0||b+c>1)continue;
-            float t=(e2x*qx+e2y*qy+e2z*qz)*inverse;
-            if(t<=.0001f||t>=.9999f||t>=best)continue;
-            best=t;result=i/24;hit[0]=point[0]+t*dx;hit[1]=point[1]+t*dy;hit[2]=point[2]+t*dz;
-        }
-        return result;
     }
 
     /**

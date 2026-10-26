@@ -30,23 +30,21 @@ import org.junit.Assert;
 import java.nio.FloatBuffer;
 
 /**
- * Controlled GL witness for the two-depth POC.  It has two opaque silhouette
+ * Controlled GL witness for the two-depth renderer. It has two opaque silhouette
  * receivers (block 101 and 102), two overlapping faces for each self caster,
  * a common exterior caster (identity 3), and a farther backstop (identity 4).
  *
  * The first shadow depth must be the self identity.  The second depth must
  * pass both faces of that identity and stop at the exterior caster.  Each
- * receiver is then compared with the old one-receiver R oracle in a separate
- * render.  This is intentionally independent of the Studio demo assets.
+ * receiver is then compared with a separate fixture that omits its own caster.
+ * This is intentionally independent of the Studio demo assets.
  */
 public final class TwoDepthShadowFixtureGlCheck {
-    private static final String B="pixscape.poc.twoDepthSelfShadowExclusion";
-    private static final String R="pixscape.poc.excludeTiledSelfShadowBlockId";
     private static final int RESOLUTION=256;
     private static boolean forward;
     private static float orbitY,orbitZ=100;
     private static int quality=1;
-    public static void main(String[] args){System.setProperty("pixscape.test.splitShadowGroups","true");verify();}
+    public static void main(String[] args){verify();}
 
     public static void verify(){
         final Throwable[] failure={null};
@@ -64,7 +62,6 @@ public final class TwoDepthShadowFixtureGlCheck {
     }
 
     private static void run() throws Exception {
-        String oldB=System.getProperty(B),oldR=System.getProperty(R);
         try {
             ShaderRegistry.initDefaults();
             Pixmap pixmap=new Pixmap(1,1,Pixmap.Format.RGBA8888);pixmap.setColor(Color.WHITE);pixmap.fill();
@@ -89,15 +86,15 @@ public final class TwoDepthShadowFixtureGlCheck {
                 Assert.assertEquals("A d2 stops at exterior identity 3",exteriorDepth(-20,0f),both.secondA,.025f);
                 Assert.assertEquals("B d2 stops at exterior identity 3",exteriorDepth(20,0f),both.secondB,.025f);
 
-                // R is deliberately run once for each receiver; its alternate atlas omits only
-                // that receiver's self caster.  It remains the oracle for B at the same pose.
+                // The dedicated fixture omits only the receiver's own caster. It remains the
+                // oracle for two-depth output at the same pose.
                 Result oracleA=render(texture,true,false,false,0f);
                 Result oracleB=render(texture,false,true,false,0f);
                 assertPixel("receiver A, B == R",both.pixelA,oracleA.pixelA);
                 assertPixel("receiver B, B == R",both.pixelB,oracleB.pixelB);
 
                 // A small mobile-light displacement retains the same first identity and the
-                // B/R agreement.  This covers the transition without rebuilding per receiver.
+                // agreement. This covers the transition without rebuilding per receiver.
                 Result moved=render(texture,true,true,true,4f);
                 Result movedA=render(texture,true,false,false,4f);
                 Result movedB=render(texture,false,true,false,4f);
@@ -121,12 +118,10 @@ public final class TwoDepthShadowFixtureGlCheck {
                     Assert.assertEquals("Orbit does not add per-receiver passes",both.shadowDraws,orbit.shadowDraws);
                 }
             } finally { texture.dispose();pixmap.dispose(); }
-        } finally { orbitY=0;orbitZ=100;restore(B,oldB);restore(R,oldR); }
+        } finally { orbitY=0;orbitZ=100; }
     }
 
-    private static Result render(Texture texture,boolean receiverA,boolean receiverB,boolean twoDepth,float lightX)throws Exception {
-        System.setProperty(B,Boolean.toString(twoDepth));
-        if(twoDepth)System.clearProperty(R);else System.setProperty(R,receiverA?"101":"102");
+    private static Result render(Texture texture,boolean receiverA,boolean receiverB,boolean includeSelfCasters,float lightX)throws Exception {
         FrameRenderQueue q=new FrameRenderQueue(4);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
         OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
         AtlasRuntimeService.TextureArrayBundle bundle=forward?AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(texture),1,1,GLCaps.detect()):null;
@@ -148,8 +143,8 @@ public final class TwoDepthShadowFixtureGlCheck {
             if(receiverB){addReceiver(q,handle,shader,1,32,64,b);}
             // Independent oracle: remove only the requested caster from this dedicated
             // fixture's atlas, identically for both renderers. No product per-receiver atlas.
-            if(twoDepth||!receiverA)addCaster(q,selfA,handle);
-            if(twoDepth||!receiverB)addCaster(q,selfB,handle);
+            if(includeSelfCasters||!receiverA)addCaster(q,selfA,handle);
+            if(includeSelfCasters||!receiverB)addCaster(q,selfB,handle);
             addCaster(q,exterior,handle);addCaster(q,backstop,handle);
             q.lighting.staticCasterCount=q.lighting.casters.size;q.lighting.staticCasterRevision=1;q.lighting.casterIndex.rebuild(q.lighting,q.lighting.staticCasterCount);
             LightingFrame.Light light=new LightingFrame.Light();light.x=lightX;light.y=orbitY;light.z=orbitZ;light.radius=250;light.falloff=1;light.intensity=1;light.r=light.g=light.b=1;light.quality=quality;light.resolution=RESOLUTION;
@@ -158,12 +153,10 @@ public final class TwoDepthShadowFixtureGlCheck {
             result.shadowDraws=submit.lightingRenderer().shadowDraws;result.secondDraws=submit.lightingRenderer().twoDepthShadowDraws;result.secondBytes=submit.lightingRenderer().twoDepthShadowUploadedBytes;
             result.firstDepthA=readAtlas(submit.lightingRenderer(),"atlas",0,-20-lightX,-orbitY,-orbitZ);
             result.firstDepthB=readAtlas(submit.lightingRenderer(),"atlas",0,20-lightX,-orbitY,-orbitZ);
-            if(twoDepth){
-                result.firstA=readAtlas(submit.lightingRenderer(),"atlas",1,-20-lightX,-orbitY,-orbitZ);
-                result.firstB=readAtlas(submit.lightingRenderer(),"atlas",1,20-lightX,-orbitY,-orbitZ);
-                result.secondA=readAtlas(submit.lightingRenderer(),"secondAtlas",0,-20-lightX,-orbitY,-orbitZ);
-                result.secondB=readAtlas(submit.lightingRenderer(),"secondAtlas",0,20-lightX,-orbitY,-orbitZ);
-            }
+            result.firstA=readAtlas(submit.lightingRenderer(),"atlas",1,-20-lightX,-orbitY,-orbitZ);
+            result.firstB=readAtlas(submit.lightingRenderer(),"atlas",1,20-lightX,-orbitY,-orbitZ);
+            result.secondA=readAtlas(submit.lightingRenderer(),"secondAtlas",0,-20-lightX,-orbitY,-orbitZ);
+            result.secondB=readAtlas(submit.lightingRenderer(),"secondAtlas",0,20-lightX,-orbitY,-orbitZ);
             Assert.assertEquals("fixture GL state",GL20.GL_NO_ERROR,Gdx.gl.glGetError());return result;
         } finally {world.dispose();batch.close();if(bundle!=null)bundle.textureArray.dispose();}
     }
@@ -186,7 +179,7 @@ public final class TwoDepthShadowFixtureGlCheck {
         q.lighting.tiles.put(slot,surface);
     }
     private static void addCaster(FrameRenderQueue q,LightingSurface surface,int texture){
-        if(Boolean.getBoolean("pixscape.test.splitShadowGroups")&&(surface.pocSourceBlockId==101||surface.pocSourceBlockId==102)){
+        if(surface.pocSourceBlockId==101||surface.pocSourceBlockId==102){
             for(int i=0;i<2;i++){
                 LightingSurface part=new LightingSurface(java.util.Arrays.copyOfRange(surface.vertices,i*24,(i+1)*24));
                 part.shadowCaster=true;part.pocSourceBlockId=surface.pocSourceBlockId;
@@ -215,6 +208,5 @@ public final class TwoDepthShadowFixtureGlCheck {
         FloatBuffer pixel=BufferUtils.newFloatBuffer(1);Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,atlas.getFramebufferHandle());Gdx.gl30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0+attachment);Gdx.gl.glReadPixels(x,y,1,1,GL30.GL_RED,GL20.GL_FLOAT,pixel);Gdx.gl30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,0);return pixel.get(0);
     }
     private static void assertPixel(String label,int actual,int expected){Assert.assertEquals(label,expected,actual,2);}
-    private static void restore(String key,String value){if(value==null)System.clearProperty(key);else System.setProperty(key,value);}
     private static final class Result {int pixelA,pixelB,shadowDraws,secondDraws;long secondBytes;float firstA,firstB,firstDepthA,firstDepthB,secondA,secondB;}
 }
