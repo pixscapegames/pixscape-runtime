@@ -149,11 +149,11 @@ public final class LightingRenderer {
         }
         String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                 "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-        String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_exclusionId;";
-        String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
-        String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
+        String attributes="in vec3 a_position;in vec2 a_uv;in vec4 a_color;in vec4 a_flags;in float a_exclusionId;";
+        String vary="out vec3 p;out vec2 uv;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
+        String inputs="in vec3 p;in vec2 uv;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
         String sample=shadowImageSource(shadowColorSlots)+actorShadowMaskSource();
-        String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
+        String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
         // geometric support ID. Both passes and both receiver paths use that same key.
         // Discard every layer of id1's group before depth-testing d2: an exterior

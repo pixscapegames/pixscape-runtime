@@ -16,7 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 
 public final class LightingBatchBackendCheck {
-    private static final int REPLAY_CAPACITY=12288;
+    private static final int REPLAY_CAPACITY=12288, SHADOW_STRIDE=14, RECEIVER_STRIDE=22, MAPPED_STRIDE=29;
     public static void assertHtmlAndNativeWriteIdenticalActiveVertices() {
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();
@@ -50,14 +50,16 @@ public final class LightingBatchBackendCheck {
                     Field count=LightingBatch.class.getDeclaredField("vertices");count.setAccessible(true);
                     for(boolean shadow:new boolean[]{false,true})for(boolean screen:new boolean[]{false,true}){
                         nativeBatch.abort();htmlBatch.abort();
-                        nativeBatch.begin(null,null);htmlBatch.begin(null,null);
+                        if(shadow){nativeBatch.begin(null,null,true);htmlBatch.begin(null,null,true);}
+                        else{nativeBatch.begin(null,null);htmlBatch.begin(null,null);}
                         float color=new Color(.3f,.5f,.7f,.6f).toFloatBits();
                         nativeBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         htmlBatch.draw(surface,17,.1f,.2f,.8f,.9f,color,2,screen?quad:null,11,-9,shadow,true);
                         Assert.assertEquals(6,count.getInt(nativeBatch));Assert.assertEquals(6,count.getInt(htmlBatch));
                         float[] a=(float[])data.get(nativeBatch),b=(float[])data.get(htmlBatch);
-                        Assert.assertEquals(1f,a[14],0);
-                        for(int i=0;i<6*21;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
+                        int stride=shadow?SHADOW_STRIDE:RECEIVER_STRIDE,sideFlag=shadow?11:14;
+                        Assert.assertEquals(1f,a[sideFlag],0);
+                        for(int i=0;i<6*stride;i++)Assert.assertEquals("Vertex field "+i,Float.floatToRawIntBits(a[i]),Float.floatToRawIntBits(b[i]));
                     }
                     assertDeformedImageVertices(nativeBatch);
                     assertDeformedImageVertices(htmlBatch);
@@ -76,11 +78,13 @@ public final class LightingBatchBackendCheck {
         Field dataField=LightingBatch.class.getDeclaredField("data");dataField.setAccessible(true);
         LightingSurface surface=new LightingSurface(new float[48]);
         for(boolean actor:new boolean[]{false,true})for(boolean twoSided:new boolean[]{false,true})for(boolean shadow:new boolean[]{false,true}){
-            surface.actor=actor;surface.twoSided=twoSided;batch.abort();batch.begin(null,null);
+            surface.actor=actor;surface.twoSided=twoSided;batch.abort();
+            if(shadow)batch.begin(null,null,true);else batch.begin(null,null);
             batch.draw(surface,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,shadow,true);
             float[] vertices=(float[])dataField.get(batch);
             float expected=twoSided?1:actor&&!shadow?-1:0;
-            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*21+14],0);
+            int stride=shadow?SHADOW_STRIDE:RECEIVER_STRIDE,sideFlag=shadow?11:14;
+            for(int i=0;i<6;i++)Assert.assertEquals("Receiver provenance, actor="+actor+", twoSided="+twoSided+", shadow="+shadow,expected,vertices[i*stride+sideFlag],0);
         }
     }
     private static void assertDeformedImageVertices(LightingBatch batch)throws Exception {
@@ -94,7 +98,7 @@ public final class LightingBatchBackendCheck {
             SpriteSurfaceSupport.sheet(s.vertices,q,.5f,0,13,1,-1);
             float[] original=s.vertices.clone(),presented=q.clone();
             for(int c=0;c<4;c++){presented[c*2]+=11;presented[c*2+1]-=9;}
-            int stride=mapped?28:21;
+            int stride=mapped?MAPPED_STRIDE:RECEIVER_STRIDE;
             batch.abort();if(mapped)batch.beginMapped(null,null);else batch.begin(null,null);
             batch.draw(s,17,.2f,.3f,.7f,.9f,Color.WHITE.toFloatBits(),1,presented,0,0,false,true);
             float[] legacy=java.util.Arrays.copyOf((float[])dataField.get(batch),6*stride);
@@ -112,10 +116,10 @@ public final class LightingBatchBackendCheck {
             }
             Assert.assertArrayEquals(original,s.vertices,0);
             // Casters ignore the image topology flag and continue using their prepared XYZ.
-            batch.abort();batch.begin(null,null);
+            batch.abort();batch.begin(null,null,true);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
-            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*21);
-            s.imageQuad=false;batch.abort();batch.begin(null,null);
+            float[] caster=java.util.Arrays.copyOf((float[])dataField.get(batch),6*SHADOW_STRIDE);
+            s.imageQuad=false;batch.abort();batch.begin(null,null,true);
             batch.draw(s,17,0,0,1,1,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             for(int i=0;i<caster.length;i++)Assert.assertEquals(caster[i],((float[])dataField.get(batch))[i],0);
         }
@@ -174,6 +178,7 @@ public final class LightingBatchBackendCheck {
     private static void assertGpuReplay(LightingBatch batch,LightingFrame frame)throws Exception{
         int count=batch.requiredReplayBatches(frame,frame.casterIndex.candidates);
         batch.prepareReplayCapacity(count);
+        Assert.assertEquals("Replay mesh capacity uses the compact shadow layout",(long)count*REPLAY_CAPACITY*SHADOW_STRIDE*4,batch.replayBytes());
         com.badlogic.gdx.graphics.glutils.ShaderProgram first=new com.badlogic.gdx.graphics.glutils.ShaderProgram(
                 "attribute vec3 a_position;void main(){gl_Position=vec4(a_position,1.);}",
                 "void main(){gl_FragColor=vec4(1.);}");
@@ -201,12 +206,18 @@ public final class LightingBatchBackendCheck {
             Assert.assertEquals(count*12,draws[0]);Assert.assertEquals(0,creates[0]);
             Assert.assertEquals(draws[0],stats.drawCalls);Assert.assertEquals(count,stats.flushes);
             Assert.assertEquals(count*11,stats.replayDraws);Assert.assertEquals(uploads[0],stats.bufferUploads);
+            Assert.assertEquals("Shadow upload bytes use fourteen floats per vertex",(long)shadowVertices(frame)*SHADOW_STRIDE*4,stats.bufferUploadBytes);
             int flushes=stats.flushes;batch.flush();Assert.assertEquals(flushes,stats.flushes);
             int afterReplay=draws[0];batch.begin(first,stats,true);batch.flush();batch.replay(second,stats);
             Assert.assertEquals("An empty next light cannot replay the preceding light's casters",afterReplay,draws[0]);
             stats.reset();Assert.assertEquals(0,stats.bufferUploads);Assert.assertEquals(0,stats.replayDraws);
             batch.abort();int before=draws[0];batch.replay();Assert.assertEquals("Abort cannot replay stale geometry",before,draws[0]);
         }finally{Gdx.gl=Gdx.gl20=original;first.dispose();second.dispose();}
+    }
+    private static int shadowVertices(LightingFrame frame){
+        int total=0;for(LightingFrame.Caster caster:frame.casters)
+            total+=caster.surface.shadowVertices==null?caster.surface.vertices.length/8:caster.surface.shadowVertexCount;
+        return total;
     }
     private static LightingFrame frame(Texture texture,int vertices){
         LightingFrame frame=new LightingFrame();add(frame,texture,vertices);return frame;

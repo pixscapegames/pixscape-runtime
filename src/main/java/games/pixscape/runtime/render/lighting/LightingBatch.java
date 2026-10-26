@@ -10,8 +10,9 @@ import games.pixscape.runtime.service.TextureRegistry;
 
 /** Ordered triangles: four receiver pages, capability-sized shadow pages. */
 final class LightingBatch {
-    // The flat exclusion identity is retained by shadow replay, but never interpolated.
-    private static final int SHADOW_STRIDE=19, BASE_STRIDE=22, MAPPED_STRIDE=29, CAPACITY=12288;
+    // Shadow vertices are deliberately independent of receiver vertices: only these fields reach d1/d2.
+    private static final int SHADOW_POSITION=0, SHADOW_UV=3, SHADOW_COLOR=5, SHADOW_FLAGS=9, SHADOW_EXCLUSION=13;
+    private static final int SHADOW_STRIDE=14, BASE_STRIDE=22, MAPPED_STRIDE=29, CAPACITY=12288;
     private int stride=BASE_STRIDE;
     private final int shadowSlots;
     private int colorSlots=4;
@@ -22,7 +23,7 @@ final class LightingBatch {
         final Mesh mesh;
         final int[] handles=new int[8];
         int vertices,textures;
-        ReplayBatch(){mesh=baseMesh(false);}
+        ReplayBatch(){mesh=shadowMesh();}
     }
     private final com.badlogic.gdx.utils.Array<ReplayBatch> replayBatches=new com.badlogic.gdx.utils.Array<ReplayBatch>();
     private int replayCount;
@@ -42,7 +43,7 @@ final class LightingBatch {
     LightingBatch(int shadowSlots){
         if(shadowSlots!=4 && shadowSlots!=8)throw new IllegalArgumentException("Shadow slots must be four or eight");
         this.shadowSlots=shadowSlots;
-        mesh=baseMesh(true);
+        mesh=receiverMesh();
         mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
@@ -54,7 +55,15 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
     }
-    private static Mesh baseMesh(boolean receiver){
+    private static Mesh shadowMesh(){
+        return new Mesh(false,CAPACITY,0,
+                new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
+                new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
+                new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"));
+    }
+    private static Mesh receiverMesh(){
         VertexAttribute[] attributes={
             new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
             new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
@@ -64,7 +73,7 @@ final class LightingBatch {
             new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
             new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
             new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal")};
-        return new Mesh(false,CAPACITY,0,receiver?attributes:java.util.Arrays.copyOf(attributes,attributes.length-1));}
+        return new Mesh(false,CAPACITY,0,attributes);}
     /** Explicit frame preparation, before submission. Release excess scene capacity here only. */
     void prepareReplayCapacity(int count){
         abort();
@@ -127,7 +136,7 @@ final class LightingBatch {
         if(slot<0){if(textures==colorSlots)flush();slot=textures;handles[textures++]=texture;}
         games.pixscape.runtime.service.NormalMapBinding normal=shadow?null:surface.normalMap;
         int normalSlot=-1;
-        if(mapped && normal!=null){
+        if(!shadow && mapped && normal!=null){
             for(int i=0;i<normalTextures;i++)if(normalHandles[i]==normal.textureHandle){normalSlot=i;break;}
             if(normalSlot<0){
                 if(normalTextures==4){flush();normalTextures=0;textures=1;handles[0]=texture;slot=0;}
@@ -151,6 +160,22 @@ final class LightingBatch {
         for(int i=0;i<sourceLength;i+=8){
             if(vertices==CAPACITY){flush();textures=1;handles[0]=texture;slot=0;}
             int o=vertices++*stride;
+            if(shadow){
+                if(htmlVertexCopies){data[o+SHADOW_POSITION]=source[i];data[o+SHADOW_POSITION+1]=source[i+1];data[o+SHADOW_POSITION+2]=source[i+2];}
+                else System.arraycopy(source,i,data,o+SHADOW_POSITION,3);
+                float u=source[i+3],v=source[i+4];data[o+SHADOW_UV]=u1+u*(u2-u1);data[o+SHADOW_UV+1]=v2+v*(v1-v2);
+                data[o+SHADOW_COLOR]=r;data[o+SHADOW_COLOR+1]=g;data[o+SHADOW_COLOR+2]=b;data[o+SHADOW_COLOR+3]=a;
+                data[o+SHADOW_FLAGS]=slot;data[o+SHADOW_FLAGS+1]=surface.twoSided?1:0;
+                data[o+SHADOW_FLAGS+2]=surface.twoSided?1:0;data[o+SHADOW_FLAGS+3]=surface.alphaThreshold;
+                data[o+SHADOW_EXCLUSION]=surface.casterShadowGroup();
+                if(surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.vertices){
+                    data[o+SHADOW_UV]=u;data[o+SHADOW_UV+1]=v;
+                    // Carry actor atlas bounds in color RGB and flags.z; alpha remains the image alpha multiplier.
+                    data[o+SHADOW_COLOR]=u1;data[o+SHADOW_COLOR+1]=v2;data[o+SHADOW_COLOR+2]=u2;
+                    data[o+SHADOW_FLAGS+1]=10;data[o+SHADOW_FLAGS+2]=v1;
+                }
+                continue;
+            }
             if(htmlVertexCopies){data[o]=source[i];data[o+1]=source[i+1];data[o+2]=source[i+2];}
             else System.arraycopy(source,i,data,o,3);
             float u=source[i+3],v=source[i+4];data[o+3]=u1+u*(u2-u1);data[o+4]=v2+v*(v1-v2);
@@ -161,20 +186,17 @@ final class LightingBatch {
             }
             if(htmlVertexCopies){data[o+5]=source[i+5];data[o+6]=source[i+6];data[o+7]=source[i+7];}
             else System.arraycopy(source,i+5,data,o+5,3);
-            // Shadow replay keeps its original compact layout: it never consumes facade normals.
-            if(!retainReplay){
-                int macro=o+(mapped?26:19),normalIndex=i/8*3;
-                float[] curve=shadow?null:surface.curveNormals;
-                data[macro]=curve==null?source[i+5]:curve[normalIndex];
-                data[macro+1]=curve==null?source[i+6]:curve[normalIndex+1];
-                data[macro+2]=curve==null?source[i+7]:curve[normalIndex+2];
-            }
+            int macro=o+(mapped?26:19),normalIndex=i/8*3;
+            float[] curve=surface.curveNormals;
+            data[macro]=curve==null?source[i+5]:curve[normalIndex];
+            data[macro+1]=curve==null?source[i+6]:curve[normalIndex+1];
+            data[macro+2]=curve==null?source[i+7]:curve[normalIndex+2];
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
             // Receiver side/provenance: 0 = facade decor, 1 = two-sided, -1 = actor, -2 = sprite-oriented tile.
             // Keep shadow flags unchanged; ordinary local actor meshes may also be one-sided.
-            data[o+14]=shadow?(surface.twoSided?1:0):surface.receiverLightingMode(i);data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
+            data[o+14]=surface.receiverLightingMode(i);data[o+15]=blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
             // Simple sheets share the color triangles BL-TL-TR / BL-TR-BR, including a freely moved TR.
             // Local descriptions and tile receivers keep their existing UV topology and placement.
             if(quad!=null && surface.imageQuad){int c=SpriteSurfaceSupport.corner(i/8)*2;
@@ -183,14 +205,7 @@ final class LightingBatch {
                 data[o+17]=quad[1]+u*(quad[7]-quad[1])+v*(quad[3]-quad[1]);}
             else{data[o+16]=LightingCoordinates.screenX(source[i],source[i+1])+offsetX;
                 data[o+17]=LightingCoordinates.screenY(source[i],source[i+1],source[i+2])+offsetY;}
-            data[o+(mapped?25:18)]=shadow?surface.casterShadowGroup():surface.receiverShadowGroup(i);
-            if(shadow && surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.vertices){
-                data[o+3]=u;data[o+4]=v;data[o+13]=10;
-                // RGB and receiver-side flag are unused in shadows. Carry the atlas rectangle
-                // separately: reject local UV outside the sprite BEFORE atlas sampling, including flips.
-                data[o+8]=u1;data[o+9]=v2;data[o+10]=u2;data[o+14]=v1;
-
-            }
+            data[o+(mapped?25:18)]=surface.receiverShadowGroup(i);
         }
     }
     void flush(){
