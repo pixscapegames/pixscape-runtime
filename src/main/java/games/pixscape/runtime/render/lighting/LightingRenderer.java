@@ -28,7 +28,7 @@ import java.nio.IntBuffer;
 
 /** Common Runtime/Studio lighting consumer. GPU preparation is confined to the frame boundary. */
 public final class LightingRenderer {
-    private ShaderProgram receiver,mappedReceiver,shadow,firstShadow,secondShadow,accumulate;
+    private ShaderProgram receiver,mappedReceiver,firstShadow,secondShadow,accumulate;
     private LightingBatch batch;
     private int shadowColorSlots=4;
     private FrameBuffer scratch,atlas,secondAtlas;
@@ -128,25 +128,22 @@ public final class LightingRenderer {
             if(c!=null && c.enabled && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
-        if(twoDepthSelfShadowExclusion())requireTwoDepthAttachments();
+        requireTwoDepthAttachments();
         if(required!=resolution){
-            FrameBuffer next=required==0?null:(twoDepthSelfShadowExclusion()?twoDepthFirstTarget(required*3,required*2):floatTarget(required*3,required*2,true));
+            FrameBuffer next=required==0?null:twoDepthFirstTarget(required*3,required*2);
             FrameBuffer nextSecond=null;
             try{
-                if(required!=0&&twoDepthSelfShadowExclusion())nextSecond=floatTarget(required*3,required*2,true);
+                if(required!=0)nextSecond=floatTarget(required*3,required*2,true);
             } catch(RuntimeException | Error failure){
                 if(next!=null)next.dispose();if(nextSecond!=null)nextSecond.dispose();throw failure;
             }
             if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();
             atlas=next;secondAtlas=nextSecond;resolution=required;
-        } else if(required!=0&&twoDepthSelfShadowExclusion()&&secondAtlas==null){
-            // The mode can be toggled before a recoverable Preview re-prepare, but never per receiver.
-            if(atlas!=null)atlas.dispose();atlas=twoDepthFirstTarget(required*3,required*2);secondAtlas=floatTarget(required*3,required*2,true);
         }
     }
     private void prepareShadowProgram() {
-        if(shadow!=null && (!twoDepthSelfShadowExclusion() || secondShadow!=null))return;
-        if(shadow==null){
+        if(firstShadow!=null && secondShadow!=null)return;
+        if(firstShadow==null){
             saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS,saved);
             shadowColorSlots=shadowColorSlotsFor(saved.get(0));
         }
@@ -157,21 +154,20 @@ public final class LightingRenderer {
         String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
         String sample=shadowImageSource(shadowColorSlots)+actorShadowMaskSource();
         String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
-        if(shadow==null){
-            shadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;}");
-            shadow.bind();samplers(shadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots);
-        }
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
         // geometric support ID. Both passes and both receiver paths use that same key.
         // Discard every layer of id1's group before depth-testing d2: an exterior
         // occultant behind several connected wall supports must remain available.
-        if(twoDepthSelfShadowExclusion()&&secondShadow==null){
+        if(firstShadow==null){
             firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
+            firstShadow.bind();samplers(firstShadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots);
+        }
+        if(secondShadow==null){
             secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
-            firstShadow.bind();samplers(firstShadow,shadowColorSlots);secondShadow.bind();samplers(secondShadow,shadowColorSlots);secondShadow.setUniformi("u_firstIdentity",shadowColorSlots);
+            secondShadow.bind();samplers(secondShadow,shadowColorSlots);secondShadow.setUniformi("u_firstIdentity",shadowColorSlots);
         }
     }
-    // Reserve one fragment texture unit for id1 even before the second pass is enabled.
+    // Reserve one fragment texture unit for id1 in the second depth pass.
     static int shadowColorSlotsFor(int fragmentUnits){return fragmentUnits>=9?8:4;}
     static String shadowImageSource(int slots){
         StringBuilder source=new StringBuilder("uniform sampler2D ");
@@ -191,14 +187,11 @@ public final class LightingRenderer {
     public Texture shadowTexture() { return atlas==null?null:atlas.getColorBufferTexture(); }
     /** Forward uses the same completed textures and never constructs a receiver-specific atlas. */
     public Texture shadowIdentityTexture(){
-        FrameBuffer primary=atlas;
-        return twoDepthSelfShadowExclusionActive()?atlas.getTextureAttachments().get(1):primary==null?null:primary.getColorBufferTexture();
+        return atlas==null?null:atlas.getTextureAttachments().get(1);
     }
     public Texture secondShadowTexture(){
-        FrameBuffer primary=atlas;
-        return twoDepthSelfShadowExclusionActive()?secondAtlas.getColorBufferTexture():primary==null?null:primary.getColorBufferTexture();
+        return secondAtlas==null?null:secondAtlas.getColorBufferTexture();
     }
-    public boolean twoDepthSelfShadowExclusionActive(){return twoDepthSelfShadowExclusion()&&secondAtlas!=null;}
     public float atlasScale(LightingFrame.Light light) {return resolution==0?1f:(float)light.resolution/resolution;}
     /** After geometry publication, before queue submission. No GPU changes when capacity is stable. */
     public void prepareFrame(LightingFrame frame){
@@ -251,7 +244,7 @@ public final class LightingRenderer {
     }
     /** Four delayed queries avoid a CPU/GPU synchronization point in Preview. */
     private void prepareTwoDepthGpuTimer(){
-        if(!twoDepthSelfShadowExclusion()||twoDepthGpuQueries!=null||!Gdx.graphics.supportsExtension("GL_ARB_timer_query"))return;
+        if(twoDepthGpuQueries!=null||!Gdx.graphics.supportsExtension("GL_ARB_timer_query"))return;
         twoDepthGpuQueries=new int[4];twoDepthGpuPending=new boolean[4];Gdx.gl30.glGenQueries(twoDepthGpuQueries.length,twoDepthGpuQueries,0);
     }
     private boolean beginTwoDepthGpuTimer(){
@@ -295,8 +288,7 @@ public final class LightingRenderer {
             start=System.nanoTime();draws=stats.drawCalls;
             if(frame.timer!=null)frame.timer.begin(LightingPassTimer.RECEIVERS);
             ShaderProgram lightReceiver=mapped?mappedReceiver:receiver;
-            int activeClass=-1;
-            boolean preparedReceiver=false;
+            boolean receiverPrepared=false;
             for(int i=0;i<queue.size;i++){
                 if(queue.light[i]!=0 || queue.textureHandle[i]==0)continue;
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
@@ -306,15 +298,11 @@ public final class LightingRenderer {
                     // Unlit ordinary images still mask light with their actual four-corner coverage.
                     missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
                     s=missing;}
-                int receiverClass=0;
-                if(receiverClass!=activeClass){
-                    batch.flush();
-                    if(!preparedReceiver){receiverUniforms(lightReceiver,l,frame,camera);preparedReceiver=true;}
-                    // All receivers use the same identity-aware shadow maps.
-                    // Flush before rebinding so interleaved transparent receivers keep their queue order.
+                if(!receiverPrepared){
+                    receiverUniforms(lightReceiver,l,frame,camera);
                     bindReceiverShadowTextures(l,composition);
                     if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
-                    activeClass=receiverClass;
+                    receiverPrepared=true;
                 }
                 quad[0]=queue.x1[i];quad[1]=queue.y1[i];quad[2]=queue.x2[i];quad[3]=queue.y2[i];
                 quad[4]=queue.x3[i];quad[5]=queue.y3[i];quad[6]=queue.x4[i];quad[7]=queue.y4[i];
@@ -354,16 +342,13 @@ public final class LightingRenderer {
         shader.setUniformi("u_quality",l.quality);shader.setUniformf("u_resolution",l.resolution);
         shader.setUniformf("u_atlasScale",resolution==0?1f:(float)l.resolution/resolution);shader.setUniformi("u_shadow",4);
         shader.setUniformi("u_shadowIdentity",9);shader.setUniformi("u_shadowSecond",10);
-        shader.setUniformi("u_twoDepth",twoDepthSelfShadowExclusion()?1:0);
     }
 
     /** Binds only completed immutable targets; second pass never reads its own framebuffer. */
     private void bindReceiverShadowTextures(LightingFrame.Light l,WorldLightComposition composition){
         if(l.quality==0){composition.originalTexture().bind(4);composition.originalTexture().bind(9);composition.originalTexture().bind(10);return;}
         FrameBuffer primary=atlas;primary.getColorBufferTexture().bind(4);
-        if(twoDepthSelfShadowExclusion()){
-            atlas.getTextureAttachments().get(1).bind(9);secondAtlas.getColorBufferTexture().bind(10);
-        } else {primary.getColorBufferTexture().bind(9);primary.getColorBufferTexture().bind(10);}
+        atlas.getTextureAttachments().get(1).bind(9);secondAtlas.getColorBufferTexture().bind(10);
     }
 
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
@@ -371,16 +356,12 @@ public final class LightingRenderer {
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
         selectedCasters+=frame.casterIndex.candidates.size;
-        if(!twoDepthSelfShadowExclusion()){
-            shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,null,shadow,false);
-            return;
-        }
-        shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,null,firstShadow,true);
+        shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,firstShadow,true);
         long start=System.nanoTime(),bytes=batch.uploadedBytes;int draws=stats.drawCalls,uploads=batch.uploads;boolean gpuTimer=beginTwoDepthGpuTimer();secondShadowMap(frame,l,stats);if(gpuTimer)endTwoDepthGpuTimer();
         twoDepthShadowCpuNs+=System.nanoTime()-start;twoDepthShadowDraws+=stats.drawCalls-draws;
         twoDepthShadowUploads+=batch.uploads-uploads;twoDepthShadowUploadedBytes+=batch.uploadedBytes-bytes;
     }
-    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,LightingFrame.Caster excluded,ShaderProgram program,boolean identityTarget){
+    private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,ShaderProgram program,boolean identityTarget){
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
@@ -398,7 +379,6 @@ public final class LightingRenderer {
             batch.begin(program,stats,true);
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
-                if(c==excluded)continue;
                 if(c.surface.shadowVertices!=null?c.surface.shadowVertexCount==0:c.surface.vertices.length==0)continue;
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             }
@@ -409,20 +389,19 @@ public final class LightingRenderer {
     private void secondShadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
         if(secondAtlas==null)throw new IllegalStateException("Two-depth target was not prepared");
         atlas.getTextureAttachments().get(1).bind(shadowColorSlots);
-        shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,null,secondShadow,false);
+        shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,secondShadow,false);
     }
-    private static boolean twoDepthSelfShadowExclusion(){return true;}
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     public long textureBytes(){
         long pixels=(long)resolution*resolution*6;
         // A has complete+decor (2 × [R32F + depth]); B has [d1,id1,depth] + d2 + depth + decor.
         return (long)width*height*8+pixels*20;
     }
-    public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();if(shadow!=null)shadow.dispose();
+    public void dispose(){if(batch!=null)batch.dispose();if(receiver!=null)receiver.dispose();
         if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
         if(twoDepthGpuQueries!=null)Gdx.gl30.glDeleteQueries(twoDepthGpuQueries.length,twoDepthGpuQueries,0);twoDepthGpuQueries=null;twoDepthGpuPending=null;twoDepthGpuQueryIndex=0;twoDepthShadowGpuNs=-1;
         if(firstShadow!=null)firstShadow.dispose();if(secondShadow!=null)secondShadow.dispose();if(accumulate!=null)accumulate.dispose();if(screen!=null)screen.dispose();if(scratch!=null)scratch.dispose();if(atlas!=null)atlas.dispose();if(secondAtlas!=null)secondAtlas.dispose();
-        batch=null;receiver=shadow=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=secondAtlas=null;width=height=resolution=0;}
+        batch=null;receiver=firstShadow=secondShadow=accumulate=null;screen=null;scratch=atlas=secondAtlas=null;width=height=resolution=0;}
 
     /** Laigter sprite normal, +Y up, +Z toward camera; one image basis across all geometric faces. */
     static final String NORMAL_SAMPLE =
@@ -438,9 +417,9 @@ public final class LightingRenderer {
     // Sprite-oriented tiles (-2) use the normal-map reference axis without facade/horizon gating.
     // Geometric normals still govern shadow bias and PCF depth; visibility/exclusions are unchanged.
     static final String RECEIVER =
-        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality,u_twoDepth;uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;"+
+        "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality;uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;"+
         "vec2 shadowUV(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);}"+
-        "float visible(vec3 d,float distance,float bias){vec2 uv=shadowUV(d);float first=texture(u_shadow,uv).r*u_range;float id=texture(u_shadowIdentity,uv).r;float depth=u_twoDepth!=0&&exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;return distance-bias<=depth?1.:0.;}"+
+        "float visible(vec3 d,float distance,float bias){vec2 uv=shadowUV(d);float first=texture(u_shadow,uv).r*u_range;float id=texture(u_shadowIdentity,uv).r;float depth=exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;return distance-bias<=depth?1.:0.;}"+
         "void main(){vec4 texel=image();if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;vec3 outputColor=t.rgb;"+
         "float value=0.;vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);vec3 normal=facade;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
         "if(u_quality==1&&facadeGate>0.)visibility=visible(delta,distance,bias);if(u_quality==2&&facadeGate>0.){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,geometric);float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+

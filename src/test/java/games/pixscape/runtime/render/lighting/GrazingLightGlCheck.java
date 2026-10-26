@@ -103,7 +103,7 @@ public final class GrazingLightGlCheck {
     /** ES syntax check on the accessible desktop compiler; not an execution of WebGL or an Android GLES backend. */
     private static void compileEs300OnDesktop(RenderSubmitSystem submit)throws Exception {
         String prefix="#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-        for(String name:new String[]{"receiver","mappedReceiver","shadow","accumulate"}){
+        for(String name:new String[]{"receiver","mappedReceiver","firstShadow","secondShadow","accumulate"}){
             java.lang.reflect.Field f=LightingRenderer.class.getDeclaredField(name);f.setAccessible(true);
             com.badlogic.gdx.graphics.glutils.ShaderProgram source=(com.badlogic.gdx.graphics.glutils.ShaderProgram)f.get(submit.lightingRenderer());
             com.badlogic.gdx.graphics.glutils.ShaderProgram es=new com.badlogic.gdx.graphics.glutils.ShaderProgram(

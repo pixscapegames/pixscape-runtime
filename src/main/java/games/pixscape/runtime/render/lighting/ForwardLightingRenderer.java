@@ -28,9 +28,9 @@ public final class ForwardLightingRenderer {
     private Mesh mesh;
     private World admittedWorld;
     private AtlasRuntimeService.TextureArrayBundle bundle;
-    private int vertices,blend=-1,normalHandle=-1,domain=-1;
+    private int vertices,blend=-1,normalHandle=-1;
     private RenderStats stats;
-    public int worldDraws,presentationDraws,normalFlushes,domainFlushes,blendFlushes,capacityFlushes,endFlushes;
+    public int worldDraws,presentationDraws,normalFlushes,blendFlushes,capacityFlushes,endFlushes;
     public long uploadedBytes;
     private boolean roundedLightingEnabled=true;
     public void setRoundedLightingEnabled(boolean enabled){roundedLightingEnabled=enabled;}
@@ -100,8 +100,8 @@ public final class ForwardLightingRenderer {
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
         ForwardAdmission.validateQueue(queue,bundle);
-        this.stats=stats;worldDraws=presentationDraws=normalFlushes=domainFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
-        vertices=0;blend=normalHandle=domain=-1;
+        this.stats=stats;worldDraws=presentationDraws=normalFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
+        vertices=0;blend=normalHandle=-1;
         target.begin();
         try {
             shadows.renderShadows(queue.lighting,stats);target.resume();
@@ -131,17 +131,16 @@ public final class ForwardLightingRenderer {
         shader.setUniformf("u_range",l==null?1:l.radius);shader.setUniformf("u_falloff",l==null?1:l.falloff);
         shader.setUniformf("u_direction",l==null?1:l.dx,l==null?0:l.dy,l==null?0:l.dz);
         shader.setUniformf("u_cone",l!=null&&l.cone?1:0,l==null?0:l.cosOuter,l==null?0:l.cosInner);
-        shader.setUniformi("u_quality",l==null?0:l.quality);shader.setUniformf("u_resolution",l==null?512:l.resolution);shader.setUniformi("u_twoDepth",shadows.twoDepthSelfShadowExclusionActive()?1:0);
+        shader.setUniformi("u_quality",l==null?0:l.quality);shader.setUniformf("u_resolution",l==null?512:l.resolution);
         shader.setUniformf("u_atlasScale",l==null?1:shadows.atlasScale(l));
     }
     private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
-        int receiverDomain=0;
         NormalMapBinding normal=s==null?null:s.normalMap;
         // Unmapped vertices never sample u_normal. Keep the current page so they
         // can share a draw with mapped vertices; still initialize a complete sampler
         // after each render reset, including frames beginning with unmapped sprites.
         int page=normal==null?(normalHandle<0?TextureRegistry.WHITE_HANDLE:normalHandle):normal.textureHandle;
-        if(domain!=receiverDomain){if(vertices!=0)domainFlushes++;flush();domain=receiverDomain;
+        if(normalHandle<0){
             Texture atlas=q.lighting.lights.size==0||q.lighting.lights.first().quality==0?null:shadows.shadowTexture();
             (atlas==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):atlas).bind(3);
             Texture identity=shadows.shadowIdentityTexture(),second=shadows.secondShadowTexture();
