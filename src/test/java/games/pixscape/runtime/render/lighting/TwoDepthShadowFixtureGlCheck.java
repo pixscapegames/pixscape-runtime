@@ -75,7 +75,9 @@ public final class TwoDepthShadowFixtureGlCheck {
                 Result onlyB=render(texture,false,true,true,0f);
                 Assert.assertEquals("B shadow pass count is independent of receiver count",both.shadowDraws,onlyA.shadowDraws);
                 Assert.assertEquals("B d2 replay is independent of receiver count",both.secondDraws,onlyA.secondDraws);
-                Assert.assertEquals("B replay bytes are independent of receiver count",both.secondBytes,onlyB.secondBytes);
+                Assert.assertEquals("d2 replays retained meshes without uploads",0,both.secondUploads);
+                Assert.assertEquals("d2 replays retained meshes without bytes",0,both.secondBytes);
+                Assert.assertEquals("d2 replays retain zero-upload cost",both.secondUploads,onlyB.secondUploads);
 
                 // d1 contains the respective self face, while d2 is farther: it crossed two
                 // faces of that identity and reached the exterior identity 3 before id 4.
@@ -150,7 +152,7 @@ public final class TwoDepthShadowFixtureGlCheck {
             LightingFrame.Light light=new LightingFrame.Light();light.x=lightX;light.y=orbitY;light.z=orbitZ;light.radius=250;light.falloff=1;light.intensity=1;light.r=light.g=light.b=1;light.quality=quality;light.resolution=RESOLUTION;
             q.lighting.lights.add(light);submit.prepareComposition();submit.lightingRenderer().prepareFrame(q.lighting);submit.setEnabled(true);clear();world.process();
             Result result=new Result();result.pixelA=receiverA?red(16,16):0;result.pixelB=receiverB?red(48,16):0;
-            result.shadowDraws=submit.lightingRenderer().shadowDraws;result.secondDraws=submit.lightingRenderer().twoDepthShadowDraws;result.secondBytes=submit.lightingRenderer().twoDepthShadowUploadedBytes;
+            result.shadowDraws=submit.lightingRenderer().shadowDraws;result.secondDraws=submit.lightingRenderer().twoDepthShadowDraws;result.secondUploads=submit.lightingRenderer().twoDepthShadowUploads;result.secondBytes=submit.lightingRenderer().twoDepthShadowUploadedBytes;
             result.firstDepthA=readAtlas(submit.lightingRenderer(),"atlas",0,-20-lightX,-orbitY,-orbitZ);
             result.firstDepthB=readAtlas(submit.lightingRenderer(),"atlas",0,20-lightX,-orbitY,-orbitZ);
             result.firstA=readAtlas(submit.lightingRenderer(),"atlas",1,-20-lightX,-orbitY,-orbitZ);
@@ -208,5 +210,5 @@ public final class TwoDepthShadowFixtureGlCheck {
         FloatBuffer pixel=BufferUtils.newFloatBuffer(1);Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,atlas.getFramebufferHandle());Gdx.gl30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0+attachment);Gdx.gl.glReadPixels(x,y,1,1,GL30.GL_RED,GL20.GL_FLOAT,pixel);Gdx.gl30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,0);return pixel.get(0);
     }
     private static void assertPixel(String label,int actual,int expected){Assert.assertEquals(label,expected,actual,2);}
-    private static final class Result {int pixelA,pixelB,shadowDraws,secondDraws;long secondBytes;float firstA,firstB,firstDepthA,firstDepthB,secondA,secondB;}
+    private static final class Result {int pixelA,pixelB,shadowDraws,secondDraws,secondUploads;long secondBytes;float firstA,firstB,firstDepthA,firstDepthB,secondA,secondB;}
 }

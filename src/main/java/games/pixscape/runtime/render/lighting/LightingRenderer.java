@@ -357,24 +357,16 @@ public final class LightingRenderer {
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
         selectedCasters+=frame.casterIndex.candidates.size;
         shadowMap(frame,l,stats,atlas,frame.casterIndex.candidates,firstShadow,true);
-        long start=System.nanoTime(),bytes=batch.uploadedBytes;int draws=stats.drawCalls,uploads=batch.uploads;boolean gpuTimer=beginTwoDepthGpuTimer();secondShadowMap(frame,l,stats);if(gpuTimer)endTwoDepthGpuTimer();
+        long start=System.nanoTime(),bytes=batch.uploadedBytes;int draws=stats.drawCalls,uploads=batch.uploads;boolean gpuTimer=beginTwoDepthGpuTimer();secondShadowMap(l,stats);if(gpuTimer)endTwoDepthGpuTimer();
         twoDepthShadowCpuNs+=System.nanoTime()-start;twoDepthShadowDraws+=stats.drawCalls-draws;
         twoDepthShadowUploads+=batch.uploads-uploads;twoDepthShadowUploadedBytes+=batch.uploadedBytes-bytes;
     }
     private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,ShaderProgram program,boolean identityTarget){
-        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
-        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
-        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
-        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
-        if(identityTarget){zero.clear();zero.put(0,0);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,1,zero);}
-        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
+        prepareShadowTarget(output,identityTarget);
         program.bind();program.setUniformf("u_light",l.x,l.y,l.z);program.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
         for(int face=0;face<6;face++){
-            Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
-            target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
-            up.set(UPS[face*3],UPS[face*3+1],UPS[face*3+2]);view.setToLookAt(eye,target,up);matrix.set(projection).mul(view);
-            program.bind();program.setUniformMatrix("u_matrix",matrix);
+            shadowView(l,program,face);
             if(face>0){batch.replay();continue;}
             batch.begin(program,stats,true);
             for(int i=0;i<candidates.size;i++){
@@ -386,10 +378,28 @@ public final class LightingRenderer {
         }
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
     }
-    private void secondShadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
+    private void prepareShadowTarget(FrameBuffer output,boolean identityTarget){
+        Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,output.getFramebufferHandle());
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);Gdx.gl.glDisable(GL20.GL_BLEND);Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);Gdx.gl.glDepthMask(true);Gdx.gl.glDepthFunc(GL20.GL_LESS);
+        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,0,zero);
+        if(identityTarget){zero.clear();zero.put(0,0);Gdx.gl30.glClearBufferfv(GL30.GL_COLOR,1,zero);}
+        zero.clear();zero.put(0,1);Gdx.gl30.glClearBufferfv(GL30.GL_DEPTH,0,zero);zero.put(0,0);
+    }
+    private void shadowView(LightingFrame.Light l,ShaderProgram program,int face){
+        Gdx.gl.glViewport((face%3)*l.resolution,(face/3)*l.resolution,l.resolution,l.resolution);
+        target.set(eye).add(DIRECTIONS[face*3],DIRECTIONS[face*3+1],DIRECTIONS[face*3+2]);
+        up.set(UPS[face*3],UPS[face*3+1],UPS[face*3+2]);view.setToLookAt(eye,target,up);matrix.set(projection).mul(view);
+        program.bind();program.setUniformMatrix("u_matrix",matrix);
+    }
+    private void secondShadowMap(LightingFrame.Light l,RenderStats stats){
         if(secondAtlas==null)throw new IllegalStateException("Two-depth target was not prepared");
         atlas.getTextureAttachments().get(1).bind(shadowColorSlots);
-        shadowMap(frame,l,stats,secondAtlas,frame.casterIndex.candidates,secondShadow,false);
+        prepareShadowTarget(secondAtlas,false);
+        secondShadow.bind();secondShadow.setUniformf("u_light",l.x,l.y,l.z);secondShadow.setUniformf("u_range",l.radius);
+        projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
+        for(int face=0;face<6;face++){shadowView(l,secondShadow,face);batch.replay(secondShadow,stats);}
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
     }
     public void abort(){if(batch!=null)batch.abort();Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);}
     public long textureBytes(){

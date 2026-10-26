@@ -113,6 +113,8 @@ final class LightingBatch {
             if(stats!=null){stats.drawCalls++;stats.replayDraws++;stats.drawnVertices+=b.vertices;stats.textureBinds+=colorSlots;}
         }
     }
+    /** Reuses the retained shadow meshes with another shadow program without uploading vertices. */
+    void replay(ShaderProgram shader,RenderStats stats){this.shader=shader;this.stats=stats;replay();}
     void draw(LightingSurface surface,int texture,float u1,float v1,float u2,float v2,float color,
               int blendMode,float[] quad,float offsetX,float offsetY,boolean shadow,boolean supported){
         if(blend!=blendMode){flush();blend=blendMode;
