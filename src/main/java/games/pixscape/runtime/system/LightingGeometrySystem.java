@@ -4,6 +4,7 @@ import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
@@ -61,9 +62,9 @@ public final class LightingGeometrySystem extends BaseSystem {
                 public void inserted(com.artemis.utils.IntBag entities){}
                 public void removed(com.artemis.utils.IntBag entities){
                     for(int i=0;i<entities.size();i++){int e=entities.get(i);
+                        if(staticOwners.remove(e)){removePublishedSurfaces(e);staticRevision=Integer.MIN_VALUE;}
                         frame.entities.remove(e);localDescriptions.remove(e);lights.remove(e);spriteCasters.remove(e);
                         shadowExclusionIdentities.removeEntity(e);}
-                    staticRevision=Integer.MIN_VALUE;
                 }
             });
     }
@@ -71,6 +72,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private final IntMap<LightingFrame.Light> lights = new IntMap<LightingFrame.Light>();
     private final IntMap<LightingFrame.Caster> spriteCasters = new IntMap<LightingFrame.Caster>();
     private final IntMap<LightingFrame.Caster> staticCasters = new IntMap<LightingFrame.Caster>();
+    private final IntSet staticOwners = new IntSet();
     private final ShadowExclusionIdentities shadowExclusionIdentities = new ShadowExclusionIdentities();
     private final float[] corners = new float[8];
     private int staticRevision=Integer.MIN_VALUE;
@@ -110,10 +112,12 @@ public final class LightingGeometrySystem extends BaseSystem {
         frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
         if(staticRevision!=tiled.lightingRevision){
         frame.casters.clear();
+        staticOwners.clear();
         // Registry survives map rebuilds; dynamic identities must never alias new supports.
         int serial=0;
         for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps) {
             if(!world.getEntityManager().isActive(entry.key)) continue;
+            staticOwners.add(entry.key);
             for(int i=0;i<entry.value.casters.size;i++) {
                 LightingSurface surface=entry.value.casters.get(i);
                 surface.selfShadowExclusionId=surface.roundedIdentity
@@ -127,6 +131,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         }
         for(IntMap.Entry<LightingSurface> entry:tiled.lightingSurfaces){
             LightingSurface surface=entry.value;
+            if(world.getEntityManager().isActive(surface.ownerEntity))staticOwners.add(surface.ownerEntity);
             if(!surface.shadowCaster || !world.getEntityManager().isActive(surface.ownerEntity) || !tiled.enabled[entry.key])continue;
             if(surface.receiverBlockIds!=null){
                 surface.receiverExclusionIds=new int[surface.receiverBlockIds.length];
@@ -214,6 +219,14 @@ public final class LightingGeometrySystem extends BaseSystem {
         }
         if(shadowPreparation!=null)shadowPreparation.prepare(frame);
         frame.preparationCpuNs=System.nanoTime()-started;
+    }
+    /** RenderTiledSyncSystem removes maps; this clears refs still published by a known static owner. */
+    private void removePublishedSurfaces(int entity){
+        for(IntMap.Entries<LightingSurface> entries=tiled.lightingSurfaces.entries();entries.hasNext();){
+            LightingSurface surface=entries.next().value;
+            if(surface.ownerEntity!=entity)continue;
+            entries.remove();tiled.lightingRevision++;
+        }
     }
     private void publishActorShadowRectangle(int e,LightingSurface surface,AssetRefComponent ref){
         surface.shadowVertices=null;surface.shadowVertexCount=0;
