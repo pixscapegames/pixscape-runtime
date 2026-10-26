@@ -1,17 +1,6 @@
 package games.pixscape.runtime.api;
 
-/**
- * Spatial render-order settings for one runtime entity.
- *
- * <p>Volume setters may establish authored spatial-height intent even when the
- * entity does not yet participate in effective Spatial render ordering.</p>
- *
- * <p>Actor footprint geometry is derived from the entity physics circle fixture.
- * This facade only exposes the vertical volume used by the spatial renderer.</p>
- *
- * <p>Altitude and height must be finite. Negative finite heights retain the documented
- * zero-clamping behavior.</p>
- */
+/** Spatial actor placement. Height accessors address the active spatial rectangle, never a separate sorting height. */
 public interface SpatialEntityFacade {
     /**
      * Returns whether the entity has a spatial height component.
@@ -34,7 +23,7 @@ public interface SpatialEntityFacade {
     float altitude();
 
     /**
-     * Height of the entity spatial volume, in runtime spatial units.
+     * Height of the active spatial rectangle, in runtime spatial units.
      */
     float height();
 
@@ -44,16 +33,16 @@ public interface SpatialEntityFacade {
     SpatialEntityFacade setAltitude(float altitude);
 
     /**
-     * Sets the height of the entity spatial volume.
+     * Sets the height of the active spatial rectangle.
      *
-     * <p>Negative values are clamped to zero.</p>
+     * <p>Nonpositive values are rejected.</p>
      */
     SpatialEntityFacade setHeight(float height);
 
     /**
      * Sets the bottom altitude and height of the entity spatial volume.
      *
-     * <p>Negative height values are clamped to zero.</p>
+     * <p>Nonpositive height values are rejected.</p>
      */
     SpatialEntityFacade setVolume(float altitude, float height);
 

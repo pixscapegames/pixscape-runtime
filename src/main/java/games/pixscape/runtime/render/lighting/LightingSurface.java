@@ -9,7 +9,7 @@ public final class LightingSurface {
     /** Derived provenance: ordinary ECS image supports are actors; Tiled/compiled map supports are decor. */
     public boolean actor;
     /** Prepared only for ordinary image actors; independent of the receiver vertices/normals. */
-    public ActorVolumeCaster actorVolume;
+    public ActorShadowRectangleCaster actorShadowRectangle;
     public float[] shadowVertices;
     public int shadowVertexCount;
     public float alphaThreshold = .5f;
@@ -36,6 +36,12 @@ public final class LightingSurface {
     /** Shadow-only policy. -1 preserves legacy/archived supports; zero never excludes. */
     public int shadowGroupId=-1;
     public int[] receiverShadowGroups;
+    /** Cold per-physical-triangle lighting policy, independent of exclusion provenance. */
+    public boolean[] receiverSpriteShading;
+    public float receiverLightingMode(int offset) {
+        if (offset >= 0 && receiverSpriteShading != null && receiverSpriteShading[offset / 24]) return -2f;
+        return twoSided ? 1f : actor ? -1f : 0f;
+    }
     public int casterShadowGroup(){return shadowGroupId<0?selfShadowExclusionId:shadowGroupId;}
     public int receiverShadowGroup(int offset){
         if(offset<0)return 0;

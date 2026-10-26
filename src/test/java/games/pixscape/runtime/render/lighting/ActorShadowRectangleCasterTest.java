@@ -9,30 +9,31 @@ import games.pixscape.runtime.system.LightingGeometrySystem;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class ActorVolumeCasterTest {
+public class ActorShadowRectangleCasterTest {
     private static final float[] Q={-80,-40,-80,180,80,180,80,-40};
-    @Test public void boxFacesUseOneReferenceProjectionAndStayInsideImageAtAllOrientations(){
-        ActorVolumeData volume=new ActorVolumeData();volume.width=70;volume.depth=45;volume.height=100;
-        volume.offsetX=7;volume.offsetY=-3;volume.offsetZ=5;
-        ActorVolumeCaster geometry=new ActorVolumeCaster();
+    @Test public void twoTrianglesFollowAuthoredRectangleAndMapBackToSprite(){
+        ActorSpatialRectangleData r=new ActorSpatialRectangleData();r.width=70;r.height=100;r.offsetX=7;r.offsetY=-3;r.offsetZ=5;
+        ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();float[] rectangle=new float[12];
         for(float yaw:new float[]{0,45,90,37.25f,179.99f,359.99f})for(float altitude:new float[]{0,40}){
-            volume.orientation=yaw;geometry.update(volume,0,0,altitude,Q);
-            assertTrue(geometry.vertexCount>0);assertTrue(geometry.vertexCount<=ActorVolumeCaster.MAX_VERTICES);
-            for(int o=0;o<geometry.vertexCount*8;o+=8){
-                float[] p=geometry.vertices;
-                assertTrue(p[o+3]>=0&&p[o+3]<=1);assertTrue(p[o+4]>=0&&p[o+4]<=1);
-                assertEquals(Q[0]+160*p[o+3],LightingCoordinates.screenX(p[o],p[o+1]),.0001);
-                assertEquals(Q[1]+220*p[o+4],LightingCoordinates.screenY(p[o],p[o+1],p[o+2]),.0001);
-                assertTrue(p[o+2]>=altitude+5-.001);assertTrue(p[o+2]<=altitude+105+.001);
+            r.orientation=yaw;r.corners(0,0,altitude,rectangle);c.update(r,0,0,altitude,Q);assertEquals(6,c.vertexCount);
+            for(int i=0;i<6;i++){
+                int o=i*8,k=SpriteSurfaceSupport.corner(i)*3;
+                for(int j=0;j<3;j++)assertEquals(rectangle[k+j],c.vertices[o+j],0);
+                float x=Q[0]+c.vertices[o+3]*(Q[6]-Q[0])+c.vertices[o+4]*(Q[2]-Q[0]);
+                float y=Q[1]+c.vertices[o+3]*(Q[7]-Q[1])+c.vertices[o+4]*(Q[3]-Q[1]);
+                assertEquals(x,LightingCoordinates.screenX(rectangle[k],rectangle[k+1]),.0001);
+                assertEquals(y,LightingCoordinates.screenY(rectangle[k],rectangle[k+1],rectangle[k+2]),.0001);
             }
-            int updates=geometry.updates;
-            for(int i=0;i<100;i++)geometry.update(volume,0,0,altitude,Q);
-            assertEquals(updates,geometry.updates);
+            int updates=c.updates;for(int i=0;i<100;i++)c.update(r,0,0,altitude,Q);assertEquals(updates,c.updates);
         }
     }
-    @Test public void outsideImagePublishesNoOpaqueResidualBox(){
-        ActorVolumeCaster caster=new ActorVolumeCaster();caster.update(new ActorVolumeData(),10000,0,0,Q);
-        assertEquals(0,caster.vertexCount);
+    @Test public void imageExtentChangesRebuildUvWithoutClampingOrRecentring(){
+        ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();ActorSpatialRectangleData r=new ActorSpatialRectangleData();
+        r.width=400;c.update(r,0,0,0,Q);assertTrue(c.vertices[3]<0);
+        float[] before=c.vertices.clone();int updates=c.updates;
+        c.update(r,0,0,0,new float[]{-90,-40,-90,180,90,180,90,-40});assertEquals(updates+1,c.updates);
+        for(int o=0;o<48;o+=8)for(int k=0;k<3;k++)assertEquals(before[o+k],c.vertices[o+k],0);
+        assertNotEquals(before[3],c.vertices[3],0);
     }
     @Test public void ecsPublicationTracksClipsFramesAndAltitudeWithoutChangingTheSprite(){
         DynamicEntityRenderState d=new DynamicEntityRenderState(4);FrameRenderQueue q=new FrameRenderQueue(4);
@@ -47,20 +48,24 @@ public class ActorVolumeCasterTest {
             world.getMapper(TransformComponent.class).create(e);
             SpatialPhysicsFootprintComponent foot=world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);foot.valid=true;
             SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).create(e);
-            h.volumes=new ActorVolumes();h.volumes.put(7,"walk",new ActorVolumeData());
-            ActorVolumeData idle=new ActorVolumeData();idle.orientation=90;idle.height=90;h.volumes.put(7,"idle",idle);
+            h.rectangles=new ActorSpatialRectangles();h.rectangles.put(7,"walk",new ActorSpatialRectangleData());
+            ActorSpatialRectangleData idle=new ActorSpatialRectangleData();idle.orientation=90;idle.height=90;h.rectangles.put(7,"idle",idle);
             world.getMapper(AssetRefComponent.class).create(e).assetId=7;
             AnimationComponent animation=world.getMapper(AnimationComponent.class).create(e);animation.currentClip="walk";
             world.getMapper(SurfaceLightingComponent.class).create(e).shadowCaster=true;
-            geometry.prepareRuntimeAvailability();ActorVolumeCaster storage=q.lighting.entities.get(e).actorVolume;
+            geometry.prepareRuntimeAvailability();ActorShadowRectangleCaster storage=q.lighting.entities.get(e).actorShadowRectangle;
             world.process();LightingSurface s=q.lighting.entities.get(e);assertSame(storage.vertices,s.shadowVertices);
             int identity=s.casterShadowGroup();assertTrue(identity>0);assertEquals(identity,s.receiverShadowGroup(0));
             tiled.lightingRevision++;world.process();assertEquals(identity,s.casterShadowGroup());
+            float[] receiver=s.vertices.clone();
+            ActorSpatialRectangleData active=h.rectangles.get(7,"walk");
+            active.offsetX=15;active.offsetY=-8;active.offsetZ=9;world.process();
+            assertArrayEquals("Caster offsets must not move the receiver",receiver,s.vertices,0);
             int updates=storage.updates;d.u1[slot]=.4f;d.u2[slot]=.1f;animation.frame=4;world.process();
             assertEquals(updates,storage.updates);assertEquals(.4f,q.lighting.casters.first().u1,0);
             animation.currentClip="idle";h.altitude=40;world.process();assertEquals(updates+1,storage.updates);
             assertEquals(40,q.lighting.casters.first().minZ,.001);assertEquals(130,q.lighting.casters.first().maxZ,.001);
-            assertEquals(Q[0],d.x1[slot],0);assertEquals(Q[5],d.y3[slot],0);assertSame(storage,s.actorVolume);
+            assertEquals(Q[0],d.x1[slot],0);assertEquals(Q[5],d.y3[slot],0);assertSame(storage,s.actorShadowRectangle);
             assertTrue(s.twoSided);assertTrue(s.actor);assertEquals(1,q.lighting.casters.size);
             assertEquals(identity,s.casterShadowGroup());assertEquals(identity,s.receiverShadowGroup(24));
             d.enabled[slot]=false;world.delete(e);world.process();

@@ -47,7 +47,7 @@ public class PhysicsStableFrameTest {
         index.layerIndex = 0;
         SpatialHeightComponent height =
                 world.getMapper(SpatialHeightComponent.class).create(actor);
-        height.height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(actor);
         PhysicsShapeData circle = new PhysicsShapeData();

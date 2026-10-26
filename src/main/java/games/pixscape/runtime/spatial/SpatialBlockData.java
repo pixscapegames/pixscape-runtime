@@ -26,6 +26,8 @@ public final class SpatialBlockData {
     public boolean lightOccluder = false;
     /** Requests a complete volume caster; either this flag or lightOccluder enables it. */
     public boolean shadowCaster = false;
+    /** Applies the physical facade orientation to direct light; independent of shadow visibility. */
+    public boolean shadeUnlitFaces = true;
     /**
      * Legacy POC field retained for scene compatibility. Authored tile associations now
      * determine alpha contributions; this flag no longer selects a product rendering path.
@@ -50,6 +52,7 @@ public final class SpatialBlockData {
         b.actorOccluder = actorOccluder;
         b.lightOccluder = lightOccluder;
         b.shadowCaster = shadowCaster;
+        b.shadeUnlitFaces = shadeUnlitFaces;
         b.silhouetteShadowCaster = silhouetteShadowCaster;
         b.particleOccluder = particleOccluder;
         b.linkedTileRefsAuthored = linkedTileRefsAuthored;

@@ -18,10 +18,9 @@ import games.pixscape.runtime.system.*;
 import org.junit.Assert;
 
 /** Opt-in bounded GL comparison. Procedural articulated alpha fixture, never user scene data.
- * The baseline geometry is copied verbatim from the starting commit into test-only classes.
  * Timings exclude screenshot readback, presentation/VSync and cold resource preparation.
  */
-public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
+public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter {
     private static final int FRAMES=48;
     private static final float[] YAWS={0,45,90,37.25f};
     private static final float[][] PLANES={{-150,-120,0,-150,120,0,150,120,0,150,-120,0},{-150,90,0,-150,90,135,150,90,135,150,90,0}};
@@ -32,15 +31,13 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
     private World world;private RenderSubmitSystem submit;private LightingGeometrySystem geometry;
     private MetricsBatch batch;private AtlasRuntimeService.TextureArrayBundle bundle;
     private FrameRenderQueue queue;private DynamicEntityRenderState dynamic;private RenderStats stats;
-    private int condition,frame,count;private boolean forward,baseline;
+    private int condition,frame,count;private boolean forward;
     private int[] entities=new int[8];
-    private BaselineActorShadowGeometry[] previous=new BaselineActorShadowGeometry[8];
-    private final BaselineActorShadowProfile profile=new BaselineActorShadowProfile(0,0,.2f);
     private final LightingFrame.Light light=new LightingFrame.Light();
     private final float[] quad=new float[8];private final long[] times=new long[FRAMES];
     private long drawSum,uploadSum,prepSum;private long deadline;private Throwable failure;
     public static void main(String[] args){
-        ActorVolumeShadowGlCheck app=new ActorVolumeShadowGlCheck();app.output=new FileHandle(args[0]);app.output.mkdirs();
+        ActorShadowRectangleShadowGlCheck app=new ActorShadowRectangleShadowGlCheck();app.output=new FileHandle(args[0]);app.output.mkdirs();
         Lwjgl3ApplicationConfiguration c=new Lwjgl3ApplicationConfiguration();c.setInitialVisible(false);c.disableAudio(true);
         c.setWindowedMode(640,480);c.useVsync(true);c.setForegroundFPS(30);
         c.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
@@ -50,11 +47,11 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
         deadline=System.nanoTime()+55_000_000_000L;ShaderRegistry.initDefaults();InternalTextures.initIfNeeded();
         for(int i=0;i<2;i++){pixels[i]=person(i);textures[i]=new Texture(pixels[i]);}
         output.child("measurements.csv").writeString("renderer,geometry,actors,samples,renderCpuMedianMs,renderCpuP95Ms,publicationCpuMeanMs,drawsMean,uploadBytesMean\n",false);
-        System.out.println("READY pid="+ProcessHandle.current().pid()+" runtime="+ActorVolumeData.class.getProtectionDomain().getCodeSource().getLocation());
+        System.out.println("READY pid="+ProcessHandle.current().pid()+" runtime="+ActorSpatialRectangleData.class.getProtectionDomain().getCodeSource().getLocation());
         setup();
     }catch(Throwable t){fail(t);}}
     private void setup(){
-        forward=condition>=4;baseline=condition%2==0;count=(condition/2)%2==0?1:8;frame=0;drawSum=uploadSum=prepSum=0;
+        forward=condition>=2;count=condition%2==0?1:2;frame=0;drawSum=uploadSum=prepSum=0;
         dynamic=new DynamicEntityRenderState(16);queue=new FrameRenderQueue(32);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
         OrthographicCamera camera=new OrthographicCamera(320,240);camera.position.set(0,55,0);camera.update();
         bundle=forward?AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(textures),64,128,GLCaps.detect()):null;
@@ -69,15 +66,15 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
             dynamic.blend[slot]=BlendMode.ALPHA.id;dynamic.u2[slot]=dynamic.v2[slot]=1;
             TransformComponent t=world.getMapper(TransformComponent.class).create(e);t.x=(i%4-1.5f)*(count==1?0:55);t.y=i/4*-35;
             SpatialPhysicsFootprintComponent foot=world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);foot.valid=true;
-            SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).create(e);h.volumes=new ActorVolumes();
-            // Keep the complete 64px silhouette inside the envelope, including yaw 45/90.
-            ActorVolumeData v=new ActorVolumeData();v.width=64;v.depth=64;v.height=128;
+            SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).create(e);h.rectangles=new ActorSpatialRectangles();
+            // Fixed authored rectangle; changing yaw can intentionally reduce opaque coverage.
+            ActorSpatialRectangleData v=new ActorSpatialRectangleData();v.width=64;v.height=128;
             if(i%2==0){world.getMapper(AssetRefComponent.class).create(e).assetId=7;
                 AnimationComponent a=world.getMapper(AnimationComponent.class).create(e);a.currentClip="walk";
-                h.volumes.put(7,"walk",v);v=v.copy();v.depth=72;h.volumes.put(7,"idle",v);
-            }else h.volumes.staticVolume=v;
+                h.rectangles.put(7,"walk",v);v=v.copy();v.width=72;h.rectangles.put(7,"idle",v);
+            }else h.rectangles.staticRectangle=v;
             world.getMapper(SurfaceLightingComponent.class).create(e).shadowCaster=true;
-            previous[i]=new BaselineActorShadowGeometry();setQuad(i,0);
+            setQuad(i,0);
         }
         world.process();geometry.prepareRuntimeAvailability();submit.prepareComposition();submit.setEnabled(true);
         light.radius=500;light.intensity=1;light.falloff=1;light.r=light.g=light.b=1;light.resolution=256;light.quality=1;
@@ -87,11 +84,16 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
         float x=t.x,y=t.y+altitude;
         dynamic.x1[s]=dynamic.x2[s]=x-32;dynamic.x3[s]=dynamic.x4[s]=x+32;
         dynamic.y1[s]=dynamic.y4[s]=y;dynamic.y2[s]=dynamic.y3[s]=y+128;
+        dynamic.u1[s]=frame%12<6?0:1;dynamic.u2[s]=frame%12<6?1:0;
         dynamic.textureHandle[s]=TextureRegistry.handleOf(textures[index%2==0?(frame/6)%2:0]);
     }
     @Override public void render(){if(failure!=null)return;try{
         if(System.nanoTime()>deadline)throw new AssertionError("Internal deadline exceeded");
         float angle=(frame%12)*30;light.x=130*(float)Math.cos(Math.toRadians(angle));light.y=130*(float)Math.sin(Math.toRadians(angle));light.z=frame%24<12?100:190;
+        // Sequential close, on-plane, vertical and below-plane sources. No projector fallback.
+        if(frame>=36){float[] y={-20,-2,-.01f,0,.01f,2,20,0,0,0,0,0};
+            float[] z={64,64,64,64,64,64,64,160,128,1,0,-20};
+            light.x=0;light.y=y[frame-36];light.z=z[frame-36];}
         for(int i=0;i<count;i++){
             int e=entities[i];SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).get(e);
             // The projected actor origin rises together with physical altitude.
@@ -99,18 +101,11 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
             TransformComponent t=world.getMapper(TransformComponent.class).get(e);t.y=i/4*-35+altitude;
             AnimationComponent a=world.getMapper(AnimationComponent.class).getSafe(e,null);
             if(a!=null){a.currentClip=frame%24<12?"walk":"idle";a.frame=(frame/6)%2;}
-            ActorVolumeData v=h.volumes.get(a==null?0:7,a==null?null:a.currentClip);
+            ActorSpatialRectangleData v=h.rectangles.get(a==null?0:7,a==null?null:a.currentClip);
             v.orientation=YAWS[frame/12];setQuad(i,0);
         }
         geometry.setEnabled(true);geometry.process();geometry.setEnabled(false);
         queue.lighting.lights.add(light);
-        if(baseline)for(int i=0;i<count;i++){
-            int e=entities[i],s=dynamic.entityIdToRenderSlot[e];copyQuad(s,quad);
-            BaselineActorShadowGeometry old=previous[i];old.calibrate(quad,profile,world.getMapper(SpatialHeightComponent.class).get(e).altitude,false,false);
-            LightingSurface surface=queue.lighting.entities.get(e);old.writeReceiver(surface.vertices,quad);
-            surface.shadowVertices=old.forLight(light);surface.shadowVertexCount=old.vertexCount;
-            queue.lighting.casters.get(i).bounds();
-        }
         queue.size=0;queue.lighting.tiles.clear();
         int shader=ShaderRegistry.indexOf((forward?ShaderMode.TEXTURE_ARRAY:ShaderMode.MULTI_TEXTURE).defaultShaderName());
         addPlane(shader,0,PLANES[0],0,0,1);
@@ -118,63 +113,27 @@ public final class ActorVolumeShadowGlCheck extends ApplicationAdapter {
         for(int i=0;i<count;i++){int e=entities[i],s=dynamic.entityIdToRenderSlot[e];copyQuad(s,quad);
             queue.addQuad(dynamic.textureHandle[s],shader,BlendMode.ALPHA.id,0,0,0,0,quad[0],quad[1],quad[2],quad[3],quad[4],quad[5],quad[6],quad[7],0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_ECS,s,e);
         }
+        for(int i=0;i<count;i++){
+            LightingSurface surface=queue.lighting.entities.get(entities[i]);
+            Assert.assertEquals(6,surface.shadowVertexCount);
+            for(float v:surface.shadowVertices)Assert.assertTrue(Float.isFinite(v));
+        }
         submit.lightingRenderer().prepareFrame(queue.lighting);stats.reset();
         Gdx.gl.glClearColor(.08f,.08f,.1f,1);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         long start=System.nanoTime();world.process();times[frame]=System.nanoTime()-start;
         if(frame>=24){drawSum+=stats.drawCalls;uploadSum+=stats.bufferUploadBytes;prepSum+=queue.lighting.preparationCpuNs;}
         Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
         if(count==1&&frame%3==0||count==8&&frame==9){Pixmap p=Pixmap.createFromFrameBuffer(0,0,640,480);try{PixmapIO.writePNG(output.child(label()+(count==1?"":"-actors-8")+"-frame-"+frame+".png"),p,-1,true);}finally{p.dispose();}}
-        if(count==1&&!baseline&&frame==3)verifyReceiverOracle();
-        if(count==1&&!baseline&&frame==3)verifyPeerCaster();
-        if(count==1&&!baseline&&frame<12&&frame%3==0)verifyTileCasterParity();
+        if(count==1&&frame==3)verifyReceiverOracle();
+        if(count==1&&frame==3)verifyPeerCaster();
         frame++;if(frame==FRAMES){
             long[] measured=java.util.Arrays.copyOfRange(times,24,48);java.util.Arrays.sort(measured);
-            String row=(forward?"forward":"legacy")+","+(baseline?"previous-sheet":"volume-alpha")+","+count+",24,"+measured[12]/1e6+","+measured[22]/1e6+","+(baseline?"unavailable":Double.toString(prepSum/24e6))+","+drawSum/24.0+","+uploadSum/24.0+"\n";
+            String row=(forward?"forward":"legacy")+","+"rectangle-alpha"+","+count+",24,"+measured[12]/1e6+","+measured[22]/1e6+","+Double.toString(prepSum/24e6)+","+drawSum/24.0+","+uploadSum/24.0+"\n";
             output.child("measurements.csv").writeString(row,true);System.out.print(row);close();condition++;
-            if(condition==8){output.child("DONE").writeString("PASS",false);Gdx.app.exit();}else setup();
+            if(condition==4){output.child("DONE").writeString("PASS",false);Gdx.app.exit();}else setup();
         }
     }catch(Throwable t){fail(t);}}
-    private String label(){return (forward?"forward":"legacy")+"-"+(baseline?"before":"after");}
-    private void verifyTileCasterParity(){
-        LightingSurface s=queue.lighting.entities.get(entities[0]);
-        LightingSurface tile=VolumeSilhouetteParityTest.tileCaster(quad,64,64,128,0,0,0);
-        float[] original=s.shadowVertices;int count=s.shadowVertexCount;
-        Pixmap actor=readOracle(),reference=null;
-        try{
-            s.shadowVertices=tile.vertices;s.shadowVertexCount=tile.vertices.length/8;queue.lighting.casters.first().bounds();
-            reference=readOracle();int different=0;
-            for(int y=0;y<480;y++)for(int x=0;x<640;x++)if(actor.getPixel(x,y)!=reference.getPixel(x,y))different++;
-            PixmapIO.writePNG(output.child(label()+"-tile-reference-"+frame+".png"),reference,-1,true);
-            System.out.println("TILE_ACTOR_GPU_PARITY renderer="+(forward?"forward":"legacy")+" angle="+(frame*30)+" different="+different);
-            Assert.assertEquals("Shared face compiler must match tile caster pixels",0,different);
-            // Audit: record known differences without suppressing independent forward cases.
-            if(frame==9){
-                LightingFrame.Caster caster=queue.lighting.casters.first();int savedTexture=caster.texture;
-                Pixmap opaqueTile=null,opaqueActor=null;
-                try{
-                    caster.texture=TextureRegistry.WHITE_HANDLE;opaqueTile=readOracle();
-                    s.shadowVertices=original;s.shadowVertexCount=count;caster.bounds();opaqueActor=readOracle();
-                    System.out.println("OPAQUE_CASTER_PARITY renderer="+(forward?"forward":"legacy")+" different="+pixelDifference(opaqueTile,opaqueActor));
-                }finally{caster.texture=savedTexture;if(opaqueTile!=null)opaqueTile.dispose();if(opaqueActor!=null)opaqueActor.dispose();}
-                for(int variant=1;variant<=3;variant++){
-                    AuditActorVolumeCaster candidate=new AuditActorVolumeCaster((variant&1)!=0,(variant&2)!=0);
-                    ActorVolumeData volume=new ActorVolumeData();volume.width=volume.depth=64;volume.height=128;
-                    candidate.update(volume,0,0,0,quad);
-                    s.shadowVertices=candidate.vertices;s.shadowVertexCount=candidate.vertexCount;queue.lighting.casters.first().bounds();
-                    Pixmap image=readOracle();int delta=0,maxDelta=0;
-                    try{
-                        for(int y=0;y<480;y++)for(int x=0;x<640;x++){
-                            int a=image.getPixel(x,y),b=reference.getPixel(x,y);
-                            if(a!=b)delta++;
-                            maxDelta=Math.max(maxDelta,Math.abs((a>>>24)-(b>>>24)));
-                        }
-                        PixmapIO.writePNG(output.child(label()+"-audit-variant-"+variant+".png"),image,-1,true);
-                        System.out.println("AUDIT_VARIANT renderer="+(forward?"forward":"legacy")+" tileOrder="+((variant&1)!=0)+" tileClip="+((variant&2)!=0)+" different="+delta+" maxRedDelta="+maxDelta);
-                    }finally{image.dispose();}
-                }
-            }
-        }finally{s.shadowVertices=original;s.shadowVertexCount=count;queue.lighting.casters.first().bounds();actor.dispose();if(reference!=null)reference.dispose();}
-    }
+    private String label(){return (forward?"forward":"legacy")+"-"+"rectangle";}
     private static int pixelDifference(Pixmap a,Pixmap b){
         int count=0;for(int y=0;y<a.getHeight();y++)for(int x=0;x<a.getWidth();x++)if(a.getPixel(x,y)!=b.getPixel(x,y))count++;return count;
     }

@@ -157,10 +157,10 @@ public final class LightingRenderer {
         String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_exclusionId;";
         String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
         String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
-        String sample=shadowImageSource(shadowColorSlots);
+        String sample=shadowImageSource(shadowColorSlots)+actorShadowMaskSource();
         String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
         if(shadow==null){
-            shadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;}");
+            shadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;out float distanceValue;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;}");
             shadow.bind();samplers(shadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots);
         }
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
@@ -168,8 +168,8 @@ public final class LightingRenderer {
         // Discard every layer of id1's group before depth-testing d2: an exterior
         // occultant behind several connected wall supports must remain available.
         if(twoDepthSelfShadowExclusion()&&secondShadow==null){
-            firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){if(image().a*color.a<flags.w)discard;distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
-            secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){if(image().a*color.a<flags.w)discard;float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
+            firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
+            secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
             firstShadow.bind();samplers(firstShadow,shadowColorSlots);secondShadow.bind();samplers(secondShadow,shadowColorSlots);secondShadow.setUniformi("u_firstIdentity",shadowColorSlots);
         }
     }
@@ -178,9 +178,16 @@ public final class LightingRenderer {
     static String shadowImageSource(int slots){
         StringBuilder source=new StringBuilder("uniform sampler2D ");
         for(int i=0;i<slots;i++){if(i>0)source.append(',');source.append("u_tex").append(i);}
-        source.append(";vec4 image(){");
+        source.append(";vec4 imageAt(vec2 uv){");
         for(int i=0;i<slots-1;i++)source.append("if(flags.x<").append(i).append(".5)return texture(u_tex").append(i).append(",uv);");
-        return source.append("return texture(u_tex").append(slots-1).append(",uv);}").toString();
+        return source.append("return texture(u_tex").append(slots-1).append(",uv);}vec4 image(){return imageAt(uv);}").toString();
+    }
+    private static String actorShadowMaskSource(){
+        return "void shadowMask(){if(flags.y<9.){if(image().a*color.a<flags.w)discard;return;}"
+                +"if(any(lessThan(uv,vec2(0)))||any(greaterThan(uv,vec2(1))))discard;"
+                +"vec2 localUV=uv;"
+                +"float a=imageAt(vec2(mix(color.r,color.b,localUV.x),mix(color.g,flags.z,localUV.y))).a*color.a;"
+                +"if(a<flags.w)discard;}";
     }
     /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
     public Texture shadowTexture() { return atlas==null?null:atlas.getColorBufferTexture(); }
@@ -485,12 +492,14 @@ public final class LightingRenderer {
     // Reuse the macro normal and skip shadow lookups only when this guard guarantees zero
     // direct. Diagnostic modes still evaluate visibility independently of orientation.
     // The factor covers the entire direct value, including its 10% floor. Ambient/original color and actors are independent.
+    // Sprite-oriented tiles (-2) use the normal-map reference axis without facade/horizon gating.
+    // Geometric normals still govern shadow bias and PCF depth; visibility/exclusions are unchanged.
     static final String RECEIVER =
         "uniform vec3 u_light,u_color,u_direction,u_cone;uniform float u_range,u_falloff;uniform int u_diagnostic,u_pocDiagnostic,u_pocForceShadowVisibility;out vec4 result;uniform float u_resolution,u_atlasScale;uniform int u_quality,u_twoDepth;uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;"+
         "vec2 shadowUV(vec3 d){vec3 a=abs(d);vec2 q;int f;if(a.x>=a.y&&a.x>=a.z){if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}else{f=1;q=vec2(d.z,-d.y)/a.x;}}else if(a.y>=a.z){if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}else{f=3;q=vec2(d.x,-d.z)/a.y;}}else{if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}else{f=5;q=vec2(-d.x,-d.y)/a.z;}}q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));return u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);}"+
         "float visible(vec3 d,float distance,float bias){vec2 uv=shadowUV(d);float first=texture(u_shadow,uv).r*u_range;float id=texture(u_shadowIdentity,uv).r;float depth=u_twoDepth!=0&&exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;return distance-bias<=depth?1.:0.;}"+
         "void main(){vec4 texel=image();if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;if(flags.w!= -2.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;vec3 outputColor=t.rgb;"+
-        "float value=0.,pocDirect=0.,pocHorizon=1.,pocVisibility=1.;vec3 pocNormal=vec3(0);vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 facade=macroNormal(geometric);vec3 normal=facade;pocNormal=normal;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
+        "float value=0.,pocDirect=0.,pocHorizon=1.,pocVisibility=1.;vec3 pocNormal=vec3(0);vec3 delta=p-u_light;float distance=length(delta);float normalLength=length(n);if(flags.y>.5&&normalLength>.0001){vec3 geometric=n/normalLength;vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);vec3 normal=facade;pocNormal=normal;float cosine=dot(normal,-delta/max(distance,.0001));if(flags.z>.5)cosine=abs(cosine);float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;float visibility=1.;float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;"+
         "if(u_quality==1&&(facadeGate>0.||u_pocDiagnostic!=0))visibility=visible(delta,distance,bias);if(u_quality==2&&(facadeGate>0.||u_pocDiagnostic!=0)){vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);visibility=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));float den=dot(tap,geometric);float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;visibility+=visible(tap,max(.001,dist),bias);}visibility/=9.;}"+
         "float cone=1.;if(u_cone.x>.5){float angle=dot(normalize(delta),u_direction);cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);}pocDirect=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*cone;pocVisibility=visibility;value=pocDirect*(u_pocForceShadowVisibility!=0?1.:visibility);if(flags.z==0.){vec3 toLight=distance>0.?-delta/distance:vec3(0);float cG=dot(normal,toLight);pocHorizon=smoothstep(.052335956,.087155743,max(0.,cG));pocHorizon*=facadeGate;value*=pocHorizon;}}"+
         "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);if(u_pocDiagnostic==1)result=vec4((pocNormal*.5+.5)*alpha,alpha);if(u_pocDiagnostic==2)result=vec4(vec3(pocDirect)*alpha,alpha);if(u_pocDiagnostic==3)result=vec4(vec3(pocHorizon)*alpha,alpha);if(u_pocDiagnostic==4)result=vec4(vec3(pocVisibility)*alpha,alpha);if(u_pocDiagnostic==5)result=vec4(pocDirect,pocHorizon,pocVisibility,1.);if(u_pocDiagnostic==6)result=vec4(p,1.);if(u_pocDiagnostic==7)result=vec4(exclusionId,flags.y,flags.z,1.);}";

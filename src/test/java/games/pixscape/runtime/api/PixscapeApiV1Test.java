@@ -99,10 +99,10 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(3f, ref.spatial().altitude(), 0.0001f);
         Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
         Assert.assertEquals(3f, world.getMapper(SpatialHeightComponent.class).get(e).altitude, 0.0001f);
-        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).height, 0.0001f);
+        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle.height, 0.0001f);
 
-        ref.spatial().setHeight(-10f);
-        Assert.assertEquals(0f, ref.spatial().height(), 0.0001f);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setHeight(-10f));
+        Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
         Assert.assertFalse(ref.spatial().participatesInRenderOrder());
 
         ref.spatial().disable();
@@ -127,7 +127,7 @@ public class PixscapeApiV1Test {
         int actor = world.create();
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 4;
-        world.getMapper(SpatialHeightComponent.class).create(actor).height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(actor),2f);
         int slot = state.acquireSlotForEntity(actor);
         state.kind[slot] = RenderKind.SPRITE;
         state.enabled[slot] = true;
@@ -164,7 +164,7 @@ public class PixscapeApiV1Test {
         Assert.assertTrue("Restoring the footprint takes effect immediately",
                 facade.participatesInRenderOrder());
 
-        facade.setHeight(0f);
+        facade.disable();
         Assert.assertFalse("Zero height is ineligible", facade.participatesInRenderOrder());
         facade.setHeight(2f);
         Assert.assertTrue("Restoring positive height takes effect immediately",
@@ -177,7 +177,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals("The regression must exercise Artemis ID reuse", actor, replacement);
         world.getMapper(TransformComponent.class).create(replacement);
         world.getMapper(EntityIndexComponent.class).create(replacement).layerIndex = 4;
-        world.getMapper(SpatialHeightComponent.class).create(replacement).height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(replacement),2f);
         SpatialPhysicsFootprintComponent replacementFootprint =
                 world.getMapper(SpatialPhysicsFootprintComponent.class).create(replacement);
         replacementFootprint.valid = true;
@@ -576,13 +576,13 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void spatialHeightRejectsNonFiniteValuesAndPreservesFiniteClamping() throws Exception {
+    public void spatialRectangleHeightRejectsNonpositiveAndNonFiniteValuesAtomically() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int entity = world.create();
         SpatialHeightComponent spatial = world.edit(entity).create(SpatialHeightComponent.class);
         spatial.altitude = 2f;
-        spatial.height = 5f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,5f);
         world.process();
         SpatialEntityFacade facade = engine.api().entities().ofEntityId(entity).spatial();
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
@@ -602,12 +602,12 @@ public class PixscapeApiV1Test {
         });
 
         Assert.assertEquals(2f, spatial.altitude, 0f);
-        Assert.assertEquals(5f, spatial.height, 0f);
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
         Assert.assertFalse(dirty.isDirty(entity,
                 games.pixscape.runtime.render.DirtyBits.COARSE_MASK));
 
-        facade.setHeight(-4f);
-        Assert.assertEquals(0f, spatial.height, 0f);
+        Assert.assertThrows(IllegalArgumentException.class, () -> facade.setHeight(-4f));
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
@@ -1591,7 +1591,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(3f, transform.x, 0f);
         Assert.assertEquals(4f, transform.y, 0f);
         Assert.assertEquals(2f, spatial.altitude, 0f);
-        Assert.assertEquals(5f, spatial.height, 0f);
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
     }
 
     @Test

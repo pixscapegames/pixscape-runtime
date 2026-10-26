@@ -205,27 +205,27 @@ public class GameObjectAssetLoaderTest {
         footprint.spatialFootprint = true;
         physical.physicsShapes.add(footprint);
         physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
-        physical.spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
-        physical.spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
+        physical.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        physical.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         physical.spatialHeight.altitude = 2.5f;
-        physical.spatialHeight.height = 7.5f;
+        physical.spatialHeight.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(7.5f);
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
         Assert.assertEquals(3, restored.schemaVersion);
         Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).spatialFootprint);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialHeight.altitude, 0f);
-        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.height, 0f);
+        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
-    public void negativeSpatialHeightIsRejected() {
+    public void negativeSpatialRectangleHeightIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).spatialHeight = new GameObjectAsset.SpatialHeightData();
-        asset.entities.get(2).spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
-        asset.entities.get(2).spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
-        asset.entities.get(2).spatialHeight.height = -1f;
-        rejected(asset, "negative Spatial height");
+        asset.entities.get(2).spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        asset.entities.get(2).spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        asset.entities.get(2).spatialHeight.rectangles.staticRectangle.height = -1f;
+        rejected(asset, "positive finite dimensions");
     }
 
     @Test public void physicsShapesRequireBody() {

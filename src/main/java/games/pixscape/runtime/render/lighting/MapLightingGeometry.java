@@ -271,6 +271,7 @@ public final class MapLightingGeometry {
             throw new LightingAdmissionException("Automatic volume receiver does not support transformed tiles; provide local geometry");
         Array<float[]> polygons = new Array<float[]>();
         com.badlogic.gdx.utils.IntArray polygonOwners=new com.badlogic.gdx.utils.IntArray();
+        com.badlogic.gdx.utils.BooleanArray polygonSpriteShading = new com.badlogic.gdx.utils.BooleanArray();
         Array<ReceiverFace> candidates = owners != null ? new Array<ReceiverFace>() : null;
         if (owners == null) {
             float[] p = new float[32];
@@ -293,7 +294,7 @@ public final class MapLightingGeometry {
                 p = clip(p, 3, 0, true); p = clip(p, 3, 1, false);
                 p = clip(p, 4, 0, true); p = clip(p, 4, 1, false);
                 if (p.length >= 24 && uvArea(p)>.000001f) {
-                    if(candidates!=null)candidates.add(new ReceiverFace(p,quad,usesSilhouette(b)?b.id:0));
+                    if(candidates!=null)candidates.add(new ReceiverFace(p,quad,usesSilhouette(b)?b.id:0,!b.shadeUnlitFaces));
                     else {
                         Array<float[]> next = new Array<float[]>();
                         for (int k = 0; k < polygons.size; k++) subtract(polygons.get(k), p, next);
@@ -302,7 +303,7 @@ public final class MapLightingGeometry {
                 }
             }
         }
-        if(candidates!=null)polygons=visiblePartition(candidates,polygonOwners);
+        if(candidates!=null)polygons=visiblePartition(candidates,polygonOwners,polygonSpriteShading);
         if (owners != null) {
             float[] full = new float[32];
             vertex(full,0,0,0,0,0,0,0,0,0);vertex(full,8,0,0,0,0,1,0,0,0);
@@ -319,15 +320,19 @@ public final class MapLightingGeometry {
         for (int i = 0; i < polygons.size; i++) size += (polygons.get(i).length / 8 - 2) * 24;
         float[] data = new float[size]; int offset = 0;
         int[] blockIds=new int[size/24];
+        boolean[] spriteShading=new boolean[size/24];
         for (int i = 0; i < polygons.size; i++) {
             float[] t = triangulate(polygons.get(i), null);
             int owner=i<polygonOwners.size?polygonOwners.get(i):0;
             java.util.Arrays.fill(blockIds,offset/24,(offset+t.length)/24,owner);
+            if(i<polygonSpriteShading.size && polygonSpriteShading.get(i))
+                java.util.Arrays.fill(spriteShading,offset/24,(offset+t.length)/24,true);
             System.arraycopy(t, 0, data, offset, t.length); offset += t.length;
         }
         LightingSurface surface = new LightingSurface(data); surface.approximate = true;
         surface.receiverBlockIds=blockIds;
-        surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude);
+        surface.receiverSpriteShading=spriteShading;
+        surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude,spriteShading);
         surface.forwardTopology=ForwardTopology.compile(surface,quad);
         if(owners!=null)for(SpatialBlockData owner:owners){
             if(!usesSilhouette(owner)||pocExcludedCaster(owner))continue;
@@ -486,7 +491,7 @@ public final class MapLightingGeometry {
     /** Cold tile-local partition. Larger Z is nearer along the display ray (-1,-1,+1).
      * Depth on a projected plane is affine in UV, so a crossing requires a line cut,
      * not a global face sort. Casters and authored memberships remain unchanged. */
-    private static Array<float[]> visiblePartition(Array<ReceiverFace> faces,com.badlogic.gdx.utils.IntArray owners){
+    private static Array<float[]> visiblePartition(Array<ReceiverFace> faces,com.badlogic.gdx.utils.IntArray owners,com.badlogic.gdx.utils.BooleanArray spriteShading){
         // Canonical geometry order also fixes triangulation and coverage extrapolation ties.
         faces.sort();
         Array<float[]> result=new Array<float[]>();
@@ -505,17 +510,19 @@ public final class MapLightingGeometry {
                 parts=next;
             }
             result.addAll(parts);
-            for(int k=0;k<parts.size;k++)owners.add(face.owner);
+            for(int k=0;k<parts.size;k++){owners.add(face.owner);spriteShading.add(face.spriteShading);}
         }
         return result;
     }
     private static final class ReceiverFace implements Comparable<ReceiverFace>{
         final float[] polygon;
         final int owner;
+        final boolean spriteShading;
         final double u,v,c;
         float minU=Float.POSITIVE_INFINITY,minV=Float.POSITIVE_INFINITY;
         float maxU=Float.NEGATIVE_INFINITY,maxV=Float.NEGATIVE_INFINITY;
-        ReceiverFace(float[] p,float[] quad,int owner){
+        ReceiverFace(float[] p,float[] quad,int owner,boolean spriteShading){
+            this.spriteShading=spriteShading;
             polygon=p;this.owner=owner;
             double nx=p[5],ny=p[6],nz=p[7],den=nz-nx-ny;
             // Solve N.P=constant using X=sy-z+sx/2, Y=sy-z-sx/2.
@@ -560,6 +567,9 @@ public final class MapLightingGeometry {
      * An image extending beyond its authored volume does not determine a unique physical depth;
      * the batch marks these extensions separately in the existing coverage diagnostic. */
     static float[] completeReceiverVertices(float[] source,float[] quad,float altitude){
+        return completeReceiverVertices(source,quad,altitude,null);
+    }
+    private static float[] completeReceiverVertices(float[] source,float[] quad,float altitude,boolean[] spriteShading){
         boolean missing=false;
         for(int i=0;i<source.length;i+=24)if(missingNormal(source,i)){missing=true;break;}
         if(!missing)return null;
@@ -580,6 +590,7 @@ public final class MapLightingGeometry {
                 }
                 if(d<distance){distance=d;nearest=j;}
             }
+            if(spriteShading!=null && nearest>=0) spriteShading[i/24]=spriteShading[nearest/24];
             for(int k=i;k<i+24;k+=8){
                 if(nearest<0){
                     if(quad==null)throw new IllegalArgumentException("Surface coverage has no valid geometric facet");

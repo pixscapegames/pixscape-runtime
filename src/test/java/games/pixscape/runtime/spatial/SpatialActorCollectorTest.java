@@ -18,6 +18,46 @@ import org.junit.Test;
 import java.util.Arrays;
 
 public class SpatialActorCollectorTest {
+    @Test public void activeRectangleControlsBoundsAndVerticalIntervalWithoutMovingFootprint() {
+        Fixture f=new Fixture();
+        try {
+            int e=f.createActor(10,20,2,true);f.addCircle(e,3,0,0);f.addActorDrawSlot(e);
+            SpatialHeightComponent height=f.height.get(e);height.altitude=5;
+            games.pixscape.runtime.component.AnimationComponent animation=f.world.getMapper(
+                    games.pixscape.runtime.component.AnimationComponent.class).create(e);
+            f.world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class).create(e).assetId=7;
+            height.rectangles=new ActorSpatialRectangles();
+            ActorSpatialRectangleData partial=new ActorSpatialRectangleData();partial.width=40;partial.height=60;
+            partial.offsetX=10;partial.offsetY=-5;partial.offsetZ=20;partial.orientation=0;
+            height.rectangles.put(7,"partial",partial);
+            ActorSpatialRectangleData tall=partial.copy();tall.height=160;tall.offsetZ=-40;
+            height.rectangles.put(7,"tall",tall);
+            float[] quad=new float[8];
+            for(String clip:new String[]{"partial","tall"}) {
+                animation.currentClip=clip;
+                for(int frame=0;frame<4;frame++) {
+                    animation.frame=frame;
+                    f.collector.collect(f.drawList,f.state,f.spatialLayers,f.world.getEntityManager(),f.entityIndex,f.transform,f.height,f.shapes);
+                    Assert.assertEquals(1,f.collector.actorCount());
+                    Assert.assertEquals(5,f.collector.actorAltitude[0],0);
+                    Assert.assertEquals(20,f.collector.actorCircleY[0],0);
+                    ActorSpatialRectangleData r=height.rectangles.get(7,clip);
+                    Assert.assertEquals(r.height,f.collector.actorHeight[0],0);
+                    Assert.assertEquals(r.offsetZ,f.collector.actorOffsetZ[0],0);
+                    f.collector.writeInfluenceQuad(0,0,0,quad);
+                    float bottom=12.5f+r.offsetZ,top=32.5f+r.offsetZ+r.height;
+                    Assert.assertArrayEquals(new float[]{5,bottom,45,bottom,45,top,5,top},quad,.0001f);
+                }
+            }
+            animation.currentClip="missing";
+            f.collector.collect(f.drawList,f.state,f.spatialLayers,f.world.getEntityManager(),f.entityIndex,f.transform,f.height,f.shapes);
+            Assert.assertEquals(0,f.collector.actorCount());
+            height.rectangles=null;
+            f.collector.collect(f.drawList,f.state,f.spatialLayers,f.world.getEntityManager(),f.entityIndex,f.transform,f.height,f.shapes);
+            Assert.assertEquals(0,f.collector.actorCount());
+        }finally{f.world.dispose();}
+    }
+
     @Test
     public void collectsEligibleActor() {
         Fixture fixture = new Fixture();
@@ -79,7 +119,7 @@ public class SpatialActorCollectorTest {
         int missing = fixture.createActorWithoutHeight(10f, 20f, 2);
         fixture.addCircle(missing, 3f, 0f, 0f);
         int zero = fixture.createActor(30f, 40f, 2, true);
-        fixture.height.get(zero).height = 0f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(fixture.height.get(zero),0f);
         fixture.addCircle(zero, 3f, 0f, 0f);
         fixture.addActorDrawSlot(missing);
         fixture.addActorDrawSlot(zero);
@@ -115,7 +155,7 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
         fixture.height.get(actor).altitude = 3f;
-        fixture.height.get(actor).height = 7f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(fixture.height.get(actor),7f);
         fixture.transform.get(actor).rotationRad = (float) (Math.PI * 0.5);
         fixture.addCircle(actor, 4f, 5f, 1f);
         fixture.addActorDrawSlot(actor);
@@ -162,10 +202,10 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(205f, fixture.collector.actorFootY[0], .0001f);
         float[] influence = new float[8];
         fixture.collector.writeInfluenceQuad(0, 0, 0, influence);
-        Assert.assertEquals(100 - fixture.height.get(actor).height * .5f, influence[0], .0001f);
-        Assert.assertEquals(100 + fixture.height.get(actor).height * .5f, influence[2], .0001f);
+        Assert.assertEquals(100 - fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[0], .0001f);
+        Assert.assertEquals(100 + fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[2], .0001f);
         Assert.assertEquals(205, influence[1], .0001f);
-        Assert.assertEquals(205 + fixture.height.get(actor).height, influence[5], .0001f);
+        Assert.assertEquals(205 + fixture.height.get(actor).rectangles.staticRectangle.height, influence[5], .0001f);
     }
 
     @Test
@@ -225,13 +265,14 @@ public class SpatialActorCollectorTest {
         final ComponentMapper<SpatialPhysicsFootprintComponent> footprints = shapes;
 
         Fixture() {
+            collector.setRepresentationMappers(world.getMapper(games.pixscape.runtime.component.AnimationComponent.class),world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class));
             spatialLayers[2] = true;
         }
 
         int createActor(float x, float y, int layerIndex, boolean spatialLayer) {
             int actor = createActorWithoutHeight(x, y, layerIndex);
             SpatialHeightComponent h = height.create(actor);
-            h.height = 2f;
+            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h,2f);
             if (spatialLayer) {
                 spatialLayers[layerIndex] = true;
             } else {

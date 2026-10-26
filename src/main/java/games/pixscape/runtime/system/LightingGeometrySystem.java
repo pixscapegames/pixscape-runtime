@@ -37,7 +37,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialHeightComponent> heights;
     private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent> footprints;
     private ComponentMapper<games.pixscape.runtime.component.TransformComponent> transforms;
-    private final float[] volumeAnchor=new float[3],volumeUV=new float[2];
+    private final float[] rectangleAnchor=new float[3],rectangleUV=new float[2];
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
     @com.artemis.annotations.SkipWire private GameObjectCompositionSystem composition;
     @com.artemis.annotations.SkipWire private games.pixscape.runtime.service.NormalMapAtlas authoringNormals;
@@ -91,7 +91,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
             SurfaceLightingComponent a=surfaces.getSafe(e,null);
             games.pixscape.runtime.component.spatial.SpatialHeightComponent h=heights.getSafe(e,null);
-            if(h!=null){if(h.volumes==null)throw new LightingAdmissionException("Spatial actor "+e+" has no volumes");h.volumes.validate();}
+            if(h!=null){if(h.rectangles==null)throw new LightingAdmissionException("Spatial actor "+e+" has no rectangles");h.rectangles.validate();}
             if((a==null || a.description==null) && frame.entities.get(e)==null){
                 LightingSurface s=new LightingSurface(new float[48]);
                 s.twoSided=true;s.approximate=true;s.forwardTopology=ForwardTopology.NATIVE;frame.entities.put(e,s);
@@ -102,7 +102,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             }
             shadowExclusionIdentities.idForActor(e);
             LightingSurface prepared=frame.entities.get(e);
-            if(h!=null && prepared!=null && prepared.actorVolume==null)prepared.actorVolume=new ActorVolumeCaster();
+            if(h!=null && prepared!=null && prepared.actorShadowRectangle==null)prepared.actorShadowRectangle=new ActorShadowRectangleCaster();
         }
     }
     @Override protected void processSystem() {
@@ -199,7 +199,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             if(description==null)sheet(surface,corners,authored);
             else local(surface,corners,authored,dimensions.getSafe(e,null));
             AssetRefComponent ref=assetRefs.getSafe(e,null);
-            publishActorVolume(e,surface,ref);
+            publishActorShadowRectangle(e,surface,ref);
             games.pixscape.runtime.component.TiledAnimationComponent animation=animations.getSafe(e,null);
             int visualId=animation!=null && animation.appliedFrameAssetId>0?animation.appliedFrameAssetId:ref==null?0:ref.assetId;
             surface.normalMap=atlasService==null || ref==null || visualId<=0?null:atlasService.resolveNormal(visualId,ref.atlasTag);
@@ -215,30 +215,30 @@ public final class LightingGeometrySystem extends BaseSystem {
         if(shadowPreparation!=null)shadowPreparation.prepare(frame);
         frame.preparationCpuNs=System.nanoTime()-started;
     }
-    private void publishActorVolume(int e,LightingSurface surface,AssetRefComponent ref){
+    private void publishActorShadowRectangle(int e,LightingSurface surface,AssetRefComponent ref){
         surface.shadowVertices=null;surface.shadowVertexCount=0;
         games.pixscape.runtime.component.spatial.SpatialHeightComponent h=heights.getSafe(e,null);
         if(h==null)return; // Non-spatial sprites keep their native surface, not a legacy actor profile.
         games.pixscape.runtime.component.AnimationComponent animation=actorAnimations.getSafe(e,null);
-        games.pixscape.runtime.spatial.ActorVolumeData volume=h.volumes==null?null:h.volumes.get(
+        games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle=h.rectangles==null?null:h.rectangles.get(
                 ref==null?0:ref.assetId,animation==null?null:animation.currentClip);
-        if(volume==null)throw new LightingAdmissionException("Spatial actor "+e+" has no volume for its active representation");
+        if(rectangle==null)throw new LightingAdmissionException("Spatial actor "+e+" has no rectangle for its active representation");
         games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent foot=footprints.getSafe(e,null);
         games.pixscape.runtime.component.TransformComponent t=transforms.getSafe(e,null);
         if(foot==null||!foot.valid||t==null)throw new LightingAdmissionException("Spatial actor "+e+" has no valid footprint anchor");
         GameObjectHierarchySystem hierarchy=world.getSystem(GameObjectHierarchySystem.class);
         games.pixscape.runtime.hierarchy.WorldTransformState state=hierarchy==null?null:hierarchy.worldTransforms();
         boolean resolved=state!=null&&state.isResolved(e);
-        games.pixscape.runtime.spatial.ActorVolumePlacement.anchor(resolved?state.x[e]:t.x,resolved?state.y[e]:t.y,
-                resolved?state.rotationRad[e]:t.rotationRad,foot.localOffsetXPx,foot.localOffsetYPx,h.altitude,volumeAnchor);
-        if(surface.actorVolume==null)surface.actorVolume=new ActorVolumeCaster();
-        surface.actorVolume.update(volume,volumeAnchor[0],volumeAnchor[1],volumeAnchor[2],corners);
-        surface.shadowVertices=surface.actorVolume.vertices;surface.shadowVertexCount=surface.actorVolume.vertexCount;
+        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(resolved?state.x[e]:t.x,resolved?state.y[e]:t.y,
+                resolved?state.rotationRad[e]:t.rotationRad,foot.localOffsetXPx,foot.localOffsetYPx,h.altitude,rectangleAnchor);
+        if(surface.actorShadowRectangle==null)surface.actorShadowRectangle=new ActorShadowRectangleCaster();
+        surface.actorShadowRectangle.update(rectangle,rectangleAnchor[0],rectangleAnchor[1],rectangleAnchor[2],corners);
+        surface.shadowVertices=surface.actorShadowRectangle.vertices;surface.shadowVertexCount=surface.actorShadowRectangle.vertexCount;
         if(surface.imageQuad){
-            // Retain camera-facing shading; the authored volume supplies the physical receiver anchor.
-            float x=volumeAnchor[0]+volume.offsetX,y=volumeAnchor[1]+volume.offsetY,z=volumeAnchor[2]+volume.offsetZ;
-            SilhouetteImageMapping.imageUV(corners,LightingCoordinates.screenX(x,y),LightingCoordinates.screenY(x,y,z),volumeUV,0);
-            SpriteSurfaceSupport.sheet(surface.vertices,corners,volumeUV[0],volumeUV[1],z,1,-1);
+            // Receiver stays on the footprint anchor; editing the caster must not move received lighting.
+            float x=rectangleAnchor[0],y=rectangleAnchor[1],z=rectangleAnchor[2];
+            SilhouetteImageMapping.imageUV(corners,LightingCoordinates.screenX(x,y),LightingCoordinates.screenY(x,y,z),rectangleUV,0);
+            SpriteSurfaceSupport.sheet(surface.vertices,corners,rectangleUV[0],rectangleUV[1],z,1,-1);
         }
     }
     private void publishLight(int e,int slot){

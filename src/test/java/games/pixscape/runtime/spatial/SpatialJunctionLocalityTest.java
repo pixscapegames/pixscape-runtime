@@ -287,7 +287,7 @@ public class SpatialJunctionLocalityTest {
             SpatialHeightComponent height=world.getMapper(SpatialHeightComponent.class).create(actor);
             JsonValue pose=data.get("actors").child;while(pose.getInt("id")!=id)pose=pose.next;
             transform.x=pose.getFloat("x");transform.y=pose.getFloat("y");height.altitude=plane;
-            foot.valid=true;foot.radiusPx=pose.getFloat("radius");height.height=pose.getFloat("height");
+            foot.valid=true;foot.radiusPx=pose.getFloat("radius");games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,pose.getFloat("height"));
             float[] q=pose.get("quad").asFloatArray();ecs.x1[slot]=q[0];ecs.y1[slot]=q[1];ecs.x2[slot]=q[2];ecs.y2[slot]=q[3];
             ecs.x3[slot]=q[4];ecs.y3[slot]=q[5];ecs.x4[slot]=q[6];ecs.y4[slot]=q[7];
             ecs.layerIndex[slot]=0;ecs.kind[slot]=RenderKind.SPRITE;ecs.textureHandle[slot]=1;ecs.enabled[slot]=ecs.visible[slot]=true;

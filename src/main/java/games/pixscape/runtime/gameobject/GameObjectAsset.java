@@ -101,8 +101,8 @@ public final class GameObjectAsset {
         public boolean enabled;
     }
     public static final class SpatialHeightData {
-        public float altitude, height;
-        public games.pixscape.runtime.spatial.ActorVolumes volumes;
+        public float altitude;
+        public games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
     }
     public static final class PhysicsBodyData {
         public int type;

@@ -52,7 +52,8 @@ public final class SpatialFaceRelationSolver {
             float radius = actors.circleRadius(actor);
             float circleMinX = x - radius;
             float circleMaxX = x + radius;
-            float bottom = actors.actorAltitude[actor];
+            float altitude = actors.actorAltitude[actor];
+            float bottom = altitude + actors.actorOffsetZ[actor];
             float top = bottom + actors.actorHeight[actor];
             for (int structure = 0; structure < faces.structureCount; structure++) {
                 if (!overlapsSemiOpen(circleMinX, circleMaxX,
@@ -64,7 +65,7 @@ public final class SpatialFaceRelationSolver {
                             && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
                     if (!overlapsSemiOpen(circleMinX, circleMaxX,
                             faces.screenMinX[face], faces.screenMaxX[face])) continue;
-                    float faceY = faceLineYAtAltitude(faces, face, x, bottom);
+                    float faceY = faceLineYAtAltitude(faces, face, x, altitude);
                     byte type = SpatialLineRelation.circleRelation(faceY, y,
                             inverseNormalLength(faces, face), radius);
                     add(face, -1, -1, type);
@@ -102,7 +103,8 @@ public final class SpatialFaceRelationSolver {
             actorProjectedX[actor] = x;
             actorProjectedY[actor] = y;
             float radius = actors.circleRadius(actor);
-            float bottom = actors.actorAltitude[actor];
+            float altitude = actors.actorAltitude[actor];
+            float bottom = altitude + actors.actorOffsetZ[actor];
             float top = bottom + actors.actorHeight[actor];
             for (int candidate = 0; candidate < selector.candidateCount; candidate++) {
                 int anchor = selector.candidateAnchors[candidate];
@@ -116,7 +118,7 @@ public final class SpatialFaceRelationSolver {
                     // Closed intervals include endpoint tangencies on both adjacent branches deterministically.
                     if (x + radius < faces.screenMinX[face] - RELATION_EPSILON
                             || x - radius > faces.screenMaxX[face] + RELATION_EPSILON) continue;
-                    float lineY = faceLineYAtAltitude(faces, face, x, bottom);
+                    float lineY = faceLineYAtAltitude(faces, face, x, altitude);
                     byte type = SpatialLineRelation.circleRelation(lineY, y,
                             inverseNormalLength(faces, face), radius);
                     add(face, anchor, membership, type);
@@ -128,10 +130,10 @@ public final class SpatialFaceRelationSolver {
             if (relationCount == start) {
                 for (int candidate = 0; candidate < selector.candidateCount; candidate++) {
                     int anchor = selector.candidateAnchors[candidate];
-                    int membership = endpointMembership(faces, anchor, x, y, bottom, top);
+                    int membership = endpointMembership(faces, anchor, x, y, altitude, bottom, top);
                     if (membership >= 0) {
                         int face = faces.membershipFace[membership];
-                        float capY = faceLineYAtAltitude(faces, face, x, bottom);
+                        float capY = faceLineYAtAltitude(faces, face, x, altitude);
                         add(face, anchor, membership, SpatialLineRelation.relation(capY, y));
                     }
                 }
@@ -223,7 +225,7 @@ public final class SpatialFaceRelationSolver {
     public int relationCount() { return relationCount; }
 
     private static int endpointMembership(SpatialProjectedFaceCache faces, int anchor,
-                                         float x, float y, float bottom, float top) {
+                                         float x, float y, float altitude, float bottom, float top) {
         // Endpoint distance and cap ordering use the same altitude plane as the branch relation.
         float nearestDistance = Float.POSITIVE_INFINITY;
         float endpointX = 0f, endpointY = 0f;
@@ -232,7 +234,7 @@ public final class SpatialFaceRelationSolver {
             if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
-                float ey = faceLineYAtAltitude(faces, face, ex, bottom);
+                float ey = faceLineYAtAltitude(faces, face, ex, altitude);
                 float dx = x - ex, dy = y - ey;
                 float distance = dx * dx + dy * dy;
                 if (distance < nearestDistance || distance == nearestDistance
@@ -248,10 +250,10 @@ public final class SpatialFaceRelationSolver {
             if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
-                float ey = faceLineYAtAltitude(faces, face, ex, bottom);
+                float ey = faceLineYAtAltitude(faces, face, ex, altitude);
                 if (Math.abs(ex - endpointX) <= RELATION_EPSILON
                         && Math.abs(ey - endpointY) <= RELATION_EPSILON) {
-                    float lineY = faceLineYAtAltitude(faces, face, x, bottom);
+                    float lineY = faceLineYAtAltitude(faces, face, x, altitude);
                     if (lineY > capY || lineY == capY && (capMembership < 0
                             || face < faces.membershipFace[capMembership])) {
                         capY = lineY;

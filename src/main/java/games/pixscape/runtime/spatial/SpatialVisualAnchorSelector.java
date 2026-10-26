@@ -4,7 +4,7 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Selects visible, spatially anchored tile quads touched by the actor's footprint/height envelope. */
+/** Selects visible, spatially anchored tile quads touched by the actor's projected spatial rectangle envelope. */
 public class SpatialVisualAnchorSelector {
     public int candidateCount;
     public int[] candidateAnchors = new int[0];

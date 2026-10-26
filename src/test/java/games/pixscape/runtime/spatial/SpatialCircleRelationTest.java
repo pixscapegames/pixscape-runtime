@@ -4,6 +4,26 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public final class SpatialCircleRelationTest {
+    @Test public void rectangleOffsetChangesVerticalOverlapButNeverRebasesFootprintSide() {
+        SpatialProjectedFaceCache faces=adjacentFaces();
+        faces.faceAltitude[0]=faces.faceAltitude[1]=90;
+        faces.faceHeight[0]=faces.faceHeight[1]=50;
+        SpatialActorCollector actor=actor(.05f,1,.2f);
+        actor.actorHeight[0]=120;
+        SpatialFaceRelationSolver baseline=solve(actor,faces);
+        Assert.assertEquals(2,baseline.actorRelationCount[0]);
+        byte side=baseline.relationType[0];
+        actor.actorHeight[0]=60;actor.actorOffsetZ[0]=20;
+        Assert.assertEquals(0,solve(actor,faces).actorRelationCount[0]);
+        actor.actorOffsetZ[0]=100;
+        SpatialFaceRelationSolver raised=solve(actor,faces);
+        Assert.assertEquals(2,raised.actorRelationCount[0]);
+        Assert.assertEquals(side,raised.relationType[0]);
+        Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE,side);
+        actor.actorOffsetZ[0]=150;
+        Assert.assertEquals(0,solve(actor,faces).actorRelationCount[0]);
+    }
+
     @Test
     public void junctionDiagnosticShowsOnlyCircleOverlapsExpandCoverage() {
         SpatialProjectedFaceCache faces = adjacentFaces();
@@ -126,7 +146,7 @@ public final class SpatialCircleRelationTest {
         actor.actorCircleY = new float[]{y};
         actor.actorCircleRadius = new float[]{radius};
         actor.actorAltitude = new float[]{0f};
-        actor.actorHeight = new float[]{1f};
+        actor.actorHeight = new float[]{1f}; actor.actorOffsetZ = new float[actor.actorHeight.length];
         return actor;
     }
 

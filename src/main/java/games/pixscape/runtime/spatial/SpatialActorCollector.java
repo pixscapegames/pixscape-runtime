@@ -15,6 +15,24 @@ import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.RenderSourceDomain;
 
 public final class SpatialActorCollector {
+    private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations;
+    private ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets;
+    private final float[] rectangleCorners = new float[12];
+    float[] influenceBounds = new float[0];
+    float[] actorOffsetZ = new float[0];
+
+    public void setRepresentationMappers(ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations,
+                                         ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets) {
+        this.animations=animations;this.assets=assets;
+    }
+
+    private ActorSpatialRectangleData rectangle(int entity, SpatialHeightComponent spatial) {
+        if(spatial==null || spatial.rectangles==null)return null;
+        games.pixscape.runtime.component.AnimationComponent animation=animations==null?null:animations.getSafe(entity,null);
+        games.pixscape.runtime.component.AssetRefComponent asset=assets==null?null:assets.getSafe(entity,null);
+        return spatial.rectangles.get(asset==null?0:asset.assetId,animation==null?null:animation.currentClip);
+    }
+
     private final SpatialActorGeometry.Footprint tmpFootprint = new SpatialActorGeometry.Footprint();
 
     public int actorCount;
@@ -122,10 +140,13 @@ public final class SpatialActorCollector {
         return actorCount;
     }
 
-    /** Uses the exact effective footprint and spatial height collected for this frame. */
+    /** Uses the projected active rectangle collected for this frame, with display offsets applied once. */
     public void writeInfluenceQuad(int actor, float offsetX, float offsetY, float[] out) {
-        SpatialActorGeometry.writeInfluenceQuad(actorCircleX[actor], actorCircleY[actor],
-                actorHeight[actor], offsetX, offsetY, out);
+        int b=actor*4;
+        float left=influenceBounds[b]+offsetX,bottom=influenceBounds[b+1]+offsetY;
+        float right=influenceBounds[b+2]+offsetX,top=influenceBounds[b+3]+offsetY;
+        out[0]=left;out[1]=bottom;out[2]=right;out[3]=bottom;
+        out[4]=right;out[5]=top;out[6]=left;out[7]=top;
     }
 
     float circleRadius(int actor) {
@@ -166,6 +187,8 @@ public final class SpatialActorCollector {
             return false;
         }
 
+        ActorSpatialRectangleData rectangle=rectangle(entity,height);
+        if(rectangle==null)return false;
         ensureActorCapacity(actorCount + 1);
         int actor = actorCount++;
         actorSlot[actor] = slot;
@@ -186,7 +209,10 @@ public final class SpatialActorCollector {
         actorFootX[actor] = tmpFootprint.footX;
         actorFootY[actor] = tmpFootprint.footY;
         actorAltitude[actor] = tmpFootprint.bottom;
-        actorHeight[actor] = tmpFootprint.top - tmpFootprint.bottom;
+        actorHeight[actor] = rectangle.height;
+        actorOffsetZ[actor] = rectangle.offsetZ;
+        ActorSpatialRectanglePlacement.influenceBounds(rectangle,tmpFootprint.footX,tmpFootprint.footY,
+                height.altitude,rectangleCorners,influenceBounds,actor*4);
         actorCircleX[actor] = tmpFootprint.footX;
         actorCircleY[actor] = tmpFootprint.footY;
         actorCircleRadius[actor] = actorFootRadius(tmpFootprint);
@@ -285,7 +311,7 @@ public final class SpatialActorCollector {
                 null);
     }
 
-    private static boolean isEligibleActorSlotWithoutFootprint(
+    private boolean isEligibleActorSlotWithoutFootprint(
             int slot,
             DynamicEntityRenderState state,
             boolean[] spatialLayers,
@@ -302,7 +328,7 @@ public final class SpatialActorCollector {
                 spatialHeightMapper);
     }
 
-    private static boolean isEligibleActorSlotWithoutFootprint(
+    private boolean isEligibleActorSlotWithoutFootprint(
             int slot,
             DynamicEntityRenderState state,
             boolean[] spatialLayers,
@@ -326,7 +352,8 @@ public final class SpatialActorCollector {
         SpatialHeightComponent height = spatialHeightMapper != null
                 ? spatialHeightMapper.getSafe(entity, null)
                 : null;
-        return height != null && height.height > 0f;
+        ActorSpatialRectangleData rectangle=rectangle(entity,height);
+        return rectangle != null && rectangle.width > 0f && rectangle.height > 0f;
     }
 
     static boolean writeActorPhysicsCircleFootprint(int entity,
@@ -378,7 +405,7 @@ public final class SpatialActorCollector {
             out.minY = cy - radius;
             out.maxY = cy + radius;
             out.bottom = height.altitude;
-            out.top = height.altitude + height.height;
+            out.top = height.altitude; // Rectangle interval is collected separately from the physical footprint.
             out.pointOnly = false;
         }
         return true;
@@ -428,6 +455,8 @@ public final class SpatialActorCollector {
         actorFootY = grow(actorFootY, next);
         actorAltitude = grow(actorAltitude, next);
         actorHeight = grow(actorHeight, next);
+        actorOffsetZ = grow(actorOffsetZ, next);
+        influenceBounds = grow(influenceBounds, next * 4);
         actorCircleX = grow(actorCircleX, next);
         actorCircleY = grow(actorCircleY, next);
         actorCircleRadius = grow(actorCircleRadius, next);

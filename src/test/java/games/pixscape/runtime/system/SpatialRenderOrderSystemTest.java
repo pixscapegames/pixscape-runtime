@@ -29,7 +29,7 @@ public class SpatialRenderOrderSystemTest {
         f.createActor(50, 200, 0, 0, true);
         f.setActorCircleFootprint(actor, 9, 4, -5);
         SpatialHeightComponent height = f.world.getMapper(SpatialHeightComponent.class).get(actor);
-        height.altitude = 160; height.height = 250;
+        height.altitude = 160; games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,250);
         int slot = f.ecsState.renderSlotForEntity(actor);
         f.ecsState.offsetX[slot] = 7; f.ecsState.offsetY[slot] = -3;
         float originalX = f.ecsState.x1[slot], originalY = f.ecsState.y1[slot];
@@ -39,7 +39,7 @@ public class SpatialRenderOrderSystemTest {
         Assert.assertArrayEquals(new float[]{-104,192,146,192,146,442,-104,442}, quad, .0001f);
         Assert.assertEquals(originalX, f.ecsState.x1[slot], 0);
         Assert.assertEquals(originalY, f.ecsState.y1[slot], 0);
-        height.height = 100; f.process();
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,100); f.process();
         Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
         Assert.assertArrayEquals(new float[]{-29,192,71,192,71,292,-29,292}, quad, .0001f);
         f.setActorCircleFootprint(actor, 90, 4, -5); f.process();
@@ -48,7 +48,7 @@ public class SpatialRenderOrderSystemTest {
         f.setActorCircleFootprint(actor, 90, 14, 15); f.process();
         Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
         Assert.assertArrayEquals(new float[]{-19,212,81,212,81,312,-19,312}, quad, .0001f);
-        height.height = 0; f.process();
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,0); f.process();
         Assert.assertFalse(f.spatial.writeActorInfluenceQuad(actor, quad));
     }
 
@@ -57,7 +57,7 @@ public class SpatialRenderOrderSystemTest {
         f.createLayer(0, true);
         int actor = f.createActor(10, 200, 0, 0, true);
         f.setActorCircleFootprint(actor, 9, 0, 0);
-        f.world.getMapper(SpatialHeightComponent.class).get(actor).height = 40;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(f.world.getMapper(SpatialHeightComponent.class).get(actor),40);
         f.process();
         float[] quad = new float[8];
         Assert.assertTrue(f.spatial.writeActorInfluenceQuad(actor, quad));
@@ -701,7 +701,7 @@ public class SpatialRenderOrderSystemTest {
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 0f;
-        height.height = 20f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,20f);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
@@ -726,7 +726,7 @@ public class SpatialRenderOrderSystemTest {
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 12f;
-        height.height = 1f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,1f);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
@@ -754,7 +754,7 @@ public class SpatialRenderOrderSystemTest {
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
         SpatialHeightComponent height = fixture.world.getMapper(SpatialHeightComponent.class).get(actor);
         height.altitude = 170f;
-        height.height = 1f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,1f);
         fixture.setActorCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 40);
 
@@ -1778,7 +1778,7 @@ public class SpatialRenderOrderSystemTest {
 
             if (spatial) {
                 SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
-                height.height = 2f;
+                games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
                 addPhysicsCircleFootprint(entity, 1f);
             }
 
@@ -1803,7 +1803,7 @@ public class SpatialRenderOrderSystemTest {
             index.zIndex = z;
 
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
-            height.height = 2f;
+            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
             addPhysicsCircleFootprint(entity, 1f);
 
             enableActorSlot(entity, slot, layerIndex, z, slot);

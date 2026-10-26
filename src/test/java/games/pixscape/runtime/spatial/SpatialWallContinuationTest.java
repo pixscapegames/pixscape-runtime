@@ -33,7 +33,7 @@ public class SpatialWallContinuationTest {
                 f.assertOrder(0);
                 Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
                 Assert.assertEquals(0, f.spatial.actorOrderingFallbackCount());
-                Assert.assertEquals(height, f.height.height, 0);
+                Assert.assertEquals(height, f.height.rectangles.staticRectangle.height, 0);
                 Assert.assertEquals(height > 128 ? 2 : 0, f.upperRuntime().relations.relationCount);
                 for (int i = 0; i < f.upperRuntime().relations.relationCount; i++)
                     Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE, f.upperRuntime().relations.relationType[i]);
@@ -60,7 +60,7 @@ public class SpatialWallContinuationTest {
                 Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
                 f.pose(false, z, 129); f.process(); f.assertOrder(2);
                 Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
-                Assert.assertEquals(129, f.height.height, 0);
+                Assert.assertEquals(129, f.height.rectangles.staticRectangle.height, 0);
                 Assert.assertEquals(z + 544, f.transform.y, 0);
             }
             Assert.assertEquals(1, f.cache().rebuildCount());
@@ -80,7 +80,7 @@ public class SpatialWallContinuationTest {
                     f.assertOrder(z < 127 || (z == 127 && authoredHeight == 250) ? 0 : 1);
                     Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
                     Assert.assertEquals(0, f.spatial.actorOrderingFallbackCount());
-                    Assert.assertEquals(authoredHeight, f.height.height, 0);
+                    Assert.assertEquals(authoredHeight, f.height.rectangles.staticRectangle.height, 0);
                     Assert.assertEquals(z + 624, f.transform.y, 0);
                 }
         }
@@ -344,7 +344,7 @@ public class SpatialWallContinuationTest {
 
         void pose(boolean behind, float altitude, float authoredHeight) {
             transform.x = 240; transform.y = (behind ? 624 : 544) + altitude;
-            height.altitude = altitude; height.height = authoredHeight; quad();
+            height.altitude = altitude; games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,authoredHeight); quad();
         }
         void quad() {
             float halfWidth = large ? 200 : 45, spriteHeight = large ? 440 : 80;

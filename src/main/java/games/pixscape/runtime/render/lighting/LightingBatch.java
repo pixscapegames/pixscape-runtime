@@ -170,9 +170,9 @@ final class LightingBatch {
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
             data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
-            // Receiver side/provenance: 0 = one-sided decor, 1 = two-sided, -1 = one-sided actor.
+            // Receiver side/provenance: 0 = facade decor, 1 = two-sided, -1 = actor, -2 = sprite-oriented tile.
             // Keep shadow flags unchanged; ordinary local actor meshes may also be one-sided.
-            data[o+14]=surface.twoSided?1:!shadow&&surface.actor?-1:0;data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
+            data[o+14]=shadow?(surface.twoSided?1:0):surface.receiverLightingMode(i);data[o+15]=shadow?surface.alphaThreshold:blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
             // Simple sheets share the color triangles BL-TL-TR / BL-TR-BR, including a freely moved TR.
             // Local descriptions and tile receivers keep their existing UV topology and placement.
             if(quad!=null && surface.imageQuad){int c=SpriteSurfaceSupport.corner(i/8)*2;
@@ -182,6 +182,13 @@ final class LightingBatch {
             else{data[o+16]=LightingCoordinates.screenX(source[i],source[i+1])+offsetX;
                 data[o+17]=LightingCoordinates.screenY(source[i],source[i+1],source[i+2])+offsetY;}
             data[o+(mapped?25:18)]=shadow?surface.casterShadowGroup():surface.receiverShadowGroup(i);
+            if(shadow && surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.vertices){
+                data[o+3]=u;data[o+4]=v;data[o+13]=10;
+                // RGB and receiver-side flag are unused in shadows. Carry the atlas rectangle
+                // separately: reject local UV outside the sprite BEFORE atlas sampling, including flips.
+                data[o+8]=u1;data[o+9]=v2;data[o+10]=u2;data[o+14]=v1;
+
+            }
         }
     }
     void flush(){

@@ -181,15 +181,10 @@ public final class GameObjectAssetLoader {
         if (entity.physicsBody != null) validateBody(entity, file);
         if (entity.physicsShapes != null) validateShapes(entity, file);
         if (entity.spatialHeight != null) {
-            if(entity.spatialHeight.volumes==null)
-                throw new IllegalArgumentException("Spatial actor volumes are missing: "+entity.sourceEntityId);
-            entity.spatialHeight.volumes.validate();
+            if(entity.spatialHeight.rectangles==null)
+                throw new IllegalArgumentException("Spatial actor rectangles are missing: "+entity.sourceEntityId);
+            entity.spatialHeight.rectangles.validate();
             requireFinite(entity.spatialHeight.altitude, "spatialHeight.altitude", entity.sourceEntityId, file);
-            requireFinite(entity.spatialHeight.height, "spatialHeight.height", entity.sourceEntityId, file);
-            if (entity.spatialHeight.height < 0f) {
-                throw failure(file, "sourceEntityId " + entity.sourceEntityId
-                        + " has negative Spatial height");
-            }
         }
     }
 

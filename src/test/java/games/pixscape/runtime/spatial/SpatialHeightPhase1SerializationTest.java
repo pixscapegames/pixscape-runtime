@@ -58,7 +58,7 @@ public class SpatialHeightPhase1SerializationTest {
         int entity = world.create();
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(entity);
         spatial.altitude = 8.5f;
-        spatial.height = 24.25f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,24.25f);
         world.process();
 
         World loadedWorld = serializationWorld();
@@ -68,7 +68,7 @@ public class SpatialHeightPhase1SerializationTest {
         SpatialHeightComponent loadedSpatial =
                 loadedWorld.getMapper(SpatialHeightComponent.class).get(loadedEntity);
         Assert.assertEquals(8.5f, loadedSpatial.altitude, 0.0001f);
-        Assert.assertEquals(24.25f, loadedSpatial.height, 0.0001f);
+        Assert.assertEquals(24.25f, loadedSpatial.rectangles.staticRectangle.height, 0.0001f);
     }
 
     @Test

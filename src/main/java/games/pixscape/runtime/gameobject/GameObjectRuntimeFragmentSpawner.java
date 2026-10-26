@@ -404,8 +404,7 @@ public final class GameObjectRuntimeFragmentSpawner {
         if (data.spatialHeight != null) {
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
             height.altitude = data.spatialHeight.altitude;
-            height.height = data.spatialHeight.height;
-            height.volumes = data.spatialHeight.volumes == null ? null : data.spatialHeight.volumes.copy();
+            height.rectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
         }
         if (preparedPhysics != null) {
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

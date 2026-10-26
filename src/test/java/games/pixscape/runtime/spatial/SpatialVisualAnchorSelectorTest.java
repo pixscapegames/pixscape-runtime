@@ -39,16 +39,16 @@ public class SpatialVisualAnchorSelectorTest {
     }
 
     @Test
-    public void heightDefinesBothSidesAndRadiusDoesNotChangeCandidatesAtFixedCentre() {
+    public void rectangleWidthIsIndependentOfHeightAndFootprintRadius() {
         Fixture f = new Fixture(new TiledMapLayerData(4, 4, 16, 16, 1), 2);
         f.anchor(0, 0, 0, 16, 4, 24, 20);
         f.anchor(2, 2, 1, 40, 40, 56, 56);
-        f.actor(4, 4, 12, 24); // centre(8,4), H20: square X[-2,18], Y[4,24].
+        f.actor(4, 4, 18, 24);
         float[] quad = new float[8];
         for (float radius : new float[]{1, 4, 100}) {
             f.actors.actorCircleRadius[0] = radius;
             f.actors.writeInfluenceQuad(0, 0, 0, quad);
-            Assert.assertArrayEquals(new float[]{-2,4,18,4,18,24,-2,24}, quad, 0);
+            Assert.assertArrayEquals(new float[]{4,4,18,4,18,24,4,24}, quad, 0);
             f.select();
             Assert.assertArrayEquals(new int[]{0}, f.selected());
         }
@@ -148,10 +148,11 @@ public class SpatialVisualAnchorSelectorTest {
         }
 
         void actor(float minX, float minY, float maxX, float maxY) {
+            actors.influenceBounds = new float[]{minX,minY,maxX,maxY};
             actors.actorCircleX = new float[]{(minX + maxX) * .5f};
             actors.actorCircleY = new float[]{minY};
             actors.actorCircleRadius = new float[]{(maxX - minX) * .5f};
-            actors.actorHeight = new float[]{maxY - minY};
+            actors.actorHeight = new float[]{maxY - minY}; actors.actorOffsetZ = new float[actors.actorHeight.length];
             int slot = actors.actorSlot[0];
             ecs.x1[slot] = ecs.x4[slot] = minX;
             ecs.x2[slot] = ecs.x3[slot] = maxX;

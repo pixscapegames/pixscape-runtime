@@ -26,18 +26,18 @@ public final class SpatialQueryService {
     private final float[] tmpCellVertices = new float[8];
 
     public SpatialVolume buildEntityVolume(TransformComponent transform,
-                                           SpatialHeightComponent height,
+                                           float altitude, ActorSpatialRectangleData rectangle,
                                            SpatialShapesComponent shapes) {
-        return buildEntityVolume(transform, height, shapes, new SpatialVolume());
+        return buildEntityVolume(transform, altitude, rectangle, shapes, new SpatialVolume());
     }
 
     public SpatialVolume buildEntityVolume(TransformComponent transform,
-                                           SpatialHeightComponent height,
+                                           float altitude, ActorSpatialRectangleData rectangle,
                                            SpatialShapesComponent shapes,
                                            SpatialVolume out) {
         if (out == null) out = new SpatialVolume();
         if (transform == null) {
-            return out.set(0f, 0f, altitudeOf(height), heightOf(height),
+            return out.set(0f, 0f, altitude + (rectangle == null ? 0f : rectangle.offsetZ), (rectangle == null ? 0f : rectangle.height),
                     -FALLBACK_HALF_EXTENT, -FALLBACK_HALF_EXTENT,
                     FALLBACK_HALF_EXTENT, FALLBACK_HALF_EXTENT);
         }
@@ -70,7 +70,7 @@ public final class SpatialQueryService {
             }
         }
 
-        return out.set(transform.x, transform.y, altitudeOf(height), heightOf(height), minX, minY, maxX, maxY);
+        return out.set(transform.x, transform.y, altitude + (rectangle == null ? 0f : rectangle.offsetZ), (rectangle == null ? 0f : rectangle.height), minX, minY, maxX, maxY);
     }
 
     public SpatialVolume buildTiledCellVolume(TiledMapLayerData map, int gx, int gy) {
@@ -234,14 +234,6 @@ public final class SpatialQueryService {
     private static boolean isFootprintShape(SpatialShapeData shape) {
         return shape != null
                 && (shape.collisionEnabled || shape.actorOccluder || shape.lightOccluder || shape.particleOccluder);
-    }
-
-    private static float altitudeOf(SpatialHeightComponent height) {
-        return height != null ? height.altitude : 0f;
-    }
-
-    private static float heightOf(SpatialHeightComponent height) {
-        return height != null ? height.height : 0f;
     }
 
     private Bounds boundsForShape(TransformComponent transform, SpatialShapeData shape) {

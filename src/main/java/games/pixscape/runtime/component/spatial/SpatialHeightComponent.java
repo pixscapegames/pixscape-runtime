@@ -4,14 +4,12 @@ import com.artemis.PooledComponent;
 
 public final class SpatialHeightComponent extends PooledComponent {
     public float altitude = 0f;
-    public float height = 0f;
-    /** Authored shadow envelope. Sorting retains its independent height/footprint contract. */
-    public games.pixscape.runtime.spatial.ActorVolumes volumes;
+    /** Authored per-representation rectangle shared by sorting and shadow casting. */
+    public games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
 
     @Override
     protected void reset() {
         altitude = 0f;
-        height = 0f;
-        volumes = null;
+        rectangles = null;
     }
 }

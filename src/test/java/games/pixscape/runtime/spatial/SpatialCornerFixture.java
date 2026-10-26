@@ -62,7 +62,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor);
         SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).create(actor);
-        h.height = 40f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h,40f);
         SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
         footprint.valid = true; footprint.radiusPx = .5f;
         world.process();

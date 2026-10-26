@@ -106,6 +106,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     @Override
     protected void initialize() {
+        actorCollector.setRepresentationMappers(world.getMapper(games.pixscape.runtime.component.AnimationComponent.class),
+                world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class));
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         layersSub = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));

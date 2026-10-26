@@ -1451,7 +1451,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade enable() {
-            comp(true);
+            activeRectangle(comp(true),true);
             return this;
         }
 
@@ -1473,7 +1473,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public float height() {
             SpatialHeightComponent c = comp(false);
-            return c != null ? c.height : 0f;
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle=activeRectangle(c,false);
+            return rectangle==null?0f:rectangle.height;
         }
 
         @Override
@@ -1489,8 +1490,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setHeight(float height) {
             if (handle.world() == null) return this;
             requireFinite("Spatial height", height);
+            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
             SpatialHeightComponent c = comp(true);
-            if (c != null) c.height = Math.max(0f, height);
+            if (c != null) activeRectangle(c,true).height = height;
             return this;
         }
 
@@ -1498,10 +1500,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setVolume(float altitude, float height) {
             if (handle.world() == null) return this;
             requireFinite("Spatial volume", altitude, height);
+            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
             SpatialHeightComponent c = comp(true);
             if (c != null) {
                 c.altitude = altitude;
-                c.height = Math.max(0f, height);
+                activeRectangle(c,true).height = height;
             }
             return this;
         }
@@ -1518,6 +1521,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return system.participatesInRenderOrder(
                     handle.entityId,
                     sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
+        }
+
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialHeightComponent c,boolean create) {
+            if(c==null)return null;
+            World world=handle.world();
+            AnimationComponent animation=world.getMapper(AnimationComponent.class).getSafe(handle.entityId,null);
+            AssetRefComponent asset=world.getMapper(AssetRefComponent.class).getSafe(handle.entityId,null);
+            String clip=animation==null?null:animation.currentClip;
+            int assetId=asset==null?0:asset.assetId;
+            if(c.rectangles==null && create)c.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle=c.rectangles==null?null:c.rectangles.get(assetId,clip);
+            if(rectangle==null && create) {
+                rectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();c.rectangles.put(assetId,clip,rectangle);
+            }
+            return rectangle;
         }
 
         private SpatialHeightComponent comp(boolean create) {

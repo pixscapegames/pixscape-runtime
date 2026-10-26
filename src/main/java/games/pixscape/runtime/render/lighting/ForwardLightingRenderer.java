@@ -181,7 +181,7 @@ public final class ForwardLightingRenderer {
             for(int c=0;c<3;c++){data[out+4+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+8+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
             data[out+7]=s==null?0:s.receiverShadowGroup(source);
             data[out+11]=r;data[out+12]=g;data[out+13]=b;data[out+14]=a;
-            data[out+15]=layer;data[out+16]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+17]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+18]=s!=null&&s.twoSided?1:s!=null&&s.actor?-1:0;
+            data[out+15]=layer;data[out+16]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+17]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+18]=s==null?0:s.receiverLightingMode(source);
             data[out+19]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+20]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+21]=normal==null?-1:0;
             data[out+22]=ex;data[out+23]=ey;data[out+24]=ux;data[out+25]=uy;
             int csource=source/8*3;

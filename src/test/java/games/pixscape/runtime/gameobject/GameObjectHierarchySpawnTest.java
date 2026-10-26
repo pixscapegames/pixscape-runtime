@@ -22,22 +22,22 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
-    @Test public void actorVolumesSurviveAssetSerializationAndRuntimeSpawn(){
+    @Test public void actorSpatialRectanglesSurviveAssetSerializationAndRuntimeSpawn(){
         GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
         child.spatialHeight=new GameObjectAsset.SpatialHeightData();
-        child.spatialHeight.volumes=new games.pixscape.runtime.spatial.ActorVolumes();
-        child.spatialHeight.volumes.staticVolume=new games.pixscape.runtime.spatial.ActorVolumeData();
-        child.spatialHeight.volumes.staticVolume.orientation=37.25f;
+        child.spatialHeight.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        child.spatialHeight.rectangles.staticRectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        child.spatialHeight.rectangles.staticRectangle.orientation=37.25f;
         GameObjectAssetLoader loader=new GameObjectAssetLoader();GameObjectAsset loaded=loader.fromJson(loader.toJson(asset));
-        Assert.assertEquals(37.25f,loaded.entities.get(1).spatialHeight.volumes.staticVolume.orientation,0);
+        Assert.assertEquals(37.25f,loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.orientation,0);
         World world=new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
         try{
             SpawnResult spawned=new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(),new SceneMetaRuntime(),new AtlasRuntimeService())
                     .spawnAsset(world,loaded,"gameobjects/actor-foot-test.gameobject",0,0);world.process();
             SpatialHeightComponent s=world.getMapper(SpatialHeightComponent.class).get(spawned.createdEntityIds().get(1));
-            Assert.assertEquals(37.25f,s.volumes.staticVolume.orientation,0);
-            loaded.entities.get(1).spatialHeight.volumes.staticVolume.orientation=90;
-            Assert.assertEquals(37.25f,s.volumes.staticVolume.orientation,0);
+            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.orientation,0);
+            loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.orientation=90;
+            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.orientation,0);
         }finally{world.dispose();}
     }
     @Test
@@ -173,10 +173,10 @@ public class GameObjectHierarchySpawnTest {
         GameObjectAsset asset = physicalHierarchy();
         GameObjectAsset.GameObjectEntityData member = asset.entities.get(2);
         member.spatialHeight = new GameObjectAsset.SpatialHeightData();
-        member.spatialHeight.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
-        member.spatialHeight.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
+        member.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        member.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         member.spatialHeight.altitude = 3f;
-        member.spatialHeight.height = 6f;
+        member.spatialHeight.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(6f);
         GameObjectAsset.PhysicsShapeData shape = member.physicsShapes.get(0);
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.geometry.radius = 2f;
@@ -190,7 +190,7 @@ public class GameObjectHierarchySpawnTest {
         int spawnedMember = result.createdEntityIds().get(2);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(spawnedMember);
         Assert.assertEquals(3f, height.altitude, 0f);
-        Assert.assertEquals(6f, height.height, 0f);
+        Assert.assertEquals(6f, height.rectangles.staticRectangle.height, 0f);
         PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
                 .get(spawnedMember).shapes.first();
         Assert.assertTrue(spawnedShape.spatialFootprint);

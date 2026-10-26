@@ -8,6 +8,51 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class MapLightingProjectedFacesTest {
+    @Test public void lightingPolicyFollowsEachPartitionWithoutChangingGeometryOrExclusion(){
+        TiledMapLayerData map=map(32,16);
+        SpatialBlockData a=block(8,0,0,4,.5f,0,200),b=block(1,2,-2,.5f,4,0,200);
+        a.structureId=b.structureId=7;
+        LightingSurface before=receiver(map,QUAD,a,b);
+        a.shadeUnlitFaces=false;
+        LightingSurface after=receiver(map,QUAD,a,b);
+        samePartition(before,after);
+        Assert.assertArrayEquals(before.receiverBlockIds,after.receiverBlockIds);
+        int changed=0,unchanged=0;
+        for(int i=0;i<after.vertices.length;i+=24){
+            int owner=after.receiverBlockIds[i/24];
+            if(owner==8){Assert.assertEquals(-2f,after.receiverLightingMode(i),0);changed++;}
+            if(owner==1){Assert.assertEquals(0f,after.receiverLightingMode(i),0);unchanged++;}
+            Assert.assertEquals(before.receiverShadowGroup(i),after.receiverShadowGroup(i));
+        }
+        Assert.assertTrue(changed>0 && unchanged>0);
+        for(int i=0;i<before.casterContributions.size;i++)Assert.assertArrayEquals(before.casterContributions.get(i).vertices,after.casterContributions.get(i).vertices,0);
+        b.shadeUnlitFaces=false;
+        LightingSurface all=receiver(map,QUAD,a,b);
+        for(int i=0;i<all.vertices.length;i+=24)Assert.assertEquals(-2f,all.receiverLightingMode(i),0);
+    }
+    @Test public void policyRebuildFollowsAuthoredRevisionAndThenReusesTheCache(){
+        TiledMapLayerData map=map(32,16);SpatialBlockData a=block(8,0,0,4,.5f,0,200);
+        SpatialBlocksComponent blocks=new SpatialBlocksComponent();blocks.blocks.add(a);
+        MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(map,blocks);
+        LightingSurface before=geometry.receiver(map,0,0,7,(byte)0,QUAD);
+        a.shadeUnlitFaces=false;blocks.revision++;
+        Assert.assertTrue(geometry.ensure(map,blocks));
+        LightingSurface after=geometry.receiver(map,0,0,7,(byte)0,QUAD);
+        Assert.assertNotSame(before,after);samePartition(before,after);
+        for(int i=0;i<after.vertices.length;i+=24)Assert.assertEquals(-2f,after.receiverLightingMode(i),0);
+        Assert.assertFalse(geometry.ensure(map,blocks));
+        Assert.assertSame(after,geometry.receiver(map,0,0,7,(byte)0,QUAD));
+    }
+    @Test public void missingFieldDefaultsOnAndCopiesAndJsonPreserveExplicitOff(){
+        com.badlogic.gdx.utils.Json json=new com.badlogic.gdx.utils.Json();
+        SpatialBlockData old=json.fromJson(SpatialBlockData.class,"{id:7}");
+        Assert.assertTrue(old.shadeUnlitFaces);
+        old.shadeUnlitFaces=false;
+        Assert.assertFalse(old.copy().shadeUnlitFaces);
+        Assert.assertFalse(json.fromJson(SpatialBlockData.class,json.toJson(old)).shadeUnlitFaces);
+        LightingSurface actor=new LightingSurface(new float[24]);actor.actor=true;
+        Assert.assertEquals(-1f,actor.receiverLightingMode(0),0);
+    }
     private static final float[] QUAD={-150,-100,-150,450,250,450,250,-100};
 
     @Test public void archivedDarkBandsUseTheFrontBoundaryAndKeepNativeProjection(){

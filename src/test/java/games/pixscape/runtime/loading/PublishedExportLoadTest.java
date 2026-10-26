@@ -22,12 +22,12 @@ import java.io.File;
 
 /** GL-free loading evidence for the published example and the optional local demo corpus. */
 public class PublishedExportLoadTest {
-    @Test public void existingSilhouettePocLoadsOrExplicitlyRejectsMissingActorVolumesWithoutMutation(){
+    @Test public void existingSilhouettePocLoadsOrExplicitlyRejectsMissingActorSpatialRectanglesWithoutMutation(){
         FileHandle root=new FileHandle(new File("../shadow-volume-silhouette-demo/assets/pixscape-project"));
         Assume.assumeTrue("Existing POC copy only",root.child("project.json").exists());
         try { loadEveryScene(root); }
         catch (RuntimeException incompatible) {
-            if (!missingActorVolumes(incompatible)) throw incompatible;
+            if (!missingActorSpatialRectangles(incompatible)) throw incompatible;
             // Optional user-owned corpus is intentionally not migrated by tests.
             return;
         }
@@ -82,18 +82,18 @@ public class PublishedExportLoadTest {
         }
     }
 
-    private static boolean missingActorVolumes(Throwable error) {
+    private static boolean missingActorSpatialRectangles(Throwable error) {
         for(Throwable cause=error;cause!=null;cause=cause.getCause()) {
             String message=cause.getMessage();
-            if(message!=null && (message.contains("has no authored volumes; reconfigure the actor")
-                    || message.contains("Spatial actor volumes are missing:")))return true;
+            if(message!=null && (message.contains("has no authored rectangles; reconfigure the actor")
+                    || message.contains("Spatial actor spatial rectangles are missing:")))return true;
         }
         return false;
     }
     private static void loadCurrentGameObjectOrAssertVolumeRejection(FileHandle file) {
         try { new GameObjectAssetLoader().load(file); }
         catch (RuntimeException incompatible) {
-            if(!missingActorVolumes(incompatible))throw incompatible;
+            if(!missingActorSpatialRectangles(incompatible))throw incompatible;
         }
     }
 }
