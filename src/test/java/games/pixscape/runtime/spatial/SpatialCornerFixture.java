@@ -2,10 +2,15 @@ package games.pixscape.runtime.spatial;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.*;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 

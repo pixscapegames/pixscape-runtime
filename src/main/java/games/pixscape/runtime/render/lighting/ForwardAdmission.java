@@ -1,12 +1,19 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.artemis.*;
+import com.artemis.Aspect;
+import com.artemis.ComponentMapper;
+import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Texture;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.*;
+import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.RenderRepeatComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 
 /** Whole-scene cold admission, then one ordered queue preflight before any GPU draw. */
 public final class ForwardAdmission {

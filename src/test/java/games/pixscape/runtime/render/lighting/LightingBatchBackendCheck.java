@@ -1,13 +1,19 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.Application;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import games.pixscape.runtime.service.TextureRegistry;
-import org.junit.*;
-import java.lang.reflect.*;
+import org.junit.Assert;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 
 public final class LightingBatchBackendCheck {
     private static final int REPLAY_CAPACITY=12288;

@@ -1,7 +1,8 @@
 package games.pixscape.runtime.render;
 
 import com.badlogic.gdx.graphics.GL20;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class LightCompositionPassTest {
     @Test public void additiveImagesAreDistinctFromLightsAndAmbientNeverEntersTheMask() {

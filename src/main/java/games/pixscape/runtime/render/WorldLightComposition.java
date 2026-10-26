@@ -8,9 +8,10 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.Disposable;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 /** Reusable world targets. Prepare at the frame boundary, never during queue submission. */
 public final class WorldLightComposition implements Disposable {

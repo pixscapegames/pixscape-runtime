@@ -3,15 +3,21 @@ package games.pixscape.runtime.spatial;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.*;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderExtractFrameQueueSystem;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
-import org.junit.Test;
 import org.junit.Assume;
+import org.junit.Test;
+
 import java.io.InputStreamReader;
 import java.util.Arrays;
 

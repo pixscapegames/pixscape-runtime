@@ -2,6 +2,7 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.utils.Json;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class EditableCornerProfileTest {

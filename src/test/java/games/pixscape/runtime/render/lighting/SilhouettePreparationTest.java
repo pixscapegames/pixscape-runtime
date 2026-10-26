@@ -2,10 +2,11 @@ package games.pixscape.runtime.render.lighting;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.runtime.tiled.TileChunk;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 /** No GL: exercise the same detached native-image boundary as RenderTiledSyncSystem. */

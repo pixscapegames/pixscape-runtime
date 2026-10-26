@@ -6,9 +6,13 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.NumberUtils;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.NormalMapBinding;
+import games.pixscape.runtime.service.TextureRegistry;
+
 import java.nio.IntBuffer;
 
 /** Ordered one-light renderer. Units: color array 0; existing material table reserves 1;

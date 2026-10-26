@@ -1,12 +1,14 @@
 package games.pixscape.runtime.spatial;
 
-import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
-import java.util.Arrays;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class SpatialBlockLinkActorTest {
     @Test public void actorsCrossingTheExplicitJunctionSeeTheSameFacesAsOneContinuousWall() {

@@ -4,12 +4,17 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
-import games.pixscape.runtime.tiled.profile.*;
+import games.pixscape.runtime.tiled.TileQuadTransforms;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import org.junit.Test;
-import java.io.File;
-import java.awt.image.BufferedImage;
+
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+
 import static org.junit.Assert.*;
 
 /** Geometry-only rollback witness. Retains the previous wall ownership, not a claim of physical correctness. */

@@ -1,12 +1,12 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.NumberUtils;
-import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.service.TextureRegistry;
 
 /** Ordered triangles: four receiver pages, capability-sized shadow pages. */
 final class LightingBatch {

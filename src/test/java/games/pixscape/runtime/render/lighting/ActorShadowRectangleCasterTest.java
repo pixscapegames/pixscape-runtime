@@ -1,12 +1,22 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.artemis.*;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.*;
-import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.spatial.*;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.SurfaceLightingComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.runtime.system.LightingGeometrySystem;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class ActorShadowRectangleCasterTest {

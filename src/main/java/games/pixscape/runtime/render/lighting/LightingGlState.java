@@ -2,6 +2,7 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+
 import java.nio.IntBuffer;
 
 /** Native state queries; GWT supersource uses the equivalent WebGL queries. */

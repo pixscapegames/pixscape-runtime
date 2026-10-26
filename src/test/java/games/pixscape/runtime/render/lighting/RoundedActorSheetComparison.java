@@ -1,9 +1,10 @@
 package games.pixscape.runtime.render.lighting;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
-import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.PrintWriter;
 
 /** Pixel crops from GPU captures, without recoloring or contrast adjustment. */
 public final class RoundedActorSheetComparison {

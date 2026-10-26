@@ -1,10 +1,14 @@
 package games.pixscape.runtime.render.lighting;
 
-import java.util.HashMap;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.spatial.*;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
+import games.pixscape.runtime.spatial.SpatialWallGeometry;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+
+import java.util.HashMap;
 
 /** Cold shadow-policy graph; keys are unchanged geometric support identities. */
 public final class WallShadowGroups {

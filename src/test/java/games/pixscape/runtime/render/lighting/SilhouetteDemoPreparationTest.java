@@ -4,12 +4,19 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
-import games.pixscape.runtime.tiled.profile.*;
-import org.junit.*;
-import java.io.File;
+import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TileQuadTransforms;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Test;
+
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.File;
 
 /** Read-only integration with the existing POC copy; never opens a GL context or rewrites a scene. */
 public class SilhouetteDemoPreparationTest {

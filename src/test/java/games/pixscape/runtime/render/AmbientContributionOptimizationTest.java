@@ -1,6 +1,8 @@
 package games.pixscape.runtime.render;
+
 import games.pixscape.runtime.component.ShaderParamsComponent;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class AmbientContributionOptimizationTest {
     @Test public void onlyProvenIdentityOriginalsMayBeSkipped(){

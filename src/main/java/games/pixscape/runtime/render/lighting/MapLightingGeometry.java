@@ -1,9 +1,9 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.LongMap;
-import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;

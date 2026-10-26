@@ -1,17 +1,25 @@
 package games.pixscape.runtime.service;
 
-import com.artemis.*;
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.BufferUtils;
-import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.render.batch.*;
-import games.pixscape.runtime.render.batch.performance.*;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.ShaderMode;
+import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
+import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.render.lighting.*;
 import games.pixscape.runtime.system.RenderSubmitSystem;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 
 public class NormalMapGlSmokeTest {

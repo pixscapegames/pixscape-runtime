@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.gwt.GwtGraphics;
 import com.badlogic.gdx.graphics.GL20;
 import com.google.gwt.typedarrays.shared.Int32Array;
+
 import java.nio.IntBuffer;
 
 /** GwtGL20 omits these states from glGetIntegerv; preserve the actual WebGL state. */

@@ -1,10 +1,13 @@
 package games.pixscape.runtime.render.lighting;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class WallShadowGroupsTest {
     private static SpatialBlockData wall(int id,int structure,float x,float y,float w,float d,float z){

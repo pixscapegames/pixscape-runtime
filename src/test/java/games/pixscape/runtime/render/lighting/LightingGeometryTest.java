@@ -1,10 +1,11 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
-import org.junit.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class LightingGeometryTest {
     @Test public void onlyOrdinaryImagesPublishSimpleQuadTopologyAndRefreshEveryCorner(){

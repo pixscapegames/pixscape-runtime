@@ -3,10 +3,13 @@ package games.pixscape.runtime.render.lighting;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.glutils.*;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.BufferUtils;
-import java.nio.IntBuffer;
+
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 /** One HDR world attachment, presented without tone mapping. Owns no atlas resources. */
 final class ForwardWorldTarget {

@@ -5,8 +5,8 @@ import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.*;
 import org.junit.*;
 

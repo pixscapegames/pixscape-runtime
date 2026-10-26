@@ -5,8 +5,9 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.utils.BufferUtils;
-import java.nio.FloatBuffer;
+
 import java.io.DataOutputStream;
+import java.nio.FloatBuffer;
 import java.util.zip.GZIPOutputStream;
 
 /** Explicit one-shot readback, disabled without a diagnostic request. Never a measurement path. */

@@ -2,6 +2,7 @@ package games.pixscape.runtime.engine;
 
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class LightingDefaultTest {

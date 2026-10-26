@@ -2,12 +2,14 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.File;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.util.Locale;
-import javax.imageio.ImageIO;
 
 /** Cold diagnostic only: reconstruct the captured sprite on the authored longitudinal plane. */
 public final class VolumeDirectrixDiagnostic {

@@ -1,6 +1,7 @@
 package games.pixscape.runtime.render.lighting;
 
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class ForwardTopologyTest {

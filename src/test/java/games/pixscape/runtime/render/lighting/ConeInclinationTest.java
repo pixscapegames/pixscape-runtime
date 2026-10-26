@@ -8,8 +8,12 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.LightingGeometrySystem;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.lang.reflect.Field;
+
 import static org.junit.Assert.*;
 
 public class ConeInclinationTest {

@@ -3,8 +3,9 @@ package games.pixscape.runtime.render.lighting;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
 import games.pixscape.runtime.render.FrameRenderQueue;
-import java.util.Random;
 import org.junit.Assert;
+
+import java.util.Random;
 
 /** Samples barycentric receiver points across altitude, display transforms, zoom and camera rotation. */
 public final class LightingInfluenceBoundsGlTest {

@@ -2,7 +2,9 @@ package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class NormalMapBindingTest {
     @After public void reset(){TextureRegistry.clear();}

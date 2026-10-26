@@ -3,12 +3,14 @@ package games.pixscape.runtime.render;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.ShaderFloatParam;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import games.pixscape.runtime.render.batch.ShaderParameterRows;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 public class LightParameterBindingTest {
     @Test public void componentIntensityOverridesStaleParameterWithoutMutatingAuthoredValues() {

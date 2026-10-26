@@ -1,21 +1,28 @@
 package games.pixscape.runtime.render.lighting;
 
 import com.artemis.Aspect;
-import com.artemis.World;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.World;
 import com.artemis.utils.IntBag;
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.glutils.*;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.BufferUtils;
-import games.pixscape.runtime.component.light.*;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.ShaderOrigin;
+import games.pixscape.runtime.render.WorldLightComposition;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.ShaderRegistry;
+
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 

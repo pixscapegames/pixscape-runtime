@@ -3,11 +3,16 @@ package games.pixscape.runtime.render.lighting;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.LightingGeometrySystem;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 /** Exercises the ECS publication path, not the frozen-replay group reconstruction. */

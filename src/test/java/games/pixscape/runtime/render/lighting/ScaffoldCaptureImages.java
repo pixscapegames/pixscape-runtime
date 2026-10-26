@@ -1,8 +1,10 @@
 package games.pixscape.runtime.render.lighting;
+
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
-import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.PrintWriter;
 /** Comparison of captured pixels, not an oracle of geometrically legitimate shadows. */
 public final class ScaffoldCaptureImages {
  public static void main(String[] args)throws Exception{

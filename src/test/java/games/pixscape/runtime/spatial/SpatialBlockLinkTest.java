@@ -1,8 +1,11 @@
 package games.pixscape.runtime.spatial;
 
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class SpatialBlockLinkTest {

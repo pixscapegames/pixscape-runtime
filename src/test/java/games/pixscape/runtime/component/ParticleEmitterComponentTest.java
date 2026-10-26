@@ -1,10 +1,16 @@
 package games.pixscape.runtime.component;
 
-import com.artemis.*;
-import com.artemis.io.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
+import com.artemis.io.JsonArtemisSerializer;
+import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
-import org.junit.*;
-import java.io.*;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 
 public class ParticleEmitterComponentTest {
     @Test public void ambientExemptionDefaultsFalseAndResetsWithThePooledInstance() {

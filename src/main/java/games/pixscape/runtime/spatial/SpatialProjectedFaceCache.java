@@ -1,11 +1,12 @@
 package games.pixscape.runtime.spatial;
 
+import com.badlogic.gdx.utils.FloatArray;
+import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.LongMap;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
-import com.badlogic.gdx.utils.LongMap;
-import com.badlogic.gdx.utils.IntArray;
-import com.badlogic.gdx.utils.FloatArray;
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+
 import java.util.Arrays;
 
 /** Flat projected actor-occluder faces and canonical map-local tile anchors. */

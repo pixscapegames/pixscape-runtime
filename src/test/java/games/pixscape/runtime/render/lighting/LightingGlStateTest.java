@@ -2,10 +2,13 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+import org.junit.Test;
+
 import java.lang.reflect.Proxy;
 import java.nio.IntBuffer;
-import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class LightingGlStateTest {
     @Test public void preservesScissorAndBothDepthWriteStates() {

@@ -2,10 +2,12 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import java.io.*;
+
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 
 /** Headless contact measurements from the captured mesh/texture, independent of skin choice. */
