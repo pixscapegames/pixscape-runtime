@@ -77,26 +77,8 @@ public final class ForwardLightingRenderer {
             "void main(){uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"+
             "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"+
             "normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";}
-    /** Shares the exact reference hard/PCF, geometric bias, horizon and normal-map expressions. */
-    public static String fragmentSource(String version){
-        String reference=LightingRenderer.RECEIVER;
-        String declarations=reference.substring(0,reference.indexOf("void main()"));
-        String direct=reference.substring(reference.indexOf("float value=0."),reference.indexOf("result=vec4(outputColor"))
-                // Range and the existing geometric horizon can make direct light exactly zero.
-                // Keep coverage/ambient; only skip work whose final contribution is zero.
-                .replace("if(flags.y>.5&&normalLength>.0001)",
-                        "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&"+
-                        "(flags.z!=0.||dot(lightingNormal(macroNormal(n/normalLength)),distance>0.?-delta/distance:vec3(0))>.052335956))")
-                .replace("vec3 normal=facade;","vec3 normal=lightingNormal(facade);");
-        return version+"in vec2 uv;in vec3 p,n;in vec4 color;flat in vec4 flags;flat in float exclusionId,materialMode;uniform sampler2DArray u_array;uniform vec3 u_ambient;"+
-                declarations+LightingRenderer.NORMAL_SAMPLE+
-                LightingRenderer.MACRO_NORMAL+
-                "void main(){vec4 texel=texture(u_array,vec3(uv,flags.x));if(flags.w>=0.&&texel.a<flags.w)discard;vec4 t=texel*color;"+
-                // Native premultiplied additive emitters carry emission in RGB with zero coverage.
-                // ONE-source blends must retain that RGB even when alpha is zero.
-                "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"+
-                direct+"vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;result=vec4(t.rgb*(ambient+u_color*value),alpha);}";
-    }
+    /** Explicit forward composition with its own alpha, ambient and direct-light result. */
+    public static String fragmentSource(String version){return LightingShaderSources.forwardReceiver(version);}
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
         ForwardAdmission.validateQueue(queue,bundle);
