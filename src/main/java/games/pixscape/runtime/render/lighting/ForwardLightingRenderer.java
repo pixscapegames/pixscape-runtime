@@ -5,7 +5,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.BufferUtils;
-import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -21,8 +20,12 @@ import java.nio.IntBuffer;
  * eight sampler uniforms (the four normal samplers alias unit 2),
  * no texture uploads or topology work. */
 public final class ForwardLightingRenderer {
-    private static final int STRIDE=29,CAPACITY=12288;
-    private final float[] data=new float[CAPACITY*STRIDE],quad=new float[8];
+    static final int VERTEX_STRIDE=26;
+    static final int COLOR_OFFSET=11;
+    private static final int CAPACITY=12288;
+    private static final int SCREEN_OFFSET=0,UV_OFFSET=2,PHYSICAL_OFFSET=4,NORMAL_OFFSET=8;
+    private static final int MATERIAL_OFFSET=12,NORMAL_UV_OFFSET=16,NORMAL_BASIS_OFFSET=19,CURVE_NORMAL_OFFSET=23;
+    private final float[] data=new float[CAPACITY*VERTEX_STRIDE],quad=new float[8];
     private final ForwardWorldTarget target=new ForwardWorldTarget();
     private ShaderProgram shader;
     private Mesh mesh;
@@ -60,7 +63,7 @@ public final class ForwardLightingRenderer {
                     new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_physical"),
                     new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
-                    new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
+                    new VertexAttribute(VertexAttributes.Usage.ColorPacked,4,"a_color"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_material"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
@@ -141,37 +144,37 @@ public final class ForwardLightingRenderer {
         float ex=1,ey=0,ux=0,uy=1;
         if(normal!=null){float ax=(quad[6]-quad[0])/normal.colorWidth,ay=(quad[7]-quad[1])/normal.colorWidth,bx=(quad[2]-quad[0])/normal.colorHeight,by=(quad[3]-quad[1])/normal.colorHeight;
             float det=ax*by-ay*bx;if(Math.abs(det)>.000001f){float scale=(float)Math.sqrt(bx*bx+by*by)/det;ex=by*scale;ey=-bx*scale;ux=-ay*scale;uy=ax*scale;}}
-        int packed=NumberUtils.floatToRawIntBits(q.colorPacked[i]);
-        float r=(packed&255)/255f,g=((packed>>>8)&255)/255f,b=((packed>>>16)&255)/255f,a=((packed>>>24)&255)/255f;
         ForwardTopology topology=s==null?ForwardTopology.NATIVE:s.forwardTopology;
         float[] physical=s==null?null:s.receiverVertices==null?s.vertices:s.receiverVertices;
         float[] curve=s!=null&&roundedLightingEnabled?s.curveNormals:null;
         float[] immutable=s==null?null:s.forwardAttributes;
         int layer=bundle.handle2layer.get(q.textureHandle[i],-1);
         for(int k=0;k<topology.vertexCount;k++){
-            if(vertices==CAPACITY){capacityFlushes++;flush();}int out=vertices++*STRIDE,w=k*5;
+            if(vertices==CAPACITY){
+                capacityFlushes++;flush();
+            }int out=vertices++*VERTEX_STRIDE,w=k*5;
             int triangle=(int)topology.weights[w],source=s==null?-1:topology.source[k];
             float pa=topology.weights[w+1],pb=topology.weights[w+2],pc=1-pa-pb;
             float ca=topology.weights[w+3],cb=topology.weights[w+4],cc=1-ca-cb;
             int c0=ForwardTopology.CORNERS[triangle*3],c1=ForwardTopology.CORNERS[triangle*3+1],c2=ForwardTopology.CORNERS[triangle*3+2];
-            data[out]=ca*quad[c0*2]+cb*quad[c1*2]+cc*quad[c2*2];data[out+1]=ca*quad[c0*2+1]+cb*quad[c1*2+1]+cc*quad[c2*2+1];
+            data[out+SCREEN_OFFSET]=ca*quad[c0*2]+cb*quad[c1*2]+cc*quad[c2*2];data[out+SCREEN_OFFSET+1]=ca*quad[c0*2+1]+cb*quad[c1*2+1]+cc*quad[c2*2+1];
             float u=ca*(c0>=2?1:0)+cb*(c1>=2?1:0)+cc*(c2>=2?1:0),v=ca*(c0==1||c0==2?1:0)+cb*(c1==1||c1==2?1:0)+cc*(c2==1||c2==2?1:0);
             int cached=k*11;
             float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
-            data[out+2]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+3]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
-            for(int c=0;c<3;c++){data[out+4+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+8+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
-            data[out+7]=s==null?0:s.receiverShadowGroup(source);
-            data[out+11]=r;data[out+12]=g;data[out+13]=b;data[out+14]=a;
-            data[out+15]=layer;data[out+16]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+17]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+18]=s==null?0:s.receiverLightingMode(source);
-            data[out+19]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+20]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+21]=normal==null?-1:0;
-            data[out+22]=ex;data[out+23]=ey;data[out+24]=ux;data[out+25]=uy;
+            data[out+UV_OFFSET]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+UV_OFFSET+1]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
+            for(int c=0;c<3;c++){data[out+PHYSICAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+NORMAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
+            data[out+PHYSICAL_OFFSET+3]=s==null?0:s.receiverShadowGroup(source);
+            data[out+COLOR_OFFSET]=q.colorPacked[i];
+            data[out+MATERIAL_OFFSET]=layer;data[out+MATERIAL_OFFSET+1]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+MATERIAL_OFFSET+2]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+MATERIAL_OFFSET+3]=s==null?0:s.receiverLightingMode(source);
+            data[out+NORMAL_UV_OFFSET]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+NORMAL_UV_OFFSET+1]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+NORMAL_UV_OFFSET+2]=normal==null?-1:0;
+            data[out+NORMAL_BASIS_OFFSET]=ex;data[out+NORMAL_BASIS_OFFSET+1]=ey;data[out+NORMAL_BASIS_OFFSET+2]=ux;data[out+NORMAL_BASIS_OFFSET+3]=uy;
             int csource=source/8*3;
-            for(int c=0;c<3;c++)data[out+26+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
+            for(int c=0;c<3;c++)data[out+CURVE_NORMAL_OFFSET+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
         }
         stats.drawnQuads++;
     }
-    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*STRIDE*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
-        stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*STRIDE*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
+    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*VERTEX_STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*VERTEX_STRIDE*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
+        stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*VERTEX_STRIDE*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
     public long textureBytes(){return target.textureBytes();}
     public int targetWidth(){return target.width;}
     public int targetHeight(){return target.height;}

@@ -36,8 +36,13 @@ public final class ForwardLightingGlCheck {
     private static void run()throws Exception {
         ShaderRegistry.initDefaults();Gdx.gl.glViewport(0,0,64,32);
         Pixmap p=new Pixmap(1,1,Pixmap.Format.RGBA8888);p.setColor(1,.5f,.25f,1);p.fill();Texture texture=new Texture(p);
-        AtlasRuntimeService.TextureArrayBundle bundle=AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(texture),1,1,GLCaps.detect());
-        p.dispose();
+        Pixmap low=new Pixmap(1,1,Pixmap.Format.RGBA8888);low.setColor(1,.5f,.25f,.49f);low.fill();Texture belowCutout=new Texture(low);
+        Pixmap high=new Pixmap(1,1,Pixmap.Format.RGBA8888);high.setColor(1,.5f,.25f,.51f);high.fill();Texture aboveCutout=new Texture(high);
+        AtlasRuntimeService.TextureArrayBundle bundle=AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(texture,belowCutout,aboveCutout),1,1,GLCaps.detect());
+        Assert.assertEquals(1,bundle.handle2layer.get(TextureRegistry.handleOf(texture),-1));
+        Assert.assertEquals(2,bundle.handle2layer.get(TextureRegistry.handleOf(belowCutout),-1));
+        Assert.assertEquals(3,bundle.handle2layer.get(TextureRegistry.handleOf(aboveCutout),-1));
+        p.dispose();low.dispose();high.dispose();
         TextureArrayMeshBatch batch=new TextureArrayMeshBatch(64);batch.setTextureArrayBundle(bundle);
         FrameRenderQueue q=new FrameRenderQueue(16);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
         OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
@@ -50,6 +55,9 @@ public final class ForwardLightingGlCheck {
         Object historical=field(submit,"composition");Assert.assertNull("No original target",field(historical,"original"));
         Assert.assertEquals(64L*32*8,submit.forwardRenderer().textureBytes());
         int shader=ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName());
+        assertCompactColorLayout(submit.forwardRenderer());
+        submit.setEnabled(true);
+        assertPackedColorSubmission(world,q,submit,texture,belowCutout,aboveCutout,shader,stats);
         q.addQuad(TextureRegistry.handleOf(texture),shader,4,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_VFX,0,10);
         q.ignoreAmbientLighting[0]=true;submit.setEnabled(true);
         clear();world.process();int exempt=red(32,16);Assert.assertTrue("Exempt VFX survives nearly black ambient",exempt>240);
@@ -97,15 +105,69 @@ public final class ForwardLightingGlCheck {
         light.x=-100;clear();world.process();
         for(int x=4;x<60;x+=4)Assert.assertTrue("No clipped-factor light leaking onto the dark side",red(x,16)<5);
         assertUnmappedNormalBatching(world,q,submit,texture,shader);
+        assertCompactCapacityUpload(world,q,submit,texture,shader,stats);
         // GLSL ES is compiled by this desktop driver; this is not a GLES/WebGL execution.
         String es="#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
         ShaderProgram esProgram=new ShaderProgram(ForwardLightingRenderer.vertexSource(es),ForwardLightingRenderer.fragmentSource(es));
         Assert.assertTrue("GLSL ES compile: "+esProgram.getLog(),esProgram.isCompiled());esProgram.dispose();
         Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
-        world.dispose();batch.close();bundle.textureArray.dispose();texture.dispose();
+        world.dispose();batch.close();bundle.textureArray.dispose();texture.dispose();belowCutout.dispose();aboveCutout.dispose();
         ForwardParticleGlCheck.verify();
     }
     private static void clear(){Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);}
+    private static void assertCompactColorLayout(ForwardLightingRenderer renderer)throws Exception{
+        Mesh mesh=(Mesh)field(renderer,"mesh");VertexAttributes attributes=mesh.getVertexAttributes();
+        Assert.assertEquals("Forward vertices use 26 four-byte slots",104,attributes.vertexSize);
+        VertexAttribute color=null;
+        for(int i=0;i<attributes.size();i++)if("a_color".equals(attributes.get(i).alias))color=attributes.get(i);
+        Assert.assertNotNull(color);Assert.assertEquals(VertexAttributes.Usage.ColorPacked,color.usage);
+        Assert.assertEquals(GL20.GL_UNSIGNED_BYTE,color.type);Assert.assertTrue(color.normalized);
+        Assert.assertEquals(4,color.numComponents);Assert.assertEquals(44,color.offset);
+    }
+    private static void assertPackedColorSubmission(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture texture,Texture belowCutout,Texture aboveCutout,int shader,RenderStats stats)throws Exception{
+        float[] colors={Color.toFloatBits(.25f,.5f,.75f,0),Color.toFloatBits(.25f,.5f,.75f,.5f),Color.WHITE.toFloatBits()};
+        for(float color:colors){
+            q.size=0;q.lighting.lights.clear();q.lighting.tiles.clear();
+            q.addQuad(TextureRegistry.handleOf(texture),shader,BlendMode.OPAQUE.id,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,color,(byte)0,FrameRenderQueue.SOURCE_VFX,0,10);
+            q.ignoreAmbientLighting[0]=true;int uploadsBefore=stats.bufferUploads;clear();world.process();
+            float[] staging=(float[])field(submit.forwardRenderer(),"data");
+            for(int vertex=0;vertex<6;vertex++)Assert.assertEquals("Packed ABGR is copied unchanged",Float.floatToRawIntBits(color),Float.floatToRawIntBits(staging[vertex*ForwardLightingRenderer.VERTEX_STRIDE+ForwardLightingRenderer.COLOR_OFFSET]));
+            int bits=Float.floatToRawIntBits(color),pixel=rgba(32,16);
+            assertChannel("red",(pixel>>>24)&255,bits&255,255);assertChannel("green",(pixel>>>16)&255,(bits>>>8)&255,127);assertChannel("blue",(pixel>>>8)&255,(bits>>>16)&255,63);
+            Assert.assertEquals("Opaque output keeps its coverage",255,pixel&255);
+            Assert.assertEquals(6L*ForwardLightingRenderer.VERTEX_STRIDE*4,submit.forwardRenderer().uploadedBytes);
+            Assert.assertEquals(1,submit.forwardRenderer().worldDraws);Assert.assertEquals(uploadsBefore+1,stats.bufferUploads);
+        }
+        float tint=Color.toFloatBits(.25f,.5f,.75f,.5f);q.size=0;
+        q.addQuad(TextureRegistry.handleOf(belowCutout),shader,BlendMode.CUTOUT.id,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,tint,(byte)0,FrameRenderQueue.SOURCE_VFX,0,10);
+        q.ignoreAmbientLighting[0]=true;clear();world.process();Assert.assertEquals("Texture alpha below the cutout threshold is discarded",0,rgba(32,16));
+        q.textureHandle[0]=TextureRegistry.handleOf(aboveCutout);clear();world.process();Assert.assertTrue("Texture alpha above the cutout threshold retains the tinted receiver",((rgba(32,16)>>>24)&255)>0);
+        q.size=0;
+        q.addQuad(TextureRegistry.handleOf(texture),shader,BlendMode.ALPHA.id,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,tint,(byte)0,FrameRenderQueue.SOURCE_VFX,0,10);
+        q.ignoreAmbientLighting[0]=true;clear();world.process();int pixel=rgba(32,16),bits=Float.floatToRawIntBits(tint),alpha=bits>>>24;
+        assertAlphaChannel("red",(pixel>>>24)&255,bits&255,255,alpha);assertAlphaChannel("green",(pixel>>>16)&255,(bits>>>8)&255,127,alpha);
+        assertAlphaChannel("blue",(pixel>>>8)&255,(bits>>>16)&255,63,alpha);Assert.assertEquals("ALPHA output keeps the old decoded tint alpha",alpha,pixel&255,1);
+        q.size=0;
+    }
+    private static void assertChannel(String label,int actual,int tint,int texel){
+        int expected=(tint*texel+127)/255;Assert.assertTrue(label+": expected "+expected+", got "+actual,Math.abs(actual-expected)<=1);
+    }
+    private static void assertAlphaChannel(String label,int actual,int tint,int texel,int alpha){
+        int expected=(tint*texel*alpha+32512)/(255*255);Assert.assertTrue(label+": expected "+expected+", got "+actual,Math.abs(actual-expected)<=1);
+    }
+    private static int rgba(int x,int y){Pixmap p=Pixmap.createFromFrameBuffer(x,y,1,1);try{return p.getPixel(0,0);}finally{p.dispose();}}
+    private static void assertCompactCapacityUpload(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture texture,int shader,RenderStats stats){
+        int quads=2049,uploadsBefore=stats.bufferUploads,verticesBefore=stats.flushedVertices;q.size=0;q.lighting.lights.clear();q.lighting.tiles.clear();
+        for(int i=0;i<quads;i++){
+            q.addQuad(TextureRegistry.handleOf(texture),shader,BlendMode.OPAQUE.id,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_VFX,i,i);
+            q.ignoreAmbientLighting[i]=true;
+        }
+        clear();world.process();long vertices=6L*quads,bytes=vertices*ForwardLightingRenderer.VERTEX_STRIDE*4;
+        Assert.assertEquals("Packed color does not change the vertex count",vertices,stats.flushedVertices-verticesBefore);
+        Assert.assertEquals(bytes,submit.forwardRenderer().uploadedBytes);Assert.assertEquals(2,submit.forwardRenderer().worldDraws);
+        Assert.assertEquals(1,submit.forwardRenderer().capacityFlushes);Assert.assertEquals(1,submit.forwardRenderer().endFlushes);
+        Assert.assertEquals(uploadsBefore+2,stats.bufferUploads);q.size=0;
+    }
     private static void assertUnmappedNormalBatching(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture color,int shader)throws Exception{
         Pixmap pix=new Pixmap(1,1,Pixmap.Format.RGBA8888);pix.setColor(.5f,.5f,1,1);pix.fill();
         Texture a=new Texture(pix),b=new Texture(pix);pix.dispose();
@@ -117,8 +179,9 @@ public final class ForwardLightingGlCheck {
         NormalMapBinding nb=ctor.newInstance(region,new com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion(b,0,0,1,1));
         try{
             q.size=0;q.lighting.lights.clear();q.lighting.tiles.clear();
+            float tint=Color.toFloatBits(.25f,.5f,.75f,.5f);
             for(int i=0;i<6;i++){
-                q.addQuad(TextureRegistry.handleOf(color),shader,1,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_TILED,i,100+i);
+                q.addQuad(TextureRegistry.handleOf(color),shader,1,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,tint,(byte)0,FrameRenderQueue.SOURCE_TILED,i,100+i);
                 LightingSurface s=neutralFacet(true);s.normalMap=i==1||i==3?na:i==4?nb:null;q.lighting.tiles.put(i,s);
             }
             for(int frame=0;frame<3;frame++){
@@ -126,6 +189,8 @@ public final class ForwardLightingGlCheck {
                 Assert.assertEquals("Initial unmapped then two real normal pages",3,submit.forwardRenderer().worldDraws);
                 Assert.assertEquals("No cuts for unmapped entries between/after real pages",2,submit.forwardRenderer().normalFlushes);
                 Assert.assertEquals(0,submit.forwardRenderer().blendFlushes);
+                float[] staging=(float[])field(submit.forwardRenderer(),"data");
+                Assert.assertEquals("Normal-map batches retain the packed tint",Float.floatToRawIntBits(tint),Float.floatToRawIntBits(staging[ForwardLightingRenderer.COLOR_OFFSET]));
             }
             // A new frame starts with no normal page retained from the previous one.
             q.size=1;clear();world.process();Assert.assertEquals(1,submit.forwardRenderer().worldDraws);
