@@ -158,6 +158,8 @@ public class MapLightingProjectedFacesTest {
         com.badlogic.gdx.utils.Array<TileSurfaceDescription> descriptions=new com.badlogic.gdx.utils.Array<TileSurfaceDescription>();descriptions.add(description);
         MapLightingGeometry g=new MapLightingGeometry();g.descriptions(descriptions);g.ensure(map,null);
         LightingSurface local=g.receiver(map,0,0,7,(byte)0,q),automatic=g.receiver(map,0,0,8,(byte)0,q);
+        Assert.assertEquals(local.forwardTopology.vertexCount*11,local.forwardAttributes.length);
+        Assert.assertEquals(automatic.forwardTopology.vertexCount*11,automatic.forwardAttributes.length);
         Assert.assertNotSame(local,automatic);Assert.assertSame(automatic,g.receiver(map,0,0,9,(byte)0,q));
         Assert.assertNotSame(automatic,g.receiver(map,0,0,7,(byte)0,q));
     }

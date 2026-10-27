@@ -24,6 +24,7 @@ public class LightingGeometryTest {
                 dynamic.x3[slot]=q[4];dynamic.y3[slot]=q[5];dynamic.x4[slot]=q[6];dynamic.y4[slot]=q[7];world.process();
                 LightingSurface s=queue.lighting.entities.get(e);Assert.assertTrue(s.imageQuad);Assert.assertEquals(48,s.vertices.length);
                 Assert.assertTrue("ECS provenance does not require Spatial membership",s.actor);
+                Assert.assertNull("Dynamic receivers retain per-frame forward attributes",s.forwardAttributes);
                 Assert.assertFalse(s.shadowCaster);Assert.assertEquals(0,queue.lighting.casters.size);
                 int[] corners={0,1,2,0,2,3};for(int i=0;i<6;i++){
                     Assert.assertEquals(q[corners[i]*2],LightingCoordinates.screenX(s.vertices[i*8],s.vertices[i*8+1]),.0001f);
@@ -73,6 +74,37 @@ public class LightingGeometryTest {
         LightingSurface raised=geometry.receiver(map,0,0,7,(byte)0,quad);
         Assert.assertNotSame(first,raised);
         for(int i=0;i<raised.vertices.length;i+=8)Assert.assertEquals(128,raised.vertices[i+2],0);
+    }
+    @Test public void tiledReceiversPrepareExactImmutableForwardAttributesAndRebuildWithGeometry(){
+        TiledMapLayerData map=new TiledMapLayerData(40,40,256,128,16,TiledProjection.ISO);
+        MapLightingGeometry geometry=new MapLightingGeometry();
+        Assert.assertTrue(geometry.ensure(map,null));float[] quad={0,0,0,128,256,128,256,0};
+        LightingSurface first=geometry.receiver(map,0,0,7,(byte)0,quad);
+        assertForwardAttributesMatchFallback(first);
+        Assert.assertEquals(first.forwardTopology.vertexCount*11,first.forwardAttributes.length);
+        Assert.assertSame(first.forwardAttributes,geometry.receiver(map,0,0,7,(byte)0,quad).forwardAttributes);
+        map.defaultTileAltitude=128;Assert.assertTrue(geometry.ensure(map,null));
+        LightingSurface raised=geometry.receiver(map,0,0,7,(byte)0,quad);
+        Assert.assertNotSame(first,raised);Assert.assertNotSame(first.forwardAttributes,raised.forwardAttributes);
+        assertForwardAttributesMatchFallback(raised);
+    }
+    @Test public void tiledImmutableAttributesLeaveTextureFramesAndShadowPolicyDynamic(){
+        TiledMapLayerData map=new TiledMapLayerData(8,8,64,32,4,TiledProjection.ISO);
+        MapLightingGeometry geometry=new MapLightingGeometry();
+        Assert.assertTrue(geometry.ensure(map,null));float[] quad={0,0,0,32,64,32,64,0};
+        LightingSurface receiver=geometry.receiver(map,0,0,7,(byte)0,quad);
+        float[] attributes=receiver.forwardAttributes.clone();
+        Assert.assertSame("Texture-only frame changes reuse physical attributes",receiver,geometry.receiver(map,0,0,8,(byte)0,quad));
+        int triangles=receiver.vertices.length/24;
+        receiver.receiverExclusionIds=new int[triangles];receiver.receiverShadowGroups=new int[triangles];receiver.receiverSpriteShading=new boolean[triangles];
+        for(int i=0;i<triangles;i++){receiver.receiverExclusionIds[i]=40+i;receiver.receiverShadowGroups[i]=80+i;receiver.receiverSpriteShading[i]=(i&1)==0;}
+        for(int i=0;i<receiver.forwardTopology.vertexCount;i++){
+            int source=receiver.forwardTopology.source[i];if(source<0)continue;
+            int triangle=source/24;
+            Assert.assertEquals(receiver.receiverShadowGroups[triangle],receiver.receiverShadowGroup(source));
+            Assert.assertEquals(receiver.receiverSpriteShading[triangle]?-2f:0f,receiver.receiverLightingMode(source),0);
+        }
+        Assert.assertArrayEquals("Shadow policy remains outside the immutable physical overlay",attributes,receiver.forwardAttributes,0);
     }
     @Test public void changingVolumeAltitudeNeverMovesItsCommonXYAndCustomMeshUsesDrawnPlane(){
         for(TiledProjection projection:TiledProjection.values())for(int width:new int[]{32,128,256}) {
@@ -242,5 +274,26 @@ public class LightingGeometryTest {
     }
     private static SpatialBlockData block(int id,float x,float y,float w,float depth,float height){
         SpatialBlockData b=new SpatialBlockData();b.id=id;b.structureId=id;b.x=x;b.y=y;b.width=w;b.depth=depth;b.height=height;return b;
+    }
+    private static void assertForwardAttributesMatchFallback(LightingSurface surface){
+        Assert.assertNotNull(surface.forwardAttributes);
+        float[] physical=surface.receiverVertices==null?surface.vertices:surface.receiverVertices;
+        for(int i=0;i<surface.forwardTopology.vertexCount;i++){
+            int source=surface.forwardTopology.source[i];
+            if(source<0){
+                for(int component=0;component<11;component++)Assert.assertEquals(0,surface.forwardAttributes[i*11+component],0);
+                continue;
+            }
+            int weights=i*5,attributes=i*11;
+            float a=surface.forwardTopology.weights[weights+1],b=surface.forwardTopology.weights[weights+2],c=1-a-b;
+            for(int component=0;component<3;component++){
+                Assert.assertEquals(a*physical[source+component]+b*physical[source+8+component]+c*physical[source+16+component],surface.forwardAttributes[attributes+component],0);
+                Assert.assertEquals(a*physical[source+5+component]+b*physical[source+13+component]+c*physical[source+21+component],surface.forwardAttributes[attributes+3+component],0);
+                int curve=source/8*3;
+                Assert.assertEquals(surface.curveNormals==null?0:a*surface.curveNormals[curve+component]+b*surface.curveNormals[curve+3+component]+c*surface.curveNormals[curve+6+component],surface.forwardAttributes[attributes+8+component],0);
+            }
+            Assert.assertEquals(a*physical[source+3]+b*physical[source+11]+c*physical[source+19],surface.forwardAttributes[attributes+6],0);
+            Assert.assertEquals(a*physical[source+4]+b*physical[source+12]+c*physical[source+20],surface.forwardAttributes[attributes+7],0);
+        }
     }
 }

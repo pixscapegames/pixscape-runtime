@@ -262,6 +262,7 @@ public final class MapLightingGeometry {
             }
             LightingSurface surface=LocalSurfaceCompiler.compile(description,origin[0],origin[1],origin[2]);
             surface.forwardTopology=ForwardTopology.compile(surface,quad);
+            ForwardTopology.prepareImmutableAttributes(surface);
             cached=new Receiver();cached.quad=LocalSurfaceDescription.copy(quad);cached.flags=flags;cached.assetId=assetId;cached.surface=surface;remember(cell,cached);
             return surface;
         }
@@ -333,6 +334,7 @@ public final class MapLightingGeometry {
         surface.receiverSpriteShading=spriteShading;
         surface.receiverVertices=completeReceiverVertices(data,quad,map.defaultTileAltitude,spriteShading);
         surface.forwardTopology=ForwardTopology.compile(surface,quad);
+        ForwardTopology.prepareImmutableAttributes(surface);
         if(owners!=null)for(SpatialBlockData owner:owners){
             if(!usesSilhouette(owner))continue;
             LightingSurface contribution=silhouetteCaster(map,owner,quad);
