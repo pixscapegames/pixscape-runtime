@@ -59,7 +59,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
-        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,true);
+        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,false);
     }
 
     public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,

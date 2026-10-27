@@ -260,7 +260,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         int layer=dynamic.layerIndex[slot];
         if(visible!=null && !visible.visible || layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))return;
         PointLightComponent p=points.getSafe(e,null);ConeLightComponent c=cones.getSafe(e,null);
-        if(p==null && c==null || p!=null && !p.enabled || c!=null && !c.enabled)return;
+        if(!ActiveLights.isActive(true,p!=null,p!=null && p.enabled,c!=null,c!=null && c.enabled))return;
         if(games.pixscape.runtime.service.ShaderRegistry.getOrigin(dynamic.shader[slot])!=games.pixscape.runtime.render.ShaderOrigin.CORE)
             throw new IllegalArgumentException("2.5D lighting requires a standard point/cone source; custom light shader at entity "+e);
         LightingFrame.Light l=lights.get(e);if(l==null){l=new LightingFrame.Light();lights.put(e,l);}

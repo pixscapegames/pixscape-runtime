@@ -1,7 +1,7 @@
 package games.pixscape.runtime.render.lighting;
 
 /** Explicit GLSL fragments shared by the legacy and forward lighting receivers. */
-final class LightingShaderSources {
+public final class LightingShaderSources {
     private LightingShaderSources() {}
 
     /** Sprite normal-map sample transformed into lighting space. */
@@ -146,10 +146,8 @@ final class LightingShaderSources {
             + "}";
 
     /** Forward coverage, cutout, additive emission and alpha handling before direct lighting. */
-    private static final String FORWARD_RECEIVER_OPEN =
-            "void main(){"
-            + "vec4 texel=texture(u_array,vec3(uv,flags.x));"
-            + "if(flags.w>=0.&&texel.a<flags.w)discard;"
+    private static final String FORWARD_RECEIVER_COVERAGE =
+            "if(flags.w>=0.&&texel.a<flags.w)discard;"
             + "vec4 t=texel*color;"
             + "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;"
             + "float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;";
@@ -201,17 +199,24 @@ final class LightingShaderSources {
     }
 
     static String forwardReceiver(String version,boolean useNormalMaps) {
+        return forwardReceiver(version,useNormalMaps,"uniform sampler2DArray u_array;",
+                "texture(u_array,vec3(uv,flags.x))");
+    }
+
+    /** Shared lighting/coverage math. The owner supplies its color-resource declaration and expression. */
+    public static String forwardReceiver(String version,boolean useNormalMaps,String colorUniforms,String colorSample) {
         return version
                 + "in vec2 uv;"
                 + "in vec3 p,n;"
                 + "in vec4 color;"
                 + "flat in vec4 flags;"
                 + "flat in float exclusionId,materialMode;"
-                + "uniform sampler2DArray u_array;"
+                + colorUniforms
                 + "uniform vec3 u_ambient;"
                 + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
                 + (useNormalMaps?NORMAL_SAMPLE:"vec3 lightingNormal(vec3 geometric){return geometric;}")+MACRO_NORMAL
-                + FORWARD_RECEIVER_OPEN+FORWARD_DIRECT_LIGHT_SETUP
+                + "void main(){vec4 texel="+colorSample+";"
+                + FORWARD_RECEIVER_COVERAGE+FORWARD_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
                 + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
                 + "vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;"

@@ -43,6 +43,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public float ambientMulB = 1f;
     /** Scene-wide material choice, applied when preparing a rendering session. */
     public boolean useNormalMaps = true;
+    /** Whole-scene renderer selection. Legacy is the default. */
+    public boolean forwardLighting = false;
 
     public String getName() {
         return name;
@@ -90,6 +92,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
         meta.useNormalMaps = json.getBoolean("useNormalMaps", true);
+        meta.forwardLighting = json.getBoolean("forwardLighting", false);
         JsonValue availability = json.get("runtimeAvailability");
         JsonValue particles = availability != null && availability.isObject()
                 ? availability.get("particles") : null;
@@ -163,6 +166,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
         this.useNormalMaps = other.useNormalMaps;
+        this.forwardLighting = other.forwardLighting;
     }
 
     @Override

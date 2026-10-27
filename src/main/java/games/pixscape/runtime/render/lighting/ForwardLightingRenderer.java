@@ -19,7 +19,7 @@ import java.nio.IntBuffer;
  * eleven varying declarations (the extra identity is flat),
  * eight sampler uniforms (the four normal samplers alias unit 2),
  * no texture uploads or topology work. */
-public final class ForwardLightingRenderer {
+public class ForwardLightingRenderer {
     static final int VERTEX_STRIDE=26;
     static final int UNMAPPED_VERTEX_STRIDE=19;
     static final int COLOR_OFFSET=11;
@@ -32,6 +32,7 @@ public final class ForwardLightingRenderer {
     private int vertexStride=VERTEX_STRIDE,curveNormalOffset=CURVE_NORMAL_OFFSET;
     private final ForwardWorldTarget target=new ForwardWorldTarget();
     private ShaderProgram shader;
+    private ShaderProgram receiverShader;
     private Mesh mesh;
     private World admittedWorld;
     private AtlasRuntimeService.TextureArrayBundle bundle;
@@ -49,9 +50,7 @@ public final class ForwardLightingRenderer {
         if(world.getInvocationStrategy() instanceof games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)
             ((games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)world.getInvocationStrategy()).synchronizeEntitySubscriptions();
         if(admittedWorld!=world){
-            ForwardAdmission.validateWorld(world,published);
-            games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
-            if(geometry!=null)geometry.validateForwardAvailability(published);
+            admitWorld(world,published);
             admittedWorld=world;
         }
         bundle=published;
@@ -90,6 +89,15 @@ public final class ForwardLightingRenderer {
         target.prepare();
     }
     private static void check(IntBuffer caps,int name,int minimum,String label){caps.clear();Gdx.gl.glGetIntegerv(name,caps);if(caps.get(0)<minimum)throw new IllegalStateException("Forward lighting requires "+minimum+" "+label+", available "+caps.get(0));}
+    /** Resource admission belongs to the renderer's owner; Runtime admits only packed resources. */
+    protected void admitWorld(World world,AtlasRuntimeService.TextureArrayBundle published) {
+        ForwardAdmission.validateWorld(world,published);
+        games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+        if(geometry!=null)geometry.validateForwardAvailability(published);
+    }
+    protected void admitQueue(FrameRenderQueue queue,AtlasRuntimeService.TextureArrayBundle published,boolean normalMaps) {
+        ForwardAdmission.validateQueue(queue,published,normalMaps);
+    }
     public static String vertexSource(String version){return vertexSource(version,true);}
     public static String vertexSource(String version,boolean useNormalMaps){return LightingShaderSources.forwardVertex(version,useNormalMaps);}
     /** Explicit forward composition with its own alpha, ambient and direct-light result. */
@@ -97,23 +105,18 @@ public final class ForwardLightingRenderer {
     public static String fragmentSource(String version,boolean useNormalMaps){return LightingShaderSources.forwardReceiver(version,useNormalMaps);}
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
-        ForwardAdmission.validateQueue(queue,bundle,preparedNormalMaps);
+        admitQueue(queue,bundle,preparedNormalMaps);
         this.stats=stats;worldDraws=presentationDraws=normalFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
         vertices=0;blend=normalHandle=-1;
         target.begin();
         try {
             shadows.renderShadows(queue.lighting,stats);target.resume();
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(LightingPassTimer.RECEIVERS);
-            shader.bind();shader.setUniformMatrix("u_matrix",camera.combined);shader.setUniformf("u_ambient",ambientR,ambientG,ambientB);
-            lightUniforms(queue.lighting,shadows);
+            receiverShader=shader;
+            bindReceiverUniforms(queue,camera,shadows,ambientR,ambientG,ambientB);
             bundle.textureArray.bind(0);stats.textureBinds++;
             Gdx.gl.glEnable(GL20.GL_BLEND);Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
-            for(int i=0;i<queue.size;i++){
-                if(queue.light[i]!=0)continue;
-                int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0&&(layer<0||layer>layers.maxLayerIndex()||!layers.enabled[layer]))continue;
-                LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?queue.lighting.tiles.get(queue.sourceSlot[i]):queue.lighting.entities.get(queue.sourceEntity[i]);
-                draw(queue,i,surface,shadows);
-            }
+            renderEntries(queue,layers,camera,shadows,ambientR,ambientG,ambientB);
             if(vertices!=0)endFlushes++;flush();
             if(queue.lighting.timer!=null)queue.lighting.timer.end(LightingPassTimer.RECEIVERS);
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(4);
@@ -122,7 +125,33 @@ public final class ForwardLightingRenderer {
             if(queue.lighting.timer!=null)queue.lighting.timer.end(4);
         } finally {vertices=0;shadows.abort();target.end();}
     }
+    /** Ordered receiver submission inside one shadow pass and one final presentation. */
+    protected void renderEntries(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
+                                 LightingRenderer shadows,float ambientR,float ambientG,float ambientB) {
+        for(int i=0;i<queue.size;i++){
+            if(queue.light[i]!=0)continue;
+            int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0&&(layer<0||layer>layers.maxLayerIndex()||!layers.enabled[layer]))continue;
+            LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?queue.lighting.tiles.get(queue.sourceSlot[i]):queue.lighting.entities.get(queue.sourceEntity[i]);
+            draw(queue,i,surface,shadows,bundle.handle2layer.get(queue.textureHandle[i],-1));
+        }
+    }
+    /** Borrows a prepared receiver shader; switching never clears or presents the target. */
+    protected final void useReceiverShader(ShaderProgram next,FrameRenderQueue queue,OrthographicCamera camera,
+                                           LightingRenderer shadows,float ambientR,float ambientG,float ambientB) {
+        if(receiverShader==next)return;
+        flush();receiverShader=next;
+        bindReceiverUniforms(queue,camera,shadows,ambientR,ambientG,ambientB);
+        stats.shaderBinds++;
+    }
+    protected final ShaderProgram packedReceiverShader(){return shader;}
+    private void bindReceiverUniforms(FrameRenderQueue queue,OrthographicCamera camera,LightingRenderer shadows,
+                                      float ambientR,float ambientG,float ambientB){
+        receiverShader.bind();receiverShader.setUniformMatrix("u_matrix",camera.combined);
+        receiverShader.setUniformf("u_ambient",ambientR,ambientG,ambientB);
+        lightUniforms(queue.lighting,shadows);
+    }
     private void lightUniforms(LightingFrame frame,LightingRenderer shadows){
+        ShaderProgram shader=receiverShader;
         LightingFrame.Light l=frame.lights.size==0?null:frame.lights.first();
         shader.setUniformf("u_light",l==null?0:l.x,l==null?0:l.y,l==null?0:l.z);
         shader.setUniformf("u_color",l==null?0:l.r*l.intensity,l==null?0:l.g*l.intensity,l==null?0:l.b*l.intensity);
@@ -132,7 +161,7 @@ public final class ForwardLightingRenderer {
         shader.setUniformi("u_quality",l==null?0:l.quality);shader.setUniformf("u_resolution",l==null?512:l.resolution);
         shader.setUniformf("u_atlasScale",l==null?1:shadows.atlasScale(l));
     }
-    private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
+    protected final void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows,int layer){
         NormalMapBinding normal=!preparedNormalMaps || s==null?null:s.normalMap;
         // Unmapped vertices never sample u_normal. Keep the current page so they
         // can share a draw with mapped vertices; still initialize a complete sampler
@@ -162,7 +191,6 @@ public final class ForwardLightingRenderer {
         float[] physical=s==null?null:s.receiverVertices==null?s.vertices:s.receiverVertices;
         float[] curve=s!=null&&roundedLightingEnabled?s.curveNormals:null;
         float[] immutable=s==null?null:s.forwardAttributes;
-        int layer=bundle.handle2layer.get(q.textureHandle[i],-1);
         for(int k=0;k<topology.vertexCount;k++){
             if(vertices==CAPACITY){
                 capacityFlushes++;flush();
@@ -189,10 +217,10 @@ public final class ForwardLightingRenderer {
         }
         stats.drawnQuads++;
     }
-    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*vertexStride);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*vertexStride*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
+    protected final void flush(){if(vertices==0)return;receiverShader.bind();mesh.setVertices(data,0,vertices*vertexStride);mesh.render(receiverShader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*vertexStride*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
         stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*vertexStride*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
     public long textureBytes(){return target.textureBytes();}
     public int targetWidth(){return target.width;}
     public int targetHeight(){return target.height;}
-    public void dispose(){target.dispose();if(mesh!=null)mesh.dispose();if(shader!=null)shader.dispose();mesh=null;shader=null;bundle=null;admittedWorld=null;}
+    public void dispose(){target.dispose();if(mesh!=null)mesh.dispose();if(shader!=null)shader.dispose();mesh=null;shader=null;receiverShader=null;bundle=null;admittedWorld=null;}
 }

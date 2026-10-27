@@ -7,7 +7,6 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Texture;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.RenderRepeatComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.*;
@@ -36,14 +35,7 @@ public final class ForwardAdmission {
             validateMaterial(e,m.shaderIdx,m.blendModeId,false);
             if(m.textureHandle!=0)validateTexture(e,m.textureHandle,bundle);
         }
-        IntBag lights=world.getAspectSubscriptionManager().get(Aspect.one(PointLightComponent.class,ConeLightComponent.class)).getEntities();
-        ComponentMapper<VisibilityComponent> visibility=world.getMapper(VisibilityComponent.class);
-        int count=0;
-        for(int i=0;i<lights.size();i++){
-            int e=lights.get(i);VisibilityComponent v=visibility.getSafe(e,null);
-            PointLightComponent p=points.getSafe(e,null);ConeLightComponent c=cones.getSafe(e,null);
-            if((v==null||v.visible)&&((p!=null&&p.enabled)||(c!=null&&c.enabled)))if(++count>1)throw refused(e,"second active light");
-        }
+        ActiveLights.validateForward(world);
     }
     public static void validateQueue(FrameRenderQueue q,AtlasRuntimeService.TextureArrayBundle bundle) {
         validateQueue(q,bundle,true);
@@ -59,11 +51,7 @@ public final class ForwardAdmission {
             validateMaterial(e,q.shader[i],q.blend[i],q.sourceDomain[i]==FrameRenderQueue.SOURCE_VFX);
             validateTexture(e,q.textureHandle[i],bundle);
             LightingSurface s=q.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?q.lighting.tiles.get(q.sourceSlot[i]):q.lighting.entities.get(e);
-            if(s!=null){
-                if(s.forwardTopology==null)throw refused(e,"physical/color topology was not prepared before submission");
-                if(useNormalMaps && s.normalMap!=null){Texture t=TextureRegistry.getByHandle(s.normalMap.textureHandle);
-                    if(t==null||t.getTextureObjectHandle()==0)throw refused(e,"normal page is not live");}
-            }
+            validateSurface(e,s,useNormalMaps);
         }
     }
     /** Cold full-domain admission includes off-camera images, not just the visible queue. */
@@ -84,12 +72,20 @@ public final class ForwardAdmission {
             if(s!=null&&s.forwardTopology==null)throw refused(owner,"topology missing at tiled ref "+ref);
         }
     }
-    private static void validateBundle(AtlasRuntimeService.TextureArrayBundle b){if(b==null||b.textureArray==null||b.textureArray.getTextureObjectHandle()==0||b.handle2layer==null)throw new LightingAdmissionException("Forward lighting requires a live, owner-published color texture array");}
-    private static void validateTexture(int e,int handle,AtlasRuntimeService.TextureArrayBundle b){
+    /** Structural checks shared with the Studio-owned resource admission. */
+    public static void validateSurface(int e,LightingSurface s,boolean useNormalMaps){
+        if(s!=null){
+            if(s.forwardTopology==null)throw refused(e,"physical/color topology was not prepared before submission");
+            if(useNormalMaps && s.normalMap!=null){Texture t=TextureRegistry.getByHandle(s.normalMap.textureHandle);
+                if(t==null||t.getTextureObjectHandle()==0)throw refused(e,"normal page is not live");}
+        }
+    }
+    public static void validateBundle(AtlasRuntimeService.TextureArrayBundle b){if(b==null||b.textureArray==null||b.textureArray.getTextureObjectHandle()==0||b.handle2layer==null)throw new LightingAdmissionException("Forward lighting requires a live, owner-published color texture array");}
+    public static void validateTexture(int e,int handle,AtlasRuntimeService.TextureArrayBundle b){
         int layer=b.handle2layer.get(handle,-1);
         if(handle==0||layer<0||layer>=b.textureArray.getDepth())throw refused(e,"color texture handle "+handle+" is absent from the active bundle");
     }
-    private static void validateMaterial(int e,int shader,int blend,boolean vfx){
+    public static void validateMaterial(int e,int shader,int blend,boolean vfx){
         boolean standard=shader==ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName())
                 ||shader==ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName())
                 ||shader==ShaderRegistry.indexOf(ShaderMode.TEXTURE_2D.defaultShaderName());
