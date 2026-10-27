@@ -11,6 +11,9 @@
     <inherits name="com.artemis.backends.artemis_backends_gwt"/>
     <inherits name="com.artemis-json-libgdx"/>
 
+    <!-- Scene-wide rendering settings are also serialized by LibGDX Json. -->
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.loading.SceneMetaRuntime"/>
+
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <!-- ActorSpatialRectangles.clips is instantiated by LibGDX Json before its IntMap branch. -->

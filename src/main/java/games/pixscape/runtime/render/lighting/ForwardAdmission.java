@@ -46,6 +46,9 @@ public final class ForwardAdmission {
         }
     }
     public static void validateQueue(FrameRenderQueue q,AtlasRuntimeService.TextureArrayBundle bundle) {
+        validateQueue(q,bundle,true);
+    }
+    public static void validateQueue(FrameRenderQueue q,AtlasRuntimeService.TextureArrayBundle bundle,boolean useNormalMaps) {
         validateBundle(bundle);
         if(q.lighting.diagnostic!=0)throw new LightingAdmissionException("Forward lighting requires normal rendering; select the reference for historical diagnostics");
         if(q.lighting.lights.size>1)throw new LightingAdmissionException("Forward lighting refuses "+q.lighting.lights.size+" active lights; maximum is one");
@@ -58,7 +61,7 @@ public final class ForwardAdmission {
             LightingSurface s=q.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?q.lighting.tiles.get(q.sourceSlot[i]):q.lighting.entities.get(e);
             if(s!=null){
                 if(s.forwardTopology==null)throw refused(e,"physical/color topology was not prepared before submission");
-                if(s.normalMap!=null){Texture t=TextureRegistry.getByHandle(s.normalMap.textureHandle);
+                if(useNormalMaps && s.normalMap!=null){Texture t=TextureRegistry.getByHandle(s.normalMap.textureHandle);
                     if(t==null||t.getTextureObjectHandle()==0)throw refused(e,"normal page is not live");}
             }
         }

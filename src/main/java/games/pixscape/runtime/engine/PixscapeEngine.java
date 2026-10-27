@@ -93,6 +93,7 @@ public final class PixscapeEngine {
     private TiledMapRenderState tiledState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
+    private boolean useNormalMaps = true;
     private float ambientMulG = 1f;
     private float ambientMulB = 1f;
 
@@ -1102,7 +1103,8 @@ public final class PixscapeEngine {
     }
 
     private Supplier<BaseSystem> createDefaultRenderSubmitSystemSupplier() {
-        return () -> new RenderSubmitSystem(
+        return () -> {
+            RenderSubmitSystem submit = new RenderSubmitSystem(
                 layerState,
                 frameQueue,
                 worldCamera,
@@ -1113,7 +1115,10 @@ public final class PixscapeEngine {
                 stats,
                 statsSink,
                 forwardLighting
-        );
+            );
+            submit.setUseNormalMaps(useNormalMaps);
+            return submit;
+        };
     }
 
     /**
@@ -1851,6 +1856,7 @@ public final class PixscapeEngine {
     }
 
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
+        useNormalMaps = meta == null || meta.useNormalMaps;
         if (meta == null) {
             ambientMulR = 1f;
             ambientMulG = 1f;

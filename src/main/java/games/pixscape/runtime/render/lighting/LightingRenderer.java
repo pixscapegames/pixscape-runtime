@@ -70,6 +70,9 @@ public final class LightingRenderer {
             0,0,0,0,0,0,0,0, 0,0,0,1,1,0,0,0, 0,0,0,1,0,0,0,0});
 
     public void prepare(World world,WorldLightComposition composition) { prepare(world,composition,false); }
+    private boolean useNormalMaps = true,preparedNormalMaps = true;
+    /** The legacy unmapped receiver already preserves geometric and curved normals. */
+    public void setUseNormalMaps(boolean enabled) { useNormalMaps = enabled; }
     /** Prepares only the existing shadow producer; no historical receiver targets/programs. */
     public void prepareShadows(World world) { prepare(world,null,true); }
     private void prepare(World world,WorldLightComposition composition,boolean shadowsOnly) {
@@ -93,8 +96,15 @@ public final class LightingRenderer {
         }
         if(Gdx.gl30==null)throw new IllegalStateException("2.5D lighting requires GL3/GLES3/WebGL2 float render targets");
         prepareShadowProgram();
+        batch.prepareNormalMaps(useNormalMaps && !shadowsOnly);
         prepareTwoDepthGpuTimer();
+        if(receiver!=null && preparedNormalMaps!=useNormalMaps){
+            receiver.dispose();receiver=null;
+            if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
+            accumulate.dispose();accumulate=null;screen.dispose();screen=null;
+        }
         if(receiver==null && !shadowsOnly){
+            preparedNormalMaps=useNormalMaps;
             String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                     "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
             String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_exclusionId;";
@@ -106,12 +116,14 @@ public final class LightingRenderer {
             String normalVertex=version+attributes+vary+"in vec3 a_curveNormal;out vec3 curveNormal;uniform mat4 u_matrix;"+
                     "in vec3 a_normalUV;in vec4 a_normalBasis;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;"+
                     "void main(){normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;curveNormal=a_curveNormal;p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
-            mappedReceiver=compile(normalVertex,LightingShaderSources.legacyMappedReceiver(version,inputs,sample));
+            if(useNormalMaps)mappedReceiver=compile(normalVertex,LightingShaderSources.legacyMappedReceiver(version,inputs,sample));
             accumulate=compile(version+"in vec3 a_position;in vec2 a_texCoord0;out vec2 uv;void main(){uv=a_texCoord0;gl_Position=vec4(a_position,1.);}",
                     version+"in vec2 uv;uniform sampler2D u_original,u_contribution;out vec4 result;void main(){vec3 base=texture(u_original,uv).rgb,c=texture(u_contribution,uv).rgb;result=vec4(c/max(base,vec3(1./65536.)),0.);}");
             receiver.bind();samplers(receiver);
-            mappedReceiver.bind();samplers(mappedReceiver);
-            for(int i=0;i<4;i++)mappedReceiver.setUniformi("u_normal"+i,i+5);
+            if(useNormalMaps){
+                mappedReceiver.bind();samplers(mappedReceiver);
+                for(int i=0;i<4;i++)mappedReceiver.setUniformi("u_normal"+i,i+5);
+            }
             screen=new Mesh(true,4,6,VertexAttribute.Position(),VertexAttribute.TexCoords(0));
             screen.setVertices(new float[]{-1,-1,0,0,0,-1,1,0,0,1,1,1,0,1,1,1,-1,0,1,0});screen.setIndices(new short[]{0,1,2,2,3,0});
         }
@@ -160,7 +172,7 @@ public final class LightingRenderer {
         // occultant behind several connected wall supports must remain available.
         if(firstShadow==null){
             firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
-            firstShadow.bind();samplers(firstShadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots);
+            firstShadow.bind();samplers(firstShadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots,false);
         }
         if(secondShadow==null){
             secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
@@ -265,7 +277,7 @@ public final class LightingRenderer {
         // Clear every frame, including empty frames, before skipping work without consumers.
         if(queue.size==0 && frame.diagnostic==0)return;
         boolean mapped=false;
-        for(int i=0;i<queue.size && !mapped;i++){
+        for(int i=0;useNormalMaps && i<queue.size && !mapped;i++){
             LightingSurface surface=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
             mapped=surface!=null && surface.normalMap!=null;
         }

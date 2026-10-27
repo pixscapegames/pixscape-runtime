@@ -79,6 +79,7 @@ public final class SceneAvailabilityPlan {
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS)).path();
         this.normalCandidatePath=runtimeProjectDir.child(config.atlasesDir).child(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas").path();
         this.normalProfiles=profiles;
+        this.normalRequirementsChecked=!meta.useNormalMaps;
         this.effectsRoot = runtimeProjectDir.child(config.effectsDir);
         this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
         this.runtimeProjectDir = runtimeProjectDir;

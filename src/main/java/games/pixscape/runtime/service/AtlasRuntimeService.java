@@ -63,11 +63,15 @@ public class AtlasRuntimeService {
     // ---------------- load/unload ----------------
 
     public void load(String tag, FileHandle atlasFile) {
+        load(tag, atlasFile, true);
+    }
+
+    public void load(String tag, FileHandle atlasFile, boolean useNormalMaps) {
         TextureAtlas atlas = new TextureAtlas(atlasFile);
         NormalMapAtlas normals = null;
         try {
             FileHandle normalFile = atlasFile.sibling(tag + NormalMapAtlas.SUFFIX + ".atlas");
-            if (normalFile.exists()) normals = new NormalMapAtlas(tag, normalFile, atlas);
+            if (useNormalMaps && normalFile.exists()) normals = new NormalMapAtlas(tag, normalFile, atlas);
         } catch (RuntimeException failure) {
             atlas.dispose(); if (normals != null) normals.dispose();
             throw failure;
@@ -201,6 +205,18 @@ public class AtlasRuntimeService {
     public long normalTextureBytes() {
         long bytes = 0; for (NormalMapAtlas atlas : normalAtlases.values()) bytes += atlas.textureBytes();
         return bytes;
+    }
+
+    /** Cold scene-local publication. A null descriptor releases only this tag's normal lease. */
+    public void replaceNormalMaps(String tag, FileHandle descriptor) {
+        TextureAtlas colors = atlases.get(tag);
+        if (colors == null) return;
+        NormalMapAtlas next = descriptor != null && descriptor.exists()
+                ? new NormalMapAtlas(tag, descriptor, colors) : null;
+        NormalMapAtlas previous = normalAtlases.remove(tag);
+        if (next != null) normalAtlases.put(tag, next);
+        publicationRevisions.put(tag, nextPublicationRevision());
+        if (previous != null) previous.dispose();
     }
 
     /** Returns whether at least one successfully published atlas is currently usable. */

@@ -105,12 +105,17 @@ public final class ForwardLightingGlCheck {
         light.x=-100;clear();world.process();
         for(int x=4;x<60;x+=4)Assert.assertTrue("No clipped-factor light leaking onto the dark side",red(x,16)<5);
         assertUnmappedNormalBatching(world,q,submit,texture,shader);
-        assertCompactCapacityUpload(world,q,submit,texture,shader,stats);
+        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,26);
+        submit.setUseNormalMaps(false);submit.prepareComposition();
+        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,19);
+        submit.setUseNormalMaps(true);submit.prepareComposition();
         // GLSL ES is compiled by this desktop driver; this is not a GLES/WebGL execution.
         String es="#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
         ShaderProgram esProgram=new ShaderProgram(ForwardLightingRenderer.vertexSource(es),ForwardLightingRenderer.fragmentSource(es));
         Assert.assertTrue("GLSL ES compile: "+esProgram.getLog(),esProgram.isCompiled());esProgram.dispose();
         Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+        NormalMapsDisabledGlCheck.verify(texture,belowCutout,aboveCutout,bundle);
+        games.pixscape.runtime.service.NormalMapResourcesGlCheck.verify();
         world.dispose();batch.close();bundle.textureArray.dispose();texture.dispose();belowCutout.dispose();aboveCutout.dispose();
         ForwardParticleGlCheck.verify();
     }
@@ -156,13 +161,13 @@ public final class ForwardLightingGlCheck {
         int expected=(tint*texel*alpha+32512)/(255*255);Assert.assertTrue(label+": expected "+expected+", got "+actual,Math.abs(actual-expected)<=1);
     }
     private static int rgba(int x,int y){Pixmap p=Pixmap.createFromFrameBuffer(x,y,1,1);try{return p.getPixel(0,0);}finally{p.dispose();}}
-    private static void assertCompactCapacityUpload(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture texture,int shader,RenderStats stats){
+    private static void assertCompactCapacityUpload(World world,FrameRenderQueue q,RenderSubmitSystem submit,Texture texture,int shader,RenderStats stats,int stride){
         int quads=2049,uploadsBefore=stats.bufferUploads,verticesBefore=stats.flushedVertices;q.size=0;q.lighting.lights.clear();q.lighting.tiles.clear();
         for(int i=0;i<quads;i++){
             q.addQuad(TextureRegistry.handleOf(texture),shader,BlendMode.OPAQUE.id,0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_VFX,i,i);
             q.ignoreAmbientLighting[i]=true;
         }
-        clear();world.process();long vertices=6L*quads,bytes=vertices*ForwardLightingRenderer.VERTEX_STRIDE*4;
+        clear();world.process();long vertices=6L*quads,bytes=vertices*stride*4;
         Assert.assertEquals("Packed color does not change the vertex count",vertices,stats.flushedVertices-verticesBefore);
         Assert.assertEquals(bytes,submit.forwardRenderer().uploadedBytes);Assert.assertEquals(2,submit.forwardRenderer().worldDraws);
         Assert.assertEquals(1,submit.forwardRenderer().capacityFlushes);Assert.assertEquals(1,submit.forwardRenderer().endFlushes);

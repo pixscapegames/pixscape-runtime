@@ -183,6 +183,24 @@ final class LightingShaderSources {
     }
 
     static String forwardReceiver(String version) {
+        return forwardReceiver(version,true);
+    }
+
+    static String forwardVertex(String version,boolean useNormalMaps) {
+        return version
+                + "in vec2 a_screen,a_uv;in vec4 a_physical;in vec3 a_normal,a_curveNormal;in vec4 a_color,a_material;"
+                + (useNormalMaps?"in vec3 a_normalUV;in vec4 a_normalBasis;":"")
+                + "uniform mat4 u_matrix;"
+                + "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;flat out float exclusionId;"
+                + (useNormalMaps?"out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;":"")
+                + "flat out float materialMode;"
+                + "void main(){uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"
+                + "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"
+                + (useNormalMaps?"normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;":"")
+                + "gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
+    }
+
+    static String forwardReceiver(String version,boolean useNormalMaps) {
         return version
                 + "in vec2 uv;"
                 + "in vec3 p,n;"
@@ -191,7 +209,8 @@ final class LightingShaderSources {
                 + "flat in float exclusionId,materialMode;"
                 + "uniform sampler2DArray u_array;"
                 + "uniform vec3 u_ambient;"
-                + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION+NORMAL_SAMPLE+MACRO_NORMAL
+                + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
+                + (useNormalMaps?NORMAL_SAMPLE:"vec3 lightingNormal(vec3 geometric){return geometric;}")+MACRO_NORMAL
                 + FORWARD_RECEIVER_OPEN+FORWARD_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
                 + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON

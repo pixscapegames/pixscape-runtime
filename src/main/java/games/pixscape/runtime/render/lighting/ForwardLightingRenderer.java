@@ -21,11 +21,15 @@ import java.nio.IntBuffer;
  * no texture uploads or topology work. */
 public final class ForwardLightingRenderer {
     static final int VERTEX_STRIDE=26;
+    static final int UNMAPPED_VERTEX_STRIDE=19;
     static final int COLOR_OFFSET=11;
     private static final int CAPACITY=12288;
     private static final int SCREEN_OFFSET=0,UV_OFFSET=2,PHYSICAL_OFFSET=4,NORMAL_OFFSET=8;
     private static final int MATERIAL_OFFSET=12,NORMAL_UV_OFFSET=16,NORMAL_BASIS_OFFSET=19,CURVE_NORMAL_OFFSET=23;
-    private final float[] data=new float[CAPACITY*VERTEX_STRIDE],quad=new float[8];
+    private float[] data;
+    private final float[] quad=new float[8];
+    private boolean useNormalMaps=true,preparedNormalMaps=true;
+    private int vertexStride=VERTEX_STRIDE,curveNormalOffset=CURVE_NORMAL_OFFSET;
     private final ForwardWorldTarget target=new ForwardWorldTarget();
     private ShaderProgram shader;
     private Mesh mesh;
@@ -38,6 +42,8 @@ public final class ForwardLightingRenderer {
     private boolean roundedLightingEnabled=true;
     public void setRoundedLightingEnabled(boolean enabled){roundedLightingEnabled=enabled;}
     public boolean roundedLightingEnabled(){return roundedLightingEnabled;}
+    /** Variant resources are rebuilt only by the existing preparation boundary. */
+    public void setUseNormalMaps(boolean enabled){useNormalMaps=enabled;}
 
     public void prepare(World world,AtlasRuntimeService.TextureArrayBundle published) {
         if(world.getInvocationStrategy() instanceof games.pixscape.runtime.loading.SceneLoadingInvocationStrategy)
@@ -49,42 +55,49 @@ public final class ForwardLightingRenderer {
             admittedWorld=world;
         }
         bundle=published;
+        if(shader!=null && preparedNormalMaps!=useNormalMaps){
+            mesh.dispose();shader.dispose();mesh=null;shader=null;
+        }
         if(shader==null){
+            preparedNormalMaps=useNormalMaps;
+            vertexStride=useNormalMaps?VERTEX_STRIDE:UNMAPPED_VERTEX_STRIDE;
+            data=new float[CAPACITY*vertexStride];
+            curveNormalOffset=useNormalMaps?CURVE_NORMAL_OFFSET:16;
             IntBuffer caps=BufferUtils.newIntBuffer(1);
-            check(caps,GL20.GL_MAX_VERTEX_ATTRIBS,9,"vertex attributes");
+            check(caps,GL20.GL_MAX_VERTEX_ATTRIBS,useNormalMaps?9:7,"vertex attributes");
             check(caps,GL20.GL_MAX_TEXTURE_IMAGE_UNITS,6,"fragment samplers");
             check(caps,GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,6,"combined samplers");
             boolean desktop=Gdx.app.getType()==com.badlogic.gdx.Application.ApplicationType.Desktop;
             check(caps,desktop?0x8B4B:GL20.GL_MAX_VARYING_VECTORS,desktop?40:10,"varying capacity");
-            shader=new ShaderProgram(vertexSource(ForwardWorldTarget.version()),fragmentSource(ForwardWorldTarget.version()));
+            shader=new ShaderProgram(vertexSource(ForwardWorldTarget.version(),useNormalMaps),fragmentSource(ForwardWorldTarget.version(),useNormalMaps));
             if(!shader.isCompiled())throw new IllegalStateException("Forward lighting shader: "+shader.getLog());
-            mesh=new Mesh(false,CAPACITY,0,
+            com.badlogic.gdx.utils.Array<VertexAttribute> attributes=new com.badlogic.gdx.utils.Array<VertexAttribute>();
+            attributes.addAll(
                     new VertexAttribute(VertexAttributes.Usage.Position,2,"a_screen"),
                     new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                     new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_physical"),
                     new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
                     new VertexAttribute(VertexAttributes.Usage.ColorPacked,4,"a_color"),
-                    new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_material"),
+                    new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_material"));
+            if(useNormalMaps)attributes.addAll(
                     new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
-                    new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
-                    new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
+                    new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"));
+            attributes.add(new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
+            mesh=new Mesh(false,CAPACITY,0,attributes.toArray(VertexAttribute.class));
             shader.bind();shader.setUniformi("u_array",0);shader.setUniformi("u_shadow",3);shader.setUniformi("u_shadowIdentity",4);shader.setUniformi("u_shadowSecond",5);
-            for(int i=0;i<4;i++)shader.setUniformi("u_normal"+i,2);
+            if(useNormalMaps)for(int i=0;i<4;i++)shader.setUniformi("u_normal"+i,2);
         }
         target.prepare();
     }
     private static void check(IntBuffer caps,int name,int minimum,String label){caps.clear();Gdx.gl.glGetIntegerv(name,caps);if(caps.get(0)<minimum)throw new IllegalStateException("Forward lighting requires "+minimum+" "+label+", available "+caps.get(0));}
-    public static String vertexSource(String version){return version+
-            "in vec2 a_screen,a_uv;in vec4 a_physical;in vec3 a_normal,a_curveNormal;in vec4 a_color,a_material;in vec3 a_normalUV;in vec4 a_normalBasis;uniform mat4 u_matrix;"+
-            "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;flat out float exclusionId;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;flat out float materialMode;"+
-            "void main(){uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"+
-            "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"+
-            "normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";}
+    public static String vertexSource(String version){return vertexSource(version,true);}
+    public static String vertexSource(String version,boolean useNormalMaps){return LightingShaderSources.forwardVertex(version,useNormalMaps);}
     /** Explicit forward composition with its own alpha, ambient and direct-light result. */
     public static String fragmentSource(String version){return LightingShaderSources.forwardReceiver(version);}
+    public static String fragmentSource(String version,boolean useNormalMaps){return LightingShaderSources.forwardReceiver(version,useNormalMaps);}
     public void render(FrameRenderQueue queue,LayerStateSOA layers,OrthographicCamera camera,
                        LightingRenderer shadows,float ambientR,float ambientG,float ambientB,RenderStats stats) {
-        ForwardAdmission.validateQueue(queue,bundle);
+        ForwardAdmission.validateQueue(queue,bundle,preparedNormalMaps);
         this.stats=stats;worldDraws=presentationDraws=normalFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
         vertices=0;blend=normalHandle=-1;
         target.begin();
@@ -120,7 +133,7 @@ public final class ForwardLightingRenderer {
         shader.setUniformf("u_atlasScale",l==null?1:shadows.atlasScale(l));
     }
     private void draw(FrameRenderQueue q,int i,LightingSurface s,LightingRenderer shadows){
-        NormalMapBinding normal=s==null?null:s.normalMap;
+        NormalMapBinding normal=!preparedNormalMaps || s==null?null:s.normalMap;
         // Unmapped vertices never sample u_normal. Keep the current page so they
         // can share a draw with mapped vertices; still initialize a complete sampler
         // after each render reset, including frames beginning with unmapped sprites.
@@ -132,7 +145,8 @@ public final class ForwardLightingRenderer {
             (identity==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):identity).bind(4);
             (second==null?TextureRegistry.getByHandle(TextureRegistry.WHITE_HANDLE):second).bind(5);stats.textureBinds+=3;
         }
-        if(normalHandle!=page){if(vertices!=0)normalFlushes++;flush();normalHandle=page;TextureRegistry.getByHandle(page).bind(2);stats.textureBinds++;}
+        if(preparedNormalMaps && normalHandle!=page){if(vertices!=0)normalFlushes++;flush();TextureRegistry.getByHandle(page).bind(2);stats.textureBinds++;}
+        normalHandle=page;
         int mode=q.blend[i];
         if(blend!=mode){if(vertices!=0)blendFlushes++;flush();blend=mode;
             boolean additive=mode==3||mode==4;
@@ -152,7 +166,7 @@ public final class ForwardLightingRenderer {
         for(int k=0;k<topology.vertexCount;k++){
             if(vertices==CAPACITY){
                 capacityFlushes++;flush();
-            }int out=vertices++*VERTEX_STRIDE,w=k*5;
+            }int out=vertices++*vertexStride,w=k*5;
             int triangle=(int)topology.weights[w],source=s==null?-1:topology.source[k];
             float pa=topology.weights[w+1],pb=topology.weights[w+2],pc=1-pa-pb;
             float ca=topology.weights[w+3],cb=topology.weights[w+4],cc=1-ca-cb;
@@ -160,21 +174,23 @@ public final class ForwardLightingRenderer {
             data[out+SCREEN_OFFSET]=ca*quad[c0*2]+cb*quad[c1*2]+cc*quad[c2*2];data[out+SCREEN_OFFSET+1]=ca*quad[c0*2+1]+cb*quad[c1*2+1]+cc*quad[c2*2+1];
             float u=ca*(c0>=2?1:0)+cb*(c1>=2?1:0)+cc*(c2>=2?1:0),v=ca*(c0==1||c0==2?1:0)+cb*(c1==1||c1==2?1:0)+cc*(c2==1||c2==2?1:0);
             int cached=k*11;
-            float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
             data[out+UV_OFFSET]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+UV_OFFSET+1]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
             for(int c=0;c<3;c++){data[out+PHYSICAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+NORMAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
             data[out+PHYSICAL_OFFSET+3]=s==null?0:s.receiverShadowGroup(source);
             data[out+COLOR_OFFSET]=q.colorPacked[i];
             data[out+MATERIAL_OFFSET]=layer;data[out+MATERIAL_OFFSET+1]=mode+(q.ignoreAmbientLighting[i]?16:0);data[out+MATERIAL_OFFSET+2]=s!=null&&s.receiveLight&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+MATERIAL_OFFSET+3]=s==null?0:s.receiverLightingMode(source);
-            data[out+NORMAL_UV_OFFSET]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+NORMAL_UV_OFFSET+1]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+NORMAL_UV_OFFSET+2]=normal==null?-1:0;
-            data[out+NORMAL_BASIS_OFFSET]=ex;data[out+NORMAL_BASIS_OFFSET+1]=ey;data[out+NORMAL_BASIS_OFFSET+2]=ux;data[out+NORMAL_BASIS_OFFSET+3]=uy;
+            if(preparedNormalMaps){
+                float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];
+                data[out+NORMAL_UV_OFFSET]=normal==null?0:normal.u0+normal.ux*pu+normal.uy*pv;data[out+NORMAL_UV_OFFSET+1]=normal==null?0:normal.v0+normal.vx*pu+normal.vy*pv;data[out+NORMAL_UV_OFFSET+2]=normal==null?-1:0;
+                data[out+NORMAL_BASIS_OFFSET]=ex;data[out+NORMAL_BASIS_OFFSET+1]=ey;data[out+NORMAL_BASIS_OFFSET+2]=ux;data[out+NORMAL_BASIS_OFFSET+3]=uy;
+            }
             int csource=source/8*3;
-            for(int c=0;c<3;c++)data[out+CURVE_NORMAL_OFFSET+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
+            for(int c=0;c<3;c++)data[out+curveNormalOffset+c]=curve==null||source<0?0:immutable!=null?immutable[cached+8+c]:pa*curve[csource+c]+pb*curve[csource+3+c]+pc*curve[csource+6+c];
         }
         stats.drawnQuads++;
     }
-    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*VERTEX_STRIDE);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*VERTEX_STRIDE*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
-        stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*VERTEX_STRIDE*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
+    private void flush(){if(vertices==0)return;shader.bind();mesh.setVertices(data,0,vertices*vertexStride);mesh.render(shader,GL20.GL_TRIANGLES,0,vertices);uploadedBytes+=(long)vertices*vertexStride*4;worldDraws++;stats.worldDraws++;stats.drawCalls++;stats.flushes++;stats.flushedVertices+=vertices;
+        stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*vertexStride*4;stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;vertices=0;}
     public long textureBytes(){return target.textureBytes();}
     public int targetWidth(){return target.width;}
     public int targetHeight(){return target.height;}

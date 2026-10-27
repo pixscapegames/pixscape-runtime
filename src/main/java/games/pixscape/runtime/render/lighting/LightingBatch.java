@@ -32,7 +32,8 @@ final class LightingBatch {
     private final int[] normalHandles=new int[4], boundNormals=new int[4];
     private int normalTextures;
     private boolean mapped;
-    private final Mesh mesh, mappedMesh;
+    private final Mesh mesh;
+    private Mesh mappedMesh;
     // GWT emulates tiny array copies with temporary JS arrays; keep native copies unchanged.
     private final boolean htmlVertexCopies=Gdx.app.getType()==Application.ApplicationType.WebGL;
     private int vertices,textures,blend=-1;
@@ -41,10 +42,18 @@ final class LightingBatch {
     private RenderStats stats;
     LightingBatch(){this(4);}
     LightingBatch(int shadowSlots){
+        this(shadowSlots,true);
+    }
+    LightingBatch(int shadowSlots,boolean normalMaps){
         if(shadowSlots!=4 && shadowSlots!=8)throw new IllegalArgumentException("Shadow slots must be four or eight");
         this.shadowSlots=shadowSlots;
         mesh=receiverMesh();
-        mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
+        prepareNormalMaps(normalMaps);
+    }
+    /** Cold variant preparation; submission only uses the selected, already prepared mesh. */
+    void prepareNormalMaps(boolean enabled){
+        if(!enabled){if(mappedMesh!=null)mappedMesh.dispose();mappedMesh=null;return;}
+        if(mappedMesh==null)mappedMesh=new Mesh(false,CAPACITY,0,new VertexAttribute(VertexAttributes.Usage.Position,3,"a_position"),
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.Normal,3,"a_normal"),
                 new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
@@ -246,5 +255,5 @@ final class LightingBatch {
         }
     }
     void abort(){vertices=textures=replayCount=0;blend=-1;retainReplay=false;}
-    void dispose(){abort();for(ReplayBatch b:replayBatches)b.mesh.dispose();replayBatches.clear();mesh.dispose();mappedMesh.dispose();}
+    void dispose(){abort();for(ReplayBatch b:replayBatches)b.mesh.dispose();replayBatches.clear();mesh.dispose();if(mappedMesh!=null)mappedMesh.dispose();}
 }

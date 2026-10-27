@@ -26,6 +26,33 @@ public class SceneAvailabilityPlanTest {
 
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
+    @Test public void disabledNormalsAreNeverAcquiredAndReactivationLoadsThem() throws Exception {
+        File root=temp.newFolder("normal-option");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
+        RuntimeConfig config=config();var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
+        RecordingAssetManager manager=manager(root);
+        manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){
+            public TextureAtlas load(AssetManager m,String name,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){
+                TrackingAtlas atlas=new TrackingAtlas();
+                if(!name.contains(".normals")){var region=new TextureAtlas.AtlasRegion(new PlanTexture(),0,0,1,1);region.name="color__a7";atlas.getRegions().add(region);}
+                return atlas;
+            }
+            public Array<AssetDescriptor> getDependencies(String n,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){return null;}
+        });
+        FileAvailabilityService availability=new FileAvailabilityService(manager,false);
+        try {
+            for(boolean enabled:new boolean[]{false,true,false}){
+                config.getSceneMeta("A").useNormalMaps=enabled;
+                int before=manager.loadCounts.getOrDefault(path(root,"atlases/A.normals.atlas"),0);
+                SceneAvailabilityPlan plan=new SceneAvailabilityPlan(availability,config,new FileHandle(root),"A",profiles);
+                while(!plan.update()){}
+                assertNotNull(plan.atlas());assertEquals(enabled,plan.normalAtlas()!=null);
+                assertEquals(before+(enabled?1:0),(int)manager.loadCounts.getOrDefault(path(root,"atlases/A.normals.atlas"),0));
+                plan.release();assertFalse(manager.isLoaded(path(root,"atlases/A.normals.atlas")));
+            }
+            assertEquals("Authored normal references survive disabled sessions","normals/7.png",profile.normalMapSources.get(7));
+        } finally {availability.dispose();manager.dispose();}
+    }
     @Test public void normalAtlasIsAcquiredBeforeReadyAndReleasedWithScene() throws Exception {
         File root=temp.newFolder("normal-atlas");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
         RuntimeConfig config=config();var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();

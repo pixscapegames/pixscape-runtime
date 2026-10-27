@@ -42,6 +42,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private LightParameterBinding lightParameters;
     private float time = 0f;
     private boolean rendererReported;
+    private boolean useNormalMaps = true;
+    /** Configure before prepareComposition, never during submission. */
+    public void setUseNormalMaps(boolean enabled) { useNormalMaps = enabled; }
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
 
@@ -114,7 +117,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     }
 
     public void prepareComposition() {
+        lighting.setUseNormalMaps(useNormalMaps);
         if(forward!=null){
+            forward.setUseNormalMaps(useNormalMaps);
             if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
             forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);
         } else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
