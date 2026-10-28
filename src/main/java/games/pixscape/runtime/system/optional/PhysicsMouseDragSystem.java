@@ -1,8 +1,11 @@
 package games.pixscape.runtime.system.optional;
 
 import com.artemis.BaseSystem;
+import com.artemis.annotations.SkipWire;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
@@ -19,7 +22,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     private final OrthographicCamera camera;
     private final PhysicsAPI physics;
     private LayerStateSOA layerState;
-    private Box2dSyncSystem box2dSync;
+    @SkipWire private Box2dSyncSystem box2dSync;
     private Box2dWorldService box2d;
     private World lastWorld;
 
@@ -31,8 +34,58 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     private float dampingRatio = 0.7f;
     private float grabRadiusMeters = 0.25f;
     private boolean allowStatic = false;
+    private boolean inputEnabled = true;
 
-    private boolean wasPressed;
+    private int gesturePointer = -1;
+    private int gestureButton = -1;
+    private int gestureScreenX;
+    private int gestureScreenY;
+    private boolean beginRequested;
+    private boolean releasePending;
+
+    private final InputProcessor inputProcessor = new InputAdapter() {
+        @Override
+        public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+            if (!inputEnabled || button != Input.Buttons.LEFT || pointer != 0) {
+                if (gesturePointer >= 0 && pointer != gesturePointer) cancelInput();
+                return false;
+            }
+            if (gesturePointer >= 0) return false;
+
+            gesturePointer = pointer;
+            gestureButton = button;
+            gestureScreenX = screenX;
+            gestureScreenY = screenY;
+            beginRequested = true;
+            return false;
+        }
+
+        @Override
+        public boolean touchDragged(int screenX, int screenY, int pointer) {
+            if (pointer != gesturePointer) return false;
+            gestureScreenX = screenX;
+            gestureScreenY = screenY;
+            return mouseJoint != null;
+        }
+
+        @Override
+        public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+            if (pointer != gesturePointer || button != gestureButton) return false;
+            boolean handled = mouseJoint != null;
+            gestureScreenX = screenX;
+            gestureScreenY = screenY;
+            finishGesture();
+            return handled;
+        }
+
+        @Override
+        public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
+            if (pointer != gesturePointer || button != gestureButton) return false;
+            boolean handled = mouseJoint != null;
+            finishGesture();
+            return handled;
+        }
+    };
 
     private final Vector3 tmpScreen = new Vector3();
     private final Vector2 tmpTarget = new Vector2();
@@ -119,10 +172,27 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         this.allowStatic = allowStatic;
     }
 
+    /** Returns the stable World-drag input endpoint to place after higher-priority UI processors. */
+    public InputProcessor inputProcessor() {
+        return inputProcessor;
+    }
+
+    /** Enables routed input; disabling it releases any active World drag. */
+    public void setInputEnabled(boolean inputEnabled) {
+        this.inputEnabled = inputEnabled;
+        if (!inputEnabled) cancelInput();
+    }
+
+    /** Cancels the accepted World gesture and releases its MouseJoint when Box2D is unlocked. */
+    public void cancelInput() {
+        clearGesture();
+        destroyJoint();
+    }
+
     @Override
     protected void initialize() {
         box2dSync = world.getSystem(Box2dSyncSystem.class);
-        wasPressed = false;
+        clearGesture();
         resetJointState();
     }
 
@@ -134,7 +204,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
             World currentWorld = physics.box2dWorld();
             if (!physics.isRunning() || currentWorld == null) {
                 clearStateForMissingWorld(currentWorld);
-                wasPressed = false;
+                clearGesture();
                 return;
             }
             bindWorld(currentWorld);
@@ -147,7 +217,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         Box2dWorldService current = box2dSync.getBox2d();
         if (current == null || current.world == null || current.isDisposed() || !box2dSync.isEnabled()) {
             clearStateForMissingWorld(current);
-            wasPressed = false;
+            clearGesture();
             return;
         }
 
@@ -158,34 +228,41 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
 
     private void bindWorld(World currentWorld) {
         if (currentWorld == lastWorld) return;
-        resetJointState();
+        if (lastWorld != null) {
+            resetJointState();
+            clearGesture();
+        }
         lastWorld = currentWorld;
     }
 
     private void processInput() {
-        if (Gdx.input.isTouched(1)) {
-            destroyJoint();
-            wasPressed = false;
+        if (releasePending) destroyJoint();
+        if (!inputEnabled) {
+            cancelInput();
+            return;
+        }
+        if (gesturePointer < 0) return;
+
+        // Polling is termination-only recovery for a routed gesture whose release was missed.
+        if (!beginRequested && Gdx.input != null
+                && (!Gdx.input.isButtonPressed(gestureButton) || Gdx.input.isTouched(1))) {
+            finishGesture();
             return;
         }
 
-        boolean pressed = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
-        if (pressed && !wasPressed) {
-            tryBeginDrag();
-        } else if (!pressed && wasPressed) {
-            destroyJoint();
+        if (beginRequested) {
+            beginRequested = false;
+            tryBeginDrag(gestureScreenX, gestureScreenY);
         }
 
-        if (pressed && mouseJoint != null) {
-            updateTargetFromCursor();
+        if (mouseJoint != null) {
+            updateTargetFromScreen(gestureScreenX, gestureScreenY);
         }
-
-        wasPressed = pressed;
     }
 
-    private void tryBeginDrag() {
+    private void tryBeginDrag(int screenX, int screenY) {
         if (lastWorld == null) return;
-        if (!updateTargetFromCursor()) return;
+        if (!updateTargetFromScreen(screenX, screenY)) return;
 
         Body hit = pickBodyAtCursor();
         if (hit == null) return;
@@ -203,9 +280,9 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         mouseJoint = (MouseJoint) lastWorld.createJoint(def);
     }
 
-    private boolean updateTargetFromCursor() {
+    private boolean updateTargetFromScreen(int screenX, int screenY) {
         if (lastWorld == null) return false;
-        tmpScreen.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
+        tmpScreen.set(screenX, screenY, 0f);
         camera.unproject(tmpScreen);
         tmpTarget.set(tmpScreen.x, tmpScreen.y);
         if (physics != null) {
@@ -270,16 +347,32 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
 
     private void destroyJoint() {
         if (mouseJoint == null) return;
+        if (lastWorld != null && lastWorld.isLocked()) {
+            releasePending = true;
+            return;
+        }
         if (lastWorld != null) {
             lastWorld.destroyJoint(mouseJoint);
         }
         mouseJoint = null;
+        releasePending = false;
     }
 
     private void resetJointState() {
         destroyJoint();
         groundBody = null;
         pickedBody = null;
+    }
+
+    private void finishGesture() {
+        clearGesture();
+        destroyJoint();
+    }
+
+    private void clearGesture() {
+        gesturePointer = -1;
+        gestureButton = -1;
+        beginRequested = false;
     }
 
     private void clearStateForMissingWorld(Box2dWorldService current) {
@@ -292,9 +385,19 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
             lastWorld.destroyJoint(mouseJoint);
         }
         mouseJoint = null;
+        releasePending = false;
         groundBody = null;
         pickedBody = null;
         lastWorld = currentWorld;
+    }
+
+    @Override
+    protected void dispose() {
+        cancelInput();
+        resetJointState();
+        lastWorld = null;
+        box2d = null;
+        box2dSync = null;
     }
 
     private static float distanceSquared(Vector2 a, Vector2 b) {

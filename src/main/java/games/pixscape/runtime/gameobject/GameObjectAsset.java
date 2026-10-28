@@ -9,7 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Authored, hierarchical data stored in one {@value #EXTENSION} asset. */
+/**
+ * Authored, hierarchical data stored in one {@value #EXTENSION} asset.
+ * The top-level root is at (0, 0); its scene position and global Layer/z order
+ * belong to each placed instance. Member transforms and z-indices are local.
+ */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
     public static final int SCHEMA_VERSION = 3;
@@ -41,6 +45,7 @@ public final class GameObjectAsset {
         public ShaderParamsData shaderParams;
         public RepeatData repeat;
         public PointLightData pointLight;
+        public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
         public ConeLightData coneLight;
         /** Authored Spatial vertical volume; derived Spatial footprint cache is intentionally absent. */
         public SpatialHeightData spatialHeight;
@@ -56,7 +61,7 @@ public final class GameObjectAsset {
         public float x, y, rotationRad, scaleX, scaleY, originX, originY;
     }
 
-    /** zIndex is local to the immediate parent. Effective/global Layer is derived scene state. */
+    /** zIndex is local to the immediate parent; the top-level root must have zero. Effective/global Layer is derived scene state. */
     public static final class EntityIndexData { public int zIndex; }
     public static final class MetaData { public String kind; }
     public static final class IdentityData { public String name; }
@@ -74,7 +79,7 @@ public final class GameObjectAsset {
         public IntArray animationAssetIds = new IntArray();
         public float fps;
         public boolean playing, loop;
-        public float stateTime;
+        public double stateTime;
         public int frame;
         public String currentClip;
     }
@@ -83,14 +88,22 @@ public final class GameObjectAsset {
     }
     public static final class RepeatData { public boolean repeatX, repeatY; }
     public static final class PointLightData {
+        public float height=128f;
+        public int shadowQuality=1,shadowResolution=512;
         public float r, g, b, intensity, radius, falloff;
         public boolean enabled;
     }
     public static final class ConeLightData {
+        public float height=128f;
+        public float inclinationDeg;
+        public int shadowQuality=1,shadowResolution=512;
         public float r, g, b, intensity, radius, coneAngleDeg, rotationDeg, softness, falloff;
         public boolean enabled;
     }
-    public static final class SpatialHeightData { public float altitude, height; }
+    public static final class SpatialHeightData {
+        public float altitude;
+        public games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
+    }
     public static final class PhysicsBodyData {
         public int type;
         public boolean fixedRotation, bullet, allowSleep = true, awake = true;

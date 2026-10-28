@@ -31,7 +31,7 @@ public class SpatialWallGeometryTest {
     }
 
     @Test
-    public void rejectsMalformedOrOutsideFootprintButNotSubCellDimensions() {
+    public void rejectsMalformedGeometryButAllowsFootprintOutsideImageAnchors() {
         TiledMapLayerData map = occupiedMap(4, 4);
         SpatialBlockData wall = linkedWall(1, 1, 1, 1, 2, 2);
         wall.x = 1.2f;
@@ -41,10 +41,10 @@ public class SpatialWallGeometryTest {
         Assert.assertEquals(CoverageValidation.VALID, validate(wall, map));
 
         wall.x = 0.99f;
-        Assert.assertEquals(CoverageValidation.FOOTPRINT_OUTSIDE_LINKED_REGION, validate(wall, map));
+        Assert.assertEquals(CoverageValidation.VALID, validate(wall, map));
         wall.x = 1.2f;
         wall.width = 1.81f;
-        Assert.assertEquals(CoverageValidation.FOOTPRINT_OUTSIDE_LINKED_REGION, validate(wall, map));
+        Assert.assertEquals(CoverageValidation.VALID, validate(wall, map));
         wall.width = Float.NaN;
         Assert.assertEquals(CoverageValidation.INVALID_GEOMETRY, validate(wall, map));
         wall.width = SpatialWallGeometry.GEOMETRY_EPSILON * 0.5f;

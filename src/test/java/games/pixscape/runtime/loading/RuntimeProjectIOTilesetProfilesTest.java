@@ -2,11 +2,11 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
-import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -71,5 +71,33 @@ public class RuntimeProjectIOTilesetProfilesTest {
         }
         dir.deleteOnExit();
         return dir;
+    }
+
+    @Test public void normalsRemainIndexedByAssetAndClearWithRegistry() throws Exception {
+        FileHandle root = new FileHandle(makeTempDir("tile-normals"));
+        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:1,tilesets:["
+                + "{tilesetId:1,tileAssetIds:[2,3,4],normalMaps:[{tileAssetId:2,source:normals/2.png},"
+                + "{tileAssetId:3,source:normals/3.png}]}]}", false);
+        RuntimeTilesetProfiles profiles = RuntimeProjectIO.loadTilesetProfiles(root);
+        Assert.assertEquals("normals/2.png",profiles.normalMapSourceForTileAsset(2));
+        Assert.assertEquals("normals/3.png",profiles.normalMapSourceForTileAsset(3));
+        Assert.assertNull(profiles.normalMapSourceForTileAsset(4));
+        profiles.clear(); Assert.assertNull(profiles.normalMapSourceForTileAsset(2));
+    }
+
+    @Test(expected=GdxRuntimeException.class) public void normalCannotClaimAnotherTile() {
+        FileHandle root = new FileHandle(makeTempDir("invalid-tile-normal"));
+        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:1,tilesets:["
+                + "{tilesetId:1,tileAssetIds:[2],normalMaps:[{tileAssetId:3,source:normals/3.png}]}]}",false);
+        RuntimeProjectIO.loadTilesetProfiles(root);
+    }
+
+    @Test public void invalidNormalMembershipDoesNotPublishPartialIndexes() {
+        RuntimeTilesetProfiles profiles=RuntimeTilesetProfiles.empty();
+        RuntimeTilesetProfile first=new RuntimeTilesetProfile(); first.tilesetId=1; first.tileAssetIds=new int[]{2}; profiles.add(first);
+        RuntimeTilesetProfile second=new RuntimeTilesetProfile(); second.tilesetId=3; second.tileAssetIds=new int[]{4};
+        second.normalMapSources.put(7,"normals/7.png");
+        Assert.assertThrows(IllegalArgumentException.class,()->profiles.add(second));
+        Assert.assertEquals(1,profiles.size()); Assert.assertNull(profiles.profileForTileAsset(4));
     }
 }

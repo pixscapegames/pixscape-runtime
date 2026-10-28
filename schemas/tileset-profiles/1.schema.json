@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/tileset-profiles/1.schema.json",
+  "title": "Pixscape tileset profiles 1",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "pixscape.tileset-profiles"
+    },
+    "version": {
+      "const": 1
+    },
+    "tilesets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tilesetId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "logicalPath": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "tileWidth": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tileHeight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "referenceCellWidth": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "referenceCellHeight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "projection": {
+            "enum": [
+              "orthogonal",
+              "isometric"
+            ]
+          },
+          "anchor": {
+            "type": "string"
+          },
+          "offsetX": {
+            "type": "number"
+          },
+          "offsetY": {
+            "type": "number"
+          },
+          "renderSize": {
+            "type": "string"
+          },
+          "tileAssetIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "tilesets"
+  ]
+}

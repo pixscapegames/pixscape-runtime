@@ -4,6 +4,11 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class VfxRenderStateTest {
+    @Test public void ambientParticipationGrowsAndNeverLeaksIntoReusedSlots() {
+        VfxRenderState state=new VfxRenderState(1);addParticle(state,10);state.ignoreAmbientLighting[0]=true;
+        state.ensureCapacity(2);Assert.assertTrue(state.ignoreAmbientLighting[0]);
+        state.clearFrame();addParticle(state,20);Assert.assertFalse(state.ignoreAmbientLighting[0]);
+    }
 
     @Test
     public void setCapacityAllocatesAllFieldsAndClearsActiveCount() {

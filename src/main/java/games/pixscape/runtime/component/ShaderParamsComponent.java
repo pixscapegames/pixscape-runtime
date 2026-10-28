@@ -4,8 +4,8 @@ import com.artemis.Component;
 import com.badlogic.gdx.utils.Array;
 
 /**
- * Shader parameters per entity.
- * For this first version: only float uniforms (name -> value).
+ * Per-entity float overrides for a registered shader parameter table layout.
+ * Draw-wide uniforms are configured separately by the submit system.
  */
 public class ShaderParamsComponent extends Component {
     public static Array<ShaderFloatParam> newShaderFloatArray() {
@@ -13,7 +13,7 @@ public class ShaderParamsComponent extends Component {
     }
 
     /**
-     * Uniform name -> float value map.
+     * Declared parameter name -> finite float override.
      */
     public Array<ShaderFloatParam> floats = newShaderFloatArray();
 

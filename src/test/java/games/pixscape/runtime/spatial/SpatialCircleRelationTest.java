@@ -4,6 +4,26 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public final class SpatialCircleRelationTest {
+    @Test public void altitudeAndProjectedFootprintMoveTogetherWithoutChangingGroundSide() {
+        SpatialProjectedFaceCache faces=adjacentFaces();
+        faces.faceAltitude[0]=faces.faceAltitude[1]=90;
+        faces.faceHeight[0]=faces.faceHeight[1]=50;
+        SpatialActorCollector actor=actor(.05f,1,.2f);
+        actor.actorHeight[0]=120;
+        SpatialFaceRelationSolver baseline=solve(actor,faces);
+        Assert.assertEquals(2,baseline.actorRelationCount[0]);
+        byte side=baseline.relationType[0];
+        actor.actorHeight[0]=60;actor.actorAltitude[0]=20;actor.actorCircleY[0]=21;
+        Assert.assertEquals(0,solve(actor,faces).actorRelationCount[0]);
+        actor.actorAltitude[0]=100;actor.actorCircleY[0]=101;
+        SpatialFaceRelationSolver raised=solve(actor,faces);
+        Assert.assertEquals(2,raised.actorRelationCount[0]);
+        Assert.assertEquals(side,raised.relationType[0]);
+        Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE,side);
+        actor.actorAltitude[0]=150;actor.actorCircleY[0]=151;
+        Assert.assertEquals(0,solve(actor,faces).actorRelationCount[0]);
+    }
+
     @Test
     public void junctionDiagnosticShowsOnlyCircleOverlapsExpandCoverage() {
         SpatialProjectedFaceCache faces = adjacentFaces();

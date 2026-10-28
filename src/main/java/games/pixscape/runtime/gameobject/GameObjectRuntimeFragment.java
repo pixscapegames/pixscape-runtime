@@ -3,7 +3,7 @@ package games.pixscape.runtime.gameobject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Runtime-serializable real Game Object hierarchy. */
+/** Asset-local hierarchy data for expert Runtime spawning; no scene placement is stored. */
 public final class GameObjectRuntimeFragment {
     public static final int CURRENT_SCHEMA_VERSION = 3;
 

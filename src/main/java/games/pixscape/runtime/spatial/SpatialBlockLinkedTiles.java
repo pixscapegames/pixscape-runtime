@@ -141,65 +141,6 @@ public final class SpatialBlockLinkedTiles {
                 && block.y + block.depth > gy + EPSILON;
     }
 
-    private static boolean segmentIntersectsQuad(float[] segment, float[] quad) {
-        float ax = segment[0];
-        float ay = segment[1];
-        float bx = segment[2];
-        float by = segment[3];
-        if (pointInConvexQuad(lerp(ax, bx, 0.25f), lerp(ay, by, 0.25f), quad)) return true;
-        if (pointInConvexQuad(lerp(ax, bx, 0.5f), lerp(ay, by, 0.5f), quad)) return true;
-        if (pointInConvexQuad(lerp(ax, bx, 0.75f), lerp(ay, by, 0.75f), quad)) return true;
-        for (int i = 0; i < 4; i++) {
-            int j = (i + 1) & 3;
-            if (properSegmentsIntersect(
-                    ax, ay, bx, by,
-                    quad[i * 2], quad[i * 2 + 1],
-                    quad[j * 2], quad[j * 2 + 1])) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static float lerp(float a, float b, float t) {
-        return a + (b - a) * t;
-    }
-
-    private static boolean pointInConvexQuad(float px, float py, float[] quad) {
-        boolean hasPositive = false;
-        boolean hasNegative = false;
-        for (int i = 0; i < 4; i++) {
-            int j = (i + 1) & 3;
-            float cross = orientation(
-                    quad[i * 2], quad[i * 2 + 1],
-                    quad[j * 2], quad[j * 2 + 1],
-                    px, py);
-            if (cross > EPSILON) hasPositive = true;
-            if (cross < -EPSILON) hasNegative = true;
-            if (hasPositive && hasNegative) return false;
-        }
-        return true;
-    }
-
-    private static boolean properSegmentsIntersect(float ax0, float ay0,
-                                                   float ax1, float ay1,
-                                                   float bx0, float by0,
-                                                   float bx1, float by1) {
-        float o1 = orientation(ax0, ay0, ax1, ay1, bx0, by0);
-        float o2 = orientation(ax0, ay0, ax1, ay1, bx1, by1);
-        float o3 = orientation(bx0, by0, bx1, by1, ax0, ay0);
-        float o4 = orientation(bx0, by0, bx1, by1, ax1, ay1);
-        return oppositeSigns(o1, o2) && oppositeSigns(o3, o4);
-    }
-
-    private static float orientation(float ax, float ay, float bx, float by, float cx, float cy) {
-        return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-    }
-
-    private static boolean oppositeSigns(float a, float b) {
-        return (a < -EPSILON && b > EPSILON) || (a > EPSILON && b < -EPSILON);
-    }
-
     public static final class Refs {
         public int count;
         public int[] gx = new int[0];

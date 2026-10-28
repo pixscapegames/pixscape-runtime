@@ -10,8 +10,8 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.AnimationRegistry;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.*;
@@ -317,6 +317,8 @@ public final class WorldConfigFactory {
 
         addRenderPipelineSystems(
                 builder,
+                atlasRuntimeService,
+                tilesetProfiles,
                 camera,
                 dynamicEntityState,
                 vfxState,
@@ -431,6 +433,8 @@ public final class WorldConfigFactory {
 
     private static void addRenderPipelineSystems(
             WorldConfigurationBuilder builder,
+            AtlasRuntimeService atlasRuntimeService,
+            RuntimeTilesetProfiles tilesetProfiles,
             OrthographicCamera worldCamera,
             DynamicEntityRenderState dynamicEntityState,
             VfxRenderState vfxState,
@@ -472,7 +476,8 @@ public final class WorldConfigFactory {
                         dynamicEntityState,
                         tiledState,
                         drawList,
-                        spatialRuntimeRegistry
+                        spatialRuntimeRegistry,
+                        displayOffsetResolver
                 ), systemProfiler),
                 profiled(new RenderExtractFrameQueueSystem(
                         dynamicEntityState,
@@ -489,6 +494,7 @@ public final class WorldConfigFactory {
         );
 
         if (submitSupplier != null) {
+            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue,layerState,atlasRuntimeService));
             builder.with(profiled(submitSupplier.get(), systemProfiler));
         }
     }

@@ -2,12 +2,12 @@ package games.pixscape.runtime.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.animation.AnimationClipDefData;
-import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
@@ -16,6 +16,34 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class AnimationSystemIndexedBindingTest {
+
+    @Test
+    public void savedDemoPlaybackTimeKeepsAdvancingAtHighFrameRate() {
+        MutableAtlas atlas = new MutableAtlas();
+        atlas.assetA = AtlasBindingTestFactory.frames(1, "saved-demo", 11, 10, 16, 16);
+        World world = world(atlas);
+        try {
+            int entity = animatedEntity(world, 1);
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entity);
+            animation.stateTime = 100344.64f;
+            animation.fps = 12f;
+            double initialTime = animation.stateTime;
+            world.setDelta(0.0025f);
+            int changes = 0;
+            for (int i = 0; i < 400; i++) {
+                int previousFrame = animation.frame;
+                world.process();
+                if (animation.frame != previousFrame) changes++;
+                Assert.assertEquals(atlas.assetA.regionAt(animation.frame).getU(),
+                        world.getMapper(TextureRegionComponent.class).get(entity).u1, 0f);
+            }
+            Assert.assertEquals(initialTime + 400 * (double) world.getDelta(),
+                    animation.stateTime, 0.000001);
+            Assert.assertTrue("A playing loop must keep changing frames", changes >= 12);
+        } finally {
+            world.dispose();
+        }
+    }
 
     @Test
     public void usesIndexedFramesAndObservesReloadAndAssetSwitchesWithoutCache() {

@@ -1,0 +1,493 @@
+package games.pixscape.runtime.hud.document;
+
+import com.badlogic.gdx.files.FileHandle;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+
+public class HudDocumentCodecTest {
+    private static final String FIXTURES =
+            "src/test/resources/games/pixscape/runtime/hud/document/v1/";
+
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private final HudDocumentCodec codec = new HudDocumentCodec();
+
+    @Test
+    public void listPayloadRoundTripsWithDuplicateLabelsAndOptionalSelection() {
+        HudNode root = new HudNode("list", HudNodeKind.LIST);
+        root.list = new HudListData();
+        root.list.items.add("Same");
+        root.list.items.add("Same");
+        root.list.required = false;
+        root.list.selectedIndex = -1;
+        root.list.styleName = "compact";
+        root.list.fontAssetId = 42;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.LIST, restored.kind);
+        Assert.assertEquals(root.list.items, restored.list.items);
+        Assert.assertFalse(restored.list.required);
+        Assert.assertEquals(-1, restored.list.selectedIndex);
+        Assert.assertEquals("compact", restored.list.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.list.fontAssetId);
+    }
+
+    private static HudTableLayout table(String cellId, HudNode content, HudCellConstraints constraints) {
+        HudTableCell cell = new HudTableCell();
+        cell.id = cellId;
+        cell.content = content;
+        cell.constraints = constraints;
+        HudTableRow row = new HudTableRow();
+        row.cells.add(cell);
+        HudTableLayout table = new HudTableLayout();
+        table.columns = 1;
+        table.rows.add(row);
+        return table;
+    }
+
+    @Test
+    public void uniformConstraintsAreExplicitAndRoundTrip() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        HudCellConstraints constraints = new HudCellConstraints();
+        root.table = table("cell", null, constraints);
+        String defaults = codec.write(new HudDocumentV1(root));
+        Assert.assertTrue(defaults.contains("\"uniformX\": false"));
+        Assert.assertTrue(defaults.contains("\"uniformY\": false"));
+        Assert.assertFalse(codec.read(defaults).root.table.rows.get(0).cells.get(0).constraints.uniformX);
+        constraints.uniformX = true;
+        constraints.uniformY = true;
+        HudCellConstraints restored = codec.read(codec.write(new HudDocumentV1(root)))
+                .root.table.rows.get(0).cells.get(0).constraints;
+        Assert.assertTrue(restored.uniformX);
+        Assert.assertTrue(restored.uniformY);
+    }
+
+    @Test
+    public void uniformConstraintsRejectMissingNullWrongTypeAndMissingObject() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        root.table = table("cell", null, new HudCellConstraints());
+        String valid = codec.write(new HudDocumentV1(root));
+        for (String field : new String[]{"uniformX", "uniformY"}) {
+            rejected(valid.replace("\"" + field + "\": false,", ""),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+            rejected(valid.replace("\"" + field + "\": false", "\"" + field + "\": null"),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+            rejected(valid.replace("\"" + field + "\": false", "\"" + field + "\": 1"),
+                    HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+        }
+        rejected(valid.replaceFirst(",?\\s*\\\"constraints\\\"\\s*:\\s*\\{[^}]*}", ""),
+                HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    @Test
+    public void initialNodeVisibilityDefaultsOnAndRoundTripsOff() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode hidden = new HudNode("hidden", HudNodeKind.GROUP);
+        hidden.visible = false;
+        root.children.add(HudChild.free(hidden, new HudFreePlacement()));
+
+        Assert.assertTrue(root.visible);
+        String json = codec.write(new HudDocumentV1(root));
+        Assert.assertTrue(json.contains("\"visible\": false"));
+        HudNode restored = codec.read(json).root;
+        Assert.assertTrue(restored.visible);
+        Assert.assertFalse(restored.children.get(0).node.visible);
+    }
+
+    @Test
+    public void windowPayloadAndCellChildRoundTrip() {
+        HudNode root = new HudNode("window", HudNodeKind.WINDOW);
+        root.window = new HudWindowData();
+        root.window.title = "Inventory";
+        root.window.styleName = "panel";
+        root.window.fontAssetId = 42;
+        root.window.resizable = true;
+        root.window.modal = true;
+        root.window.keepWithinStage = false;
+        HudNode child = new HudNode("content", HudNodeKind.TABLE);
+        root.table = table("cell-content", child, new HudCellConstraints());
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+
+        Assert.assertEquals(HudNodeKind.WINDOW, restored.kind);
+        Assert.assertEquals("Inventory", restored.window.title);
+        Assert.assertEquals("panel", restored.window.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.window.fontAssetId);
+        Assert.assertTrue(restored.window.resizable);
+        Assert.assertTrue(restored.window.modal);
+        Assert.assertFalse(restored.window.keepWithinStage);
+        Assert.assertEquals("content", restored.table.rows.get(0).cells.get(0).content.id);
+    }
+
+    @Test
+    public void dialogPayloadAndButtonAssociationRoundTrip() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialog = new HudNode("dialog", HudNodeKind.DIALOG);
+        dialog.dialog = new HudDialogData();
+        dialog.dialog.title = "Settings";
+        dialog.dialog.styleName = "panel";
+        dialog.dialog.fontAssetId = 42;
+        dialog.visible = false;
+        dialog.table = table("cell-content", new HudNode("content", HudNodeKind.TABLE),
+                new HudCellConstraints());
+        HudNode result = new HudNode("confirm", HudNodeKind.TEXT_BUTTON);
+        result.textButton = new HudTextButtonData();
+        result.textButton.text = "Valider";
+        dialog.dialog.resultButtons.add(new HudDialogResultButton(result, "confirm", true));
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Open";
+        button.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
+        root.children.add(HudChild.free(button, new HudFreePlacement()));
+        root.children.add(HudChild.free(dialog, new HudFreePlacement()));
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.DIALOG, restored.children.get(1).node.kind);
+        Assert.assertEquals("Settings", restored.children.get(1).node.dialog.title);
+        Assert.assertTrue(restored.children.get(1).node.dialog.modal);
+        Assert.assertFalse(restored.children.get(1).node.visible);
+        Assert.assertEquals("panel", restored.children.get(1).node.dialog.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.children.get(1).node.dialog.fontAssetId);
+        Assert.assertEquals("content", restored.children.get(1).node.table.rows.get(0).cells.get(0).content.id);
+        Assert.assertEquals("confirm", restored.children.get(1).node.dialog.resultButtons.get(0).resultId);
+        Assert.assertEquals("Valider", restored.children.get(1).node.dialog.resultButtons.get(0).button.textButton.text);
+        Assert.assertTrue(restored.children.get(1).node.dialog.resultButtons.get(0).closeAfterActivation);
+        Assert.assertEquals("dialog", restored.children.get(0).node.windowActions.get(0).targetId);
+        Assert.assertEquals(HudWindowActionKind.SHOW,
+                restored.children.get(0).node.windowActions.get(0).action);
+    }
+
+    @Test
+    public void optionalTooltipRoundTripsWithoutChangingNodeKind() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        root.tooltip = new HudTooltipData();
+        root.tooltip.text = "First line\nSecond line";
+        root.tooltip.styleName = "hint";
+        root.tooltip.fontAssetId = 42;
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+        Assert.assertEquals(HudNodeKind.GROUP, restored.kind);
+        Assert.assertEquals(root.tooltip.text, restored.tooltip.text);
+        Assert.assertEquals("hint", restored.tooltip.styleName);
+        Assert.assertEquals(Integer.valueOf(42), restored.tooltip.fontAssetId);
+        root.tooltip = null;
+        Assert.assertNull(codec.read(codec.write(new HudDocumentV1(root))).root.tooltip);
+    }
+
+    @Test
+    public void readsPositiveFixture() {
+        HudDocumentV1 document = codec.read(fixture("managed-table.json"));
+
+        Assert.assertEquals(HudDocumentV1.CURRENT_SCHEMA_VERSION, document.schemaVersion);
+        Assert.assertEquals("screen", document.root.id);
+        Assert.assertEquals(HudNodeKind.TABLE, document.root.kind);
+    }
+
+    @Test
+    public void canonicalJsonRoundTripPreservesStableTokensAndOrder() {
+        HudDocumentV1 source = codec.read(fixture("free-layout.json"));
+
+        String first = codec.write(source);
+        String second = codec.write(source);
+        HudDocumentV1 restored = codec.read(first);
+
+        Assert.assertEquals(first, second);
+        Assert.assertTrue(first.contains("\"kind\": \"GROUP\""));
+        Assert.assertTrue(first.contains("\"placementKind\": \"FREE\""));
+        Assert.assertFalse(first.contains("\"class\""));
+        Assert.assertEquals("top-left", restored.root.children.get(0).node.id);
+        Assert.assertEquals("bottom-right", restored.root.children.get(2).node.id);
+    }
+
+    @Test
+    public void fileWriterAndReaderRoundTrip() throws Exception {
+        HudDocumentV1 source = codec.read(fixture("stack.json"));
+        File target = temporaryFolder.newFolder("nested").toPath()
+                .resolve("screen.json").toFile();
+
+        codec.write(new FileHandle(target), source);
+        HudDocumentV1 restored = codec.read(new FileHandle(target));
+
+        Assert.assertEquals("overlay", restored.root.id);
+        Assert.assertEquals(2, restored.root.children.size());
+    }
+
+    @Test
+    public void imageButtonRoundTripPreservesOptionalNativeStateReferences() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_BUTTON);
+        button.imageButton = new HudImageButtonData();
+        button.imageButton.imageUp = image("up");
+        button.imageButton.imageCheckedOver = image("checked-over");
+
+        HudDocumentV1 restored = codec.read(codec.write(new HudDocumentV1(button)));
+
+        Assert.assertEquals(HudNodeKind.IMAGE_BUTTON, restored.root.kind);
+        Assert.assertEquals("up", restored.root.imageButton.imageUp.resourceName);
+        Assert.assertNull(restored.root.imageButton.imageDown);
+        Assert.assertEquals("checked-over", restored.root.imageButton.imageCheckedOver.resourceName);
+    }
+
+    @Test
+    public void imageTextButtonRoundTripPreservesTypedTextFontStyleAndStateReferences() {
+        HudNode button = new HudNode("button", HudNodeKind.IMAGE_TEXT_BUTTON);
+        button.imageTextButton = new HudImageTextButtonData();
+        button.imageTextButton.text = "Play";
+        button.imageTextButton.styleName = "primary";
+        button.imageTextButton.fontAssetId = 24;
+        button.imageTextButton.imageUp = image("up");
+        button.imageTextButton.imageCheckedOver = image("checked-over");
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(button))).root;
+
+        Assert.assertEquals(HudNodeKind.IMAGE_TEXT_BUTTON, restored.kind);
+        Assert.assertEquals("Play", restored.imageTextButton.text);
+        Assert.assertEquals("primary", restored.imageTextButton.styleName);
+        Assert.assertEquals(Integer.valueOf(24), restored.imageTextButton.fontAssetId);
+        Assert.assertEquals("up", restored.imageTextButton.imageUp.resourceName);
+        Assert.assertEquals("checked-over", restored.imageTextButton.imageCheckedOver.resourceName);
+    }
+
+    @Test
+    public void textFieldRoundTripPreservesAuthoredInitialValues() {
+        HudNode field = new HudNode("name", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.text = "Ada";
+        field.textField.messageText = "Name";
+        field.textField.styleName = "compact";
+        field.textField.maxLength = 24;
+        field.textField.passwordMode = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(field))).root;
+
+        Assert.assertEquals(HudNodeKind.TEXT_FIELD, restored.kind);
+        Assert.assertEquals("Ada", restored.textField.text);
+        Assert.assertEquals("Name", restored.textField.messageText);
+        Assert.assertEquals("compact", restored.textField.styleName);
+        Assert.assertEquals(24, restored.textField.maxLength);
+        Assert.assertTrue(restored.textField.passwordMode);
+    }
+
+    @Test
+    public void labelRoundTripPreservesOptionalBitmapFontAssetIdentity() {
+        HudNode label = new HudNode("title", HudNodeKind.LABEL);
+        label.label = new HudLabelData();
+        label.label.text = "Title";
+        label.label.fontAssetId = 73;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(label))).root;
+
+        Assert.assertEquals(Integer.valueOf(73), restored.label.fontAssetId);
+    }
+
+    @Test
+    public void textraLabelRoundTripPreservesAuthoredBitmapStateOnly() {
+        HudNode label = new HudNode("dialogue", HudNodeKind.TEXTRA_LABEL);
+        label.textraLabel = new HudTextraLabelData();
+        label.textraLabel.text = "{WAVE}Hello{ENDWAVE}";
+        label.textraLabel.styleName = "dialogue";
+        label.textraLabel.fontAssetId = 75;
+        label.textraLabel.typingEnabled = true;
+
+        String serialized = codec.write(new HudDocumentV1(label));
+        HudNode restored = codec.read(serialized).root;
+
+        Assert.assertEquals(HudNodeKind.TEXTRA_LABEL, restored.kind);
+        Assert.assertEquals("{WAVE}Hello{ENDWAVE}", restored.textraLabel.text);
+        Assert.assertEquals("dialogue", restored.textraLabel.styleName);
+        Assert.assertEquals(Integer.valueOf(75), restored.textraLabel.fontAssetId);
+        Assert.assertTrue(restored.textraLabel.typingEnabled);
+        Assert.assertFalse(serialized.contains("elapsed"));
+    }
+
+    @Test
+    public void nativeTextWidgetRoundTripPreservesBitmapFontOverrides() {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Button";
+        button.textButton.fontAssetId = 71;
+        HudNode check = new HudNode("check", HudNodeKind.CHECK_BOX);
+        check.checkBox = new HudCheckBoxData();
+        check.checkBox.fontAssetId = 72;
+        HudNode field = new HudNode("field", HudNodeKind.TEXT_FIELD);
+        field.textField = new HudTextFieldData();
+        field.textField.fontAssetId = 73;
+        HudNode select = new HudNode("select", HudNodeKind.SELECT_BOX);
+        select.selectBox = new HudSelectBoxData();
+        select.selectBox.fontAssetId = 74;
+        root.children.add(HudChild.direct(button));
+        root.children.add(HudChild.direct(check));
+        root.children.add(HudChild.direct(field));
+        root.children.add(HudChild.direct(select));
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(root))).root;
+
+        Assert.assertEquals(Integer.valueOf(71), restored.children.get(0).node.textButton.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(72), restored.children.get(1).node.checkBox.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(73), restored.children.get(2).node.textField.fontAssetId);
+        Assert.assertEquals(Integer.valueOf(74), restored.children.get(3).node.selectBox.fontAssetId);
+    }
+
+    @Test
+    public void sliderRoundTripPreservesAuthoredNativeState() {
+        HudNode slider = new HudNode("volume", HudNodeKind.SLIDER);
+        slider.slider = new HudSliderData();
+        slider.slider.orientation = HudSliderOrientation.VERTICAL;
+        slider.slider.min = -10f;
+        slider.slider.max = 10f;
+        slider.slider.stepSize = 0.5f;
+        slider.slider.value = 3.25f;
+        slider.slider.styleName = "compact";
+        slider.slider.disabled = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(slider))).root;
+
+        Assert.assertEquals(HudNodeKind.SLIDER, restored.kind);
+        Assert.assertEquals(HudSliderOrientation.VERTICAL, restored.slider.orientation);
+        Assert.assertEquals(-10f, restored.slider.min, 0f);
+        Assert.assertEquals(10f, restored.slider.max, 0f);
+        Assert.assertEquals(0.5f, restored.slider.stepSize, 0f);
+        Assert.assertEquals(3.25f, restored.slider.value, 0f);
+        Assert.assertEquals("compact", restored.slider.styleName);
+        Assert.assertTrue(restored.slider.disabled);
+    }
+
+    @Test
+    public void progressBarRoundTripPreservesAuthoredNativeState() {
+        HudNode progressBar = new HudNode("progress", HudNodeKind.PROGRESS_BAR);
+        progressBar.progressBar = new HudProgressBarData();
+        progressBar.progressBar.orientation = HudSliderOrientation.VERTICAL;
+        progressBar.progressBar.min = -10f;
+        progressBar.progressBar.max = 10f;
+        progressBar.progressBar.stepSize = .125f;
+        progressBar.progressBar.value = 3.25f;
+        progressBar.progressBar.styleName = "compact";
+        progressBar.progressBar.disabled = true;
+
+        HudNode restored = codec.read(codec.write(new HudDocumentV1(progressBar))).root;
+
+        Assert.assertEquals(HudNodeKind.PROGRESS_BAR, restored.kind);
+        Assert.assertEquals(HudSliderOrientation.VERTICAL, restored.progressBar.orientation);
+        Assert.assertEquals(-10f, restored.progressBar.min, 0f);
+        Assert.assertEquals(10f, restored.progressBar.max, 0f);
+        Assert.assertEquals(.125f, restored.progressBar.stepSize, 0f);
+        Assert.assertEquals(3.25f, restored.progressBar.value, 0f);
+        Assert.assertEquals("compact", restored.progressBar.styleName);
+        Assert.assertTrue(restored.progressBar.disabled);
+    }
+
+    @Test
+    public void scrollPaneRoundTripPreservesOnlyAuthoredConfiguration() {
+        HudNode pane = new HudNode("scroll", HudNodeKind.SCROLL_PANE);
+        pane.scrollPane = new HudScrollPaneData();
+        pane.scrollPane.styleName = "compact";
+        pane.scrollPane.scrollingDisabledX = true;
+        pane.scrollPane.scrollingDisabledY = true;
+        pane.scrollPane.fadeScrollBars = false;
+        pane.scrollPane.flickScroll = false;
+        pane.scrollPane.smoothScrolling = false;
+        pane.scrollPane.overscrollX = false;
+        pane.scrollPane.overscrollY = false;
+
+        String json = codec.write(new HudDocumentV1(pane));
+        HudNode restored = codec.read(json).root;
+
+        Assert.assertEquals(HudNodeKind.SCROLL_PANE, restored.kind);
+        Assert.assertEquals("compact", restored.scrollPane.styleName);
+        Assert.assertTrue(restored.scrollPane.scrollingDisabledX);
+        Assert.assertTrue(restored.scrollPane.scrollingDisabledY);
+        Assert.assertFalse(restored.scrollPane.fadeScrollBars);
+        Assert.assertFalse(restored.scrollPane.flickScroll);
+        Assert.assertFalse(restored.scrollPane.smoothScrolling);
+        Assert.assertFalse(restored.scrollPane.overscrollX);
+        Assert.assertFalse(restored.scrollPane.overscrollY);
+        Assert.assertFalse(json.contains("\"scrollX\""));
+        Assert.assertFalse(json.contains("\"scrollY\""));
+        Assert.assertFalse(json.contains("\"velocityX\""));
+        Assert.assertFalse(json.contains("\"velocityY\""));
+    }
+
+    private static HudImageData image(String resourceName) {
+        HudImageData image = new HudImageData();
+        image.resourceName = resourceName;
+        return image;
+    }
+
+    @Test
+    public void unsupportedSchemaHasTypedLoadFailure() {
+        rejected(fixture("invalid-unsupported-schema.json"),
+                HudDocumentLoadCode.UNSUPPORTED_SCHEMA_VERSION);
+    }
+
+    @Test
+    public void schemaOneIsExplicitlyRejectedWithoutMigration() {
+        rejected("{\"schemaVersion\":1,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}",
+                HudDocumentLoadCode.UNSUPPORTED_SCHEMA_VERSION);
+    }
+
+    @Test
+    public void missingSchemaHasTypedLoadFailure() {
+        rejected("{\"root\":null}", HudDocumentLoadCode.MISSING_SCHEMA_VERSION);
+    }
+
+    @Test
+    public void nonIntegerSchemaHasTypedDeserializationFailure() {
+        rejected("{\"schemaVersion\":1.5,\"root\":null}",
+                HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    @Test
+    public void malformedJsonHasTypedLoadFailure() {
+        rejected("{\"schemaVersion\":1,", HudDocumentLoadCode.MALFORMED_JSON);
+    }
+
+    @Test
+    public void nonObjectJsonHasTypedLoadFailure() {
+        rejected("[]", HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    @Test
+    public void unknownNodeKindHasTypedDeserializationFailure() {
+        rejected(fixture("invalid-unknown-node-kind.json"),
+                HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    @Test
+    public void unknownPlacementKindHasTypedDeserializationFailure() {
+        String json = "{\"schemaVersion\":2,\"root\":{"
+                + "\"id\":\"root\",\"kind\":\"STACK\",\"children\":[{"
+                + "\"placementKind\":\"MAGIC\",\"node\":{"
+                + "\"id\":\"label\",\"kind\":\"LABEL\","
+                + "\"label\":{\"text\":\"x\",\"styleName\":\"hud-body\"}}}]}}";
+
+        rejected(json, HudDocumentLoadCode.DESERIALIZATION_FAILURE);
+    }
+
+    private void rejected(FileHandle file, HudDocumentLoadCode expectedCode) {
+        try {
+            codec.read(file);
+            Assert.fail("Expected HUD load failure " + expectedCode + ".");
+        } catch (HudDocumentLoadException expected) {
+            Assert.assertEquals(expectedCode, expected.code());
+            Assert.assertEquals(file.path(), expected.source());
+        }
+    }
+
+    private void rejected(String json, HudDocumentLoadCode expectedCode) {
+        try {
+            codec.read(json);
+            Assert.fail("Expected HUD load failure " + expectedCode + ".");
+        } catch (HudDocumentLoadException expected) {
+            Assert.assertEquals(expectedCode, expected.code());
+            Assert.assertEquals("<memory>", expected.source());
+        }
+    }
+
+    private static FileHandle fixture(String name) {
+        return new FileHandle(FIXTURES + name);
+    }
+}

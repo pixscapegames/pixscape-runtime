@@ -84,6 +84,18 @@ public final class TextureRegistry {
         return idNew;
     }
 
+    /**
+     * Returns the existing handle for {@code texture} without registering it.
+     *
+     * <p>This lookup is safe for render submission: an absent texture returns
+     * {@link #INVALID_HANDLE} and does not change registry state.</p>
+     */
+    public static int findHandle(Texture texture) {
+        if (texture == null) return INVALID_HANDLE;
+        Integer handle = tex2id.get(texture);
+        return handle != null ? handle : INVALID_HANDLE;
+    }
+
     public static Texture getByHandle(int handle) {
         int idx = handle - 1;
         if (idx < 0 || idx >= id2tex.size) return null;
@@ -94,5 +106,11 @@ public final class TextureRegistry {
         tex2id.clear();
         id2tex.clear();
         nextId = 2;
+    }
+    /** Lifecycle boundary only; releases the object reference without recycling its handle. */
+    public static void release(Texture texture) {
+        if (findHandle(texture) == WHITE_HANDLE) return;
+        Integer handle=tex2id.remove(texture);
+        if(handle!=null && handle!=WHITE_HANDLE && handle-1<id2tex.size)id2tex.set(handle-1,null);
     }
 }

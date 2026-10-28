@@ -27,6 +27,8 @@ public final class TiledLayerComponent extends PooledComponent {
     public boolean spatialEnabled = false;
     public float defaultTileAltitude = 0f;
     public float defaultTileHeight = 0f;
+    public com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions =
+            new com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription>();
 
     // -------------------------
     // Sparse persistent storage
@@ -149,5 +151,6 @@ public final class TiledLayerComponent extends PooledComponent {
         spatialEnabled = false;
         defaultTileAltitude = 0f;
         defaultTileHeight = 0f;
+        lightingDescriptions.clear();
     }
 }

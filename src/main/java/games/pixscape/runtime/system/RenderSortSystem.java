@@ -147,7 +147,9 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             }
             int start = tiledState.visibleMapRefStart(source);
             int refCount = tiledState.visibleMapRefCount(source);
-            sortTiledRefSlice(visibleRefs, start, refCount);
+            TiledRenderOrder prepared = tiledState.visibleMapPreparedOrder(source);
+            if (prepared != null && prepared.isPrepared()) prepared.filterVisible(tiledState, visibleRefs, start, refCount);
+            else sortTiledRefSlice(visibleRefs, start, refCount);
             for (int refOffset = 0; refOffset < refCount; refOffset++) {
                 int ref = visibleRefs[start + refOffset];
                 if (tiledState.isRenderableRef(ref)) drawList.addTiledSlot(ref);
@@ -197,29 +199,7 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         if (refs == null || refCount <= 1) return;
         ensureTiledTmpCapacity(refCount);
 
-        for (int pass = 0; pass < 8; pass++) {
-            int shift = pass * 8;
-            for (int i = 0; i < 256; i++) count[i] = 0;
-
-            for (int i = 0; i < refCount; i++) {
-                long key = tiledState.sortKey[refs[start + i]];
-                count[(int) ((key >>> shift) & 0xFFL)]++;
-            }
-
-            int sum = 0;
-            for (int bucket = 0; bucket < 256; bucket++) {
-                int bucketCount = count[bucket];
-                count[bucket] = sum;
-                sum += bucketCount;
-            }
-
-            for (int i = 0; i < refCount; i++) {
-                int ref = refs[start + i];
-                long key = tiledState.sortKey[ref];
-                tmpTiledRefs[count[(int) ((key >>> shift) & 0xFFL)]++] = ref;
-            }
-            System.arraycopy(tmpTiledRefs, 0, refs, start, refCount);
-        }
+        TiledRenderOrder.sortRefs(tiledState, refs, start, refCount, tmpTiledRefs, count);
     }
 
     private void sortFlatDrawList() {

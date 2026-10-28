@@ -25,8 +25,10 @@ dependencies {
   api "net.onedaybeard.artemis:artemis-odb:${artemisOdbVersion}"
   api "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}"
   api "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
+  api "com.github.tommyettinger:textratypist:2.5.0"
 
   testImplementation "junit:junit:${junitVersion}"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
 
   testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
   testRuntimeOnly "com.badlogicgames.gdx:gdx-box2d-platform:${gdxVersion}:natives-desktop"
@@ -34,6 +36,58 @@ dependencies {
 
 tasks.named('test', Test).configure {
   useJUnit()
+  exclude '**/HudMaterializerGlSmokeTest.class'
+  exclude '**/TextraHudBatchGlPrototypeTest.class'
+  exclude '**/ShaderParameterBatchGlSmokeTest.class'
+  exclude '**/WorldLightCompositionGlSmokeTest.class'
+  exclude '**/NormalMapGlSmokeTest.class'
+  exclude '**/AmbientContributionGlSmokeTest.class'
+  exclude '**/AmbientContributionOptimizationGlTest.class'
+  exclude '**/LightingInfluenceBoundsGlTest.class'
+}
+
+tasks.register('hudGlSmoke', Test) {
+  description = 'Runs the real desktop GL30 HUD integration smoke.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/HudMaterializerGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('lightCompositionGlSmoke', Test) {
+  description = 'Runs ordered world light composition in a real desktop GL context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/WorldLightCompositionGlSmokeTest.class'
+  include '**/NormalMapGlSmokeTest.class'
+  include '**/AmbientContributionGlSmokeTest.class'
+  include '**/AmbientContributionOptimizationGlTest.class'
+  include '**/LightingInfluenceBoundsGlTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('textraHudGlPrototype', Test) {
+  description = 'Runs the TextraTypist 2.5.0 prototype through the real desktop HudBatch.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/TextraHudBatchGlPrototypeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('shaderParameterGlSmoke', Test) {
+  description = 'Runs the shader parameter table through a real desktop GL30 context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/ShaderParameterBatchGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
 }
 
 tasks.named('compileJava', JavaCompile).configure {

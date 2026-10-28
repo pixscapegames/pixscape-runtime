@@ -1,0 +1,619 @@
+package games.pixscape.runtime.hud;
+
+import com.badlogic.gdx.*;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentValidator;
+import games.pixscape.runtime.hud.document.HudValidationResult;
+import games.pixscape.runtime.render.InternalTextures;
+import games.pixscape.runtime.service.TextureRegistry;
+import org.junit.*;
+import org.junit.rules.TemporaryFolder;
+
+import java.lang.reflect.Proxy;
+import java.nio.IntBuffer;
+
+public class HudSessionTest {
+    private static final String[] ATTRIBUTES = {
+            "a_position", "a_color", "a_texCoord0", "a_layer"
+    };
+    private static final String[] UNIFORMS = {"u_projTrans", "u_array"};
+
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private Application previousApp;
+    private GL20 previousGl;
+    private GL20 previousGl20;
+    private GL30 previousGl30;
+    private Graphics previousGraphics;
+    private Files previousFiles;
+    private Input previousInput;
+    private int deletedBuffers;
+    private int deletedTextures;
+    private int deletedPrograms;
+    private int viewportApplications;
+    private final int[] lastViewport = new int[4];
+
+    @BeforeClass
+    public static void loadNatives() {
+        GdxNativesLoader.load();
+    }
+
+    @Before
+    public void installLibGdxProxies() {
+        previousApp = Gdx.app;
+        previousGl = Gdx.gl;
+        previousGl20 = Gdx.gl20;
+        previousGl30 = Gdx.gl30;
+        previousGraphics = Gdx.graphics;
+        previousFiles = Gdx.files;
+        previousInput = Gdx.input;
+
+        Gdx.app = (Application) Proxy.newProxyInstance(
+                Application.class.getClassLoader(), new Class<?>[]{Application.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        Gdx.input = (Input) Proxy.newProxyInstance(
+                Input.class.getClassLoader(), new Class<?>[]{Input.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        int[] nextHandle = {1};
+        GL30 gl = (GL30) Proxy.newProxyInstance(
+                GL30.class.getClassLoader(), new Class<?>[]{GL30.class},
+                (proxy, method, args) -> glValue(
+                        method.getName(), args, method.getReturnType(), nextHandle));
+        Gdx.gl = gl;
+        Gdx.gl20 = gl;
+        Gdx.gl30 = gl;
+        Gdx.graphics = (Graphics) Proxy.newProxyInstance(
+                Graphics.class.getClassLoader(), new Class<?>[]{Graphics.class},
+                (proxy, method, args) -> {
+                    if ("getWidth".equals(method.getName())
+                            || "getBackBufferWidth".equals(method.getName())) return 1920;
+                    if ("getHeight".equals(method.getName())
+                            || "getBackBufferHeight".equals(method.getName())) return 1080;
+                    return defaultValue(method.getReturnType());
+                });
+        Gdx.files = (Files) Proxy.newProxyInstance(
+                Files.class.getClassLoader(), new Class<?>[]{Files.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType()));
+        TextureRegistry.clear();
+        InternalTextures.dispose();
+    }
+
+    @After
+    public void restoreLibGdx() {
+        InternalTextures.dispose();
+        TextureRegistry.clear();
+        Gdx.app = previousApp;
+        Gdx.gl = previousGl;
+        Gdx.gl20 = previousGl20;
+        Gdx.gl30 = previousGl30;
+        Gdx.graphics = previousGraphics;
+        Gdx.files = previousFiles;
+        Gdx.input = previousInput;
+    }
+
+    @Test
+    public void resourceFreeSessionDrawsEmptyStageAndRejectsTexturedSubmission() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder("resource-free-session"));
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/resource-free.json";
+        HudResourceRequirements requirements = HudResourcesTest.requirementsFor(
+                "{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}");
+        HudResources resources = HudResources.prepareStandalone(asset, root, requirements);
+        ShaderProgram shader = shader();
+        HudSession session = HudSession.create(asset, resources, shader);
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        try {
+            Assert.assertNull(session.hudBatch().getTextureArrayBundle());
+            session.act(0f);
+            session.draw();
+
+            session.hudBatch().begin();
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class,
+                    () -> session.hudBatch().draw(texture, 0f, 0f));
+            Assert.assertEquals(
+                    "HudBatch has no active HUD texture-array bundle.", failure.getMessage());
+            session.hudBatch().end();
+        } finally {
+            texture.dispose();
+            session.dispose();
+            resources.dispose();
+            shader.dispose();
+        }
+    }
+
+    @Test
+    public void constructionUsesUnscaledViewportHudBatchAndBorrowedBundle() throws Exception {
+        Prepared prepared = prepare();
+        HudScreenAsset asset = prepared.asset;
+        HudSession session = HudSession.create(asset, prepared.resources, prepared.shader);
+        try {
+            Assert.assertTrue(session.viewport() instanceof ScreenViewport);
+            Assert.assertEquals(1920f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(1080f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertSame(session.hudBatch(), session.stage().getBatch());
+            Assert.assertSame(session.viewport(), session.stage().getViewport());
+            Assert.assertSame(prepared.resources.textureArrayBundle(),
+                    session.hudBatch().getTextureArrayBundle());
+            Assert.assertEquals(0, session.stage().getActors().size);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void actAdvancesARealScene2dActor() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        CountingActor actor = new CountingActor();
+        session.stage().addActor(actor);
+        try {
+            session.act(0.25f);
+            Assert.assertEquals(0.25f, actor.elapsed, 0f);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void realStageDispatchesKeyboardInputToFocusedNativeTextField() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        HudSelectedResources selected = prepared.resources.select("ui/game.json");
+        TextField.TextFieldStyle style = HudBuiltInTextFieldStyle.create(
+                prepared.resources.atlas().findRegion(HudBuiltInTextFieldStyle.BACKGROUND_REGION),
+                selected.skin().get("hud-primary",
+                        com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class).font);
+        TextField first = new TextField("", style);
+        first.setOnlyFontChars(false);
+        first.setMaxLength(2);
+        TextField second = new TextField("", style);
+        second.setOnlyFontChars(false);
+        session.stage().addActor(first);
+        session.stage().addActor(second);
+        try {
+            session.stage().setKeyboardFocus(first);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.A);
+            Assert.assertTrue(session.stage().keyTyped('a'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.A);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.B);
+            Assert.assertTrue(session.stage().keyTyped('b'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.B);
+            session.stage().keyDown(com.badlogic.gdx.Input.Keys.C);
+            Assert.assertTrue(session.stage().keyTyped('c'));
+            session.stage().keyUp(com.badlogic.gdx.Input.Keys.C);
+            Assert.assertEquals("ab", first.getText());
+
+            session.stage().setKeyboardFocus(second);
+            Assert.assertSame(second, session.stage().getKeyboardFocus());
+            Assert.assertEquals("", second.getText());
+            Assert.assertEquals("ab", first.getText());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void resizeChangesLogicalSurfaceAndCentersCameraAcrossAspectRatios() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            assertResize(session, 1920, 1080);
+            assertResize(session, 1280, 720);
+            assertResize(session, 3440, 1440);
+            Assert.assertEquals(3440, session.viewport().getScreenWidth());
+            Assert.assertEquals(0, session.viewport().getScreenX());
+            assertResize(session, 1080, 1920);
+            Assert.assertEquals(1080, session.viewport().getScreenWidth());
+            Assert.assertEquals(1920, session.viewport().getScreenHeight());
+            Assert.assertThrows(IllegalArgumentException.class, () -> session.resize(0, 1080));
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void unscaledResizeChangesVisibleExtentWithoutFittingTheHud() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("mixed-layout.json", prepared.resources);
+        try {
+            session.install(hud);
+            session.resizeUnscaled(40, 25, 800, 450);
+            Vector2 firstLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 firstRight = session.viewport().project(new Vector2(960f, 540f));
+            Assert.assertEquals(800f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(450f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(800f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(450f, hud.root().getHeight(), 0f);
+
+            session.resizeUnscaled(60, 35, 600, 320);
+            Vector2 secondLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 secondRight = session.viewport().project(new Vector2(960f, 540f));
+
+            Assert.assertEquals(600f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(320f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(300f, session.viewport().getCamera().position.x, 0f);
+            Assert.assertEquals(160f, session.viewport().getCamera().position.y, 0f);
+            Assert.assertEquals(100f, firstRight.x - firstLeft.x, 0.001f);
+            Assert.assertEquals(100f, secondRight.x - secondLeft.x, 0.001f);
+            Assert.assertEquals(600, session.viewport().getScreenWidth());
+            Assert.assertEquals(320, session.viewport().getScreenHeight());
+
+            session.resizeUnscaled(80, 45, 1000, 600);
+            Vector2 expandedLeft = session.viewport().project(new Vector2(860f, 540f));
+            Vector2 expandedRight = session.viewport().project(new Vector2(960f, 540f));
+            Assert.assertEquals(100f, expandedRight.x - expandedLeft.x, 0.001f);
+            Assert.assertEquals(1000, session.viewport().getScreenWidth());
+            Assert.assertEquals(600, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void disposeOwnsBatchExactlyOnceButLeavesResourcesAndShaderBorrowed() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        int texturesBefore = deletedTextures;
+        int programsBefore = deletedPrograms;
+
+        session.dispose();
+        int buffersAfterFirst = deletedBuffers;
+        session.dispose();
+
+        Assert.assertTrue(session.isDisposed());
+        Assert.assertTrue("HudBatch mesh buffers must be disposed", buffersAfterFirst > 0);
+        Assert.assertEquals(buffersAfterFirst, deletedBuffers);
+        Assert.assertEquals(texturesBefore, deletedTextures);
+        Assert.assertEquals(programsBefore, deletedPrograms);
+        Assert.assertFalse(prepared.resources.isDisposed());
+        Assert.assertTrue(prepared.shader.isCompiled());
+
+        prepared.dispose();
+    }
+
+    @Test
+    public void disposedResourcesAndUseAfterDisposeFailClearly() throws Exception {
+        Prepared disposedPrepared = prepare();
+        disposedPrepared.resources.dispose();
+        IllegalStateException constructionFailure = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> HudSession.create(
+                        disposedPrepared.asset, disposedPrepared.resources, disposedPrepared.shader));
+        Assert.assertEquals("HudResources has been disposed.", constructionFailure.getMessage());
+        disposedPrepared.shader.dispose();
+
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        session.dispose();
+        try {
+            assertDisposed(() -> session.act(0f));
+            assertDisposed(session::draw);
+            assertDisposed(() -> session.resize(1920, 1080));
+            assertDisposed(session::stage);
+        } finally {
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void externallyDisposedBorrowedResourcesFailFastWhileSessionLives() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        prepared.resources.dispose();
+        try {
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class, session::draw);
+            Assert.assertEquals(
+                    "Borrowed HudResources was disposed while HudSession is still active.",
+                    failure.getMessage());
+        } finally {
+            session.dispose();
+            prepared.shader.dispose();
+        }
+    }
+
+    @Test
+    public void installsMaterializedTreeAtAvailableSizeAndRelayoutsWithoutRematerializing()
+            throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("mixed-layout.json", prepared.resources);
+        try {
+            session.install(hud);
+            Assert.assertEquals(1, session.stage().getActors().size);
+            Assert.assertSame(hud.root(), session.stage().getActors().first());
+            Assert.assertEquals(1920f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(1080f, hud.root().getHeight(), 0f);
+            Assert.assertEquals(1528f, hud.actor("objective").getX(), 0.001f);
+            Assert.assertEquals(976f, hud.actor("objective").getY(), 0.001f);
+
+            hud.root().setSize(1000f, 500f);
+            session.resize(1280, 720);
+            Assert.assertSame(hud.root(), session.stage().getActors().first());
+            Assert.assertEquals(1280f, hud.root().getWidth(), 0f);
+            Assert.assertEquals(720f, hud.root().getHeight(), 0f);
+            Assert.assertEquals(888f, hud.actor("objective").getX(), 0.001f);
+            Assert.assertEquals(616f, hud.actor("objective").getY(), 0.001f);
+        } finally {
+            session.dispose();
+            Assert.assertNull(hud.root().getParent());
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void fillsOffsetLogicalScreenRegion() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            Assert.assertEquals(50, session.viewport().getScreenX());
+            Assert.assertEquals(70, session.viewport().getScreenY());
+            Assert.assertEquals(1000, session.viewport().getScreenWidth());
+            Assert.assertEquals(700, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void subregionResizeChangesLogicalSurface() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            session.resize(100, 20, 800, 800);
+
+            Assert.assertEquals(800f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(800f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertEquals(100, session.viewport().getScreenX());
+            Assert.assertEquals(20, session.viewport().getScreenY());
+            Assert.assertEquals(800, session.viewport().getScreenWidth());
+            Assert.assertEquals(800, session.viewport().getScreenHeight());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void drawReappliesOwnedViewportWithoutRecenteringHudCamera() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(50, 70, 1000, 700);
+            session.viewport().getCamera().position.set(321f, 654f, 0f);
+            session.viewport().getCamera().update();
+
+            Gdx.gl.glViewport(0, 0, 17, 19); // Simulates the preceding WORLD pass.
+            int beforeDraw = viewportApplications;
+            session.draw();
+
+            Assert.assertTrue(viewportApplications > beforeDraw);
+            Assert.assertArrayEquals(new int[]{50, 70, 1000, 700}, lastViewport);
+            Assert.assertEquals(321f, session.viewport().getCamera().position.x, 0f);
+            Assert.assertEquals(654f, session.viewport().getCamera().position.y, 0f);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void arbitraryPositiveViewportDimensionsUseTheSameUnscaledContract()
+            throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        try {
+            session.resize(20, 30, 900, 600);
+
+            Assert.assertEquals(900f, session.viewport().getWorldWidth(), 0f);
+            Assert.assertEquals(600f, session.viewport().getWorldHeight(), 0f);
+            Assert.assertTrue(session.viewport().getScreenWidth() > 0);
+            Assert.assertTrue(session.viewport().getScreenHeight() > 0);
+            Assert.assertTrue(session.viewport().getScreenX() >= 20);
+            Assert.assertTrue(session.viewport().getScreenY() >= 30);
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void failedInstallLeavesCurrentMaterializedTreePublished() throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud current = materialize("free-layout.json", prepared.resources);
+        MaterializedHud attached = materialize("stack.json", prepared.resources);
+        Group foreignParent = new Group();
+        foreignParent.addActor(attached.root());
+        try {
+            session.install(current);
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class, () -> session.install(attached));
+            Assert.assertEquals(
+                    "Materialized HUD root must be detached before installation.",
+                    failure.getMessage());
+            Assert.assertEquals(1, session.stage().getActors().size);
+            Assert.assertSame(current.root(), session.stage().getActors().first());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    @Test
+    public void materializedWidgetsDrawThroughSessionHudBatchWithPreparedTextureArray()
+            throws Exception {
+        Prepared prepared = prepare();
+        HudSession session = HudSession.create(prepared.asset, prepared.resources, prepared.shader);
+        MaterializedHud hud = materialize("resources.json", prepared.resources);
+        try {
+            session.install(hud);
+            session.act(0f);
+            session.draw();
+            Assert.assertSame(prepared.resources.textureArrayBundle(),
+                    session.hudBatch().getTextureArrayBundle());
+            Assert.assertFalse(prepared.resources.isDisposed());
+        } finally {
+            session.dispose();
+            prepared.dispose();
+        }
+    }
+
+    private Prepared prepare() throws Exception {
+        FileHandle root = new FileHandle(temporaryFolder.newFolder());
+        HudResourcesTest.writeHudFiles(root);
+        HudScreenAsset asset = new HudScreenAsset();
+        asset.documentId = "hud/test.json";
+        asset.skinId = "ui/game.json";
+        asset.atlasId = "ui/game.atlas";
+        return new Prepared(asset,
+                HudResources.prepareStandalone(asset, root, HudResourcesTest.fullRequirements()), shader());
+    }
+
+    private static MaterializedHud materialize(String fixture, HudResources resources) {
+        HudValidationResult validation = new HudDocumentValidator().validate(
+                new HudDocumentCodec().read(new FileHandle(
+                "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
+                resources.select("ui/game.json"));
+        Assert.assertTrue(validation.issues().toString(), validation.isValid());
+        return new HudMaterializer().materialize(
+                validation.validatedDocument(), resources.select("ui/game.json"));
+    }
+
+    private static ShaderProgram shader() {
+        return new ShaderProgram(
+                "attribute vec2 a_position; attribute vec4 a_color;"
+                        + "attribute vec2 a_texCoord0; attribute float a_layer;"
+                        + "uniform mat4 u_projTrans; void main(){"
+                        + "gl_Position=u_projTrans*vec4(a_position,0.0,1.0);}",
+                "#ifdef GL_ES\nprecision mediump float;\n#endif\n"
+                        + "uniform sampler2DArray u_array; void main(){gl_FragColor=vec4(1.0);}");
+    }
+
+    private static void assertResize(HudSession session, int width, int height) {
+        session.resize(width, height);
+        Assert.assertEquals(width, session.viewport().getWorldWidth(), 0f);
+        Assert.assertEquals(height, session.viewport().getWorldHeight(), 0f);
+        Assert.assertEquals(width * 0.5f, session.viewport().getCamera().position.x, 0f);
+        Assert.assertEquals(height * 0.5f, session.viewport().getCamera().position.y, 0f);
+    }
+
+    private static void assertDisposed(Runnable operation) {
+        IllegalStateException failure = Assert.assertThrows(IllegalStateException.class, operation::run);
+        Assert.assertEquals("HudSession has been disposed.", failure.getMessage());
+    }
+
+    private Object glValue(
+            String name, Object[] args, Class<?> returnType, int[] nextHandle) {
+        if ("glCreateShader".equals(name) || "glCreateProgram".equals(name)
+                || "glGenTexture".equals(name) || "glGenBuffer".equals(name)
+                || "glGenVertexArray".equals(name)) {
+            return nextHandle[0]++;
+        }
+        if ("glGetShaderiv".equals(name) && args != null && args.length >= 3) {
+            ((IntBuffer) args[2]).put(0, 1);
+            return null;
+        }
+        if ("glGetIntegerv".equals(name) && args != null && args.length >= 2) {
+            int parameter = (Integer) args[0];
+            int value = parameter == GL30.GL_MAX_ARRAY_TEXTURE_LAYERS ? 16 : 4096;
+            ((IntBuffer) args[1]).put(0, value);
+            return null;
+        }
+        if ("glGetProgramiv".equals(name) && args != null && args.length >= 3) {
+            int parameter = (Integer) args[1];
+            int value = parameter == GL20.GL_LINK_STATUS || parameter == GL20.GL_VALIDATE_STATUS
+                    ? 1 : parameter == GL20.GL_ACTIVE_ATTRIBUTES
+                    ? ATTRIBUTES.length : parameter == GL20.GL_ACTIVE_UNIFORMS
+                    ? UNIFORMS.length : 0;
+            ((IntBuffer) args[2]).put(0, value);
+            return null;
+        }
+        if ("glGetActiveAttrib".equals(name)) return ATTRIBUTES[(Integer) args[1]];
+        if ("glGetActiveUniform".equals(name)) return UNIFORMS[(Integer) args[1]];
+        if ("glGetAttribLocation".equals(name) || "glGetUniformLocation".equals(name)) return 1;
+        if (name.startsWith("glGen") && args != null && args.length >= 2
+                && args[1] instanceof IntBuffer) {
+            IntBuffer handles = (IntBuffer) args[1];
+            int count = (Integer) args[0];
+            for (int i = 0; i < count; i++) handles.put(i, nextHandle[0]++);
+            return null;
+        }
+        if ("glDeleteBuffer".equals(name)) deletedBuffers++;
+        if ("glDeleteTextures".equals(name) || "glDeleteTexture".equals(name)) deletedTextures++;
+        if ("glDeleteProgram".equals(name)) deletedPrograms++;
+        if ("glViewport".equals(name) && args != null && args.length == 4) {
+            viewportApplications++;
+            for (int i = 0; i < lastViewport.length; i++) {
+                lastViewport[i] = (Integer) args[i];
+            }
+        }
+        if ("glCheckFramebufferStatus".equals(name)) return GL20.GL_FRAMEBUFFER_COMPLETE;
+        return defaultValue(returnType);
+    }
+
+    private static Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0d;
+        if (type == char.class) return '\0';
+        return null;
+    }
+
+    private static final class CountingActor extends Actor {
+        private float elapsed;
+
+        @Override
+        public void act(float delta) {
+            elapsed += delta;
+            super.act(delta);
+        }
+    }
+
+    private static final class Prepared {
+        private final HudScreenAsset asset;
+        private final HudResources resources;
+        private final ShaderProgram shader;
+
+        private Prepared(HudScreenAsset asset, HudResources resources, ShaderProgram shader) {
+            this.asset = asset;
+            this.resources = resources;
+            this.shader = shader;
+        }
+
+        private void dispose() {
+            resources.dispose();
+            shader.dispose();
+        }
+    }
+}

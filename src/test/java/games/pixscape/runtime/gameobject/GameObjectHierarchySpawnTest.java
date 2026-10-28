@@ -1,14 +1,9 @@
 package games.pixscape.runtime.gameobject;
 
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import com.artemis.Aspect;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -27,6 +22,24 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
+    @Test public void actorSpatialRectanglesSurviveAssetSerializationAndRuntimeSpawn(){
+        GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
+        child.spatialHeight=new GameObjectAsset.SpatialHeightData();
+        child.spatialHeight.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        child.spatialHeight.rectangles.staticRectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        child.spatialHeight.rectangles.staticRectangle.pivotX=37.25f;
+        GameObjectAssetLoader loader=new GameObjectAssetLoader();GameObjectAsset loaded=loader.fromJson(loader.toJson(asset));
+        Assert.assertEquals(37.25f,loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX,0);
+        World world=new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
+        try{
+            SpawnResult spawned=new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(),new SceneMetaRuntime(),new AtlasRuntimeService())
+                    .spawnAsset(world,loaded,"gameobjects/actor-foot-test.gameobject",0,0);world.process();
+            SpatialHeightComponent s=world.getMapper(SpatialHeightComponent.class).get(spawned.createdEntityIds().get(1));
+            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.pivotX,0);
+            loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX=90;
+            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.pivotX,0);
+        }finally{world.dispose();}
+    }
     @Test
     public void fragmentCreatesRealHierarchyWithFreshIdsAndRemappedReferences() {
         World world = new World(new WorldConfigurationBuilder()
@@ -62,17 +75,19 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals("", world.getMapper(GameObjectComponent.class)
                 .get(nested).sourceAssetId);
         TransformComponent rootTransform = world.getMapper(TransformComponent.class).get(root);
-        Assert.assertEquals(40f, rootTransform.x, 0f);
-        Assert.assertEquals(60f, rootTransform.y, 0f);
+        Assert.assertEquals(30f, rootTransform.x, 0f);
+        Assert.assertEquals(40f, rootTransform.y, 0f);
         Assert.assertEquals(0.5f, rootTransform.rotationRad, 0f);
         Assert.assertEquals(2f, rootTransform.scaleX, 0f);
         Assert.assertEquals(7f, rootTransform.originX, 0f);
+        Assert.assertEquals(0, world.getMapper(EntityIndexComponent.class).get(root).zIndex);
         TransformComponent childTransform = world.getMapper(TransformComponent.class).get(child);
         Assert.assertEquals(4f, childTransform.x, 0f);
         Assert.assertEquals(5f, childTransform.y, 0f);
         Assert.assertEquals(6, world.getMapper(EntityIndexComponent.class).get(child).zIndex);
         Assert.assertTrue(world.getMapper(PointLightComponent.class).has(light));
         Assert.assertTrue(world.getMapper(ConeLightComponent.class).has(light));
+        Assert.assertEquals(-33.5f, world.getMapper(ConeLightComponent.class).get(light).inclinationDeg, 0f);
 
         PropertySet properties = world.getMapper(CustomPropertiesComponent.class)
                 .get(root).properties;
@@ -158,8 +173,10 @@ public class GameObjectHierarchySpawnTest {
         GameObjectAsset asset = physicalHierarchy();
         GameObjectAsset.GameObjectEntityData member = asset.entities.get(2);
         member.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        member.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        member.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         member.spatialHeight.altitude = 3f;
-        member.spatialHeight.height = 6f;
+        member.spatialHeight.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(6f);
         GameObjectAsset.PhysicsShapeData shape = member.physicsShapes.get(0);
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.geometry.radius = 2f;
@@ -173,7 +190,7 @@ public class GameObjectHierarchySpawnTest {
         int spawnedMember = result.createdEntityIds().get(2);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(spawnedMember);
         Assert.assertEquals(3f, height.altitude, 0f);
-        Assert.assertEquals(6f, height.height, 0f);
+        Assert.assertEquals(6f, height.rectangles.staticRectangle.height, 0f);
         PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
                 .get(spawnedMember).shapes.first();
         Assert.assertTrue(spawnedShape.spatialFootprint);
@@ -227,7 +244,7 @@ public class GameObjectHierarchySpawnTest {
     private static GameObjectAsset hierarchy() {
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 100;
-        GameObjectAsset.GameObjectEntityData root = data(100, -1, true, 10f, 20f, 2);
+        GameObjectAsset.GameObjectEntityData root = data(100, -1, true, 0f, 0f, 0);
         root.transform.rotationRad = 0.5f;
         root.transform.scaleX = 2f;
         root.transform.scaleY = 2f;
@@ -243,6 +260,7 @@ public class GameObjectHierarchySpawnTest {
         light.pointLight = new GameObjectAsset.PointLightData();
         light.pointLight.enabled = true;
         light.coneLight = new GameObjectAsset.ConeLightData();
+        light.coneLight.inclinationDeg = -33.5f;
         light.coneLight.enabled = true;
         asset.entities.add(root);
         asset.entities.add(child);

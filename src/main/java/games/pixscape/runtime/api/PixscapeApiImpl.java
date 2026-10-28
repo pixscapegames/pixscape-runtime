@@ -17,25 +17,24 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.particle.ParticleEffectPath;
-import games.pixscape.runtime.gameobject.SpawnResult;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.Box2dSyncSystem;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.runtime.system.PhysicsPoseAuthority;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.system.SpatialRenderOrderSystem;
+import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
+import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
+import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -279,7 +278,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
         this.particles = new ParticlesApiImpl(engine, entities);
         this.physics = new PhysicsApiImpl(engine);
-        this.gameObjects = new GameObjectsApiImpl(engine, entities);
+        this.gameObjects = new GameObjectsApiImpl(engine);
     }
 
     @Override
@@ -523,7 +522,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         visibility.culledByFrustum = false;
         visibility.inView = true;
         world.edit(e).create(EntityIndexComponent.class);
-        world.edit(e).create(LayerComponent.class);
         world.edit(e).create(TintComponent.class);
 
         AssetRefComponent assetRef = world.edit(e).create(AssetRefComponent.class);
@@ -574,7 +572,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         TransformComponent transform = world.edit(e).create(TransformComponent.class);
         transform.x = x;
         transform.y = y;
-        world.edit(e).create(LayerComponent.class);
         world.edit(e).create(EntityIndexComponent.class);
         VisibilityComponent visibility = world.edit(e).create(VisibilityComponent.class);
         visibility.visible = true;
@@ -614,15 +611,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             throw new IllegalStateException("World is not initialized. Call loadScene() first.");
         }
         return world;
-    }
-
-    private static void resolveSpriteRegion(PixscapeEngine engine,
-                                            AssetRefComponent assetRef,
-                                            TextureRegionComponent textureRegion,
-                                            RenderMaterialComponent material) {
-        AtlasAssetBinding binding = requireSpriteBinding(
-                engine, assetRef.assetId, assetRef.atlasTag);
-        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
     }
 
     private static AtlasAssetBinding requireSpriteBinding(PixscapeEngine engine,
@@ -917,7 +905,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public LightFacade light() {
-            if (light == null) light = new LightFacadeImpl(handle);
+            if (light == null) light = new LightFacadeImpl(engine, handle);
             return light;
         }
 
@@ -1042,7 +1030,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     static final class RenderOrderFacadeImpl implements RenderOrderFacade {
         private final SceneLayerResolver sceneLayers;
         private final EntityHandle handle;
-        private LayerComponent validatedLayer;
         private EntityIndexComponent validatedEntityIndex;
 
         RenderOrderFacadeImpl(SceneLayerResolver sceneLayers,
@@ -1053,7 +1040,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean exists() {
-            return isGameObjectMember() ? resolveEntityIndex() : resolveIndependentComponents();
+            return resolveEntityIndex();
         }
 
         @Override
@@ -1061,20 +1048,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (isGameObjectMember()) {
                 return resolveEntityIndex() ? effectiveMemberLayerIndex() : -1;
             }
-            return resolveIndependentComponents() ? validatedEntityIndex.layerIndex : -1;
+            return resolveEntityIndex() ? validatedEntityIndex.layerIndex : -1;
         }
 
         @Override
         public int zIndex() {
             if (isGameObjectMember()) return resolveEntityIndex() ? validatedEntityIndex.zIndex : 0;
-            return resolveIndependentComponents() ? validatedEntityIndex.zIndex : 0;
+            return resolveEntityIndex() ? validatedEntityIndex.zIndex : 0;
         }
 
         @Override
         public RenderOrderFacade layerIndex(int layerIndex) {
             if (!resolveEntityIndex()) return this;
             requireIndependentLayer("layerIndex(int)");
-            if (!resolveIndependentComponents()) return this;
             validateZIndex(validatedEntityIndex.zIndex, "layerIndex(int)");
             int resolved = layers().requireLayerIndex(layerIndex);
             apply(resolved, validatedEntityIndex.zIndex);
@@ -1083,9 +1069,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public RenderOrderFacade zIndex(int zIndex) {
-            if (isGameObjectMember()) {
-                if (!resolveEntityIndex()) return this;
-            } else if (!resolveIndependentComponents()) return this;
+            if (!resolveEntityIndex()) return this;
             validateZIndex(zIndex, "zIndex(int)");
             if (isGameObjectMember()) {
                 applyLocalZ(zIndex);
@@ -1099,7 +1083,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public RenderOrderFacade set(int layerIndex, int zIndex) {
             if (!resolveEntityIndex()) return this;
             requireIndependentLayer("set(int, int)");
-            if (!resolveIndependentComponents()) return this;
             int resolved = layers().requireLayerIndex(layerIndex);
             validateZIndex(zIndex, "set(int, int)");
             apply(resolved, zIndex);
@@ -1109,20 +1092,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private boolean resolveEntityIndex() {
             World world = handle.world();
             if (world == null) {
-                validatedLayer = null;
                 validatedEntityIndex = null;
                 return false;
             }
             validatedEntityIndex = world.getMapper(EntityIndexComponent.class)
                     .getSafe(handle.entityId, null);
             return validatedEntityIndex != null;
-        }
-
-        private boolean resolveIndependentComponents() {
-            if (!resolveEntityIndex()) return false;
-            validatedLayer = handle.world().getMapper(LayerComponent.class)
-                    .getSafe(handle.entityId, null);
-            return validatedLayer != null;
         }
 
         private SceneLayerResolver layers() {
@@ -1183,12 +1158,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private void apply(int layerIndex, int zIndex) {
-            boolean layerChanged = validatedEntityIndex.layerIndex != layerIndex
-                    || validatedLayer.layerIndex != layerIndex;
+            boolean layerChanged = validatedEntityIndex.layerIndex != layerIndex;
             boolean orderChanged = validatedEntityIndex.zIndex != zIndex;
             if (!layerChanged && !orderChanged) return;
 
-            validatedLayer.layerIndex = layerIndex;
             validatedEntityIndex.layerIndex = layerIndex;
             validatedEntityIndex.zIndex = zIndex;
 
@@ -1246,7 +1219,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setPosition(float x, float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform position", x, y);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t == null) return this;
             if (t.x != x || t.y != y) {
@@ -1261,7 +1234,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setX(float x) {
             if (handle.world() == null) return this;
             requireFinite("Transform x", x);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.x != x) {
                 t.x = x;
@@ -1274,7 +1247,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setY(float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform y", y);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.y != y) {
                 t.y = y;
@@ -1287,7 +1260,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade moveBy(float dx, float dy) {
             if (handle.world() == null) return this;
             requireFinite("Transform movement", dx, dy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             if (dx != 0f || dy != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1306,7 +1279,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setRotationRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation", radians);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
                 t.rotationRad = radians;
@@ -1319,7 +1292,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade rotateByRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation delta", radians);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             if (radians != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1341,7 +1314,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScale(float sx, float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale", sx, sy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -1355,7 +1328,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleX(float sx) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale x", sx);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.scaleX != sx) {
                 t.scaleX = sx;
@@ -1368,7 +1341,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleY(float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale y", sy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.scaleY != sy) {
                 t.scaleY = sy;
@@ -1381,7 +1354,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setOrigin(float ox, float oy) {
             if (handle.world() == null) return this;
             requireFinite("Transform origin", ox, oy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
                 t.originX = ox;
@@ -1410,7 +1383,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (dirty != null) dirty.geometry(handle.entityId, subMask);
         }
 
-        private void requirePhysicsMutationAllowed() {
+        private static void requirePhysicsMutationAllowed(EntityHandle handle) {
             World world = handle.world();
             if (world == null) return;
             PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
@@ -1469,7 +1442,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade enable() {
-            comp(true);
+            activeRectangle(comp(true),true);
             return this;
         }
 
@@ -1491,7 +1464,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public float height() {
             SpatialHeightComponent c = comp(false);
-            return c != null ? c.height : 0f;
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle=activeRectangle(c,false);
+            return rectangle==null?0f:rectangle.height;
         }
 
         @Override
@@ -1507,8 +1481,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setHeight(float height) {
             if (handle.world() == null) return this;
             requireFinite("Spatial height", height);
+            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
             SpatialHeightComponent c = comp(true);
-            if (c != null) c.height = Math.max(0f, height);
+            if (c != null) activeRectangle(c,true).height = height;
             return this;
         }
 
@@ -1516,10 +1491,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setVolume(float altitude, float height) {
             if (handle.world() == null) return this;
             requireFinite("Spatial volume", altitude, height);
+            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
             SpatialHeightComponent c = comp(true);
             if (c != null) {
                 c.altitude = altitude;
-                c.height = Math.max(0f, height);
+                activeRectangle(c,true).height = height;
             }
             return this;
         }
@@ -1536,6 +1512,72 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return system.participatesInRenderOrder(
                     handle.entityId,
                     sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
+        }
+
+        @Override public float rectangleWidth() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.width;
+        }
+
+        @Override public float rectangleX() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.x;
+        }
+
+        @Override public float rectangleY() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.y;
+        }
+
+        @Override public float shadowPivotX() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.pivotX;
+        }
+
+        @Override public float shadowPivotY() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.pivotY;
+        }
+
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData requireActiveRectangle() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            if (rectangle == null) throw new IllegalStateException("Entity " + handle.entityId + " has no prepared active Spatial rectangle.");
+            return rectangle;
+        }
+
+        @Override public SpatialEntityFacade setRectangle(float x, float y, float width, float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial rectangle placement", x, y);
+            requireFinite("Spatial rectangle size", width, height);
+            if (width <= 0f || height <= 0f) throw new IllegalArgumentException("Spatial rectangle dimensions must be positive.");
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
+            if (rectangle.x == x && rectangle.y == y && rectangle.width == width && rectangle.height == height) return this;
+            rectangle.x = x; rectangle.y = y; rectangle.width = width; rectangle.height = height;
+            return this;
+        }
+
+        @Override public SpatialEntityFacade setShadowPivot(float x, float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial shadow pivot", x, y);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
+            if (rectangle.pivotX == x && rectangle.pivotY == y) return this;
+            rectangle.pivotX = x; rectangle.pivotY = y;
+            return this;
+        }
+
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialHeightComponent c,boolean create) {
+            if(c==null)return null;
+            World world=handle.world();
+            AnimationComponent animation=world.getMapper(AnimationComponent.class).getSafe(handle.entityId,null);
+            AssetRefComponent asset=world.getMapper(AssetRefComponent.class).getSafe(handle.entityId,null);
+            String clip=animation==null?null:animation.currentClip;
+            int assetId=asset==null?0:asset.assetId;
+            if(c.rectangles==null && create)c.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle=c.rectangles==null?null:c.rectangles.get(assetId,clip);
+            if(rectangle==null && create) {
+                rectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();c.rectangles.put(assetId,clip,rectangle);
+            }
+            return rectangle;
         }
 
         private SpatialHeightComponent comp(boolean create) {
@@ -2103,7 +2145,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public float stateTime() {
             AnimationComponent a = anim();
-            return a != null ? a.stateTime : 0f;
+            return a != null ? (float) a.stateTime : 0f;
         }
 
         @Override
@@ -2378,6 +2420,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleFacade setIgnoreAmbientLighting(boolean ignore) {
+            ParticleEmitterComponent c = emitter(true);
+            if (c != null) c.ignoreAmbientLighting = ignore;
+            return this;
+        }
+
+        @Override
+        public boolean isIgnoringAmbientLighting() {
+            ParticleEmitterComponent c = emitter(false);
+            return c != null && c.ignoreAmbientLighting;
+        }
+
+        @Override
         public ParticleFacade play() {
             ParticleEmitterComponent c = emitter(true);
             if (c != null) {
@@ -2418,6 +2473,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 c.paused = true;
                 c.playRequested = false;
                 c.restartRequested = false;
+            }
+            return this;
+        }
+
+        @Override
+        public ParticleFacade complete() {
+            ParticleEmitterComponent c = emitter(false);
+            if (c != null) {
+                c.looping = false;
+                c.autoRemoveWhenComplete = true;
+                c.paused = false;
+                c.playRequested = false;
+                c.restartRequested = false;
+                c.completionRequested = true;
             }
             return this;
         }
@@ -2615,26 +2684,246 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class LightFacadeImpl implements LightFacade {
+        private final PixscapeEngine engine;
         private final EntityHandle handle;
 
-        LightFacadeImpl(EntityHandle handle) {
+        LightFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
+            this.engine = engine;
             this.handle = handle;
         }
 
-        @Override
-        public boolean hasPoint() {
-            return has(PointLightComponent.class);
-        }
-
-        @Override
-        public boolean hasCone() {
-            return has(ConeLightComponent.class);
-        }
-
-        private boolean has(Class<? extends Component> type) {
+        private PointLightComponent point() {
             World world = handle.world();
-            return world != null && world.getMapper(type).has(handle.entityId);
+            return world == null ? null : world.getMapper(PointLightComponent.class).getSafe(handle.entityId, null);
         }
+
+        private ConeLightComponent cone() {
+            World world = handle.world();
+            return world == null ? null : world.getMapper(ConeLightComponent.class).getSafe(handle.entityId, null);
+        }
+
+        private ConeLightComponent requireCone() {
+            ConeLightComponent c = cone();
+            if (c == null && hasPoint()) throw new IllegalStateException("Light " + handle.entityId + " is not a cone.");
+            return c;
+        }
+
+        @Override public boolean hasPoint() { return point() != null; }
+        @Override public boolean hasCone() { return cone() != null; }
+        @Override public boolean enabled() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.enabled : c != null && c.enabled;
+        }
+
+        @Override public LightFacade setEnabled(boolean value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null || (p != null ? p.enabled : c.enabled) == value) return this;
+            World world = handle.world();
+            if (value) {
+                VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).getSafe(handle.entityId, null);
+                if (engine.isForwardLighting() && (visibility == null || visibility.visible)
+                        && games.pixscape.runtime.render.lighting.ActiveLights.count(world) != 0) {
+                    throw new IllegalArgumentException("Forward rendering supports at most one active light; cannot enable entity " + handle.entityId + ".");
+                }
+                requirePreparedShadows(world, shadowQuality(), shadowResolution());
+            }
+            if (p != null) p.enabled = value;
+            if (c != null) c.enabled = value;
+            // The render record owns its enabled gate. Material dirtiness refreshes it without geometry.
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) dirty.material(handle.entityId);
+            return this;
+        }
+
+        private static void requirePreparedShadows(World world, int quality, int resolution) {
+            RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+            if (quality != 0 && (submit == null || !submit.lightingRenderer().hasPreparedShadowResolution(resolution))) {
+                throw new IllegalStateException("Shadowed light activation requires a prepared shadow target of resolution " + resolution + ".");
+            }
+        }
+
+        private void markColor() {
+            DirtyTrackerSystem dirty = handle.world().getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) dirty.color(handle.entityId);
+        }
+
+        @Override public LightFacade setColor(float r, float g, float b) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            unit("Light red", r); unit("Light green", g); unit("Light blue", b);
+            if (p != null ? p.r == r && p.g == g && p.b == b : c.r == r && c.g == g && c.b == b) return this;
+            if (p != null) { p.r = r; p.g = g; p.b = b; }
+            if (c != null) { c.r = r; c.g = g; c.b = b; }
+            markColor();
+            return this;
+        }
+
+        private static void unit(String name, float value) {
+            requireFinite(name, value);
+            if (value < 0f || value > 1f) throw new IllegalArgumentException(name + " must be in [0,1].");
+        }
+
+        @Override public float red() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.r : c != null ? c.r : 0;
+        }
+
+        @Override public float green() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.g : c != null ? c.g : 0;
+        }
+
+        @Override public float blue() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.b : c != null ? c.b : 0;
+        }
+
+        @Override public float intensity() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.intensity : c != null ? c.intensity : 0;
+        }
+
+        @Override public float radius() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.radius : c != null ? c.radius : 0;
+        }
+
+        @Override public float falloff() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.falloff : c != null ? c.falloff : 0;
+        }
+
+        @Override public float height() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.height : c != null ? c.height : 0;
+        }
+
+        @Override public int shadowQuality() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.shadowQuality : c != null ? c.shadowQuality : 0;
+        }
+
+        @Override public int shadowResolution() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.shadowResolution : c != null ? c.shadowResolution : 0;
+        }
+
+        @Override public LightFacade setIntensity(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light intensity", value);
+            if (value < 0f) throw new IllegalArgumentException("Invalid light intensity: " + value);
+            if ((p != null ? p.intensity : c.intensity) == value) return this;
+            if (p != null) p.intensity = value;
+            if (c != null) c.intensity = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setFalloff(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light falloff", value);
+            if (value <= 0f) throw new IllegalArgumentException("Invalid light falloff: " + value);
+            if ((p != null ? p.falloff : c.falloff) == value) return this;
+            if (p != null) p.falloff = value;
+            if (c != null) c.falloff = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setHeight(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light height", value);
+            if ((p != null ? p.height : c.height) == value) return this;
+            if (p != null) p.height = value;
+            if (c != null) c.height = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setRadius(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light radius", value);
+            if (value <= 0f || value > Float.MAX_VALUE / 2f) throw new IllegalArgumentException("Invalid light radius: " + value);
+            if ((p != null ? p.radius : c.radius) == value) return this;
+            World world = handle.world();
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).getSafe(handle.entityId, null);
+            TransformComponent transform = world.getMapper(TransformComponent.class).getSafe(handle.entityId, null);
+            float diameter = value * 2f;
+            float originX = 0f, originY = 0f;
+            if (dimensions != null && transform != null) {
+                TransformFacadeImpl.requirePhysicsMutationAllowed(handle);
+                originX = transform.originX + (diameter - dimensions.width) * .5f;
+                originY = transform.originY + (diameter - dimensions.height) * .5f;
+                requireFinite("Light origin", originX, originY);
+            }
+            if (p != null) p.radius = value;
+            if (c != null) c.radius = value;
+            if (dimensions != null) {
+                dimensions.width = diameter; dimensions.height = diameter;
+                if (transform != null) { transform.originX = originX; transform.originY = originY; }
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (dirty != null) dirty.geometry(handle.entityId, GeometryDirty.SIZE | GeometryDirty.ORIGIN);
+            }
+            return this;
+        }
+
+        @Override public LightFacade setShadowQuality(int value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            if (value < 0 || value > 2) throw new IllegalArgumentException("Light shadow quality must be in [0,2].");
+            if ((p != null ? p.shadowQuality : c.shadowQuality) == value) return this;
+            requirePreparedShadows(handle.world(), value, shadowResolution());
+            if (p != null) p.shadowQuality = value;
+            if (c != null) c.shadowQuality = value;
+            return this;
+        }
+
+        @Override public float coneAngleDeg() {
+            ConeLightComponent c = cone();
+            return c != null ? c.coneAngleDeg : 0f;
+        }
+
+        @Override public LightFacade setConeAngleDeg(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone coneAngleDeg", value);
+            if (value <= 0f || value > 360f) throw new IllegalArgumentException("Invalid cone coneAngleDeg: " + value);
+            if (c.coneAngleDeg != value) c.coneAngleDeg = value;
+            return this;
+        }
+
+        @Override public float inclinationDeg() {
+            ConeLightComponent c = cone();
+            return c != null ? c.inclinationDeg : 0f;
+        }
+
+        @Override public LightFacade setInclinationDeg(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone inclinationDeg", value);
+            if (value < -90f || value > 90f) throw new IllegalArgumentException("Invalid cone inclinationDeg: " + value);
+            if (c.inclinationDeg != value) c.inclinationDeg = value;
+            return this;
+        }
+
+        @Override public float softness() {
+            ConeLightComponent c = cone();
+            return c != null ? c.softness : 0f;
+        }
+
+        @Override public LightFacade setSoftness(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone softness", value);
+            if (value < 0f || value > 1f) throw new IllegalArgumentException("Invalid cone softness: " + value);
+            if (c.softness != value) c.softness = value;
+            return this;
+        }
+
     }
 
     static final class AssetsApiImpl implements AssetsAPI {
@@ -3101,6 +3390,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public ParticleRef complete() {
+            particles().complete();
+            return this;
+        }
+
+        @Override
         public ParticleRef loop(boolean loop) {
             particles().setLooping(loop);
             return this;
@@ -3478,11 +3773,64 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (c != null && c.data != null) {
                 requireFinite("Tiled default Spatial volume", altitude, height);
                 float sanitizedHeight = Math.max(0f, height);
+                if (Float.compare(c.data.defaultTileAltitude, altitude) == 0
+                        && Float.compare(c.data.defaultTileHeight, sanitizedHeight) == 0
+                        && Float.compare(c.defaultTileAltitude, altitude) == 0
+                        && Float.compare(c.defaultTileHeight, sanitizedHeight) == 0) return this;
+                World world = handle.world();
+                PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(handle.entityId, null);
+                boolean linked = false;
+                if (shapes != null && shapes.shapes != null) {
+                    for (int i = 0; i < shapes.shapes.size; i++) {
+                        if (shapes.shapes.get(i) != null && shapes.shapes.get(i).spatialBlockId > 0) {
+                            linked = true;
+                            break;
+                        }
+                    }
+                }
+                PhysicsCompiledFixturesComponent compiled = null;
+                PreparedPhysicsBodyCandidate physics = null;
+                TiledMapLayerData source = c.data;
+                TiledMapLayerData candidate = new TiledMapLayerData(source.mapWidth, source.mapHeight,
+                        source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
+                candidate.originX = source.originX;
+                candidate.originY = source.originY;
+                candidate.defaultTileAltitude = altitude;
+                candidate.defaultTileHeight = sanitizedHeight;
+                SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(handle.entityId, null);
+                if (blocks != null) {
+                    SpatialCompiledLayerCache spatial = new SpatialCompiledLayerCache();
+                    spatial.ensure(blocks);
+                    new SpatialProjectedFaceCache().ensure(spatial, candidate);
+                }
+                if (linked) {
+                    compiled = world.getMapper(PhysicsCompiledFixturesComponent.class)
+                            .getSafe(handle.entityId, null);
+                    if (compiled == null || !compiled.valid) {
+                        throw new IllegalStateException("Linked Tiled physics requires a valid prepared fixture cache.");
+                    }
+                    SceneMetaRuntime meta = handle.tracker.engine.getActiveSceneMeta();
+                    if (meta == null || !isFinite(meta.pixelsPerMeter) || meta.pixelsPerMeter <= 0f) {
+                        throw new IllegalStateException("Linked Tiled physics requires a finite positive scene pixelsPerMeter.");
+                    }
+                    physics = PhysicsService.prepareBodyCandidate(world, handle.entityId, shapes.shapes,
+                            meta.pixelsPerMeter, candidate);
+                }
+                // Publish only after every detached preparation has succeeded.
                 c.defaultTileAltitude = altitude;
                 c.defaultTileHeight = sanitizedHeight;
                 c.data.defaultTileAltitude = altitude;
                 c.data.defaultTileHeight = sanitizedHeight;
                 c.data.markAllChunksContentDirty();
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (linked) {
+                    PhysicsService.publishPreparedCandidate(shapes, compiled, physics);
+                    if (dirty != null) dirty.physics(handle.entityId, PhysicsDirtyBits.ALL);
+                }
+                if (dirty != null) {
+                    dirty.layer(handle.entityId);
+                    dirty.order(handle.entityId);
+                }
             }
             return this;
         }
@@ -3938,28 +4286,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class GameObjectsApiImpl implements GameObjectsAPI {
         private final PixscapeEngine engine;
-        private final EntitiesAPI entities;
 
-        GameObjectsApiImpl(PixscapeEngine engine, EntitiesAPI entities) {
+        GameObjectsApiImpl(PixscapeEngine engine) {
             this.engine = engine;
-            this.entities = entities;
         }
 
         @Override
         public GameObjectInstance spawn(String name, float x, float y) {
             return engine.spawnGameObject(name, x, y);
-        }
-
-        @Override
-        public EntityRef root(String name, float x, float y) {
-            return spawn(name, x, y).root();
-        }
-
-        @Override
-        public EntityRef requireRoot(String name, float x, float y) {
-            EntityRef root = spawn(name, x, y).root();
-            if (!root.exists()) throw new IllegalStateException("GameObject spawn created no root: " + name);
-            return root;
         }
     }
 }

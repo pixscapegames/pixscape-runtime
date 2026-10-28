@@ -1,7 +1,7 @@
 package games.pixscape.runtime.api;
 
-import com.artemis.BaseSystem;
 import com.artemis.Aspect;
+import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.Gdx;
@@ -22,36 +22,20 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.render.RenderKind;
-import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.DirtyFlushSystem;
-import games.pixscape.runtime.system.AnimationSystem;
-import games.pixscape.runtime.system.RenderSpriteSyncSystem;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.system.SpatialRenderOrderSystem;
-import games.pixscape.runtime.system.TiledAnimationSystem;
-import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
+import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
-import org.junit.Assert;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -115,10 +99,10 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(3f, ref.spatial().altitude(), 0.0001f);
         Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
         Assert.assertEquals(3f, world.getMapper(SpatialHeightComponent.class).get(e).altitude, 0.0001f);
-        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).height, 0.0001f);
+        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle.height, 0.0001f);
 
-        ref.spatial().setHeight(-10f);
-        Assert.assertEquals(0f, ref.spatial().height(), 0.0001f);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setHeight(-10f));
+        Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
         Assert.assertFalse(ref.spatial().participatesInRenderOrder());
 
         ref.spatial().disable();
@@ -143,7 +127,7 @@ public class PixscapeApiV1Test {
         int actor = world.create();
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 4;
-        world.getMapper(SpatialHeightComponent.class).create(actor).height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(actor),2f);
         int slot = state.acquireSlotForEntity(actor);
         state.kind[slot] = RenderKind.SPRITE;
         state.enabled[slot] = true;
@@ -180,7 +164,7 @@ public class PixscapeApiV1Test {
         Assert.assertTrue("Restoring the footprint takes effect immediately",
                 facade.participatesInRenderOrder());
 
-        facade.setHeight(0f);
+        facade.disable();
         Assert.assertFalse("Zero height is ineligible", facade.participatesInRenderOrder());
         facade.setHeight(2f);
         Assert.assertTrue("Restoring positive height takes effect immediately",
@@ -193,7 +177,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals("The regression must exercise Artemis ID reuse", actor, replacement);
         world.getMapper(TransformComponent.class).create(replacement);
         world.getMapper(EntityIndexComponent.class).create(replacement).layerIndex = 4;
-        world.getMapper(SpatialHeightComponent.class).create(replacement).height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(replacement),2f);
         SpatialPhysicsFootprintComponent replacementFootprint =
                 world.getMapper(SpatialPhysicsFootprintComponent.class).create(replacement);
         replacementFootprint.valid = true;
@@ -279,6 +263,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void spatialApiIgnoresRenderedActorLayerMetadata() throws Exception {
+        // Intentionally invalid content metadata must not override the real Layer.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int sceneLayerEntity = world.create();
@@ -297,6 +282,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void spatialApiSetLayerEnabledChangesOnlyAuthoredLayerEntity() throws Exception {
+        // Intentionally invalid content metadata exercises Layer ownership isolation.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int sceneLayerEntity = world.create();
@@ -317,6 +303,7 @@ public class PixscapeApiV1Test {
 
     @Test
     public void movingActorDoesNotActivateTargetSpatialLayerFromActorMetadata() throws Exception {
+        // Intentionally invalid content metadata must not activate a destination Layer.
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int targetLayerEntity = world.create();
@@ -494,7 +481,6 @@ public class PixscapeApiV1Test {
         world.edit(e).create(RenderMaterialComponent.class);
         world.edit(e).create(TintComponent.class);
         world.edit(e).create(EntityIndexComponent.class);
-        world.edit(e).create(LayerComponent.class);
         world.process();
 
         EntityRef ref = engine.api().entities().ofEntityId(e);
@@ -590,13 +576,13 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void spatialHeightRejectsNonFiniteValuesAndPreservesFiniteClamping() throws Exception {
+    public void spatialRectangleHeightRejectsNonpositiveAndNonFiniteValuesAtomically() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int entity = world.create();
         SpatialHeightComponent spatial = world.edit(entity).create(SpatialHeightComponent.class);
         spatial.altitude = 2f;
-        spatial.height = 5f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,5f);
         world.process();
         SpatialEntityFacade facade = engine.api().entities().ofEntityId(entity).spatial();
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
@@ -616,12 +602,12 @@ public class PixscapeApiV1Test {
         });
 
         Assert.assertEquals(2f, spatial.altitude, 0f);
-        Assert.assertEquals(5f, spatial.height, 0f);
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
         Assert.assertFalse(dirty.isDirty(entity,
                 games.pixscape.runtime.render.DirtyBits.COARSE_MASK));
 
-        facade.setHeight(-4f);
-        Assert.assertEquals(0f, spatial.height, 0f);
+        Assert.assertThrows(IllegalArgumentException.class, () -> facade.setHeight(-4f));
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
@@ -1297,7 +1283,7 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(world.getMapper(TextureRegionComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(RenderMaterialComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(VisibilityComponent.class).has(ref.entityId()));
-        Assert.assertTrue(world.getMapper(LayerComponent.class).has(ref.entityId()));
+        Assert.assertFalse(world.getMapper(LayerComponent.class).has(ref.entityId()));
         Assert.assertTrue(world.getMapper(EntityIndexComponent.class).has(ref.entityId()));
 
         Assert.assertEquals(10f, ref.transform().x(), 0.0001f);
@@ -1522,6 +1508,24 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void spawnedParticleCanFinishEmissionAndRetire() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        ParticleRef ref = engine.api().particles().spawn("impact.p", 1f, 2f);
+        ParticleEmitterComponent emitter = engine.getWorld().getMapper(ParticleEmitterComponent.class)
+                .get(ref.entityId());
+
+        ref.complete();
+        Assert.assertFalse(emitter.looping);
+        Assert.assertTrue(emitter.autoRemoveWhenComplete);
+        Assert.assertTrue(emitter.completionRequested);
+        engine.getWorld().process();
+
+        Assert.assertFalse(emitter.completionRequested);
+        engine.getWorld().process();
+        Assert.assertFalse(ref.entity().exists());
+    }
+
+    @Test
     public void particleFacadeCreationAlsoRequiresTransformWithoutProxies() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
@@ -1587,7 +1591,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(3f, transform.x, 0f);
         Assert.assertEquals(4f, transform.y, 0f);
         Assert.assertEquals(2f, spatial.altitude, 0f);
-        Assert.assertEquals(5f, spatial.height, 0f);
+        Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
@@ -1799,6 +1803,59 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(-1, missing.frame());
         Assert.assertEquals(0f, missing.stateTime(), 0f);
         Assert.assertFalse(missing.isFinished());
+    }
+
+    @Test
+    public void longRunningLoopPreservesPauseResumeClipSwitchAndRestart() throws Exception {
+        FixedFramesAtlasRuntimeService atlas = new FixedFramesAtlasRuntimeService(3);
+        PixscapeEngine engine = new PixscapeEngine();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64),
+                        new AnimationSystem(engine.getAnimationRegistry(), atlas)).build());
+        setField(engine, "world", world);
+        try {
+            int entity = createAnimatedSprite(engine, world, "forward", 0, 2,
+                    animationClip("reverse", 2, 0, false));
+            AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+            AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
+            animation.setLoop(true).setStateTime(100344.64f);
+            world.setDelta(0f);
+            world.process();
+            animation.pause();
+            double pausedTime = component.stateTime;
+            int pausedFrame = component.frame;
+            world.setDelta(0.0025f);
+            for (int i = 0; i < 400; i++) world.process();
+            Assert.assertEquals(pausedTime, component.stateTime, 0d);
+            Assert.assertEquals(pausedFrame, component.frame);
+
+            animation.play();
+            for (int i = 0; i < 400; i++) world.process();
+            Assert.assertEquals(pausedTime + 400 * (double) world.getDelta(),
+                    component.stateTime, 0.000001);
+            Assert.assertFalse(animation.isFinished());
+
+            animation.play("reverse");
+            world.setDelta(0f);
+            world.process();
+            Assert.assertEquals(2, animation.frame());
+            Assert.assertEquals(0d, component.stateTime, 0d);
+            world.setDelta(0.5f);
+            world.process();
+            Assert.assertEquals(1, animation.frame());
+            animation.restart();
+            world.setDelta(0f);
+            world.process();
+            Assert.assertEquals(2, animation.frame());
+
+            animation.setClip("forward").setLoop(false);
+            world.setDelta(0.5f);
+            for (int i = 0; i < 4; i++) world.process();
+            Assert.assertEquals(2, animation.frame());
+            Assert.assertTrue(animation.isFinished());
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
@@ -2174,7 +2231,6 @@ public class PixscapeApiV1Test {
         world.getMapper(OrientedBoundsComponent.class).create(entity);
         world.getMapper(AABBComponent.class).create(entity);
         world.getMapper(EntityIndexComponent.class).create(entity);
-        world.getMapper(LayerComponent.class).create(entity);
         world.getMapper(VisibilityComponent.class).create(entity);
         world.getMapper(TintComponent.class).create(entity);
         AssetRefComponent asset = world.getMapper(AssetRefComponent.class).create(entity);

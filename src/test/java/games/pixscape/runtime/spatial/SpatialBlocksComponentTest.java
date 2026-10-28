@@ -46,6 +46,7 @@ public class SpatialBlocksComponentTest {
         Assert.assertTrue(block.actorOccluder);
         Assert.assertFalse(block.lightOccluder);
         Assert.assertFalse(block.shadowCaster);
+        Assert.assertFalse(block.silhouetteShadowCaster);
         Assert.assertFalse(block.particleOccluder);
     }
 
@@ -87,6 +88,7 @@ public class SpatialBlocksComponentTest {
         source.actorOccluder = false;
         source.lightOccluder = true;
         source.shadowCaster = true;
+        source.silhouetteShadowCaster = true;
         source.particleOccluder = true;
         source.beginAuthoredLinkedTileRefs();
         source.addLinkedTileRef(1, 2, 101);
@@ -256,6 +258,7 @@ public class SpatialBlocksComponentTest {
         Assert.assertEquals(expected.actorOccluder, actual.actorOccluder);
         Assert.assertEquals(expected.lightOccluder, actual.lightOccluder);
         Assert.assertEquals(expected.shadowCaster, actual.shadowCaster);
+        Assert.assertEquals(expected.silhouetteShadowCaster, actual.silhouetteShadowCaster);
         Assert.assertEquals(expected.particleOccluder, actual.particleOccluder);
         Assert.assertEquals(expected.linkedTileRefsAuthored, actual.linkedTileRefsAuthored);
         int expectedRefs = expected.linkedTileRefs != null ? expected.linkedTileRefs.size : 0;

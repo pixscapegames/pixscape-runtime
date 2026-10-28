@@ -12,12 +12,12 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.Box2dWorldService;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.PhysicsService;
 import org.junit.*;
 
 import java.lang.reflect.Proxy;
@@ -343,6 +343,39 @@ public class DynamicEntityRenderStateSystemTest {
         Assert.assertEquals(cone, state.entityIdForSlot(drawList.get(2)));
         Assert.assertNotEquals(DynamicEntityRenderState.NO_SLOT, state.renderSlotForEntity(point));
         Assert.assertNotEquals(DynamicEntityRenderState.NO_SLOT, state.renderSlotForEntity(cone));
+        world.dispose();
+    }
+
+    @Test
+    public void indexedSpriteOrderChangeReachesDrawListAfterSystemsUpdate() {
+        DynamicEntityRenderState state = new DynamicEntityRenderState(4);
+        TiledMapRenderState tiled = new TiledMapRenderState(1);
+        LayerStateSOA layers = new LayerStateSOA(1);
+        layers.enabled[0] = true;
+        DrawList drawList = new DrawList(4);
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(dirty, new UpdateWorldGeometrySystem(),
+                        new RenderSpriteSyncSystem(state),
+                        new RenderBuildDrawListSystem(state, tiled, layers, drawList,
+                                new RenderStats(), 16, -1, -1),
+                        new RenderSortSystem(state, tiled, drawList),
+                        new DirtyFlushSystem())
+                .build());
+        int first = createRenderableSprite(world);
+        int second = createRenderableSprite(world);
+        world.getMapper(EntityIndexComponent.class).get(first).zIndex = 1;
+        world.getMapper(EntityIndexComponent.class).get(second).zIndex = 2;
+        world.process();
+        Assert.assertEquals(first, state.entityIdForSlot(drawList.get(0)));
+
+        world.getMapper(EntityIndexComponent.class).get(first).zIndex = 3;
+        dirty.order(first);
+        world.process();
+
+        Assert.assertEquals(second, state.entityIdForSlot(drawList.get(0)));
+        Assert.assertEquals(first, state.entityIdForSlot(drawList.get(1)));
+        Assert.assertFalse(world.getMapper(LayerComponent.class).has(first));
         world.dispose();
     }
 

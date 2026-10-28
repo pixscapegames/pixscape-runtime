@@ -20,12 +20,16 @@ public final class RuntimeTilesetProfiles {
             return;
         }
 
-        profiles.add(profile);
-        byTilesetId.put(profile.tilesetId, profile);
-
         if (profile.tileAssetIds == null) {
             profile.tileAssetIds = new int[0];
         }
+        com.badlogic.gdx.utils.IntSet members = new com.badlogic.gdx.utils.IntSet();
+        for (int id : profile.tileAssetIds) if (id > 0) members.add(id);
+        for (IntMap.Entry<String> normal : profile.normalMapSources)
+            if (!members.contains(normal.key) || normal.value == null)
+                throw new IllegalArgumentException("Normal resource belongs to an unknown tile: " + normal.key);
+        profiles.add(profile);
+        byTilesetId.put(profile.tilesetId, profile);
         for (int tileAssetId : profile.tileAssetIds) {
             if (tileAssetId > 0) {
                 byTileAssetId.put(tileAssetId, profile);
@@ -53,5 +57,10 @@ public final class RuntimeTilesetProfiles {
 
     public RuntimeTilesetProfile profileForTileAsset(int tileAssetId) {
         return byTileAssetId.get(tileAssetId);
+    }
+
+    public String normalMapSourceForTileAsset(int tileAssetId) {
+        RuntimeTilesetProfile profile = byTileAssetId.get(tileAssetId);
+        return profile == null ? null : profile.normalMapSources.get(tileAssetId);
     }
 }

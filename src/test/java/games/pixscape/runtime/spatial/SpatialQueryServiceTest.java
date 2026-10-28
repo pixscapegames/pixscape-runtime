@@ -64,7 +64,7 @@ public class SpatialQueryServiceTest {
         transform.x = 4f;
         transform.y = 6f;
 
-        SpatialVolume volume = service.buildEntityVolume(transform, null, null);
+        SpatialVolume volume = service.buildEntityVolume(transform, 0f, null, null);
 
         Assert.assertEquals(4f, volume.worldX, 0.0001f);
         Assert.assertEquals(6f, volume.worldY, 0.0001f);
@@ -82,7 +82,7 @@ public class SpatialQueryServiceTest {
 
         SpatialHeightComponent height = new SpatialHeightComponent();
         height.altitude = 1f;
-        height.height = 5f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,5f);
 
         SpatialShapesComponent shapes = new SpatialShapesComponent();
         SpatialShapeData shape = new SpatialShapeData();
@@ -91,7 +91,7 @@ public class SpatialQueryServiceTest {
         shape.halfH = 3f;
         shapes.shapes.add(shape);
 
-        SpatialVolume volume = service.buildEntityVolume(transform, height, shapes);
+        SpatialVolume volume = service.buildEntityVolume(transform, height.altitude, height.rectangles.staticRectangle, shapes);
 
         Assert.assertEquals(1f, volume.altitude, 0.0001f);
         Assert.assertEquals(5f, volume.height, 0.0001f);

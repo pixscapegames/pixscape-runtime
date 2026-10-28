@@ -1,5 +1,6 @@
 package games.pixscape.runtime.gameobject;
 
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -7,8 +8,35 @@ import games.pixscape.runtime.property.PropertySet;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.File;
+
 public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
+
+    @Test
+    public void contentLayerComponentInAssetIsRejectedWithSourceEntityId() throws Exception {
+        String json = loader.toJson(validNestedAsset());
+        String invalid = json.replaceFirst("\"sourceEntityId\"\\s*:\\s*1,",
+                "\"sourceEntityId\": 1, \"LayerComponent\": {},");
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.fromJson(invalid));
+        Assert.assertTrue(failure.getMessage().contains("sourceEntityId 1 contains LayerComponent"));
+        FileHandle file = new FileHandle(File.createTempFile("invalid-content-layer-", ".gameobject"));
+        file.writeString(invalid, false, "UTF-8");
+        IllegalArgumentException fileFailure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.load(file));
+        Assert.assertTrue(fileFailure.getMessage().contains(file.path()));
+        Assert.assertTrue(fileFailure.getMessage().contains("sourceEntityId 1"));
+    }
+
+    @Test public void sceneLayerIndexCannotBeStoredInDefinition() {
+        String json = loader.toJson(validNestedAsset());
+        String invalid = json.replaceFirst("\"entityIndex\"\\s*:\\s*\\{",
+                "\"entityIndex\": {\"layerIndex\": 3,");
+        IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                () -> loader.fromJson(invalid));
+        Assert.assertTrue(failure.getMessage().contains("scene layerIndex"));
+    }
 
     @Test
     public void logicalAssetIdIsCanonicalAndProjectRelative() {
@@ -66,6 +94,18 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset asset = validNestedAsset();
         asset.rootSourceEntityId = 99;
         rejected(asset, "rootSourceEntityId 99 is missing");
+    }
+
+    @Test public void scenePositionCannotBeStoredOnAssetRoot() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).transform.x = 12f;
+        rejected(asset, "scene placement belongs to each instance");
+    }
+
+    @Test public void sceneRenderOrderCannotBeStoredOnAssetRoot() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).entityIndex.zIndex = 4;
+        rejected(asset, "scene render order belongs to each instance");
     }
 
     @Test public void duplicateSourceIdIsRejected() {
@@ -165,23 +205,27 @@ public class GameObjectAssetLoaderTest {
         footprint.spatialFootprint = true;
         physical.physicsShapes.add(footprint);
         physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        physical.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        physical.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         physical.spatialHeight.altitude = 2.5f;
-        physical.spatialHeight.height = 7.5f;
+        physical.spatialHeight.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(7.5f);
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
         Assert.assertEquals(3, restored.schemaVersion);
         Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).spatialFootprint);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialHeight.altitude, 0f);
-        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.height, 0f);
+        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
-    public void negativeSpatialHeightIsRejected() {
+    public void negativeSpatialRectangleHeightIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).spatialHeight = new GameObjectAsset.SpatialHeightData();
-        asset.entities.get(2).spatialHeight.height = -1f;
-        rejected(asset, "negative Spatial height");
+        asset.entities.get(2).spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        asset.entities.get(2).spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        asset.entities.get(2).spatialHeight.rectangles.staticRectangle.height = -1f;
+        rejected(asset, "positive finite dimensions");
     }
 
     @Test public void physicsShapesRequireBody() {

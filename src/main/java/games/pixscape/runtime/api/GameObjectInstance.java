@@ -10,8 +10,18 @@ package games.pixscape.runtime.api;
  */
 public interface GameObjectInstance {
 
-    /** Returns the real Game Object root captured when this instance was spawned. */
+    /** Returns the real Game Object root, which owns world placement and render order. */
     EntityRef root();
+
+    /** Returns a caller-owned snapshot of this instance's captured hierarchy members. */
+    EntityRef[] members();
+
+    /**
+     * Returns the uniquely named member captured at spawn time.
+     *
+     * @throws IllegalArgumentException if the name is absent or ambiguous in this instance
+     */
+    EntityRef requireMember(String name);
 
     /** Returns whether the captured root entity is still current in its Runtime World. */
     boolean exists();

@@ -10,24 +10,33 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.render.FrameRenderQueue;
-import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEngineRenderIntegrationTest {
+    @Test public void frameObserverRunsAfterSubmissionWithoutAnApplicationSystemAndIsNotRetained() throws Exception {
+        List<String> events=new ArrayList<>();
+        World observed=new World(new com.artemis.WorldConfigurationBuilder().with(new BaseSystem(){
+            @Override protected void processSystem(){events.add("world");}
+        }).build());
+        PixscapeEngine engine=new PixscapeEngine();
+        java.lang.reflect.Field field=PixscapeEngine.class.getDeclaredField("world");
+        field.setAccessible(true);field.set(engine,observed);
+        try {
+            engine.render(() -> events.add("capture"));
+            engine.render();
+            Assert.assertEquals(java.util.Arrays.asList("world","capture","world"),events);
+            field.set(engine,null);
+            engine.render(() -> events.add("unexpected"));
+            Assert.assertEquals(3,events.size());
+        } finally {field.set(engine,null);observed.dispose();}
+    }
     private Application previousApp;
     private GL20 previousGl;
     private GL20 previousGl20;
@@ -92,6 +101,20 @@ public class PixscapeEngineRenderIntegrationTest {
         Gdx.gl30 = previousGl30;
         Gdx.graphics = previousGraphics;
         Gdx.files = previousFiles;
+    }
+
+    @Test
+    public void disposingEngineReleasesOwnedTiledStorage() throws Exception {
+        PixscapeEngine engine = new PixscapeEngine();
+        java.lang.reflect.Field tiledField = PixscapeEngine.class.getDeclaredField("tiledState");
+        tiledField.setAccessible(true);
+        tiledField.set(engine, new TiledMapRenderState(10000));
+
+        engine.dispose();
+
+        Assert.assertNull("A retained engine must not retain retired scene geometry", tiledField.get(engine));
+        engine.dispose();
+        Assert.assertNull(tiledField.get(engine));
     }
 
     @Test

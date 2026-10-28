@@ -24,42 +24,36 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.utils.GdxNativesLoader;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.PixscapeTagComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import com.badlogic.gdx.utils.GdxNativesLoader;
+import games.pixscape.runtime.api.EntityRef;
+import games.pixscape.runtime.api.GameObjectInstance;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.configuration.RuntimeConfig;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.loading.SceneLoadHandle;
-import games.pixscape.runtime.loading.SceneLoadPhase;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.runtime.particle.ParticleEffect;
-import games.pixscape.runtime.particle.ParticleEmitter;
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
-import games.pixscape.runtime.gameobject.SpawnResult;
-import games.pixscape.runtime.api.GameObjectInstance;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.hud.*;
+import games.pixscape.runtime.loading.SceneAvailabilityPlan;
+import games.pixscape.runtime.loading.SceneLoadHandle;
+import games.pixscape.runtime.loading.SceneLoadPhase;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.system.Box2dSyncSystem;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
-import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.*;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -76,6 +70,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEnginePhysicsLifecycleTest {
+    // Lifecycle/identity fixtures use a fake GL; real rendering has its own GL integration tests.
+    private static void disableRendering(PixscapeEngine engine) {
+        engine.setRenderSubmitSystemSupplier(() -> new com.artemis.BaseSystem() {
+            @Override protected void processSystem() { }
+        });
+    }
+
+    private static final String[] HUD_ATTRIBUTES = {
+            "a_position", "a_color", "a_texCoord0", "a_layer"
+    };
+    private static final String[] HUD_UNIFORMS = {"u_projTrans", "u_array"};
     private Application previousApp;
     private GL20 previousGl;
     private GL20 previousGl20;
@@ -83,6 +88,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
     private Graphics previousGraphics;
     private com.badlogic.gdx.Files previousFiles;
     private final List<String> debugMessages = new ArrayList<>();
+    private int generatedTextures;
+    private int deletedTextures;
+    private boolean failHudViewport;
 
     @Before
     public void installApplication() {
@@ -106,9 +114,15 @@ public class PixscapeEnginePhysicsLifecycleTest {
         GL30 gl = (GL30) Proxy.newProxyInstance(
                 GL30.class.getClassLoader(),
                 new Class<?>[]{GL30.class},
-                (proxy, method, args) ->
-                        glDefaultValue(method.getName(), args,
-                                method.getReturnType(), nextGlHandle));
+                (proxy, method, args) -> {
+                    if ("glGenTexture".equals(method.getName())) generatedTextures++;
+                    if ("glDeleteTexture".equals(method.getName()) || "glDeleteTextures".equals(method.getName())) deletedTextures++;
+                    if ("glViewport".equals(method.getName()) && failHudViewport) {
+                        failHudViewport = false;
+                        throw new IllegalStateException("Injected HUD session failure");
+                    }
+                    return glDefaultValue(method.getName(), args, method.getReturnType(), nextGlHandle);
+                });
         Gdx.gl = gl;
         Gdx.gl20 = gl;
         Gdx.gl30 = gl;
@@ -293,7 +307,42 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (!load.isReady() && !load.isFailed()) load.update();
 
             Assert.assertTrue(load.isReady());
+            World world = fixture.engine.getWorld();
+            int layer = world.create();
+            world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
+            world.process();
+            GameObjectInstance first = fixture.engine.api().gameObjects()
+                    .spawn("declared", 11f, 22f);
+            GameObjectInstance second = fixture.engine.api().gameObjects()
+                    .spawn("declared", 33f, 44f);
+            world.process();
+            first.root().renderOrder().set(4, 2);
+            second.root().renderOrder().set(4, 7);
+            Assert.assertEquals(11f, first.root().transform().x(), 0f);
+            Assert.assertEquals(22f, first.root().transform().y(), 0f);
+            Assert.assertEquals(33f, second.root().transform().x(), 0f);
+            Assert.assertEquals(44f, second.root().transform().y(), 0f);
+            Assert.assertEquals(2, first.root().renderOrder().zIndex());
+            Assert.assertEquals(7, second.root().renderOrder().zIndex());
+            Assert.assertEquals(1, first.members().length);
+            Assert.assertEquals(1, second.members().length);
+            Assert.assertNotEquals(first.requireMember("child").stableId(),
+                    second.requireMember("child").stableId());
+            Assert.assertEquals(5f, first.requireMember("child").transform().x(), 0f);
+            Assert.assertEquals(5f, second.requireMember("child").transform().x(), 0f);
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> first.requireMember("missing"));
+            EntityRef[] memberSnapshot = first.members();
+            memberSnapshot[0] = null;
+            Assert.assertNotNull(first.members()[0]);
+            first.root().transform().setPosition(55f, 66f);
+            Assert.assertEquals(33f, second.root().transform().x(), 0f);
+            GameObjectAsset definition = new GameObjectAssetLoader().load(
+                    fixture.projectDir.child("gameobjects/declared.gameobject"));
+            Assert.assertEquals(0f, definition.entities.get(0).transform.x, 0f);
+            Assert.assertEquals(5f, definition.entities.get(1).transform.x, 0f);
             GameObjectInstance spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
+            world.process();
             Assert.assertTrue(spawned.exists());
             Assert.assertTrue(spawned.root().stableId() >= 0);
             spawned.despawn();
@@ -387,6 +436,31 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertTrue(engine.firstEntityByTag("hero") >= 0);
             engine.render();
             engine.dispose();
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void inheritedLayerContentConflictFailsBeforeSceneBecomesActive()
+            throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        FileHandle scene = fixture.projectDir.child("scenes/a.json");
+        String source = new FileHandle(
+                "examples/minimal-export/scenes/scene1.json").readString("UTF-8");
+        String invalid = source.replace("\"RenderMaterialComponent\"]",
+                "\"RenderMaterialComponent\", \"LayerComponent\"]")
+                .replace("\"EntityIndexComponent\": { \"layerIndex\": 0, \"zIndex\": 0 },", "");
+        Assert.assertNotEquals(source, invalid);
+        scene.writeString(invalid, false, "UTF-8");
+        try {
+            RuntimeException failure = Assert.assertThrows(RuntimeException.class,
+                    () -> engine.loadScene("A"));
+            Assert.assertTrue(failure.getMessage(), failure.getMessage().contains(scene.path()));
+            Assert.assertTrue(failure.getMessage(), failure.getMessage().contains("entityId="));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.getWorld());
         } finally {
             engine.dispose();
         }
@@ -495,6 +569,353 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
+    @Test
+    public void sceneDefaultsFollowPublishedSceneAndFailuresCannotMasquerade() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        FileHandle project = fixture.projectDir;
+        HudResourcesTest.writeHudFiles(project);
+        project.child("hud").mkdirs();
+        writeHudScreen(project, "a", "hud/a.json");
+        writeHudScreen(project, "b", "hud/b.json");
+        project.child("hud/a.json").writeString(hudDocument(), false, "UTF-8");
+        project.child("hud/b.json").writeString(hudDocument(), false, "UTF-8");
+        copySceneHud(project, "a");
+        copySceneHud(project, "d");
+        try {
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.config().getSceneMeta("D").defaultHudScreenId = "hud/b";
+            engine.loadScene("A");
+            ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), a);
+            Assert.assertSame(a.materializedHud(), engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+            Assert.assertEquals("hud/a", a.screenId());
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
+            Assert.assertNotNull(a.materializedHud().actor("root"));
+
+            engine.loadScene("D");
+            ActiveHudScreen b = engine.hudScreenRuntime().activeScreen();
+            Assert.assertSame(b.materializedHud(), engine.getActiveHud());
+            Assert.assertNotSame(a.materializedHud(), engine.getActiveHud());
+            Assert.assertEquals("hud/b", b.screenId());
+            Assert.assertTrue(a.isDisposed());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = null;
+            engine.loadScene("A");
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+            Assert.assertTrue(b.isDisposed());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.loadScene("A");
+            ActiveHudScreen replacement = engine.hudScreenRuntime().activeScreen();
+            engine.config().getSceneMeta("D").defaultHudScreenId = "hud/missing";
+            Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("D"));
+            Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+            Assert.assertSame(replacement, engine.hudScreenRuntime().activeScreen());
+            Assert.assertSame(replacement.materializedHud(), engine.getActiveHud());
+            Assert.assertFalse(replacement.isDisposed());
+
+            engine.config().getSceneMeta("A").defaultHudScreenId = "hud/a";
+            engine.loadScene("A");
+            ActiveHudScreen beforeFailedScene = engine.hudScreenRuntime().activeScreen();
+            Assert.assertThrows(RuntimeException.class, () -> engine.loadScene("B"));
+            Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertTrue(beforeFailedScene.isDisposed());
+
+            engine.update(1f / 60f);
+            engine.render();
+            engine.resize(640, 360);
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
+    public void sceneV1PreparesBeforeSwitchBorrowsWithoutAllocationAndRetiresInOrder() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), a);
+            MaterializedHud publicHud = engine.getActiveHud();
+            Assert.assertSame(a.materializedHud(), publicHud);
+            Assert.assertSame(publicHud, engine.getActiveHud());
+            Label label = (Label) publicHud.actor("label");
+            label.setText("Score: 42");
+            Assert.assertEquals("Score: 42", ((Label) engine.getActiveHud().actor("label")).getText().toString());
+            Assert.assertNull(publicHud.actor("absent"));
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, a.resourceOwnership());
+            HudSession sessionA = hudSession(a);
+            SceneAvailabilityPlan planA = (SceneAvailabilityPlan) get(engine, "activeSceneAvailability");
+            HudResources environmentA = planA.hudResources();
+            World worldA = engine.getWorld();
+            int[] disposals = {0};
+            selectedSkin(environmentA).add("order-probe", (com.badlogic.gdx.utils.Disposable) () -> {
+                Assert.assertTrue(sessionA.isDisposed());
+                Assert.assertTrue(a.isDisposed());
+                Assert.assertSame("HUD environment retires before World", worldA, engine.getWorld());
+                disposals[0]++;
+            }, com.badlogic.gdx.utils.Disposable.class);
+            SceneLoadHandle b = engine.beginLoadScene("D");
+            while (b.phase() == SceneLoadPhase.FILES && !b.isFailed()) b.update();
+            Assert.assertFalse(String.valueOf(b.failure()), b.isFailed());
+            SceneAvailabilityPlan planB = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
+            HudResources environmentB = planB.hudResources();
+            Assert.assertNotNull(environmentB);
+            Assert.assertFalse(environmentA.isDisposed()); Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
+            b.update(); // Destructive construction boundary.
+            Assert.assertEquals(1, disposals[0]); Assert.assertTrue(environmentA.isDisposed());
+            while (b.phase() == SceneLoadPhase.RUNTIME && ((Integer) get(b, "runtimeStep")) < 4) b.update();
+            int allocations = generatedTextures;
+            while (!b.isReady() && !b.isFailed()) b.update();
+            Assert.assertTrue(String.valueOf(b.failure()), b.isReady());
+            Assert.assertSame(planB, get(engine, "activeSceneAvailability"));
+            ActiveHudScreen activeB = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotSame(publicHud, engine.getActiveHud());
+            Assert.assertSame(activeB.materializedHud(), engine.getActiveHud());
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, activeB.resourceOwnership());
+            Assert.assertEquals("no second HUD environment allocated for default", allocations, generatedTextures);
+            engine.hudScreenRuntime().hide();
+            Assert.assertFalse(environmentB.isDisposed());
+            // Explicit public show, including the Scene root itself, still creates a private owner.
+            ActiveHudScreen owned = engine.hudScreenRuntime().show("b");
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.OWNED, owned.resourceOwnership());
+            Assert.assertTrue(generatedTextures > allocations);
+            engine.hudScreenRuntime().hide(); Assert.assertFalse(environmentB.isDisposed());
+            engine.dispose(); engine.dispose();
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+            Assert.assertTrue(environmentB.isDisposed()); Assert.assertEquals(1, disposals[0]);
+        } finally { engine.dispose(); }
+    }
+
+    @Test
+    public void sceneV1DefaultIgnoresAuthoredLegacyProfileWithoutMutatingAsset() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        FileHandle asset = fixture.projectDir.child("hud/a.hudscreen");
+        String authored = asset.readString().replace(HudTextureProfile.DEFAULT_ID, "legacy-other-profile");
+        asset.writeString(authored, false);
+        try {
+            fixture.engine.loadScene("A");
+            ActiveHudScreen active = fixture.engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotNull(String.valueOf(fixture.engine.getLastHudFailure()), active);
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, active.resourceOwnership());
+            SceneAvailabilityPlan plan = (SceneAvailabilityPlan) get(fixture.engine, "activeSceneAvailability");
+            Assert.assertSame(plan.hudResources(), get(active, "resources"));
+            Assert.assertEquals(HudTextureProfile.DEFAULT_ID, plan.hudResources().textureProfile().id());
+            Assert.assertEquals(authored, asset.readString());
+        } finally { fixture.engine.dispose(); }
+    }
+
+    @Test
+    public void sceneV1MissingAndCorruptResourcesPreserveAAndNeverUseValidLegacyAtlas() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            World worldA = engine.getWorld();
+            ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
+            HudResources environmentA = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
+            FileHandle descriptor = fixture.projectDir.child("atlases/hud/d/hud.atlas");
+            String original = descriptor.readString();
+            String originalSkin = fixture.projectDir.child("ui/game.json").readString();
+            descriptor.delete();
+            assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
+            descriptor.writeString(original, false);
+            fixture.projectDir.child("atlases/hud/d/page-b.png").delete();
+            assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
+            fixture.projectDir.child("ui/page-b.png").copyTo(descriptor.parent().child("page-b.png"));
+            // Files are available but the fixed physical profile is invalid: still before construction.
+            descriptor.writeString(original.replace("2048, 2048", "1024, 2048"), false);
+            assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
+            descriptor.writeString(original, false);
+            fixture.projectDir.child("ui/game.json").writeString("{", false);
+            assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
+            fixture.projectDir.child("ui/game.json").writeString(originalSkin, false);
+            fixture.projectDir.child("ui/default-font.fnt").writeString("invalid-font-descriptor", false);
+            int deletedBefore = deletedTextures;
+            assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
+            Assert.assertEquals("partially prepared candidate atlas pages are reclaimed", 2, deletedTextures - deletedBefore);
+        } finally { engine.dispose(); }
+    }
+
+    @Test
+    public void rejectedPreparedCandidateAndConstructionFailureDisposeEnvironmentExactlyOnce() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            ActiveHudScreen a = engine.hudScreenRuntime().activeScreen();
+            SceneLoadHandle pending = engine.beginLoadScene("D");
+            while (pending.phase() == SceneLoadPhase.FILES && !pending.isFailed()) pending.update();
+            Assert.assertFalse(String.valueOf(pending.failure()), pending.isFailed());
+            SceneAvailabilityPlan candidate = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
+            HudResources resources = candidate.hudResources();
+            candidate.prepareHudResources(); Assert.assertSame(resources, candidate.hudResources());
+            int[] count = {0};
+            selectedSkin(resources).add("probe", (com.badlogic.gdx.utils.Disposable) () -> count[0]++,
+                    com.badlogic.gdx.utils.Disposable.class);
+            Method release = PixscapeEngine.class.getDeclaredMethod("releasePendingSceneAvailability");
+            release.setAccessible(true); release.invoke(engine);
+            candidate.release(); candidate.release();
+            Assert.assertEquals(1, count[0]); Assert.assertTrue(resources.isDisposed());
+            Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
+            // End the abandoned handle through its normal failure path; A is still untouched.
+            pending.update(); Assert.assertTrue(pending.isFailed());
+            // B has invalid Scene stable IDs: its prepared HUD candidate must also be reclaimed.
+            engine.config().getSceneMeta("B").defaultHudScreenId = "hud/b";
+            copySceneHud(fixture.projectDir, "b");
+            SceneLoadHandle invalid = engine.beginLoadScene("B");
+            while (invalid.phase() == SceneLoadPhase.FILES && !invalid.isFailed()) invalid.update();
+            SceneAvailabilityPlan invalidPlan = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
+            HudResources invalidEnvironment = invalidPlan.hudResources();
+            invalid.update(); Assert.assertTrue(invalid.isFailed());
+            Assert.assertTrue(invalidEnvironment.isDisposed());
+            Assert.assertNull(get(engine, "pendingSceneAvailability")); Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertTrue(a.isDisposed());
+        } finally { engine.dispose(); }
+    }
+
+    @Test
+    public void v1DefaultSessionFailureIsSoftAndSceneStillOwnsItsEnvironment() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            SceneLoadHandle load = engine.beginLoadScene("A");
+            while (load.phase() != SceneLoadPhase.RUNTIME && !load.isFailed()) load.update();
+            while (((Integer) get(load, "runtimeStep")) < 4 && !load.isFailed()) load.update();
+            failHudViewport = true;
+            while (!load.isReady() && !load.isFailed()) load.update();
+            Assert.assertTrue(String.valueOf(load.failure()), load.isReady());
+            Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+            Assert.assertNotNull(engine.getLastHudFailure());
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
+            HudResources resources = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
+            Assert.assertFalse(resources.isDisposed());
+
+            engine.loadScene("D");
+            Assert.assertNotNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+
+            failHudViewport = true;
+            engine.loadScene("A");
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNotNull(engine.getLastHudFailure());
+            engine.config().getSceneMeta("D").defaultHudScreenId = null;
+            engine.loadScene("D");
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNull(engine.getLastHudFailure());
+            engine.dispose(); Assert.assertTrue(resources.isDisposed());
+        } finally { engine.dispose(); }
+    }
+
+    @Test
+    public void rootlessV1HasNoEnvironmentAndLayoutOnlyV1IgnoresUnusedSkin() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.config().getSceneMeta("A").defaultHudScreenId = null;
+            engine.loadScene("A");
+            Assert.assertNull(((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources());
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            fixture.projectDir.child("hud/b.json").writeString(hudDocument(), false);
+            fixture.projectDir.child("hud/b.hudscreen").writeString("{\"schemaVersion\":1,"
+                    + "\"documentId\":\"hud/b.json\",\"skinId\":\"ui/absent.json\",\"atlasId\":\"ui/absent.atlas\"}", false);
+            engine.loadScene("D");
+            ActiveHudScreen b = engine.hudScreenRuntime().activeScreen();
+            Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), b);
+            Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, b.resourceOwnership());
+            Assert.assertTrue(((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources().skinIds().isEmpty());
+        } finally { engine.dispose(); }
+    }
+
+    @Test
+    public void v1DefaultActorFailureIsSoftAfterPhysicalEnvironmentPreparation() throws Exception {
+        EngineFixture fixture = sceneHudFixture();
+        PixscapeEngine engine = fixture.engine;
+        fixture.projectDir.child("ui/game.json").writeString(
+                "{\"LabelStyle\":{\"broken\":{}}}", false);
+        fixture.projectDir.child("hud/a.json").writeString(
+                "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                        + "\"label\":{\"text\":\"HUD\",\"styleName\":\"broken\"},\"children\":[]}}", false);
+        try {
+            engine.loadScene("A");
+            Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+            Assert.assertNull(engine.hudScreenRuntime().activeScreen());
+            Assert.assertNull(engine.getActiveHud());
+            Assert.assertNotNull(engine.getLastHudFailure());
+            HudResources environment = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
+            Assert.assertFalse(environment.isDisposed());
+            engine.dispose(); Assert.assertTrue(environment.isDisposed());
+        } finally { engine.dispose(); }
+    }
+
+    private static void assertHudPreparationFailurePreservesA(PixscapeEngine engine, World worldA,
+                                                              ActiveHudScreen a, HudResources environmentA) {
+        SceneLoadHandle failed = engine.beginLoadScene("D");
+        while (!failed.isFailed() && !failed.isReady()) failed.update();
+        Assert.assertTrue(failed.isFailed()); Assert.assertEquals(SceneLoadPhase.FILES, failed.phase());
+        Assert.assertSame(worldA, engine.getWorld()); Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+        Assert.assertSame(a, engine.hudScreenRuntime().activeScreen()); Assert.assertFalse(a.isDisposed());
+        Assert.assertSame(a.materializedHud(), engine.getActiveHud());
+        Assert.assertNull(engine.getLastHudFailure());
+        Assert.assertFalse(environmentA.isDisposed());
+    }
+
+    private static EngineFixture sceneHudFixture() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        HudResourcesTest.writeHudFiles(fixture.projectDir);
+        fixture.projectDir.child("hud").mkdirs();
+        for (String id : new String[]{"a", "b"}) {
+            writeHudScreen(fixture.projectDir, id, "hud/" + id + ".json");
+            fixture.projectDir.child("hud/" + id + ".json").writeString(
+                    "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
+                            + "\"label\":{\"text\":\"HUD\",\"styleName\":\"hud-title\"},\"children\":[]}}", false);
+        }
+        copySceneHud(fixture.projectDir, "a"); copySceneHud(fixture.projectDir, "d");
+        fixture.config.getSceneMeta("A").defaultHudScreenId = "hud/a";
+        fixture.config.getSceneMeta("D").defaultHudScreenId = "hud/b";
+        return fixture;
+    }
+
+    private static void copySceneHud(FileHandle project, String tag) {
+        FileHandle scene = project.child("atlases/hud/" + tag); scene.mkdirs();
+        project.child("ui/game.atlas").copyTo(scene.child("hud.atlas"));
+        project.child("ui/page-a.png").copyTo(scene.child("page-a.png"));
+        project.child("ui/page-b.png").copyTo(scene.child("page-b.png"));
+    }
+
+    private static HudSession hudSession(ActiveHudScreen active) throws Exception {
+        Method method = ActiveHudScreen.class.getDeclaredMethod("session"); method.setAccessible(true);
+        return (HudSession) method.invoke(active);
+    }
+
+    private static com.badlogic.gdx.scenes.scene2d.ui.Skin selectedSkin(HudResources environment) throws Exception {
+        Object selected = environment.select("ui/game.json");
+        Method method = selected.getClass().getDeclaredMethod("skin"); method.setAccessible(true);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Skin) method.invoke(selected);
+    }
+
+    private static void writeHudScreen(FileHandle project, String name, String documentId) {
+        project.child("hud/" + name + ".hudscreen").writeString(
+                "{\"schemaVersion\":1,\"documentId\":\"" + documentId + "\","
+                        + "\"skinId\":\"ui/game.json\",\"atlasId\":\"ui/game.atlas\","
+                        + "\"textureProfileId\":\"" + HudTextureProfile.DEFAULT_ID + "\"}",
+                false, "UTF-8");
+    }
+
+    private static String hudDocument() {
+        return "{\"schemaVersion\":2,\"root\":{\"id\":\"root\","
+                + "\"kind\":\"GROUP\",\"children\":[]}}";
+    }
+
     private static EngineFixture createEngineFixture() throws Exception {
         GdxNativesLoader.load();
 
@@ -531,6 +952,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 return manager;
             }
         });
+        disableRendering(engine);
         CandidateWorldProbe worldProbe = new CandidateWorldProbe();
         engine.setConfigurationCustomizer(builder ->
                 builder.with(new CandidateWorldProbeSystem(worldProbe)));
@@ -741,6 +1163,18 @@ public class PixscapeEnginePhysicsLifecycleTest {
         root.transform.scaleY = 1f;
         root.gameObject = new GameObjectAsset.GameObjectData();
         asset.entities.add(root);
+        GameObjectAsset.GameObjectEntityData child =
+                new GameObjectAsset.GameObjectEntityData();
+        child.sourceEntityId = 2;
+        child.parentSourceEntityId = 1;
+        child.transform = new GameObjectAsset.TransformData();
+        child.transform.x = 5f;
+        child.transform.y = 6f;
+        child.transform.scaleX = 1f;
+        child.transform.scaleY = 1f;
+        child.identity = new GameObjectAsset.IdentityData();
+        child.identity.name = "child";
+        asset.entities.add(child);
         new GameObjectAssetLoader().save(file, asset);
     }
 
@@ -801,14 +1235,33 @@ public class PixscapeEnginePhysicsLifecycleTest {
             ((java.nio.IntBuffer) args[2]).put(0, 1);
             return null;
         }
+        if ("glGetIntegerv".equals(methodName)
+                && args != null && args.length >= 2) {
+            int parameter = (Integer) args[0];
+            int value = parameter == GL30.GL_MAX_ARRAY_TEXTURE_LAYERS ? 16
+                    : parameter == GL20.GL_MAX_TEXTURE_IMAGE_UNITS
+                    || parameter == GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS ? 16 : 4096;
+            ((java.nio.IntBuffer) args[1]).put(0, value);
+            return null;
+        }
         if ("glGetProgramiv".equals(methodName)
                 && args != null && args.length >= 3) {
             int parameter = (Integer) args[1];
             int value = parameter == GL20.GL_LINK_STATUS
-                    || parameter == GL20.GL_VALIDATE_STATUS ? 1 : 0;
+                    || parameter == GL20.GL_VALIDATE_STATUS ? 1
+                    : parameter == GL20.GL_ACTIVE_ATTRIBUTES ? HUD_ATTRIBUTES.length
+                    : parameter == GL20.GL_ACTIVE_UNIFORMS ? HUD_UNIFORMS.length : 0;
             ((java.nio.IntBuffer) args[2]).put(0, value);
             return null;
         }
+        if ("glGetActiveAttrib".equals(methodName)) {
+            return HUD_ATTRIBUTES[(Integer) args[1]];
+        }
+        if ("glGetActiveUniform".equals(methodName)) {
+            return HUD_UNIFORMS[(Integer) args[1]];
+        }
+        if ("glGetAttribLocation".equals(methodName)
+                || "glGetUniformLocation".equals(methodName)) return 1;
         if (methodName.startsWith("glGen")
                 && args != null && args.length >= 2
                 && args[1] instanceof java.nio.IntBuffer) {

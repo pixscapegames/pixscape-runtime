@@ -18,11 +18,7 @@ import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
-import games.pixscape.runtime.service.AtlasAssetBinding;
-import games.pixscape.runtime.service.AtlasRegionMetadata;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 import java.util.List;
@@ -48,15 +44,15 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     public SpawnResult spawn(
             World world, GameObjectRuntimeFragment fragment,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         GameObjectRuntimeFragment.requireCurrentSchema(fragment);
         return spawnAsset(world, fragment.toAsset(), fragment.sourceAssetId,
-                rootOffsetX, rootOffsetY);
+                rootWorldX, rootWorldY);
     }
 
     public SpawnResult spawnAsset(
             World world, GameObjectAsset asset, String sourceAssetId,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         if (world == null) throw new IllegalArgumentException("world must not be null");
         loader.validate(asset, null);
         if (sceneMeta != null && !sceneMeta.physicsEnabled && containsAuthoredPhysics(asset)) {
@@ -81,7 +77,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 sourceToEntity.put(data.sourceEntityId, entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
                         sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
-                        physics.get(data.sourceEntityId), rootOffsetX, rootOffsetY);
+                        physics.get(data.sourceEntityId), rootWorldX, rootWorldY);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
             createJoints(world, asset.joints, sourceToEntity, rootEntityId, created);
@@ -297,11 +293,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             World world, int entityId, GameObjectAsset.GameObjectEntityData data,
             int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
             PreparedAssetBinding preparedBinding, PreparedPhysics preparedPhysics,
-            float rootOffsetX, float rootOffsetY) {
+            float rootWorldX, float rootWorldY) {
         if (data.transform != null) {
             TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
-            value.x = data.transform.x + (data.sourceEntityId == rootSourceId ? rootOffsetX : 0f);
-            value.y = data.transform.y + (data.sourceEntityId == rootSourceId ? rootOffsetY : 0f);
+            value.x = data.sourceEntityId == rootSourceId ? rootWorldX : data.transform.x;
+            value.y = data.sourceEntityId == rootSourceId ? rootWorldY : data.transform.y;
             value.rotationRad = data.transform.rotationRad;
             value.scaleX = data.transform.scaleX;
             value.scaleY = data.transform.scaleY;
@@ -311,10 +307,8 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
         index.layerIndex = 0;
-        index.zIndex = data.entityIndex != null ? data.entityIndex.zIndex : 0;
-        if (data.sourceEntityId == rootSourceId) {
-            world.getMapper(LayerComponent.class).create(entityId).layerIndex = 0;
-        }
+        index.zIndex = data.sourceEntityId == rootSourceId || data.entityIndex == null
+                ? 0 : data.entityIndex.zIndex;
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
         identity.stableId = sourceToStable.get(data.sourceEntityId, -1);
         identity.name = data.identity != null && data.identity.name != null ? data.identity.name : "";
@@ -383,10 +377,18 @@ public final class GameObjectRuntimeFragmentSpawner {
             RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
             repeat.repeatX = data.repeat.repeatX; repeat.repeatY = data.repeat.repeatY;
         }
+        if(data.surfaceLighting!=null){
+            games.pixscape.runtime.component.SurfaceLightingComponent source=data.surfaceLighting;
+            games.pixscape.runtime.component.SurfaceLightingComponent target=world.getMapper(games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entityId);
+            target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
+            target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
+            target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
+        }
         if (data.pointLight != null) {
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);
             light.r = data.pointLight.r; light.g = data.pointLight.g; light.b = data.pointLight.b;
             light.intensity = data.pointLight.intensity; light.radius = data.pointLight.radius;
+            light.height=data.pointLight.height;light.shadowQuality=data.pointLight.shadowQuality;light.shadowResolution=data.pointLight.shadowResolution;
             light.falloff = data.pointLight.falloff; light.enabled = data.pointLight.enabled;
         }
         if (data.coneLight != null) {
@@ -394,13 +396,15 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.r = data.coneLight.r; light.g = data.coneLight.g; light.b = data.coneLight.b;
             light.intensity = data.coneLight.intensity; light.radius = data.coneLight.radius;
             light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
+            light.inclinationDeg = data.coneLight.inclinationDeg;
             light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
+            light.height=data.coneLight.height;light.shadowQuality=data.coneLight.shadowQuality;light.shadowResolution=data.coneLight.shadowResolution;
         }
         if (data.spatialHeight != null) {
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
             height.altitude = data.spatialHeight.altitude;
-            height.height = data.spatialHeight.height;
+            height.rectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
         }
         if (preparedPhysics != null) {
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

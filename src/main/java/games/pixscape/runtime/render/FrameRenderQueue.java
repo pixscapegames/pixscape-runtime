@@ -15,6 +15,9 @@ package games.pixscape.runtime.render;
  * the queue from the engine must not dispose it or retain entry assumptions across rebuilds.</p>
  */
 public final class FrameRenderQueue {
+    /** Published receiver/caster/light data; does not change image ordering. */
+    public final games.pixscape.runtime.render.lighting.LightingFrame lighting =
+            new games.pixscape.runtime.render.lighting.LightingFrame();
     public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
     public static final byte SOURCE_ECS = RenderSourceDomain.SOURCE_ECS;
     public static final byte SOURCE_TILED = RenderSourceDomain.SOURCE_TILED;
@@ -38,6 +41,14 @@ public final class FrameRenderQueue {
     public float[] u1, v1, u2, v2;
     public float[] colorPacked;
     public byte[] repeatFlags;
+    /** Derived light identity; independent of shader and blend selection. */
+    public byte[] light;
+    /** Derived VFX instance participation; ordinary images always publish false. */
+    public boolean[] ignoreAmbientLighting;
+    /** Frame-local material admission, written by the original submission path. */
+    public byte[] ambientMaterial;
+    /** Prepared read-only parameter references; submission never looks up source entities. */
+    public games.pixscape.runtime.component.ShaderParamsComponent[] shaderParameters;
 
     public byte[] sourceDomain;
     public int[] sourceSlot;
@@ -55,6 +66,8 @@ public final class FrameRenderQueue {
     }
 
     public void reset() {
+        // Scene replacement must release borrowed material parameters, including inactive tail slots.
+        if (shaderParameters != null) java.util.Arrays.fill(shaderParameters, null);
         clear();
     }
 
@@ -67,6 +80,9 @@ public final class FrameRenderQueue {
     }
 
     public void setCapacity(int newCapacity) {
+        lighting.entities.clear();lighting.tiles.clear();lighting.lights.clear();lighting.casters.clear();
+        lighting.staticCasterCount=0;lighting.diagnostic=0;lighting.timer=null;
+        lighting.casterIndex.rebuild(lighting,0);
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("FrameRenderQueue capacity must be > 0");
         }
@@ -143,6 +159,10 @@ public final class FrameRenderQueue {
         this.sourceDomain[index] = sourceDomain;
         this.sourceSlot[index] = sourceSlot;
         this.sourceEntity[index] = sourceEntity;
+        this.light[index] = 0;
+        this.ignoreAmbientLighting[index] = false;
+        this.ambientMaterial[index] = 0;
+        this.shaderParameters[index] = null;
     }
 
     public void swap(int a, int b) {
@@ -179,6 +199,14 @@ public final class FrameRenderQueue {
         swap(v2, a, b);
         swap(colorPacked, a, b);
         swap(repeatFlags, a, b);
+        swap(light, a, b);
+        boolean ignore = ignoreAmbientLighting[a];
+        ignoreAmbientLighting[a] = ignoreAmbientLighting[b];
+        ignoreAmbientLighting[b] = ignore;
+        swap(ambientMaterial, a, b);
+        games.pixscape.runtime.component.ShaderParamsComponent parameters = shaderParameters[a];
+        shaderParameters[a] = shaderParameters[b];
+        shaderParameters[b] = parameters;
 
         swap(sourceDomain, a, b);
         swap(sourceSlot, a, b);
@@ -208,6 +236,10 @@ public final class FrameRenderQueue {
         float[] oldV2 = v2;
         float[] oldColorPacked = colorPacked;
         byte[] oldRepeatFlags = repeatFlags;
+        byte[] oldLight = light;
+        boolean[] oldIgnoreAmbientLighting = ignoreAmbientLighting;
+        byte[] oldAmbientMaterial = ambientMaterial;
+        games.pixscape.runtime.component.ShaderParamsComponent[] oldShaderParameters = shaderParameters;
 
         byte[] oldSourceDomain = sourceDomain;
         int[] oldSourceSlot = sourceSlot;
@@ -235,6 +267,10 @@ public final class FrameRenderQueue {
         v2 = new float[newCapacity];
         colorPacked = new float[newCapacity];
         repeatFlags = new byte[newCapacity];
+        light = new byte[newCapacity];
+        ignoreAmbientLighting = new boolean[newCapacity];
+        ambientMaterial = new byte[newCapacity];
+        shaderParameters = new games.pixscape.runtime.component.ShaderParamsComponent[newCapacity];
 
         sourceDomain = new byte[newCapacity];
         sourceSlot = new int[newCapacity];
@@ -264,6 +300,10 @@ public final class FrameRenderQueue {
             copy(oldV2, v2, count);
             copy(oldColorPacked, colorPacked, count);
             copy(oldRepeatFlags, repeatFlags, count);
+            copy(oldLight, light, count);
+            if (oldIgnoreAmbientLighting != null) System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
+            if (oldAmbientMaterial != null) System.arraycopy(oldAmbientMaterial, 0, ambientMaterial, 0, count);
+            if (oldShaderParameters != null) System.arraycopy(oldShaderParameters, 0, shaderParameters, 0, count);
 
             copy(oldSourceDomain, sourceDomain, count);
             copy(oldSourceSlot, sourceSlot, count);

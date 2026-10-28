@@ -2,17 +2,17 @@ package games.pixscape.runtime.service;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
+import com.badlogic.gdx.graphics.TextureArray;
+import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.ObjectMap;
-import com.badlogic.gdx.utils.ObjectIntMap;
-import com.badlogic.gdx.utils.ObjectSet;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.render.InternalTextures;
+import games.pixscape.runtime.render.batch.GLCaps;
 
 
 /**
@@ -49,6 +49,7 @@ public class AtlasRuntimeService {
 
     protected final ObjectMap<String, TextureAtlas> atlases = new ObjectMap<>();
     protected final ObjectMap<String, TextureArrayBundle> bundles = new ObjectMap<>();
+    private final ObjectMap<String, NormalMapAtlas> normalAtlases = new ObjectMap<>();
     private final ObjectMap<String, AtlasAssetIndex> indexesByTag = new ObjectMap<>();
     private final ObjectIntMap<String> publicationRevisions = new ObjectIntMap<>();
     private final ObjectSet<String> pendingPublications = new ObjectSet<>();
@@ -62,14 +63,29 @@ public class AtlasRuntimeService {
     // ---------------- load/unload ----------------
 
     public void load(String tag, FileHandle atlasFile) {
+        load(tag, atlasFile, true);
+    }
+
+    public void load(String tag, FileHandle atlasFile, boolean useNormalMaps) {
         TextureAtlas atlas = new TextureAtlas(atlasFile);
-        load(tag, atlas, true);
+        NormalMapAtlas normals = null;
+        try {
+            FileHandle normalFile = atlasFile.sibling(tag + NormalMapAtlas.SUFFIX + ".atlas");
+            if (useNormalMaps && normalFile.exists()) normals = new NormalMapAtlas(tag, normalFile, atlas);
+        } catch (RuntimeException failure) {
+            atlas.dispose(); if (normals != null) normals.dispose();
+            throw failure;
+        }
+        load(tag, atlas, true, normals);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
     /** Publishes an already-created atlas and transfers its ownership to this service. */
     protected final void publishOwnedAtlas(String tag, TextureAtlas atlas) {
         load(tag, atlas, true);
+    }
+    protected final void publishOwnedAtlas(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
+        load(tag, atlas, true, normals);
     }
 
     /**
@@ -81,8 +97,14 @@ public class AtlasRuntimeService {
     public void loadBorrowed(String tag, TextureAtlas atlas) {
         load(tag, atlas, false);
     }
+    public void loadBorrowed(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
+        load(tag, atlas, false, normals);
+    }
 
     private void load(String tag, TextureAtlas atlas, boolean owned) {
+        load(tag, atlas, owned, null);
+    }
+    private void load(String tag, TextureAtlas atlas, boolean owned, NormalMapAtlas normals) {
         if (atlas == null) {
             throw new IllegalArgumentException(
                     "Atlas '" + tag + "' must not be null.");
@@ -97,12 +119,15 @@ public class AtlasRuntimeService {
             }
         } catch (RuntimeException failure) {
             if (owned) atlas.dispose();
+            if (normals != null) normals.dispose();
             throw failure;
         }
 
         TextureAtlas previousAtlas = atlases.get(tag);
         boolean ownedPreviousAtlas = ownedAtlasTags.contains(tag);
         TextureArrayBundle previousBundle = bundles.remove(tag);
+        NormalMapAtlas previousNormals = normalAtlases.remove(tag);
+        if (normals != null) normalAtlases.put(tag, normals);
         indexesByTag.put(tag, index);
         atlases.put(tag, atlas);
         publicationRevisions.put(tag, nextPublicationRevision());
@@ -116,6 +141,7 @@ public class AtlasRuntimeService {
         if (previousAtlas != null && previousAtlas != atlas && ownedPreviousAtlas) {
             previousAtlas.dispose();
         }
+        if (previousNormals != null && previousNormals != normals) previousNormals.dispose();
         if (previousBundle != null) {
             logBundleEvent("dispose", tag, previousBundle.textureArray);
             previousBundle.textureArray.dispose();
@@ -123,6 +149,8 @@ public class AtlasRuntimeService {
     }
 
     public void unload(String tag) {
+        NormalMapAtlas normals = normalAtlases.remove(tag);
+        if (normals != null) normals.dispose();
         indexesByTag.remove(tag);
         boolean ownedAtlas = ownedAtlasTags.remove(tag);
         TextureAtlas a = atlases.remove(tag);
@@ -135,6 +163,8 @@ public class AtlasRuntimeService {
     }
 
     public void unloadAll() {
+        for (NormalMapAtlas normal : normalAtlases.values()) normal.dispose();
+        normalAtlases.clear();
         for (ObjectMap.Entries<String, TextureAtlas> it = atlases.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, TextureAtlas> entry = it.next();
             if (ownedAtlasTags.contains(entry.key)) entry.value.dispose();
@@ -165,6 +195,28 @@ public class AtlasRuntimeService {
 
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
+    }
+    /** O(1), including absent normal data; preparation never happens during lookup. */
+    public NormalMapBinding resolveNormal(int assetId, String tag) {
+        if (assetId <= 0 || tag == null || isBlank(tag)) return null;
+        NormalMapAtlas atlas = normalAtlases.get(tag);
+        return atlas == null ? null : atlas.resolve(assetId);
+    }
+    public long normalTextureBytes() {
+        long bytes = 0; for (NormalMapAtlas atlas : normalAtlases.values()) bytes += atlas.textureBytes();
+        return bytes;
+    }
+
+    /** Cold scene-local publication. A null descriptor releases only this tag's normal lease. */
+    public void replaceNormalMaps(String tag, FileHandle descriptor) {
+        TextureAtlas colors = atlases.get(tag);
+        if (colors == null) return;
+        NormalMapAtlas next = descriptor != null && descriptor.exists()
+                ? new NormalMapAtlas(tag, descriptor, colors) : null;
+        NormalMapAtlas previous = normalAtlases.remove(tag);
+        if (next != null) normalAtlases.put(tag, next);
+        publicationRevisions.put(tag, nextPublicationRevision());
+        if (previous != null) previous.dispose();
     }
 
     /** Returns whether at least one successfully published atlas is currently usable. */
@@ -222,7 +274,9 @@ public class AtlasRuntimeService {
     }
 
     /**
-     * Returns unique page textures from the atlas, preserving region encounter order.
+     * Returns unique page textures from the atlas, preserving first region encounter order.
+     * TextureAtlas regions use the atlas-data order, so this avoids the unspecified iteration
+     * order of {@link TextureAtlas#getTextures()}.
      *
      * @param atlas source atlas
      * @return unique texture pages referenced by the atlas
@@ -264,6 +318,13 @@ public class AtlasRuntimeService {
      * @return texture-array bundle with a {@code textureHandle -> layer} mapping
      */
     public static TextureArrayBundle buildTextureArrayFromTextures(Array<Texture> textures) {
+        return buildTextureArrayFromTextures(
+                textures, ATLAS_SIZE, ATLAS_SIZE, GLCaps.detect());
+    }
+
+    /** Builds an independent fixed-page bundle without publishing world atlas state. */
+    public static TextureArrayBundle buildTextureArrayFromTextures(
+            Array<Texture> textures, int arrayWidth, int arrayHeight, GLCaps caps) {
         InternalTextures.initIfNeeded();
 
         // 0) Build source list without the internal white texture.
@@ -278,35 +339,40 @@ public class AtlasRuntimeService {
             }
         }
 
+        if (caps == null) throw new IllegalArgumentException("GLCaps must not be null.");
+        caps.validateTextureArray(arrayWidth, arrayHeight, 1 + sources.size);
+
         Array<Pixmap> srcs = new Array<>(sources.size);
         Array<Pixmap> uploadLayers = new Array<>(1 + sources.size);
         TextureArray textureArray = null;
         boolean completed = false;
         boolean uploadOwnershipTransferred = false;
         try {
-            // Copy each source texture before normalizing it to the fixed atlas size.
+            // Copy each source texture and require exact fixed-page dimensions.
             for (int i = 0; i < sources.size; i++) {
                 Texture texture = sources.get(i);
                 Pixmap pixmap = obtainPixmapCopy(texture);
                 srcs.add(pixmap);
-                validateAtlasPageSize(pixmap, texture);
+                validateTextureArrayPageDimensions(
+                        pixmap.getWidth(), pixmap.getHeight(),
+                        arrayWidth, arrayHeight, "atlas page " + i);
             }
 
             // Layer 0 is the fixed-size internal white texture.
-            Pixmap white = new Pixmap(ATLAS_SIZE, ATLAS_SIZE, Format.RGBA8888);
+            Pixmap white = new Pixmap(arrayWidth, arrayHeight, Format.RGBA8888);
             uploadLayers.add(white);
             white.setBlending(Pixmap.Blending.None);
             white.setColor(1f, 1f, 1f, 1f);
             white.fill();
 
             for (int i = 0; i < srcs.size; i++) {
-                uploadLayers.add(normalizeTo(srcs.get(i), ATLAS_SIZE, ATLAS_SIZE));
+                uploadLayers.add(normalizeTo(srcs.get(i), arrayWidth, arrayHeight));
             }
+
+            IntIntMap handle2layer = buildHandleToLayer(sources);
 
             uploadOwnershipTransferred = true;
             textureArray = TextureArrayUploads.uploadOwned(uploadLayers);
-
-            IntIntMap handle2layer = buildHandleToLayer(sources);
 
             completed = true;
             return new TextureArrayBundle(textureArray, handle2layer);
@@ -425,13 +491,17 @@ public class AtlasRuntimeService {
         }
     }
 
-    private static void validateAtlasPageSize(Pixmap pm, Texture sourceTexture) {
-        if (pm.getWidth() > ATLAS_SIZE || pm.getHeight() > ATLAS_SIZE) {
+    public static void validateTextureArrayPageDimensions(
+            int actualWidth, int actualHeight,
+            int expectedWidth, int expectedHeight,
+            String pageContext) {
+        if (actualWidth != expectedWidth || actualHeight != expectedHeight) {
+            String context = pageContext == null || pageContext.length() == 0
+                    ? "" : " for " + pageContext;
             throw new IllegalStateException(
-                    "Atlas page exceeds fixed size " + ATLAS_SIZE + "x" + ATLAS_SIZE
-                            + " for texture " + sourceTexture
-                            + " (" + pm.getWidth() + "x" + pm.getHeight() + ")"
-            );
+                    "TextureArray page has invalid dimensions" + context
+                            + ": expected " + expectedWidth + "x" + expectedHeight
+                            + ", got " + actualWidth + "x" + actualHeight + ".");
         }
     }
 

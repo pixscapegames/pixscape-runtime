@@ -30,6 +30,9 @@ public final class ParticleEmitterComponent extends PooledComponent {
      */
     public boolean looping = true;
 
+    /** Exempts this instance's own particle color from world ambient lighting only. */
+    public boolean ignoreAmbientLighting = false;
+
     /**
      * Runtime one-shot lifecycle helper. Scene-authored emitters keep this false.
      */
@@ -38,6 +41,8 @@ public final class ParticleEmitterComponent extends PooledComponent {
     public boolean paused = false;
     public boolean playRequested = false;
     public boolean restartRequested = false;
+    /** Runtime request to stop emission and retire after live particles finish. */
+    public transient boolean completionRequested = false;
 
     public ParticleEmitterComponent() {
     }
@@ -47,11 +52,13 @@ public final class ParticleEmitterComponent extends PooledComponent {
         effectPath = "";
         atlasTag = "";
         looping = true;
+        ignoreAmbientLighting = false;
         autoRemoveWhenComplete = false;
         autoStart = true;
         paused = false;
         playRequested = false;
         restartRequested = false;
+        completionRequested = false;
     }
 
     public ParticleEmitterComponent(String effectPath, String atlasTag) {

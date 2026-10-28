@@ -14,10 +14,10 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
@@ -1260,6 +1260,21 @@ public final class PhysicsService {
             int ownerEntityId,
             Array<PhysicsShapeData> sources,
             float pixelsPerMeter) {
+        return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, null);
+    }
+
+    /** Cold preparation against a detached map projection, before authored map publication. */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            World world, int ownerEntityId, Array<PhysicsShapeData> sources,
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap) {
+        return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, candidateMap, null);
+    }
+
+    /** Cold preparation against complete detached wall data; authored ECS state stays untouched. */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            World world, int ownerEntityId, Array<PhysicsShapeData> sources,
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap,
+            SpatialBlocksComponent candidateBlocks) {
         if (!containsLinkedShape(sources)) {
             return prepareBodyCandidate(sources);
         }
@@ -1290,7 +1305,7 @@ public final class PhysicsService {
                     "Linked physics shape ownerEntityId=" + ownerEntityId
                             + " has no TiledLayerComponent.data.");
         }
-        SpatialBlocksComponent spatial = world.getMapper(SpatialBlocksComponent.class)
+        SpatialBlocksComponent spatial = candidateBlocks != null ? candidateBlocks : world.getMapper(SpatialBlocksComponent.class)
                 .getSafe(ownerEntityId, null);
         if (spatial == null) {
             throw new IllegalArgumentException(
@@ -1334,7 +1349,7 @@ public final class PhysicsService {
                 resolved.add(SHAPE_RESOLVER.resolveLinked(
                         copy,
                         blocksById.get(copy.spatialBlockId),
-                        tiled.data,
+                        candidateMap != null ? candidateMap : tiled.data,
                         transform.x,
                         transform.y,
                         transform.rotationRad,

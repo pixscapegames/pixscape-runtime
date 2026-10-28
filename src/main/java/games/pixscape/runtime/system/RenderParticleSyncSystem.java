@@ -17,12 +17,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.particle.ParticleEffect;
-import games.pixscape.runtime.particle.ParticleEffectPath;
-import games.pixscape.runtime.particle.ParticleEffectPool;
-import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.particle.*;
 import games.pixscape.runtime.particle.ParticleEmitter.Particle;
-import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -249,6 +245,10 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 fx.start();
                 comp.playRequested = false;
             }
+            if (comp.completionRequested) {
+                fx.allowCompletion();
+                comp.completionRequested = false;
+            }
             if (comp.paused) {
                 continue;
             }
@@ -279,7 +279,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
             // inject all active particles into the frame-local VFX SOA.
             int layerIndex = resolveLayerIndex(e);
             int zIndex = resolveZIndex(e);
-            collectEffect(fx, layerIndex, zIndex, e, ov);
+            collectEffect(fx, layerIndex, zIndex, e, ov, comp.ignoreAmbientLighting);
         }
     }
 
@@ -377,7 +377,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                                int layerIndex,
                                int zIndex,
                                int sourceEmitter,
-                               ParticleOverridesComponent ov) {
+                               ParticleOverridesComponent ov,
+                               boolean ignoreAmbientLighting) {
         Array<ParticleEmitter> emitters = fx.getEmitters();
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
@@ -401,7 +402,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 Particle p = particles[pi];
                 if (p == null) continue;
 
-                pushParticle(p, blendId, layerIndex, zIndex, sourceEmitter, ov);
+                pushParticle(p, blendId, layerIndex, zIndex, sourceEmitter, ov, ignoreAmbientLighting);
             }
         }
     }
@@ -411,7 +412,8 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                               int layerIndex,
                               int zIndex,
                               int sourceEmitter,
-                              ParticleOverridesComponent ov) {
+                              ParticleOverridesComponent ov,
+                              boolean ignoreAmbientLighting) {
         float[] v = sprite.getVertices();
 
         float x1 = v[Batch.X1], y1 = v[Batch.Y1], u1 = v[Batch.U1], vv1 = v[Batch.V1];
@@ -501,7 +503,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 runtimeOrder
         );
 
-        vfxState.addParticleQuad(
+        int slot = vfxState.addParticleQuad(
                 texHandle,
                 defaultShaderIdx,
                 blendId,
@@ -526,6 +528,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 RenderRepeatFlags.NONE,
                 sourceEmitter
         );
+        vfxState.ignoreAmbientLighting[slot] = ignoreAmbientLighting;
     }
 
     private int resolveLayerIndex(int entityId) {

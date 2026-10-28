@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "id": "table-root",
+    "kind": "TABLE",
+    "table": { "columns": 1, "rows": [ { "cells": [
+      { "id": "empty-cell", "constraints": { "uniformX": false, "uniformY": false,} }
+    ] } ] },
+    "children": [
+      {
+        "placementKind": "DIRECT",
+        "node": {
+          "id": "direct-label",
+          "kind": "LABEL",
+          "label": { "text": "Wrong placement", "styleName": "hud-body" }
+        }
+      }
+    ]
+  }
+}

@@ -11,9 +11,9 @@ import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.service.AnimationRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationsRuntimeData;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -85,7 +85,8 @@ public final class RuntimeProjectIO {
             JsonValue root = new JsonReader().parse(file);
             cfg = parseRuntimeConfig(root);
         } catch (Exception e) {
-            throw new GdxRuntimeException("Failed to parse " + PROJECT_JSON + ": " + file.path(), e);
+            throw new GdxRuntimeException("Failed to parse " + PROJECT_JSON + ": " + file.path()
+                    + ": " + e.getMessage(), e);
         }
 
         if (cfg == null) {
@@ -288,9 +289,14 @@ public final class RuntimeProjectIO {
             throw new GdxRuntimeException("Invalid tileset profiles manifest (tilesets must be array): " + path);
         }
 
+        com.badlogic.gdx.utils.IntSet normalOwners = new com.badlogic.gdx.utils.IntSet();
         for (JsonValue node = tilesets.child; node != null; node = node.next) {
             if (node == null || !node.isObject()) continue;
-            profiles.add(parseTilesetProfile(node, path));
+            RuntimeTilesetProfile profile = parseTilesetProfile(node, path);
+            for (com.badlogic.gdx.utils.IntMap.Entry<String> normal : profile.normalMapSources)
+                if (!normalOwners.add(normal.key))
+                    throw new GdxRuntimeException("Multiple tilesets claim the same normal resource: " + normal.key);
+            profiles.add(profile);
         }
 
         return profiles;
@@ -310,6 +316,18 @@ public final class RuntimeProjectIO {
         profile.offsetY = node.getInt("offsetY", 0);
         profile.renderSize = parseTilesetRenderSize(node.getString("renderSize", "native"), path);
         profile.tileAssetIds = readIntArray(node.get("tileAssetIds"));
+        com.badlogic.gdx.utils.IntSet members = new com.badlogic.gdx.utils.IntSet();
+        for (int id : profile.tileAssetIds) members.add(id);
+        JsonValue normals = node.get("normalMaps");
+        if (normals != null && !normals.isArray()) throw new GdxRuntimeException("normalMaps must be an array: " + path);
+        for (JsonValue normal = normals == null ? null : normals.child; normal != null; normal = normal.next) {
+            int id = normal.getInt("tileAssetId", 0);
+            String source = normal.getString("source", "");
+            if (!members.contains(id) || profile.normalMapSources.containsKey(id)
+                    || !source.equals("normals/" + id + ".png"))
+                throw new GdxRuntimeException("Invalid or duplicate tile normal resource: " + path);
+            profile.normalMapSources.put(id, source);
+        }
         return profile;
     }
 

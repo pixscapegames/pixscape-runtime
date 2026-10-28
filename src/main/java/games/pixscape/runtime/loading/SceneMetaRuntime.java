@@ -2,6 +2,7 @@ package games.pixscape.runtime.loading;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.physics.PhysicsShapeIdState;
 
 /**
@@ -18,6 +19,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;
     public String file;
+    /** Optional logical ID of the Scene's default HUD screen. */
+    public String defaultHudScreenId;
     public int nextEntityStableId = 1;
     /** Explicit particle files exported in this scene's runtimeAvailability. */
     public final Array<String> runtimeParticleEffectPaths = new Array<>();
@@ -38,6 +41,10 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public float ambientMulR = 1f;
     public float ambientMulG = 1f;
     public float ambientMulB = 1f;
+    /** Scene-wide material choice, applied when preparing a rendering session. */
+    public boolean useNormalMaps = true;
+    /** Whole-scene renderer selection. Legacy is the default. */
+    public boolean forwardLighting = false;
 
     public String getName() {
         return name;
@@ -69,6 +76,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.sceneSchemaVersion = requireCurrentSceneSchemaVersion(json, fallbackName);
         meta.name = json.getString("name", fallbackName);
         meta.file = json.getString("file", null);
+        meta.defaultHudScreenId = HudScreenAssetId.normalizeOptional(
+                json.getString("defaultHudScreenId", null));
         meta.physicsEnabled = json.getBoolean("physicsEnabled", meta.physicsEnabled);
         meta.pixelsPerMeter = json.getFloat("pixelsPerMeter", meta.pixelsPerMeter);
         meta.gravityX = json.getFloat("gravityX", meta.gravityX);
@@ -82,6 +91,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.ambientMulR = json.getFloat("ambientMulR", meta.ambientMulR);
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
+        meta.useNormalMaps = json.getBoolean("useNormalMaps", true);
+        meta.forwardLighting = json.getBoolean("forwardLighting", false);
         JsonValue availability = json.get("runtimeAvailability");
         JsonValue particles = availability != null && availability.isObject()
                 ? availability.get("particles") : null;
@@ -137,6 +148,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.sceneSchemaVersion = other.sceneSchemaVersion;
         this.name = other.name;
         this.file = other.file;
+        this.defaultHudScreenId = HudScreenAssetId.normalizeOptional(other.defaultHudScreenId);
         this.nextEntityStableId = other.nextEntityStableId;
         this.runtimeParticleEffectPaths.clear();
         this.runtimeParticleEffectPaths.addAll(other.runtimeParticleEffectPaths);
@@ -153,6 +165,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.ambientMulR = other.ambientMulR;
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
+        this.useNormalMaps = other.useNormalMaps;
+        this.forwardLighting = other.forwardLighting;
     }
 
     @Override

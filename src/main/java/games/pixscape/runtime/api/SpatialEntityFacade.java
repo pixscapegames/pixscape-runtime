@@ -1,17 +1,6 @@
 package games.pixscape.runtime.api;
 
-/**
- * Spatial render-order settings for one runtime entity.
- *
- * <p>Volume setters may establish authored spatial-height intent even when the
- * entity does not yet participate in effective Spatial render ordering.</p>
- *
- * <p>Actor footprint geometry is derived from the entity physics circle fixture.
- * This facade only exposes the vertical volume used by the spatial renderer.</p>
- *
- * <p>Altitude and height must be finite. Negative finite heights retain the documented
- * zero-clamping behavior.</p>
- */
+/** Spatial actor placement. Height accessors address the active spatial rectangle, never a separate sorting height. */
 public interface SpatialEntityFacade {
     /**
      * Returns whether the entity has a spatial height component.
@@ -34,7 +23,7 @@ public interface SpatialEntityFacade {
     float altitude();
 
     /**
-     * Height of the entity spatial volume, in runtime spatial units.
+     * Height of the active spatial rectangle, in runtime spatial units.
      */
     float height();
 
@@ -44,18 +33,39 @@ public interface SpatialEntityFacade {
     SpatialEntityFacade setAltitude(float altitude);
 
     /**
-     * Sets the height of the entity spatial volume.
+     * Sets the height of the active spatial rectangle.
      *
-     * <p>Negative values are clamped to zero.</p>
+     * <p>Nonpositive values are rejected.</p>
      */
     SpatialEntityFacade setHeight(float height);
 
     /**
      * Sets the bottom altitude and height of the entity spatial volume.
      *
-     * <p>Negative height values are clamped to zero.</p>
+     * <p>Nonpositive height values are rejected.</p>
      */
     SpatialEntityFacade setVolume(float altitude, float height);
+
+    /** Width of the existing active rectangle in projected pixels, or zero when absent. */
+    float rectangleWidth();
+    /** Local rectangle X relative to the resolved footprint center, or zero when absent. */
+    float rectangleX();
+    /** Local rectangle Y relative to the resolved footprint center, or zero when absent. */
+    float rectangleY();
+    /** Local shadow pivot X, independent of sorting/altitude, or zero when absent. */
+    float shadowPivotX();
+    /** Local shadow pivot Y, independent of sorting/altitude, or zero when absent. */
+    float shadowPivotY();
+    /**
+     * Edits the existing active static/animation-clip rectangle. Dimensions must be positive and
+     * every value finite. Throws when a live entity has no prepared active rectangle; does not
+     * create per-clip state in gameplay. Stale references do nothing. Render thread before World
+     * processing; indexed and allocation-free, with final values consumed on the next frame.
+     * Changing the rectangle can change shadow replay capacity requirements at frame publication.
+     */
+    SpatialEntityFacade setRectangle(float x, float y, float width, float height);
+    /** Same lifecycle/cost as setRectangle; changes only the independent local shadow pivot. */
+    SpatialEntityFacade setShadowPivot(float x, float y);
 
     /**
      * Returns whether the entity currently satisfies the Runtime conditions for

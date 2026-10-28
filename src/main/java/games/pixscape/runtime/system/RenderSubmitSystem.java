@@ -1,14 +1,11 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -22,27 +19,34 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.ShaderRegistry;
 
-public final class RenderSubmitSystem extends BaseSystem implements ProfiledSystem {
+public final class RenderSubmitSystem extends BaseSystem implements ProfiledSystem, AmbientContributionRenderer.MaterialReplay {
     private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
     private static final float AXIS_EPSILON = 0.0001f;
 
     private final LayerStateSOA layerState;
     private final FrameRenderQueue frameQueue;
     private final OrthographicCamera cam;
-    private final float ambientMulR;
-    private final float ambientMulG;
-    private final float ambientMulB;
+    private float ambientMulR;
+    private float ambientMulG;
+    private float ambientMulB;
 
     private final MetricsBatch metricsBatch;
     private final RenderStats stats;
     private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
+    private final WorldLightComposition composition = new WorldLightComposition();
+    private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
+    private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
+            new games.pixscape.runtime.render.lighting.LightingRenderer();
+    private final games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
+    private LightParameterBinding lightParameters;
     private float time = 0f;
+    private boolean rendererReported;
+    private boolean useNormalMaps = true;
+    /** Configure before prepareComposition, never during submission. */
+    public void setUseNormalMaps(boolean enabled) { useNormalMaps = enabled; }
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
-
-    // --- ECS : params de shader par entity ---
-    private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
     private final ObjectMap<ShaderProgram, ObjectIntMap<String>> uniformLocationCache = new ObjectMap<>();
 
@@ -55,6 +59,13 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
+        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,false);
+    }
+
+    public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
+                              float ambientMulR,float ambientMulG,float ambientMulB,MetricsBatch batch,
+                              RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
+        this.forward=forwardLighting?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -67,6 +78,11 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         this.fallbackShaderMode = resolveFallbackShaderMode(batch);
     }
 
+    /** INTERNAL engine propagation; consumes final frame values without resource/geometry work. */
+    public void setAmbientLight(float r, float g, float b) {
+        ambientMulR = r; ambientMulG = g; ambientMulB = b;
+    }
+
     private static ShaderMode resolveFallbackShaderMode(MetricsBatch batch) {
         if (batch instanceof TextureArrayMeshBatch) {
             return ShaderMode.TEXTURE_ARRAY;
@@ -76,6 +92,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             return ShaderMode.TEXTURE_2D;
         }
     }
+
+    @Override
+    protected void initialize() { lightParameters = new LightParameterBinding(world); }
 
     @Override
     protected void begin() {
@@ -102,9 +121,61 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    void render() {
+    public void prepareComposition() {
+        lighting.setUseNormalMaps(useNormalMaps);
+        if(forward!=null){
+            forward.setUseNormalMaps(useNormalMaps);
+            if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
+            forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);
+        } else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+        if (!rendererReported) {
+            Gdx.app.log("Lighting", "renderer=" + (forward != null ? "forward" : "legacy")
+                    + " prepared (Runtime; no automatic fallback)");
+            rendererReported = true;
+        }
+    }
+    public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
+    public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
-        final boolean hasShaderParamsMapper = mShaderParams != null;
+    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); }
+
+    void render() {
+        stats.forwardLighting=forward!=null;
+        if(forward!=null){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
+        Throwable failure = null;
+        try {
+            ambientContribution.beginFrame(frameQueue);
+            composition.beginOriginal();
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
+            int drawsBefore=stats.drawCalls;
+            renderPass(LightCompositionPass.ORIGINAL, 0);
+            stats.colorDraws+=stats.drawCalls-drawsBefore;
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
+            lighting.render(frameQueue, layerState, cam, composition, stats);
+            drawsBefore=stats.drawCalls;
+            if (frameQueue.lighting.diagnostic == 0)
+                ambientContribution.render(frameQueue, cam, composition, stats, this);
+            stats.ambientDraws+=stats.drawCalls-drawsBefore;
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
+            composition.compose(frameQueue.lighting.diagnostic==0?ambientMulR:0,
+                    frameQueue.lighting.diagnostic==0?ambientMulG:0,frameQueue.lighting.diagnostic==0?ambientMulB:0,stats);
+            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(4);
+        } catch (RuntimeException | Error error) {
+            failure = error;
+            metricsBatch.abort(error);
+            ambientContribution.abort();
+            lighting.abort();
+            throw error;
+        } finally { composition.end(failure); }
+    }
+
+    void renderPass(int pass, int first) {
+        renderPass(pass, first, frameQueue.size);
+    }
+    @Override public void replayAmbientMaterials(int first, int end) {
+        renderPass(LightCompositionPass.AMBIENT, first, end);
+    }
+    private void renderPass(int pass, int first, int end) {
 
         cam.update();
 
@@ -126,13 +197,15 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
         float curCutoutThreshold = Float.NaN;
 
-        int lastParamsHash = 0;
 
-        int size = frameQueue.size;
+        int size = end;
 
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
+        final ShaderProgram standardShader = ShaderRegistry.get(fallbackShaderMode.defaultShaderName());
 
-        for (int i = 0; i < size; i++) {
+        for (int i = first; i < size; i++) {
+            boolean light = frameQueue.light[i] != 0;
+            if (LightCompositionPass.skip(pass, light, frameQueue.blend[i])) continue;
             final int texHandle = frameQueue.textureHandle[i];
             if (texHandle == 0) continue;
 
@@ -147,6 +220,15 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
             }
 
+            // Identity draws need no batch-state transition, but retain their ordered E admission.
+            if (pass == LightCompositionPass.ORIGINAL && AmbientContributionRenderer.isIdentityOriginal(frameQueue, i)) {
+                ShaderProgram actual = ShaderRegistry.getByIdx(frameQueue.shader[i]);
+                if (actual == null) actual = standardShader;
+                if (standardShader != null && actual == standardShader) {
+                    AmbientContributionRenderer.admit(frameQueue, i, actual, standardShader);
+                    continue;
+                }
+            }
             // Shader switch
             final int shaderIdx = frameQueue.shader[i];
 
@@ -156,7 +238,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                 ShaderProgram sh = ShaderRegistry.getByIdx(shaderIdx);
 
                 if (sh == null) {
-                    sh = ShaderRegistry.get(fallbackShaderMode.defaultShaderName());
+                    sh = standardShader;
                 }
 
                 if (sh != curShader) {
@@ -164,38 +246,39 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                     curShader = sh;
 
                     curCutoutThreshold = Float.NaN;
-                    lastParamsHash = 0;
 
                     if (curShader != null) {
                         setUniform1fCached(curShader, "u_time", time);
                         setUniform2fCached(curShader, "u_layerOffset", 0f, 0f);
-                        setUniform3fCached(curShader, "u_ambientMul", ambientMulR, ambientMulG, ambientMulB);
+                        setUniform3fCached(curShader, "u_ambientMul", 1f, 1f, 1f);
                     }
                 }
+                metricsBatch.setParameterLayout(ShaderRegistry.getParameterLayout(shaderIdx), stats);
+                curBlendId = Integer.MIN_VALUE;
             }
 
             // Blend switch
+            if (pass == LightCompositionPass.ORIGINAL)
+                AmbientContributionRenderer.admit(frameQueue, i, curShader, standardShader);
+            int materialPass = AmbientContributionRenderer.materialPass(pass, frameQueue, i);
+            if (LightCompositionPass.skip(materialPass, light, frameQueue.blend[i])) continue;
             final int blendId = frameQueue.blend[i];
 
-            if (blendId != curBlendId) {
+            int blendKey = blendId + (light ? 16 : 0) + materialPass * 32;
+            if (blendKey != curBlendId) {
+                int flushesBeforeBlend = stats.flushes;
                 metricsBatch.flush(stats);
+                if (stats.flushes > flushesBeforeBlend) stats.flushStateChanges++;
 
                 BlendMode blendMode = BlendMode.fromId(blendId);
 
-                Blend.apply(blendMode);
-
-                metricsBatch.setBlendMode(
-                        blendMode.blending,
-                        blendMode.srcFactor,
-                        blendMode.dstFactor,
-                        stats
-                );
+                LightCompositionPass.apply(materialPass, light, blendId, metricsBatch, curShader, stats);
 
                 if (stats != null) {
                     stats.blendSwitches++;
                 }
 
-                curBlendId = blendId;
+                curBlendId = blendKey;
 
                 if (!blendMode.blending) {
                     stats.batchesOpaque++;
@@ -216,35 +299,18 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
             }
 
             // Color change
-            float packedColor = frameQueue.colorPacked[i];
+            float packedColor = AmbientContributionRenderer.originalColor(frameQueue, i, pass);
 
             if (packedColor != curPackedColor) {
                 metricsBatch.setPackedColor(packedColor);
                 curPackedColor = packedColor;
             }
 
-            // Per-entity uniforms
-            if (curShader != null && hasShaderParamsMapper) {
-                final int entityId = frameQueue.sourceEntity[i];
-
-                if (entityId >= 0 && mShaderParams.has(entityId)) {
-                    ShaderParamsComponent params = mShaderParams.get(entityId);
-
-                    if (params != null
-                            && params.floats != null
-                            && params.floats.size > 0) {
-
-                        int h = hashShaderParams(params.floats);
-
-                        if (h != lastParamsHash) {
-                            metricsBatch.flush(stats);
-                            curShader.bind();
-                            applyShaderParams(curShader, params.floats);
-                            lastParamsHash = h;
-                        }
-                    }
-                }
-            }
+            ShaderParamsComponent params = frameQueue.shaderParameters[i];
+            int entityId = frameQueue.sourceEntity[i];
+            metricsBatch.setEntityParameters(light ? lightParameters.bind(entityId,
+                    ShaderRegistry.getParameterLayout(shaderIdx), params == null ? null : params.floats)
+                    : params == null ? null : params.floats, stats);
 
             byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {
@@ -371,50 +437,6 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
 
     private static float max4(float a, float b, float c, float d) {
         return Math.max(Math.max(a, b), Math.max(c, d));
-    }
-
-    private static int hashShaderParams(Array<ShaderFloatParam> floats) {
-        if (floats == null || floats.size == 0) {
-            return 0;
-        }
-
-        int h = 0x9E3779B9;
-
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-
-            if (param == null || param.name == null) {
-                continue;
-            }
-
-            int kh = param.name.hashCode();
-            int vh = Float.floatToIntBits(param.value);
-
-            int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;
-
-            x ^= (x >>> 16);
-
-            h ^= x;
-            h = Integer.rotateLeft(h, 13) * 5 + 0xE6546B64;
-        }
-
-        return h;
-    }
-
-    private void applyShaderParams(ShaderProgram shader, Array<ShaderFloatParam> floats) {
-        if (shader == null || floats == null || floats.size == 0) {
-            return;
-        }
-
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-
-            if (param == null || param.name == null || param.name.length() == 0) {
-                continue;
-            }
-
-            setUniform1fCached(shader, param.name, param.value);
-        }
     }
 
     private int getUniformLocationCached(ShaderProgram shader, String uniformName) {

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/scene/3.schema.json",
+  "title": "Artemis scene envelope for Pixscape scene schema 3",
+  "type": "object",
+  "required": [
+    "metadata",
+    "componentIdentifiers",
+    "entities",
+    "archetypes"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ]
+    },
+    "componentIdentifiers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "\\S"
+      }
+    },
+    "archetypes": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "entities": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "object",
+          "properties": {
+            "archetype": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "components": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "archetype"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "description": "Artemis IDs and aliases are local to this file. An archetype supplies effective components even when components omits their default-valued payloads. Run validate.mjs for alias resolution and payload validation."
+}

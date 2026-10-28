@@ -12,30 +12,22 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.engine.PixscapeEngine;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.api.ParticleFacade;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import org.junit.Assert;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.io.StringWriter;
 
 public class RenderParticleSyncSystemTest {
 
@@ -71,6 +63,22 @@ public class RenderParticleSyncSystemTest {
         for (int i = 0; i < methods.length; i++) {
             Assert.assertNotEquals("setLocalSpace", methods[i].getName());
         }
+    }
+
+    @Test public void ambientApiIsPerInstanceAndDoesNotChangePlayback() throws Exception {
+        World world=new World(new WorldConfigurationBuilder().build());
+        try {
+            int a=world.create(),b=world.create();world.process();
+            PixscapeEngine engine=new PixscapeEngine();setField(engine,"world",world);
+            ParticleFacade first=engine.api().entities().ofEntityId(a).particles();
+            ParticleFacade second=engine.api().entities().ofEntityId(b).particles();
+            Assert.assertFalse(first.isIgnoringAmbientLighting());Assert.assertFalse(first.exists());
+            first.setIgnoreAmbientLighting(true);Assert.assertTrue(first.isIgnoringAmbientLighting());
+            Assert.assertFalse(second.isIgnoringAmbientLighting());Assert.assertFalse(second.exists());
+            ParticleEmitterComponent c=world.getMapper(ParticleEmitterComponent.class).get(a);
+            Assert.assertTrue(c.autoStart);Assert.assertTrue(c.looping);Assert.assertFalse(c.restartRequested);
+            first.setIgnoreAmbientLighting(false);Assert.assertFalse(first.isIgnoringAmbientLighting());
+        } finally {world.dispose();}
     }
 
     @Test
@@ -608,14 +616,18 @@ public class RenderParticleSyncSystemTest {
                 int.class,
                 int.class,
                 int.class,
-                games.pixscape.runtime.component.ParticleOverridesComponent.class);
+                games.pixscape.runtime.component.ParticleOverridesComponent.class,
+                boolean.class);
         collectEffect.setAccessible(true);
 
         vfxState.clearFrame();
-        collectEffect.invoke(system, effect, 0, 0, 0, null);
+        collectEffect.invoke(system, effect, 0, 0, 17, null, true);
 
         Assert.assertEquals(1, vfxState.activeCount);
         Assert.assertEquals(expected.id, vfxState.blend[0]);
+        Assert.assertEquals(17,vfxState.sourceEmitter[0]);Assert.assertTrue(vfxState.ignoreAmbientLighting[0]);
+        vfxState.clearFrame();collectEffect.invoke(system,effect,0,0,18,null,false);
+        Assert.assertEquals(18,vfxState.sourceEmitter[0]);Assert.assertFalse(vfxState.ignoreAmbientLighting[0]);
     }
 
     private static final class CapturingParticleEffect extends ParticleEffect {

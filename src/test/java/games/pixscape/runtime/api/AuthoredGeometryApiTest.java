@@ -1,15 +1,7 @@
 package games.pixscape.runtime.api;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.PolygonComponent;
-import games.pixscape.runtime.component.PolylineComponent;
-import games.pixscape.runtime.component.QuadDeformComponent;
-import games.pixscape.runtime.component.TintComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import org.junit.After;
 import org.junit.Assert;

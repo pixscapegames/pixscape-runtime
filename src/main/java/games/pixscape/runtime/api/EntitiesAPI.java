@@ -4,7 +4,10 @@ package games.pixscape.runtime.api;
  * High-level entity identity access.
  *
  * <p>Use {@code stableId} as the preferred persistent/public identity.
- * {@code entityId} is runtime/ECS-oriented and may be short-lived or recycled.</p>
+ * {@code entityId} is runtime/ECS-oriented and may be short-lived or recycled. Single identity/name resolutions use
+ * the existing indexes, but acquiring an EntityRef allocates its captured handle. Resolve once
+ * during setup and retain references/facades for per-frame control; reacquire after replacement.
+ * findAllByTag intentionally allocates a snapshot proportional to the matching entities.</p>
  */
 public interface EntitiesAPI {
     /**

@@ -1,19 +1,13 @@
 package games.pixscape.runtime.gameobject;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.Json;
-import com.badlogic.gdx.utils.JsonReader;
-import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.JsonWriter;
-import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 
 /** Strict reader/writer for the independent Game Object asset schema. */
@@ -24,7 +18,9 @@ public final class GameObjectAssetLoader {
         requireExtension(file);
         if (!file.exists()) throw failure(file, "asset does not exist");
         String serialized = file.readString("UTF-8");
-        requireSchemaVersion(new JsonReader().parse(serialized), file);
+        JsonValue root = new JsonReader().parse(serialized);
+        requireSchemaVersion(root, file);
+        rejectLayerComponents(root, file);
         GameObjectAsset asset = json.fromJson(GameObjectAsset.class, serialized);
         validate(asset, file);
         return asset;
@@ -46,6 +42,7 @@ public final class GameObjectAssetLoader {
         if (serialized == null) throw failure(null, "JSON is required");
         JsonValue root = new JsonReader().parse(serialized);
         requireSchemaVersion(root, null);
+        rejectLayerComponents(root, null);
         GameObjectAsset asset = json.fromJson(GameObjectAsset.class, serialized);
         validate(asset, null);
         return asset;
@@ -88,6 +85,14 @@ public final class GameObjectAssetLoader {
         if (root.gameObject == null) {
             throw failure(file, "top-level root requires Game Object root semantics");
         }
+        if (root.transform.x != 0f || root.transform.y != 0f) {
+            throw failure(file, "top-level root position must be (0, 0); "
+                    + "scene placement belongs to each instance");
+        }
+        if (root.entityIndex != null && root.entityIndex.zIndex != 0) {
+            throw failure(file, "top-level root zIndex must be 0; "
+                    + "scene render order belongs to each instance");
+        }
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             if (entity == root) continue;
             GameObjectAsset.GameObjectEntityData parent = byId.get(entity.parentSourceEntityId);
@@ -107,6 +112,24 @@ public final class GameObjectAssetLoader {
         }
         validatePhysics(asset, byId, file);
         validateJoints(asset, byId, file);
+    }
+
+    private static void rejectLayerComponents(JsonValue root, FileHandle file) {
+        JsonValue entities = root.get("entities");
+        if (entities == null || !entities.isArray()) return;
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            if (entity.has("LayerComponent") || entity.has("layerComponent")) {
+                JsonValue id = entity.get("sourceEntityId");
+                throw failure(file, "sourceEntityId " + (id != null ? id.asInt() : -1)
+                        + " contains LayerComponent; Game Object entities are content.");
+            }
+            JsonValue index = entity.get("entityIndex");
+            if (index != null && index.has("layerIndex")) {
+                JsonValue id = entity.get("sourceEntityId");
+                throw failure(file, "sourceEntityId " + (id != null ? id.asInt() : -1)
+                        + " contains scene layerIndex; scene placement belongs to each instance");
+            }
+        }
     }
 
     private static void validateAuthoredEntity(
@@ -158,12 +181,10 @@ public final class GameObjectAssetLoader {
         if (entity.physicsBody != null) validateBody(entity, file);
         if (entity.physicsShapes != null) validateShapes(entity, file);
         if (entity.spatialHeight != null) {
+            if(entity.spatialHeight.rectangles==null)
+                throw new IllegalArgumentException("Spatial actor rectangles are missing: "+entity.sourceEntityId);
+            entity.spatialHeight.rectangles.validate();
             requireFinite(entity.spatialHeight.altitude, "spatialHeight.altitude", entity.sourceEntityId, file);
-            requireFinite(entity.spatialHeight.height, "spatialHeight.height", entity.sourceEntityId, file);
-            if (entity.spatialHeight.height < 0f) {
-                throw failure(file, "sourceEntityId " + entity.sourceEntityId
-                        + " has negative Spatial height");
-            }
         }
     }
 

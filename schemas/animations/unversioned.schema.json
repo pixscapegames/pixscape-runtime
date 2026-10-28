@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/animations/unversioned.schema.json",
+  "title": "Pixscape sprite animation registry (no in-file version)",
+  "type": "object",
+  "properties": {
+    "animations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "fps": {
+            "type": "number"
+          },
+          "currentClip": {
+            "type": "string"
+          },
+          "frameCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "clips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "\\S"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "flipX": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "animations"
+  ]
+}

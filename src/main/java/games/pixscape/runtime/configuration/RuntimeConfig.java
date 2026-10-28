@@ -4,6 +4,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /**
@@ -139,10 +140,6 @@ public final class RuntimeConfig {
             glSamples = 0;
         }
 
-        if (scenes.size == 0) {
-            throw new RuntimeException("No scenes in runtime config: " + pathForErrors);
-        }
-
         // Clean scenes, normalize files, and apply defaults.
         for (ObjectMap.Entries<String, SceneMetaRuntime> it = scenes.entries(); it.hasNext(); ) {
             ObjectMap.Entry<String, SceneMetaRuntime> e = it.next();
@@ -163,6 +160,8 @@ public final class RuntimeConfig {
             }
 
             meta.file = RuntimeFs.filenameOnly(meta.file);
+            meta.defaultHudScreenId =
+                    HudScreenAssetId.normalizeOptional(meta.defaultHudScreenId);
 
             if (meta.file == null || isBlank(meta.file)) {
                 throw new RuntimeException("Scene '" + key + "' has invalid file in: " + pathForErrors);
@@ -173,17 +172,21 @@ public final class RuntimeConfig {
             }
         }
 
-        // Default current scene choice:
-        // 1) valid currentSceneName
-        // 2) scene whose file == scene1.json
-        // 3) first sorted
-        if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
-            String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
-            currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();
-        }
+        if (scenes.size == 0) {
+            currentSceneName = null;
+        } else {
+            // Default current scene choice:
+            // 1) valid currentSceneName
+            // 2) scene whose file == scene1.json
+            // 3) first sorted
+            if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
+                String byFile = findSceneNameByFile(RuntimeFs.FILE_DEFAULT_SCENE);
+                currentSceneName = (byFile != null) ? byFile : firstSceneNameSorted();
+            }
 
-        if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
-            throw new RuntimeException("Cannot resolve currentSceneName in: " + pathForErrors);
+            if (currentSceneName == null || !scenes.containsKey(currentSceneName)) {
+                throw new RuntimeException("Cannot resolve currentSceneName in: " + pathForErrors);
+            }
         }
     }
 

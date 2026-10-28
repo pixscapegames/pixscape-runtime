@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/project/1.schema.json",
+  "title": "Pixscape Runtime project format 1",
+  "type": "object",
+  "required": [
+    "projectFileName",
+    "scenes"
+  ],
+  "properties": {
+    "projectFileName": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "const": "1"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "1"
+    },
+    "projectKind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runtimeRootDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "scenesDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "scenes"
+    },
+    "atlasesDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "atlases"
+    },
+    "effectsDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "effects"
+    },
+    "animationsDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "animations"
+    },
+    "shadersDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "shaders"
+    },
+    "audioDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "audio"
+    },
+    "gameObjectsDir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "gameobjects"
+    },
+    "scenes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "sceneSchemaVersion": {
+            "const": 3
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "defaultHudScreenId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "nextEntityStableId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "nextPhysicsShapeId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "physicsEnabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "pixelsPerMeter": {
+            "type": "number",
+            "default": 100
+          },
+          "gravityX": {
+            "type": "number",
+            "default": 0
+          },
+          "gravityY": {
+            "type": "number",
+            "default": -9.81
+          },
+          "doSleep": {
+            "type": "boolean",
+            "default": true
+          },
+          "physicsParallaxX": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "const": "NaN"
+              }
+            ],
+            "default": "NaN"
+          },
+          "physicsParallaxY": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "const": "NaN"
+              }
+            ],
+            "default": "NaN"
+          },
+          "ambientMulR": {
+            "type": "number",
+            "default": 1
+          },
+          "ambientMulG": {
+            "type": "number",
+            "default": 1
+          },
+          "ambientMulB": {
+            "type": "number",
+            "default": 1
+          },
+          "runtimeParticleEffectPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "runtimeGameObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "runtimeAvailability": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "sprites": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "animations": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "particles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  },
+                  "gameObjects": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  },
+                  "tiledTiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "tiledAnimations": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": {}
+          }
+        },
+        "required": [
+          "sceneSchemaVersion",
+          "file",
+          "nextEntityStableId",
+          "nextPhysicsShapeId"
+        ]
+      }
+    },
+    "currentSceneName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "glSamples": {
+      "type": "integer",
+      "default": 0
+    }
+  },
+  "description": "Absent or blank version is normalized to 1 by Runtime; the schema documents the canonical value when present. Paths resolve from the directory passed to the engine, not runtimeRootDir."
+}

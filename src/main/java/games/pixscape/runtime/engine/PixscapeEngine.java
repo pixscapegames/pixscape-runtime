@@ -4,28 +4,26 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.api.PixscapeAPI;
-import games.pixscape.runtime.api.PixscapeApiImpl;
-import games.pixscape.runtime.api.EntityRef;
-import games.pixscape.runtime.api.GameObjectInstance;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.api.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.configuration.RuntimeConfig;
+import games.pixscape.runtime.gameobject.*;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.hud.ActiveHudScreen;
+import games.pixscape.runtime.hud.HudScreenRuntime;
+import games.pixscape.runtime.hud.MaterializedHud;
 import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
-import games.pixscape.runtime.gameobject.GameObjectAsset;
-import games.pixscape.runtime.gameobject.GameObjectAssetId;
-import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
-import games.pixscape.runtime.gameobject.SpawnResult;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -35,24 +33,16 @@ import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.system.Box2dSyncSystem;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.DirtyFlushSystem;
-import games.pixscape.runtime.system.LayerStateBuildSystem;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.runtime.system.PhysicsPoseAuthority;
-import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.system.RenderSpriteSyncSystem;
-import games.pixscape.runtime.system.RenderSubmitSystem;
-import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
+import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -76,6 +66,8 @@ public final class PixscapeEngine {
     private FileHandle userRootDir;
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
+    private boolean forwardLighting;
+    private Boolean forwardLightingOverride;
     private AssetManager suppliedAssetManager;
     private FileAvailabilityService fileAvailability;
     private SceneAvailabilityPlan activeSceneAvailability;
@@ -102,6 +94,7 @@ public final class PixscapeEngine {
     private TiledMapRenderState tiledState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
+    private boolean useNormalMaps = true;
     private float ambientMulG = 1f;
     private float ambientMulB = 1f;
 
@@ -111,6 +104,8 @@ public final class PixscapeEngine {
 
     private AtlasRuntimeService atlasRuntimeService;
     private String defaultShaderName;
+    private HudScreenRuntime hudScreenRuntime;
+    private RuntimeException lastSceneDefaultHudFailure;
 
     private final IdentityRegistry identityRegistry = new IdentityRegistry();
     private final TagRegistry tagRegistry = new TagRegistry();
@@ -362,7 +357,12 @@ public final class PixscapeEngine {
             cfg.runtimeRootDir = runtimeProjectDir.path();
         }
 
-        initRuntime(cfg, runtimeProjectDir, false);
+        if (cfg.scenes.size > 0) {
+            initRuntime(cfg, runtimeProjectDir, false);
+        } else {
+            applyConfiguredLogLevel();
+            disposeWorldAndRuntime();
+        }
 
         loaded = true;
 
@@ -437,7 +437,7 @@ public final class PixscapeEngine {
         }
         releasePendingSceneAvailability();
         pendingSceneAvailability = new SceneAvailabilityPlan(
-                fileAvailability, cfg, runtimeProjectDir, resolved);
+                fileAvailability, cfg, runtimeProjectDir, resolved,tilesetProfiles);
         activeSceneLoad = new SceneLoadHandleImpl(pendingSceneAvailability);
         return activeSceneLoad;
     }
@@ -449,13 +449,13 @@ public final class PixscapeEngine {
      * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
      * @param fragment Game Object fragment to instantiate
-     * @param offsetX  world-space X offset applied to spawned transforms
-     * @param offsetY  world-space Y offset applied to spawned transforms
-     * @return result containing all created entity IDs
+     * @param rootWorldX world-space X coordinate of the new root
+     * @param rootWorldY world-space Y coordinate of the new root
+     * @return the placed instance, including its root and members
      * @throws IllegalStateException if no world is initialized
      */
     public SpawnResult spawnGameObjectFragment(
-            GameObjectRuntimeFragment fragment, float offsetX, float offsetY) {
+            GameObjectRuntimeFragment fragment, float rootWorldX, float rootWorldY) {
         if (world == null || !sceneLoaded) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
@@ -466,7 +466,7 @@ public final class PixscapeEngine {
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        return spawner.spawn(world, fragment, offsetX, offsetY);
+        return spawner.spawn(world, fragment, rootWorldX, rootWorldY);
     }
 
     /**
@@ -476,13 +476,13 @@ public final class PixscapeEngine {
      * and then spawned into the currently loaded scene.</p>
      *
      * @param name    Game Object name or canonical logical asset ID
-     * @param offsetX world-space X offset applied to the real root
-     * @param offsetY world-space Y offset applied to the real root
+     * @param rootWorldX world-space X coordinate of the new root
+     * @param rootWorldY world-space Y coordinate of the new root
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
      * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
-    public GameObjectInstance spawnGameObject(String name, float offsetX, float offsetY) {
+    public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
         if (cfg == null) throw new IllegalStateException("Project is not loaded.");
         if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
 
@@ -499,20 +499,64 @@ public final class PixscapeEngine {
         GameObjectRuntimeFragmentSpawner spawner =
                 new GameObjectRuntimeFragmentSpawner(
                         identityRegistry, activeSceneMeta, atlasRuntimeService);
-        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, offsetX, offsetY);
-        return new SpawnedGameObjectInstance(api().entities().ofEntityId(result.rootEntityId()));
+        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, rootWorldX, rootWorldY);
+        return new SpawnedGameObjectInstance(world, result, api().entities());
     }
 
     private static final class SpawnedGameObjectInstance implements GameObjectInstance {
         private final EntityRef root;
+        private final EntityRef[] members;
+        private final Map<String, EntityRef> byName = new HashMap<String, EntityRef>();
+        private final Set<String> ambiguousNames = new HashSet<String>();
 
-        SpawnedGameObjectInstance(EntityRef root) {
-            this.root = root;
+        SpawnedGameObjectInstance(World world, SpawnResult result, EntitiesAPI entities) {
+            root = entities.ofEntityId(result.rootEntityId());
+            IntBag created = result.createdEntityIds();
+            ComponentMapper<GameObjectMemberComponent> membership =
+                    world.getMapper(GameObjectMemberComponent.class);
+            ComponentMapper<PixscapeIdentityComponent> identities =
+                    world.getMapper(PixscapeIdentityComponent.class);
+            int count = 0;
+            for (int i = 0; i < created.size(); i++) {
+                if (membership.has(created.get(i))) count++;
+            }
+            members = new EntityRef[count];
+            int index = 0;
+            for (int i = 0; i < created.size(); i++) {
+                int entityId = created.get(i);
+                if (!membership.has(entityId)) continue;
+                EntityRef ref = entities.ofEntityId(entityId);
+                members[index++] = ref;
+                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+                String name = identity != null ? identity.name : null;
+                if (name == null || name.isEmpty()) continue;
+                if (byName.containsKey(name)) ambiguousNames.add(name);
+                else byName.put(name, ref);
+            }
         }
 
         @Override
         public EntityRef root() {
             return root;
+        }
+
+        @Override
+        public EntityRef[] members() {
+            EntityRef[] snapshot = new EntityRef[members.length];
+            System.arraycopy(members, 0, snapshot, 0, members.length);
+            return snapshot;
+        }
+
+        @Override
+        public EntityRef requireMember(String name) {
+            if (ambiguousNames.contains(name)) {
+                throw new IllegalArgumentException("Ambiguous Game Object member name: " + name);
+            }
+            EntityRef member = byName.get(name);
+            if (member == null) {
+                throw new IllegalArgumentException("Missing Game Object member name: " + name);
+            }
+            return member;
         }
 
         @Override
@@ -601,21 +645,22 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Sets the active Artemis World's delta time for the next processing pass.
+     * Sets the active Artemis World's delta and advances the independent active HUD once.
      *
      * <p>This method does not call {@link World#process()} and does not by itself advance
-     * the complete Runtime simulation. Normal usage calls it once before {@link #render()}.</p>
+     * the complete world simulation. It does call Scene2D act for an active HUD, including
+     * when no World exists. Normal usage calls it once before {@link #render()}.</p>
      *
      * @param dt frame delta time in seconds
      */
     public void update(float dt) {
-        if (world == null) return;
-        world.setDelta(dt);
+        if (world != null) world.setDelta(dt);
+        if (hudScreenRuntime != null) hudScreenRuntime.act(dt);
     }
 
     /**
-     * Synchronously processes the configured Artemis World and then flushes deferred atlas
-     * disposals.
+     * Synchronously processes the configured Artemis World, draws the independent HUD above it,
+     * and then flushes deferred atlas disposals.
      *
      * <p>Despite its name, this is more than a stateless GPU draw call. Depending on Runtime
      * configuration, the {@link World#process()} pass includes physics/runtime systems,
@@ -638,6 +683,9 @@ public final class PixscapeEngine {
      * // Begin and end the application's own Batch normally.
      * }</pre>
      *
+     * <p>The HUD pass is never mixed into the ECS draw list and runs after world processing.
+     * A HUD may draw even when no World exists.</p>
+     *
      * <p>With default submission, Pixscape calls {@link MetricsBatch#begin} and
      * {@link MetricsBatch#end} and the internal batch is ended before this method returns
      * normally. Pixscape owns and closes that batch; callers must not dispose it. External
@@ -652,18 +700,26 @@ public final class PixscapeEngine {
      * on rather than assuming the pre-Pixscape state was restored.</p>
      */
     public void render() {
-        if (world == null) return;
+        render(null);
+    }
+
+    /** One-frame observation after world submission, before HUD and deferred texture disposal.
+     * The callback is not an ECS system and is never retained across scene loading. */
+    public void render(Runnable afterWorld) {
         if (activeSceneLoad != null
                 && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
-        processWorld();
+        if (world != null) {
+            processWorld();
+            if (afterWorld != null) afterWorld.run();
+        }
+        if (hudScreenRuntime != null) hudScreenRuntime.draw();
         if (atlasRuntimeService != null) {
             atlasRuntimeService.flushDeferredDisposals();
         }
     }
 
     /**
-     * Sets the borrowed Runtime camera's viewport dimensions and immediately calls
-     * {@link OrthographicCamera#update()}.
+     * Sets the borrowed Runtime camera's viewport dimensions and resizes the independent HUD.
      *
      * <p>Pixscape does not own or dispose a camera supplied through
      * {@link #setWorldCamera(OrthographicCamera)}.</p>
@@ -674,6 +730,56 @@ public final class PixscapeEngine {
             worldCamera.viewportHeight = h;
             worldCamera.update();
         }
+        if (hudScreenRuntime != null) hudScreenRuntime.resize(w, h);
+    }
+
+    /**
+     * Returns the input bridge for the active HUD. Applications should place it before World
+     * input in their {@code InputMultiplexer} so handled widget gestures are not duplicated.
+     */
+    public InputProcessor getHudInputProcessor() {
+        if (hudScreenRuntime == null) {
+            throw new IllegalStateException("PixscapeEngine must be initialized before HUD input is requested.");
+        }
+        return hudScreenRuntime.inputProcessor();
+    }
+
+    /**
+     * Returns the currently active, engine-owned HUD, or {@code null} when no HUD is active.
+     *
+     * <p>The returned object is borrowed and is the live native Scene2D actor tree; applications
+     * must not dispose it or its shared resources. The same instance is returned while that HUD
+     * remains active. Its actors may be accessed and mutated directly on the LibGDX render thread.
+     * References become invalid when the HUD is replaced or removed, the Scene changes, or this
+     * engine is disposed. A retained Java reference does not extend the lifetime of its resources;
+     * reacquire the HUD and reattach application listeners after each activation.</p>
+     *
+     * <p>This method also returns {@code null} after {@link #dispose()}.</p>
+     */
+    public MaterializedHud getActiveHud() {
+        if (hudScreenRuntime == null) return null;
+        ActiveHudScreen activeScreen = hudScreenRuntime.activeScreen();
+        if (activeScreen == null || activeScreen.isDisposed()) return null;
+        return activeScreen.materializedHud();
+    }
+
+    /**
+     * Returns the cause of the most recent default HUD activation failure, or {@code null}.
+     *
+     * <p>A Scene may be ready even when its default HUD could not be activated. This diagnostic
+     * remains available in that case and is cleared by a successful HUD activation or effective
+     * HUD/Scene removal. It also returns {@code null} after {@link #dispose()}.</p>
+     */
+    public Throwable getLastHudFailure() {
+        return lastSceneDefaultHudFailure;
+    }
+
+    /** Returns whether the active HUD's native Stage currently owns keyboard focus. */
+    public boolean hasHudKeyboardFocus() {
+        if (hudScreenRuntime == null) {
+            throw new IllegalStateException("PixscapeEngine must be initialized before HUD focus is requested.");
+        }
+        return hudScreenRuntime.hasKeyboardFocus();
     }
 
     /**
@@ -998,7 +1104,8 @@ public final class PixscapeEngine {
     }
 
     private Supplier<BaseSystem> createDefaultRenderSubmitSystemSupplier() {
-        return () -> new RenderSubmitSystem(
+        return () -> {
+            RenderSubmitSystem submit = new RenderSubmitSystem(
                 layerState,
                 frameQueue,
                 worldCamera,
@@ -1007,8 +1114,12 @@ public final class PixscapeEngine {
                 ambientMulB,
                 metricsBatch,
                 stats,
-                statsSink
-        );
+                statsSink,
+                forwardLighting
+            );
+            submit.setUseNormalMaps(useNormalMaps);
+            return submit;
+        };
     }
 
     /**
@@ -1017,7 +1128,14 @@ public final class PixscapeEngine {
     private void disposeWorldAndRuntime() {
         identityRegistry.bind(null, null);
 
-        // World first (systems may touch services)
+        if (hudScreenRuntime != null) {
+            hudScreenRuntime.dispose();
+            hudScreenRuntime = null;
+        }
+        lastSceneDefaultHudFailure = null;
+
+        if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
+        // World after HUD; World systems may still touch their own services.
         if (world != null) {
             world.dispose();
             world = null;
@@ -1039,12 +1157,14 @@ public final class PixscapeEngine {
             atlasRuntimeService.unloadAll();
             atlasRuntimeService = null;
         }
+        releaseActiveSceneAvailability();
 
         dynamicEntityState = null;
         layerState = null;
         drawList = null;
         frameQueue = null;
         vfxState = null;
+        tiledState = null;
         stats = null;
         statsSink = null;
         defaultShaderName = null;
@@ -1105,6 +1225,8 @@ public final class PixscapeEngine {
         if (worldCamera == null) worldCamera = new OrthographicCamera();
 
         ShaderRegistry.initDefaults(platformTarget, projectDir, config.shadersDir);
+        hudScreenRuntime = new HudScreenRuntime(
+                projectDir, ShaderRegistry.get(RuntimeFs.HUD_TEXTURE_ARRAY));
 
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
@@ -1318,6 +1440,9 @@ public final class PixscapeEngine {
         SceneMetaRuntime meta = cfg.getSceneMeta(candidate.sceneName());
         sceneLoaded = false;
         activeSceneMeta = null;
+        if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        lastSceneDefaultHudFailure = null;
+        if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
         rebuildWorld(cfg, runtimeProjectDir, meta);
         retireActiveSceneAvailability();
 
@@ -1346,7 +1471,7 @@ public final class PixscapeEngine {
                         candidate.sceneName(),
                         runtimeProjectDir,
                         atlasRuntimeService,
-                        candidate.atlas());
+                        candidate.atlas(),candidate.normalAtlas());
                 rebindAtlas(candidate.sceneTag());
                 forceFullDirtyAfterLoad();
                 return;
@@ -1364,6 +1489,10 @@ public final class PixscapeEngine {
                 return;
             case 4:
                 preparePersistentRenderAndRegistries();
+                return;
+            case 5:
+                // Same context/viewport preparation as a frame boundary, without processing World.
+                prepareRenderResources();
                 return;
             default:
                 throw new IllegalArgumentException("Unknown Runtime availability step: " + step);
@@ -1387,6 +1516,8 @@ public final class PixscapeEngine {
         requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
         requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
         requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
+        LightingGeometrySystem lightingGeometry=world.getSystem(LightingGeometrySystem.class);
+        if(lightingGeometry!=null)lightingGeometry.prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
         requireSystem(DirtyFlushSystem.class).finishRuntimeAvailability();
     }
@@ -1402,12 +1533,65 @@ public final class PixscapeEngine {
         activeSceneMeta = meta;
         cfg.currentSceneName = candidate.sceneName();
         sceneLoaded = true;
+        applySceneDefaultHud(meta);
+    }
+
+    private void applySceneDefaultHud(SceneMetaRuntime meta) {
+        lastSceneDefaultHudFailure = null;
+        if (hudScreenRuntime == null) return;
+        if (meta == null || meta.defaultHudScreenId == null) {
+            try {
+                hudScreenRuntime.hide();
+            } catch (RuntimeException failure) {
+                lastSceneDefaultHudFailure = failure;
+                logHudFailure("Unable to clear the previous Scene HUD. The new Scene remains "
+                        + "active without a HUD.", failure);
+            }
+            return;
+        }
+        try {
+            if (activeSceneAvailability == null || activeSceneAvailability.hudResources() == null) {
+                throw new IllegalStateException("Scene HUD environment was not prepared.");
+            }
+            hudScreenRuntime.showBorrowing(meta.defaultHudScreenId, activeSceneAvailability.hudResources());
+        } catch (RuntimeException failure) {
+            lastSceneDefaultHudFailure = failure;
+            try {
+                hudScreenRuntime.hide();
+            } catch (RuntimeException cleanupFailure) {
+                if (Gdx.app != null) {
+                    Gdx.app.error("PixscapeHud",
+                            "Cleanup also failed after default HUD activation failure.",
+                            cleanupFailure);
+                }
+            }
+            logHudFailure("Unable to activate default HUD " + meta.defaultHudScreenId
+                    + " for Scene " + meta.name + ". The Scene remains active without a HUD.",
+                    failure);
+        }
+    }
+
+    private static void logHudFailure(String message, RuntimeException failure) {
+        if (Gdx.app != null) Gdx.app.error("PixscapeHud", message, failure);
+    }
+
+    HudScreenRuntime hudScreenRuntime() {
+        return hudScreenRuntime;
     }
 
     private void failSceneLoad(
             SceneAvailabilityPlan candidate, boolean constructionStarted) {
         if (constructionStarted) {
             discardFailedSceneLoad();
+            if (hudScreenRuntime != null) {
+                try {
+                    hudScreenRuntime.hide();
+                    lastSceneDefaultHudFailure = null;
+                } catch (RuntimeException cleanupFailure) {
+                    logHudFailure("Unable to clear the previous HUD after Scene loading failed.",
+                            cleanupFailure);
+                }
+            }
             if (atlasRuntimeService != null && candidate != null) {
                 atlasRuntimeService.unload(candidate.sceneTag());
             }
@@ -1459,14 +1643,18 @@ public final class PixscapeEngine {
 
     private void releaseActiveSceneAvailability() {
         if (activeSceneAvailability == null) return;
-        activeSceneAvailability.release();
+        if (hudScreenRuntime != null) hudScreenRuntime.hide();
+        lastSceneDefaultHudFailure = null;
+        SceneAvailabilityPlan previous = activeSceneAvailability;
         activeSceneAvailability = null;
+        previous.release();
     }
 
     private void releasePendingSceneAvailability() {
         if (pendingSceneAvailability == null) return;
-        pendingSceneAvailability.release();
+        SceneAvailabilityPlan previous = pendingSceneAvailability;
         pendingSceneAvailability = null;
+        previous.release();
     }
 
     private void rebuildTiledLayersRuntime() {
@@ -1668,7 +1856,41 @@ public final class PixscapeEngine {
         throw new IllegalStateException("RuntimeConfig has no scenes.");
     }
 
+    /** Returns the selected renderer; renderer selection itself is a preparation-time choice. */
+    public boolean isForwardLighting() { return forwardLighting; }
+
+    /** Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected). */
+    public float ambientRed() { return ambientMulR; }
+    /** Current linear world ambient green multiplier. */
+    public float ambientGreen() { return ambientMulG; }
+    /** Current linear world ambient blue multiplier. */
+    public float ambientBlue() { return ambientMulB; }
+
+    /**
+     * Changes linear world ambient RGB, each finite and in [0,1], without reloading the Scene.
+     * Call on the render thread before render/World processing. O(1), allocation-free, and suitable
+     * for a per-frame dawn/fade. Equal values do nothing. Multiple changes before rendering use
+     * only the final values; no geometry, material table or GPU resource is rebuilt.
+     * The next Scene/World initialization restores its authored ambient values. Custom submission
+     * systems can read the ambient getters; the built-in Legacy and Forward consumers are updated.
+     */
+    public PixscapeEngine setAmbientLight(float r, float g, float b) {
+        requireAmbientChannel(r); requireAmbientChannel(g); requireAmbientChannel(b);
+        if (ambientMulR == r && ambientMulG == g && ambientMulB == b) return this;
+        ambientMulR = r; ambientMulG = g; ambientMulB = b;
+        RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
+        if (submit != null) submit.setAmbientLight(r, g, b);
+        return this;
+    }
+
+    private static void requireAmbientChannel(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value) || value < 0f || value > 1f)
+            throw new IllegalArgumentException("Ambient RGB channels must be finite and in [0,1].");
+    }
+
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
+        useNormalMaps = meta == null || meta.useNormalMaps;
+        forwardLighting = forwardLightingOverride != null ? forwardLightingOverride : meta != null && meta.forwardLighting;
         if (meta == null) {
             ambientMulR = 1f;
             ambientMulG = 1f;
@@ -1777,7 +1999,13 @@ public final class PixscapeEngine {
         tagRegistry.bind(world);
     }
 
+    private void prepareRenderResources() {
+        RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+        if (submit != null && submit.isEnabled()) submit.prepareComposition();
+    }
+
     private void processWorld() {
+        prepareRenderResources();
         if (systemProfiler.enabled()) {
             systemProfiler.beginFrame();
         }
@@ -1825,7 +2053,7 @@ public final class PixscapeEngine {
     }
 
     private final class SceneLoadHandleImpl implements SceneLoadHandle {
-        private static final int RUNTIME_STEP_COUNT = 5;
+        private static final int RUNTIME_STEP_COUNT = 6;
         private final SceneAvailabilityPlan candidate;
         private SceneLoadPhase phase = SceneLoadPhase.FILES;
         private float progress;
@@ -1846,6 +2074,7 @@ public final class PixscapeEngine {
                         boolean available = candidate.update();
                         setProgress(0.60f * candidate.progress());
                         if (available) {
+                            candidate.prepareHudResources();
                             phase = SceneLoadPhase.SCENE;
                             setProgress(0.60f);
                         }
@@ -1920,6 +2149,13 @@ public final class PixscapeEngine {
 
     public boolean isLoaded() {
         return loaded;
+    }
+
+    /** Selects the whole-world renderer before project/scene preparation. Defaults to the scene selection (Legacy when absent);
+     * pass false to explicitly select the legacy reference renderer. */
+    public PixscapeEngine setForwardLighting(boolean enabled) {
+        if(loaded)throw new IllegalStateException("Forward lighting must be selected before loadProject()");
+        forwardLightingOverride=enabled;forwardLighting=enabled;return this;
     }
 
     public PixscapeEngine setPlatformTarget(PlatformTarget target) {

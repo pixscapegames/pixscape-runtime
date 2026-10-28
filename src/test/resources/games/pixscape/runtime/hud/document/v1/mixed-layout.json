@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "id": "managed-root",
+    "kind": "TABLE",
+    "actor": { "width": 1920, "height": 1080 },
+    "table": { "columns": 1, "rows": [ { "cells": [
+      { "id": "cell-free-surface", "constraints": { "uniformX": false, "uniformY": false,
+        "fillX": true, "fillY": true, "expandX": true, "expandY": true }, "content": {
+          "id": "free-surface",
+          "kind": "GROUP",
+          "children": [
+            {
+              "placementKind": "FREE",
+              "free": {
+                "horizontalAnchor": "RIGHT", "verticalAnchor": "TOP",
+                "pivotX": 1, "pivotY": 1, "offsetX": -32, "offsetY": -32
+              },
+              "node": {
+                "id": "objective",
+                "kind": "LABEL",
+                "actor": { "width": 360, "height": 72 },
+                "label": { "text": "Find the exit", "styleName": "hud-body" }
+              }
+            }
+          ]
+        }
+      }
+    ] } ] }
+  }
+}

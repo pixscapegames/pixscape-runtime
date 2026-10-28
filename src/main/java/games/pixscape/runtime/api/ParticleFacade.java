@@ -22,6 +22,11 @@ public interface ParticleFacade {
 
     ParticleFacade setAutoStart(boolean autoStart);
 
+    /** Applies to all emitters of this instance; does not enable local-light reception. */
+    ParticleFacade setIgnoreAmbientLighting(boolean ignore);
+
+    boolean isIgnoringAmbientLighting();
+
     ParticleFacade play();
 
     ParticleFacade pause();
@@ -31,6 +36,9 @@ public interface ParticleFacade {
     ParticleFacade restart();
 
     ParticleFacade stop();
+
+    /** Stops new emission, lets existing particles finish, then removes this runtime emitter. */
+    ParticleFacade complete();
 
     boolean isPaused();
 

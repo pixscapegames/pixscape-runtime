@@ -30,6 +30,8 @@ public final class VfxRenderState {
     public byte[] repeatFlags;
 
     public int[] sourceEmitter;
+    /** Prepared once per owning effect; overwritten when a particle slot is reused. */
+    public boolean[] ignoreAmbientLighting;
 
     public VfxRenderState() {
     }
@@ -129,6 +131,7 @@ public final class VfxRenderState {
         this.colorPacked[index] = colorPacked;
         this.repeatFlags[index] = RenderRepeatFlags.sanitize(repeatFlags);
         this.sourceEmitter[index] = sourceEmitter;
+        this.ignoreAmbientLighting[index] = false;
         return index;
     }
 
@@ -157,6 +160,7 @@ public final class VfxRenderState {
         float[] oldColorPacked = colorPacked;
         byte[] oldRepeatFlags = repeatFlags;
         int[] oldSourceEmitter = sourceEmitter;
+        boolean[] oldIgnoreAmbientLighting = ignoreAmbientLighting;
 
         textureHandle = new int[newCapacity];
         shader = new int[newCapacity];
@@ -182,6 +186,7 @@ public final class VfxRenderState {
         colorPacked = new float[newCapacity];
         repeatFlags = new byte[newCapacity];
         sourceEmitter = new int[newCapacity];
+        ignoreAmbientLighting = new boolean[newCapacity];
 
         if (copyExisting && capacity > 0) {
             int count = Math.min(activeCount, capacity);
@@ -209,6 +214,7 @@ public final class VfxRenderState {
             copy(oldColorPacked, colorPacked, count);
             copy(oldRepeatFlags, repeatFlags, count);
             copy(oldSourceEmitter, sourceEmitter, count);
+            if (oldIgnoreAmbientLighting != null) System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
         }
 
         capacity = newCapacity;

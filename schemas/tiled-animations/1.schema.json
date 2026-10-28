@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/tiled-animations/1.schema.json",
+  "title": "Pixscape tiled animation registry 1",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "animations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "frameAssetIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "frameDurationsMs": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "animations"
+  ]
+}

@@ -35,6 +35,17 @@ public final class SpatialOrderingKernel {
         planner.addRelations(actors, faces, relations);
     }
 
+    public void addRelations(SpatialActorCollector actors,
+                             SpatialProjectedFaceCache faces,
+                             SpatialFaceRelationSolver relations,
+                             int mapEntity) {
+        planner.addRelations(actors, faces, relations, mapEntity);
+    }
+
+    public String diagnosticSummary(int candidates, int relations) {
+        return planner.diagnosticSummary(candidates, relations);
+    }
+
     public int finish(DrawList drawList,
                       SpatialActorCollector actors,
                       SpatialFrameSnapshotBuilder snapshot) {

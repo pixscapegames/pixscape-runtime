@@ -4,14 +4,20 @@
 
 <module>
     <source path=""/>
+    <super-source path="super"/>
 
     <inherits name="com.badlogic.gdx.backends.gdx_backends_gwt"/>
     <inherits name="com.badlogic.gdx.physics.box2d.box2d-gwt"/>
     <inherits name="com.artemis.backends.artemis_backends_gwt"/>
     <inherits name="com.artemis-json-libgdx"/>
 
+    <!-- Scene-wide rendering settings are also serialized by LibGDX Json. -->
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.loading.SceneMetaRuntime"/>
+
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntArray"/>
+    <!-- ActorSpatialRectangles.clips is instantiated by LibGDX Json before its IntMap branch. -->
+    <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.IntMap"/>
     <extend-configuration-property name="artemis.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
     <extend-configuration-property name="gdx.reflect.include" value="com.badlogic.gdx.utils.ByteArray"/>
 
@@ -24,6 +30,10 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.tiled"/>
 
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.spatial"/>
+    <!-- Artemis inspects nested component data independently of LibGDX Json. -->
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.ActorSpatialRectangles"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.ActorSpatialRectangleData"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockLink"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialBlockData"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.spatial.SpatialShapeData"/>
 
@@ -34,6 +44,8 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.gameobject"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.gameobject.GameObjectRuntimeFragment"/>
 
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.hud"/>
+
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.property"/>
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.property"/>
 
@@ -41,4 +53,10 @@
     <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.component"/>
 
     <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.system"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.LocalSurfaceDescription"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.TileSurfaceDescription"/>
+    <extend-configuration-property name="gdx.reflect.include" value="games.pixscape.runtime.render.lighting.RoundedWallDescription"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.RoundedWallDescription"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.LocalSurfaceDescription"/>
+    <extend-configuration-property name="artemis.reflect.include" value="games.pixscape.runtime.render.lighting.TileSurfaceDescription"/>
 </module>

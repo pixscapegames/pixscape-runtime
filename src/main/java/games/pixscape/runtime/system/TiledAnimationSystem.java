@@ -14,11 +14,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.animation.TileAnimationDef;
-import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
-import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
-import games.pixscape.runtime.tiled.animation.TileAnimationPlaybackStepper;
-import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
+import games.pixscape.runtime.tiled.animation.*;
 
 @All({EntityIndexComponent.class, TiledLayerComponent.class})
 @Exclude(LayerComponent.class)

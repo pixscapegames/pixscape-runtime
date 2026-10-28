@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.2]
+
+### Breaking changes
+
+* World rendering now requires renderable, blendable RGBA16F support (GL3/GLES3/WebGL2).
+* Custom texture-array shaders must use per-entity material parameters instead of per-entity float uniforms.
+* HUD documents now require schema 2; legacy HUD assets using schema 1 or fixed reference dimensions must be recreated.
+
+### Added
+
+* Added actor shadows with per-animation foot calibration and thickness.
+* Added an ambient-light exemption for particle instances.
+* Added continuous cone-light inclination.
+* Added tile normal mapping.
+* Added per-entity material parameters for custom shaders.
+* Added Scene2D HUD screens with widget access, tables and reusable dialogs.
+
+### Changed
+
+* HUD screens now adapt to the available viewport; root Tables can fill it and cells can define maximum dimensions.
+* Spatial actor influence and map-plane projection now follow the authored spatial height and altitude.
+
+### Fixed
+
+* Fixed lighting alignment on deformed images.
+* Fixed vertical wall joins that could force linked image anchors into the physical wall envelope.
+* Fixed Spatial projection and ordering for map-plane altitude and local wall junctions.
 
 ## [0.2.1]
 

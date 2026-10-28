@@ -6,14 +6,11 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.render.InternalTextures;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.lang.reflect.Proxy;
 
@@ -69,17 +66,46 @@ public class AtlasRuntimeServiceTextureArrayMappingTest {
     public void whiteAndAtlasPageHandlesKeepTheirStableLayerOrder() {
         Texture first = texture();
         Texture second = texture();
-        Array<Texture> pages = new Array<>(new Texture[]{first, second});
+        Texture third = texture();
+        Array<Texture> pages = new Array<>(new Texture[]{first, second, third});
 
         int firstHandle = TextureRegistry.handleOf(first);
         int secondHandle = TextureRegistry.handleOf(second);
+        int thirdHandle = TextureRegistry.handleOf(third);
         com.badlogic.gdx.utils.IntIntMap mapping = AtlasRuntimeService.buildHandleToLayer(pages);
 
         Assert.assertEquals(0, mapping.get(InternalTextures.whiteHandle(), -1));
         Assert.assertEquals(1, mapping.get(firstHandle, -1));
         Assert.assertEquals(2, mapping.get(secondHandle, -1));
+        Assert.assertEquals(3, mapping.get(thirdHandle, -1));
         first.dispose();
         second.dispose();
+        third.dispose();
+    }
+
+    @Test
+    public void atlasPagesUseStableFirstRegionEncounterOrder() {
+        Texture first = texture();
+        Texture second = texture();
+        Texture third = texture();
+        try {
+            TextureAtlas atlas = new TextureAtlas();
+            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
+            atlas.getRegions().add(new TextureAtlas.AtlasRegion(first, 0, 0, 1, 1));
+            atlas.getRegions().add(new TextureAtlas.AtlasRegion(second, 0, 0, 1, 1));
+            atlas.getRegions().add(new TextureAtlas.AtlasRegion(third, 0, 0, 1, 1));
+
+            Array<Texture> pages = AtlasRuntimeService.getPageTextures(atlas);
+
+            Assert.assertEquals(3, pages.size);
+            Assert.assertSame(second, pages.get(0));
+            Assert.assertSame(first, pages.get(1));
+            Assert.assertSame(third, pages.get(2));
+        } finally {
+            first.dispose();
+            second.dispose();
+            third.dispose();
+        }
     }
 
     private static Texture texture() {

@@ -6,11 +6,7 @@ import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.*;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,6 +32,10 @@ public class GameObjectSceneLoadingTest {
                     loaded.getMapper(GameObjectComponent.class).get(entities[0]).sourceAssetId);
             Assert.assertEquals(1,
                     loaded.getMapper(GameObjectMemberComponent.class).get(entities[1]).parentStableId);
+            Assert.assertTrue(loaded.getMapper(EntityIndexComponent.class).has(entities[0]));
+            Assert.assertTrue(loaded.getMapper(EntityIndexComponent.class).has(entities[1]));
+            Assert.assertFalse(loaded.getMapper(LayerComponent.class).has(entities[0]));
+            Assert.assertFalse(loaded.getMapper(LayerComponent.class).has(entities[1]));
         } finally {
             loaded.dispose();
         }

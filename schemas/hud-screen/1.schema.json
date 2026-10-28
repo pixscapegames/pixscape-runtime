@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pixscape.games/schemas/pixscape/hud-screen/1.schema.json",
+  "title": "Pixscape HUD screen descriptor 1",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "documentId": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "skinId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "atlasId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "textureProfileId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "documentId"
+  ],
+  "additionalProperties": false
+}

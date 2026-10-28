@@ -148,16 +148,26 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
         work.clear();
 
         addList(dirty.geometryEntities());
-        addList(dirty.materialEntities());
-        addList(dirty.colorEntities());
-        addList(dirty.orderEntities());
-        addList(dirty.layerEntities());
+        addList(dirty.materialEntities(), DirtyBits.GEOMETRY);
+        addList(dirty.colorEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL);
+        addList(dirty.orderEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR);
+        addList(dirty.layerEntities(), DirtyBits.GEOMETRY | DirtyBits.MATERIAL | DirtyBits.COLOR | DirtyBits.ORDER);
     }
 
     private void addList(IntArray list) {
         if (list == null || list.size == 0) return;
         for (int i = 0, n = list.size; i < n; i++) {
             work.add(list.get(i));
+        }
+    }
+
+    private void addList(IntArray list, int earlierCategories) {
+        if (list == null || list.size == 0) return;
+        // DirtyTracker keeps each coarse bit and its list ticket in sync, including consume().
+        // Geometry preparation clears only sub-bits. Preserve first appearance without ACKing any category.
+        for (int i = 0, n = list.size; i < n; i++) {
+            int e = list.get(i);
+            if ((dirty.coarseBits(e) & earlierCategories) == 0) work.add(e);
         }
     }
 
@@ -226,6 +236,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
 
             // Kind + enabled
             state.kind[renderSlot] = RenderKind.SPRITE;
+            state.light[renderSlot] = (byte) (isLight ? 1 : 0);
             if (isLight) {
                 boolean en = (pointLight != null) ? pointLight.enabled : coneLight.enabled;
                 state.enabled[renderSlot] = en;
@@ -325,17 +336,15 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                     float alpha;
 
                     if (pointLight != null) {
-                        float intensity = pointLight.intensity;
-                        r = pointLight.r * intensity;
-                        g = pointLight.g * intensity;
-                        blue = pointLight.b * intensity;
-                        alpha = intensity;
+                        r = pointLight.r;
+                        g = pointLight.g;
+                        blue = pointLight.b;
+                        alpha = 1f;
                     } else {
-                        float intensity = coneLight.intensity;
-                        r = coneLight.r * intensity;
-                        g = coneLight.g * intensity;
-                        blue = coneLight.b * intensity;
-                        alpha = intensity;
+                        r = coneLight.r;
+                        g = coneLight.g;
+                        blue = coneLight.b;
+                        alpha = 1f;
                     }
 
                     state.colorPacked[renderSlot] = Color.toFloatBits(r, g, blue, alpha);

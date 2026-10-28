@@ -1,14 +1,13 @@
 #version 330 core
 
 #include "pixscape_common.glsl"
+#include "pixscape_entity_params.glsl"
 
 in vec2  v_uv;
 in vec4  v_color;
 flat in int v_layer;
 
 uniform sampler2DArray u_array;
-uniform float u_outlineSize;
-uniform float u_outlineIntensity;
 uniform vec3  u_ambientMul;
 
 out vec4 fragColor;
@@ -18,7 +17,7 @@ void main() {
     vec4 base = pixscapeApplyMaterial(tex, v_color, u_ambientMul);
     float centerA = base.a;
 
-    float s = u_outlineSize;
+    float s = pixscapeEntityFloat(0);
 
     float alphaSum = 0.0;
     alphaSum += texture(u_array, vec3(v_uv + vec2( s,  0.0), v_layer)).a;
@@ -35,8 +34,8 @@ void main() {
 
     vec3 outlineColor = v_color.rgb * u_ambientMul;
 
-    vec3 color = mix(base.rgb, outlineColor, outlineMask * u_outlineIntensity);
-    float alpha = max(centerA, outlineMask * u_outlineIntensity);
+    vec3 color = mix(base.rgb, outlineColor, outlineMask * pixscapeEntityFloat(1));
+    float alpha = max(centerA, outlineMask * pixscapeEntityFloat(1));
 
     fragColor = vec4(color, alpha);
 }

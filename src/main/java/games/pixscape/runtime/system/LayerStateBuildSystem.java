@@ -1,14 +1,14 @@
 package games.pixscape.runtime.system;
 
-import com.artemis.ComponentMapper;
 import com.artemis.Aspect;
-import com.artemis.utils.IntBag;
+import com.artemis.ComponentMapper;
 import com.artemis.annotations.All;
 import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;

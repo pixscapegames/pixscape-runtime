@@ -20,6 +20,11 @@ public class PointLightComponent extends PooledComponent {
 
     // Enabled flag (important for the editor)
     public boolean enabled = true;
+    /** Common XYZ pixel units; independent of sprite dimensions and Spatial ordering. */
+    public float height = 128f;
+    /** 0: unshadowed, 1: hard, 2: 3x3 PCF. */
+    public int shadowQuality = 1;
+    public int shadowResolution = 512;
 
     @Override
     protected void reset() {
@@ -30,5 +35,6 @@ public class PointLightComponent extends PooledComponent {
         radius = 200f;
         falloff = 1.5f;
         enabled = true;
+        height = 128f; shadowQuality = 1; shadowResolution = 512;
     }
 }
