@@ -36,7 +36,7 @@ public final class SpatialQueryService {
                                            SpatialVolume out) {
         if (out == null) out = new SpatialVolume();
         if (transform == null) {
-            return out.set(0f, 0f, altitude + (rectangle == null ? 0f : rectangle.offsetZ), (rectangle == null ? 0f : rectangle.height),
+            return out.set(0f, 0f, altitude, (rectangle == null ? 0f : rectangle.height),
                     -FALLBACK_HALF_EXTENT, -FALLBACK_HALF_EXTENT,
                     FALLBACK_HALF_EXTENT, FALLBACK_HALF_EXTENT);
         }
@@ -69,7 +69,7 @@ public final class SpatialQueryService {
             }
         }
 
-        return out.set(transform.x, transform.y, altitude + (rectangle == null ? 0f : rectangle.offsetZ), (rectangle == null ? 0f : rectangle.height), minX, minY, maxX, maxY);
+        return out.set(transform.x, transform.y, altitude, (rectangle == null ? 0f : rectangle.height), minX, minY, maxX, maxY);
     }
 
     public SpatialVolume buildTiledCellVolume(TiledMapLayerData map, int gx, int gy) {

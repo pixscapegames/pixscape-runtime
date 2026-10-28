@@ -21,29 +21,55 @@ import static org.junit.Assert.*;
 
 public class ActorShadowRectangleCasterTest {
     private static final float[] Q={-80,-40,-80,180,80,180,80,-40};
-    @Test public void twoTrianglesFollowAuthoredRectangleAndMapBackToSprite(){
-        ActorSpatialRectangleData r=new ActorSpatialRectangleData();r.width=70;r.height=100;r.offsetX=7;r.offsetY=-3;r.offsetZ=5;
-        ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();float[] rectangle=new float[12];
-        for(float yaw:new float[]{0,45,90,37.25f,179.99f,359.99f})for(float altitude:new float[]{0,40}){
-            r.orientation=yaw;r.corners(0,0,altitude,rectangle);c.update(r,0,0,altitude,Q);assertEquals(6,c.vertexCount);
-            for(int i=0;i<6;i++){
-                int o=i*8,k=SpriteSurfaceSupport.corner(i)*3;
-                for(int j=0;j<3;j++)assertEquals(rectangle[k+j],c.vertices[o+j],0);
-                float x=Q[0]+c.vertices[o+3]*(Q[6]-Q[0])+c.vertices[o+4]*(Q[2]-Q[0]);
-                float y=Q[1]+c.vertices[o+3]*(Q[7]-Q[1])+c.vertices[o+4]*(Q[3]-Q[1]);
-                assertEquals(x,LightingCoordinates.screenX(rectangle[k],rectangle[k+1]),.0001);
-                assertEquals(y,LightingCoordinates.screenY(rectangle[k],rectangle[k+1],rectangle[k+2]),.0001);
+    @Test public void lightFacingTrianglesPreserveMappingContactAndReference(){
+        ActorSpatialRectangleData r=new ActorSpatialRectangleData();r.x=-35;r.y=-3;r.width=70;r.height=100;r.pivotX=7;r.pivotY=-3;
+        ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();
+        LightingFrame.Caster bounds=new LightingFrame.Caster();
+        for(float altitude:new float[]{0,40}){
+            c.update(r,0,0,altitude,Q);assertEquals(6,c.vertexCount);
+            float[] reference=c.vertices.clone();c.bounds(bounds);int updates=c.updates;
+            for(int angle=0;angle<360;angle++){
+                c.faceLight(200*(float)Math.cos(Math.toRadians(angle)),200*(float)Math.sin(Math.toRadians(angle)));
+                assertArrayEquals(reference,c.vertices,0);
+                float u=(r.pivotX-r.x)/r.width;
+                assertEquals(LightingCoordinates.worldX(r.pivotX,r.pivotY,0),c.lightVertices[0]+u*(c.lightVertices[40]-c.lightVertices[0]),.0001);
+                assertEquals(LightingCoordinates.worldY(r.pivotX,r.pivotY,0),c.lightVertices[1]+u*(c.lightVertices[41]-c.lightVertices[1]),.0001);
+                assertEquals(altitude,c.lightVertices[2],0);
+                for(int i=0;i<6;i++){
+                    int o=i*8;float x=c.lightVertices[o],y=c.lightVertices[o+1];
+                    assertTrue(x>=bounds.minX-.0001 && x<=bounds.maxX+.0001);
+                    assertTrue(y>=bounds.minY-.0001 && y<=bounds.maxY+.0001);
+                    assertEquals(reference[o+3],c.lightVertices[o+3],0);assertEquals(reference[o+4],c.lightVertices[o+4],0);
+                    float sx=Q[0]+reference[o+3]*(Q[6]-Q[0]);
+                    float sy=Q[1]+reference[o+4]*(Q[3]-Q[1]);
+                    assertEquals(sx,LightingCoordinates.screenX(reference[o],reference[o+1]),.0001);
+                    assertEquals(sy,LightingCoordinates.screenY(reference[o],reference[o+1],reference[o+2]),.0001);
+                }
+                c.update(r,0,0,altitude,Q);assertEquals(updates,c.updates);
             }
-            int updates=c.updates;for(int i=0;i<100;i++)c.update(r,0,0,altitude,Q);assertEquals(updates,c.updates);
+            c.faceLight(LightingCoordinates.worldX(r.pivotX,r.pivotY,0),LightingCoordinates.worldY(r.pivotX,r.pivotY,0));
+            for(float value:c.lightVertices)assertTrue(Float.isFinite(value));
         }
     }
     @Test public void imageExtentChangesRebuildUvWithoutClampingOrRecentring(){
         ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();ActorSpatialRectangleData r=new ActorSpatialRectangleData();
-        r.width=400;c.update(r,0,0,0,Q);assertTrue(c.vertices[3]<0);
+        r.x=-200;r.width=400;c.update(r,0,0,0,Q);assertTrue(c.vertices[3]<0);
         float[] before=c.vertices.clone();int updates=c.updates;
         c.update(r,0,0,0,new float[]{-90,-40,-90,180,90,180,90,-40});assertEquals(updates+1,c.updates);
         for(int o=0;o<48;o+=8)for(int k=0;k<3;k++)assertEquals(before[o+k],c.vertices[o+k],0);
         assertNotEquals(before[3],c.vertices[3],0);
+    }
+    @Test public void translatedActorAndLightKeepTheSameLocalSilhouette(){
+        ActorShadowRectangleCaster c=new ActorShadowRectangleCaster();ActorSpatialRectangleData r=new ActorSpatialRectangleData();
+        r.pivotX=3;r.pivotY=-4;c.update(r,0,0,0,Q);c.faceLight(100,70);
+        float[] before=c.lightVertices.clone(),moved=Q.clone();
+        for(int i=0;i<8;i+=2){moved[i]+=20;moved[i+1]+=20;}
+        c.update(r,30,10,0,moved);c.faceLight(130,80);
+        for(int o=0;o<48;o+=8){
+            assertEquals(before[o]+30,c.lightVertices[o],.0001);
+            assertEquals(before[o+1]+10,c.lightVertices[o+1],.0001);
+            for(int k=2;k<8;k++)assertEquals(before[o+k],c.lightVertices[o+k],.0001);
+        }
     }
     @Test public void ecsPublicationTracksClipsFramesAndAltitudeWithoutChangingTheSprite(){
         DynamicEntityRenderState d=new DynamicEntityRenderState(4);FrameRenderQueue q=new FrameRenderQueue(4);
@@ -59,7 +85,7 @@ public class ActorShadowRectangleCasterTest {
             SpatialPhysicsFootprintComponent foot=world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);foot.valid=true;
             SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).create(e);
             h.rectangles=new ActorSpatialRectangles();h.rectangles.put(7,"walk",new ActorSpatialRectangleData());
-            ActorSpatialRectangleData idle=new ActorSpatialRectangleData();idle.orientation=90;idle.height=90;h.rectangles.put(7,"idle",idle);
+            ActorSpatialRectangleData idle=new ActorSpatialRectangleData();idle.pivotX=9;idle.height=90;h.rectangles.put(7,"idle",idle);
             world.getMapper(AssetRefComponent.class).create(e).assetId=7;
             AnimationComponent animation=world.getMapper(AnimationComponent.class).create(e);animation.currentClip="walk";
             world.getMapper(SurfaceLightingComponent.class).create(e).shadowCaster=true;
@@ -69,8 +95,8 @@ public class ActorShadowRectangleCasterTest {
             tiled.lightingRevision++;world.process();assertEquals(identity,s.casterShadowGroup());
             float[] receiver=s.vertices.clone();
             ActorSpatialRectangleData active=h.rectangles.get(7,"walk");
-            active.offsetX=15;active.offsetY=-8;active.offsetZ=9;world.process();
-            assertArrayEquals("Caster offsets must not move the receiver",receiver,s.vertices,0);
+            active.x=15;active.y=-8;active.pivotX=9;world.process();
+            assertArrayEquals("Rectangle and pivot edits must not move the receiver",receiver,s.vertices,0);
             int updates=storage.updates;d.u1[slot]=.4f;d.u2[slot]=.1f;animation.frame=4;world.process();
             assertEquals(updates,storage.updates);assertEquals(.4f,q.lighting.casters.first().u1,0);
             animation.currentClip="idle";h.altitude=40;world.process();assertEquals(updates+1,storage.updates);
@@ -78,6 +104,11 @@ public class ActorShadowRectangleCasterTest {
             assertEquals(Q[0],d.x1[slot],0);assertEquals(Q[5],d.y3[slot],0);assertSame(storage,s.actorShadowRectangle);
             assertTrue(s.twoSided);assertTrue(s.actor);assertEquals(1,q.lighting.casters.size);
             assertEquals(identity,s.casterShadowGroup());assertEquals(identity,s.receiverShadowGroup(24));
+            world.getMapper(SpatialHeightComponent.class).remove(e);world.process();
+            assertNull("Disabling spatial must stop using the cached actor caster",s.shadowVertices);
+            LightingFrame.Caster actual=q.lighting.casters.first();
+            LightingFrame.Caster expected=new LightingFrame.Caster();expected.surface=new LightingSurface(s.vertices);expected.bounds();
+            assertEquals(expected.minX,actual.minX,0);assertEquals(expected.maxY,actual.maxY,0);
             d.enabled[slot]=false;world.delete(e);world.process();
             int recreated=world.create(),newSlot=d.acquireSlotForEntity(recreated);d.enabled[newSlot]=true;
             d.x1[newSlot]=d.x2[newSlot]=-32;d.x3[newSlot]=d.x4[newSlot]=32;d.y2[newSlot]=d.y3[newSlot]=64;

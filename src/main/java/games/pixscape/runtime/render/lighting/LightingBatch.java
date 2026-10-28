@@ -165,6 +165,8 @@ final class LightingBatch {
         int packed=NumberUtils.floatToIntColor(color);
         float r=(packed&255)/255f,g=((packed>>>8)&255)/255f,b=((packed>>>16)&255)/255f,a=((packed>>>24)&255)/255f;
         float[] source=shadow && surface.shadowVertices!=null?surface.shadowVertices:!shadow && surface.receiverVertices!=null?surface.receiverVertices:surface.vertices;
+        if(shadow && surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.vertices)
+            source=surface.actorShadowRectangle.lightVertices;
         int sourceLength=shadow && surface.shadowVertices!=null?surface.shadowVertexCount*8:source.length;
         for(int i=0;i<sourceLength;i+=8){
             if(vertices==CAPACITY){flush();textures=1;handles[0]=texture;slot=0;}
@@ -177,7 +179,7 @@ final class LightingBatch {
                 data[o+SHADOW_FLAGS]=slot;data[o+SHADOW_FLAGS+1]=surface.twoSided?1:0;
                 data[o+SHADOW_FLAGS+2]=surface.twoSided?1:0;data[o+SHADOW_FLAGS+3]=surface.alphaThreshold;
                 data[o+SHADOW_EXCLUSION]=surface.casterShadowGroup();
-                if(surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.vertices){
+                if(surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.lightVertices){
                     data[o+SHADOW_UV]=u;data[o+SHADOW_UV+1]=v;
                     // Carry actor atlas bounds in color RGB and flags.z; alpha remains the image alpha multiplier.
                     data[o+SHADOW_COLOR]=u1;data[o+SHADOW_COLOR+1]=v2;data[o+SHADOW_COLOR+2]=u2;

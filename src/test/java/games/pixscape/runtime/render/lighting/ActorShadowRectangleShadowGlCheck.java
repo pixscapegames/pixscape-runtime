@@ -37,7 +37,6 @@ import org.junit.Assert;
  */
 public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter {
     private static final int FRAMES=48;
-    private static final float[] YAWS={0,45,90,37.25f};
     private static final float[][] PLANES={{-150,-120,0,-150,120,0,150,120,0,150,-120,0},{-150,90,0,-150,90,135,150,90,135,150,90,0}};
     private final LightingSurface[] planeSurfaces=new LightingSurface[2];
     private final float[][] planeQuads=new float[2][];
@@ -82,8 +81,8 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
             TransformComponent t=world.getMapper(TransformComponent.class).create(e);t.x=(i%4-1.5f)*(count==1?0:55);t.y=i/4*-35;
             SpatialPhysicsFootprintComponent foot=world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);foot.valid=true;
             SpatialHeightComponent h=world.getMapper(SpatialHeightComponent.class).create(e);h.rectangles=new ActorSpatialRectangles();
-            // Fixed authored rectangle; changing yaw can intentionally reduce opaque coverage.
-            ActorSpatialRectangleData v=new ActorSpatialRectangleData();v.width=64;v.height=128;
+            // Fixed local rectangle; the light changes only its shadow orientation.
+            ActorSpatialRectangleData v=new ActorSpatialRectangleData();v.x=-32;v.width=64;v.height=128;
             if(i%2==0){world.getMapper(AssetRefComponent.class).create(e).assetId=7;
                 AnimationComponent a=world.getMapper(AnimationComponent.class).create(e);a.currentClip="walk";
                 h.rectangles.put(7,"walk",v);v=v.copy();v.width=72;h.rectangles.put(7,"idle",v);
@@ -117,7 +116,7 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
             AnimationComponent a=world.getMapper(AnimationComponent.class).getSafe(e,null);
             if(a!=null){a.currentClip=frame%24<12?"walk":"idle";a.frame=(frame/6)%2;}
             ActorSpatialRectangleData v=h.rectangles.get(a==null?0:7,a==null?null:a.currentClip);
-            v.orientation=YAWS[frame/12];setQuad(i,0);
+            v.pivotX=frame/12*2;setQuad(i,0);
         }
         geometry.setEnabled(true);geometry.process();geometry.setEnabled(false);
         queue.lighting.lights.add(light);

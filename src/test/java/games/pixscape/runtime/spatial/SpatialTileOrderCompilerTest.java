@@ -235,7 +235,7 @@ public class SpatialTileOrderCompilerTest {
         SpatialActorCollector actor = new SpatialActorCollector();
         actor.actorCount = 1; actor.actorEntityId = new int[]{99}; actor.actorStableOrder = new int[]{0};
         actor.actorCircleX = new float[]{5.001f}; actor.actorCircleY = new float[]{15};
-        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{16}; actor.actorOffsetZ = new float[actor.actorHeight.length];
+        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{16};
         SpatialFaceRelationSolver relations = new SpatialFaceRelationSolver();
         relations.solve(actor, faces);
         Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE, relations.relationType[0]);

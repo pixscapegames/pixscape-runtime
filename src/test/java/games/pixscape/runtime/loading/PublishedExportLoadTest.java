@@ -49,8 +49,8 @@ public class PublishedExportLoadTest {
         Assume.assumeTrue("The sibling tiled-iso-demo checkout is optional",
                 root.child("project.json").exists());
         loadEveryScene(root);
-        loadCurrentGameObjectOrAssertVolumeRejection(root.child("gameobjects/snake.gameobject"));
-        loadCurrentGameObjectOrAssertVolumeRejection(root.child("gameobjects/car.gameobject"));
+        for(FileHandle asset : root.child("gameobjects").list(".gameobject"))
+            loadCurrentGameObjectOrAssertVolumeRejection(asset);
         for (FileHandle descriptor : root.child("hud").list(".hudscreen")) {
             HudScreenAsset asset = new HudScreenAssetLoader().load(root,
                     "hud/" + descriptor.nameWithoutExtension());

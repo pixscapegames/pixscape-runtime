@@ -384,6 +384,8 @@ public final class LightingRenderer {
             for(int i=0;i<candidates.size;i++){
                 LightingFrame.Caster c=frame.casters.get(candidates.get(i));
                 if(c.surface.shadowVertices!=null?c.surface.shadowVertexCount==0:c.surface.vertices.length==0)continue;
+                if(c.surface.actorShadowRectangle!=null && c.surface.shadowVertices==c.surface.actorShadowRectangle.vertices)
+                    c.surface.actorShadowRectangle.faceLight(l.x,l.y);
                 batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
             }
             batch.flush();

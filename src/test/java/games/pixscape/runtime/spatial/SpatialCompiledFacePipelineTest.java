@@ -197,7 +197,7 @@ public class SpatialCompiledFacePipelineTest {
         actors.actorCircleX = new float[]{map.tileWidth * .5f};
         actors.actorCircleY = new float[]{0f};
         actors.actorAltitude = new float[]{0f};
-        actors.actorHeight = new float[]{32f}; actors.actorOffsetZ = new float[actors.actorHeight.length];
+        actors.actorHeight = new float[]{32f};
         SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();
         solver.solve(actors, projected);
         Assert.assertTrue(solver.relationCount >= 1);
@@ -332,7 +332,7 @@ public class SpatialCompiledFacePipelineTest {
         actors.actorCircleX = new float[actorCount];
         actors.actorCircleY = new float[actorCount];
         actors.actorAltitude = new float[actorCount];
-        actors.actorHeight = new float[actorCount]; actors.actorOffsetZ = new float[actorCount];
+        actors.actorHeight = new float[actorCount];
         float[] point = new float[2];
         for (int actor = 0; actor < actorCount; actor++) {
             map.projectSpatialPoint(grid[actor * 2], grid[actor * 2 + 1], 0f, point, 0);

@@ -53,7 +53,7 @@ public final class SpatialFaceRelationSolver {
             float circleMinX = x - radius;
             float circleMaxX = x + radius;
             float altitude = actors.actorAltitude[actor];
-            float bottom = altitude + actors.actorOffsetZ[actor];
+            float bottom = altitude;
             float top = bottom + actors.actorHeight[actor];
             for (int structure = 0; structure < faces.structureCount; structure++) {
                 if (!overlapsSemiOpen(circleMinX, circleMaxX,
@@ -104,7 +104,7 @@ public final class SpatialFaceRelationSolver {
             actorProjectedY[actor] = y;
             float radius = actors.circleRadius(actor);
             float altitude = actors.actorAltitude[actor];
-            float bottom = altitude + actors.actorOffsetZ[actor];
+            float bottom = altitude;
             float top = bottom + actors.actorHeight[actor];
             for (int candidate = 0; candidate < selector.candidateCount; candidate++) {
                 int anchor = selector.candidateAnchors[candidate];

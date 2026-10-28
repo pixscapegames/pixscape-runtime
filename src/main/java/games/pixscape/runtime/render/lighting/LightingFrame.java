@@ -17,6 +17,9 @@ public final class LightingFrame {
         public float u1,v1,u2,v2;
         public float minX,minY,minZ,maxX,maxY,maxZ;
         public void bounds() {
+            if(surface.actorShadowRectangle!=null && surface.shadowVertices==surface.actorShadowRectangle.vertices){
+                surface.actorShadowRectangle.bounds(this);return;
+            }
             minX=minY=minZ=Float.POSITIVE_INFINITY;maxX=maxY=maxZ=Float.NEGATIVE_INFINITY;
             float[] v=surface.shadowVertices!=null?surface.shadowVertices:surface.vertices;
             int length=surface.shadowVertices!=null?surface.shadowVertexCount*8:v.length;

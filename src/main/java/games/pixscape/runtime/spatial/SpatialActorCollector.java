@@ -17,9 +17,7 @@ import games.pixscape.runtime.render.RenderSourceDomain;
 public final class SpatialActorCollector {
     private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations;
     private ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets;
-    private final float[] rectangleCorners = new float[12];
     float[] influenceBounds = new float[0];
-    float[] actorOffsetZ = new float[0];
 
     public void setRepresentationMappers(ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations,
                                          ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets) {
@@ -210,9 +208,8 @@ public final class SpatialActorCollector {
         actorFootY[actor] = tmpFootprint.footY;
         actorAltitude[actor] = tmpFootprint.bottom;
         actorHeight[actor] = rectangle.height;
-        actorOffsetZ[actor] = rectangle.offsetZ;
         ActorSpatialRectanglePlacement.influenceBounds(rectangle,tmpFootprint.footX,tmpFootprint.footY,
-                height.altitude,rectangleCorners,influenceBounds,actor*4);
+                influenceBounds,actor*4);
         actorCircleX[actor] = tmpFootprint.footX;
         actorCircleY[actor] = tmpFootprint.footY;
         actorCircleRadius[actor] = actorFootRadius(tmpFootprint);
@@ -455,7 +452,6 @@ public final class SpatialActorCollector {
         actorFootY = grow(actorFootY, next);
         actorAltitude = grow(actorAltitude, next);
         actorHeight = grow(actorHeight, next);
-        actorOffsetZ = grow(actorOffsetZ, next);
         influenceBounds = grow(influenceBounds, next * 4);
         actorCircleX = grow(actorCircleX, next);
         actorCircleY = grow(actorCircleY, next);

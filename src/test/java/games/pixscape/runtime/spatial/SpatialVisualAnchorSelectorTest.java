@@ -152,7 +152,7 @@ public class SpatialVisualAnchorSelectorTest {
             actors.actorCircleX = new float[]{(minX + maxX) * .5f};
             actors.actorCircleY = new float[]{minY};
             actors.actorCircleRadius = new float[]{(maxX - minX) * .5f};
-            actors.actorHeight = new float[]{maxY - minY}; actors.actorOffsetZ = new float[actors.actorHeight.length];
+            actors.actorHeight = new float[]{maxY - minY};
             int slot = actors.actorSlot[0];
             ecs.x1[slot] = ecs.x4[slot] = minX;
             ecs.x2[slot] = ecs.x3[slot] = maxX;

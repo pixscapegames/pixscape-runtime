@@ -30,7 +30,7 @@ public class SpatialBlockLinkActorTest {
         actors.actorSlot=new int[]{0};actors.actorEntityId=new int[]{1};actors.actorStableOrder=new int[]{1};actors.actorDrawIndex=new int[]{2};
         float[] point=new float[2];map.projectSpatialPoint(x,y,0,point,0);
         actors.actorCircleX=new float[]{point[0]};actors.actorCircleY=new float[]{point[1]};actors.actorCircleRadius=new float[]{.5f};
-        actors.actorAltitude=new float[]{0};actors.actorHeight=new float[]{32}; actors.actorOffsetZ=new float[actors.actorHeight.length];
+        actors.actorAltitude=new float[]{0};actors.actorHeight=new float[]{32};
         SpatialFaceRelationSolver solver=new SpatialFaceRelationSolver();solver.solve(actors,faces);
         DrawList draw=new DrawList(9);for(int i=0;i<8;i++){draw.addTiledSlot(i+100);if(i==2)draw.addEcsSlot(0);}
         SpatialFrameSnapshotBuilder snapshot=new SpatialFrameSnapshotBuilder();snapshot.build(draw,1,actors);

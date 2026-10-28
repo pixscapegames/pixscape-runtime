@@ -28,9 +28,9 @@ public class SpatialActorCollectorTest {
             f.world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class).create(e).assetId=7;
             height.rectangles=new ActorSpatialRectangles();
             ActorSpatialRectangleData partial=new ActorSpatialRectangleData();partial.width=40;partial.height=60;
-            partial.offsetX=10;partial.offsetY=-5;partial.offsetZ=20;partial.orientation=0;
+            partial.x=-5;partial.y=12.5f;partial.pivotX=100;partial.pivotY=-200;
             height.rectangles.put(7,"partial",partial);
-            ActorSpatialRectangleData tall=partial.copy();tall.height=160;tall.offsetZ=-40;
+            ActorSpatialRectangleData tall=partial.copy();tall.height=160;tall.y=-27.5f;
             height.rectangles.put(7,"tall",tall);
             float[] quad=new float[8];
             for(String clip:new String[]{"partial","tall"}) {
@@ -43,9 +43,8 @@ public class SpatialActorCollectorTest {
                     Assert.assertEquals(20,f.collector.actorCircleY[0],0);
                     ActorSpatialRectangleData r=height.rectangles.get(7,clip);
                     Assert.assertEquals(r.height,f.collector.actorHeight[0],0);
-                    Assert.assertEquals(r.offsetZ,f.collector.actorOffsetZ[0],0);
                     f.collector.writeInfluenceQuad(0,0,0,quad);
-                    float bottom=12.5f+r.offsetZ,top=32.5f+r.offsetZ+r.height;
+                    float bottom=20+r.y,top=bottom+r.height;
                     Assert.assertArrayEquals(new float[]{5,bottom,45,bottom,45,top,5,top},quad,.0001f);
                 }
             }

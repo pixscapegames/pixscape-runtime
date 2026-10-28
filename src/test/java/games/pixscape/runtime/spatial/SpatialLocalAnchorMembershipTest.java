@@ -209,7 +209,7 @@ public final class SpatialLocalAnchorMembershipTest {
         actor.actorCount = 1; actor.actorSlot = new int[]{0}; actor.actorEntityId = new int[]{4};
         actor.actorStableOrder = new int[]{0}; actor.actorDrawIndex = new int[]{0};
         actor.actorCircleX = new float[]{x}; actor.actorCircleY = new float[]{y};
-        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{1}; actor.actorOffsetZ = new float[actor.actorHeight.length];
+        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{1};
         return actor;
     }
 
