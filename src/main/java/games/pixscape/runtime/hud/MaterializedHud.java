@@ -10,7 +10,7 @@ import com.badlogic.gdx.utils.Disposable;
 import java.util.*;
 
 /**
- * Native Scene2D tree produced from one validated HUD document.
+ * {@code SUPPORTED_EXPERT} native Scene2D tree produced from one validated HUD document.
  *
  * <p>When obtained from {@code PixscapeEngine.getActiveHud()}, this object is a borrowed live
  * view owned by the engine. Applications must not dispose it or its shared resources. References
@@ -22,7 +22,17 @@ import java.util.*;
  * <p>The returned actors are the actual native Scene2D and TextraTypist objects and may be used
  * through their native APIs on the LibGDX render thread. The actor index contains only authored
  * document nodes. Actors added later by application code remain ordinary Scene2D runtime state
- * and are not automatically added to this index.</p>
+ * and are not automatically added to this index. Renaming/reparenting a native actor does not
+ * change its authored ID. Missing IDs and wrong types in typed accessors throw IllegalArgumentException;
+ * actor(id) remains nullable. No lookup traverses the actor tree or uses reflection.</p>
+ *
+ * <p>Install listeners once per HUD activation, keep the listener instance and remove it with
+ * Actor.removeListener when rebinding. Do not add a new listener each frame. Native ChangeEvents
+ * may also result from programmatic changes; use the widget's native event policy where needed.
+ * setText changes only that widget and its native layout, not HUD materialization. Formatting,
+ * glyph/layout growth and Textra token parsing can allocate: update text only when it changes.
+ * Use native setVisible, setDisabled, setValue, setDrawable, selection and focus APIs. Drawables,
+ * fonts, textures and skins borrowed from this HUD remain engine-owned; never dispose them.</p>
  */
 public final class MaterializedHud implements Disposable {
     private final Actor root;
@@ -80,6 +90,96 @@ public final class MaterializedHud implements Disposable {
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.List))
             throw new IllegalArgumentException("HUD node '" + nodeId + "' is not a List.");
         return (com.badlogic.gdx.scenes.scene2d.ui.List<String>) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native Label; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.Label label(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Label)) throw wrongType(nodeId, "Label", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Label) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native Button; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.Button button(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Button)) throw wrongType(nodeId, "Button", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Button) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native TextButton; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.TextButton textButton(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextButton)) throw wrongType(nodeId, "TextButton", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.TextButton) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native CheckBox; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.CheckBox checkBox(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.CheckBox)) throw wrongType(nodeId, "CheckBox", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.CheckBox) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native Slider; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.Slider slider(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Slider)) throw wrongType(nodeId, "Slider", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Slider) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native ProgressBar; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.ProgressBar progressBar(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.ProgressBar)) throw wrongType(nodeId, "ProgressBar", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.ProgressBar) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native Image; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.Image image(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Image)) throw wrongType(nodeId, "Image", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Image) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native TextField; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.TextField textField(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextField)) throw wrongType(nodeId, "TextField", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.TextField) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native SelectBox; throws for absent ID or wrong type. */
+    @SuppressWarnings("unchecked")
+    public com.badlogic.gdx.scenes.scene2d.ui.SelectBox<String> selectBox(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.SelectBox)) throw wrongType(nodeId, "SelectBox", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.SelectBox<String>) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native Window; throws for absent ID or wrong type. */
+    public com.badlogic.gdx.scenes.scene2d.ui.Window window(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Window)) throw wrongType(nodeId, "Window", actor);
+        return (com.badlogic.gdx.scenes.scene2d.ui.Window) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native TextraLabel; throws for absent ID or wrong type. */
+    public com.github.tommyettinger.textra.TextraLabel textraLabel(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.github.tommyettinger.textra.TextraLabel)) throw wrongType(nodeId, "TextraLabel", actor);
+        return (com.github.tommyettinger.textra.TextraLabel) actor;
+    }
+
+    /** O(1) average lookup of the borrowed native TypingLabel; throws for absent ID or wrong type. */
+    public com.github.tommyettinger.textra.TypingLabel typingLabel(String nodeId) {
+        Actor actor = actorById.get(nodeId);
+        if (!(actor instanceof com.github.tommyettinger.textra.TypingLabel)) throw wrongType(nodeId, "TypingLabel", actor);
+        return (com.github.tommyettinger.textra.TypingLabel) actor;
+    }
+
+    private static IllegalArgumentException wrongType(String nodeId, String expected, Actor actor) {
+        return new IllegalArgumentException("HUD node '" + nodeId + "' "
+                + (actor == null ? "does not exist" : "is not a " + expected) + ".");
     }
 
     /** Returns a materialized explicit Table cell, or null when the cell is absent. */

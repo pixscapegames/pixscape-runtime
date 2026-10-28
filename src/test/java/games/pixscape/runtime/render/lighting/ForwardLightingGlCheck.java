@@ -48,8 +48,24 @@ public final class ForwardLightingGlCheck {
         OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
         RenderStats stats=new RenderStats();RenderSubmitSystem submit=new RenderSubmitSystem(layers,q,camera,.01f,.01f,.01f,batch,stats,new RenderStatsSink(100),true);
         World world=new World(new WorldConfigurationBuilder().with(submit).build());submit.setEnabled(false);
-        world.getMapper(PointLightComponent.class).create(world.create());world.process();
+        int activeLight=world.create(),disabledLight=world.create();
+        world.getMapper(PointLightComponent.class).create(activeLight).shadowResolution=256;
+        PointLightComponent disabled=world.getMapper(PointLightComponent.class).create(disabledLight);
+        disabled.enabled=false;disabled.shadowResolution=512;world.process();
         submit.prepareComposition();
+        games.pixscape.runtime.engine.PixscapeEngine gameplay=new games.pixscape.runtime.engine.PixscapeEngine();
+        gameplay.setForwardLighting(true);
+        java.lang.reflect.Field gameplayWorld=games.pixscape.runtime.engine.PixscapeEngine.class.getDeclaredField("world");
+        gameplayWorld.setAccessible(true);gameplayWorld.set(gameplay,world);
+        games.pixscape.runtime.api.LightFacade firstLight=gameplay.api().entities().requireEntityId(activeLight).light();
+        games.pixscape.runtime.api.LightFacade secondLight=gameplay.api().entities().requireEntityId(disabledLight).light();
+        Object initialShadowTarget=field(submit.lightingRenderer(),"atlas");
+        Assert.assertTrue("Disabled authored light is prepared before activation",submit.lightingRenderer().hasPreparedShadowResolution(512));
+        Assert.assertThrows(IllegalArgumentException.class,()->secondLight.setEnabled(true));
+        Assert.assertFalse(secondLight.enabled());
+        firstLight.setEnabled(false);secondLight.setEnabled(true).setShadowQuality(2);
+        Assert.assertSame("Activation reuses the prepared target",initialShadowTarget,field(submit.lightingRenderer(),"atlas"));
+        secondLight.setEnabled(false);firstLight.setEnabled(true);
         Assert.assertNull("No historical scratch target",field(submit.lightingRenderer(),"scratch"));
         Assert.assertNull("No historical receiver program",field(submit.lightingRenderer(),"receiver"));
         Object historical=field(submit,"composition");Assert.assertNull("No original target",field(historical,"original"));
@@ -93,6 +109,12 @@ public final class ForwardLightingGlCheck {
         light.x=-20;clear();world.process();Assert.assertEquals("Dark side keeps ambient only",faceted,red(32,16));
         q.lighting.lights.clear();clear();world.process();int ambient=red(32,16);
         submit.forwardRenderer().setRoundedLightingEnabled(false);clear();world.process();Assert.assertEquals("Ambient is independent",ambient,red(32,16));
+        Object preparedAtlas=field(submit.lightingRenderer(),"atlas");long preparedBytes=submit.forwardRenderer().textureBytes();
+        gameplay.setAmbientLight(.8f,.8f,.8f);clear();world.process();
+        Assert.assertTrue("Gameplay ambient reaches Forward pixels",red(32,16)>ambient+100);
+        Assert.assertSame(preparedAtlas,field(submit.lightingRenderer(),"atlas"));
+        Assert.assertEquals(preparedBytes,submit.forwardRenderer().textureBytes());
+        gameplay.setAmbientLight(.01f,.01f,.01f);
         // Common neutral material: two planar facets share a continuous macro-normal.
         // Sample many pixels along their vertical join, not just the endpoints.
         camera.position.set(32,16,0);camera.update();q.x3[0]=q.x4[0]=32;

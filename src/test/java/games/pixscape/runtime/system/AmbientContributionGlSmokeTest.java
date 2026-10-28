@@ -181,9 +181,13 @@ public class AmbientContributionGlSmokeTest {
         return ShaderRegistry.register(name,program,ShaderMode.TEXTURE_ARRAY);
     }
     private static void setAmbient(RenderSubmitSystem submit,float ambient)throws Exception {
-        for(String name:new String[]{"ambientMulR","ambientMulG","ambientMulB"}) {
-            java.lang.reflect.Field field=RenderSubmitSystem.class.getDeclaredField(name);field.setAccessible(true);field.setFloat(submit,ambient);
-        }
+        games.pixscape.runtime.engine.PixscapeEngine engine=new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field owner=com.artemis.BaseSystem.class.getDeclaredField("world");owner.setAccessible(true);
+        java.lang.reflect.Field target=games.pixscape.runtime.engine.PixscapeEngine.class.getDeclaredField("world");target.setAccessible(true);
+        target.set(engine,owner.get(submit));
+        Object composition=composition(submit);
+        engine.setAmbientLight(ambient,ambient,ambient);
+        Assert.assertSame("Ambient API retains prepared composition",composition,composition(submit));
     }
     private static float[] render(RenderSubmitSystem submit,FrameBuffer target,RenderStats stats) {
         stats.reset();target.begin();Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);

@@ -12,7 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
 
 /**
- * One native Dialog in a materialized HUD. Its buttons, content, listeners, and form state are
+ * {@code SUPPORTED_EXPERT} native Dialog in a materialized HUD. Its buttons, content, listeners, and form state are
  * created once per HUD instance and survive {@link #close()} / {@link #open()} cycles. References
  * become invalid when that HUD is disposed or replaced.
  */

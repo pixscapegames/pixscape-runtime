@@ -45,6 +45,22 @@ public class TransformPhysicsOwnershipGuardTest {
     }
 
     @Test
+    public void lightRadiusCannotBypassPhysicsOriginOwnership() throws Exception {
+        Harness harness = new Harness();
+        int entity = harness.entity(1, false, -1);
+        harness.world.getMapper(PhysicsBodyComponent.class).create(entity);
+        harness.world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(entity);
+        DimensionsComponent dimensions = harness.world.getMapper(DimensionsComponent.class).create(entity);
+        dimensions.width = dimensions.height = 400;
+        harness.activateRuntimePhysics();
+        LightFacade light = harness.engine.api().entities().ofEntityId(entity).light();
+        assertRejected(new Runnable() { @Override public void run() { light.setRadius(100); } });
+        Assert.assertEquals(200, light.radius(), 0);
+        Assert.assertEquals(400, dimensions.width, 0);
+        light.setRadius(200); // Equal values do not request any mutation.
+    }
+
+    @Test
     public void runtimePhysicsRejectsAncestorsButLeavesUnrelatedSiblingMutable() throws Exception {
         Harness harness = new Harness();
         int root = harness.entity(1, true, -1);

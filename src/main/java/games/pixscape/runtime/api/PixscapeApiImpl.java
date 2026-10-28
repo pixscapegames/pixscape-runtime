@@ -905,7 +905,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public LightFacade light() {
-            if (light == null) light = new LightFacadeImpl(handle);
+            if (light == null) light = new LightFacadeImpl(engine, handle);
             return light;
         }
 
@@ -1219,7 +1219,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setPosition(float x, float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform position", x, y);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t == null) return this;
             if (t.x != x || t.y != y) {
@@ -1234,7 +1234,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setX(float x) {
             if (handle.world() == null) return this;
             requireFinite("Transform x", x);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.x != x) {
                 t.x = x;
@@ -1247,7 +1247,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setY(float y) {
             if (handle.world() == null) return this;
             requireFinite("Transform y", y);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.y != y) {
                 t.y = y;
@@ -1260,7 +1260,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade moveBy(float dx, float dy) {
             if (handle.world() == null) return this;
             requireFinite("Transform movement", dx, dy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             if (dx != 0f || dy != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1279,7 +1279,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setRotationRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation", radians);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
                 t.rotationRad = radians;
@@ -1292,7 +1292,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade rotateByRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation delta", radians);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             if (radians != 0f) {
                 TransformComponent t = t(true);
                 if (t != null) {
@@ -1314,7 +1314,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScale(float sx, float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale", sx, sy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -1328,7 +1328,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleX(float sx) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale x", sx);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.scaleX != sx) {
                 t.scaleX = sx;
@@ -1341,7 +1341,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScaleY(float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale y", sy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.scaleY != sy) {
                 t.scaleY = sy;
@@ -1354,7 +1354,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setOrigin(float ox, float oy) {
             if (handle.world() == null) return this;
             requireFinite("Transform origin", ox, oy);
-            requirePhysicsMutationAllowed();
+            requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
                 t.originX = ox;
@@ -1383,7 +1383,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (dirty != null) dirty.geometry(handle.entityId, subMask);
         }
 
-        private void requirePhysicsMutationAllowed() {
+        private static void requirePhysicsMutationAllowed(EntityHandle handle) {
             World world = handle.world();
             if (world == null) return;
             PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
@@ -1512,6 +1512,57 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return system.participatesInRenderOrder(
                     handle.entityId,
                     sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
+        }
+
+        @Override public float rectangleWidth() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.width;
+        }
+
+        @Override public float rectangleX() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.x;
+        }
+
+        @Override public float rectangleY() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.y;
+        }
+
+        @Override public float shadowPivotX() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.pivotX;
+        }
+
+        @Override public float shadowPivotY() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return rectangle == null ? 0f : rectangle.pivotY;
+        }
+
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData requireActiveRectangle() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            if (rectangle == null) throw new IllegalStateException("Entity " + handle.entityId + " has no prepared active Spatial rectangle.");
+            return rectangle;
+        }
+
+        @Override public SpatialEntityFacade setRectangle(float x, float y, float width, float height) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial rectangle placement", x, y);
+            requireFinite("Spatial rectangle size", width, height);
+            if (width <= 0f || height <= 0f) throw new IllegalArgumentException("Spatial rectangle dimensions must be positive.");
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
+            if (rectangle.x == x && rectangle.y == y && rectangle.width == width && rectangle.height == height) return this;
+            rectangle.x = x; rectangle.y = y; rectangle.width = width; rectangle.height = height;
+            return this;
+        }
+
+        @Override public SpatialEntityFacade setShadowPivot(float x, float y) {
+            if (handle.world() == null) return this;
+            requireFinite("Spatial shadow pivot", x, y);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
+            if (rectangle.pivotX == x && rectangle.pivotY == y) return this;
+            rectangle.pivotX = x; rectangle.pivotY = y;
+            return this;
         }
 
         private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialHeightComponent c,boolean create) {
@@ -2633,26 +2684,246 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class LightFacadeImpl implements LightFacade {
+        private final PixscapeEngine engine;
         private final EntityHandle handle;
 
-        LightFacadeImpl(EntityHandle handle) {
+        LightFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
+            this.engine = engine;
             this.handle = handle;
         }
 
-        @Override
-        public boolean hasPoint() {
-            return has(PointLightComponent.class);
-        }
-
-        @Override
-        public boolean hasCone() {
-            return has(ConeLightComponent.class);
-        }
-
-        private boolean has(Class<? extends Component> type) {
+        private PointLightComponent point() {
             World world = handle.world();
-            return world != null && world.getMapper(type).has(handle.entityId);
+            return world == null ? null : world.getMapper(PointLightComponent.class).getSafe(handle.entityId, null);
         }
+
+        private ConeLightComponent cone() {
+            World world = handle.world();
+            return world == null ? null : world.getMapper(ConeLightComponent.class).getSafe(handle.entityId, null);
+        }
+
+        private ConeLightComponent requireCone() {
+            ConeLightComponent c = cone();
+            if (c == null && hasPoint()) throw new IllegalStateException("Light " + handle.entityId + " is not a cone.");
+            return c;
+        }
+
+        @Override public boolean hasPoint() { return point() != null; }
+        @Override public boolean hasCone() { return cone() != null; }
+        @Override public boolean enabled() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.enabled : c != null && c.enabled;
+        }
+
+        @Override public LightFacade setEnabled(boolean value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null || (p != null ? p.enabled : c.enabled) == value) return this;
+            World world = handle.world();
+            if (value) {
+                VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).getSafe(handle.entityId, null);
+                if (engine.isForwardLighting() && (visibility == null || visibility.visible)
+                        && games.pixscape.runtime.render.lighting.ActiveLights.count(world) != 0) {
+                    throw new IllegalArgumentException("Forward rendering supports at most one active light; cannot enable entity " + handle.entityId + ".");
+                }
+                requirePreparedShadows(world, shadowQuality(), shadowResolution());
+            }
+            if (p != null) p.enabled = value;
+            if (c != null) c.enabled = value;
+            // The render record owns its enabled gate. Material dirtiness refreshes it without geometry.
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) dirty.material(handle.entityId);
+            return this;
+        }
+
+        private static void requirePreparedShadows(World world, int quality, int resolution) {
+            RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+            if (quality != 0 && (submit == null || !submit.lightingRenderer().hasPreparedShadowResolution(resolution))) {
+                throw new IllegalStateException("Shadowed light activation requires a prepared shadow target of resolution " + resolution + ".");
+            }
+        }
+
+        private void markColor() {
+            DirtyTrackerSystem dirty = handle.world().getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) dirty.color(handle.entityId);
+        }
+
+        @Override public LightFacade setColor(float r, float g, float b) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            unit("Light red", r); unit("Light green", g); unit("Light blue", b);
+            if (p != null ? p.r == r && p.g == g && p.b == b : c.r == r && c.g == g && c.b == b) return this;
+            if (p != null) { p.r = r; p.g = g; p.b = b; }
+            if (c != null) { c.r = r; c.g = g; c.b = b; }
+            markColor();
+            return this;
+        }
+
+        private static void unit(String name, float value) {
+            requireFinite(name, value);
+            if (value < 0f || value > 1f) throw new IllegalArgumentException(name + " must be in [0,1].");
+        }
+
+        @Override public float red() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.r : c != null ? c.r : 0;
+        }
+
+        @Override public float green() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.g : c != null ? c.g : 0;
+        }
+
+        @Override public float blue() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.b : c != null ? c.b : 0;
+        }
+
+        @Override public float intensity() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.intensity : c != null ? c.intensity : 0;
+        }
+
+        @Override public float radius() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.radius : c != null ? c.radius : 0;
+        }
+
+        @Override public float falloff() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.falloff : c != null ? c.falloff : 0;
+        }
+
+        @Override public float height() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.height : c != null ? c.height : 0;
+        }
+
+        @Override public int shadowQuality() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.shadowQuality : c != null ? c.shadowQuality : 0;
+        }
+
+        @Override public int shadowResolution() {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            return p != null ? p.shadowResolution : c != null ? c.shadowResolution : 0;
+        }
+
+        @Override public LightFacade setIntensity(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light intensity", value);
+            if (value < 0f) throw new IllegalArgumentException("Invalid light intensity: " + value);
+            if ((p != null ? p.intensity : c.intensity) == value) return this;
+            if (p != null) p.intensity = value;
+            if (c != null) c.intensity = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setFalloff(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light falloff", value);
+            if (value <= 0f) throw new IllegalArgumentException("Invalid light falloff: " + value);
+            if ((p != null ? p.falloff : c.falloff) == value) return this;
+            if (p != null) p.falloff = value;
+            if (c != null) c.falloff = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setHeight(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light height", value);
+            if ((p != null ? p.height : c.height) == value) return this;
+            if (p != null) p.height = value;
+            if (c != null) c.height = value;
+            // LightingGeometrySystem and LightParameterBinding read the authored parameter directly.
+            return this;
+        }
+
+        @Override public LightFacade setRadius(float value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            requireFinite("Light radius", value);
+            if (value <= 0f || value > Float.MAX_VALUE / 2f) throw new IllegalArgumentException("Invalid light radius: " + value);
+            if ((p != null ? p.radius : c.radius) == value) return this;
+            World world = handle.world();
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).getSafe(handle.entityId, null);
+            TransformComponent transform = world.getMapper(TransformComponent.class).getSafe(handle.entityId, null);
+            float diameter = value * 2f;
+            float originX = 0f, originY = 0f;
+            if (dimensions != null && transform != null) {
+                TransformFacadeImpl.requirePhysicsMutationAllowed(handle);
+                originX = transform.originX + (diameter - dimensions.width) * .5f;
+                originY = transform.originY + (diameter - dimensions.height) * .5f;
+                requireFinite("Light origin", originX, originY);
+            }
+            if (p != null) p.radius = value;
+            if (c != null) c.radius = value;
+            if (dimensions != null) {
+                dimensions.width = diameter; dimensions.height = diameter;
+                if (transform != null) { transform.originX = originX; transform.originY = originY; }
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (dirty != null) dirty.geometry(handle.entityId, GeometryDirty.SIZE | GeometryDirty.ORIGIN);
+            }
+            return this;
+        }
+
+        @Override public LightFacade setShadowQuality(int value) {
+            PointLightComponent p = point(); ConeLightComponent c = cone();
+            if (p == null && c == null) return this;
+            if (value < 0 || value > 2) throw new IllegalArgumentException("Light shadow quality must be in [0,2].");
+            if ((p != null ? p.shadowQuality : c.shadowQuality) == value) return this;
+            requirePreparedShadows(handle.world(), value, shadowResolution());
+            if (p != null) p.shadowQuality = value;
+            if (c != null) c.shadowQuality = value;
+            return this;
+        }
+
+        @Override public float coneAngleDeg() {
+            ConeLightComponent c = cone();
+            return c != null ? c.coneAngleDeg : 0f;
+        }
+
+        @Override public LightFacade setConeAngleDeg(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone coneAngleDeg", value);
+            if (value <= 0f || value > 360f) throw new IllegalArgumentException("Invalid cone coneAngleDeg: " + value);
+            if (c.coneAngleDeg != value) c.coneAngleDeg = value;
+            return this;
+        }
+
+        @Override public float inclinationDeg() {
+            ConeLightComponent c = cone();
+            return c != null ? c.inclinationDeg : 0f;
+        }
+
+        @Override public LightFacade setInclinationDeg(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone inclinationDeg", value);
+            if (value < -90f || value > 90f) throw new IllegalArgumentException("Invalid cone inclinationDeg: " + value);
+            if (c.inclinationDeg != value) c.inclinationDeg = value;
+            return this;
+        }
+
+        @Override public float softness() {
+            ConeLightComponent c = cone();
+            return c != null ? c.softness : 0f;
+        }
+
+        @Override public LightFacade setSoftness(float value) {
+            ConeLightComponent c = requireCone();
+            if (c == null) return this;
+            requireFinite("Cone softness", value);
+            if (value < 0f || value > 1f) throw new IllegalArgumentException("Invalid cone softness: " + value);
+            if (c.softness != value) c.softness = value;
+            return this;
+        }
+
     }
 
     static final class AssetsApiImpl implements AssetsAPI {

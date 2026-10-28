@@ -96,6 +96,7 @@ The following table summarizes the intended API surface. It is not an exhaustive
 | Registries, diagnostics, profiling and supported query/compiler tools | `SUPPORTED_EXPERT` |
 | Native Box2D objects obtained through supported Runtime APIs | `SUPPORTED_EXPERT` |
 | Supported particle authoring and pooling types | `SUPPORTED_EXPERT` |
+| `MaterializedHud`, its indexed typed widget accessors, and `HudDialog` | `SUPPORTED_EXPERT` (borrowed native Scene2D/Textra objects) |
 | Pipeline synchronization systems, transient caches and derived Runtime storage | `INTERNAL` |
 | Renderer construction and implementation-specific render state | `INTERNAL` |
 | Resource preparation, cache publication and other engine choreography | `INTERNAL` |
@@ -230,3 +231,49 @@ Move into `SUPPORTED_EXPERT` when direct ECS, LibGDX, Box2D, rendering, tooling,
 Avoid dependencies on `INTERNAL` types in application code.
 
 Pixscape deliberately keeps powerful expert access available without turning every implementation detail into a permanent compatibility obligation.
+
+## 13. Gameplay lighting and HUD costs
+
+`EntityRef.light()` reuses its facade. Resolve/retain entity references during setup; resolving a
+new EntityRef each frame still allocates a handle. Intensity, RGB, attenuation and cone-angle
+setters use indexed authored components. Unchanged values do nothing. Intensity and angles are
+read by lighting publication without geometry invalidation; RGB uses color dirtiness only.
+TransformFacade remains the single movement/azimuth API. Source height is absolute lighting Z,
+not Spatial altitude. See LightFacade for units, ranges, stale behavior and type errors.
+
+Radius changes coalesce size/origin geometry updates. Movement, radius, height, shadow quality
+and activation can enlarge the set of shadow casters; the existing pre-submission publication
+boundary may grow shadow replay buffers. These paths are not promised allocation-free outside
+an established capacity. Enabled is an occasional command: Forward admission is a cold authored
+light scan, performed before mutation. Per-frame fades should use intensity. Enabled and Visible
+remain separate; zero intensity still counts as active. A second Forward light is rejected.
+
+Shadow targets are prepared for authored shadowed lights, including disabled ones, before READY.
+Activation and nonzero quality require sufficient already prepared target capacity; they never
+resize targets implicitly. Resolution, renderer selection and normal-map preparation stay outside
+the hot gameplay API. GPU rendering cost remains dependent on lights, casters, resolution and PCF.
+
+`PixscapeEngine.setAmbientLight` changes the current linear RGB multipliers consumed by both
+built-in renderers in O(1), without reload or resource preparation. It preserves HUD and ambient
+exemptions. Scene/World initialization restores authored values. Custom submit systems may read
+`ambientRed/Green/Blue`. Calls belong on the render thread before World processing/rendering.
+
+`getActiveHud()` returns null without an active screen. Its indexed typed accessors return the
+same native objects and reject missing IDs or wrong types; nullable `actor(id)` remains available.
+No reflection or recursive lookup is involved. Use native widget APIs for values, visibility,
+disabled state, images, focus and events, and native Textra APIs for typing. Keep and remove
+listeners explicitly; attach once per activation. Do not dispose borrowed HUD resources.
+All references expire when that HUD/Scene is replaced or removed. The complete authored ID index
+is built at materialization; changing Actor.name or adding/reparenting native actors does not
+change it. Text formatting, glyph layout and Textra parsing can allocate; update on value changes.
+Dialogs reuse their actors, but native show/pack/actions may allocate and lay out the tree.
+
+Only the Scene default HUD is currently an exported preparation root. There is no supported
+arbitrary post-READY screen-loading API. Switching screens needs an explicit availability/export
+contract; it must not be simulated by calling the internal standalone loader. Native controls and
+dialogs already present in the active screen remain usable without rematerializing it.
+
+Spatial rectangle/pivot setters edit only the existing active static/clip rectangle through its
+current index. They do not create per-clip resources. Rectangle height remains Spatial height;
+the shadow pivot is independent. As with moving a light, changing shadow influence can grow replay
+capacity at publication. Missing preparation is reported before mutation.

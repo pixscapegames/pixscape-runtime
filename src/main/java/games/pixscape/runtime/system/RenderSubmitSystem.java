@@ -26,9 +26,9 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final LayerStateSOA layerState;
     private final FrameRenderQueue frameQueue;
     private final OrthographicCamera cam;
-    private final float ambientMulR;
-    private final float ambientMulG;
-    private final float ambientMulB;
+    private float ambientMulR;
+    private float ambientMulG;
+    private float ambientMulB;
 
     private final MetricsBatch metricsBatch;
     private final RenderStats stats;
@@ -76,6 +76,11 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         this.stats = stats;
         this.statsSink = statsSink;
         this.fallbackShaderMode = resolveFallbackShaderMode(batch);
+    }
+
+    /** INTERNAL engine propagation; consumes final frame values without resource/geometry work. */
+    public void setAmbientLight(float r, float g, float b) {
+        ambientMulR = r; ambientMulG = g; ambientMulB = b;
     }
 
     private static ShaderMode resolveFallbackShaderMode(MetricsBatch batch) {

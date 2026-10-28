@@ -1856,6 +1856,38 @@ public final class PixscapeEngine {
         throw new IllegalStateException("RuntimeConfig has no scenes.");
     }
 
+    /** Returns the selected renderer; renderer selection itself is a preparation-time choice. */
+    public boolean isForwardLighting() { return forwardLighting; }
+
+    /** Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected). */
+    public float ambientRed() { return ambientMulR; }
+    /** Current linear world ambient green multiplier. */
+    public float ambientGreen() { return ambientMulG; }
+    /** Current linear world ambient blue multiplier. */
+    public float ambientBlue() { return ambientMulB; }
+
+    /**
+     * Changes linear world ambient RGB, each finite and in [0,1], without reloading the Scene.
+     * Call on the render thread before render/World processing. O(1), allocation-free, and suitable
+     * for a per-frame dawn/fade. Equal values do nothing. Multiple changes before rendering use
+     * only the final values; no geometry, material table or GPU resource is rebuilt.
+     * The next Scene/World initialization restores its authored ambient values. Custom submission
+     * systems can read the ambient getters; the built-in Legacy and Forward consumers are updated.
+     */
+    public PixscapeEngine setAmbientLight(float r, float g, float b) {
+        requireAmbientChannel(r); requireAmbientChannel(g); requireAmbientChannel(b);
+        if (ambientMulR == r && ambientMulG == g && ambientMulB == b) return this;
+        ambientMulR = r; ambientMulG = g; ambientMulB = b;
+        RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
+        if (submit != null) submit.setAmbientLight(r, g, b);
+        return this;
+    }
+
+    private static void requireAmbientChannel(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value) || value < 0f || value > 1f)
+            throw new IllegalArgumentException("Ambient RGB channels must be finite and in [0,1].");
+    }
+
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
         useNormalMaps = meta == null || meta.useNormalMaps;
         forwardLighting = forwardLightingOverride != null ? forwardLightingOverride : meta != null && meta.forwardLighting;

@@ -131,13 +131,14 @@ public final class LightingRenderer {
             int w=composition.targetWidth(),h=composition.targetHeight();
             if(scratch==null || width!=w || height!=h){FrameBuffer next=floatTarget(w,h,false);if(scratch!=null)scratch.dispose();scratch=next;width=w;height=h;}
         }
+        // Scene preparation includes authored disabled lights so later activation needs no target rebuild.
         int required=0;
         IntBag entities=lightSubscription.getEntities();
         for(int i=0;i<entities.size();i++){
             int e=entities.get(i);PointLightComponent p=pointMapper.getSafe(e,null);
             ConeLightComponent c=coneMapper.getSafe(e,null);
-            if(p!=null && p.enabled && p.shadowQuality!=0)required=Math.max(required,p.shadowResolution);
-            if(c!=null && c.enabled && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
+            if(p!=null && p.shadowQuality!=0)required=Math.max(required,p.shadowResolution);
+            if(c!=null && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
         requireTwoDepthAttachments();
@@ -203,6 +204,10 @@ public final class LightingRenderer {
     }
     public Texture secondShadowTexture(){
         return secondAtlas==null?null:secondAtlas.getColorBufferTexture();
+    }
+    /** Indexed capacity check only; never prepares or resizes GPU resources. */
+    public boolean hasPreparedShadowResolution(int requested) {
+        return atlas != null && secondAtlas != null && requested > 0 && requested <= resolution;
     }
     public float atlasScale(LightingFrame.Light light) {return resolution==0?1f:(float)light.resolution/resolution;}
     /** After geometry publication, before queue submission. No GPU changes when capacity is stable. */
