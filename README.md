@@ -1,283 +1,74 @@
 <img src="pixscape_logo.png" alt="Pixscape logo" width="80">
 
-<h1>Pixscape Runtime</h1>
+# Pixscape Runtime
 
-[![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)
-[![Changelog](https://img.shields.io/badge/changelog-0.2.1-orange.svg)](CHANGELOG.md)<br>
-[![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.2.2-orange.svg)](CHANGELOG.md)<br>
+[![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)<br>
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20HTML5-green.svg)](#requirements)<br>
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)<br>
 
-**High-performance ECS-first 2D runtime for Pixscape, built on LibGDX and Artemis-ODB.**
+**Bring 2D artwork to life in 2.5D worlds, with Java and LibGDX.**
 
-➡️ **Download Pixscape Studio Free:** https://pixscape.games/</br>
-🌐 **Website:** https://pixscape.games/</br>
-📘 **Documentation:** https://pixscape.games/docs</br>
-📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+Pixscape Runtime combines altitude-aware scenery, spatial ordering, dynamic lighting and shadows to give sprites and tiles depth. Load worlds authored in Pixscape Studio and write gameplay in Java, with direct access to LibGDX and Artemis-ODB. Traditional 2D scenes are supported too.
 
-![Pixscape Studio Free](assets/readme/pixscape-studio-free.png)
+[Documentation](https://pixscape.games/docs) · [Studio Free](https://github.com/pixscapegames/pixscape-studio-free) · [Changelog](CHANGELOG.md)
 
-## What is Pixscape Runtime?
+![Pixscape Studio Free — visual authoring for Pixscape Runtime](assets/readme/pixscape-studio-free.png)
 
-Pixscape Runtime is the open-source engine layer powering **Pixscape Studio Free** and exported Pixscape projects.
+## What you can build
 
-It is a performance-oriented 2D and 2.5D runtime built on **LibGDX** and **Artemis-ODB ECS**, designed for fast rendering, deterministic composition, editor-driven workflows and multiplatform deployment.
+- **2.5D environments from sprites and tiles:** altitude-aware walls and actors, with Spatial ordering for characters moving in front of and behind scenery.
+- **Dynamic lighting:** point and cone lights, cast and received shadows, optional normal maps, and actor silhouettes that turn toward the light.
+- **Orthographic and isometric maps:** multiple Tiled maps, animated tiles, layered scenes and native-size artwork.
+- **Reusable gameplay objects:** hierarchical Game Objects, runtime spawning, animation clips, particles, tags and typed custom properties.
+- **Physics and interfaces:** Box2D bodies, shapes and joints, plus HUD screens authored in Studio.
+- **Windows, Linux, macOS, Android and web games:** a shared Runtime with HTML5/WebGL2 support.
 
-Pixscape Runtime provides scene management, ECS entities, rendering, Tiled Maps, Game Objects, physics, animation, particles, shaders, lights, asset availability, tileset profiles, repeated renderables and deterministic 2.5D Spatial ordering.
+## Built for Java developers
 
-Pixscape Studio Free is the recommended visual authoring environment for Pixscape.
+Use `PixscapeEngine` and `PixscapeAPI` for scene lifecycle and gameplay. Extend the engine with custom Artemis systems or supported LibGDX and Box2D access when needed.
 
-The Runtime can also be integrated directly into existing LibGDX projects for developers who want engine-level access while keeping LibGDX APIs and ecosystem libraries available alongside Pixscape.
+Rendering uses texture-array batching, culling and cached Tiled preparation. Scene dependencies and resources declared through **Runtime Availability** are prepared before the scene becomes ready, including assets intended for dynamic spawning.
 
-## Highlights
+**Legacy** is the default renderer and supports multiple lights. The optional **Forward** renderer is experimental and currently supports at most one active light. Normal maps can be enabled or disabled for the whole scene.
 
-* **LibGDX-based runtime**
-* **Artemis-ODB ECS architecture**
-* **SOA-oriented rendering pipeline**
-* **Universal Layer composition**
-* **First-class Tiled Map entities**
-* **Multiple Tiled Maps per Scene and Layer**
-* **Hierarchical Game Objects**
-* **Game Object spawning and lifecycle API**
-* **Game Object physics, joints and Spatial Actor support**
-* **Fast sprite and tiled rendering**
-* **Texture-array batching**
-* **Async atlas workflows**
-* **Runtime asset availability system**
-* **Tileset-profile-aware tiled placement**
-* **Animation and particle runtime support**
-* **Shader and light pipeline**
-* **Box2D physics integration**
-* **Spatial V3 deterministic 2.5D ordering**
-* **Typed entity custom properties**
-* **Authored rectangle, polygon and polyline geometry**
-* **Direct quad deformation**
-* **Animated Tiled object entities**
-* **Desktop, Android and HTML5/WebGL2 deployment**
+## Get started
 
-## Runtime Features
-
-### Rendering
-
-* Sprite rendering
-* First-class Tiled Map rendering
-* Orthographic and isometric tiled support
-* Multiple independently configured Tiled Maps
-* Universal Layer and z-order composition
-* Texture-array batching
-* Multi-texture batching
-* Runtime culling
-* Deterministic render ordering
-* Spatial V3 2.5D ordering
-* Tileset-profile-aware tile placement
-* Native-size tile rendering with anchors and offsets
-* Tiled transform flag support
-* Efficient repeated renderables
-* Direct quad deformation
-* Render diagnostics for texture binds, flushes, projection uploads and region-cache resolution
-
-### World light composition
-
-The default renderer draws original world colors to RGBA8, then replays the final
-ordered queue into a zero-initialized RGBA16F light field, starting at its first
-light. Later images attenuate earlier contributions using their material's actual
-fragment alpha and discard. The final RGB is `original * (ambient + lightField)`;
-ambient is applied only here, and the HUD is drawn afterwards.
-
-Point/cone intensity is a nonnegative finite float in the existing per-entity
-GPU table (`u_lightIntensity`), separate from packed vertex color. Values above
-1 accumulate in the half-float field without wrapping the color channels.
-Custom light materials must declare and apply this parameter; the light component
-owns its value. Intensity scales emitted RGB, while alpha retains halo coverage.
-
-Targets are reused, resized to the current physical viewport and disposed with
-the World. Their texture storage is 12 bytes per viewport pixel. The existing
-geometry batches and per-entity parameter table remain in use. This is image
-composition in the existing order, without additional spatial rules or shadows.
-
-GL3, GLES3 or WebGL2 and renderable, blendable RGBA16F are required. A cold
-numerical GPU check verifies unclamped additive blending and alpha masking;
-failure is explicit, with no lower precision fallback. WebGL enables its color
-buffer extension before allocation. Nearest sampling needs no float-linear
-extension, and the field does not require RGBA32F blending.
-
-Supported decor blends are ALPHA, PREMULT_ALPHA, OPAQUE, CUTOUT, ADDITIVE and
-ADDITIVE_ALPHA; lights require ADDITIVE or ADDITIVE_ALPHA. Multiplicative decor
-blends are explicitly unsupported. Custom OPAQUE/CUTOUT fragments must expose
-`uniform float u_worldCoverage` and set their output alpha to 1 when it exceeds
-0.5, **after** their normal discard decision. Custom transparent fragments keep
-their normal alpha. Rendered world shaders receive neutral `u_ambientMul`.
-Fragment coordinates are local to the world viewport's intermediate target.
-Materials requiring screen framebuffer access or a destination-dependent blend
-need a separate compatibility evaluation.
-
-Expert submitters using `RenderSubmitSystem` directly must call
-`prepareComposition()` at the frame boundary before processing the World;
-`PixscapeEngine` handles this for its default submitter.
-
-### Tiled Maps
-
-Tiled Maps are first-class Runtime entities with their own identity and configuration.
-
-Each Map can define its own:
-
-* projection
-* tile size
-* map dimensions
-* chunk size
-* origin
-* Spatial Depth configuration
-* collision state
-
-Multiple Tiled Maps can coexist inside the same Scene or Layer.
-
-Each Map preserves its internal tile ordering while participating as a complete composition block in the normal Layer and z-order pipeline.
-
-### Game Objects
-
-Game Objects provide a hierarchical authoring and runtime model while remaining fully backed by ECS entities.
-
-Runtime support includes:
-
-* hierarchical parent/child relationships
-* reusable Game Object assets
-* Game Object spawning
-* hierarchy-aware transforms
-* atomic composition
-* runtime lifecycle and removal
-* physics bodies and shapes
-* physics joints
-* Spatial Actors
-* Runtime Availability integration
-
-Individual entities remain accessible through Pixscape's Runtime APIs.
-
-### Spatial V3
-
-Pixscape Runtime includes Spatial V3, a deterministic ordering system for actors and environment structures in orthographic and isometric scenes.
-
-Spatial V3 supports:
-
-* connected wall structures with automatic merge and split handling
-* deterministic corner and junction rules
-* exposed-face compilation for tiled structures
-* canonical static tile ranks
-* actor ordering based on authored physics footprints
-* altitude-aware structures and multi-level environments
-* stable actor, wall and tiled ordering without frame-to-frame flicker
-* Spatial Actors inside ordinary Layers and Game Objects
-
-### Assets
-
-* Async atlas workflows
-* Indexed runtime asset bindings
-* Runtime asset availability declarations
-* Runtime sprite access
-* Runtime animation definitions
-* Runtime particle definitions
-* Runtime Game Object assets
-* Scene export compatibility with Pixscape Studio Free
-* Tileset profile manifest loading
-* Tiled animation metadata loading
-* Progressive scene resource loading
-
-### Animation
-
-* Frame-based animation playback
-* Animation clips
-* Runtime animation metadata
-* Horizontal flip metadata
-* Dynamic animation spawning
-* Multiple authored animations per animation entity
-* Atomic animation switching by asset ID or name
-* Read-only animation definition queries
-* Animated Tiled object playback
-
-### Physics
-
-* Box2D integration
-* Persistent authored physics shapes
-* Runtime physics synchronization
-* Physics-based actor footprints for Spatial ordering
-* Game Object physics hierarchy support
-* Physics joints inside Game Objects
-* Mouse/touch drag helper system
-* High-level Physics API for runtime state, scale, parallax and Box2D body/world access
-
-### Entity Data
-
-Runtime entities can expose authored Studio data through supported APIs, including:
-
-* typed custom properties
-* tags
-* rectangle geometry
-* polygon geometry
-* polyline geometry
-* direct quad deformation
-* render order
-* animation state
-* physics state
-
-## Platforms
-
-Pixscape Runtime targets:
-
-* Desktop
-* Android
-* HTML5 / WebGL2
-
-Pixscape Runtime is built with JDK 21 tooling and published as Java 8-compatible bytecode for broad LibGDX ecosystem compatibility.
-
-Pixscape Studio Free requires Java 21.
-
-iOS/RoboVM is not currently listed as an officially tested target.
-
-## Installation
-
-Pixscape Runtime is available from Maven Central.
-
-### Gradle
+Author and export your project with [Pixscape Studio Free](https://pixscape.games/), then add Runtime **0.2.2** to your LibGDX project:
 
 ```gradle
+repositories {
+    mavenCentral()
+}
+
 dependencies {
-    implementation "games.pixscape:pixscape-runtime:0.2.1"
+    implementation "games.pixscape:pixscape-runtime:0.2.2"
 }
 ```
 
-### Maven
+[Read the documentation](https://pixscape.games/docs) for setup and gameplay integration. The [API support policy](RUNTIME_API_SUPPORT_POLICY.md) distinguishes high-level APIs, supported expert integration and internal implementation details.
 
-```xml
-<dependency>
-    <groupId>games.pixscape</groupId>
-    <artifactId>pixscape-runtime</artifactId>
-    <version>0.2.1</version>
-</dependency>
+## Requirements
+
+Supported platforms: **Windows, Linux, macOS, Android and HTML5/WebGL2**.
+
+Runtime is published as **Java 8-compatible bytecode**. Rendering targets OpenGL 3 / OpenGL ES 3 / WebGL2; HDR lighting requires renderable, blendable RGBA16F support.
+
+iOS/RoboVM is not currently an officially tested target. Before 1.0, APIs and exported formats can change; check the [changelog](CHANGELOG.md) when upgrading.
+
+<details>
+<summary><strong>Build from source</strong></summary>
+
+Use JDK 21 and the included Gradle wrapper:
+
+```sh
+./gradlew build
 ```
 
-Maven Central:</br>
-https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime</br>
+On Windows, use `gradlew.bat` instead of `./gradlew`. The build targets Java 8 for the published Runtime classes.
 
-## Documentation
-
-Full documentation is available on the official website:</br>
-
-📘 https://pixscape.games/docs</br>
-
-Runtime Java APIs are divided into `HIGH_LEVEL`, `SUPPORTED_EXPERT`, and
-`INTERNAL` support levels. See [RUNTIME_API_SUPPORT_POLICY.md](RUNTIME_API_SUPPORT_POLICY.md)
-for compatibility, lifecycle, and ownership expectations.
-
-## Download Pixscape Studio Free
-
-Pixscape Studio Free builds are available here:</br>
-
-➡️ https://pixscape.games/</br>
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for release notes.
+</details>
 
 ## License
 
-Pixscape Runtime is released under the **Apache License 2.0**.
-
-See [LICENSE](LICENSE) for details.
+[Apache License 2.0](LICENSE).

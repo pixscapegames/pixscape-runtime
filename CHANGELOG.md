@@ -1,77 +1,32 @@
 # Changelog
 
-## Unreleased
-
-* Fixed point/cone light intensity above 1 corrupting packed color channels; intensity now scales RGB through the per-entity GPU parameter table, independently of halo alpha.
-
-### Breaking changes
-
-* Default world rendering now requires renderable and blendable RGBA16F (GL3/GLES3/WebGL2). Multiplicative decor blends and non-additive light blends fail explicitly; custom opaque/cutout materials must implement the `u_worldCoverage` contract documented in the README.
-
-* Custom texture-array material shaders must use the per-entity parameter table instead of per-entity float uniforms. Migrate both desktop and ES3/WebGL2 variants; draw-wide uniforms remain supported.
-* HUD screen metadata no longer accepts `referenceWidth` or `referenceHeight`; development HUD assets containing them must be recreated in the current format.
-
-### Added
-
-* Finalized actor shadows: actors cast onto decor and receive decor occlusion, while actor-to-actor shadows and actor self-shadowing are excluded. Two shared atlases are reused independently of actor count; ambient and normal mapping are preserved.
-* Added normalized two-point foot calibration, persisted per animation asset and clip, with single-sheet thickness compensation from the exact calibrated support at zero to an approximately constant breadth at maximum thickness.
-* Added per-instance ambient lighting exemption for particles, preserving transparency, blending and spatial order.
-* Added continuous cone light inclination from -90 to +90 degrees.
-* Added desktop tile normal mapping, with per-tile normals independent of shared color images and atlas layout.
-* Associated normal-map atlases and resources are loaded before a scene becomes ready.
-* Added a 1,024-row RGBA32F table with up to 16 float parameters per material shader, default row, flat vertex row selection, and generated GLSL parameter-name defines for project shaders.
-* Added on-demand Spatial diagnostics for candidate tiles, face relations, rejected junction constraints, insertion bounds and fallbacks.
-
-### Changed
-
-* Prepared initial world composition, lighting and ambient-exemption resources before scene READY, without advancing gameplay. Viewport and shadow-setting changes retain preparation at the frame boundary.
-* Reused physics body and joint dirty callbacks instead of allocating them on every synchronization pass.
-* World colors are multiplied once by ambient plus the ordered HDR light field. The light replay skips the prefix before the first light, retains material alpha/discard and per-entity parameter batching, and leaves HUD rendering outside world lighting.
-
-* Compatible entities with different float values stay in one batch; identical encoded values reuse rows, including the default row, so value differences alone no longer cause flushes.
-* HUD sessions now size their technical root to the available logical viewport without scaling the whole HUD on resize.
-* Direct root Tables can fill the HUD surface, and native cells support maximum width and height constraints.
-* Removed fixed reference dimensions from HUD screen assets; centered anchored Dialogs follow resize while open.
-* Spatial actor–tile candidates now use an adjustable H×H influence square whose lower-edge centre is the effective projected footprint centre. H is the authored spatial height; footprint radius, texture size and animation frames do not enlarge the square.
-* Prepared Spatial anchor, membership and wall-continuation data are reused during rendering, with a frame-local actor lookup for Studio overlays.
-
-### Fixed
-
-* Unified calibrated actor caster/receiver heights and preserved foot contacts, alpha coverage, profile copies and Game Object snapshots.
-* Vertical joins can align physical wall faces outside their linked image-anchor cells, without forcing thinner walls or snapping them back during editing.
-* Shared tile receivers now use the nearest projected geometric face, independently of volume insertion order; canonical caster submission also stabilizes coplanar depth ties.
-* Smoothed direct lighting on one-sided simple decor faces between 3 and 5 degrees of grazing incidence, including the minimum direct contribution, without changing ambient, range, shadow bias or filtering.
-* Released the engine's reference to retired Tiled render storage during disposal.
-* Fixed lighting alignment on deformed images.
-* Completed lighting coverage for tile artwork extending beyond described surfaces.
-* Mixed all parameter-row hash bits before table masking, avoiding pathological collisions for integer and fractional values.
-* Project shader reload now preserves the active programs, layouts, and index allocator if a replacement shader fails to load.
-* Unified Spatial projection and inverse conversion around absolute altitude relative to the drawn map plane, applying the ISO cell anchor and display offsets once. Plane changes invalidate derived projection/order data and prepare linked Physics fixtures before publication.
-* Actor–face relations compare the footprint and face in the actor's altitude plane, including endpoint caps, while retaining authored heights and strict vertical-overlap thresholds.
-* Recognized local longitudinal wall continuations preserve qualified relations across stacked map volumes. Isolated upper blocks, caps and orthogonal junctions retain independent decisions.
-* Limited rejection of distant FRONT constraints to directly authored local junctions with a qualified BEHIND witness; unrelated straight-wall relations remain active.
-* Restored deterministic ISO diagonal/gx tie-breaking and retained opposing constraints on indivisible tiles as explicit conflicts instead of silently giving BEHIND priority.
-
-### Tests
-
-* Added regression coverage for foot profiles, compensation, projection/reception, grazing reception and shared-face ownership, including volume permutations and cache invalidation. See [Shadows V2](docs/shadows-v2.md) for validation scope and known limits.
-* Added regression coverage for separated shadow maps, render preparation before READY, repeated preparation and scene loading, viewport and shadow-resolution changes, and resource disposal.
-* Added regression coverage for map-plane projection/inverses, atomic linked Physics updates, local junctions, wall-continuation thresholds, actor altitude, influence-square geometry and Runtime overlay access.
-* Preserved historical candidate fixtures and unresolved corner cases to protect downstream behavior. General multi-map composition remains unresolved; prototype B is not integrated and known conflicts/fallbacks remain.
-
-
 ## [0.2.2]
 
 ### Breaking changes
 
-* HUD documents require schema 2; schema 1 is rejected without automatic migration. Other document formats are unaffected.
+* World rendering now requires renderable, blendable RGBA16F support (GL3/GLES3/WebGL2).
+* Custom texture-array shaders must use per-entity material parameters instead of per-entity float uniforms.
+* HUD documents now require schema 2; legacy HUD assets using schema 1 or fixed reference dimensions must be recreated.
 
 ### Added
 
-* Added Scene2D HUD screens with widget access through the Runtime API.
-* Added tables with explicit cells and persistent layout constraints.
-* Added reusable Dialogs with open/close actions and result buttons with callbacks.
+* Added actor shadows with per-animation foot calibration and thickness.
+* Added an ambient-light exemption for particle instances.
+* Added continuous cone-light inclination.
+* Added tile normal mapping.
+* Added per-entity material parameters for custom shaders.
+* Added Scene2D HUD screens with widget access, tables and reusable dialogs.
 
+### Changed
+
+* HUD screens now adapt to the available viewport; root Tables can fill it and cells can define maximum dimensions.
+* Spatial actor influence and map-plane projection now follow the authored spatial height and altitude.
+
+### Fixed
+
+* Fixed lighting alignment on deformed images.
+* Fixed vertical wall joins that could force linked image anchors into the physical wall envelope.
+* Fixed Spatial projection and ordering for map-plane altitude and local wall junctions.
 
 ## [0.2.1]
 
