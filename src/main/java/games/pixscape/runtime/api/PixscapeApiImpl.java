@@ -613,15 +613,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return world;
     }
 
-    private static void resolveSpriteRegion(PixscapeEngine engine,
-                                            AssetRefComponent assetRef,
-                                            TextureRegionComponent textureRegion,
-                                            RenderMaterialComponent material) {
-        AtlasAssetBinding binding = requireSpriteBinding(
-                engine, assetRef.assetId, assetRef.atlasTag);
-        applySpriteBinding(binding, assetRef.atlasTag, textureRegion, material);
-    }
-
     private static AtlasAssetBinding requireSpriteBinding(PixscapeEngine engine,
                                                            int assetId,
                                                            String atlasTag) {

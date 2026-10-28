@@ -2123,16 +2123,6 @@ public class SpatialRenderOrderSystemTest {
         return -1;
     }
 
-    private static boolean arraysEqual(int[] left, int[] right) {
-        if (left == right) return true;
-        if (left == null || right == null) return false;
-        if (left.length != right.length) return false;
-        for (int i = 0; i < left.length; i++) {
-            if (left[i] != right[i]) return false;
-        }
-        return true;
-    }
-
     private interface OrderSink {
         void accept(int[] order, byte[] domains);
     }
