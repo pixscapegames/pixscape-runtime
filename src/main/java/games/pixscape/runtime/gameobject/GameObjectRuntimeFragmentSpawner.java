@@ -65,8 +65,8 @@ public final class GameObjectRuntimeFragmentSpawner {
         IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
         IntIntMap sourceToStable = allocateStableIds(asset.entities);
         IntMap<PreparedPhysics> physics = preparePhysics(world, asset.entities);
-        IntArray created = new IntArray(false, asset.entities.size() + asset.joints.size());
-        IntIntMap sourceToEntity = new IntIntMap(asset.entities.size());
+        IntArray created = new IntArray(false, asset.entities.size + asset.joints.size);
+        IntIntMap sourceToEntity = new IntIntMap(asset.entities.size);
         int rootEntityId = -1;
         try {
             List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
@@ -94,7 +94,7 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     private static boolean containsAuthoredPhysics(GameObjectAsset asset) {
         if (!asset.joints.isEmpty()) return true;
-        for (int i = 0; i < asset.entities.size(); i++) {
+        for (int i = 0; i < asset.entities.size; i++) {
             GameObjectAsset.GameObjectEntityData entity = asset.entities.get(i);
             if (entity.physicsBody != null || !entity.physicsShapes.isEmpty()) return true;
         }
@@ -102,11 +102,11 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     /** Publishes standalone Scene joints only after every hierarchy Body endpoint exists. */
-    private void createJoints(World world, List<GameObjectAsset.GameObjectJointData> joints,
+    private void createJoints(World world, Array<GameObjectAsset.GameObjectJointData> joints,
                               IntIntMap sourceToEntity, int rootEntityId, IntArray created) {
         if (joints.isEmpty()) return;
-        IntIntMap localJointToEntity = new IntIntMap(joints.size());
-        for (int i = 0; i < joints.size(); i++) {
+        IntIntMap localJointToEntity = new IntIntMap(joints.size);
+        for (int i = 0; i < joints.size; i++) {
             GameObjectAsset.GameObjectJointData source = joints.get(i);
             int jointEntityId = world.create();
             created.add(jointEntityId);
@@ -121,7 +121,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             base.anchorBx = source.anchorBx; base.anchorBy = source.anchorBy;
             applyTypedJoint(world, jointEntityId, source, rootEntityId);
         }
-        for (int i = 0; i < joints.size(); i++) {
+        for (int i = 0; i < joints.size; i++) {
             GameObjectAsset.GameObjectJointData source = joints.get(i);
             if (source.type != PhysicsJointComponent.TYPE_GEAR) continue;
             PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class)
@@ -205,9 +205,9 @@ public final class GameObjectRuntimeFragmentSpawner {
                 (frameY + sin * root.scaleX * localWuX + cos * root.scaleY * localWuY) / ppm};
     }
 
-    private IntIntMap allocateStableIds(List<GameObjectAsset.GameObjectEntityData> entities) {
-        IntIntMap result = new IntIntMap(entities.size());
-        for (int i = 0; i < entities.size(); i++) {
+    private IntIntMap allocateStableIds(Array<GameObjectAsset.GameObjectEntityData> entities) {
+        IntIntMap result = new IntIntMap(entities.size);
+        for (int i = 0; i < entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = entities.get(i);
             result.put(data.sourceEntityId, identityRegistry.allocateStableId());
         }
@@ -215,9 +215,9 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     private IntMap<PreparedAssetBinding> prepareAssetBindings(
-            List<GameObjectAsset.GameObjectEntityData> entities) {
+            Array<GameObjectAsset.GameObjectEntityData> entities) {
         IntMap<PreparedAssetBinding> result = new IntMap<PreparedAssetBinding>();
-        for (int i = 0; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = entities.get(i);
             if (data.assetRef == null) continue;
             AtlasAssetBinding binding = atlasRuntimeService.resolveBinding(
@@ -233,15 +233,15 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     private IntMap<PreparedPhysics> preparePhysics(
-            World world, List<GameObjectAsset.GameObjectEntityData> entities) {
+            World world, Array<GameObjectAsset.GameObjectEntityData> entities) {
         IntMap<PreparedPhysics> result = new IntMap<PreparedPhysics>();
         PhysicsService physicsService = new PhysicsService(world, null, sceneMeta);
-        for (int i = 0; i < entities.size(); i++) {
+        for (int i = 0; i < entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = entities.get(i);
             if (data.physicsBody == null) continue;
             Array<PhysicsShapeData> shapes = new Array<PhysicsShapeData>(
-                    true, data.physicsShapes.size(), PhysicsShapeData.class);
-            for (int shapeIndex = 0; shapeIndex < data.physicsShapes.size(); shapeIndex++) {
+                    true, data.physicsShapes.size, PhysicsShapeData.class);
+            for (int shapeIndex = 0; shapeIndex < data.physicsShapes.size; shapeIndex++) {
                 GameObjectAsset.PhysicsShapeData source = data.physicsShapes.get(shapeIndex);
                 PhysicsShapeData shape = new PhysicsShapeData();
                 shape.physicsShapeId = physicsService.allocateNewPhysicsShapeId();
@@ -265,10 +265,10 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     private static List<GameObjectAsset.GameObjectEntityData> topologicalOrder(GameObjectAsset asset) {
         java.util.ArrayList<GameObjectAsset.GameObjectEntityData> ordered =
-                new java.util.ArrayList<GameObjectAsset.GameObjectEntityData>(asset.entities.size());
+                new java.util.ArrayList<GameObjectAsset.GameObjectEntityData>(asset.entities.size);
         IntMap<GameObjectAsset.GameObjectEntityData> byId =
-                new IntMap<GameObjectAsset.GameObjectEntityData>(asset.entities.size());
-        for (int i = 0; i < asset.entities.size(); i++) {
+                new IntMap<GameObjectAsset.GameObjectEntityData>(asset.entities.size);
+        for (int i = 0; i < asset.entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = asset.entities.get(i);
             byId.put(data.sourceEntityId, data);
         }
@@ -278,10 +278,10 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     private static void appendChildren(
             int sourceId, IntMap<GameObjectAsset.GameObjectEntityData> byId,
-            List<GameObjectAsset.GameObjectEntityData> all,
+            Array<GameObjectAsset.GameObjectEntityData> all,
             List<GameObjectAsset.GameObjectEntityData> ordered) {
         ordered.add(byId.get(sourceId));
-        for (int i = 0; i < all.size(); i++) {
+        for (int i = 0; i < all.size; i++) {
             GameObjectAsset.GameObjectEntityData candidate = all.get(i);
             if (candidate.parentSourceEntityId == sourceId) {
                 appendChildren(candidate.sourceEntityId, byId, all, ordered);
@@ -323,7 +323,7 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
         if (data.tags != null) {
             PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(entityId);
-            for (int i = 0; i < data.tags.values.size(); i++) tags.tags.add(data.tags.values.get(i));
+            for (int i = 0; i < data.tags.values.size; i++) tags.tags.add(data.tags.values.get(i));
         }
         if (data.customProperties != null) {
             world.getMapper(CustomPropertiesComponent.class).create(entityId).properties =

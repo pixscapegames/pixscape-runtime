@@ -1,6 +1,8 @@
 package games.pixscape.runtime.gameobject;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -12,6 +14,37 @@ import java.io.File;
 
 public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
+
+    @Test public void literalJsonCollectionsPreserveOrderAndIdentities() {
+        String json = "{schemaVersion:3,rootSourceEntityId:9,entities:["
+                + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
+                + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
+                + "tags:{values:[enemy,boss]},physicsBody:{},physicsShapes:["
+                + "{localShapeId:17,geometry:{shapeType:0,halfWidth:2,halfHeight:3}},"
+                + "{localShapeId:11,geometry:{shapeType:0,halfWidth:4,halfHeight:5}}]}],"
+                + "joints:[{jointLocalId:6,type:0,bodyALocalEntityId:9,bodyBLocalEntityId:2,"
+                + "distance:{lengthM:2}}]}";
+        GameObjectAsset asset = loader.fromJson(json);
+        Assert.assertEquals(2, asset.entities.size);
+        Assert.assertEquals(9, asset.entities.get(0).sourceEntityId);
+        GameObjectAsset.GameObjectEntityData actor = asset.entities.get(1);
+        Assert.assertEquals(2, actor.sourceEntityId);
+        Assert.assertEquals(9, actor.parentSourceEntityId);
+        Assert.assertEquals("enemy", actor.tags.values.get(0));
+        Assert.assertEquals("boss", actor.tags.values.get(1));
+        Assert.assertEquals(17, actor.physicsShapes.get(0).localShapeId);
+        Assert.assertEquals(11, actor.physicsShapes.get(1).localShapeId);
+        Assert.assertEquals(6, asset.joints.get(0).jointLocalId);
+        Assert.assertEquals(9, asset.joints.get(0).bodyALocalEntityId);
+        Assert.assertEquals(2, asset.joints.get(0).bodyBLocalEntityId);
+        Assert.assertTrue(asset.entities.get(0).physicsShapes.isEmpty());
+
+        JsonValue saved = new JsonReader().parse(loader.toJson(asset));
+        Assert.assertTrue(saved.get("entities").isArray());
+        Assert.assertTrue(saved.get("joints").isArray());
+        Assert.assertTrue(saved.get("entities").get(1).get("tags").get("values").isArray());
+        Assert.assertTrue(saved.get("entities").get(1).get("physicsShapes").isArray());
+    }
 
     @Test
     public void contentLayerComponentInAssetIsRejectedWithSourceEntityId() throws Exception {
@@ -181,7 +214,7 @@ public class GameObjectAssetLoaderTest {
         Assert.assertEquals(PhysicsBodyComponent.DYNAMIC, restored.entities.get(1).physicsBody.type);
         Assert.assertEquals(PhysicsBodyComponent.KINEMATIC, restoredPhysical.physicsBody.type);
         Assert.assertTrue(restoredPhysical.physicsBody.fixedRotation);
-        Assert.assertEquals(3, restoredPhysical.physicsShapes.size());
+        Assert.assertEquals(3, restoredPhysical.physicsShapes.size);
         GameObjectAsset.PhysicsShapeData restoredShape = restoredPhysical.physicsShapes.get(2);
         Assert.assertEquals(23, restoredShape.localShapeId);
         Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON, restoredShape.geometry.shapeType);
@@ -268,7 +301,7 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
         Assert.assertEquals(3, restored.schemaVersion);
-        Assert.assertEquals(1, restored.joints.size());
+        Assert.assertEquals(1, restored.joints.size);
         GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
         Assert.assertEquals(7, restoredJoint.jointLocalId);
         Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, restoredJoint.type);
