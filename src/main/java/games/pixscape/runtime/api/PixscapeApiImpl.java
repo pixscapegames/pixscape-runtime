@@ -588,6 +588,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         emitter.playRequested = true;
 
         markSpawnDirty(world, e);
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy != null) hierarchy.registerPreparedSpawn(e);
         return e;
     }
 

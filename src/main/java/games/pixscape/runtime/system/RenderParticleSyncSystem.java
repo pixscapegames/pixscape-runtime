@@ -16,6 +16,7 @@ import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.ObjectIntMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.*;
 import games.pixscape.runtime.particle.ParticleEmitter.Particle;
@@ -88,21 +89,28 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     /** Strictly prepares every authored and explicitly declared scene dependency. */
     public void prepareRuntimeAvailability(
             String defaultAtlasTag, Array<String> declaredEffectPaths) {
-        prepareAuthoredParticles();
+        prepareRuntimeAvailability(defaultAtlasTag, declaredEffectPaths, new ObjectIntMap<String>());
+    }
+
+    public void prepareRuntimeAvailability(String defaultAtlasTag, Array<String> declaredEffectPaths,
+                                           ObjectIntMap<String> reserves) {
+        prepareAuthoredParticles(reserves);
         if (declaredEffectPaths == null) return;
         for (int i = 0; i < declaredEffectPaths.size; i++) {
-            particleAvailability.prepare(defaultAtlasTag, declaredEffectPaths.get(i));
+            String path = ParticleEffectPath.normalize(declaredEffectPaths.get(i));
+            particleAvailability.prepare(defaultAtlasTag, path, reserves.get(path, 1));
         }
     }
 
-    private void prepareAuthoredParticles() {
+    private void prepareAuthoredParticles(ObjectIntMap<String> reserves) {
         IntBag entities = subscription.getEntities();
         int[] data = entities.getData();
         for (int i = 0, n = entities.size(); i < n; i++) {
             ParticleEmitterComponent emitter = mEmitter.get(data[i]);
             if (emitter == null || emitter.effectPath == null
                     || emitter.effectPath.length() == 0) continue;
-            particleAvailability.prepare(emitter.atlasTag, emitter.effectPath);
+            String path = ParticleEffectPath.normalize(emitter.effectPath);
+            particleAvailability.prepare(emitter.atlasTag, path, reserves.get(path, 1));
         }
     }
 

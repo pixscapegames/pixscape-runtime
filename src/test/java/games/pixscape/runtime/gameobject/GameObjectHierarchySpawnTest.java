@@ -22,6 +22,52 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
+    @Test public void repeatedPreparedSpawnsKeepInstancesIndependentAndAvoidTopologyRebuild() throws Exception {
+        World world = new World(new WorldConfigurationBuilder().with(
+                new DirtyTrackerSystem(64), new games.pixscape.runtime.system.GameObjectHierarchySystem()).build());
+        IdentityRegistry identities = new IdentityRegistry();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
+        identities.bind(world, meta);
+        world.process();
+        var hierarchy = world.getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class);
+        int rebuilds = hierarchy.rebuildCount();
+        var file = new com.badlogic.gdx.files.FileHandle(java.io.File.createTempFile("prepared-", ".gameobject"));
+        try {
+            new GameObjectAssetLoader().save(file, physicalHierarchy());
+            var spawner = new GameObjectRuntimeFragmentSpawner(identities, meta, new AtlasRuntimeService());
+            var model = spawner.prepare(file, "gameobjects/physical.gameobject");
+            file.writeString("invalid JSON", false);
+            SpawnResult first = spawner.spawnPrepared(world, model, 10, 20);
+            SpawnResult second = spawner.spawnPrepared(world, model, 30, 40);
+            int firstStableId = stable(world, first.rootEntityId());
+            Assert.assertEquals(first.rootEntityId(), identities.findByStableId(stable(world, first.rootEntityId())));
+            Assert.assertEquals(second.rootEntityId(), identities.findByStableId(stable(world, second.rootEntityId())));
+            world.process();
+            Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+            var fixtures = world.getMapper(games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent.class);
+            var firstFixture = fixtures.get(first.rootEntityId()).fixtures.first();
+            var secondFixture = fixtures.get(second.rootEntityId()).fixtures.first();
+            Assert.assertNotSame(firstFixture, secondFixture);
+            Assert.assertNotEquals(firstFixture.physicsShapeId, secondFixture.physicsShapeId);
+            firstFixture.halfWidth = 999;
+            SpawnResult third = spawner.spawnPrepared(world, model, 0, 0);
+            Assert.assertNotEquals(999f, fixtures.get(third.rootEntityId()).fixtures.first().halfWidth, 0f);
+            world.delete(first.rootEntityId());
+            // Remove the complete hierarchy; deletion is not a pool return.
+            for (int i = 1; i < first.createdEntityIds().size(); i++) world.delete(first.createdEntityIds().get(i));
+            world.process();
+            Assert.assertEquals(-1, identities.findByStableId(firstStableId));
+            Assert.assertTrue(world.getEntityManager().isActive(second.rootEntityId()));
+            // Expert integrations can explicitly replace the allocator metadata on the same World.
+            SceneMetaRuntime replacementMeta = new SceneMetaRuntime(meta);
+            new GameObjectRuntimeFragmentSpawner(identities, replacementMeta, new AtlasRuntimeService())
+                    .spawnPrepared(world, model, 50, 60);
+            Assert.assertEquals(second.rootEntityId(), identities.findByStableId(stable(world, second.rootEntityId())));
+            Assert.assertTrue(replacementMeta.nextEntityStableId > meta.nextEntityStableId);
+        } finally { file.delete(); identities.bind(null, null); world.dispose(); }
+    }
+
     @Test public void actorSpatialRectanglesSurviveAssetSerializationAndRuntimeSpawn(){
         GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
         child.spatialHeight=new GameObjectAsset.SpatialHeightData();

@@ -14,6 +14,7 @@ public final class ParticleRuntimeAvailability {
     private int templateConstructionCount;
     private int poolConstructionCount;
     private int obtainCount;
+    private int effectConstructionCount;
 
     public ParticleRuntimeAvailability(
             AtlasRuntimeService atlasRuntimeService, FileHandle effectsRoot) {
@@ -23,7 +24,15 @@ public final class ParticleRuntimeAvailability {
 
     /** Strictly prepares one known scene dependency. */
     public void prepare(String atlasTag, String effectPath) {
-        pool(atlasTag, effectPath);
+        prepare(atlasTag, effectPath, 1);
+    }
+
+    /** Reserves actual effects and their particle storage, not just the pool's backing array. */
+    public void prepare(String atlasTag, String effectPath, int initialInstances) {
+        if (initialInstances < 0) throw new IllegalArgumentException("Particle reserve must be non-negative.");
+        ParticleEffectPool pool = pool(atlasTag, effectPath, initialInstances);
+        if (initialInstances > pool.max) throw new IllegalStateException("Particle pool was prepared with a smaller retention limit.");
+        pool.fill(Math.max(0, initialInstances - pool.getFree()));
     }
 
     /** Obtains an instance from a pool prepared before READY or by an explicit authoring rebuild. */
@@ -62,11 +71,14 @@ public final class ParticleRuntimeAvailability {
         return obtainCount;
     }
 
+    int effectConstructionCount() { return effectConstructionCount; }
+
     public void clear() {
+        for (ParticleEffectPool pool : pools.values()) pool.clear();
         pools.clear();
     }
 
-    private ParticleEffectPool pool(String atlasTag, String effectPath) {
+    private ParticleEffectPool pool(String atlasTag, String effectPath, int initialInstances) {
         String normalizedAtlasTag = requireText(atlasTag, "atlasTag");
         String normalizedEffectPath = ParticleEffectPath.normalize(effectPath);
         String key = key(normalizedAtlasTag, normalizedEffectPath);
@@ -96,7 +108,17 @@ public final class ParticleRuntimeAvailability {
             fileParseCount++;
             template.load(effectFile, atlas);
             template.setEmittersCleanUpBlendFunction(false);
-            ParticleEffectPool created = new ParticleEffectPool(template, 1, 16);
+            // Pool.max bounds retained free effects, not concurrent effects. Exhaustion grows on demand.
+            ParticleEffectPool created = new ParticleEffectPool(template, initialInstances, Math.max(16, initialInstances)) {
+                @Override protected PooledEffect newObject() {
+                    PooledEffect effect = super.newObject();
+                    for (ParticleEmitter emitter : effect.getEmitters()) {
+                        if (!emitter.getSprites().isEmpty()) emitter.preAllocateParticles();
+                    }
+                    effectConstructionCount++;
+                    return effect;
+                }
+            };
             poolConstructionCount++;
             pools.put(key, created);
             return created;

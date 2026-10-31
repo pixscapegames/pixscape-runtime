@@ -1,6 +1,8 @@
 package games.pixscape.runtime.gameobject;
 
 import com.artemis.World;
+import com.artemis.utils.IntBag;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
@@ -12,6 +14,8 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
@@ -20,8 +24,8 @@ import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
-import java.util.List;
 import java.util.Map;
 
 /** Builds a real ECS Game Object hierarchy from authored asset-local data. */
@@ -29,7 +33,6 @@ public final class GameObjectRuntimeFragmentSpawner {
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
     private final AtlasRuntimeService atlasRuntimeService;
-    private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
     public GameObjectRuntimeFragmentSpawner(
             IdentityRegistry identityRegistry,
@@ -53,36 +56,58 @@ public final class GameObjectRuntimeFragmentSpawner {
     public SpawnResult spawnAsset(
             World world, GameObjectAsset asset, String sourceAssetId,
             float rootWorldX, float rootWorldY) {
+        new GameObjectAssetLoader().validate(asset, null);
+        return spawnPrepared(world, prepareValidated(asset, sourceAssetId), rootWorldX, rootWorldY);
+    }
+
+    /** Loading boundary: the loader validates once, and the prepared model exclusively owns its data. */
+    public PreparedGameObject prepare(FileHandle file, String sourceAssetId) {
+        return prepareValidated(new GameObjectAssetLoader().load(file), sourceAssetId);
+    }
+
+    private PreparedGameObject prepareValidated(GameObjectAsset asset, String sourceAssetId) {
+        return new PreparedGameObject(asset, sourceAssetId, topologicalOrder(asset),
+                prepareAssetBindings(asset.entities), preparePhysics(asset.entities), containsAuthoredPhysics(asset));
+    }
+
+    /** With a scene-bound registry, O(model size), independent of the populated World size. */
+    public SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
+                                     float rootWorldX, float rootWorldY) {
         if (world == null) throw new IllegalArgumentException("world must not be null");
-        loader.validate(asset, null);
-        if (sceneMeta != null && !sceneMeta.physicsEnabled && containsAuthoredPhysics(asset)) {
+        if (prepared == null) throw new IllegalArgumentException("prepared model must not be null");
+        if (sceneMeta != null && !sceneMeta.physicsEnabled && prepared.hasPhysics) {
             throw new IllegalStateException(
                     "Cannot spawn a Game Object with authored Physics while scene Physics is disabled.");
         }
-        identityRegistry.bind(world, sceneMeta);
-        identityRegistry.rebuild();
-
-        IntMap<PreparedAssetBinding> bindings = prepareAssetBindings(asset.entities);
+        if (!identityRegistry.isBoundTo(world, sceneMeta)) {
+            identityRegistry.bind(world, sceneMeta);
+            identityRegistry.rebuild();
+        }
+        GameObjectAsset asset = prepared.asset;
         IntIntMap sourceToStable = allocateStableIds(asset.entities);
-        IntMap<PreparedPhysics> physics = preparePhysics(world, asset.entities);
+        PhysicsShapeIdAllocator shapeIds = prepared.hasPhysics ? new PhysicsShapeIdAllocator(sceneMeta) : null;
         IntArray created = new IntArray(false, asset.entities.size + asset.joints.size);
         IntIntMap sourceToEntity = new IntIntMap(asset.entities.size);
         int rootEntityId = -1;
         try {
-            List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
-            for (int i = 0; i < ordered.size(); i++) {
+            Array<GameObjectAsset.GameObjectEntityData> ordered = prepared.ordered;
+            for (int i = 0; i < ordered.size; i++) {
                 GameObjectAsset.GameObjectEntityData data = ordered.get(i);
                 int entityId = world.create();
                 created.add(entityId);
                 sourceToEntity.put(data.sourceEntityId, entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
-                        sourceAssetId, sourceToStable, bindings.get(data.sourceEntityId),
-                        physics.get(data.sourceEntityId), rootWorldX, rootWorldY);
+                        prepared.sourceAssetId, sourceToStable, prepared.bindings.get(data.sourceEntityId),
+                        prepared.physics.get(data.sourceEntityId), shapeIds, rootWorldX, rootWorldY);
+                identityRegistry.indexEntityImmediately(entityId);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
             createJoints(world, asset.joints, sourceToEntity, rootEntityId, created);
             markCreatedDirty(world, created);
-            return new SpawnResult(toBag(created), rootEntityId);
+            IntBag createdIds = toBag(created);
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (hierarchy != null) hierarchy.registerPreparedSpawn(createdIds);
+            return new SpawnResult(createdIds, rootEntityId);
         } catch (RuntimeException failure) {
             rollback(world, created);
             throw failure;
@@ -233,9 +258,8 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     private IntMap<PreparedPhysics> preparePhysics(
-            World world, Array<GameObjectAsset.GameObjectEntityData> entities) {
+            Array<GameObjectAsset.GameObjectEntityData> entities) {
         IntMap<PreparedPhysics> result = new IntMap<PreparedPhysics>();
-        PhysicsService physicsService = new PhysicsService(world, null, sceneMeta);
         for (int i = 0; i < entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = entities.get(i);
             if (data.physicsBody == null) continue;
@@ -244,7 +268,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             for (int shapeIndex = 0; shapeIndex < data.physicsShapes.size; shapeIndex++) {
                 GameObjectAsset.PhysicsShapeData source = data.physicsShapes.get(shapeIndex);
                 PhysicsShapeData shape = new PhysicsShapeData();
-                shape.physicsShapeId = physicsService.allocateNewPhysicsShapeId();
+                shape.physicsShapeId = source.localShapeId;
                 shape.geometry = source.geometry != null ? source.geometry.copy() : null;
                 shape.density = source.density;
                 shape.friction = source.friction;
@@ -263,36 +287,38 @@ public final class GameObjectRuntimeFragmentSpawner {
         return result;
     }
 
-    private static List<GameObjectAsset.GameObjectEntityData> topologicalOrder(GameObjectAsset asset) {
-        java.util.ArrayList<GameObjectAsset.GameObjectEntityData> ordered =
-                new java.util.ArrayList<GameObjectAsset.GameObjectEntityData>(asset.entities.size);
-        IntMap<GameObjectAsset.GameObjectEntityData> byId =
-                new IntMap<GameObjectAsset.GameObjectEntityData>(asset.entities.size);
+    private static Array<GameObjectAsset.GameObjectEntityData> topologicalOrder(GameObjectAsset asset) {
+        Array<GameObjectAsset.GameObjectEntityData> ordered = new Array<>(asset.entities.size);
+        IntMap<GameObjectAsset.GameObjectEntityData> byId = new IntMap<>(asset.entities.size);
+        IntMap<IntArray> children = new IntMap<>(asset.entities.size);
         for (int i = 0; i < asset.entities.size; i++) {
             GameObjectAsset.GameObjectEntityData data = asset.entities.get(i);
             byId.put(data.sourceEntityId, data);
+            IntArray siblings = children.get(data.parentSourceEntityId);
+            if (siblings == null) {
+                siblings = new IntArray();
+                children.put(data.parentSourceEntityId, siblings);
+            }
+            siblings.add(data.sourceEntityId);
         }
-        appendChildren(asset.rootSourceEntityId, byId, asset.entities, ordered);
-        return ordered;
-    }
-
-    private static void appendChildren(
-            int sourceId, IntMap<GameObjectAsset.GameObjectEntityData> byId,
-            Array<GameObjectAsset.GameObjectEntityData> all,
-            List<GameObjectAsset.GameObjectEntityData> ordered) {
-        ordered.add(byId.get(sourceId));
-        for (int i = 0; i < all.size; i++) {
-            GameObjectAsset.GameObjectEntityData candidate = all.get(i);
-            if (candidate.parentSourceEntityId == sourceId) {
-                appendChildren(candidate.sourceEntityId, byId, all, ordered);
+        IntArray pending = new IntArray();
+        pending.add(asset.rootSourceEntityId);
+        while (pending.size > 0) {
+            int id = pending.pop();
+            ordered.add(byId.get(id));
+            IntArray siblings = children.get(id);
+            if (siblings != null) {
+                for (int i = siblings.size - 1; i >= 0; i--) pending.add(siblings.get(i));
             }
         }
+        return ordered;
     }
 
     private static void apply(
             World world, int entityId, GameObjectAsset.GameObjectEntityData data,
             int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
             PreparedAssetBinding preparedBinding, PreparedPhysics preparedPhysics,
+            PhysicsShapeIdAllocator shapeIds,
             float rootWorldX, float rootWorldY) {
         if (data.transform != null) {
             TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
@@ -419,7 +445,21 @@ public final class GameObjectRuntimeFragmentSpawner {
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
             PhysicsCompiledFixturesComponent compiled =
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
-            PhysicsService.publishPreparedCandidate(shapes, compiled, preparedPhysics.candidate);
+            IntIntMap localToScene = new IntIntMap(preparedPhysics.shapes.size);
+            for (int i = 0; i < preparedPhysics.shapes.size; i++) {
+                PhysicsShapeData source = preparedPhysics.shapes.get(i);
+                PhysicsShapeData copy = source.copy();
+                copy.physicsShapeId = shapeIds.allocateNewPhysicsShapeId();
+                localToScene.put(source.physicsShapeId, copy.physicsShapeId);
+                shapes.shapes.add(copy);
+            }
+            for (int i = 0; i < preparedPhysics.fixtures.size; i++) {
+                CompiledFixtureData copy = preparedPhysics.fixtures.get(i).copy();
+                copy.physicsShapeId = localToScene.get(copy.physicsShapeId, -1);
+                compiled.fixtures.add(copy);
+            }
+            compiled.generation++;
+            compiled.valid = true;
         }
     }
 
@@ -477,8 +517,8 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
     }
 
-    private static com.artemis.utils.IntBag toBag(IntArray values) {
-        com.artemis.utils.IntBag bag = new com.artemis.utils.IntBag(values.size);
+    private static IntBag toBag(IntArray values) {
+        IntBag bag = new IntBag(values.size);
         for (int i = 0; i < values.size; i++) bag.add(values.get(i));
         return bag;
     }
@@ -503,12 +543,39 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     private static final class PreparedPhysics {
         final PhysicsBodyComponent body;
-        final PreparedPhysicsBodyCandidate candidate;
+        final Array<PhysicsShapeData> shapes;
+        final Array<CompiledFixtureData> fixtures;
 
         PreparedPhysics(PhysicsBodyComponent body,
                         PreparedPhysicsBodyCandidate candidate) {
             this.body = body;
-            this.candidate = candidate;
+            this.shapes = candidate.takeShapes();
+            this.fixtures = candidate.takeCompiledFixtures().takeFixtures();
+        }
+    }
+
+    /**
+     * INTERNAL opaque scene-owned model. Never holds World entities or native physics instances.
+     * Borrows prepared atlas bindings; callers must not retain it beyond its scene resource lifetime.
+     */
+    public static final class PreparedGameObject {
+        private final GameObjectAsset asset;
+        private final String sourceAssetId;
+        private final Array<GameObjectAsset.GameObjectEntityData> ordered;
+        private final IntMap<PreparedAssetBinding> bindings;
+        private final IntMap<PreparedPhysics> physics;
+        private final boolean hasPhysics;
+
+        private PreparedGameObject(GameObjectAsset asset, String sourceAssetId,
+                                   Array<GameObjectAsset.GameObjectEntityData> ordered,
+                                   IntMap<PreparedAssetBinding> bindings,
+                                   IntMap<PreparedPhysics> physics, boolean hasPhysics) {
+            this.asset = asset;
+            this.sourceAssetId = sourceAssetId;
+            this.ordered = ordered;
+            this.bindings = bindings;
+            this.physics = physics;
+            this.hasPhysics = hasPhysics;
         }
     }
 }

@@ -5,6 +5,9 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectSet;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner.PreparedGameObject;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -42,6 +45,32 @@ public final class SceneAvailabilityPlan {
     private final SceneHudFiles hudFiles;
     private HudResources hudResources;
     private boolean hudPrepared;
+    private final ObjectMap<String, PreparedGameObject> gameObjects = new ObjectMap<>();
+    private boolean gameObjectsPrepared;
+
+    /** Called after atlas publication and before READY. This plan owns the models until release. */
+    public void prepareGameObjects(GameObjectRuntimeFragmentSpawner spawner) {
+        requireActive();
+        if (!isComplete()) throw new IllegalStateException("Scene files are not available: " + sceneName);
+        if (gameObjectsPrepared) return;
+        ObjectMap<String, PreparedGameObject> candidates = new ObjectMap<>();
+        for (int i = 0; i < gameObjectPaths.size; i++) {
+            FileHandle file = availability.file(gameObjectPaths.get(i));
+            String id = GameObjectAssetId.normalize(file.name());
+            candidates.put(id, spawner.prepare(file, id));
+        }
+        gameObjects.putAll(candidates);
+        gameObjectsPrepared = true;
+    }
+
+    /** Complete lookup, including misses; never reads or prepares files during gameplay. */
+    public PreparedGameObject requireGameObject(String logicalId) {
+        requireActive();
+        PreparedGameObject model = gameObjects.get(logicalId);
+        if (model == null) throw new IllegalStateException("Game Object '" + logicalId
+                + "' is not prepared. Add it to Runtime Availability before scene loading.");
+        return model;
+    }
 
     public SceneAvailabilityPlan(FileAvailabilityService availability,
                                  RuntimeConfig config,
@@ -168,6 +197,8 @@ public final class SceneAvailabilityPlan {
     public void release() {
         if (released) return;
         released = true;
+        gameObjects.clear();
+        gameObjectsPrepared = false;
         try {
             releaseHudResources();
         } finally {

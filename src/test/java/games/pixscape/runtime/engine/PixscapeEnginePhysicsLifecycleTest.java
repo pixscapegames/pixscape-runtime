@@ -315,6 +315,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     .spawn("declared", 11f, 22f);
             GameObjectInstance second = fixture.engine.api().gameObjects()
                     .spawn("declared", 33f, 44f);
+            Assert.assertEquals(first.root().entityId(), fixture.engine.findEntityByStableId(first.root().stableId()));
+            Assert.assertEquals(second.root().entityId(), fixture.engine.findEntityByStableId(second.root().stableId()));
             world.process();
             first.root().renderOrder().set(4, 2);
             second.root().renderOrder().set(4, 7);
@@ -341,6 +343,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     fixture.projectDir.child("gameobjects/declared.gameobject"));
             Assert.assertEquals(0f, definition.entities.get(0).transform.x, 0f);
             Assert.assertEquals(5f, definition.entities.get(1).transform.x, 0f);
+            // READY owns a detached model. Gameplay no longer depends on the file contents.
+            fixture.projectDir.child("gameobjects/declared.gameobject").writeString("invalid JSON", false);
             GameObjectInstance spawned = fixture.engine.spawnGameObject("declared", 0f, 0f);
             world.process();
             Assert.assertTrue(spawned.exists());
@@ -353,18 +357,54 @@ public class PixscapeEnginePhysicsLifecycleTest {
             RenderParticleSyncSystem particles = fixture.engine.getWorld()
                     .getSystem(RenderParticleSyncSystem.class);
             particles.requirePrepared("a", "declared.p");
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            int rebuildsBeforeParticle = hierarchy.rebuildCount();
             Assert.assertTrue(fixture.engine.api().particles()
                     .spawn("declared.p", 0f, 0f).entity().exists());
+            world.process();
+            Assert.assertEquals(rebuildsBeforeParticle, hierarchy.rebuildCount());
 
             int requestsAtReady = fixture.assetManager.loadCalls;
             RuntimeException missing = Assert.assertThrows(
                     RuntimeException.class,
                     () -> fixture.engine.spawnGameObject("undeclared", 0f, 0f));
-            Assert.assertTrue(missing.getMessage().contains("Game Object asset not found"));
+            Assert.assertTrue(missing.getMessage().contains("Runtime Availability"));
             Assert.assertEquals(requestsAtReady, fixture.assetManager.loadCalls);
+            Assert.assertThrows(RuntimeException.class, () -> fixture.engine.loadScene("A"));
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> fixture.engine.spawnGameObject("declared", 0, 0));
         } finally {
             fixture.engine.dispose();
         }
+    }
+
+    @Test public void preparedModelsFollowSceneAndProjectLifetime() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        try {
+            writeScene(fixture.projectDir.child("scenes/b.json"), false, false);
+            fixture.engine.loadScene("A");
+            GameObjectInstance old = fixture.engine.spawnGameObject("declared", 0, 0);
+            fixture.engine.loadScene("B");
+            Assert.assertFalse(old.exists());
+            // The file still exists, but B never declared this type.
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> fixture.engine.spawnGameObject("declared", 0, 0));
+            FileHandle file = fixture.projectDir.child("gameobjects/declared.gameobject");
+            GameObjectAsset definition = new GameObjectAssetLoader().load(file);
+            definition.entities.get(1).transform.x = 42f;
+            new GameObjectAssetLoader().save(file, definition);
+            fixture.engine.loadScene("A");
+            GameObjectInstance reloaded = fixture.engine.spawnGameObject("declared", 0, 0);
+            Assert.assertEquals(42f, reloaded.requireMember("child").transform().x(), 0f);
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> fixture.engine.loadProject(fixture.projectDir.child("other-project")));
+            Assert.assertTrue(reloaded.exists());
+            fixture.engine.dispose();
+            fixture.engine.loadProject(fixture.projectDir.parent());
+            Assert.assertFalse(reloaded.exists());
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> fixture.engine.spawnGameObject("declared", 0, 0));
+        } finally { fixture.engine.dispose(); }
     }
 
     @Test

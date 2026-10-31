@@ -218,7 +218,44 @@ See the [GameObjectsAPI](src/main/java/games/pixscape/runtime/api/GameObjectsAPI
 
 Platform delivery may itself be asynchronous or progressive. This includes GWT resource delivery. That does not change the READY contract: the scene becomes ready only after the required declared resources have been acquired and prepared.
 
-READY does not mean that every later gameplay operation is free of CPU or GPU work. Spawning a Game Object still reads and deserializes its definition, allocates and publishes an instance, and performs its normal Runtime work.
+READY includes each declared Game Object's validated definition, parent-first hierarchy order,
+visual bindings and compiled physics geometry. These models belong to the scene availability
+plan, borrow that scene's atlas resources and are released on scene/project replacement,
+failed preparation or engine disposal. A type is prepared once regardless of how many instances
+gameplay creates. Missing declarations fail without file access or lazy preparation.
+`loadProject` remains idempotent for the loaded project. Dispose before loading a different
+project; attempting to replace its path while still loaded fails without changing active state.
+
+Spawning copies mutable components, properties, animations, shapes and compiled fixtures,
+allocates fresh scene identities and publishes only the created entities to the identity index
+and prepared hierarchy. Native Box2D bodies/joints and normal render synchronization remain
+instance work in subsequent frames. READY does not promise allocation-free spawning.
+
+Particle availability uses the existing LibGDX `Pool`-based effect pool. By default it fills
+one effect per declared type, including its particle storage. Configure a different reserve
+before loading the scene:
+
+```java
+engine.setParticleReserve("Flame", 8); // zero is allowed; applies to subsequent scene loads
+SceneLoadHandle loading = engine.beginLoadScene("demo");
+// Advance loading until READY, then use the existing APIs normally:
+GameObjectInstance enemy = engine.api().gameObjects().spawn("enemy", 100f, 200f);
+ParticleRef flame = engine.api().particles().spawn("Flame", 100f, 200f);
+```
+
+This setting is an engine-lifetime preference and does not declare a resource or limit concurrent
+instances. An exhausted particle reserve grows from its prepared template without rereading the
+file. At most `max(16, reserve)` free effects are retained; overflow effects can be collected.
+Effect removal returns its private effect to the pool after ECS removal. Restart, completion,
+scaling and active particles are reset; entity-level looping, position and lighting controls are
+applied for the new owner. Expert clients mutating native emitter configuration must restore
+their own changes under the existing LibGDX pool contract.
+
+Game Object `despawn()` remains removal, not pool return. Artemis may reuse reset components,
+but old handles stay invalid through stable identities and World ownership. Complete Game Object
+pooling would need an explicit reset contract for animations, native physics/joints, callbacks,
+member references and user state; it is not part of prepared spawning. The expert mutable
+fragment/asset spawn path still validates and prepares its caller-provided input per call.
 
 First-party authoring tools such as Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring change. That behavior is separate from normal gameplay resource loading.
 

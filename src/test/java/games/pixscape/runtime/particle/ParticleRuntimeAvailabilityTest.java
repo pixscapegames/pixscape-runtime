@@ -82,6 +82,37 @@ public class ParticleRuntimeAvailabilityTest {
         Assert.assertEquals(0, availability.obtainCount());
     }
 
+    @Test public void reserveAllocatesRealEffectsAndParticlesThenGrowsAndReusesWithoutParsing() throws Exception {
+        FileHandle file = fixture("libgdx-standard.p");
+        AtlasRuntimeService atlases = new AtlasRuntimeService();
+        atlases.loadBorrowed("main", atlasWithRegion("smoke"));
+        ParticleRuntimeAvailability availability = new ParticleRuntimeAvailability(atlases, file.parent());
+        availability.prepare("main", file.name(), 2);
+        Assert.assertEquals(2, availability.effectConstructionCount());
+        ParticleEffectPool.PooledEffect a = availability.obtain("main", file.name());
+        ParticleEffectPool.PooledEffect b = availability.obtain("main", file.name());
+        for (ParticleEmitter emitter : a.getEmitters()) {
+            for (ParticleEmitter.Particle particle : emitter.getParticles()) Assert.assertNotNull(particle);
+        }
+        Assert.assertEquals(2, availability.effectConstructionCount());
+        ParticleEffectPool.PooledEffect overflow = availability.obtain("main", file.name());
+        Assert.assertEquals(3, availability.effectConstructionCount());
+        a.scaleEffect(3f);
+        a.allowCompletion();
+        a.update(.1f);
+        a.free();
+        ParticleEffectPool.PooledEffect reused = availability.obtain("main", file.name());
+        Assert.assertSame(a, reused);
+        Assert.assertEquals(1f, reused.xSizeScale, 0f);
+        Assert.assertEquals(0, reused.getEmitters().first().getActiveCount());
+        Assert.assertFalse(reused.getEmitters().first().getAllowCompletion());
+        Assert.assertEquals(1, availability.fileParseCount());
+        reused.free(); b.free(); overflow.free();
+        availability.clear();
+        Assert.assertFalse(availability.isPrepared("main", file.name()));
+        Assert.assertThrows(IllegalStateException.class, () -> availability.obtain("main", file.name()));
+    }
+
     @Test
     public void libgdxFixtureLoadsAtlasImageAndParticipatesInRuntimePool() throws Exception {
         FileHandle fixture = fixture("libgdx-standard.p");

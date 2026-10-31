@@ -7,6 +7,7 @@ import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -44,6 +45,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     private int[] observedParentStableId = new int[MIN_CAPACITY];
     private int[] observedStableId = new int[MIN_CAPACITY];
+    private final IntSet preparedInsertions = new IntSet();
     private long[] sortKeys = new long[MIN_CAPACITY];
     private boolean topologyDirty = true;
     private int rebuildCount;
@@ -78,7 +80,12 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                 new EntitySubscription.SubscriptionListener() {
                     @Override
                     public void inserted(IntBag entities) {
-                        topologyDirty = true;
+                        for (int i = 0; i < entities.size(); i++) {
+                            int entityId = entities.get(i);
+                            if (!preparedInsertions.contains(entityId)
+                                    || (transforms.has(entityId)
+                                    && observedStableId[entityId] != stableId(entityId))) topologyDirty = true;
+                        }
                     }
 
                     @Override
@@ -87,6 +94,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                         int[] data = entities.getData();
                         for (int i = 0, n = entities.size(); i < n; i++) {
                             int entityId = data[i];
+                            preparedInsertions.remove(entityId);
                             topology.clearEntity(entityId);
                             worldTransforms.clear(entityId);
                         }
@@ -102,6 +110,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
     protected void processSystem() {
         ensureCurrentTopology();
         resolveAllFromCurrentAuthoredTransforms();
+        preparedInsertions.clear();
     }
 
     public void prepareRuntimeAvailability() {
@@ -118,6 +127,44 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     public int rebuildCount() {
         return rebuildCount;
+    }
+
+    /**
+     * Adds a detached, validated hierarchy in parent-first order. Existing roots keep their
+     * order because fresh scene identities are monotonic. Uncontrolled ECS structural edits
+     * still use the normal validation/rebuild boundary on the next synchronization.
+     */
+    public void registerPreparedSpawn(IntBag created) {
+        if (topologyDirty) return;
+        for (int i = 0; i < created.size(); i++) {
+            registerPreparedSpawn(created.get(i));
+        }
+    }
+
+    /** INTERNAL: publishes one freshly created entity, including a prepared standalone particle. */
+    public void registerPreparedSpawn(int entityId) {
+        if (topologyDirty) return;
+        // Joint entities have identities but no transform and must also skip insertion dirtiness.
+        preparedInsertions.add(entityId);
+        ensureCapacity(entityId);
+        if (!transforms.has(entityId)) return;
+        topology.clearEntity(entityId);
+        observedStableId[entityId] = stableId(entityId);
+        GameObjectMemberComponent member = members.getSafe(entityId, null);
+        observedParentStableId[entityId] = member != null ? member.parentStableId : -1;
+        if (member != null) {
+            int parent = IdentityRegistry.boundTo(world).findByStableId(member.parentStableId);
+            topology.parented[entityId] = true;
+            topology.parentEntityId[entityId] = parent;
+            topology.depth[entityId] = topology.depth[parent] + 1;
+            topology.rootEntityId[entityId] = topology.rootEntityId[parent];
+            // Composition sorts children by authored order independently of this sibling chain.
+            topology.nextSiblingEntityId[entityId] = topology.firstChildEntityId[parent];
+            topology.firstChildEntityId[parent] = entityId;
+        } else if (gameObjects.has(entityId)) {
+            topology.rootEntityId[entityId] = entityId;
+        }
+        topology.traversal.add(entityId);
     }
 
     /**
