@@ -432,4 +432,80 @@ public class GameObjectHierarchySystemTest {
         }
         return entityId;
     }
+
+    @Test
+    public void structuralRebuildPreservesUnchangedPosesAndPropagatesReparenting() {
+        int root = entity(1, true, -1), other = entity(2, true, -1);
+        int nested = entity(3, true, 1), leaf = entity(4, false, 3);
+        int unchanged = entity(5, false, -1);
+        world.getMapper(TransformComponent.class).get(root).x = 10;
+        world.getMapper(TransformComponent.class).get(other).x = 30;
+        world.getMapper(TransformComponent.class).get(leaf).x = 2;
+        world.process();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        world.getSystem(DirtyFlushSystem.class).setEnabled(false);
+        int rebuilds = hierarchy.rebuildCount();
+
+        world.getMapper(GameObjectMemberComponent.class).get(nested).parentStableId = 2;
+        world.process();
+        Assert.assertEquals(rebuilds + 1, hierarchy.rebuildCount());
+        Assert.assertEquals(32f, hierarchy.worldTransforms().x[leaf], EPSILON);
+        Assert.assertNotEquals(0, dirty.geomSub(nested));
+        Assert.assertNotEquals(0, dirty.geomSub(leaf));
+        Assert.assertEquals(0, dirty.geomSub(root));
+        Assert.assertEquals(0, dirty.geomSub(other));
+        Assert.assertEquals(0, dirty.geomSub(unchanged));
+
+        dirty.clearFrame();
+        world.getMapper(TransformComponent.class).get(other).x = 40;
+        dirty.geometry(other, games.pixscape.runtime.render.GeometryDirty.POSITION);
+        world.process();
+        Assert.assertEquals(42f, hierarchy.worldTransforms().x[leaf], EPSILON);
+        Assert.assertNotEquals(0, dirty.geomSub(leaf));
+        Assert.assertEquals(0, dirty.geomSub(unchanged));
+    }
+
+    @Test
+    public void removedTransformCannotSupplyAResolvedPoseOnReintroduction() {
+        int entity = entity(1, false, -1);
+        world.getMapper(TransformComponent.class).get(entity).x = 17;
+        world.process();
+        world.getMapper(TransformComponent.class).remove(entity);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(entity));
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
+
+        world.getSystem(DirtyFlushSystem.class).setEnabled(false);
+        // Even an equal numeric pose is newly resolved after the component's absence.
+        world.getMapper(TransformComponent.class).create(entity).x = 17;
+        world.process();
+        Assert.assertTrue(hierarchy.worldTransforms().isResolved(entity));
+        Assert.assertNotEquals(0, world.getSystem(DirtyTrackerSystem.class).geomSub(entity));
+        Assert.assertEquals(17f, hierarchy.worldTransforms().x[entity], EPSILON);
+    }
+
+    @Test
+    public void recycledIdAndSameFramePreparedDeletionDiscardResolvedState() {
+        int old = entity(1, false, -1);
+        world.getMapper(TransformComponent.class).get(old).x = 17;
+        world.process();
+        world.delete(old);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(old));
+        int replacement = entity(2, false, -1);
+        Assert.assertEquals(old, replacement);
+        identities.indexEntityImmediately(replacement);
+        hierarchy.registerPreparedSpawn(replacement);
+        hierarchy.resolveEntityFromCurrentAuthoredTransform(replacement);
+        Assert.assertEquals(0f, hierarchy.worldTransforms().x[replacement], EPSILON);
+        world.delete(replacement);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(replacement));
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
+        int finalEntity = entity(3, false, -1);
+        Assert.assertEquals(old, finalEntity);
+        world.getMapper(TransformComponent.class).get(finalEntity).x = 81;
+        world.process();
+        Assert.assertEquals(81f, hierarchy.worldTransforms().x[finalEntity], EPSILON);
+    }
 }

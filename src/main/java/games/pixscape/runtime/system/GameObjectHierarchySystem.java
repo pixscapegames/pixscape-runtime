@@ -299,7 +299,12 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         for (int entityId = topology.firstTraversalEntityId; entityId >= 0;) {
             int next = topology.nextTraversalEntityId[entityId];
             topology.clearEntity(entityId);
-            worldTransforms.clear(entityId);
+            // Topology replacement does not invalidate an unchanged entity's last pose.
+            // Deletion/component-removal listeners clear retired states before ID reuse;
+            // also discard any old traversal entry that no longer has a Transform.
+            // The parent-first resolution below compares the new frame with the retained
+            // one, so reparenting and ancestor edits dirty only poses that really change.
+            if (!transforms.has(entityId)) worldTransforms.clear(entityId);
             entityId = next;
         }
         topology.firstTraversalEntityId = topology.lastTraversalEntityId = -1;
