@@ -762,6 +762,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public EntityRef[] findAllByLayerName(String layerName) {
+            sceneLayers.bind(engine.getWorld());
+            IntArray entityIds = sceneLayers.membersByName(layerName);
+            EntityRef[] refs = new EntityRef[entityIds.size];
+            for (int i = 0; i < entityIds.size; i++) {
+                refs[i] = ofEntityId(entityIds.get(i));
+            }
+            return refs;
+        }
+
+        @Override
         public EntityRef requireName(String name) {
             int entityId = engine.firstEntityByName(name);
             if (entityId < 0) {

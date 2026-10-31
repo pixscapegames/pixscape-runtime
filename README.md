@@ -48,6 +48,34 @@ dependencies {
 
 [Read the documentation](https://pixscape.games/docs) for setup and gameplay integration. The [API support policy](RUNTIME_API_SUPPORT_POLICY.md) distinguishes high-level APIs, supported expert integration and internal implementation details.
 
+## Find imported objects by layer
+
+After exporting a TMX import from Studio, data-only objects can be queried by
+their exact, case-sensitive layer name, without tags or Game Objects:
+
+```java
+for (EntityRef point : api.entities().findAllByLayerName("spawn-points")) {
+    int role = point.properties().getInt("role", -1);
+    float x = point.transform().x();
+    float y = point.transform().y();
+    // Apply game logic according to role.
+}
+```
+
+The array is an unordered snapshot of direct `EntityIndexComponent` members
+in the current World. Homonymous layers are combined without duplicates;
+layer entities and Game Object members are excluded, and no hierarchy is traversed. Null, absent and
+empty layers yield an empty array. References do not follow recycled IDs.
+
+The name/member index is built lazily in O(layers + content entities), then
+lookups cost O(1 + results). Structural changes invalidate it after ECS
+subscription synchronization; layer changes signaled through `DirtyTrackerSystem`
+invalidate it independently of rendering's dirty-list consumption. Expert ECS
+edits to `LayerNameComponent.name`, `LayerComponent.layerIndex` or
+`EntityIndexComponent.layerIndex` must call `dirty.layer(entityId)` afterwards.
+Transforms and custom-property edits do not invalidate it. Export again with
+the updated Studio to include layer names in Runtime scenes.
+
 ## Requirements
 
 Supported platforms: **Windows, Linux, macOS, Android and HTML5/WebGL2**.

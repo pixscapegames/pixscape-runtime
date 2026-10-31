@@ -6,6 +6,7 @@
   "x-pixscape-components": {
     "games.pixscape.runtime.component.PixscapeIdentityComponent": "PixscapeIdentityComponent",
     "games.pixscape.runtime.component.LayerComponent": "LayerComponent",
+    "games.pixscape.runtime.component.LayerNameComponent": "LayerNameComponent",
     "games.pixscape.runtime.component.EntityIndexComponent": "EntityIndexComponent",
     "games.pixscape.runtime.component.LayerParallaxComponent": "LayerParallaxComponent",
     "games.pixscape.runtime.component.TransformComponent": "TransformComponent",
@@ -83,6 +84,18 @@
         ]
       },
       "description": "Only scene Layer entities may carry this. The obsolete type field is forbidden."
+    },
+    "LayerNameComponent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "unnamed"
+        }
+      }
     },
     "EntityIndexComponent": {
       "type": "object",
