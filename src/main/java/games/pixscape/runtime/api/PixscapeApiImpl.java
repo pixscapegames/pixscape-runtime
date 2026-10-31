@@ -54,6 +54,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private static final class EntityReferenceTracker
             implements EntitySubscription.SubscriptionListener {
         private static final int INITIAL_CAPACITY = 64;
+        private final HierarchyRemoval removals = new HierarchyRemoval();
 
         private final PixscapeEngine engine;
         private World world;
@@ -940,7 +941,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public void remove() {
             World world = handle.world();
-            if (world != null) HierarchyRemoval.schedule(world, handle.entityId);
+            if (world != null) handle.tracker.removals.schedule(world, handle.entityId);
         }
     }
 

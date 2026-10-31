@@ -174,6 +174,11 @@ public final class DirtyTrackerSystem extends BaseSystem {
         if ((coarseMask & DirtyBits.COARSE_MASK) == DirtyBits.NONE) return;
         if (!isActive(e)) return;
 
+        if ((coarseMask & DirtyBits.JOINTS) != 0) {
+            Box2dSyncSystem sync = world.getSystem(Box2dSyncSystem.class);
+            if (sync != null) sync.publishJointRelations(e);
+        }
+
         ensureEntityIndex(e);
 
         int packed = bitsByEntity[e];

@@ -148,6 +148,13 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         return topology;
     }
 
+    /** INTERNAL indexed command lookup. Raw ECS structural edits must be synchronized first. */
+    public GameObjectTopologyState topologyForRemoval() {
+        if (topologyDirty) throw new IllegalStateException(
+                "Synchronize ECS structural edits before removing a hierarchy.");
+        return topology;
+    }
+
     public WorldTransformState worldTransforms() {
         return worldTransforms;
     }

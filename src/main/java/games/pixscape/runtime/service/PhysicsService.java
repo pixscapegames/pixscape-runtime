@@ -899,8 +899,25 @@ public final class PhysicsService {
     /**
      * Collects joints affected by removing the supplied entities.
      * Dependent gear joints are returned before directly affected joints.
+     * Configured Runtime Worlds visit only indexed dependencies. Direct joint field edits must
+     * signal {@link DirtyTrackerSystem#joint(int, int)} after assigning the complete state;
+     * structural component edits must be synchronized before collection. Standalone Worlds
+     * without Box2dSyncSystem retain the subscription-based collector.
      */
     public static IntArray collectJointsAffectedByEntityRemoval(
+            World world, IntArray removedEntityIds, IntArray out) {
+        if (world == null) {
+            throw new IllegalArgumentException("world is null");
+        }
+        games.pixscape.runtime.system.Box2dSyncSystem sync =
+                world.getSystem(games.pixscape.runtime.system.Box2dSyncSystem.class);
+        if (sync == null) return collectUnindexedJointsForRemoval(world, removedEntityIds, out);
+        return sync.collectJointsForRemoval(removedEntityIds, out);
+    }
+
+    // Standalone expert Worlds without the Runtime systems have no maintained index.
+    // Preserve their existing collector; the configured Runtime never uses this path.
+    private static IntArray collectUnindexedJointsForRemoval(
             World world, IntArray removedEntityIds, IntArray out) {
         if (world == null) {
             throw new IllegalArgumentException("world is null");
