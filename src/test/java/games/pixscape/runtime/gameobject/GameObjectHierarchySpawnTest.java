@@ -58,6 +58,7 @@ public class GameObjectHierarchySpawnTest {
             for (int i = 1; i < first.createdEntityIds().size(); i++) world.delete(first.createdEntityIds().get(i));
             world.process();
             Assert.assertEquals(-1, identities.findByStableId(firstStableId));
+            Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
             Assert.assertTrue(world.getEntityManager().isActive(second.rootEntityId()));
             // Expert integrations can explicitly replace the allocator metadata on the same World.
             SceneMetaRuntime replacementMeta = new SceneMetaRuntime(meta);

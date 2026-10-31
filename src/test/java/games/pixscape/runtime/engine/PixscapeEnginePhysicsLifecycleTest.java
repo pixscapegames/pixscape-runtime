@@ -349,19 +349,35 @@ public class PixscapeEnginePhysicsLifecycleTest {
             world.process();
             Assert.assertTrue(spawned.exists());
             Assert.assertTrue(spawned.root().stableId() >= 0);
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            int rebuildsBeforeRemoval = hierarchy.rebuildCount();
+            EntityRef removedMember = spawned.requireMember("child");
             spawned.despawn();
             fixture.engine.getWorld().process();
             Assert.assertFalse(spawned.exists());
             Assert.assertFalse(spawned.root().exists());
+            Assert.assertFalse(removedMember.exists());
+            Assert.assertTrue(first.exists());
+            Assert.assertEquals(rebuildsBeforeRemoval, hierarchy.rebuildCount());
             spawned.despawn();
             RenderParticleSyncSystem particles = fixture.engine.getWorld()
                     .getSystem(RenderParticleSyncSystem.class);
             particles.requirePrepared("a", "declared.p");
-            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
             int rebuildsBeforeParticle = hierarchy.rebuildCount();
-            Assert.assertTrue(fixture.engine.api().particles()
-                    .spawn("declared.p", 0f, 0f).entity().exists());
+            var particle = fixture.engine.api().particles().spawn("declared.p", 0f, 0f);
+            Assert.assertTrue(particle.entity().exists());
             world.process();
+            Assert.assertEquals(rebuildsBeforeParticle, hierarchy.rebuildCount());
+            particle.remove();
+            world.process();
+            Assert.assertFalse(particle.entity().exists());
+            Assert.assertEquals(rebuildsBeforeParticle, hierarchy.rebuildCount());
+            var replacementParticle = fixture.engine.api().particles().spawn("declared.p", 1f, 2f);
+            world.process();
+            Assert.assertFalse(particle.entity().exists());
+            particle.remove(); // A stale handle must never remove the recycled ECS entity.
+            world.process();
+            Assert.assertTrue(replacementParticle.entity().exists());
             Assert.assertEquals(rebuildsBeforeParticle, hierarchy.rebuildCount());
 
             int requestsAtReady = fixture.assetManager.loadCalls;

@@ -97,6 +97,39 @@ public class RenderParticleSyncSystemTest {
     }
 
     @Test
+    public void completedParticlesUnlinkAfterHierarchyAndReturnTheirEffectOnlyOnce() throws Exception {
+        GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem();
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0, new AtlasRuntimeService(), null);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(16), hierarchy, particles).build());
+        ParticleEffectPool pool = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        ObjectMap<String, ParticleEffectPool> pools = field(particles.particleAvailability(), "pools");
+        pools.put("main|empty.p", pool);
+        try {
+            world.process();
+            int rebuilds = hierarchy.rebuildCount();
+            for (int i = 0; i < 3; i++) {
+                int entity = world.create();
+                world.getMapper(TransformComponent.class).create(entity);
+                ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).create(entity);
+                emitter.effectPath = "empty.p";
+                emitter.atlasTag = "main";
+                emitter.autoRemoveWhenComplete = true;
+                hierarchy.registerPreparedSpawn(entity);
+                world.process(); // Particle completion deletes after the hierarchy system ran.
+                Assert.assertFalse(world.getEntityManager().isActive(entity));
+                Assert.assertFalse(hierarchy.worldTransforms().isResolved(entity));
+                Assert.assertEquals(0, hierarchy.topology().traversalSize);
+                Assert.assertEquals(1, pool.getFree());
+                world.process();
+                Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+                Assert.assertEquals(1, pool.getFree());
+            }
+        } finally { world.dispose(); }
+    }
+
+    @Test
     public void followsChangedTransformPosition() {
         CapturingParticleEffect effect = new CapturingParticleEffect();
         TransformComponent transform = new TransformComponent();

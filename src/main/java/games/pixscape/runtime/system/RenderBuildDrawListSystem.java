@@ -5,7 +5,6 @@ import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.annotations.SkipWire;
-import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -266,9 +265,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         if (hierarchySystem == null || compositionSystem == null) return;
         GameObjectTopologyState topology = hierarchySystem.topology();
         GameObjectCompositionState compositionState = compositionSystem.state();
-        IntArray traversal = topology.traversal;
-        for (int i = 0, n = traversal.size; i < n; i++) {
-            int rootEntityId = traversal.get(i);
+        for (int rootEntityId = topology.firstTraversalEntityId; rootEntityId >= 0;
+             rootEntityId = topology.nextTraversalEntityId[rootEntityId]) {
             if (!mGameObject.has(rootEntityId) || topology.parented[rootEntityId]) continue;
             ensureRootCapacity(rootEntityId);
             if (!rootsWithRenderWork[rootEntityId]) continue;

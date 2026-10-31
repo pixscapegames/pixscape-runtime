@@ -79,8 +79,8 @@ public final class GameObjectPhysicsWritebackSystem extends BaseSystem {
         hierarchy.ensureCurrentTopology();
         GameObjectTopologyState topology = hierarchy.topology();
         WorldTransformState worldTransforms = hierarchy.worldTransforms();
-        for (int i = 0, n = topology.traversal.size; i < n; i++) {
-            int entityId = topology.traversal.get(i);
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
+             entityId = topology.nextTraversalEntityId[entityId]) {
             boolean hasNativePose = hasPose(entityId);
             if (hasNativePose) {
                 writeAuthoredPose(entityId, topology.parentEntityId[entityId], worldTransforms);

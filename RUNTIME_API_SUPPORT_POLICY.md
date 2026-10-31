@@ -252,10 +252,18 @@ applied for the new owner. Expert clients mutating native emitter configuration 
 their own changes under the existing LibGDX pool contract.
 
 Game Object `despawn()` remains removal, not pool return. Artemis may reuse reset components,
-but old handles stay invalid through stable identities and World ownership. Complete Game Object
+but old handles stay invalid through entity generations and World ownership. Complete Game Object
 pooling would need an explicit reset contract for animations, native physics/joints, callbacks,
 member references and user state; it is not part of prepared spawning. The expert mutable
 fragment/asset spawn path still validates and prepares its caller-provided input per call.
+
+At the ECS deletion boundary, the hierarchy unlinks only the deleted entities from its
+parent-first traversal and sibling links. It preserves surviving world transforms without
+global hierarchy validation or sorting. This also covers automatic particle completion and
+entities created/deleted before their first synchronization. Component-only structural edits
+and deletions leaving surviving orphans still take the existing validation/rebuild boundary.
+The removal API's descendant/dependent-joint closure and the normal frame passes remain;
+this is not a promise that the entire removal operation is allocation-free or world-size independent.
 
 First-party authoring tools such as Pixscape Studio may explicitly invalidate and rebuild prepared state after an authoring change. That behavior is separate from normal gameplay resource loading.
 
