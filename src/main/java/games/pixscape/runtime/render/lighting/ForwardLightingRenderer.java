@@ -32,6 +32,8 @@ public class ForwardLightingRenderer {
     private int vertexStride=VERTEX_STRIDE,curveNormalOffset=CURVE_NORMAL_OFFSET;
     private final ForwardWorldTarget target=new ForwardWorldTarget();
     private ShaderProgram shader;
+    private ShaderProgram unlitShader;
+    private ShaderProgram packedShader;
     private ShaderProgram receiverShader;
     private Mesh mesh;
     private World admittedWorld;
@@ -55,7 +57,7 @@ public class ForwardLightingRenderer {
         }
         bundle=published;
         if(shader!=null && preparedNormalMaps!=useNormalMaps){
-            mesh.dispose();shader.dispose();mesh=null;shader=null;
+            mesh.dispose();shader.dispose();unlitShader.dispose();mesh=null;shader=null;unlitShader=null;packedShader=null;receiverShader=null;
         }
         if(shader==null){
             preparedNormalMaps=useNormalMaps;
@@ -68,8 +70,11 @@ public class ForwardLightingRenderer {
             check(caps,GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,6,"combined samplers");
             boolean desktop=Gdx.app.getType()==com.badlogic.gdx.Application.ApplicationType.Desktop;
             check(caps,desktop?0x8B4B:GL20.GL_MAX_VARYING_VECTORS,desktop?40:10,"varying capacity");
-            shader=new ShaderProgram(vertexSource(ForwardWorldTarget.version(),useNormalMaps),fragmentSource(ForwardWorldTarget.version(),useNormalMaps));
-            if(!shader.isCompiled())throw new IllegalStateException("Forward lighting shader: "+shader.getLog());
+            String version=ForwardWorldTarget.version(),vertex=vertexSource(version,useNormalMaps);
+            shader=createShader(vertex,fragmentSource(version,useNormalMaps));
+            try {unlitShader=createShader(vertex,LightingShaderSources.unlitReceiver(version));}
+            catch(RuntimeException failure){shader.dispose();shader=null;throw failure;}
+            packedShader=shader;
             com.badlogic.gdx.utils.Array<VertexAttribute> attributes=new com.badlogic.gdx.utils.Array<VertexAttribute>();
             attributes.addAll(
                     new VertexAttribute(VertexAttributes.Usage.Position,2,"a_screen"),
@@ -85,8 +90,17 @@ public class ForwardLightingRenderer {
             mesh=new Mesh(false,CAPACITY,0,attributes.toArray(VertexAttribute.class));
             shader.bind();shader.setUniformi("u_array",0);shader.setUniformi("u_shadow",3);shader.setUniformi("u_shadowIdentity",4);shader.setUniformi("u_shadowSecond",5);
             if(useNormalMaps)for(int i=0;i<4;i++)shader.setUniformi("u_normal"+i,2);
+            unlitShader.bind();unlitShader.setUniformi("u_array",0);
         }
         target.prepare();
+    }
+    private static ShaderProgram createShader(String vertex,String fragment){
+        ShaderProgram program=new ShaderProgram(vertex,fragment);
+        if(!program.isCompiled()){
+            String log=program.getLog();program.dispose();
+            throw new IllegalStateException("Forward lighting shader: "+log);
+        }
+        return program;
     }
     private static void check(IntBuffer caps,int name,int minimum,String label){caps.clear();Gdx.gl.glGetIntegerv(name,caps);if(caps.get(0)<minimum)throw new IllegalStateException("Forward lighting requires "+minimum+" "+label+", available "+caps.get(0));}
     /** Resource admission belongs to the renderer's owner; Runtime admits only packed resources. */
@@ -108,11 +122,13 @@ public class ForwardLightingRenderer {
         admitQueue(queue,bundle,preparedNormalMaps);
         this.stats=stats;worldDraws=presentationDraws=normalFlushes=blendFlushes=capacityFlushes=endFlushes=0;uploadedBytes=0;
         vertices=0;blend=normalHandle=-1;
+        // Use the same published lights as the general path, never icon visibility or a new intensity filter.
+        packedShader=queue.lighting.lights.size==0?unlitShader:shader;
         target.begin();
         try {
             shadows.renderShadows(queue.lighting,stats);target.resume();
             if(queue.lighting.timer!=null)queue.lighting.timer.begin(LightingPassTimer.RECEIVERS);
-            receiverShader=shader;
+            receiverShader=packedShader;
             bindReceiverUniforms(queue,camera,shadows,ambientR,ambientG,ambientB);
             bundle.textureArray.bind(0);stats.textureBinds++;
             Gdx.gl.glEnable(GL20.GL_BLEND);Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
@@ -143,12 +159,23 @@ public class ForwardLightingRenderer {
         bindReceiverUniforms(queue,camera,shadows,ambientR,ambientG,ambientB);
         stats.shaderBinds++;
     }
-    protected final ShaderProgram packedReceiverShader(){return shader;}
+    protected final ShaderProgram packedReceiverShader(){return packedShader;}
     private void bindReceiverUniforms(FrameRenderQueue queue,OrthographicCamera camera,LightingRenderer shadows,
                                       float ambientR,float ambientG,float ambientB){
         receiverShader.bind();receiverShader.setUniformMatrix("u_matrix",camera.combined);
         receiverShader.setUniformf("u_ambient",ambientR,ambientG,ambientB);
-        lightUniforms(queue.lighting,shadows);
+        // Uniform values are lost on managed context restoration, even if GL reuses a handle.
+        // The two owned variants have different active samplers; borrowed programs keep theirs.
+        if(receiverShader==unlitShader)receiverShader.setUniformi("u_array",0);
+        else if(receiverShader==shader){
+            shader.setUniformi("u_array",0);shader.setUniformi("u_shadow",3);shader.setUniformi("u_shadowIdentity",4);shader.setUniformi("u_shadowSecond",5);
+            if(preparedNormalMaps){
+                shader.setUniformi("u_normal0",2);shader.setUniformi("u_normal1",2);
+                shader.setUniformi("u_normal2",2);shader.setUniformi("u_normal3",2);
+            }
+        }
+        // Borrowed receiver programs retain the existing general-light uniform contract.
+        if(receiverShader!=unlitShader)lightUniforms(queue.lighting,shadows);
     }
     private void lightUniforms(LightingFrame frame,LightingRenderer shadows){
         ShaderProgram shader=receiverShader;
@@ -222,5 +249,5 @@ public class ForwardLightingRenderer {
     public long textureBytes(){return target.textureBytes();}
     public int targetWidth(){return target.width;}
     public int targetHeight(){return target.height;}
-    public void dispose(){target.dispose();if(mesh!=null)mesh.dispose();if(shader!=null)shader.dispose();mesh=null;shader=null;receiverShader=null;bundle=null;admittedWorld=null;}
+    public void dispose(){target.dispose();if(mesh!=null)mesh.dispose();if(shader!=null)shader.dispose();if(unlitShader!=null)unlitShader.dispose();mesh=null;shader=null;unlitShader=null;packedShader=null;receiverShader=null;bundle=null;admittedWorld=null;}
 }

@@ -120,7 +120,33 @@ public final class SceneRenderPreparationGlCheck {
                         Assert.assertEquals(GL20.GL_NO_ERROR, Gdx.gl.glGetError());
                     }
                 } finally { engine.dispose(); engine.dispose(); }
+                checkForwardReloads(root);
         } finally { root.deleteDirectory(); }
+    }
+
+    private static void checkForwardReloads(FileHandle root) throws Exception {
+        PixscapeEngine engine=new PixscapeEngine().setForwardLighting(true);
+        Object previousGeneral=null,previousUnlit=null;
+        try {
+            engine.loadProject(root);engine.resize(64,32);
+            for(int scene=0;scene<3;scene++){
+                Gdx.gl.glViewport(0,0,64,32);
+                SceneLoadHandle load=engine.beginLoadScene("test");
+                while(!load.isReady()&&!load.isFailed())load.update();
+                Assert.assertFalse(String.valueOf(load.failure()),load.isFailed());
+                Object forward=engine.system(RenderSubmitSystem.class).forwardRenderer();
+                com.badlogic.gdx.graphics.glutils.ShaderProgram general=(com.badlogic.gdx.graphics.glutils.ShaderProgram)get(forward,"shader");
+                com.badlogic.gdx.graphics.glutils.ShaderProgram unlit=(com.badlogic.gdx.graphics.glutils.ShaderProgram)get(forward,"unlitShader");
+                Assert.assertTrue("Both programs exist at scene READY",general.isCompiled()&&unlit.isCompiled());
+                Assert.assertNotSame(previousGeneral,general);Assert.assertNotSame(previousUnlit,unlit);
+                engine.api().entities().requireEntityId(engine.findEntityByStableId(2)).light().setEnabled(false);
+                engine.update(0);engine.render();
+                Assert.assertSame(unlit,get(forward,"packedShader"));
+                Assert.assertSame(general,get(forward,"shader"));
+                Assert.assertEquals(64L*32*8,engine.system(RenderSubmitSystem.class).forwardRenderer().textureBytes());
+                previousGeneral=general;previousUnlit=unlit;
+            }
+        }finally{engine.dispose();}
     }
 
     private static void writeScene(FileHandle file) throws Exception {

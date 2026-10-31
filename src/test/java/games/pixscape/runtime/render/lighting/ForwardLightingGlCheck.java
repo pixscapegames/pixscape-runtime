@@ -32,6 +32,7 @@ public final class ForwardLightingGlCheck {
             try{run();}catch(Throwable t){failure[0]=t;}finally{ShaderRegistry.disposeAll();InternalTextures.dispose();TextureRegistry.clear();Gdx.app.exit();}
         }},config);
         if(failure[0]!=null)throw new AssertionError("Forward GL integration",failure[0]);
+        UnlitForwardGlCheck.verify();
     }
     private static void run()throws Exception {
         ShaderRegistry.initDefaults();Gdx.gl.glViewport(0,0,64,32);

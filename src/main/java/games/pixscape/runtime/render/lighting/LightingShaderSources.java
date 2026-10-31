@@ -3,6 +3,8 @@ package games.pixscape.runtime.render.lighting;
 /** Explicit GLSL fragments shared by the legacy and forward lighting receivers. */
 public final class LightingShaderSources {
     private LightingShaderSources() {}
+    private static final String FORWARD_AMBIENT="vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;";
+    private static final String FORWARD_COLOR_SAMPLE="texture(u_array,vec3(uv,flags.x))";
 
     /** Sprite normal-map sample transformed into lighting space. */
     static final String NORMAL_SAMPLE =
@@ -200,7 +202,7 @@ public final class LightingShaderSources {
 
     static String forwardReceiver(String version,boolean useNormalMaps) {
         return forwardReceiver(version,useNormalMaps,"uniform sampler2DArray u_array;",
-                "texture(u_array,vec3(uv,flags.x))");
+                FORWARD_COLOR_SAMPLE);
     }
 
     /** Shared lighting/coverage math. The owner supplies its color-resource declaration and expression. */
@@ -215,12 +217,23 @@ public final class LightingShaderSources {
                 + "uniform vec3 u_ambient;"
                 + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
                 + (useNormalMaps?NORMAL_SAMPLE:"vec3 lightingNormal(vec3 geometric){return geometric;}")+MACRO_NORMAL
-                + "void main(){vec4 texel="+colorSample+";"
-                + FORWARD_RECEIVER_COVERAGE+FORWARD_DIRECT_LIGHT_SETUP
+                + forwardMaterial(colorSample)+FORWARD_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
                 + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
-                + "vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;"
+                + FORWARD_AMBIENT
                 + "result=vec4(t.rgb*(ambient+u_color*value),alpha);"
                 + "}";
+    }
+
+    /** Same material coverage and HDR output, without direct-light inputs or calculations. */
+    static String unlitReceiver(String version) {
+        return version+"in vec2 uv;in vec4 color;flat in vec4 flags;flat in float materialMode;"
+                +"uniform sampler2DArray u_array;uniform vec3 u_ambient;out vec4 result;"
+                +forwardMaterial(FORWARD_COLOR_SAMPLE)+FORWARD_AMBIENT
+                +"result=vec4(t.rgb*ambient,alpha);}";
+    }
+
+    private static String forwardMaterial(String colorSample) {
+        return "void main(){vec4 texel="+colorSample+";"+FORWARD_RECEIVER_COVERAGE;
     }
 }
