@@ -8,6 +8,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
@@ -137,6 +138,7 @@ public class EntityRefIdentitySafetyTest {
 
             Assert.assertFalse(oldEntity.exists());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
+            assertStalePosition(oldTransform);
             Assert.assertEquals(0, oldTiled.map().width());
             Assert.assertFalse(oldSprite.exists());
             Assert.assertFalse(oldShader.exists());
@@ -193,6 +195,7 @@ public class EntityRefIdentitySafetyTest {
 
             Assert.assertFalse(oldRef.exists());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
+            assertStalePosition(oldTransform);
             oldTransform.setX(200f);
             oldRef.remove();
 
@@ -311,6 +314,18 @@ public class EntityRefIdentitySafetyTest {
             }
             Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
         } finally { engine.dispose(); }
+    }
+
+    private static void assertStalePosition(TransformFacade transform) {
+        Vector2 result = transform.xy();
+        Assert.assertEquals(new Vector2(), result);
+        Assert.assertNotSame(result, transform.xy());
+        Vector2 out = new Vector2(5f, 6f);
+        Assert.assertSame(out, transform.xy(out));
+        Assert.assertEquals(transform.x(), out.x, 0f);
+        Assert.assertEquals(transform.y(), out.y, 0f);
+        Assert.assertEquals(result, out);
+        Assert.assertThrows(IllegalArgumentException.class, () -> transform.xy(null));
     }
 
     @SuppressWarnings("unchecked")

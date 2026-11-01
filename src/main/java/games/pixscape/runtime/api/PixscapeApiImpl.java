@@ -1212,6 +1212,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public Vector2 xy() {
+            return xy(new Vector2());
+        }
+
+        @Override
+        public Vector2 xy(Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            TransformComponent t = t(false);
+            return t != null ? out.set(t.x, t.y) : out.set(0f, 0f);
+        }
+
+        @Override
         public float rotationRad() {
             TransformComponent t = t(false);
             return t != null ? t.rotationRad : 0f;
