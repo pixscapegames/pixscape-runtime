@@ -34,7 +34,15 @@ public interface TransformFacade {
      * Coordinates are local to the parent for Game Object members and authored world
      * coordinates otherwise; no world-transform conversion is performed.
      * The copied result is independent of the entity: modifying it never changes the entity.
+     * The vector is not retained, and this read does not invalidate the transform.
      * A stale reference or an absent transform sets both coordinates to zero.
+     *
+     * <pre>{@code
+     * private final Vector2 position = new Vector2();
+     *
+     * // On each update:
+     * entity.transform().xy(position);
+     * }</pre>
      *
      * @param out the caller-owned vector to fill
      * @return exactly {@code out}

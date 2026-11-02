@@ -511,6 +511,8 @@ public class PixscapeApiV1Test {
         world.process();
         TransformFacade facade = engine.api().entities().ofEntityId(entity).transform();
         facade.setPosition(12.5f, -7f);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
 
         Vector2 first = facade.xy();
         Vector2 second = facade.xy();
@@ -527,12 +529,16 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(12.5f, facade.x(), 0f);
         Assert.assertEquals(-7f, facade.y(), 0f);
         Assert.assertEquals(new Vector2(12.5f, -7f), second);
+        Assert.assertEquals(0, dirty.packedBits(entity));
 
         facade.setPosition(-8f, 9f);
+        Assert.assertEquals(new Vector2(3f, 4f), out);
+        dirty.clearAll();
         Assert.assertSame(out, facade.xy(out));
         Assert.assertEquals(new Vector2(-8f, 9f), out);
         Assert.assertEquals(new Vector2(12.5f, -7f), second);
         Assert.assertThrows(IllegalArgumentException.class, () -> facade.xy(null));
+        Assert.assertEquals(0, dirty.packedBits(entity));
     }
 
     @Test
@@ -542,6 +548,8 @@ public class PixscapeApiV1Test {
         int entity = world.create();
         world.process();
         TransformFacade facade = engine.api().entities().ofEntityId(entity).transform();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
 
         Vector2 result = facade.xy();
         Assert.assertEquals(0f, result.x, 0f);
@@ -553,6 +561,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(result, out);
         Assert.assertFalse(world.getMapper(TransformComponent.class).has(entity));
         Assert.assertThrows(IllegalArgumentException.class, () -> facade.xy(null));
+        Assert.assertEquals(0, dirty.packedBits(entity));
     }
 
     @Test
