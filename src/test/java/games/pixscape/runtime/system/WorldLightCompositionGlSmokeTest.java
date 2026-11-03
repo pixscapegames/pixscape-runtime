@@ -25,6 +25,9 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 public class WorldLightCompositionGlSmokeTest {
+    @Test public void suppliedMaterialsKeepImageRegionsAndEffects(){games.pixscape.runtime.render.SuppliedMaterialGlCheck.verify();}
+
+    @Test public void surfaceProjectsPreserveParametersAndLightingLifecycle(){games.pixscape.runtime.engine.SurfaceProjectGlCheck.verify();}
     @org.junit.Test public void legacyRoundedReceptionIsContinuous() { games.pixscape.runtime.render.lighting.LegacyRoundedGlCheck.verify(); }
     @Test public void forwardOneLightPreservesCoverageAndRejectsUnsupportedFrames() {
         ForwardLightingGlCheck.verify();

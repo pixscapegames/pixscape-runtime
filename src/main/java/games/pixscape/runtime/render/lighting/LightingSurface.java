@@ -2,6 +2,10 @@ package games.pixscape.runtime.render.lighting;
 
 /** Cold triangle data: XYZ, normalized image UV, normal. Shared by receiver and caster. */
 public final class LightingSurface {
+    /** Borrowed authored material publication, shared by visible and shadow variants. */
+    public int materialShader = -1;
+    public games.pixscape.runtime.component.ShaderParamsComponent materialParameters;
+    public float materialColor = com.badlogic.gdx.graphics.Color.WHITE.toFloatBits();
     public final float[] vertices;
     public boolean receiveLight = true, shadowCaster, twoSided, approximate;
     /** Derived simple-sheet topology: six vertices in SpriteSurfaceSupport.corner order, never a local mesh/tile. */

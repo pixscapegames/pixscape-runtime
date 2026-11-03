@@ -44,7 +44,14 @@ public final class ShaderParameterTexture implements AutoCloseable {
             throw new IllegalStateException("Shader parameter table requires texture unit " + TEXTURE_UNIT);
         }
         FloatTextureData data = new FloatTextureData(TEXELS_PER_ROW, rowCapacity,
-                GL30.GL_RGBA32F, GL20.GL_RGBA, GL20.GL_FLOAT, false);
+                GL30.GL_RGBA32F, GL20.GL_RGBA, GL20.GL_FLOAT, false) {
+            @Override public void consumeCustomData(int target) {
+                // This table requires ES3. LibGDX's Android FloatTextureData path otherwise
+                // uses an unsized ES2 upload, rejected by GLES3 drivers such as Mali-G68.
+                Gdx.gl.glTexImage2D(target, 0, GL30.GL_RGBA32F, getWidth(), getHeight(),
+                        0, GL20.GL_RGBA, GL20.GL_FLOAT, getBuffer());
+            }
+        };
         texture = new Texture(data);
         texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         texture.setWrap(Texture.TextureWrap.ClampToEdge, Texture.TextureWrap.ClampToEdge);
@@ -52,18 +59,27 @@ public final class ShaderParameterTexture implements AutoCloseable {
     }
 
     public void upload(ShaderParameterRows rows) {
-        int count = rows.rowCount() * ShaderParameterRows.FLOATS_PER_ROW;
+        upload(rows.data(), rows.rowCount(), TEXTURE_UNIT);
+    }
+
+    /** Existing parameter table contract, on the texture unit reserved by the owning pass. */
+    public void upload(float[] values, int rowCount, int textureUnit) {
+        int count = rowCount * ShaderParameterRows.FLOATS_PER_ROW;
         uploadBuffer.clear();
-        uploadBuffer.put(rows.data(), 0, count);
+        uploadBuffer.put(values, 0, count);
         uploadBuffer.flip();
-        texture.bind(TEXTURE_UNIT);
+        texture.bind(textureUnit);
         Gdx.gl.glTexSubImage2D(GL20.GL_TEXTURE_2D, 0, 0, 0, TEXELS_PER_ROW,
-                rows.rowCount(), GL20.GL_RGBA, GL20.GL_FLOAT, uploadBuffer);
+                rowCount, GL20.GL_RGBA, GL20.GL_FLOAT, uploadBuffer);
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
     }
 
     public void bind() {
-        texture.bind(TEXTURE_UNIT);
+        bind(TEXTURE_UNIT);
+    }
+
+    public void bind(int textureUnit) {
+        texture.bind(textureUnit);
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
     }
 

@@ -236,6 +236,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         TiledMapLayerData map = tiled.data;
         currentRenderOrder = tiledState.prepareOrderForMap(e, map);
         games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
+        boolean lightingChanged=false;
+        if(tiledState.lightingEnabled) {
         if (lighting == null) {
             lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
             tiledState.lightingMaps.put(e, lighting);
@@ -243,11 +245,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         lighting.descriptions(tiled.lightingDescriptions);
         if(lightingDirty!=null && (lightingDirty.coarseBits(e)&DirtyBits.GEOMETRY)!=0
                 && tiled.lightingDescriptions.size>0)lighting.invalidate();
-        boolean lightingChanged=ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(e,null));
+        lightingChanged=ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(e,null));
         if (lightingChanged) {
             tiledState.lightingRevision++;
             // Geometry changed: refresh image/receiver registration through the existing chunk boundary.
             for (TileChunk chunk : map.getChunks()) chunk.dirtyState = TileChunk.DirtyState.FULL;
+        }
         }
         currentTileOrder = null;
         currentMapEntity = e;
@@ -397,6 +400,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
      * Compiles every authored persistent chunk and Spatial layer cache without
      * evaluating camera visibility or publishing a frame-local visible list.
      */
+    public void invalidateLighting() {
+        for (MapLightingGeometry geometry : tiledState.lightingMaps.values()) geometry.invalidate();
+    }
+
     public void prepareRuntimeAvailability() {
         preparedPersistentChunkCount = 0;
         IntBag entities = world.getAspectSubscriptionManager()
@@ -412,12 +419,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             TiledMapLayerData map = tiled.data;
             currentRenderOrder = tiledState.prepareOrderForMap(entityId, map);
             currentMapEntity = entityId;
+            if(tiledState.lightingEnabled){
             games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
             if(lighting==null){lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();tiledState.lightingMaps.put(entityId,lighting);}
             lighting.descriptions(tiled.lightingDescriptions);
             if(ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(entityId,null))){
                 tiledState.lightingRevision++;
                 for(TileChunk chunk:map.getChunks())chunk.dirtyState=TileChunk.DirtyState.FULL;
+            }
             }
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
@@ -959,7 +968,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
 
         // Admission must complete before publishing any quad, binding or renderable flag.
-        MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
+        MapLightingGeometry lighting = tiledState.lightingEnabled?tiledState.lightingMaps.get(currentMapEntity):null;
         games.pixscape.runtime.render.lighting.LightingSurface surface = lighting == null ? null
                 : lighting.receiver(map,gx,gy,assetId,transformFlags,tmpQuad);
         games.pixscape.runtime.service.NormalMapBinding normal = lighting == null ? null

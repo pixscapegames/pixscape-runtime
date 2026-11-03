@@ -16,7 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 
 public final class LightingBatchBackendCheck {
-    private static final int REPLAY_CAPACITY=12288, SHADOW_STRIDE=14, RECEIVER_STRIDE=22, MAPPED_STRIDE=29;
+    private static final int REPLAY_CAPACITY=12288, SHADOW_STRIDE=20, RECEIVER_STRIDE=28, MAPPED_STRIDE=35;
     public static void assertHtmlAndNativeWriteIdenticalActiveVertices() {
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration cfg=new Lwjgl3ApplicationConfiguration();

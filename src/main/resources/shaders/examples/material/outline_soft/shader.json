@@ -1,0 +1,11 @@
+{
+  "name": "outline_soft",
+  "kind": "MATERIAL",
+  "mode": "TEXTURE_ARRAY",
+  "contract": "surface-v1",
+  "lighting": "LIT",
+  "parameters": {
+    "u_outlineSize": 0.01,
+    "u_outlineIntensity": 1.0
+  }
+}

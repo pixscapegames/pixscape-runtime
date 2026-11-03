@@ -7,6 +7,8 @@ package games.pixscape.runtime.render;
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
+    /** Derived scene gate; authored scene metadata remains authoritative. */
+    public boolean lightingEnabled = true;
     private final com.badlogic.gdx.utils.IntMap<TiledRenderOrder> preparedOrders =
             new com.badlogic.gdx.utils.IntMap<TiledRenderOrder>();
     int[] preparedOrderRank;

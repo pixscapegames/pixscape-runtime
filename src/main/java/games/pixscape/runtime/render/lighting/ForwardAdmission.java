@@ -89,7 +89,7 @@ public final class ForwardAdmission {
         boolean standard=shader==ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName())
                 ||shader==ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName())
                 ||shader==ShaderRegistry.indexOf(ShaderMode.TEXTURE_2D.defaultShaderName());
-        if(!standard||ShaderRegistry.getOrigin(shader)!=ShaderOrigin.CORE||ShaderRegistry.getParameterLayout(shader).size()!=0)throw refused(e,"unsupported material shader "+shader);
+        if(ShaderRegistry.getSurface(shader)==null && (!standard||ShaderRegistry.getOrigin(shader)!=ShaderOrigin.CORE||ShaderRegistry.getParameterLayout(shader).size()!=0))throw refused(e,"unsupported material shader "+shader);
         if(blend!=0&&blend!=1&&blend!=2&&blend!=7&&!(vfx&&(blend==3||blend==4)))throw refused(e,"unsupported blend "+blend);
     }
     private static IllegalArgumentException refused(int e,String reason){return new LightingAdmissionException("Forward lighting refused source entity "+e+": "+reason+"; correct the scene or select the reference path explicitly");}

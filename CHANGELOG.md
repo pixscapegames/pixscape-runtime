@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.3-SNAPSHOT]
+
+### Added
+
+* Added renderer-independent `surface-v1` Lit/Unlit materials, per-entity parameters, and an optional shared visible/shadow cutout mask. Includes Pulse and dissolution examples.
+* Added scene `lightingEnabled` and a Runtime activation API: new scenes start with lighting disabled; older scenes keep lighting enabled.
+
+### Changed
+
+* Migrated the supplied glow_pulse (Unlit), wave_uv and outline_soft (Lit) materials into one surface catalog, retaining parameter names and shader identities. Added atlas-safe sprite-local sampling; these effects retain the original sprite shadow silhouette.
+* Disabled lighting draws directly into the caller target and defers lighting geometry, normals, renderers and shadow targets until activation. Renderer preference is preserved; scenes without active local lights use ambient Legacy rendering.
+* Material reloads validate generated variants before replacing working programs; shader renames preserve numeric identity.
+
+### Fixed
+
+* Fixed GLES3 RGBA32F uploads for per-entity material parameters and explicit ES texture-array sampler precision.
+* Preserved caller GL state in the direct world pass.
+* Rebuilt world framebuffer attachments without duplicate managed registrations after context loss.
+
 ## [0.2.2]
 
 ### Breaking changes

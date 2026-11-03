@@ -2749,7 +2749,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = handle.world();
             if (value) {
                 VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).getSafe(handle.entityId, null);
-                if (engine.isForwardLighting() && (visibility == null || visibility.visible)
+                if ((engine.isLightingEnabled() && engine.prefersForwardLighting()) && (visibility == null || visibility.visible)
                         && games.pixscape.runtime.render.lighting.ActiveLights.count(world) != 0) {
                     throw new IllegalArgumentException("Forward rendering supports at most one active light; cannot enable entity " + handle.entityId + ".");
                 }

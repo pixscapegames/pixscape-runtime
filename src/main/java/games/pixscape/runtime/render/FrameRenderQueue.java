@@ -16,8 +16,8 @@ package games.pixscape.runtime.render;
  */
 public final class FrameRenderQueue {
     /** Published receiver/caster/light data; does not change image ordering. */
-    public final games.pixscape.runtime.render.lighting.LightingFrame lighting =
-            new games.pixscape.runtime.render.lighting.LightingFrame();
+    public games.pixscape.runtime.render.lighting.LightingFrame lighting;
+    public boolean lightingEnabled;
     public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
     public static final byte SOURCE_ECS = RenderSourceDomain.SOURCE_ECS;
     public static final byte SOURCE_TILED = RenderSourceDomain.SOURCE_TILED;
@@ -54,10 +54,20 @@ public final class FrameRenderQueue {
     public int[] sourceSlot;
     public int[] sourceEntity;
 
-    public FrameRenderQueue() {
+    public FrameRenderQueue() { this(true); }
+
+    public FrameRenderQueue(boolean lightingEnabled) {
+        setLightingEnabled(lightingEnabled);
+    }
+
+    /** Publication boundary. Off keeps any existing cache but never creates it. */
+    public void setLightingEnabled(boolean enabled) {
+        if (enabled && lighting == null) lighting = new games.pixscape.runtime.render.lighting.LightingFrame();
+        lightingEnabled = enabled;
     }
 
     public FrameRenderQueue(int initialCapacity) {
+        this(true);
         setCapacity(initialCapacity);
     }
 
@@ -80,9 +90,11 @@ public final class FrameRenderQueue {
     }
 
     public void setCapacity(int newCapacity) {
+        if (lighting != null) {
         lighting.entities.clear();lighting.tiles.clear();lighting.lights.clear();lighting.casters.clear();
         lighting.staticCasterCount=0;lighting.diagnostic=0;lighting.timer=null;
         lighting.casterIndex.rebuild(lighting,0);
+        }
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("FrameRenderQueue capacity must be > 0");
         }

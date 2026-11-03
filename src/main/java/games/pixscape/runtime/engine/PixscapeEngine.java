@@ -69,6 +69,7 @@ public final class PixscapeEngine {
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
     private boolean forwardLighting;
+    private boolean lightingEnabled;
     private Boolean forwardLightingOverride;
     private AssetManager suppliedAssetManager;
     private FileAvailabilityService fileAvailability;
@@ -608,7 +609,7 @@ public final class PixscapeEngine {
 
         dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1214,7 +1215,7 @@ public final class PixscapeEngine {
 
         dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1241,7 +1242,7 @@ public final class PixscapeEngine {
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1325,7 +1326,7 @@ public final class PixscapeEngine {
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1528,6 +1529,7 @@ public final class PixscapeEngine {
         requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
         requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
         requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
+        requireSystem(GameObjectCompositionSystem.class).prepareRuntimeAvailability();
         LightingGeometrySystem lightingGeometry=world.getSystem(LightingGeometrySystem.class);
         if(lightingGeometry!=null)lightingGeometry.prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
@@ -1869,7 +1871,50 @@ public final class PixscapeEngine {
     }
 
     /** Returns the selected renderer; renderer selection itself is a preparation-time choice. */
-    public boolean isForwardLighting() { return forwardLighting; }
+    public boolean isForwardLighting() {
+        RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
+        return lightingEnabled && submit != null && submit.isForwardEffective();
+    }
+    public boolean prefersForwardLighting() { return forwardLighting; }
+    public boolean isLightingEnabled() { return lightingEnabled; }
+
+    /** Render-thread activation boundary. Returns false while normal assets are loading (HTML included).
+     * Call again before rendering until true. The previous mode remains effective until validation
+     * succeeds; exceptions carry the admission/asset diagnostic. Individual lights are never changed. */
+    public boolean setLightingEnabled(boolean enabled) {
+        if (enabled == lightingEnabled) return true;
+        if (world == null || !sceneLoaded) throw new IllegalStateException("Load a scene before changing lighting");
+        if (enabled && useNormalMaps && activeSceneAvailability != null) {
+            activeSceneAvailability.requestLightingNormals();
+            if (!activeSceneAvailability.update()) return false;
+            com.badlogic.gdx.graphics.g2d.TextureAtlas normals = activeSceneAvailability.normalAtlas();
+            String tag = activeSceneAvailability.sceneTag();
+            games.pixscape.runtime.service.NormalMapAtlas candidate = normals == null ? null
+                    : new games.pixscape.runtime.service.NormalMapAtlas(tag, normals, activeSceneAvailability.atlas(), false);
+            try {
+                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(tag,activeSceneAvailability.atlas(),candidate,
+                        RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir),runtimeProjectDir);
+                atlasRuntimeService.publishNormalMaps(tag,candidate);
+            } catch(RuntimeException failure) { if(candidate!=null)candidate.dispose(); throw failure; }
+        }
+        boolean previous = frameQueue.lightingEnabled;
+        try {
+            frameQueue.setLightingEnabled(enabled); tiledState.lightingEnabled=enabled;
+            if(enabled) {
+                RenderTiledSyncSystem tiled=world.getSystem(RenderTiledSyncSystem.class);
+                if(tiled!=null){tiled.invalidateLighting();tiled.prepareRuntimeAvailability();}
+                LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
+                if(geometry!=null)geometry.prepareRuntimeAvailability();
+                RenderSubmitSystem submit=world.getSystem(RenderSubmitSystem.class);
+                if(submit!=null && submit.isEnabled())submit.prepareLightingActivation();
+            }
+            lightingEnabled=enabled;
+            return true;
+        } catch(RuntimeException | Error failure) {
+            frameQueue.setLightingEnabled(previous);tiledState.lightingEnabled=previous;
+            throw failure;
+        }
+    }
 
     /** Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected). */
     public float ambientRed() { return ambientMulR; }
@@ -1901,6 +1946,9 @@ public final class PixscapeEngine {
     }
 
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
+        lightingEnabled = meta != null && meta.lightingEnabled;
+        if(frameQueue!=null)frameQueue.setLightingEnabled(lightingEnabled);
+        if(tiledState!=null)tiledState.lightingEnabled=lightingEnabled;
         useNormalMaps = meta == null || meta.useNormalMaps;
         forwardLighting = forwardLightingOverride != null ? forwardLightingOverride : meta != null && meta.forwardLighting;
         if (meta == null) {

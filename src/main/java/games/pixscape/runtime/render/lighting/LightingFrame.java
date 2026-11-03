@@ -5,6 +5,8 @@ import com.badlogic.gdx.utils.IntMap;
 
 /** Draw-ready lighting publication, built before submission; independent of camera caster culling. */
 public final class LightingFrame {
+    /** Same draw-wide clock as direct material submission, never a per-entity uniform. */
+    public float time;
     public static final class Light {
         public float x,y,z,r,g,b,intensity,radius,falloff,dx,dy,dz,cosOuter,cosInner;
         public int quality,resolution;

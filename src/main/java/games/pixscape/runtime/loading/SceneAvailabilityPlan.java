@@ -108,7 +108,7 @@ public final class SceneAvailabilityPlan {
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS)).path();
         this.normalCandidatePath=runtimeProjectDir.child(config.atlasesDir).child(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas").path();
         this.normalProfiles=profiles;
-        this.normalRequirementsChecked=!meta.useNormalMaps;
+        this.normalRequirementsChecked=!meta.lightingEnabled || !meta.useNormalMaps;
         this.effectsRoot = runtimeProjectDir.child(config.effectsDir);
         this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
         this.runtimeProjectDir = runtimeProjectDir;
@@ -128,6 +128,13 @@ public final class SceneAvailabilityPlan {
             }
             throw failure;
         }
+    }
+
+    /** Activation-only acquisition. Reuses this scene's manager leases, including WebGL async loading. */
+    public void requestLightingNormals() {
+        requireActive();
+        if (normalAtlasRequested) return;
+        normalRequirementsChecked = false;
     }
 
     public boolean update() {

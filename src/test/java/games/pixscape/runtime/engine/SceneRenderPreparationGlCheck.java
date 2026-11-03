@@ -141,9 +141,9 @@ public final class SceneRenderPreparationGlCheck {
                 Assert.assertNotSame(previousGeneral,general);Assert.assertNotSame(previousUnlit,unlit);
                 engine.api().entities().requireEntityId(engine.findEntityByStableId(2)).light().setEnabled(false);
                 engine.update(0);engine.render();
-                Assert.assertSame(unlit,get(forward,"packedShader"));
-                Assert.assertSame(general,get(forward,"shader"));
-                Assert.assertEquals(64L*32*8,engine.system(RenderSubmitSystem.class).forwardRenderer().textureBytes());
+                Assert.assertTrue(engine.prefersForwardLighting());
+                Assert.assertFalse("Zero active lights uses Legacy ambient",engine.isForwardLighting());
+                Assert.assertNull(engine.system(RenderSubmitSystem.class).forwardRenderer());
                 previousGeneral=general;previousUnlit=unlit;
             }
         }finally{engine.dispose();}
@@ -159,6 +159,8 @@ public final class SceneRenderPreparationGlCheck {
             world.getMapper(PixscapeIdentityComponent.class).create(layer).stableId = 1;
             int entity = world.create();
             world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = 2;
+            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity).layerIndex=0;
+            world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(entity);
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entity);
             light.shadowResolution = 256;
             light.shadowQuality = 1;

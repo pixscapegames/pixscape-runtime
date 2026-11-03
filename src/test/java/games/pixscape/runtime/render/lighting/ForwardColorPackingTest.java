@@ -9,7 +9,7 @@ public final class ForwardColorPackingTest {
     @Test public void preservesAbgrBytesIncludingTheNanSafeAlpha() {
         float[] colors={Color.toFloatBits(.25f,.5f,.75f,0f),Color.toFloatBits(.25f,.5f,.75f,.5f),Color.WHITE.toFloatBits()};
         int[][] expected={{63,127,191,0},{63,127,191,126},{255,255,255,254}};
-        Assert.assertEquals(26,ForwardLightingRenderer.VERTEX_STRIDE);
+        Assert.assertEquals(32,ForwardLightingRenderer.VERTEX_STRIDE);
         Assert.assertEquals(11,ForwardLightingRenderer.COLOR_OFFSET);
         for(int i=0;i<colors.length;i++){
             float packed=colors[i];

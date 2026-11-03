@@ -219,6 +219,14 @@ public class AtlasRuntimeService {
         if (previous != null) previous.dispose();
     }
 
+    /** Publish a validated normal mapping while keeping the color atlas and its identity. */
+    public void publishNormalMaps(String tag, NormalMapAtlas next) {
+        NormalMapAtlas previous = normalAtlases.remove(tag);
+        if (next != null) normalAtlases.put(tag, next);
+        publicationRevisions.put(tag, nextPublicationRevision());
+        if (previous != null && previous != next) previous.dispose();
+    }
+
     /** Returns whether at least one successfully published atlas is currently usable. */
     public boolean hasPublishedAtlases() {
         return atlases.size > 0;

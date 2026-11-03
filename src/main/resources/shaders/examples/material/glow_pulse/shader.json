@@ -1,0 +1,13 @@
+{
+  "name": "glow_pulse",
+  "kind": "MATERIAL",
+  "mode": "TEXTURE_ARRAY",
+  "contract": "surface-v1",
+  "lighting": "UNLIT",
+  "parameters": {
+    "u_radius": 1.1,
+    "u_speed": 2.0,
+    "u_intensity": 1.2,
+    "u_boost": 0.3
+  }
+}

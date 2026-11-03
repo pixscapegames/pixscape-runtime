@@ -14,20 +14,21 @@ public final class LightCompositionPass {
     public static final int CONTRIBUTION = 4;
     /** Ordered replay selector; resolved per entry before applying blend state. */
     public static final int AMBIENT = 5;
+    public static final int DIRECT = 6;
 
     private LightCompositionPass() {}
 
     public static void apply(int pass, boolean light, int blendId, MetricsBatch batch,
                              ShaderProgram shader, RenderStats stats) {
-        validate(light, blendId);
+        if (pass != DIRECT) validate(light, blendId);
         BlendMode blend = BlendMode.fromId(blendId);
         int src = source(pass, light, blend), dst = destination(pass, light, blend);
         batch.setBlendMode(true, src, dst,
-                pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageSource(blend) : src,
-                pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageDestination(blend) : dst, stats);
+                pass == DIRECT || pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageSource(blend) : src,
+                pass == DIRECT || pass == ORIGINAL || pass == ORIGINAL_EXEMPT || pass == CONTRIBUTION ? coverageDestination(blend) : dst, stats);
         if (shader != null) {
             boolean opaque = pass != FIELD && !blend.blending;
-            if (opaque && !shader.hasUniform("u_worldCoverage")) {
+            if (pass != DIRECT && opaque && !shader.hasUniform("u_worldCoverage")) {
                 throw new IllegalArgumentException("Opaque/cutout material must support u_worldCoverage for light composition");
             }
             shader.bind();
@@ -37,7 +38,7 @@ public final class LightCompositionPass {
     }
 
     public static boolean skip(int pass, boolean light, int blend) {
-        if (pass == ORIGINAL || pass == AMBIENT || pass == CONTRIBUTION || pass == ORIGINAL_EXEMPT) return light;
+        if (pass == DIRECT || pass == ORIGINAL || pass == AMBIENT || pass == CONTRIBUTION || pass == ORIGINAL_EXEMPT) return light;
         return !light && (blend == BlendMode.ADDITIVE.id || blend == BlendMode.ADDITIVE_ALPHA.id);
     }
 

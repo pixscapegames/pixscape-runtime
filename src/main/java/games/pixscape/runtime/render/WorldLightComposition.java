@@ -59,16 +59,16 @@ public final class WorldLightComposition implements Disposable {
     }
 
     private void allocate(int w, int h) {
-        FrameBuffer nextOriginal = new FrameBuffer(Pixmap.Format.RGBA8888, w, h, false);
+        FrameBuffer nextOriginal = new games.pixscape.runtime.render.WorldFrameBuffer(Pixmap.Format.RGBA8888, w, h, false);
         FrameBuffer nextField = null;
         FrameBuffer nextContribution = null;
         try {
             GLFrameBuffer.FrameBufferBuilder builder = new GLFrameBuffer.FrameBufferBuilder(w, h);
             builder.addFloatAttachment(GL30.GL_RGBA16F, GL20.GL_RGBA, GL20.GL_FLOAT, true);
-            nextField = builder.build();
+            nextField = new games.pixscape.runtime.render.WorldFrameBuffer(builder);
             GLFrameBuffer.FrameBufferBuilder contributionBuilder = new GLFrameBuffer.FrameBufferBuilder(w, h);
             contributionBuilder.addFloatAttachment(GL30.GL_RGBA16F, GL20.GL_RGBA, GL20.GL_FLOAT, true);
-            nextContribution = contributionBuilder.build();
+            nextContribution = new games.pixscape.runtime.render.WorldFrameBuffer(contributionBuilder);
             nextOriginal.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             nextField.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             nextContribution.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);

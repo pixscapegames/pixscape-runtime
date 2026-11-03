@@ -46,6 +46,8 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
         this.sceneMeta = sceneMeta;
     }
 
+    public LayerStateSOA state() { return layerState; }
+
     @Override
     protected void begin() {
         profiling = profiler.enabled();

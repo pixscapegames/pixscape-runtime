@@ -25,7 +25,8 @@ public final class LightingGeometrySystem extends BaseSystem {
     public void setShadowPreparation(ShadowPreparation preparation){shadowPreparation=preparation;}
     private final DynamicEntityRenderState dynamic;
     private final TiledMapRenderState tiled;
-    private final LightingFrame frame;
+    private LightingFrame frame;
+    private final FrameRenderQueue queue;
     private final LayerStateSOA layers;
     private ComponentMapper<VisibilityComponent> visibility;
     private ComponentMapper<SurfaceLightingComponent> surfaces;
@@ -33,6 +34,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<ConeLightComponent> cones;
     private ComponentMapper<DimensionsComponent> dimensions;
     private ComponentMapper<AssetRefComponent> assetRefs;
+    private ComponentMapper<games.pixscape.runtime.component.ShaderParamsComponent> materialParameters;
     private ComponentMapper<games.pixscape.runtime.component.TiledAnimationComponent> animations;
     private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> actorAnimations;
     private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialHeightComponent> heights;
@@ -63,7 +65,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                 public void removed(com.artemis.utils.IntBag entities){
                     for(int i=0;i<entities.size();i++){int e=entities.get(i);
                         if(staticOwners.remove(e)){removePublishedSurfaces(e);staticRevision=Integer.MIN_VALUE;}
-                        frame.entities.remove(e);localDescriptions.remove(e);lights.remove(e);spriteCasters.remove(e);
+                        if(frame!=null)frame.entities.remove(e);localDescriptions.remove(e);lights.remove(e);spriteCasters.remove(e);
                         shadowExclusionIdentities.removeEntity(e);}
                 }
             });
@@ -77,7 +79,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private final float[] corners = new float[8];
     private int staticRevision=Integer.MIN_VALUE;
     public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue,LayerStateSOA layers) {
-        this.dynamic=dynamic;this.tiled=tiled;frame=queue.lighting;this.layers=layers;
+        this.dynamic=dynamic;this.tiled=tiled;this.queue=queue;frame=queue.lighting;this.layers=layers;
     }
     public LightingGeometrySystem(DynamicEntityRenderState dynamic,TiledMapRenderState tiled,FrameRenderQueue queue,
             LayerStateSOA layers,games.pixscape.runtime.service.AtlasRuntimeService atlasService){
@@ -89,6 +91,8 @@ public final class LightingGeometrySystem extends BaseSystem {
     }
     /** Cold scene preparation: reserve actor storage without advancing animation or processing World. */
     public void prepareRuntimeAvailability() {
+        if(!queue.lightingEnabled)return;
+        frame=queue.lighting;
         for(int slot=0;slot<dynamic.activeCount;slot++){
             int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
             SurfaceLightingComponent a=surfaces.getSafe(e,null);
@@ -108,6 +112,8 @@ public final class LightingGeometrySystem extends BaseSystem {
         }
     }
     @Override protected void processSystem() {
+        if(!queue.lightingEnabled)return;
+        frame=queue.lighting;
         long started=System.nanoTime();
         frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
         if(staticRevision!=tiled.lightingRevision){
@@ -154,6 +160,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                     :shadowExclusionIdentities.idFor(surface.ownerEntity,caster.pocSourceBlockId);
             if(c.surface!=caster){c.surface=caster;c.bounds();}
             int ref=entry.key;c.tiledRef=ref;c.texture=tiled.textureHandle[ref];c.u1=tiled.u1[ref];c.v1=tiled.v1[ref];c.u2=tiled.u2[ref];c.v2=tiled.v2[ref];
+            c.surface.materialShader=tiled.shader[ref];c.surface.materialParameters=c.surface.ownerEntity<0?null:materialParameters.getSafe(c.surface.ownerEntity,null);c.surface.materialColor=tiled.colorPacked[ref];
             frame.casters.add(c);
             }
         }
@@ -173,6 +180,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         for(int i=0;i<frame.staticCasterCount;i++){
             LightingFrame.Caster c=frame.casters.get(i);int ref=c.tiledRef;if(ref<0)continue;
             c.texture=tiled.textureHandle[ref];c.u1=tiled.u1[ref];c.v1=tiled.v1[ref];c.u2=tiled.u2[ref];c.v2=tiled.v2[ref];
+            c.surface.materialShader=tiled.shader[ref];c.surface.materialParameters=c.surface.ownerEntity<0?null:materialParameters.getSafe(c.surface.ownerEntity,null);c.surface.materialColor=tiled.colorPacked[ref];
         }
         for(int slot=0;slot<dynamic.activeCount;slot++) {
             int e=dynamic.renderSlotToEntityId[slot];
@@ -191,6 +199,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             }
             if(surface==null){surface=new LightingSurface(new float[48]);surface.twoSided=true;
                 surface.approximate=true;frame.entities.put(e,surface);}
+            surface.materialShader=dynamic.shader[slot];surface.materialParameters=materialParameters.getSafe(e,null);surface.materialColor=dynamic.colorPacked[slot];
             surface.receiveLight=(authored==null || authored.receiveLight) && (description==null || description.receiveLight);
             surface.shadowCaster=authored!=null && authored.shadowCaster && (description==null || description.shadowCaster);
             surface.alphaThreshold=dynamic.blend[slot]==0?0:dynamic.blend[slot]==7?.5f:authored==null?.5f:authored.alphaThreshold;
