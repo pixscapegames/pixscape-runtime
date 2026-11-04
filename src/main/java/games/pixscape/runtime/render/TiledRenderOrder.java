@@ -1,5 +1,7 @@
 package games.pixscape.runtime.render;
 
+import com.badlogic.gdx.utils.LongMap;
+import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
@@ -19,7 +21,43 @@ public final class TiledRenderOrder {
 
     boolean belongsTo(TiledMapLayerData source) { return map == source; }
 
-    /** Called by the existing ref publication/key refresh boundary, never by camera changes. */
+    private int cornerRevision = -1;
+    private LongMap<Long> cornerLines = new LongMap<>();
+
+    /**
+     * Cold diff of the previous and current projected junctions. Memberships used for sorting
+     * are published by the face cache independently of the line used for drawing.
+     */
+    public void updateCornerGeometry(SpatialProjectedFaceCache faces) {
+        int revision = faces == null ? -1 : faces.revision();
+        if (cornerRevision == revision) return;
+        LongMap<Long> next = new LongMap<>();
+        for (int anchor = 0; faces != null && anchor < faces.anchorCount; anchor++) {
+            int face = faces.frontCornerFace(anchor);
+            if (face < 0) continue;
+            int gx = faces.anchorGx[anchor], gy = faces.anchorGy[anchor];
+            long cell = ((long) gx << 32) | (gy & 0xffffffffL);
+            float top = faces.intercept[face] + faces.faceHeight[face];
+            long line = ((long) Float.floatToIntBits(faces.slope[face]) << 32)
+                    | (Float.floatToIntBits(top) & 0xffffffffL);
+            Long old = cornerLines.remove(cell);
+            next.put(cell, line);
+            if (old == null || old.longValue() != line) dirtyCorner(gx, gy);
+        }
+        for (LongMap.Entry<Long> removed : cornerLines)
+            dirtyCorner((int) (removed.key >> 32), (int) removed.key);
+        cornerLines = next;
+        cornerRevision = revision;
+    }
+
+    private void dirtyCorner(int gx, int gy) {
+        if (!map.isInside(gx, gy)) return;
+        TileChunk chunk = map.getChunk(gx / map.chunkSize, gy / map.chunkSize);
+        if (chunk == null || chunk.dirtyState == TileChunk.DirtyState.FULL) return;
+        int local = (gy % map.chunkSize) * chunk.chunkWidth + gx % map.chunkSize;
+        if (!chunk.dirtyLocalIndices.contains(local)) chunk.markLocalDirty(local);
+    }
+
     public void invalidate() { dirty = true; }
     public boolean isPrepared() { return !dirty && sourceRevision == map.contentStateRevision(); }
 

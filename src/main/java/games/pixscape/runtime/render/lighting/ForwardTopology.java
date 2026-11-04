@@ -32,27 +32,35 @@ public final class ForwardTopology {
 
     /** Cold composition for immutable supports only. Atlas/material/screen values remain dynamic. */
     public static void prepareImmutableAttributes(LightingSurface surface){
-        ForwardTopology t=surface.forwardTopology;
+        surface.forwardAttributes = surface.forwardTopology.immutableAttributes(surface);
+    }
+
+    public float[] immutableAttributes(LightingSurface surface) {
         float[] p=surface.receiverVertices==null?surface.vertices:surface.receiverVertices,n=surface.curveNormals;
-        float[] out=new float[t.vertexCount*11];
-        for(int k=0;k<t.vertexCount;k++){
-            int source=t.source[k];if(source<0)continue;
-            int w=k*5,o=k*11;float a=t.weights[w+1],b=t.weights[w+2],c=1-a-b;
+        float[] out=new float[vertexCount*11];
+        for(int k=0;k<vertexCount;k++){
+            int offset=source[k];if(offset<0)continue;
+            int w=k*5,o=k*11;float a=weights[w+1],b=weights[w+2],c=1-a-b;
             for(int j=0;j<3;j++){
-                out[o+j]=a*p[source+j]+b*p[source+8+j]+c*p[source+16+j];
-                out[o+3+j]=a*p[source+5+j]+b*p[source+13+j]+c*p[source+21+j];
-                int ns=source/8*3;
+                out[o+j]=a*p[offset+j]+b*p[offset+8+j]+c*p[offset+16+j];
+                out[o+3+j]=a*p[offset+5+j]+b*p[offset+13+j]+c*p[offset+21+j];
+                int ns=offset/8*3;
                 out[o+8+j]=n==null?0:a*n[ns+j]+b*n[ns+3+j]+c*n[ns+6+j];
             }
-            out[o+6]=a*p[source+3]+b*p[source+11]+c*p[source+19];
-            out[o+7]=a*p[source+4]+b*p[source+12]+c*p[source+20];
+            out[o+6]=a*p[offset+3]+b*p[offset+11]+c*p[offset+19];
+            out[o+7]=a*p[offset+4]+b*p[offset+12]+c*p[offset+20];
         }
-        surface.forwardAttributes=out;
+        return out;
     }
 
     /** Runs at support construction/invalidation, never from a submit or camera/light update. */
     public static ForwardTopology compile(LightingSurface surface,float[] quad) {
-        if(surface.imageQuad)return NATIVE;
+        return compile(surface, quad, null);
+    }
+
+    /** Optional normalized image polygon limits both receiver triangles and native color completion. */
+    public static ForwardTopology compile(LightingSurface surface, float[] quad, double[] region) {
+        if(surface.imageQuad && region == null)return NATIVE;
         float[] data=surface.receiverVertices==null?surface.vertices:surface.receiverVertices;
         double ax=quad[6]-quad[0],ay=quad[7]-quad[1],bx=quad[2]-quad[0],by=quad[3]-quad[1];
         double det=ax*by-ay*bx;
@@ -63,11 +71,12 @@ public final class ForwardTopology {
         IntArray sources=new IntArray();FloatArray weights=new FloatArray();
         for(int nativeId=0;nativeId<2;nativeId++) {
             double[] nativeTriangle=triangle(corners[CORNERS[nativeId*3]],corners[CORNERS[nativeId*3+1]],corners[CORNERS[nativeId*3+2]]);
-            Array<double[]> remaining=new Array<double[]>();remaining.add(nativeTriangle);
+            Array<double[]> remaining=new Array<double[]>();remaining.add(region == null ? nativeTriangle : intersect(nativeTriangle, region));
             for(int offset=0;offset<data.length;offset+=24) {
                 double[] physical={data[offset+3],data[offset+4],data[offset+11],data[offset+12],data[offset+19],data[offset+20]};
                 if(Math.abs(area(physical))<1e-12)continue;
                 double[] clipped=intersect(physical,nativeTriangle);
+                if (region != null) clipped = intersect(clipped, region);
                 emit(clipped,physical,nativeTriangle,offset,nativeId,sources,weights);
                 Array<double[]> next=new Array<double[]>();
                 for(int i=0;i<remaining.size;i++)subtract(remaining.get(i),physical,next);

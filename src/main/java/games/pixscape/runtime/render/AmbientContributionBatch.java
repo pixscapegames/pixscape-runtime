@@ -69,10 +69,10 @@ final class AmbientContributionBatch implements Disposable {
         int rgba=NumberUtils.floatToIntColor(q.colorPacked[i]);float keep=contribute?1:0;
         float r=(rgba&255)/255f*keep,g=((rgba>>>8)&255)/255f*keep,b=((rgba>>>16)&255)/255f*keep,a=((rgba>>>24)&255)/255f;
         int o=quads++*4*STRIDE,blend=q.blend[i];
-        vertex(o,q.x1[i],q.y1[i],q.u1[i],q.v2[i],r,g,b,a,slot,blend);
-        vertex(o+STRIDE,q.x2[i],q.y2[i],q.u1[i],q.v1[i],r,g,b,a,slot,blend);
-        vertex(o+2*STRIDE,q.x3[i],q.y3[i],q.u2[i],q.v1[i],r,g,b,a,slot,blend);
-        vertex(o+3*STRIDE,q.x4[i],q.y4[i],q.u2[i],q.v2[i],r,g,b,a,slot,blend);
+        vertex(o,q.x1[i],q.drawY(i,0),q.u1[i],q.drawV(i,0),r,g,b,a,slot,blend);
+        vertex(o+STRIDE,q.x2[i],q.drawY(i,1),q.u1[i],q.drawV(i,1),r,g,b,a,slot,blend);
+        vertex(o+2*STRIDE,q.x3[i],q.drawY(i,2),q.u2[i],q.drawV(i,2),r,g,b,a,slot,blend);
+        vertex(o+3*STRIDE,q.x4[i],q.drawY(i,3),q.u2[i],q.drawV(i,3),r,g,b,a,slot,blend);
     }
     private void vertex(int o,float x,float y,float u,float v,float r,float g,float b,float a,int slot,int blend){
         data[o]=x;data[o+1]=y;data[o+2]=u;data[o+3]=v;data[o+4]=r;data[o+5]=g;

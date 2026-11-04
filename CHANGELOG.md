@@ -2,22 +2,31 @@
 
 ## [0.2.3-SNAPSHOT]
 
+### Breaking changes
+
+* Custom render submitters that read `FrameRenderQueue.v1` or `v2` directly must be updated and recompiled. For each queue entry, read the position with `drawX(entry, corner)` and `drawY(entry, corner)`, and the UVs with `drawU(entry, corner)` and `drawV(entry, corner)`. Submit corners 0–3 in bottom-left, top-left, top-right, bottom-right order. A split wall tile can produce two entries with an actor drawn between them. Use `atlasTopV` and `atlasBottomV` only for the full source region.
+
 ### Added
 
-* Added renderer-independent `surface-v1` Lit/Unlit materials, per-entity parameters, and an optional shared visible/shadow cutout mask. Includes Pulse and dissolution examples.
-* Added scene `lightingEnabled` and a Runtime activation API: new scenes start with lighting disabled; older scenes keep lighting enabled.
+* Added Lit and Unlit `surface-v1` materials that work across renderers. They support per-entity parameters, atlas-safe sprite sampling and an optional cutout mask shared by the sprite and its shadow. Examples include Lit Pulse, Unlit Pulse and Lit Dissolve.
+* Added `PixscapeEngine.setLightingEnabled(boolean)` to switch scene lighting at runtime. Unlit scenes draw directly to the caller’s target and defer lighting resources until needed. Existing scenes without a lighting flag keep their lighting.
+* Added `findAllByLayerName(name)` to find the direct members of all layers with a given name.
+* Added `transform().xy()` to read an entity’s position as a vector. Use `xy(out)` to reuse a vector. Positions of Game Object children are relative to their parent.
+* Added `setParticleReserve(effect, count)` to prepare a chosen number of particle effects before a scene is ready.
 
 ### Changed
 
-* Migrated the supplied glow_pulse (Unlit), wave_uv and outline_soft (Lit) materials into one surface catalog, retaining parameter names and shader identities. Added atlas-safe sprite-local sampling; these effects retain the original sprite shadow silhouette.
-* Disabled lighting draws directly into the caller target and defers lighting geometry, normals, renderers and shadow targets until activation. Renderer preference is preserved; scenes without active local lights use ambient Legacy rendering.
-* Material reloads validate generated variants before replacing working programs; shader renames preserve numeric identity.
+* Declare spawnable Game Objects in the scene’s Runtime Availability. The Runtime now validates and prepares each definition before the scene is ready. Spawning reuses that definition, and removing an instance no longer requires rebuilding the entire hierarchy.
+* The supplied `glow_pulse` material is Unlit. `wave_uv` and `outline_soft` are Lit. All three retain their shader names, parameter names and original shadow silhouettes.
+* Lit scenes without active local lights use the Legacy ambient pass and retain their renderer preference for when a light becomes active.
+* Dispose the current project before calling `loadProject` with a different root. Loading the same project again remains safe.
 
 ### Fixed
 
-* Fixed GLES3 RGBA32F uploads for per-entity material parameters and explicit ES texture-array sampler precision.
-* Preserved caller GL state in the direct world pass.
-* Rebuilt world framebuffer attachments without duplicate managed registrations after context loss.
+* Fixed actor draw order at lateral isometric wall corners. An actor crossing the opening can now appear behind one wall face and in front of the other.
+* Fixed HTML/GWT loading of Game Object assets containing lists of entities, shapes or joints.
+* Fixed per-entity material parameter uploads on GLES3 devices such as the Samsung A33.
+* Fixed world framebuffers failing to restore after Android GL context loss.
 
 ## [0.2.2]
 

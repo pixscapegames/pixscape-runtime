@@ -339,7 +339,9 @@ public final class LightingRenderer {
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
                 int blend=queue.blend[i];if(blend==3 || blend==4)continue;
                 LightingSurface s=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
-                if(s==null || frame.diagnostic==0 && !s.receiveLight){
+                if (queue.tilePiece[i] != null) {
+                    s = queue.tilePiece[i].receiver;
+                } else if(s==null || frame.diagnostic==0 && !s.receiveLight){
                     // Unlit ordinary images still mask light with their actual four-corner coverage.
                     missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
                     s=missing;}
@@ -349,13 +351,13 @@ public final class LightingRenderer {
                     if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
                     receiverPrepared=true;
                 }
-                quad[0]=queue.x1[i];quad[1]=queue.y1[i];quad[2]=queue.x2[i];quad[3]=queue.y2[i];
-                quad[4]=queue.x3[i];quad[5]=queue.y3[i];quad[6]=queue.x4[i];quad[7]=queue.y4[i];
+                quad[0]=queue.x1[i];quad[1]=queue.sourceY(i,0);quad[2]=queue.x2[i];quad[3]=queue.sourceY(i,1);
+                quad[4]=queue.x3[i];quad[5]=queue.sourceY(i,2);quad[6]=queue.x4[i];quad[7]=queue.sourceY(i,3);
                 boolean supported=(ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE || ShaderRegistry.getSurface(queue.shader[i])!=null) && queue.repeatFlags[i]==0;
                 if(!supported && frame.diagnostic==0)throw new IllegalArgumentException(
                         "2.5D lighting requires standard coverage and color; unsupported shader/repeat at source entity "+queue.sourceEntity[i]);
                 batch.material(queue.shader[i],queue.shaderParameters[i]);
-                batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.v1[i],queue.u2[i],queue.v2[i],queue.colorPacked[i],blend,quad,0,0,false,supported);
+                batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.atlasTopV(i),queue.u2[i],queue.atlasBottomV(i),queue.colorPacked[i],blend,quad,0,0,false,supported);
             }
             batch.flush();receiverDraws+=stats.drawCalls-draws;stats.receiverDraws+=stats.drawCalls-draws;receiverCpuNs+=System.nanoTime()-start;
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.RECEIVERS);

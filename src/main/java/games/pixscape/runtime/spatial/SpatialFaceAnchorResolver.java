@@ -7,6 +7,14 @@ public final class SpatialFaceAnchorResolver {
                         int[] drawIndexToBucketBefore,
                         int[] drawIndexToBucketAfter,
                         int drawListSize) {
+        resolve(faces, tiledRefToDrawIndex, drawIndexToBucketBefore, drawIndexToBucketAfter, drawListSize, null);
+    }
+
+    public void resolve(SpatialProjectedFaceCache faces,
+                        int[] tiledRefToDrawIndex,
+                        int[] drawIndexToBucketBefore,
+                        int[] drawIndexToBucketAfter,
+                        int drawListSize, games.pixscape.runtime.render.TiledMapRenderState tiled) {
         if (faces == null || tiledRefToDrawIndex == null) return;
         for (int anchor = 0; anchor < faces.anchorCount; anchor++) {
             int tiledRef = faces.anchorTiledRef[anchor];
@@ -16,6 +24,7 @@ public final class SpatialFaceAnchorResolver {
                     && drawIndex < drawIndexToBucketBefore.length
                     && drawIndex < drawIndexToBucketAfter.length;
             faces.anchorResolved[anchor] = resolved;
+            faces.anchorSplit[anchor] = resolved && tiled != null && tiled.cornerSplits.containsKey(tiledRef);
             faces.anchorBeforeBucket[anchor] = resolved ? drawIndexToBucketBefore[drawIndex] : -1;
             faces.anchorAfterBucket[anchor] = resolved ? drawIndexToBucketAfter[drawIndex] : -1;
         }

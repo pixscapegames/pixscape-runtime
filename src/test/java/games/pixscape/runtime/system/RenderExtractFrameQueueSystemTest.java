@@ -294,9 +294,9 @@ public class RenderExtractFrameQueueSystemTest {
         Assert.assertEquals(base + 0.7f + offsetX, queue.x4[index], 0f);
         Assert.assertEquals(base + 0.8f + offsetY, queue.y4[index], 0f);
         Assert.assertEquals(base + 0.9f, queue.u1[index], 0f);
-        Assert.assertEquals(base + 1.1f, queue.v1[index], 0f);
+        Assert.assertEquals(base + 1.1f, queue.atlasTopV(index), 0f);
         Assert.assertEquals(base + 1.2f, queue.u2[index], 0f);
-        Assert.assertEquals(base + 1.3f, queue.v2[index], 0f);
+        Assert.assertEquals(base + 1.3f, queue.atlasBottomV(index), 0f);
         Assert.assertEquals(base + 1.4f, queue.colorPacked[index], 0f);
         Assert.assertEquals(RenderRepeatFlags.REPEAT_X, queue.repeatFlags[index]);
         Assert.assertEquals(sourceDomain, queue.sourceDomain[index]);

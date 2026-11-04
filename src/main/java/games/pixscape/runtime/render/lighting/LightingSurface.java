@@ -42,12 +42,18 @@ public final class LightingSurface {
     public int[] receiverShadowGroups;
     /** Cold per-physical-triangle lighting policy, independent of exclusion provenance. */
     public boolean[] receiverSpriteShading;
+    /** Draw-only partition borrows the original receiver's live shadow groups and material policy. */
+    public LightingSurface sourceReceiver;
+    public int[] sourceTriangleOffsets;
+
     public float receiverLightingMode(int offset) {
+        if (sourceReceiver != null) return sourceReceiver.receiverLightingMode(sourceTriangleOffsets[offset / 24]);
         if (offset >= 0 && receiverSpriteShading != null && receiverSpriteShading[offset / 24]) return -2f;
         return twoSided ? 1f : actor ? -1f : 0f;
     }
     public int casterShadowGroup(){return shadowGroupId<0?selfShadowExclusionId:shadowGroupId;}
     public int receiverShadowGroup(int offset){
+        if (sourceReceiver != null) return sourceReceiver.receiverShadowGroup(sourceTriangleOffsets[offset / 24]);
         if(offset<0)return 0;
         return receiverShadowGroups==null?(shadowGroupId<0?receiverExclusionId(offset):shadowGroupId):receiverShadowGroups[offset/24];
     }

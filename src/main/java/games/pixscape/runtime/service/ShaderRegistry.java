@@ -1161,7 +1161,7 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     private static void loadExampleShaders() {
-        JsonValue catalog = new JsonReader().parse(Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/catalog.json"));
+        JsonValue catalog = new JsonReader().parse(resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/catalog.json"));
         FileHandle presets = resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/params.json");
         JsonValue parameters = presets.exists() ? new JsonReader().parse(presets) : null;
         for (JsonValue entry = catalog.child; entry != null; entry = entry.next) {

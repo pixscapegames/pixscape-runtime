@@ -32,6 +32,7 @@ public final class SpatialProjectedFaceCache {
     public int[] anchorGx = new int[0];
     public int[] anchorGy = new int[0];
     public int[] anchorTiledRef = new int[0];
+    public boolean[] anchorSplit = new boolean[0];
     public boolean[] anchorResolved = new boolean[0];
     public int[] anchorBeforeBucket = new int[0];
     public int[] anchorAfterBucket = new int[0];
@@ -148,6 +149,7 @@ public final class SpatialProjectedFaceCache {
         buildReverseMemberships();
         buildJunctions(compiled.source(), map);
         buildLateralCorners();
+        bindCornerPieces(compiled.source());
         compiledRevision = compiled.revision();
         projection = map.projection;
         tileWidth = map.tileWidth;
@@ -354,6 +356,9 @@ public final class SpatialProjectedFaceCache {
     }
 
     /** Cold rebuild: index exact compiled vertices; intersect sorted memberships linearly. */
+    private int[] splitFaceByAnchor = new int[0];
+    byte[] membershipPiece = new byte[0];
+
     private void buildLateralCorners() {
         if (anchorCornerHead.length < anchorCount) anchorCornerHead = new int[capacity(anchorCornerHead.length, anchorCount)];
         Arrays.fill(anchorCornerHead, 0, anchorCount, -1);
@@ -411,6 +416,68 @@ public final class SpatialProjectedFaceCache {
             cornerNext[cornerCount] = anchorCornerHead[aa];
             anchorCornerHead[aa] = cornerCount++;
         }
+    }
+
+    /** Bind the two image regions to authored walls while ownership and projected faces are stable. */
+    private void bindCornerPieces(SpatialBlocksComponent blocks) {
+        splitFaceByAnchor = new int[anchorCount];
+        Arrays.fill(splitFaceByAnchor, -1);
+        membershipPiece = new byte[faceAnchorIndexTotal];
+        if (cornerCount == 0 || blocks == null) return;
+        SpatialBlockData[] first = new SpatialBlockData[anchorCount];
+        SpatialBlockData[] second = new SpatialBlockData[anchorCount];
+        int[] owners = new int[anchorCount];
+        for (SpatialBlockData wall : blocks.blocks) {
+            if (wall == null || !wall.actorOccluder || wall.linkedTileRefs == null) continue;
+            for (SpatialBlockData.LinkedTileRef ref : wall.linkedTileRefs) {
+                if (ref == null) continue;
+                int anchor = anchorForCell(ref.gx, ref.gy);
+                if (anchor < 0 || anchorCornerHead[anchor] < 0) continue;
+                if (owners[anchor] == 0) first[anchor] = wall;
+                if (owners[anchor] == 1) second[anchor] = wall;
+                owners[anchor]++;
+            }
+        }
+        for (int anchor = 0; anchor < anchorCount; anchor++) {
+            if (owners[anchor] != 2) continue;
+            int edge = -1;
+            SpatialBlockData near = null, far = null;
+            for (int corner = anchorCornerHead[anchor]; corner >= 0; corner = cornerNext[corner]) {
+                int a = membershipFace[cornerMembershipA[corner]];
+                int b = membershipFace[cornerMembershipB[corner]];
+                int candidate = faceOrientation[a] == CompiledSpatialStructure.MAX_X
+                        || faceOrientation[a] == CompiledSpatialStructure.MAX_Y ? a : b;
+                boolean acrossY = faceOrientation[candidate] == CompiledSpatialStructure.MAX_X;
+                SpatialBlockData n = first[anchor], f = second[anchor];
+                if ((n.depth > n.width) != acrossY) {
+                    n = second[anchor];
+                    f = first[anchor];
+                }
+                // Reject junctions formed by the short end caps of the same two walls.
+                if ((n.depth > n.width) != acrossY || (f.depth > f.width) == acrossY
+                        || !supportsWall(candidate, n) || !supportsWall(candidate == a ? b : a, f)) continue;
+                if (edge >= 0) { edge = -1; break; }
+                edge = candidate;
+                near = n;
+                far = f;
+            }
+            if (edge < 0) continue;
+            boolean acrossY = faceOrientation[edge] == CompiledSpatialStructure.MAX_X;
+            boolean complete = true;
+            for (int m = anchorMembershipHead[anchor]; m >= 0; m = membershipNext[m]) {
+                int face = membershipFace[m];
+                boolean onNear = supportsWall(face, near), onFar = supportsWall(face, far);
+                if (!onNear && !onFar) { complete = false; break; }
+                // At a shared end cap the continuous, longitudinal face supplies the relation.
+                boolean longitudinal = (faceOrientation[face] < CompiledSpatialStructure.MIN_Y) == acrossY;
+                membershipPiece[m] = (byte) (onNear && (!onFar || longitudinal) ? 1 : 0);
+            }
+            if (complete) splitFaceByAnchor[anchor] = edge;
+        }
+    }
+
+    public int frontCornerFace(int anchor) {
+        return anchor < 0 || anchor >= anchorCount ? -1 : splitFaceByAnchor[anchor];
     }
 
     boolean isLocalLateralSector(int corner, float x, float y, float radius) {
@@ -499,6 +566,7 @@ public final class SpatialProjectedFaceCache {
         anchorGy = grow(anchorGy, next);
         anchorTiledRef = grow(anchorTiledRef, next);
         anchorResolved = grow(anchorResolved, next);
+        anchorSplit = grow(anchorSplit, next);
         anchorBeforeBucket = grow(anchorBeforeBucket, next);
         anchorAfterBucket = grow(anchorAfterBucket, next);
         anchorMembershipHead = grow(anchorMembershipHead, next);

@@ -55,6 +55,16 @@ public interface MetricsBatch extends AutoCloseable {
               float u, float v, float u2, float v2,
               RenderStats stats);
 
+    default void draw(int textureHandle,
+              float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+              float u, float v, float u2, float v2,
+              float blV, float tlV, float trV, float brV,
+              RenderStats stats) {
+        if (blV != v2 || tlV != v || trV != v || brV != v2)
+            throw new UnsupportedOperationException("This batch does not support independent vertex UVs");
+        draw(textureHandle, x1, y1, x2, y2, x3, y3, x4, y4, u, v, u2, v2, stats);
+    }
+
     void flush(RenderStats stats);
 
     void end(RenderStats stats);

@@ -152,7 +152,11 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             else sortTiledRefSlice(visibleRefs, start, refCount);
             for (int refOffset = 0; refOffset < refCount; refOffset++) {
                 int ref = visibleRefs[start + refOffset];
-                if (tiledState.isRenderableRef(ref)) drawList.addTiledSlot(ref);
+                if (tiledState.isRenderableRef(ref)) {
+                    drawList.addTiledSlot(ref);
+                    if (tiledState.cornerSplits.containsKey(ref))
+                        drawList.add(RenderSourceDomain.SOURCE_TILED_FRONT, ref);
+                }
             }
         }
     }

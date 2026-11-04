@@ -280,6 +280,11 @@ public final class PixscapeEngine {
      * before dirty flushing. It owns submission of that frame's engine-owned
      * {@link FrameRenderQueue}; Pixscape does not also run {@link RenderSubmitSystem}.</p>
      *
+     * <p>Each entry is one drawable region. Submit its four vertices in BL, TL, TR, BR order
+     * using FrameRenderQueue.drawX/drawY/drawU/drawV. Multiple entries may borrow the same
+     * source tile slot and can bracket another entity. The atlas bounds describe the source
+     * image for shader clamping. A rectangular UV pair cannot encode a sloped edge.</p>
+     *
      * <p>The custom system is responsible for its GPU calls, any batch begin/end lifecycle,
      * and any render-stat reporting it requires. Engine getters provide borrowed access to
      * the queue, camera, layer state, internal {@link MetricsBatch}, and metrics; ownership

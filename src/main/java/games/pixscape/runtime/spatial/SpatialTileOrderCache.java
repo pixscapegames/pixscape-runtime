@@ -40,7 +40,7 @@ public final class SpatialTileOrderCache {
                           SpatialCompiledLayerCache compiled) {
         if (map == null || compiled == null) return false;
         int mapRevision = map.contentStateRevision();
-        int blocksRevision = blocks != null ? blocks.revision : 0;
+        int blocksRevision = blocks != null ? blocks.geometryRevision() : 0;
         if (sourceMap == map && sourceMapRevision == mapRevision
                 && sourceBlocks == blocks && sourceBlocksRevision == blocksRevision
                 && sourceCompiledRevision == compiled.revision()
@@ -68,7 +68,7 @@ public final class SpatialTileOrderCache {
         sourceMap = map;
         sourceMapRevision = map.contentStateRevision();
         sourceBlocks = blocks;
-        sourceBlocksRevision = blocks != null ? blocks.revision : 0;
+        sourceBlocksRevision = blocks != null ? blocks.geometryRevision() : 0;
         sourceCompiledRevision = compiled.revision();
         projection = map.projection;
         mapWidth = map.mapWidth;

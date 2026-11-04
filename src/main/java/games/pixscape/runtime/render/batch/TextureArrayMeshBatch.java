@@ -264,6 +264,15 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                      float x3, float y3, float x4, float y4,
                      float u, float v, float u2, float v2,
                      RenderStats stats) {
+        draw(textureHandle, x1, y1, x2, y2, x3, y3, x4, y4, u, v, u2, v2, v2, v, v, v2, stats);
+    }
+
+    @Override
+    public void draw(int textureHandle,
+                     float x1, float y1, float x2, float y2,
+                     float x3, float y3, float x4, float y4,
+                     float u, float v, float u2, float v2,
+                     float blV, float tlV, float trV, float brV, RenderStats stats) {
 
         if (!hasBundle() || shader == null) return;
 
@@ -273,7 +282,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         drawTextureArrayQuad(textureHandle, layer,
                 x1, y1, x2, y2, x3, y3, x4, y4,
                 u, v, u2, v2,
-                stats);
+                blV, tlV, trV, brV, stats);
     }
 
     @Override
@@ -423,7 +432,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
                                       float x1, float y1, float x2, float y2,
                                       float x3, float y3, float x4, float y4,
                                       float u, float v, float u2, float v2,
-                                      RenderStats stats) {
+                                      float blV, float tlV, float trV, float brV, RenderStats stats) {
 
         if (quadCount >= maxQuads) {
             if (stats != null) stats.flushCapacity++;
@@ -440,7 +449,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         verts[o++] = y1;
         verts[o++] = colorPacked;
         verts[o++] = u;
-        verts[o++] = v2;
+        verts[o++] = blV;
         verts[o++] = fl;
         verts[o++] = paramId;
         verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
@@ -451,7 +460,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         verts[o++] = y2;
         verts[o++] = colorPacked;
         verts[o++] = u;
-        verts[o++] = v;
+        verts[o++] = tlV;
         verts[o++] = fl;
         verts[o++] = paramId;
         verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
@@ -462,7 +471,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         verts[o++] = y3;
         verts[o++] = colorPacked;
         verts[o++] = u2;
-        verts[o++] = v;
+        verts[o++] = trV;
         verts[o++] = fl;
         verts[o++] = paramId;
         verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
@@ -473,7 +482,7 @@ public final class TextureArrayMeshBatch implements MetricsBatch {
         verts[o++] = y4;
         verts[o++] = colorPacked;
         verts[o++] = u2;
-        verts[o++] = v2;
+        verts[o++] = brV;
         verts[o++] = fl;
         verts[o++] = paramId;
         verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);

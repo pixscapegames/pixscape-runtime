@@ -225,14 +225,16 @@ public class ForwardLightingRenderer {
             int dst=additive?GL20.GL_ONE:mode==0||mode==7?GL20.GL_ZERO:GL20.GL_ONE_MINUS_SRC_ALPHA;
             Gdx.gl.glBlendFuncSeparate(src,dst,additive?GL20.GL_ZERO:GL20.GL_ONE,additive?GL20.GL_ONE:GL20.GL_ONE_MINUS_SRC_ALPHA);
         }
-        quad[0]=q.x1[i];quad[1]=q.y1[i];quad[2]=q.x2[i];quad[3]=q.y2[i];quad[4]=q.x3[i];quad[5]=q.y3[i];quad[6]=q.x4[i];quad[7]=q.y4[i];
+        quad[0]=q.x1[i];quad[1]=q.sourceY(i,0);quad[2]=q.x2[i];quad[3]=q.sourceY(i,1);quad[4]=q.x3[i];quad[5]=q.sourceY(i,2);quad[6]=q.x4[i];quad[7]=q.sourceY(i,3);
         float ex=1,ey=0,ux=0,uy=1;
         if(normal!=null){float ax=(quad[6]-quad[0])/normal.colorWidth,ay=(quad[7]-quad[1])/normal.colorWidth,bx=(quad[2]-quad[0])/normal.colorHeight,by=(quad[3]-quad[1])/normal.colorHeight;
             float det=ax*by-ay*bx;if(Math.abs(det)>.000001f){float scale=(float)Math.sqrt(bx*bx+by*by)/det;ex=by*scale;ey=-bx*scale;ux=-ay*scale;uy=ax*scale;}}
         ForwardTopology topology=s==null?ForwardTopology.NATIVE:s.forwardTopology;
+        games.pixscape.runtime.render.TileCornerSplit.Piece piece = q.tilePiece[i];
+        if (piece != null) topology = piece.topology;
         float[] physical=s==null?null:s.receiverVertices==null?s.vertices:s.receiverVertices;
         float[] curve=s!=null&&roundedLightingEnabled?s.curveNormals:null;
-        float[] immutable=s==null?null:s.forwardAttributes;
+        float[] immutable = piece != null ? piece.forwardAttributes : s == null ? null : s.forwardAttributes;
         for(int k=0;k<topology.vertexCount;k++){
             if(vertices==CAPACITY){
                 capacityFlushes++;flush();
@@ -244,13 +246,13 @@ public class ForwardLightingRenderer {
             data[out+SCREEN_OFFSET]=ca*quad[c0*2]+cb*quad[c1*2]+cc*quad[c2*2];data[out+SCREEN_OFFSET+1]=ca*quad[c0*2+1]+cb*quad[c1*2+1]+cc*quad[c2*2+1];
             float u=ca*(c0>=2?1:0)+cb*(c1>=2?1:0)+cc*(c2>=2?1:0),v=ca*(c0==1||c0==2?1:0)+cb*(c1==1||c1==2?1:0)+cc*(c2==1||c2==2?1:0);
             int cached=k*11;
-            data[out+UV_OFFSET]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+UV_OFFSET+1]=q.v2[i]+v*(q.v1[i]-q.v2[i]);
+            data[out+UV_OFFSET]=q.u1[i]+u*(q.u2[i]-q.u1[i]);data[out+UV_OFFSET+1]=q.atlasBottomV(i)+v*(q.atlasTopV(i)-q.atlasBottomV(i));
             for(int c=0;c<3;c++){data[out+PHYSICAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+c]:pa*physical[source+c]+pb*physical[source+8+c]+pc*physical[source+16+c];data[out+NORMAL_OFFSET+c]=source<0?0:immutable!=null?immutable[cached+3+c]:pa*physical[source+5+c]+pb*physical[source+13+c]+pc*physical[source+21+c];}
             data[out+PHYSICAL_OFFSET+3]=s==null?0:s.receiverShadowGroup(source);
             data[out+COLOR_OFFSET]=q.colorPacked[i];
             data[out+vertexStride-6]=material;data[out+vertexStride-5]=parameterRows.currentId();
-            data[out+vertexStride-4]=Math.min(q.u1[i],q.u2[i]);data[out+vertexStride-3]=Math.min(q.v1[i],q.v2[i]);
-            data[out+vertexStride-2]=Math.max(q.u1[i],q.u2[i]);data[out+vertexStride-1]=Math.max(q.v1[i],q.v2[i]);
+            data[out+vertexStride-4]=Math.min(q.u1[i],q.u2[i]);data[out+vertexStride-3]=Math.min(q.atlasTopV(i),q.atlasBottomV(i));
+            data[out+vertexStride-2]=Math.max(q.u1[i],q.u2[i]);data[out+vertexStride-1]=Math.max(q.atlasTopV(i),q.atlasBottomV(i));
             data[out+MATERIAL_OFFSET]=layer;data[out+MATERIAL_OFFSET+1]=mode+(games.pixscape.runtime.render.AmbientContributionRenderer.ignoresAmbient(q,i)?16:0);data[out+MATERIAL_OFFSET+2]=s!=null&&s.receiveLight&&!ShaderRegistry.isUnlit(q.shader[i])&&source>=0&&mode!=3&&mode!=4?1:-1;data[out+MATERIAL_OFFSET+3]=s==null?0:s.receiverLightingMode(source);
             if(preparedNormalMaps){
                 float pu=source<0?u:immutable!=null?immutable[cached+6]:pa*physical[source+3]+pb*physical[source+11]+pc*physical[source+19],pv=source<0?v:immutable!=null?immutable[cached+7]:pa*physical[source+4]+pb*physical[source+12]+pc*physical[source+20];

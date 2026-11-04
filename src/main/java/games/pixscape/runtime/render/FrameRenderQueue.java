@@ -38,7 +38,9 @@ public final class FrameRenderQueue {
     public long[] sortKey;
 
     public float[] x1, y1, x2, y2, x3, y3, x4, y4;
-    public float[] u1, v1, u2, v2;
+    public float[] u1, u2;
+    private float[] v1, v2;
+    private float[] sourceBottomY, sourceTopY;
     public float[] colorPacked;
     public byte[] repeatFlags;
     /** Derived light identity; independent of shader and blend selection. */
@@ -49,6 +51,61 @@ public final class FrameRenderQueue {
     public byte[] ambientMaterial;
     /** Prepared read-only parameter references; submission never looks up source entities. */
     public games.pixscape.runtime.component.ShaderParamsComponent[] shaderParameters;
+
+    /** Native tile provenance for the lighting passes. Positions in x1..y4 always describe the drawn region. */
+    public TileCornerSplit.Piece[] tilePiece;
+
+    /** Draw vertices are ordered bottom-left, top-left, top-right, bottom-right (indices 0..3). */
+    public float drawX(int i, int corner) {
+        switch (corner) {
+            case 0: return x1[i];
+            case 1: return x2[i];
+            case 2: return x3[i];
+            case 3: return x4[i];
+            default: throw new IndexOutOfBoundsException();
+        }
+    }
+
+    public float drawY(int i, int corner) {
+        switch (corner) {
+            case 0: return y1[i];
+            case 1: return y2[i];
+            case 2: return y3[i];
+            case 3: return y4[i];
+            default: throw new IndexOutOfBoundsException();
+        }
+    }
+
+    public float drawU(int i, int corner) {
+        if (corner < 0 || corner > 3) throw new IndexOutOfBoundsException();
+        return corner < 2 ? u1[i] : u2[i];
+    }
+
+    public float drawV(int i, int corner) {
+        if (corner < 0 || corner > 3) throw new IndexOutOfBoundsException();
+        if (tilePiece[i] != null) return tilePiece[i].v[corner];
+        return corner == 0 || corner == 3 ? v2[i] : v1[i];
+    }
+
+    /** Full source atlas bounds for material sampling and clamping. Use drawV for vertex UVs. */
+    public float atlasTopV(int i) { return v1[i]; }
+    public float atlasBottomV(int i) { return v2[i]; }
+
+    /** Original image basis for interpolating prepared lighting attributes. */
+    public float sourceY(int i, int corner) {
+        if (tilePiece[i] == null) return drawY(i, corner);
+        return corner == 0 || corner == 3 ? sourceBottomY[i] : sourceTopY[i];
+    }
+
+    public void setTilePiece(int i, TileCornerSplit.Piece piece) {
+        sourceBottomY[i] = y1[i];
+        sourceTopY[i] = y2[i];
+        tilePiece[i] = piece;
+        y1[i] = sourceBottomY[i] + piece.y[0];
+        y2[i] = sourceBottomY[i] + piece.y[1];
+        y3[i] = sourceBottomY[i] + piece.y[2];
+        y4[i] = sourceBottomY[i] + piece.y[3];
+    }
 
     public byte[] sourceDomain;
     public int[] sourceSlot;
@@ -77,6 +134,7 @@ public final class FrameRenderQueue {
 
     public void reset() {
         // Scene replacement must release borrowed material parameters, including inactive tail slots.
+        if (tilePiece != null) java.util.Arrays.fill(tilePiece, null);
         if (shaderParameters != null) java.util.Arrays.fill(shaderParameters, null);
         clear();
     }
@@ -175,6 +233,7 @@ public final class FrameRenderQueue {
         this.ignoreAmbientLighting[index] = false;
         this.ambientMaterial[index] = 0;
         this.shaderParameters[index] = null;
+        tilePiece[index] = null;
     }
 
     public void swap(int a, int b) {
@@ -207,6 +266,8 @@ public final class FrameRenderQueue {
         swap(y4, a, b);
         swap(u1, a, b);
         swap(v1, a, b);
+        swap(sourceBottomY, a, b);
+        swap(sourceTopY, a, b);
         swap(u2, a, b);
         swap(v2, a, b);
         swap(colorPacked, a, b);
@@ -220,6 +281,9 @@ public final class FrameRenderQueue {
         shaderParameters[a] = shaderParameters[b];
         shaderParameters[b] = parameters;
 
+        TileCornerSplit.Piece piece = tilePiece[a];
+        tilePiece[a] = tilePiece[b];
+        tilePiece[b] = piece;
         swap(sourceDomain, a, b);
         swap(sourceSlot, a, b);
         swap(sourceEntity, a, b);
@@ -284,6 +348,9 @@ public final class FrameRenderQueue {
         ambientMaterial = new byte[newCapacity];
         shaderParameters = new games.pixscape.runtime.component.ShaderParamsComponent[newCapacity];
 
+        sourceBottomY = copyExisting && sourceBottomY != null ? java.util.Arrays.copyOf(sourceBottomY, newCapacity) : new float[newCapacity];
+        sourceTopY = copyExisting && sourceTopY != null ? java.util.Arrays.copyOf(sourceTopY, newCapacity) : new float[newCapacity];
+        tilePiece = copyExisting && tilePiece != null ? java.util.Arrays.copyOf(tilePiece, newCapacity) : new TileCornerSplit.Piece[newCapacity];
         sourceDomain = new byte[newCapacity];
         sourceSlot = new int[newCapacity];
         sourceEntity = new int[newCapacity];

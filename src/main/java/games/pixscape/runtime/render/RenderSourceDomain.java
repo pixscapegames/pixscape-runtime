@@ -8,6 +8,9 @@ public final class RenderSourceDomain {
     /** Frame-local composition descriptor only; flattened before extraction. */
     public static final byte SOURCE_GAME_OBJECT = 4;
 
+    /** Second non-actor entry of a split tile, with the same native ref. */
+    public static final byte SOURCE_TILED_FRONT = 5;
+
     private RenderSourceDomain() {
     }
 }

@@ -252,6 +252,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             for (TileChunk chunk : map.getChunks()) chunk.dirtyState = TileChunk.DirtyState.FULL;
         }
         }
+        currentFaces = null;
         currentTileOrder = null;
         currentMapEntity = e;
         if (map.projection == TiledProjection.ISO
@@ -261,10 +262,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
             runtime.compiled.ensure(blocks);
             runtime.projected.ensure(runtime.compiled, map);
+            currentFaces = runtime.projected;
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);
             currentTileOrder = runtime.tileOrder;
             if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, index.layerIndex, currentTileOrder);
         }
+        currentRenderOrder.updateCornerGeometry(currentFaces);
         if(lightingChanged){
             // Native quads were admitted together above. Publish all affected receivers and
             // caster bindings before camera culling, including removals and off-screen edits.
@@ -428,6 +431,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 for(TileChunk chunk:map.getChunks())chunk.dirtyState=TileChunk.DirtyState.FULL;
             }
             }
+            currentFaces = null;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
             if (map.projection == TiledProjection.ISO
@@ -436,9 +440,11 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
                 runtime.compiled.ensure(blocks);
                 runtime.projected.ensure(runtime.compiled, map);
+                currentFaces = runtime.projected;
                 runtime.tileOrder.ensure(entityId, map, blocks, runtime.compiled);
                 currentTileOrder = runtime.tileOrder;
             }
+            currentRenderOrder.updateCornerGeometry(currentFaces);
             refreshVisualPaddingIfDirty(map, tiled.atlasTag);
             for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks =
                     map.getChunks(); chunks.hasNext(); ) {
@@ -888,6 +894,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         recomputeChunkVisualBounds(chunk);
     }
 
+    private games.pixscape.runtime.spatial.SpatialProjectedFaceCache currentFaces;
+
     private void writeTileSlot(TileChunk chunk,
                                int localIndex,
                                int tiledRenderRef,
@@ -1001,10 +1009,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 1f,
                 RenderRepeatFlags.NONE
         );
+        int anchor = currentFaces == null ? -1 : currentFaces.anchorForCell(gx, gy);
+        if (surface != null) {
+            surface.ownerEntity = currentMapEntity;
+            surface.normalMap = normal;
+        }
+        int front = anchor < 0 ? -1 : currentFaces.frontCornerFace(anchor);
+        TileCornerSplit split = front < 0 || transformFlags != 0 ? null
+                : TileCornerSplit.prepare(currentFaces, front, tmpQuad, metadata.v1(), metadata.v2(), surface);
+        if (split == null) tiledState.cornerSplits.remove(tiledRenderRef);
+        else tiledState.cornerSplits.put(tiledRenderRef, split);
         chunk.setRenderableLocalIndex(localIndex, true);
         if (lighting != null) {
-            surface.ownerEntity=currentMapEntity;
-            surface.normalMap=normal;
             if(tiledState.lightingSurfaces.get(tiledRenderRef)!=surface)tiledState.lightingRevision++;
             tiledState.lightingSurfaces.put(tiledRenderRef,surface);
         }

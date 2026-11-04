@@ -391,12 +391,14 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private void drawNormalEntry(int index, int texHandle) {
         metricsBatch.draw(
                 texHandle,
-                frameQueue.x1[index], frameQueue.y1[index],
-                frameQueue.x2[index], frameQueue.y2[index],
-                frameQueue.x3[index], frameQueue.y3[index],
-                frameQueue.x4[index], frameQueue.y4[index],
-                frameQueue.u1[index], frameQueue.v1[index],
-                frameQueue.u2[index], frameQueue.v2[index],
+                frameQueue.x1[index], frameQueue.drawY(index, 0),
+                frameQueue.x2[index], frameQueue.drawY(index, 1),
+                frameQueue.x3[index], frameQueue.drawY(index, 2),
+                frameQueue.x4[index], frameQueue.drawY(index, 3),
+                frameQueue.u1[index], frameQueue.atlasTopV(index),
+                frameQueue.u2[index], frameQueue.atlasBottomV(index),
+                frameQueue.drawV(index, 0), frameQueue.drawV(index, 1),
+                frameQueue.drawV(index, 2), frameQueue.drawV(index, 3),
                 stats
         );
 
@@ -471,8 +473,8 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                         x2 + dx, y2 + dy,
                         x3 + dx, y3 + dy,
                         x4 + dx, y4 + dy,
-                        frameQueue.u1[index], frameQueue.v1[index],
-                        frameQueue.u2[index], frameQueue.v2[index],
+                        frameQueue.u1[index], frameQueue.atlasTopV(index),
+                        frameQueue.u2[index], frameQueue.atlasBottomV(index),
                         stats
                 );
 
