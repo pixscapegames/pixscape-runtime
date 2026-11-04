@@ -2,6 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -45,7 +46,7 @@ public final class SpatialProjectedFaceCache {
     int[] membershipJunctionCount = new int[0];
     int[] junctionFace = new int[0];
     float[] junctionMinX = new float[0], junctionMaxX = new float[0];
-    /** Real lateral endpoint pairs, indexed by their shared tile (never T continuations). */
+    /** Real lateral endpoint pairs, indexed by their shared tile. */
     int[] anchorCornerHead = new int[0];
     int[] cornerNext = new int[0];
     int[] cornerMembershipA = new int[0];
@@ -150,6 +151,7 @@ public final class SpatialProjectedFaceCache {
         buildJunctions(compiled.source(), map);
         buildLateralCorners();
         bindCornerPieces(compiled.source());
+        retainTerminalCornersForDiagnostics();
         compiledRevision = compiled.revision();
         projection = map.projection;
         tileWidth = map.tileWidth;
@@ -364,30 +366,19 @@ public final class SpatialProjectedFaceCache {
         Arrays.fill(anchorCornerHead, 0, anchorCount, -1);
         cornerCount = 0;
         LongMap<Integer> starts = new LongMap<>(), ends = new LongMap<>();
-        LongMap<Boolean> continuations = new LongMap<>();
         for (int structure = 0; structure < structureCount; structure++) {
-            starts.clear(); ends.clear(); continuations.clear();
+            starts.clear(); ends.clear();
             int end = structureFaceStart[structure] + structureFaceCount[structure];
-            for (int face = structureFaceStart[structure]; face < end; face++) {
-                int me = faceAnchorIndexStart[face] + faceAnchorIndexCount[face];
-                for (int m = faceAnchorIndexStart[face]; m < me; m++) {
-                    // A wall crossing both sides of this cell makes this a continuation/T,
-                    // even if another exterior pair happens to form a notch there.
-                    if (screenMinX[face] < faceAnchorScreenMinX[m]
-                            && screenMaxX[face] > faceAnchorScreenMaxX[m])
-                        continuations.put(faceAnchorIndices[m], Boolean.TRUE);
-                }
-            }
             for (int face = structureFaceStart[structure]; face < end; face++) {
                 Integer a = starts.put(faceMinVertex[face], face);
                 Integer b = ends.put(faceMaxVertex[face], face);
-                if (a != null) addLateralCorner(a, face, 1, continuations);
-                if (b != null) addLateralCorner(b, face, -1, continuations);
+                if (a != null) addLateralCorner(a, face, 1);
+                if (b != null) addLateralCorner(b, face, -1);
             }
         }
     }
 
-    private void addLateralCorner(int a, int b, int opening, LongMap<Boolean> continuations) {
+    private void addLateralCorner(int a, int b, int opening) {
         if (slope[a] * slope[b] >= 0f) return;
         // Concave opening between two walls, not the convex end cap of one rectangle.
         byte vertical = opening < 0 ? CompiledSpatialStructure.MIN_X : CompiledSpatialStructure.MAX_X;
@@ -400,7 +391,7 @@ public final class SpatialProjectedFaceCache {
             int aa = faceAnchorIndices[ma], ab = faceAnchorIndices[mb];
             if (aa < ab) { ma++; continue; }
             if (ab < aa) { mb++; continue; }
-            if (continuations.containsKey(aa)) { ma++; mb++; continue; }
+            // Qualify the shared endpoint of this pair; a different face may cross the cell.
             float vertexX = opening < 0 ? screenMaxX[a] : screenMinX[a];
             if (vertexX < faceAnchorScreenMinX[ma] || vertexX > faceAnchorScreenMaxX[ma]
                     || vertexX < faceAnchorScreenMinX[mb] || vertexX > faceAnchorScreenMaxX[mb]) {
@@ -478,6 +469,34 @@ public final class SpatialProjectedFaceCache {
 
     public int frontCornerFace(int anchor) {
         return anchor < 0 || anchor >= anchorCount ? -1 : splitFaceByAnchor[anchor];
+    }
+
+    /** A through wall can supply a render piece, but an unsplit T is not a terminal opening. */
+    private void retainTerminalCornersForDiagnostics() {
+        if (cornerCount == 0) return;
+        IntSet throughStructures = new IntSet();
+        for (int anchor = 0; anchor < anchorCount; anchor++) {
+            int head = anchorCornerHead[anchor];
+            if (head < 0) continue;
+            throughStructures.clear();
+            for (int m = anchorMembershipHead[anchor]; m >= 0; m = membershipNext[m]) {
+                int face = membershipFace[m];
+                if (screenMinX[face] < faceAnchorScreenMinX[m]
+                        && screenMaxX[face] > faceAnchorScreenMaxX[m])
+                    throughStructures.add(faceStructureId[face]);
+            }
+            if (throughStructures.size == 0) continue;
+            int previous = -1;
+            for (int corner = head; corner >= 0; corner = cornerNext[corner]) {
+                int face = membershipFace[cornerMembershipA[corner]];
+                if (throughStructures.contains(faceStructureId[face])) {
+                    if (previous < 0) anchorCornerHead[anchor] = cornerNext[corner];
+                    else cornerNext[previous] = cornerNext[corner];
+                } else {
+                    previous = corner;
+                }
+            }
+        }
     }
 
     boolean isLocalLateralSector(int corner, float x, float y, float radius) {

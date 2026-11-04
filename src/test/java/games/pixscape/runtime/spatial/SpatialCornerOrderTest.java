@@ -1,6 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.render.TileCornerSplit;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -78,6 +79,29 @@ public class SpatialCornerOrderTest {
                 f.planner.actorUpperBound[0] = 0;
                 f.planner.finish(f.actors);
                 Assert.assertEquals(buckets[i], f.planner.actorBucket[0]);
+            }
+        }
+    }
+
+    @Test public void actorPassesBetweenWallsWhenTheFrontWallContinuesThroughTheSharedCell() {
+        try (SpatialCornerFixture f = new SpatialCornerFixture(2)) {
+            SpatialBlockData frontWall = f.blocks.blocks.first();
+            frontWall.x = 2f;
+            frontWall.width = 5f;
+            f.blocks.revision++;
+            f.compiled.ensure(f.blocks);
+            f.faces.ensure(f.compiled, f.map);
+            int front = f.faces.frontCornerFace(f.faces.anchorForCell(4, 4));
+            Assert.assertTrue("The two local branches share a corner on the through wall", front >= 0);
+            float[] quad = {f.vx-80, f.vy-40, f.vx-80, f.vy+180,
+                    f.vx+80, f.vy+180, f.vx+80, f.vy-40};
+            TileCornerSplit split = TileCornerSplit.prepare(f.faces, front, quad, 0f, 1f, null);
+            Assert.assertNotNull(split);
+            f.tiled.cornerSplits.put(f.ref, split);
+            int[] sectors = {0, 2, 1, 2, 0};
+            int[] expectedBuckets = {0, 1, 2, 1, 0};
+            for (int i = 0; i < sectors.length; i++) {
+                Assert.assertEquals(expectedBuckets[i], f.run(sectors[i], .5f, 60f, 1).bucket);
             }
         }
     }
