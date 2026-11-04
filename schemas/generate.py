@@ -128,6 +128,7 @@ def c(fields, special=None):
 components = {
     "PixscapeIdentityComponent": c({"i": "stableId", "s": "name"}),
     "LayerComponent": c({"i": "layerIndex", "b": "spatialEnabled"}),
+    "LayerNameComponent": c({"s?": "name"}),
     "EntityIndexComponent": c({"i": "layerIndex zIndex"}),
     "LayerParallaxComponent": c({"n": "factorX factorY"}),
     "TransformComponent": c({"n": "x y originX originY rotationRad scaleX scaleY"}),
@@ -186,6 +187,7 @@ component_defaults = {
                                  "anchorU": 0.5, "anchorV": 0, "directionX": 1, "directionY": -1,
                                  "alphaThreshold": 0.5, "description": None},
     "PixscapeIdentityComponent": {"stableId": -1, "name": "unnamed"},
+    "LayerNameComponent": {"name": "unnamed"},
     "LayerParallaxComponent": {"factorX": 1, "factorY": 1},
     "TransformComponent": {"scaleX": 1, "scaleY": 1},
     "GameObjectComponent": {"sourceAssetId": ""},

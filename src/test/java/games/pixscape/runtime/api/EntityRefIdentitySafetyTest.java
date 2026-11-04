@@ -8,6 +8,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
@@ -137,6 +138,7 @@ public class EntityRefIdentitySafetyTest {
 
             Assert.assertFalse(oldEntity.exists());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
+            assertStalePosition(oldTransform);
             Assert.assertEquals(0, oldTiled.map().width());
             Assert.assertFalse(oldSprite.exists());
             Assert.assertFalse(oldShader.exists());
@@ -193,6 +195,7 @@ public class EntityRefIdentitySafetyTest {
 
             Assert.assertFalse(oldRef.exists());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
+            assertStalePosition(oldTransform);
             oldTransform.setX(200f);
             oldRef.remove();
 
@@ -257,6 +260,72 @@ public class EntityRefIdentitySafetyTest {
         } finally {
             engine.dispose();
         }
+    }
+
+    @Test
+    public void preparedDescendantsCreatedAndRemovedInOneFrameDoNotEscapeOrRetargetHandles() {
+        PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
+        try {
+            engine.initEmptyRuntime();
+            World world = engine.getWorld();
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            engine.getIdentityRegistry().bind(world, meta);
+            var hierarchy = world.getSystem(games.pixscape.runtime.system.GameObjectHierarchySystem.class);
+            hierarchy.prepareRuntimeAvailability();
+            int rebuilds = hierarchy.rebuildCount();
+            var asset = new games.pixscape.runtime.gameobject.GameObjectAsset();
+            asset.rootSourceEntityId = 1;
+            for (int i = 1; i <= 3; i++) {
+                var member = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectEntityData();
+                member.sourceEntityId = i;
+                member.parentSourceEntityId = i == 1 ? -1 : i - 1;
+                member.transform = new games.pixscape.runtime.gameobject.GameObjectAsset.TransformData();
+                member.transform.scaleX = member.transform.scaleY = 1;
+                if (i < 3) member.gameObject = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectData();
+                asset.entities.add(member);
+            }
+            var spawner = new games.pixscape.runtime.gameobject.GameObjectRuntimeFragmentSpawner(
+                    engine.getIdentityRegistry(), meta, new games.pixscape.runtime.service.AtlasRuntimeService());
+            var first = spawner.spawnAsset(world, asset, "gameobjects/test.gameobject", 0, 0);
+            var survivor = spawner.spawnAsset(world, asset, "gameobjects/test.gameobject", 0, 0);
+            EntityRef root = engine.api().entities().requireEntityId(first.rootEntityId());
+            EntityRef nested = engine.api().entities().requireEntityId(first.createdEntityIds().get(1));
+            EntityRef leaf = engine.api().entities().requireEntityId(first.createdEntityIds().get(2));
+            nested.remove();
+            root.remove();
+            root.remove();
+            Assert.assertTrue("Deletion stays deferred until ECS synchronization", root.exists());
+            world.process();
+            Assert.assertFalse(root.exists());
+            Assert.assertFalse(nested.exists());
+            Assert.assertFalse(leaf.exists());
+            for (int i = 0; i < survivor.createdEntityIds().size(); i++) {
+                Assert.assertTrue(world.getEntityManager().isActive(survivor.createdEntityIds().get(i)));
+            }
+            Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+            var replacement = spawner.spawnAsset(world, asset, "gameobjects/test.gameobject", 0, 0);
+            Assert.assertTrue("Regression exercises recycled entity IDs",
+                    replacement.createdEntityIds().contains(first.rootEntityId()));
+            root.remove(); nested.remove(); leaf.remove();
+            world.process();
+            for (int i = 0; i < replacement.createdEntityIds().size(); i++) {
+                Assert.assertTrue(world.getEntityManager().isActive(replacement.createdEntityIds().get(i)));
+            }
+            Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        } finally { engine.dispose(); }
+    }
+
+    private static void assertStalePosition(TransformFacade transform) {
+        Vector2 result = transform.xy();
+        Assert.assertEquals(new Vector2(), result);
+        Assert.assertNotSame(result, transform.xy());
+        Vector2 out = new Vector2(5f, 6f);
+        Assert.assertSame(out, transform.xy(out));
+        Assert.assertEquals(transform.x(), out.x, 0f);
+        Assert.assertEquals(transform.y(), out.y, 0f);
+        Assert.assertEquals(result, out);
+        Assert.assertThrows(IllegalArgumentException.class, () -> transform.xy(null));
     }
 
     @SuppressWarnings("unchecked")

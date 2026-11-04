@@ -236,6 +236,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         TiledMapLayerData map = tiled.data;
         currentRenderOrder = tiledState.prepareOrderForMap(e, map);
         games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
+        boolean lightingChanged=false;
+        if(tiledState.lightingEnabled) {
         if (lighting == null) {
             lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
             tiledState.lightingMaps.put(e, lighting);
@@ -243,12 +245,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         lighting.descriptions(tiled.lightingDescriptions);
         if(lightingDirty!=null && (lightingDirty.coarseBits(e)&DirtyBits.GEOMETRY)!=0
                 && tiled.lightingDescriptions.size>0)lighting.invalidate();
-        boolean lightingChanged=ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(e,null));
+        lightingChanged=ensureLighting(lighting,tiled,mSpatialBlocks.getSafe(e,null));
         if (lightingChanged) {
             tiledState.lightingRevision++;
             // Geometry changed: refresh image/receiver registration through the existing chunk boundary.
             for (TileChunk chunk : map.getChunks()) chunk.dirtyState = TileChunk.DirtyState.FULL;
         }
+        }
+        currentFaces = null;
         currentTileOrder = null;
         currentMapEntity = e;
         if (map.projection == TiledProjection.ISO
@@ -258,10 +262,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
             runtime.compiled.ensure(blocks);
             runtime.projected.ensure(runtime.compiled, map);
+            currentFaces = runtime.projected;
             runtime.tileOrder.ensure(e, map, blocks, runtime.compiled);
             currentTileOrder = runtime.tileOrder;
             if (currentTileOrder.needsKeyRefresh()) refreshTileKeys(map, index.layerIndex, currentTileOrder);
         }
+        currentRenderOrder.updateCornerGeometry(currentFaces);
         if(lightingChanged){
             // Native quads were admitted together above. Publish all affected receivers and
             // caster bindings before camera culling, including removals and off-screen edits.
@@ -397,6 +403,10 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
      * Compiles every authored persistent chunk and Spatial layer cache without
      * evaluating camera visibility or publishing a frame-local visible list.
      */
+    public void invalidateLighting() {
+        for (MapLightingGeometry geometry : tiledState.lightingMaps.values()) geometry.invalidate();
+    }
+
     public void prepareRuntimeAvailability() {
         preparedPersistentChunkCount = 0;
         IntBag entities = world.getAspectSubscriptionManager()
@@ -412,6 +422,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             TiledMapLayerData map = tiled.data;
             currentRenderOrder = tiledState.prepareOrderForMap(entityId, map);
             currentMapEntity = entityId;
+            if(tiledState.lightingEnabled){
             games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
             if(lighting==null){lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();tiledState.lightingMaps.put(entityId,lighting);}
             lighting.descriptions(tiled.lightingDescriptions);
@@ -419,6 +430,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 tiledState.lightingRevision++;
                 for(TileChunk chunk:map.getChunks())chunk.dirtyState=TileChunk.DirtyState.FULL;
             }
+            }
+            currentFaces = null;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
             if (map.projection == TiledProjection.ISO
@@ -427,9 +440,11 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
                 runtime.compiled.ensure(blocks);
                 runtime.projected.ensure(runtime.compiled, map);
+                currentFaces = runtime.projected;
                 runtime.tileOrder.ensure(entityId, map, blocks, runtime.compiled);
                 currentTileOrder = runtime.tileOrder;
             }
+            currentRenderOrder.updateCornerGeometry(currentFaces);
             refreshVisualPaddingIfDirty(map, tiled.atlasTag);
             for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks =
                     map.getChunks(); chunks.hasNext(); ) {
@@ -879,6 +894,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         recomputeChunkVisualBounds(chunk);
     }
 
+    private games.pixscape.runtime.spatial.SpatialProjectedFaceCache currentFaces;
+
     private void writeTileSlot(TileChunk chunk,
                                int localIndex,
                                int tiledRenderRef,
@@ -959,7 +976,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
 
         // Admission must complete before publishing any quad, binding or renderable flag.
-        MapLightingGeometry lighting = tiledState.lightingMaps.get(currentMapEntity);
+        MapLightingGeometry lighting = tiledState.lightingEnabled?tiledState.lightingMaps.get(currentMapEntity):null;
         games.pixscape.runtime.render.lighting.LightingSurface surface = lighting == null ? null
                 : lighting.receiver(map,gx,gy,assetId,transformFlags,tmpQuad);
         games.pixscape.runtime.service.NormalMapBinding normal = lighting == null ? null
@@ -992,10 +1009,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 1f,
                 RenderRepeatFlags.NONE
         );
+        int anchor = currentFaces == null ? -1 : currentFaces.anchorForCell(gx, gy);
+        if (surface != null) {
+            surface.ownerEntity = currentMapEntity;
+            surface.normalMap = normal;
+        }
+        int front = anchor < 0 ? -1 : currentFaces.frontCornerFace(anchor);
+        TileCornerSplit split = front < 0 || transformFlags != 0 ? null
+                : TileCornerSplit.prepare(currentFaces, front, tmpQuad, metadata.v1(), metadata.v2(), surface);
+        if (split == null) tiledState.cornerSplits.remove(tiledRenderRef);
+        else tiledState.cornerSplits.put(tiledRenderRef, split);
         chunk.setRenderableLocalIndex(localIndex, true);
         if (lighting != null) {
-            surface.ownerEntity=currentMapEntity;
-            surface.normalMap=normal;
             if(tiledState.lightingSurfaces.get(tiledRenderRef)!=surface)tiledState.lightingRevision++;
             tiledState.lightingSurfaces.put(tiledRenderRef,surface);
         }

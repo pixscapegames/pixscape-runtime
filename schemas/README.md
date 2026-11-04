@@ -15,7 +15,7 @@ match the generator without changing them.
 | --- | --- | --- |
 | `project/1.schema.json` | project `"1"` | Export entry point and scene metadata |
 | `scene/3.schema.json` | scene `3` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
-| `components/3.schema.json` | scene `3` | 46 supported Runtime component type IDs, including surface lighting and non-pooled shader parameters |
+| `components/3.schema.json` | scene `3` | 47 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
 | `common/1.schema.json` | shared definitions `1` | LibGDX arrays, properties, physics and Spatial payloads |
 | `game-object/3.schema.json` | Game Object `3` | Independent definition and local entity/joint IDs |
 | `animations/unversioned.schema.json` | none | Sprite animation registry; no version field is emitted |

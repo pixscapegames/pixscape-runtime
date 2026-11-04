@@ -54,6 +54,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private static final class EntityReferenceTracker
             implements EntitySubscription.SubscriptionListener {
         private static final int INITIAL_CAPACITY = 64;
+        private final HierarchyRemoval removals = new HierarchyRemoval();
 
         private final PixscapeEngine engine;
         private World world;
@@ -588,6 +589,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         emitter.playRequested = true;
 
         markSpawnDirty(world, e);
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy != null) hierarchy.registerPreparedSpawn(e);
         return e;
     }
 
@@ -754,6 +757,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 refs[i] = new EntityRefImpl(
                         engine, ecs, sceneLayers,
                         entityReferences.capture(entityIds.get(i)));
+            }
+            return refs;
+        }
+
+        @Override
+        public EntityRef[] findAllByLayerName(String layerName) {
+            sceneLayers.bind(engine.getWorld());
+            IntArray entityIds = sceneLayers.membersByName(layerName);
+            EntityRef[] refs = new EntityRef[entityIds.size];
+            for (int i = 0; i < entityIds.size; i++) {
+                refs[i] = ofEntityId(entityIds.get(i));
             }
             return refs;
         }
@@ -938,7 +952,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public void remove() {
             World world = handle.world();
-            if (world != null) HierarchyRemoval.schedule(world, handle.entityId);
+            if (world != null) handle.tracker.removals.schedule(world, handle.entityId);
         }
     }
 
@@ -1195,6 +1209,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public float y() {
             TransformComponent t = t(false);
             return t != null ? t.y : 0f;
+        }
+
+        @Override
+        public Vector2 xy() {
+            return xy(new Vector2());
+        }
+
+        @Override
+        public Vector2 xy(Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            TransformComponent t = t(false);
+            return t != null ? out.set(t.x, t.y) : out.set(0f, 0f);
         }
 
         @Override
@@ -2721,7 +2749,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = handle.world();
             if (value) {
                 VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).getSafe(handle.entityId, null);
-                if (engine.isForwardLighting() && (visibility == null || visibility.visible)
+                if ((engine.isLightingEnabled() && engine.prefersForwardLighting()) && (visibility == null || visibility.visible)
                         && games.pixscape.runtime.render.lighting.ActiveLights.count(world) != 0) {
                     throw new IllegalArgumentException("Forward rendering supports at most one active light; cannot enable entity " + handle.entityId + ".");
                 }

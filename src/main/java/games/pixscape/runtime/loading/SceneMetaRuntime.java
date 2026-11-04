@@ -38,6 +38,8 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public int nextPhysicsShapeId = 1;
 
     // Ambient light
+    /** Missing fields in old scene descriptors retain lighting. New authored scenes opt out. */
+    public boolean lightingEnabled = true;
     public float ambientMulR = 1f;
     public float ambientMulG = 1f;
     public float ambientMulB = 1f;
@@ -64,6 +66,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public SceneMetaRuntime(String name, String file) {
         this.name = name;
         this.file = file;
+        this.lightingEnabled = false;
     }
 
     public static SceneMetaRuntime fromJson(JsonValue json, String fallbackName) {
@@ -92,6 +95,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         meta.ambientMulG = json.getFloat("ambientMulG", meta.ambientMulG);
         meta.ambientMulB = json.getFloat("ambientMulB", meta.ambientMulB);
         meta.useNormalMaps = json.getBoolean("useNormalMaps", true);
+        meta.lightingEnabled = json.getBoolean("lightingEnabled", true);
         meta.forwardLighting = json.getBoolean("forwardLighting", false);
         JsonValue availability = json.get("runtimeAvailability");
         JsonValue particles = availability != null && availability.isObject()
@@ -166,6 +170,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
         this.ambientMulG = other.ambientMulG;
         this.ambientMulB = other.ambientMulB;
         this.useNormalMaps = other.useNormalMaps;
+        this.lightingEnabled = other.lightingEnabled;
         this.forwardLighting = other.forwardLighting;
     }
 

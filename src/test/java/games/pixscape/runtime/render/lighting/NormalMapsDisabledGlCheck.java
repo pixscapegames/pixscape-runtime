@@ -60,7 +60,7 @@ final class NormalMapsDisabledGlCheck {
             for(int pass=0;pass<2;pass++){
                 submit.setUseNormalMaps(pass==0);submit.prepareComposition();surface.normalMap=pass==0?null:binding;
                 if(forward && pass==1){
-                    Mesh mesh=(Mesh)field(submit.forwardRenderer(),"mesh");Assert.assertEquals(76,mesh.getVertexSize());
+                    Mesh mesh=(Mesh)field(submit.forwardRenderer(),"mesh");Assert.assertEquals(100,mesh.getVertexSize());
                     Assert.assertNull(find(mesh,"a_normalUV"));
                     Assert.assertNull(find(mesh,"a_normalBasis"));Assert.assertNotNull(find(mesh,"a_curveNormal"));
                     com.badlogic.gdx.graphics.glutils.ShaderProgram program=(com.badlogic.gdx.graphics.glutils.ShaderProgram)field(submit.forwardRenderer(),"shader");
@@ -92,7 +92,7 @@ final class NormalMapsDisabledGlCheck {
                                 Assert.assertEquals(label,draws.get(sample).intValue(),stats.drawCalls-d);
                                 Assert.assertEquals(label,flushes.get(sample).intValue(),stats.flushes-f);
                                 Assert.assertEquals(label,uploads.get(sample).intValue(),stats.bufferUploads-u);
-                                if(forward){Assert.assertEquals(6L*76,submit.forwardRenderer().uploadedBytes);Assert.assertEquals(0,submit.forwardRenderer().normalFlushes);}
+                                if(forward){Assert.assertEquals(6L*100,submit.forwardRenderer().uploadedBytes);Assert.assertEquals(0,submit.forwardRenderer().normalFlushes);}
                             }
                             sample++;
                         }
@@ -106,7 +106,7 @@ final class NormalMapsDisabledGlCheck {
             Object prepared=forward?field(submit.forwardRenderer(),"mesh"):field(submit.lightingRenderer(),"mappedReceiver");
             submit.prepareComposition();Assert.assertSame(prepared,forward?field(submit.forwardRenderer(),"mesh"):field(submit.lightingRenderer(),"mappedReceiver"));
             Assert.assertArrayEquals(mapped,capture(world));
-            if(forward)Assert.assertEquals(6L*104,submit.forwardRenderer().uploadedBytes);
+            if(forward)Assert.assertEquals(6L*128,submit.forwardRenderer().uploadedBytes);
             System.out.println((forward?"Forward":"Legacy")+" normal-map option: "+reference.size()+" RGBA comparisons, equal draws/flushes/uploads; reactivation passed");
             Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
         }finally {world.dispose();if(arrayBatch!=null)arrayBatch.close();if(legacyBatch!=null)legacyBatch.close();}

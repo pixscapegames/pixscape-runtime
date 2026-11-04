@@ -28,7 +28,7 @@ public class SceneAvailabilityPlanTest {
     public TemporaryFolder temp = new TemporaryFolder();
     @Test public void disabledNormalsAreNeverAcquiredAndReactivationLoadsThem() throws Exception {
         File root=temp.newFolder("normal-option");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
-        RuntimeConfig config=config();var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        RuntimeConfig config=config();config.getSceneMeta("A").lightingEnabled=true;var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
         var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
         RecordingAssetManager manager=manager(root);
         manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){
@@ -55,7 +55,7 @@ public class SceneAvailabilityPlanTest {
     }
     @Test public void normalAtlasIsAcquiredBeforeReadyAndReleasedWithScene() throws Exception {
         File root=temp.newFolder("normal-atlas");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
-        RuntimeConfig config=config();var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        RuntimeConfig config=config();config.getSceneMeta("A").lightingEnabled=true;var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
         var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
         RecordingAssetManager manager=manager(root);final Map<String,TrackingAtlas> objects=new LinkedHashMap<>();
         manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){

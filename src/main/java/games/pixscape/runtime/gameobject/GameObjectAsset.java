@@ -1,18 +1,19 @@
 package games.pixscape.runtime.gameobject;
 
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.property.PropertySet;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * Authored, hierarchical data stored in one {@value #EXTENSION} asset.
  * The top-level root is at (0, 0); its scene position and global Layer/z order
  * belong to each placed instance. Member transforms and z-indices are local.
+ * Ordered JSON arrays use libGDX Array: GWT reflection does not reliably report
+ * java.util.List as assignable to Collection in Json.readValue.
  */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
@@ -20,9 +21,9 @@ public final class GameObjectAsset {
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
-    public List<GameObjectEntityData> entities = new ArrayList<>();
+    public Array<GameObjectEntityData> entities = new Array<>();
     /** Standalone internal Physics joints expressed only through asset-local identities. */
-    public List<GameObjectJointData> joints = new ArrayList<>();
+    public Array<GameObjectJointData> joints = new Array<>();
 
     /** One authored entity. IDs and parent references are local to this asset. */
     public static final class GameObjectEntityData {
@@ -52,7 +53,7 @@ public final class GameObjectAsset {
         /** Authored Body definition; runtime Box2D state is intentionally absent. */
         public PhysicsBodyData physicsBody;
         /** Ordered asset-local shapes; their IDs are never Scene physicsShapeIds. */
-        public List<PhysicsShapeData> physicsShapes = new ArrayList<>();
+        public Array<PhysicsShapeData> physicsShapes = new Array<>();
         /** Present for the top-level root and nested Game Object roots. */
         public GameObjectData gameObject;
     }
@@ -65,7 +66,7 @@ public final class GameObjectAsset {
     public static final class EntityIndexData { public int zIndex; }
     public static final class MetaData { public String kind; }
     public static final class IdentityData { public String name; }
-    public static final class TagsData { public List<String> values = new ArrayList<>(); }
+    public static final class TagsData { public Array<String> values = new Array<>(); }
     public static final class VisibilityData { public boolean visible; }
     public static final class BoundsFlagsData { public boolean hasAabb, hasObb; }
     public static final class DimensionsData { public float width, height; }

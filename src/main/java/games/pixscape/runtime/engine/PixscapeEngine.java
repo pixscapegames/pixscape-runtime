@@ -14,6 +14,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.ObjectIntMap;
 import games.pixscape.runtime.api.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
@@ -24,6 +25,7 @@ import games.pixscape.runtime.hud.ActiveHudScreen;
 import games.pixscape.runtime.hud.HudScreenRuntime;
 import games.pixscape.runtime.hud.MaterializedHud;
 import games.pixscape.runtime.loading.*;
+import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
@@ -67,6 +69,7 @@ public final class PixscapeEngine {
     private FileHandle runtimeProjectDir;
     private PlatformTarget platformTarget = PlatformTarget.AUTO;
     private boolean forwardLighting;
+    private boolean lightingEnabled;
     private Boolean forwardLightingOverride;
     private AssetManager suppliedAssetManager;
     private FileAvailabilityService fileAvailability;
@@ -75,6 +78,20 @@ public final class PixscapeEngine {
     private SceneLoadHandleImpl activeSceneLoad;
     private boolean assetManagerConfigurationLocked;
     private final AssetManagerFactory assetManagerFactory;
+    private final ObjectIntMap<String> particleReserves = new ObjectIntMap<>();
+
+    /**
+     * Configures the initial free effects for a declared particle type in subsequent scene loads.
+     * The default is one; zero disables preallocation. This does not add a Runtime Availability
+     * declaration. Settings live with this engine and may be replaced before the next load.
+     * Exhaustion allocates from the prepared template without file I/O. Pools retain up to
+     * max(16, initialInstances) free effects and are released with their scene.
+     */
+    public PixscapeEngine setParticleReserve(String effectPathOrName, int initialInstances) {
+        if (initialInstances < 0) throw new IllegalArgumentException("Particle reserve must be non-negative.");
+        particleReserves.put(ParticleEffectPath.normalize(effectPathOrName), initialInstances);
+        return this;
+    }
 
     private RuntimeConfig cfg;
     private boolean loaded;
@@ -263,6 +280,11 @@ public final class PixscapeEngine {
      * before dirty flushing. It owns submission of that frame's engine-owned
      * {@link FrameRenderQueue}; Pixscape does not also run {@link RenderSubmitSystem}.</p>
      *
+     * <p>Each entry is one drawable region. Submit its four vertices in BL, TL, TR, BR order
+     * using FrameRenderQueue.drawX/drawY/drawU/drawV. Multiple entries may borrow the same
+     * source tile slot and can bracket another entity. The atlas bounds describe the source
+     * image for shader clamping. A rectangular UV pair cannot encode a sloped edge.</p>
+     *
      * <p>The custom system is responsible for its GPU calls, any batch begin/end lifecycle,
      * and any render-stat reporting it requires. Engine getters provide borrowed access to
      * the queue, camera, layer state, internal {@link MetricsBatch}, and metrics; ownership
@@ -335,11 +357,15 @@ public final class PixscapeEngine {
      */
     public PixscapeEngine loadProject(FileHandle userRootDir) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
+        if (loaded) {
+            if (!this.userRootDir.path().equals(userRootDir.path())) {
+                throw new IllegalStateException("Dispose the current project before loading a different project.");
+            }
+            return this;
+        }
         this.userRootDir = userRootDir;
         this.runtimeProjectDir = userRootDir.child(RUNTIME_DIR_NAME);
         ensureFileAvailability();
-
-        if (loaded) return this;
 
         if (!runtimeProjectDir.exists()) {
             throw new GdxRuntimeException(
@@ -470,36 +496,26 @@ public final class PixscapeEngine {
     }
 
     /**
-     * Loads and spawns a Game Object asset by name.
+     * Spawns a scene-prepared Game Object asset by name.
      *
-     * <p>The Game Object is resolved from {@code <runtimeProject>/<gameObjectsDir>/<name>.gameobject}
-     * and then spawned into the currently loaded scene.</p>
+     * <p>The definition must be declared in scene Runtime Availability. Loading validates and
+     * prepares it once before READY; any number of independent instances can then be spawned.</p>
      *
      * @param name    Game Object name or canonical logical asset ID
      * @param rootWorldX world-space X coordinate of the new root
      * @param rootWorldY world-space Y coordinate of the new root
      * @return result containing all created entity IDs
      * @throws IllegalStateException                      if the project or world is not initialized
-     * @throws com.badlogic.gdx.utils.GdxRuntimeException if the Game Object asset file does not exist
      */
     public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
-        if (cfg == null) throw new IllegalStateException("Project is not loaded.");
-        if (world == null) throw new IllegalStateException("World is not initialized. Call loadScene() first.");
-
-        String logicalId = GameObjectAssetId.normalize(name);
-        FileHandle assetFile = runtimeProjectDir
-                .child(cfg.gameObjectsDir)
-                .child(GameObjectAssetId.assetName(logicalId) + GameObjectAsset.EXTENSION);
-
-        if (!assetFile.exists()) {
-            throw new GdxRuntimeException("Game Object asset not found: " + assetFile.path());
+        if (!sceneLoaded || activeSceneAvailability == null || world == null) {
+            throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
-
-        GameObjectAsset asset = new GameObjectAssetLoader().load(assetFile);
-        GameObjectRuntimeFragmentSpawner spawner =
-                new GameObjectRuntimeFragmentSpawner(
-                        identityRegistry, activeSceneMeta, atlasRuntimeService);
-        SpawnResult result = spawner.spawnAsset(world, asset, logicalId, rootWorldX, rootWorldY);
+        String logicalId = GameObjectAssetId.normalize(name);
+        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
+                identityRegistry, activeSceneMeta, atlasRuntimeService);
+        SpawnResult result = spawner.spawnPrepared(world,
+                activeSceneAvailability.requireGameObject(logicalId), rootWorldX, rootWorldY);
         return new SpawnedGameObjectInstance(world, result, api().entities());
     }
 
@@ -598,7 +614,7 @@ public final class PixscapeEngine {
 
         dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1204,7 +1220,7 @@ public final class PixscapeEngine {
 
         dynamicEntityState = new DynamicEntityRenderState();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1231,7 +1247,7 @@ public final class PixscapeEngine {
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1315,7 +1331,7 @@ public final class PixscapeEngine {
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
 
@@ -1474,11 +1490,13 @@ public final class PixscapeEngine {
                         candidate.atlas(),candidate.normalAtlas());
                 rebindAtlas(candidate.sceneTag());
                 forceFullDirtyAfterLoad();
+                candidate.prepareGameObjects(new GameObjectRuntimeFragmentSpawner(
+                        identityRegistry, meta, atlasRuntimeService));
                 return;
             case 1:
                 requireSystem(RenderParticleSyncSystem.class)
                         .prepareRuntimeAvailability(
-                                candidate.sceneTag(), meta.runtimeParticleEffectPaths);
+                                candidate.sceneTag(), meta.runtimeParticleEffectPaths, particleReserves);
                 return;
             case 2:
                 requireSystem(RenderTiledSyncSystem.class)
@@ -1516,6 +1534,7 @@ public final class PixscapeEngine {
         requireSystem(UpdateWorldGeometrySystem.class).prepareRuntimeAvailability();
         requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
         requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
+        requireSystem(GameObjectCompositionSystem.class).prepareRuntimeAvailability();
         LightingGeometrySystem lightingGeometry=world.getSystem(LightingGeometrySystem.class);
         if(lightingGeometry!=null)lightingGeometry.prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
@@ -1857,7 +1876,50 @@ public final class PixscapeEngine {
     }
 
     /** Returns the selected renderer; renderer selection itself is a preparation-time choice. */
-    public boolean isForwardLighting() { return forwardLighting; }
+    public boolean isForwardLighting() {
+        RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
+        return lightingEnabled && submit != null && submit.isForwardEffective();
+    }
+    public boolean prefersForwardLighting() { return forwardLighting; }
+    public boolean isLightingEnabled() { return lightingEnabled; }
+
+    /** Render-thread activation boundary. Returns false while normal assets are loading (HTML included).
+     * Call again before rendering until true. The previous mode remains effective until validation
+     * succeeds; exceptions carry the admission/asset diagnostic. Individual lights are never changed. */
+    public boolean setLightingEnabled(boolean enabled) {
+        if (enabled == lightingEnabled) return true;
+        if (world == null || !sceneLoaded) throw new IllegalStateException("Load a scene before changing lighting");
+        if (enabled && useNormalMaps && activeSceneAvailability != null) {
+            activeSceneAvailability.requestLightingNormals();
+            if (!activeSceneAvailability.update()) return false;
+            com.badlogic.gdx.graphics.g2d.TextureAtlas normals = activeSceneAvailability.normalAtlas();
+            String tag = activeSceneAvailability.sceneTag();
+            games.pixscape.runtime.service.NormalMapAtlas candidate = normals == null ? null
+                    : new games.pixscape.runtime.service.NormalMapAtlas(tag, normals, activeSceneAvailability.atlas(), false);
+            try {
+                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(tag,activeSceneAvailability.atlas(),candidate,
+                        RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir),runtimeProjectDir);
+                atlasRuntimeService.publishNormalMaps(tag,candidate);
+            } catch(RuntimeException failure) { if(candidate!=null)candidate.dispose(); throw failure; }
+        }
+        boolean previous = frameQueue.lightingEnabled;
+        try {
+            frameQueue.setLightingEnabled(enabled); tiledState.lightingEnabled=enabled;
+            if(enabled) {
+                RenderTiledSyncSystem tiled=world.getSystem(RenderTiledSyncSystem.class);
+                if(tiled!=null){tiled.invalidateLighting();tiled.prepareRuntimeAvailability();}
+                LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
+                if(geometry!=null)geometry.prepareRuntimeAvailability();
+                RenderSubmitSystem submit=world.getSystem(RenderSubmitSystem.class);
+                if(submit!=null && submit.isEnabled())submit.prepareLightingActivation();
+            }
+            lightingEnabled=enabled;
+            return true;
+        } catch(RuntimeException | Error failure) {
+            frameQueue.setLightingEnabled(previous);tiledState.lightingEnabled=previous;
+            throw failure;
+        }
+    }
 
     /** Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected). */
     public float ambientRed() { return ambientMulR; }
@@ -1889,6 +1951,9 @@ public final class PixscapeEngine {
     }
 
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
+        lightingEnabled = meta != null && meta.lightingEnabled;
+        if(frameQueue!=null)frameQueue.setLightingEnabled(lightingEnabled);
+        if(tiledState!=null)tiledState.lightingEnabled=lightingEnabled;
         useNormalMaps = meta == null || meta.useNormalMaps;
         forwardLighting = forwardLightingOverride != null ? forwardLightingOverride : meta != null && meta.forwardLighting;
         if (meta == null) {

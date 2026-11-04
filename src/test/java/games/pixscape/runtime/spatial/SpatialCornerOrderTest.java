@@ -1,6 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.RenderSourceDomain;
+import games.pixscape.runtime.render.TileCornerSplit;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -23,6 +24,84 @@ public class SpatialCornerOrderTest {
                 Assert.assertEquals(row, f.ref, f.composer.composedSlots[1-position]);
                 Assert.assertEquals(row, expected == 'X', f.planner.hasUnresolvedCorner(0));
                 Assert.assertEquals(row, expected == 'X', f.planner.hasLocalFallback(0));
+            }
+        }
+    }
+
+    @Test public void onlyChangedCornerCellIsDirtiedAcrossSpatialPublications() {
+        try (SpatialCornerFixture f = new SpatialCornerFixture(2)) {
+            games.pixscape.runtime.render.TiledRenderOrder order = f.tiled.prepareOrderForMap(8, f.map);
+            games.pixscape.runtime.tiled.TileChunk chunk = f.map.getChunk(1, 1);
+            order.updateCornerGeometry(f.faces);
+            chunk.dirtyState = games.pixscape.runtime.tiled.TileChunk.DirtyState.CLEAN;
+            chunk.dirtyLocalIndices.clear();
+            f.blocks.blocks.first().name = "Renamed";
+            f.blocks.revision++;
+            Assert.assertFalse(f.compiled.ensure(f.blocks));
+            order.updateCornerGeometry(f.faces);
+            Assert.assertEquals(0, chunk.dirtyLocalIndices.size);
+            for (boolean enabled : new boolean[]{false, true}) {
+                f.blocks.blocks.first().actorOccluder = enabled;
+                f.blocks.revision++;
+                Assert.assertTrue(f.compiled.ensure(f.blocks));
+                f.faces.ensure(f.compiled, f.map);
+                order.updateCornerGeometry(f.faces);
+                Assert.assertEquals(1, chunk.dirtyLocalIndices.size);
+                Assert.assertEquals(0, chunk.dirtyLocalIndices.first());
+                chunk.dirtyLocalIndices.clear();
+            }
+        }
+    }
+
+    @Test public void preparedLateralPiecesFollowEachWallInBothDirections() {
+        for (int opening : new int[]{2, 3}) try (SpatialCornerFixture f = new SpatialCornerFixture(opening)) {
+            int face = f.faces.frontCornerFace(f.faces.anchorForCell(4, 4));
+            Assert.assertTrue(face >= 0);
+            float[] quad = {f.vx-80, f.vy-40, f.vx-80, f.vy+180,
+                    f.vx+80, f.vy+180, f.vx+80, f.vy-40};
+            games.pixscape.runtime.render.TileCornerSplit split = games.pixscape.runtime.render.TileCornerSplit
+                    .prepare(f.faces, face, quad, .25f, .75f, null);
+            Assert.assertNotNull(split);
+            Assert.assertEquals(split.back.y[0], split.front.y[1], 0f);
+            Assert.assertEquals(split.back.y[3], split.front.y[2], 0f);
+            Assert.assertEquals(split.back.v[0], split.front.v[1], 0f);
+            Assert.assertEquals(split.back.v[3], split.front.v[2], 0f);
+            f.tiled.cornerSplits.put(f.ref, split);
+            int[] sectors = {0, opening, 1, opening, 0};
+            int[] buckets = {0, 1, 2, 1, 0};
+            for (int i=0; i<sectors.length; i++) {
+                SpatialCornerFixture.Outcome result = f.run(sectors[i], .5f, 60f, 1);
+                Assert.assertEquals(0, result.conflicts);
+                Assert.assertEquals(buckets[i], result.bucket);
+                Assert.assertEquals(RenderSourceDomain.SOURCE_ECS, f.composer.composedDomains[buckets[i]]);
+                // A neighbouring unsplit wall can contradict itself while the actor crosses its thickness.
+                f.planner.actorLowerBound[0] = 2;
+                f.planner.actorUpperBound[0] = 0;
+                f.planner.finish(f.actors);
+                Assert.assertEquals(buckets[i], f.planner.actorBucket[0]);
+            }
+        }
+    }
+
+    @Test public void actorPassesBetweenWallsWhenTheFrontWallContinuesThroughTheSharedCell() {
+        try (SpatialCornerFixture f = new SpatialCornerFixture(2)) {
+            SpatialBlockData frontWall = f.blocks.blocks.first();
+            frontWall.x = 2f;
+            frontWall.width = 5f;
+            f.blocks.revision++;
+            f.compiled.ensure(f.blocks);
+            f.faces.ensure(f.compiled, f.map);
+            int front = f.faces.frontCornerFace(f.faces.anchorForCell(4, 4));
+            Assert.assertTrue("The two local branches share a corner on the through wall", front >= 0);
+            float[] quad = {f.vx-80, f.vy-40, f.vx-80, f.vy+180,
+                    f.vx+80, f.vy+180, f.vx+80, f.vy-40};
+            TileCornerSplit split = TileCornerSplit.prepare(f.faces, front, quad, 0f, 1f, null);
+            Assert.assertNotNull(split);
+            f.tiled.cornerSplits.put(f.ref, split);
+            int[] sectors = {0, 2, 1, 2, 0};
+            int[] expectedBuckets = {0, 1, 2, 1, 0};
+            for (int i = 0; i < sectors.length; i++) {
+                Assert.assertEquals(expectedBuckets[i], f.run(sectors[i], .5f, 60f, 1).bucket);
             }
         }
     }

@@ -7,6 +7,7 @@ import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -41,9 +42,11 @@ public final class GameObjectHierarchySystem extends BaseSystem {
     private EntitySubscription memberSubscription;
     private EntitySubscription gameObjectSubscription;
     private EntitySubscription identitySubscription;
+    private EntitySubscription allEntities;
 
     private int[] observedParentStableId = new int[MIN_CAPACITY];
     private int[] observedStableId = new int[MIN_CAPACITY];
+    private final IntSet preparedInsertions = new IntSet();
     private long[] sortKeys = new long[MIN_CAPACITY];
     private boolean topologyDirty = true;
     private int rebuildCount;
@@ -65,6 +68,29 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        allEntities = world.getAspectSubscriptionManager().get(Aspect.all());
+        // Artemis publishes actual deletions here, including create/delete in one frame.
+        // EntityManager.isActive remains true until the end-of-frame purge.
+        allEntities.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+            @Override public void inserted(IntBag entities) { }
+
+            @Override public void removed(IntBag entities) {
+                for (int i = 0; i < entities.size(); i++) {
+                    int entityId = entities.get(i);
+                    if (entityId < topology.getEntityCapacity()) {
+                        for (int child = topology.firstChildEntityId[entityId]; child >= 0;
+                             child = topology.nextSiblingEntityId[child]) {
+                            if (allEntities.getActiveEntityIds().get(child)) topologyDirty = true;
+                        }
+                        topology.unlinkDeletedEntity(entityId);
+                        worldTransforms.clear(entityId);
+                        observedParentStableId[entityId] = -1;
+                        observedStableId[entityId] = -1;
+                    }
+                    preparedInsertions.remove(entityId);
+                }
+            }
+        });
         transformSubscription = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TransformComponent.class));
         memberSubscription = world.getAspectSubscriptionManager()
@@ -78,17 +104,26 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                 new EntitySubscription.SubscriptionListener() {
                     @Override
                     public void inserted(IntBag entities) {
-                        topologyDirty = true;
+                        for (int i = 0; i < entities.size(); i++) {
+                            int entityId = entities.get(i);
+                            if (!preparedInsertions.contains(entityId)
+                                    || (transforms.has(entityId)
+                                    && observedStableId[entityId] != stableId(entityId))) topologyDirty = true;
+                        }
                     }
 
                     @Override
                     public void removed(IntBag entities) {
-                        topologyDirty = true;
                         int[] data = entities.getData();
                         for (int i = 0, n = entities.size(); i < n; i++) {
                             int entityId = data[i];
-                            topology.clearEntity(entityId);
-                            worldTransforms.clear(entityId);
+                            // Actual deletion was already unlinked by Aspect.all(). A component
+                            // removal on a surviving entity still needs structural validation.
+                            if (allEntities.getActiveEntityIds().get(entityId)) {
+                                topologyDirty = true;
+                                preparedInsertions.remove(entityId);
+                                worldTransforms.clear(entityId);
+                            }
                         }
                     }
                 };
@@ -102,6 +137,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
     protected void processSystem() {
         ensureCurrentTopology();
         resolveAllFromCurrentAuthoredTransforms();
+        preparedInsertions.clear();
     }
 
     public void prepareRuntimeAvailability() {
@@ -112,12 +148,56 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         return topology;
     }
 
+    /** INTERNAL indexed command lookup. Raw ECS structural edits must be synchronized first. */
+    public GameObjectTopologyState topologyForRemoval() {
+        if (topologyDirty) throw new IllegalStateException(
+                "Synchronize ECS structural edits before removing a hierarchy.");
+        return topology;
+    }
+
     public WorldTransformState worldTransforms() {
         return worldTransforms;
     }
 
     public int rebuildCount() {
         return rebuildCount;
+    }
+
+    /**
+     * Adds a detached, validated hierarchy in parent-first order. Existing roots keep their
+     * order because fresh scene identities are monotonic. Uncontrolled ECS structural edits
+     * still use the normal validation/rebuild boundary on the next synchronization.
+     */
+    public void registerPreparedSpawn(IntBag created) {
+        if (topologyDirty) return;
+        for (int i = 0; i < created.size(); i++) {
+            registerPreparedSpawn(created.get(i));
+        }
+    }
+
+    /** INTERNAL: publishes one freshly created entity, including a prepared standalone particle. */
+    public void registerPreparedSpawn(int entityId) {
+        if (topologyDirty) return;
+        // Joint entities have identities but no transform and must also skip insertion dirtiness.
+        preparedInsertions.add(entityId);
+        ensureCapacity(entityId);
+        if (!transforms.has(entityId)) return;
+        topology.clearEntity(entityId);
+        observedStableId[entityId] = stableId(entityId);
+        GameObjectMemberComponent member = members.getSafe(entityId, null);
+        observedParentStableId[entityId] = member != null ? member.parentStableId : -1;
+        if (member != null) {
+            int parent = IdentityRegistry.boundTo(world).findByStableId(member.parentStableId);
+            topology.parented[entityId] = true;
+            topology.parentEntityId[entityId] = parent;
+            topology.depth[entityId] = topology.depth[parent] + 1;
+            topology.rootEntityId[entityId] = topology.rootEntityId[parent];
+            // Composition sorts children by authored order independently of this sibling chain.
+            topology.prependChild(parent, entityId);
+        } else if (gameObjects.has(entityId)) {
+            topology.rootEntityId[entityId] = entityId;
+        }
+        topology.appendTraversal(entityId);
     }
 
     /**
@@ -170,8 +250,9 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     /** Resolves the complete parent-first traversal from current authored transforms. */
     void resolveAllFromCurrentAuthoredTransforms() {
-        for (int i = 0, n = topology.traversal.size; i < n; i++) {
-            resolveEntityFromCurrentAuthoredTransform(topology.traversal.get(i));
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
+             entityId = topology.nextTraversalEntityId[entityId]) {
+            resolveEntityFromCurrentAuthoredTransform(entityId);
         }
     }
 
@@ -215,12 +296,19 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                     .validateEntities(world.getAspectSubscriptionManager().get(Aspect.all()).getEntities());
         }
 
-        for (int i = 0; i < topology.traversal.size; i++) {
-            int entityId = topology.traversal.get(i);
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;) {
+            int next = topology.nextTraversalEntityId[entityId];
             topology.clearEntity(entityId);
-            worldTransforms.clear(entityId);
+            // Topology replacement does not invalidate an unchanged entity's last pose.
+            // Deletion/component-removal listeners clear retired states before ID reuse;
+            // also discard any old traversal entry that no longer has a Transform.
+            // The parent-first resolution below compares the new frame with the retained
+            // one, so reparenting and ancestor edits dirty only poses that really change.
+            if (!transforms.has(entityId)) worldTransforms.clear(entityId);
+            entityId = next;
         }
-        topology.traversal.clear();
+        topology.firstTraversalEntityId = topology.lastTraversalEntityId = -1;
+        topology.traversalSize = 0;
 
         IntBag transformBag = transformSubscription.getEntities();
         int count = transformBag.size();
@@ -251,8 +339,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
             ensureCapacity(parentEntityId);
             topology.parented[entityId] = true;
             topology.parentEntityId[entityId] = parentEntityId;
-            topology.nextSiblingEntityId[entityId] = topology.firstChildEntityId[parentEntityId];
-            topology.firstChildEntityId[parentEntityId] = entityId;
+            topology.prependChild(parentEntityId, entityId);
         }
 
         stack.clear();
@@ -262,7 +349,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         }
         while (stack.size > 0) {
             int entityId = stack.pop();
-            topology.traversal.add(entityId);
+            topology.appendTraversal(entityId);
             int parentEntityId = topology.parentEntityId[entityId];
             if (parentEntityId >= 0) {
                 topology.depth[entityId] = topology.depth[parentEntityId] + 1;
@@ -279,7 +366,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
             }
             for (int i = children.size - 1; i >= 0; i--) stack.add(children.get(i));
         }
-        if (topology.traversal.size != count) {
+        if (topology.traversalSize != count) {
             throw new IllegalStateException("Game Object topology traversal did not include every transform; "
                     + "the hierarchy is cyclic or structurally invalid.");
         }
@@ -289,7 +376,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     /**
      * Publishes one entity's resolved frame. Callers must invoke this in {@link
-     * GameObjectTopologyState#traversal} order so a parent frame is already current.
+     * GameObjectTopologyState#firstTraversalEntityId} order so a parent frame is already current.
      */
     void resolveEntityFromCurrentAuthoredTransform(int entityId) {
         resolveEntityFromCurrentAuthoredTransform(entityId, true);

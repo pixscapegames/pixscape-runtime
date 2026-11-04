@@ -203,7 +203,7 @@ public final class GameObjectAssetLoader {
 
     private static void validateShapes(GameObjectAsset.GameObjectEntityData entity, FileHandle file) {
         IntSet localIds = new IntSet();
-        for (int i = 0; i < entity.physicsShapes.size(); i++) {
+        for (int i = 0; i < entity.physicsShapes.size; i++) {
             GameObjectAsset.PhysicsShapeData source = entity.physicsShapes.get(i);
             if (source == null || source.localShapeId <= 0 || !localIds.add(source.localShapeId)) {
                 throw failure(file, "sourceEntityId " + entity.sourceEntityId
@@ -257,7 +257,7 @@ public final class GameObjectAssetLoader {
                                        FileHandle file) {
         if (asset.joints == null) throw failure(file, "joints must not be null");
         IntMap<GameObjectAsset.GameObjectJointData> byJointId = new IntMap<GameObjectAsset.GameObjectJointData>();
-        for (int i = 0; i < asset.joints.size(); i++) {
+        for (int i = 0; i < asset.joints.size; i++) {
             GameObjectAsset.GameObjectJointData joint = asset.joints.get(i);
             if (joint == null || joint.jointLocalId <= 0 || byJointId.containsKey(joint.jointLocalId)) {
                 throw failure(file, "joints contains an invalid or duplicate jointLocalId");
@@ -266,7 +266,7 @@ public final class GameObjectAssetLoader {
             validateJointBase(joint, entities, file);
             validateJointPayload(joint, file);
         }
-        for (int i = 0; i < asset.joints.size(); i++) {
+        for (int i = 0; i < asset.joints.size; i++) {
             GameObjectAsset.GameObjectJointData joint = asset.joints.get(i);
             if (joint.type != PhysicsJointComponent.TYPE_GEAR) continue;
             GameObjectAsset.GearJointData gear = joint.gear;

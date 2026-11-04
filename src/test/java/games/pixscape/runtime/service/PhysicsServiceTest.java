@@ -251,6 +251,11 @@ public class PhysicsServiceTest {
             Assert.assertFalse(affected.contains(staticB));
             Assert.assertFalse(affected.contains(dynamicB));
 
+            removed.clear(); removed.add(gear); removed.add(source1);
+            affected = PhysicsService.collectJointsAffectedByEntityRemoval(world, removed, affected);
+            Assert.assertEquals(gear, affected.get(0));
+            Assert.assertEquals(source1, affected.get(1));
+
             removed.clear();
             removed.add(gear);
             affected = PhysicsService.collectJointsAffectedByEntityRemoval(
@@ -299,6 +304,39 @@ public class PhysicsServiceTest {
 
         // Assert: distance joint target length follows moved transforms
         Assert.assertEquals(2f, dist.lengthM, 1e-4f);
+    }
+
+    @Test
+    public void retargetThenDeletePreviousBodyBeforeSyncDoesNotLeaveFreedNativeJoint() {
+        GdxNativesLoader.load();
+        Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2());
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+        Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
+        World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
+        try {
+            PhysicsService physics = new PhysicsService(world, box2d,
+                    new games.pixscape.runtime.loading.SceneMetaRuntime());
+            int a = createBody(world, physics, 0, PhysicsBodyComponent.STATIC);
+            int b = createBody(world, physics, 100, PhysicsBodyComponent.DYNAMIC);
+            int c = createBody(world, physics, 200, PhysicsBodyComponent.STATIC);
+            int joint = physics.createDistanceJoint(a, b);
+            processPhysics(world);
+            Assert.assertEquals(1, box2d.world.getJointCount());
+            world.getMapper(PhysicsJointComponent.class).get(joint).aEid = c;
+            dirty.joint(joint, games.pixscape.runtime.render.JointDirtyBits.ALL);
+            Assert.assertEquals(0, physics.collectJointsAffectedByBodyRemoval(a, null).size);
+            physics.removePhysics(a);
+            processPhysics(world);
+            Assert.assertTrue(world.getEntityManager().isActive(joint));
+            Assert.assertEquals(2, box2d.world.getBodyCount());
+            Assert.assertEquals(1, box2d.world.getJointCount());
+            Assert.assertSame(world.getMapper(PhysicsRuntimeBodyComponent.class).get(c).body,
+                    world.getMapper(PhysicsRuntimeJointComponent.class).get(joint).joint.getBodyA());
+            physics.removePhysics(c);
+            processPhysics(world);
+            Assert.assertEquals(0, box2d.world.getJointCount());
+            Assert.assertFalse(world.getEntityManager().isActive(joint));
+        } finally { world.dispose(); box2d.dispose(); }
     }
 
     private static int createBody(

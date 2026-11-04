@@ -14,7 +14,7 @@ public final class SpatialCompiledLayerCache {
     private int compilationCount;
 
     public boolean ensure(SpatialBlocksComponent component) {
-        int requestedRevision = component != null ? component.revision : 0;
+        int requestedRevision = component != null ? component.geometryRevision() : 0;
         if (source == component && sourceRevision == requestedRevision) return false;
 
         int[] ids = collectStructureIds(component);

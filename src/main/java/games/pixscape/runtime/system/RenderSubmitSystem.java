@@ -34,14 +34,19 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private final RenderStats stats;
     private final RenderStatsSink statsSink;
     private final ShaderMode fallbackShaderMode;
-    private final WorldLightComposition composition = new WorldLightComposition();
-    private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
-    private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
-            new games.pixscape.runtime.render.lighting.LightingRenderer();
-    private final games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
+    private WorldLightComposition composition;
+    private AmbientContributionRenderer ambientContribution;
+    private games.pixscape.runtime.render.lighting.LightingRenderer lighting;
+    private games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
+    private final boolean preferForward;
+    private boolean forwardEffective;
+    private int preparedSurfaceRevision=-1;
+    private int batchRegistryRevision=-1;
+    private boolean preparedNormalMaps;
+    private final DirectWorldPass direct = new DirectWorldPass();
+    private final LightingGeometrySystem.ShadowPreparation framePreparation=this::prepareLightingFrame;
     private LightParameterBinding lightParameters;
     private float time = 0f;
-    private boolean rendererReported;
     private boolean useNormalMaps = true;
     /** Configure before prepareComposition, never during submission. */
     public void setUseNormalMaps(boolean enabled) { useNormalMaps = enabled; }
@@ -65,7 +70,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
                               float ambientMulR,float ambientMulG,float ambientMulB,MetricsBatch batch,
                               RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
-        this.forward=forwardLighting?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
+        this.preferForward=forwardLighting;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -94,7 +99,7 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     }
 
     @Override
-    protected void initialize() { lightParameters = new LightParameterBinding(world); }
+    protected void initialize() { }
 
     @Override
     protected void begin() {
@@ -121,27 +126,87 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
+    /** Existing setup/viewport boundary. Off performs no lighting preparation. */
     public void prepareComposition() {
-        lighting.setUseNormalMaps(useNormalMaps);
-        if(forward!=null){
-            forward.setUseNormalMaps(useNormalMaps);
-            if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
-            forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);
-        } else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
-        if (!rendererReported) {
-            Gdx.app.log("Lighting", "renderer=" + (forward != null ? "forward" : "legacy")
-                    + " prepared (Runtime; no automatic fallback)");
-            rendererReported = true;
+        if(batchRegistryRevision!=ShaderRegistry.surfaceRevision()) {
+            metricsBatch.abort();
+            batchRegistryRevision=ShaderRegistry.surfaceRevision();
         }
+        if(!frameQueue.lightingEnabled)return;
+        if(lighting==null || preparedSurfaceRevision!=ShaderRegistry.surfaceRevision() || preparedNormalMaps!=useNormalMaps)
+            replaceLightingResources(preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world)>0);
+        prepareSelectedResources();
     }
+
+    /** Activation is a cold boundary: edits made while Off may change the effective renderer. */
+    public void prepareLightingActivation() {
+        boolean selected=preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world)>0;
+        if(lighting!=null && selected!=forwardEffective)replaceLightingResources(selected);
+        prepareComposition();
+    }
+
+    private void replaceLightingResources(boolean selectForward) {
+        WorldLightComposition nextComposition=selectForward?null:new WorldLightComposition();
+        AmbientContributionRenderer nextAmbient=selectForward?null:new AmbientContributionRenderer();
+        games.pixscape.runtime.render.lighting.LightingRenderer nextLighting=new games.pixscape.runtime.render.lighting.LightingRenderer();
+        games.pixscape.runtime.render.lighting.ForwardLightingRenderer nextForward=selectForward?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
+        direct.begin();
+        try {
+            nextLighting.setUseNormalMaps(useNormalMaps);
+            if(selectForward){
+                if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
+                nextForward.setUseNormalMaps(useNormalMaps);
+                nextForward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());nextLighting.prepareShadows(world);
+            }else{nextComposition.prepare();nextAmbient.prepare();nextLighting.prepare(world,nextComposition);}
+        }catch(RuntimeException | Error failure){
+            nextLighting.dispose();if(nextForward!=null)nextForward.dispose();if(nextComposition!=null)nextComposition.dispose();if(nextAmbient!=null)nextAmbient.dispose();
+            LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
+            if(geometry!=null)geometry.setShadowPreparation(lighting==null?null:framePreparation);
+            throw failure;
+        }finally{direct.end();}
+        disposeLightingResources();
+        composition=nextComposition;ambientContribution=nextAmbient;lighting=nextLighting;forward=nextForward;
+        forwardEffective=selectForward;preparedNormalMaps=useNormalMaps;preparedSurfaceRevision=ShaderRegistry.surfaceRevision();
+        if(lightParameters==null)lightParameters=new LightParameterBinding(world);
+        LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
+        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+    }
+
+    private void prepareSelectedResources(){
+        if(forwardEffective){forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);}
+        else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+        LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
+        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+    }
+
+    /** Uses the already published light set; no second World traversal per frame. */
+    private void prepareLightingFrame(games.pixscape.runtime.render.lighting.LightingFrame frame){
+        boolean selected=preferForward && frame.lights.size>0;
+        if(selected!=forwardEffective)replaceLightingResources(selected);
+        lighting.prepareFrame(frame);
+    }
+
+    private void disposeLightingResources(){
+        if(ambientContribution!=null)ambientContribution.dispose();if(lighting!=null)lighting.dispose();
+        if(composition!=null)composition.dispose();if(forward!=null)forward.dispose();
+    }
+
+    public boolean isForwardEffective(){return frameQueue.lightingEnabled && forwardEffective;}
+
     public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
-    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); }
+    @Override protected void dispose() { disposeLightingResources(); }
 
     void render() {
-        stats.forwardLighting=forward!=null;
-        if(forward!=null){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
+        if(!frameQueue.lightingEnabled){
+            stats.forwardLighting=false;direct.begin();
+            try{renderPass(LightCompositionPass.DIRECT,0);}catch(RuntimeException | Error failure){metricsBatch.abort(failure);throw failure;}finally{direct.end();}
+            return;
+        }
+        frameQueue.lighting.time=time;
+        stats.forwardLighting=forwardEffective;
+        if(forwardEffective){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
         Throwable failure = null;
         try {
             ambientContribution.beginFrame(frameQueue);
@@ -326,12 +391,14 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private void drawNormalEntry(int index, int texHandle) {
         metricsBatch.draw(
                 texHandle,
-                frameQueue.x1[index], frameQueue.y1[index],
-                frameQueue.x2[index], frameQueue.y2[index],
-                frameQueue.x3[index], frameQueue.y3[index],
-                frameQueue.x4[index], frameQueue.y4[index],
-                frameQueue.u1[index], frameQueue.v1[index],
-                frameQueue.u2[index], frameQueue.v2[index],
+                frameQueue.x1[index], frameQueue.drawY(index, 0),
+                frameQueue.x2[index], frameQueue.drawY(index, 1),
+                frameQueue.x3[index], frameQueue.drawY(index, 2),
+                frameQueue.x4[index], frameQueue.drawY(index, 3),
+                frameQueue.u1[index], frameQueue.atlasTopV(index),
+                frameQueue.u2[index], frameQueue.atlasBottomV(index),
+                frameQueue.drawV(index, 0), frameQueue.drawV(index, 1),
+                frameQueue.drawV(index, 2), frameQueue.drawV(index, 3),
                 stats
         );
 
@@ -406,8 +473,8 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                         x2 + dx, y2 + dy,
                         x3 + dx, y3 + dy,
                         x4 + dx, y4 + dy,
-                        frameQueue.u1[index], frameQueue.v1[index],
-                        frameQueue.u2[index], frameQueue.v2[index],
+                        frameQueue.u1[index], frameQueue.atlasTopV(index),
+                        frameQueue.u2[index], frameQueue.atlasBottomV(index),
                         stats
                 );
 

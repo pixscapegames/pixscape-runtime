@@ -20,6 +20,15 @@ public final class ActiveLights {
         VisibilityComponent v=world.getMapper(VisibilityComponent.class).getSafe(entity,null);
         PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(entity,null);
         ConeLightComponent c=world.getMapper(ConeLightComponent.class).getSafe(entity,null);
+        games.pixscape.runtime.system.GameObjectCompositionSystem composition = world.getSystem(games.pixscape.runtime.system.GameObjectCompositionSystem.class);
+        games.pixscape.runtime.component.EntityIndexComponent index = world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).getSafe(entity,null);
+        int layer = index == null ? -1 : index.layerIndex;
+        if(composition != null && entity < composition.state().hierarchyVisible.length) {
+            if(!composition.state().hierarchyVisible[entity]) return false;
+            layer = composition.state().effectiveLayer[entity];
+        }
+        games.pixscape.runtime.system.LayerStateBuildSystem layers = world.getSystem(games.pixscape.runtime.system.LayerStateBuildSystem.class);
+        if(layers != null && (layer < 0 || layer >= layers.state().capacity() || !layers.state().enabled[layer])) return false;
         return isActive(v==null || v.visible,p!=null,p!=null && p.enabled,c!=null,c!=null && c.enabled);
     }
 

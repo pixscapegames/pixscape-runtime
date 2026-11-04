@@ -7,6 +7,8 @@ package games.pixscape.runtime.render;
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
+    /** Derived scene gate; authored scene metadata remains authoritative. */
+    public boolean lightingEnabled = true;
     private final com.badlogic.gdx.utils.IntMap<TiledRenderOrder> preparedOrders =
             new com.badlogic.gdx.utils.IntMap<TiledRenderOrder>();
     int[] preparedOrderRank;
@@ -29,10 +31,18 @@ public final class TiledMapRenderState {
     }
     public long orderRankStorageBytes() { return preparedOrderRank != null ? 4L * preparedOrderRank.length : 0L; }
     public int lightingRevision;
+    public final com.badlogic.gdx.utils.IntMap<TileCornerSplit> cornerSplits = new com.badlogic.gdx.utils.IntMap<>();
     public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface> lightingSurfaces =
             new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface>();
     public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry> lightingMaps =
             new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry>();
+
+    public void replacePreviewReceiver(int ref, float[] quad, games.pixscape.runtime.render.lighting.LightingSurface receiver) {
+        TileCornerSplit split = cornerSplits.get(ref);
+        if (split != null) cornerSplits.put(ref, split.withReceiver(quad, receiver));
+        lightingSurfaces.put(ref, receiver);
+        lightingRevision++;
+    }
 
     private static final int MIN_CAPACITY = 8;
 
@@ -88,6 +98,7 @@ public final class TiledMapRenderState {
     public void setCapacity(int newCapacity) {
         clearVisibleRefs();
         preparedOrders.clear();
+        cornerSplits.clear();
         lightingSurfaces.clear();lightingMaps.clear();lightingRevision++;
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("TiledMapRenderState capacity must be > 0");
@@ -243,6 +254,7 @@ public final class TiledMapRenderState {
     }
 
     public void disableRef(int tiledRenderRef) {
+        cornerSplits.remove(tiledRenderRef);
         if(lightingSurfaces.remove(tiledRenderRef)!=null)lightingRevision++;
         if (tiledRenderRef < 0 || tiledRenderRef >= capacity) {
             return;

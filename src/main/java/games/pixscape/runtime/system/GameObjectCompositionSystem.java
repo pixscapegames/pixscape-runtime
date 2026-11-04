@@ -2,7 +2,6 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
-import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
@@ -47,9 +46,8 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     @Override
     protected void processSystem() {
         GameObjectTopologyState topology = hierarchy.topology();
-        IntArray traversal = topology.traversal;
-        for (int i = 0, n = traversal.size; i < n; i++) {
-            int entityId = traversal.get(i);
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
+             entityId = topology.nextTraversalEntityId[entityId]) {
             state.ensureEntityCapacity(entityId);
             state.effectiveLayer[entityId] = -1;
             state.hierarchyVisible[entityId] = true;
@@ -58,9 +56,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
             state.boundsResolved[entityId] = false;
         }
 
-        resolveLayerAndVisibility(topology, traversal);
-        rebuildLocalOrder(topology, traversal);
-        rebuildDerivedBounds(topology, traversal);
+        resolveLayerAndVisibility(topology);
+        rebuildLocalOrder(topology);
+        rebuildDerivedBounds(topology);
     }
 
     public void prepareRuntimeAvailability() {
@@ -84,9 +82,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                 && bounds.getSafe(entityId, null) != null;
     }
 
-    private void resolveLayerAndVisibility(GameObjectTopologyState topology, IntArray traversal) {
-        for (int i = 0, n = traversal.size; i < n; i++) {
-            int entityId = traversal.get(i);
+    private void resolveLayerAndVisibility(GameObjectTopologyState topology) {
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
+             entityId = topology.nextTraversalEntityId[entityId]) {
             EntityIndexComponent ownIndex = entityIndices.getSafe(entityId, null);
             int parentEntityId = topology.parentEntityId[entityId];
             if (parentEntityId >= 0) {
@@ -109,11 +107,11 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         }
     }
 
-    private void rebuildLocalOrder(GameObjectTopologyState topology, IntArray traversal) {
+    private void rebuildLocalOrder(GameObjectTopologyState topology) {
         int memberCount = 0;
-        ensureOrderCapacity(traversal.size);
-        for (int i = 0, n = traversal.size; i < n; i++) {
-            int entityId = traversal.get(i);
+        ensureOrderCapacity(topology.traversalSize);
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
+             entityId = topology.nextTraversalEntityId[entityId]) {
             if (topology.parented[entityId]) orderA[memberCount++] = entityId;
         }
         if (memberCount == 0) return;
@@ -167,9 +165,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         return (key >>> shift) & 0xff;
     }
 
-    private void rebuildDerivedBounds(GameObjectTopologyState topology, IntArray traversal) {
-        for (int i = traversal.size - 1; i >= 0; i--) {
-            int entityId = traversal.get(i);
+    private void rebuildDerivedBounds(GameObjectTopologyState topology) {
+        for (int entityId = topology.lastTraversalEntityId; entityId >= 0;
+             entityId = topology.previousTraversalEntityId[entityId]) {
             int parentEntityId = topology.parentEntityId[entityId];
             if (gameObjects.has(entityId)) {
                 if (parentEntityId >= 0 && state.hierarchyVisible[entityId]

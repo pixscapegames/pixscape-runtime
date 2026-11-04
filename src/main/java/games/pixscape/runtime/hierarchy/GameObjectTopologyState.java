@@ -1,7 +1,5 @@
 package games.pixscape.runtime.hierarchy;
 
-import com.badlogic.gdx.utils.IntArray;
-
 import java.util.Arrays;
 
 /** Derived, non-serialized Game Object topology indexed by Artemis entity ID. */
@@ -14,7 +12,13 @@ public final class GameObjectTopologyState {
     public boolean[] parented;
     public int[] firstChildEntityId;
     public int[] nextSiblingEntityId;
-    public final IntArray traversal = new IntArray(false, MIN_CAPACITY);
+    public int[] previousSiblingEntityId;
+    /** Parent-first linked traversal: unlinking an entity never shifts unrelated entities. */
+    public int[] nextTraversalEntityId;
+    public int[] previousTraversalEntityId;
+    public int firstTraversalEntityId = -1;
+    public int lastTraversalEntityId = -1;
+    public int traversalSize;
 
     private int entityCapacity;
 
@@ -37,10 +41,16 @@ public final class GameObjectTopologyState {
         parented = Arrays.copyOf(parented, next);
         firstChildEntityId = Arrays.copyOf(firstChildEntityId, next);
         nextSiblingEntityId = Arrays.copyOf(nextSiblingEntityId, next);
+        previousSiblingEntityId = Arrays.copyOf(previousSiblingEntityId, next);
+        nextTraversalEntityId = Arrays.copyOf(nextTraversalEntityId, next);
+        previousTraversalEntityId = Arrays.copyOf(previousTraversalEntityId, next);
         Arrays.fill(parentEntityId, old, next, -1);
         Arrays.fill(rootEntityId, old, next, -1);
         Arrays.fill(firstChildEntityId, old, next, -1);
         Arrays.fill(nextSiblingEntityId, old, next, -1);
+        Arrays.fill(previousSiblingEntityId, old, next, -1);
+        Arrays.fill(nextTraversalEntityId, old, next, -1);
+        Arrays.fill(previousTraversalEntityId, old, next, -1);
         entityCapacity = next;
     }
 
@@ -52,6 +62,48 @@ public final class GameObjectTopologyState {
         parented[entityId] = false;
         firstChildEntityId[entityId] = -1;
         nextSiblingEntityId[entityId] = -1;
+        previousSiblingEntityId[entityId] = -1;
+        nextTraversalEntityId[entityId] = -1;
+        previousTraversalEntityId[entityId] = -1;
+    }
+
+    public void appendTraversal(int entityId) {
+        previousTraversalEntityId[entityId] = lastTraversalEntityId;
+        nextTraversalEntityId[entityId] = -1;
+        if (lastTraversalEntityId >= 0) nextTraversalEntityId[lastTraversalEntityId] = entityId;
+        else firstTraversalEntityId = entityId;
+        lastTraversalEntityId = entityId;
+        traversalSize++;
+    }
+
+    public void prependChild(int parent, int child) {
+        int next = firstChildEntityId[parent];
+        nextSiblingEntityId[child] = next;
+        previousSiblingEntityId[child] = -1;
+        if (next >= 0) previousSiblingEntityId[next] = child;
+        firstChildEntityId[parent] = child;
+    }
+
+    /** O(1) per deleted entity; the caller must reject surviving orphaned children. */
+    public void unlinkDeletedEntity(int entityId) {
+        if (entityId < 0 || entityId >= entityCapacity) return;
+        int parent = parentEntityId[entityId];
+        int previous = previousSiblingEntityId[entityId];
+        int next = nextSiblingEntityId[entityId];
+        if (previous >= 0) nextSiblingEntityId[previous] = next;
+        else if (parent >= 0) firstChildEntityId[parent] = next;
+        if (next >= 0) previousSiblingEntityId[next] = previous;
+
+        previous = previousTraversalEntityId[entityId];
+        next = nextTraversalEntityId[entityId];
+        if (previous >= 0 || next >= 0 || firstTraversalEntityId == entityId) {
+            if (previous >= 0) nextTraversalEntityId[previous] = next;
+            else firstTraversalEntityId = next;
+            if (next >= 0) previousTraversalEntityId[next] = previous;
+            else lastTraversalEntityId = previous;
+            traversalSize--;
+        }
+        clearEntity(entityId);
     }
 
     public int getEntityCapacity() {
@@ -66,9 +118,15 @@ public final class GameObjectTopologyState {
         parented = new boolean[capacity];
         firstChildEntityId = new int[capacity];
         nextSiblingEntityId = new int[capacity];
+        previousSiblingEntityId = new int[capacity];
+        nextTraversalEntityId = new int[capacity];
+        previousTraversalEntityId = new int[capacity];
         Arrays.fill(parentEntityId, -1);
         Arrays.fill(rootEntityId, -1);
         Arrays.fill(firstChildEntityId, -1);
         Arrays.fill(nextSiblingEntityId, -1);
+        Arrays.fill(previousSiblingEntityId, -1);
+        Arrays.fill(nextTraversalEntityId, -1);
+        Arrays.fill(previousTraversalEntityId, -1);
     }
 }

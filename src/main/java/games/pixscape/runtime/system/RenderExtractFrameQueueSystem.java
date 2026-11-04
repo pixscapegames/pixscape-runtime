@@ -125,8 +125,8 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 continue;
             }
 
-            if (domain == RenderSourceDomain.SOURCE_TILED) {
-                addTiledQuad(slot);
+            if (domain == RenderSourceDomain.SOURCE_TILED || domain == RenderSourceDomain.SOURCE_TILED_FRONT) {
+                addTiledQuad(slot, domain == RenderSourceDomain.SOURCE_TILED_FRONT);
             }
         }
 
@@ -178,7 +178,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 ? mShaderParams.getSafe(sourceEntity, null) : null;
     }
 
-    private void addTiledQuad(int tiledRenderRef) {
+    private void addTiledQuad(int tiledRenderRef, boolean front) {
         if (tiledState == null || !tiledState.isRenderableRef(tiledRenderRef)) {
             return;
         }
@@ -210,6 +210,8 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 tiledRenderRef,
                 -1
         );
+        games.pixscape.runtime.render.TileCornerSplit split = tiledState.cornerSplits.get(tiledRenderRef);
+        if (split != null) frameQueue.setTilePiece(frameQueue.size - 1, front ? split.front : split.back);
     }
 
     private void addVfxQuad(int index) {

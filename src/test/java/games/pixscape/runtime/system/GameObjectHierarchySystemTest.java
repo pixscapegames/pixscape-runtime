@@ -42,7 +42,7 @@ public class GameObjectHierarchySystemTest {
     public void emptyHierarchyBuildsAnEmptyTraversal() {
         world.process();
 
-        Assert.assertEquals(0, hierarchy.topology().traversal.size);
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
     }
 
     @Test
@@ -54,10 +54,10 @@ public class GameObjectHierarchySystemTest {
         world.process();
 
         GameObjectTopologyState state = hierarchy.topology();
-        Assert.assertEquals(3, state.traversal.size);
-        Assert.assertEquals(root, state.traversal.get(0));
-        Assert.assertEquals(low, state.traversal.get(1));
-        Assert.assertEquals(high, state.traversal.get(2));
+        Assert.assertEquals(3, state.traversalSize);
+        Assert.assertEquals(root, state.firstTraversalEntityId);
+        Assert.assertEquals(low, state.nextTraversalEntityId[root]);
+        Assert.assertEquals(high, state.nextTraversalEntityId[low]);
         Assert.assertEquals(root, state.parentEntityId[low]);
         Assert.assertEquals(root, state.rootEntityId[high]);
         Assert.assertEquals(1, state.depth[low]);
@@ -65,7 +65,7 @@ public class GameObjectHierarchySystemTest {
         int rebuilds = hierarchy.rebuildCount();
         world.process();
         Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
-        Assert.assertEquals(low, state.traversal.get(1));
+        Assert.assertEquals(low, state.nextTraversalEntityId[root]);
     }
 
     @Test
@@ -165,6 +165,93 @@ public class GameObjectHierarchySystemTest {
     }
 
     @Test
+    public void deletionUnlinksNestedSubtreesAndPreservesSurvivingTraversalWithoutRebuild() {
+        int root = entity(10, true, -1);
+        int first = entity(20, false, 10);
+        int nested = entity(30, true, 10);
+        int nestedChild = entity(40, false, 30);
+        int last = entity(50, false, 10);
+        int other = entity(60, true, -1);
+        world.getMapper(TransformComponent.class).get(root).x = 10;
+        world.getMapper(TransformComponent.class).get(last).x = 7;
+        world.process();
+        int rebuilds = hierarchy.rebuildCount();
+
+        world.delete(nestedChild);
+        world.delete(first);
+        world.delete(nested);
+        world.process();
+
+        GameObjectTopologyState state = hierarchy.topology();
+        Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        Assert.assertEquals(3, state.traversalSize);
+        Assert.assertEquals(root, state.firstTraversalEntityId);
+        Assert.assertEquals(last, state.nextTraversalEntityId[root]);
+        Assert.assertEquals(other, state.nextTraversalEntityId[last]);
+        Assert.assertEquals(other, state.lastTraversalEntityId);
+        Assert.assertEquals(last, state.previousTraversalEntityId[other]);
+        Assert.assertEquals(last, state.firstChildEntityId[root]);
+        Assert.assertEquals(-1, state.previousSiblingEntityId[last]);
+        Assert.assertEquals(-1, state.nextSiblingEntityId[last]);
+        Assert.assertEquals(17f, hierarchy.worldTransforms().x[last], EPSILON);
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(nestedChild));
+        Assert.assertEquals(-1, identities.findByStableId(30));
+
+        world.delete(root);
+        world.delete(last);
+        world.process();
+        Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        Assert.assertEquals(1, state.traversalSize);
+        Assert.assertEquals(other, state.firstTraversalEntityId);
+        Assert.assertEquals(-1, state.previousTraversalEntityId[other]);
+        world.delete(other);
+        world.process();
+        Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        Assert.assertEquals(0, state.traversalSize);
+        Assert.assertEquals(-1, state.firstTraversalEntityId);
+        Assert.assertEquals(-1, state.lastTraversalEntityId);
+    }
+
+    @Test
+    public void deletingAParentAloneStillRejectsSurvivingOrphans() {
+        int root = entity(1, true, -1);
+        entity(2, false, 1);
+        world.process();
+
+        world.delete(root);
+
+        Assert.assertThrows(RuntimeException.class, () -> world.process());
+    }
+
+    @Test
+    public void preparedCreateDeleteBeforeSynchronizationClearsTraversalAndAllowsIdReuse() {
+        world.process();
+        int rebuilds = hierarchy.rebuildCount();
+        int root = entity(1, true, -1);
+        int child = entity(2, false, 1);
+        identities.indexEntityImmediately(root);
+        identities.indexEntityImmediately(child);
+        hierarchy.registerPreparedSpawn(root);
+        hierarchy.registerPreparedSpawn(child);
+        world.delete(root);
+        world.delete(child);
+        world.process();
+        Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
+
+        int replacement = entity(3, false, -1);
+        Assert.assertEquals(root, replacement);
+        identities.indexEntityImmediately(replacement);
+        hierarchy.registerPreparedSpawn(replacement);
+        world.process();
+        Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
+        Assert.assertEquals(1, hierarchy.topology().traversalSize);
+        Assert.assertFalse(hierarchy.topology().parented[replacement]);
+        Assert.assertEquals(-1, hierarchy.topology().firstChildEntityId[replacement]);
+        Assert.assertTrue(hierarchy.worldTransforms().isResolved(replacement));
+    }
+
+    @Test
     public void combinedChainResolvesWorldWithoutRewritingAuthoredLocalTransforms() {
         int root = entity(1, true, -1);
         int nested = entity(2, true, 1);
@@ -258,7 +345,7 @@ public class GameObjectHierarchySystemTest {
     }
 
     @Test
-    public void representativeHierarchyUsesOneDenseResolveWithoutFrameRebuilds() {
+    public void representativeHierarchyResolvesWithoutFrameRebuilds() {
         entity(1, true, -1);
         for (int stableId = 2; stableId <= 1001; stableId++) {
             entity(stableId, false, 1);
@@ -268,7 +355,7 @@ public class GameObjectHierarchySystemTest {
 
         for (int frame = 0; frame < 10; frame++) world.process();
 
-        Assert.assertEquals(1001, hierarchy.topology().traversal.size);
+        Assert.assertEquals(1001, hierarchy.topology().traversalSize);
         Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
     }
 
@@ -344,5 +431,81 @@ public class GameObjectHierarchySystemTest {
                     .parentStableId = parentStableId;
         }
         return entityId;
+    }
+
+    @Test
+    public void structuralRebuildPreservesUnchangedPosesAndPropagatesReparenting() {
+        int root = entity(1, true, -1), other = entity(2, true, -1);
+        int nested = entity(3, true, 1), leaf = entity(4, false, 3);
+        int unchanged = entity(5, false, -1);
+        world.getMapper(TransformComponent.class).get(root).x = 10;
+        world.getMapper(TransformComponent.class).get(other).x = 30;
+        world.getMapper(TransformComponent.class).get(leaf).x = 2;
+        world.process();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        world.getSystem(DirtyFlushSystem.class).setEnabled(false);
+        int rebuilds = hierarchy.rebuildCount();
+
+        world.getMapper(GameObjectMemberComponent.class).get(nested).parentStableId = 2;
+        world.process();
+        Assert.assertEquals(rebuilds + 1, hierarchy.rebuildCount());
+        Assert.assertEquals(32f, hierarchy.worldTransforms().x[leaf], EPSILON);
+        Assert.assertNotEquals(0, dirty.geomSub(nested));
+        Assert.assertNotEquals(0, dirty.geomSub(leaf));
+        Assert.assertEquals(0, dirty.geomSub(root));
+        Assert.assertEquals(0, dirty.geomSub(other));
+        Assert.assertEquals(0, dirty.geomSub(unchanged));
+
+        dirty.clearFrame();
+        world.getMapper(TransformComponent.class).get(other).x = 40;
+        dirty.geometry(other, games.pixscape.runtime.render.GeometryDirty.POSITION);
+        world.process();
+        Assert.assertEquals(42f, hierarchy.worldTransforms().x[leaf], EPSILON);
+        Assert.assertNotEquals(0, dirty.geomSub(leaf));
+        Assert.assertEquals(0, dirty.geomSub(unchanged));
+    }
+
+    @Test
+    public void removedTransformCannotSupplyAResolvedPoseOnReintroduction() {
+        int entity = entity(1, false, -1);
+        world.getMapper(TransformComponent.class).get(entity).x = 17;
+        world.process();
+        world.getMapper(TransformComponent.class).remove(entity);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(entity));
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
+
+        world.getSystem(DirtyFlushSystem.class).setEnabled(false);
+        // Even an equal numeric pose is newly resolved after the component's absence.
+        world.getMapper(TransformComponent.class).create(entity).x = 17;
+        world.process();
+        Assert.assertTrue(hierarchy.worldTransforms().isResolved(entity));
+        Assert.assertNotEquals(0, world.getSystem(DirtyTrackerSystem.class).geomSub(entity));
+        Assert.assertEquals(17f, hierarchy.worldTransforms().x[entity], EPSILON);
+    }
+
+    @Test
+    public void recycledIdAndSameFramePreparedDeletionDiscardResolvedState() {
+        int old = entity(1, false, -1);
+        world.getMapper(TransformComponent.class).get(old).x = 17;
+        world.process();
+        world.delete(old);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(old));
+        int replacement = entity(2, false, -1);
+        Assert.assertEquals(old, replacement);
+        identities.indexEntityImmediately(replacement);
+        hierarchy.registerPreparedSpawn(replacement);
+        hierarchy.resolveEntityFromCurrentAuthoredTransform(replacement);
+        Assert.assertEquals(0f, hierarchy.worldTransforms().x[replacement], EPSILON);
+        world.delete(replacement);
+        world.process();
+        Assert.assertFalse(hierarchy.worldTransforms().isResolved(replacement));
+        Assert.assertEquals(0, hierarchy.topology().traversalSize);
+        int finalEntity = entity(3, false, -1);
+        Assert.assertEquals(old, finalEntity);
+        world.getMapper(TransformComponent.class).get(finalEntity).x = 81;
+        world.process();
+        Assert.assertEquals(81f, hierarchy.worldTransforms().x[finalEntity], EPSILON);
     }
 }

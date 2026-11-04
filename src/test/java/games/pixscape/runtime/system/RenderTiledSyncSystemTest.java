@@ -32,6 +32,44 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+    @Test public void independentBodyInsertionPreservesMapChunksButRealGeometryStillInvalidates() {
+        DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
+        GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem();
+        Fixture f = roundedAnimationFixture(640, dirty, hierarchy);
+        try {
+            f.world.process();
+            int map = onlyMapEntity(f.world);
+            f.world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(map);
+            f.world.process();
+            int ref = refFor(f.map, 0, 0);
+            LightingSurface surface = f.tiledState.lightingSurfaces.get(ref);
+            Assert.assertNotNull(surface);
+            int compiled = f.tiledSync.persistentChunkCompilationCount();
+            int rebuilt = hierarchy.rebuildCount();
+            dirty.clearFrame();
+
+            int body = f.world.create();
+            f.world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(body).x = 900;
+            f.world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(body);
+            dirty.geometry(body, GeometryDirty.ALL);
+            dirty.physics(body, PhysicsDirtyBits.ALL);
+            f.world.process();
+
+            Assert.assertEquals(rebuilt + 1, hierarchy.rebuildCount());
+            Assert.assertEquals(0, dirty.geomSub(map));
+            Assert.assertEquals(compiled, f.tiledSync.persistentChunkCompilationCount());
+            Assert.assertSame(surface, f.tiledState.lightingSurfaces.get(ref));
+
+            dirty.clearFrame();
+            f.world.getMapper(games.pixscape.runtime.component.TransformComponent.class).get(map).x = 20;
+            dirty.geometry(map, GeometryDirty.POSITION);
+            f.world.process();
+            Assert.assertEquals(20f, hierarchy.worldTransforms().x[map], 0f);
+            Assert.assertTrue(f.tiledSync.persistentChunkCompilationCount() > compiled);
+            Assert.assertNotSame(surface, f.tiledState.lightingSurfaces.get(ref));
+        } finally { f.world.dispose(); }
+    }
+
     @Test public void allAnimationFramesAreAdmittedBeforePublicationAndCorrectionResumes(){
         Fixture f=roundedAnimationFixture(512);
         try {
@@ -120,10 +158,10 @@ public class RenderTiledSyncSystemTest {
         chunk.dirtyLocalIndices.add(0);chunk.dirtyState=TileChunk.DirtyState.PARTIAL;
     }
 
-    private static Fixture roundedAnimationFixture(int secondHeight){
+    private static Fixture roundedAnimationFixture(int secondHeight, com.artemis.BaseSystem... preparation){
         RuntimeTilesetProfile p=profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,TiledProjection.ISO);
         p.tileAssetIds=new int[]{1,2};
-        Fixture f=createProfilePlacementFixture(profilesWith(p),TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,228,264);
+        Fixture f=createProfilePlacementFixture(profilesWith(p),TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,228,264,preparation);
         ((SizedCountingAtlasRuntimeService)f.atlas).secondHeight=secondHeight;
         f.world.process();int e=onlyMapEntity(f.world);
         SpatialBlocksComponent blocks=f.world.getMapper(SpatialBlocksComponent.class).create(e);
@@ -1604,7 +1642,8 @@ public class RenderTiledSyncSystemTest {
                                                          float viewportWidth,
                                                          float viewportHeight,
                                                          float cameraX,
-                                                         float cameraY) {
+                                                         float cameraY,
+                                                         com.artemis.BaseSystem... preparation) {
         OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
         camera.position.set(cameraX, cameraY, 0f);
 
@@ -1624,6 +1663,7 @@ public class RenderTiledSyncSystemTest {
                 profiles);
 
         World world = new World(new WorldConfigurationBuilder()
+                .with(preparation)
                 .with(tiledSync,
                         new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
                         new RenderSortSystem(null, tiledState, drawList))

@@ -9,6 +9,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
@@ -500,6 +501,94 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(ref.shader().hasFloat("u_time"));
         ref.shader().removeFloat("u_time");
         Assert.assertFalse(ref.shader().hasFloat("u_time"));
+    }
+
+    @Test
+    public void transformXyReturnsIndependentSnapshotsAndReusesOutput() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        world.process();
+        TransformFacade facade = engine.api().entities().ofEntityId(entity).transform();
+        facade.setPosition(12.5f, -7f);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        Vector2 first = facade.xy();
+        Vector2 second = facade.xy();
+        Assert.assertNotSame(first, second);
+        Assert.assertEquals(facade.x(), first.x, 0f);
+        Assert.assertEquals(facade.y(), first.y, 0f);
+        Assert.assertEquals(first, second);
+
+        Vector2 out = new Vector2(99f, 99f);
+        Assert.assertSame(out, facade.xy(out));
+        Assert.assertEquals(first, out);
+        first.set(1f, 2f);
+        out.set(3f, 4f);
+        Assert.assertEquals(12.5f, facade.x(), 0f);
+        Assert.assertEquals(-7f, facade.y(), 0f);
+        Assert.assertEquals(new Vector2(12.5f, -7f), second);
+        Assert.assertEquals(0, dirty.packedBits(entity));
+
+        facade.setPosition(-8f, 9f);
+        Assert.assertEquals(new Vector2(3f, 4f), out);
+        dirty.clearAll();
+        Assert.assertSame(out, facade.xy(out));
+        Assert.assertEquals(new Vector2(-8f, 9f), out);
+        Assert.assertEquals(new Vector2(12.5f, -7f), second);
+        Assert.assertThrows(IllegalArgumentException.class, () -> facade.xy(null));
+        Assert.assertEquals(0, dirty.packedBits(entity));
+    }
+
+    @Test
+    public void transformXyWithoutComponentReturnsZeroWithoutCreatingTransform() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int entity = world.create();
+        world.process();
+        TransformFacade facade = engine.api().entities().ofEntityId(entity).transform();
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        dirty.clearAll();
+
+        Vector2 result = facade.xy();
+        Assert.assertEquals(0f, result.x, 0f);
+        Assert.assertEquals(0f, result.y, 0f);
+        Assert.assertEquals(facade.x(), result.x, 0f);
+        Assert.assertEquals(facade.y(), result.y, 0f);
+        Vector2 out = new Vector2(5f, 6f);
+        Assert.assertSame(out, facade.xy(out));
+        Assert.assertEquals(result, out);
+        Assert.assertFalse(world.getMapper(TransformComponent.class).has(entity));
+        Assert.assertThrows(IllegalArgumentException.class, () -> facade.xy(null));
+        Assert.assertEquals(0, dirty.packedBits(entity));
+    }
+
+    @Test
+    public void transformXyKeepsGameObjectMemberCoordinatesLocal() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        World world = engine.getWorld();
+        int parent = world.create();
+        world.getMapper(GameObjectComponent.class).create(parent);
+        TransformComponent parentTransform = world.getMapper(TransformComponent.class).create(parent);
+        parentTransform.x = 100f;
+        parentTransform.y = 200f;
+        parentTransform.rotationRad = 1f;
+        parentTransform.scaleX = parentTransform.scaleY = 2f;
+        int member = world.create();
+        world.getMapper(GameObjectMemberComponent.class).create(member).parentStableId =
+                engine.api().entities().ensureStableId(parent);
+        TransformComponent local = world.getMapper(TransformComponent.class).create(member);
+        local.x = 3f;
+        local.y = -4f;
+        world.process();
+
+        TransformFacade facade = engine.api().entities().ofEntityId(member).transform();
+        Assert.assertEquals(new Vector2(3f, -4f), facade.xy());
+        Vector2 out = new Vector2();
+        Assert.assertSame(out, facade.xy(out));
+        Assert.assertEquals(facade.x(), out.x, 0f);
+        Assert.assertEquals(facade.y(), out.y, 0f);
     }
 
     @Test

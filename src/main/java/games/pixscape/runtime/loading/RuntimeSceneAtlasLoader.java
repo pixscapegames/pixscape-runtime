@@ -45,10 +45,10 @@ public final class RuntimeSceneAtlasLoader {
             throw new IllegalArgumentException(
                     "Manager-owned scene atlas is required for '" + sceneName + "'.");
         }
-        games.pixscape.runtime.service.NormalMapAtlas normalAtlas = !meta.useNormalMaps || availableNormals==null?null
+        games.pixscape.runtime.service.NormalMapAtlas normalAtlas = !meta.lightingEnabled || !meta.useNormalMaps || availableNormals==null?null
                 : new games.pixscape.runtime.service.NormalMapAtlas(sceneDirName,availableNormals,availableAtlas,false);
         try {
-            if(meta.useNormalMaps) {
+            if(meta.lightingEnabled && meta.useNormalMaps) {
                 games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles=RuntimeProjectIO.loadTilesetProfiles(projectDir);
                 games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(sceneDirName,availableAtlas,normalAtlas,profiles,projectDir);
             }

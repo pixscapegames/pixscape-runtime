@@ -6,13 +6,17 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.render.batch.ShaderParameterRows;
+import games.pixscape.runtime.render.batch.ShaderParameterTexture;
+import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /** Ordered triangles: four receiver pages, capability-sized shadow pages. */
 final class LightingBatch {
     // Shadow vertices are deliberately independent of receiver vertices: only these fields reach d1/d2.
     private static final int SHADOW_POSITION=0, SHADOW_UV=3, SHADOW_COLOR=5, SHADOW_FLAGS=9, SHADOW_EXCLUSION=13;
-    private static final int SHADOW_STRIDE=14, BASE_STRIDE=22, MAPPED_STRIDE=29, CAPACITY=12288;
+    private static final int SHADOW_STRIDE=20, BASE_STRIDE=28, MAPPED_STRIDE=35, CAPACITY=12288;
     private int stride=BASE_STRIDE;
     private final int shadowSlots;
     private int colorSlots=4;
@@ -21,6 +25,7 @@ final class LightingBatch {
     private final int[] planningHandles=new int[8];
     private static final class ReplayBatch {
         final Mesh mesh;
+        final ShaderParameterTexture parameters=ShaderRegistry.hasSurfaceShaders()?new ShaderParameterTexture(ShaderParameterRows.DEFAULT_CAPACITY):null;
         final int[] handles=new int[8];
         int vertices,textures;
         ReplayBatch(){mesh=shadowMesh();}
@@ -39,6 +44,17 @@ final class LightingBatch {
     private int vertices,textures,blend=-1;
     private boolean retainReplay;
     private ShaderProgram shader;
+    private static final int PARAMETER_UNIT=11;
+    private final ShaderParameterRows parameterRows=new ShaderParameterRows(ShaderParameterRows.DEFAULT_CAPACITY);
+    private final ShaderParameterTexture parameterTexture=ShaderRegistry.hasSurfaceShaders()?new ShaderParameterTexture(ShaderParameterRows.DEFAULT_CAPACITY):null;
+    private int material=-1;
+    void material(int shaderIndex, ShaderParamsComponent parameters) {
+        int selected=ShaderRegistry.getSurface(shaderIndex)==null?-1:shaderIndex;
+        if(material!=selected){flush();material=selected;parameterRows.setLayout(ShaderRegistry.getParameterLayout(selected));}
+        if(parameterRows.setEntityParameters(selected<0||parameters==null?null:parameters.floats)<0){
+            flush();parameterRows.setEntityParameters(parameters.floats);
+        }
+    }
     private RenderStats stats;
     LightingBatch(){this(4);}
     LightingBatch(int shadowSlots){
@@ -62,7 +78,9 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_normalUV"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_normalBasis"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"));
+                new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_surfaceMaterial"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_surfaceRegion"));
     }
     private static Mesh shadowMesh(){
         return new Mesh(false,CAPACITY,0,
@@ -70,7 +88,9 @@ final class LightingBatch {
                 new VertexAttribute(VertexAttributes.Usage.TextureCoordinates,2,"a_uv"),
                 new VertexAttribute(VertexAttributes.Usage.ColorUnpacked,4,"a_color"),
                 new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
-                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"));
+                new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_surfaceMaterial"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_surfaceRegion"));
     }
     private static Mesh receiverMesh(){
         VertexAttribute[] attributes={
@@ -81,13 +101,15 @@ final class LightingBatch {
             new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_flags"),
             new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_screen"),
             new VertexAttribute(VertexAttributes.Usage.Generic,1,"a_exclusionId"),
-            new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal")};
+            new VertexAttribute(VertexAttributes.Usage.Generic,3,"a_curveNormal"),
+            new VertexAttribute(VertexAttributes.Usage.Generic,2,"a_surfaceMaterial"),
+                new VertexAttribute(VertexAttributes.Usage.Generic,4,"a_surfaceRegion")};
         return new Mesh(false,CAPACITY,0,attributes);}
     /** Explicit frame preparation, before submission. Release excess scene capacity here only. */
     void prepareReplayCapacity(int count){
         abort();
         while(replayBatches.size<count)replayBatches.add(new ReplayBatch());
-        while(replayBatches.size>count)replayBatches.pop().mesh.dispose();
+        while(replayBatches.size>count){ReplayBatch b=replayBatches.pop();b.mesh.dispose();if(b.parameters!=null)b.parameters.close();}
         replayBatches.shrink();
     }
     int replayCapacity(){return replayBatches.size;}
@@ -96,15 +118,15 @@ final class LightingBatch {
     void begin(ShaderProgram shader,RenderStats stats,boolean retainReplay){
         this.shader=shader;this.stats=stats;this.retainReplay=retainReplay;vertices=textures=0;blend=-1;replayCount=0;
         mapped=false;stride=retainReplay?SHADOW_STRIDE:BASE_STRIDE;normalTextures=0;
-        colorSlots=retainReplay?shadowSlots:4;
+        colorSlots=retainReplay?shadowSlots:4;material=-1;parameterRows.setLayout(null);
     }
     void beginMapped(ShaderProgram shader,RenderStats stats){
         begin(shader,stats,false);mapped=true;stride=MAPPED_STRIDE;
         for(int i=0;i<4;i++)boundNormals[i]=0;
     }
-    /** Allocation-free exact batch plan, using the published light-independent caster topology. */
+    /** Allocation-free conservative batch plan, using the published light-independent caster topology. */
     int requiredReplayBatches(LightingFrame frame,com.badlogic.gdx.utils.IntArray candidates){
-        int total=0,textureCount=0,batches=0;
+        int total=0,textureCount=0,batches=0,material=-1,parameterCount=0;
         for(int i=0;i<candidates.size;i++){
             LightingFrame.Caster caster=frame.casters.get(candidates.get(i));
             if(caster==null || caster.surface==null || caster.surface.vertices==null || caster.surface.vertices.length%8!=0 ||
@@ -113,6 +135,11 @@ final class LightingBatch {
             int count=caster.surface.shadowVertices!=null
                     ?caster.surface.shadowVertexCount:caster.surface.vertices.length/8;
             if(count==0)continue;
+            int next=ShaderRegistry.getSurface(caster.surface.materialShader)==null?-1:caster.surface.materialShader;
+            if(next!=material || parameterCount>=ShaderParameterRows.DEFAULT_CAPACITY-2){
+                if(total>0)batches++;total=textureCount=parameterCount=0;material=next;
+            }
+            parameterCount++;
             boolean found=false;
             for(int j=0;j<textureCount;j++)if(planningHandles[j]==caster.texture){found=true;break;}
             if(!found){if(textureCount==shadowSlots){if(total>0)batches++;total=textureCount=0;}planningHandles[textureCount++]=caster.texture;}
@@ -126,7 +153,7 @@ final class LightingBatch {
     void replay(){
         shader.bind();
         for(int i=0;i<replayCount;i++){
-            ReplayBatch b=replayBatches.get(i);bindTextures(b.handles,b.textures);
+            ReplayBatch b=replayBatches.get(i);bindTextures(b.handles,b.textures);if(b.parameters!=null)b.parameters.bind(PARAMETER_UNIT);
             b.mesh.render(shader,GL20.GL_TRIANGLES,0,b.vertices);
             if(stats!=null){stats.drawCalls++;stats.replayDraws++;stats.drawnVertices+=b.vertices;stats.textureBinds+=colorSlots;}
         }
@@ -179,6 +206,8 @@ final class LightingBatch {
                 data[o+SHADOW_FLAGS]=slot;data[o+SHADOW_FLAGS+1]=surface.twoSided?1:0;
                 data[o+SHADOW_FLAGS+2]=surface.twoSided?1:0;data[o+SHADOW_FLAGS+3]=surface.alphaThreshold;
                 data[o+SHADOW_EXCLUSION]=surface.casterShadowGroup();
+                data[o+SHADOW_STRIDE-6]=material;data[o+SHADOW_STRIDE-5]=parameterRows.currentId();
+                region(o+SHADOW_STRIDE-4,u1,v1,u2,v2);
                 if(surface.actorShadowRectangle!=null && source==surface.actorShadowRectangle.lightVertices){
                     data[o+SHADOW_UV]=u;data[o+SHADOW_UV+1]=v;
                     // Carry actor atlas bounds in color RGB and flags.z; alpha remains the image alpha multiplier.
@@ -204,7 +233,7 @@ final class LightingBatch {
             data[macro+2]=curve==null?source[i+7]:curve[normalIndex+2];
             data[o+8]=r;data[o+9]=g;data[o+10]=b;data[o+11]=a;
             boolean completed=!shadow && surface.receiverVertices!=null && surface.vertices[i+5]==0 && surface.vertices[i+6]==0 && surface.vertices[i+7]==0;
-            data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight?1:-1);
+            data[o+12]=slot;data[o+13]=(completed?3:surface.approximate?2:1)*(supported&&surface.receiveLight&&!ShaderRegistry.isUnlit(material)?1:-1);
             // Receiver side/provenance: 0 = facade decor, 1 = two-sided, -1 = actor, -2 = sprite-oriented tile.
             // Keep shadow flags unchanged; ordinary local actor meshes may also be one-sided.
             data[o+14]=surface.receiverLightingMode(i);data[o+15]=blendMode==7?.5f:blendMode==0?-2:blendMode==2?-3:-1;
@@ -217,7 +246,12 @@ final class LightingBatch {
             else{data[o+16]=LightingCoordinates.screenX(source[i],source[i+1])+offsetX;
                 data[o+17]=LightingCoordinates.screenY(source[i],source[i+1],source[i+2])+offsetY;}
             data[o+(mapped?25:18)]=surface.receiverShadowGroup(i);
+            data[o+stride-6]=material;data[o+stride-5]=parameterRows.currentId();
+            region(o+stride-4,u1,v1,u2,v2);
         }
+    }
+    private void region(int o,float u1,float v1,float u2,float v2){
+        data[o]=Math.min(u1,u2);data[o+1]=Math.min(v1,v2);data[o+2]=Math.max(u1,u2);data[o+3]=Math.max(v1,v2);
     }
     void flush(){
         if(vertices==0)return;
@@ -229,13 +263,15 @@ final class LightingBatch {
             if(mapped||replayCount>=replayBatches.size)throw new IllegalStateException("Shadow replay capacity must be prepared before submission");
             ReplayBatch b=replayBatches.get(replayCount++);active=b.mesh;
             b.vertices=vertices;b.textures=textures;System.arraycopy(handles,0,b.handles,0,textures);
+            if(b.parameters!=null)b.parameters.upload(parameterRows.data(),parameterRows.rowCount(),PARAMETER_UNIT);
         }
+        if(!retainReplay && parameterTexture!=null)parameterTexture.upload(parameterRows.data(),parameterRows.rowCount(),PARAMETER_UNIT);
         active.setVertices(data,0,vertices*stride);active.render(shader,GL20.GL_TRIANGLES,0,vertices);
         uploads++;uploadedBytes+=(long)vertices*stride*4;
         if(stats!=null){stats.drawCalls++;stats.flushes++;stats.textureBinds+=colorSlots;
             stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertices*stride*4;
             stats.uploadedVertices+=vertices;stats.drawnVertices+=vertices;}
-        vertices=0;textures=0;
+        vertices=0;textures=0;parameterRows.afterFlush();
     }
     private void bindTextures(int[] source,int count){
         for(int i=0;i<count;i++){Texture t=TextureRegistry.getByHandle(source[i]);
@@ -257,5 +293,5 @@ final class LightingBatch {
         }
     }
     void abort(){vertices=textures=replayCount=0;blend=-1;retainReplay=false;}
-    void dispose(){abort();for(ReplayBatch b:replayBatches)b.mesh.dispose();replayBatches.clear();mesh.dispose();if(mappedMesh!=null)mappedMesh.dispose();}
+    void dispose(){abort();for(ReplayBatch b:replayBatches){b.mesh.dispose();if(b.parameters!=null)b.parameters.close();}if(parameterTexture!=null)parameterTexture.close();replayBatches.clear();mesh.dispose();if(mappedMesh!=null)mappedMesh.dispose();}
 }

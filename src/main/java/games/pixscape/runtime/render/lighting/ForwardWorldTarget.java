@@ -43,7 +43,7 @@ final class ForwardWorldTarget {
             }
             GLFrameBuffer.FrameBufferBuilder b=new GLFrameBuffer.FrameBufferBuilder(w,h);
             b.addFloatAttachment(GL30.GL_RGBA16F,GL20.GL_RGBA,GL20.GL_FLOAT,true);
-            FrameBuffer next=b.build();next.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest,Texture.TextureFilter.Nearest);
+            FrameBuffer next=new games.pixscape.runtime.render.WorldFrameBuffer(b);next.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest,Texture.TextureFilter.Nearest);
             if(target!=null)target.dispose();target=next;width=w;height=h;
         } finally {restore();}
     }

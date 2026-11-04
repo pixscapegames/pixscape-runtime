@@ -60,6 +60,11 @@ public final class IdentityRegistry {
     public IdentityRegistry() {
     }
 
+    /** INTERNAL: whether both the World and its authoritative allocator state are already bound. */
+    public boolean isBoundTo(World world, SceneMetaRuntime sceneMeta) {
+        return this.world == world && this.sceneMeta == sceneMeta;
+    }
+
     public void bind(World world, SceneMetaRuntime sceneMeta) {
         if (this.world == world && this.sceneMeta == sceneMeta) return;
 
@@ -153,6 +158,11 @@ public final class IdentityRegistry {
         if (registry != null) {
             registry.unindexEntityImmediately(eid);
         }
+    }
+
+    /** Index only the newly published entity, including before Artemis subscription synchronization. */
+    public void indexEntityImmediately(int eid) {
+        indexEntityFromComponent(eid);
     }
 
     public void rebuild() {
@@ -388,6 +398,9 @@ public final class IdentityRegistry {
         String normalizedName = normalizeName(c.name);
         c.name = normalizedName;
 
+        Integer previous = stableIdByEntity.get(eid);
+        if (previous != null && previous.intValue() == stableId
+                && normalizedName.equals(nameByEntity.get(eid))) return;
         unindexEntity(eid);
 
         if (stableId != UNASSIGNED_STABLE_ID) {
@@ -454,10 +467,7 @@ public final class IdentityRegistry {
 
     private void replaceNameIndex(int eid, String newName) {
         String oldName = nameByEntity.get(eid);
-        if (newName.equals(oldName)) {
-            indexName(newName, eid);
-            return;
-        }
+        if (newName.equals(oldName)) return;
 
         if (oldName != null) {
             unindexName(oldName, eid);
@@ -474,9 +484,7 @@ public final class IdentityRegistry {
             byName.put(name, bucket);
         }
 
-        if (!containsInt(bucket, eid)) {
-            bucket.add(eid);
-        }
+        bucket.add(eid);
     }
 
     private void unindexName(String name, int eid) {
@@ -533,13 +541,6 @@ public final class IdentityRegistry {
 
         String v = name.trim();
         return v.isEmpty() ? DEFAULT_NAME : v;
-    }
-
-    private static boolean containsInt(IntArray array, int value) {
-        for (int i = 0; i < array.size; i++) {
-            if (array.get(i) == value) return true;
-        }
-        return false;
     }
 
     private static void removeInt(IntArray array, int value) {

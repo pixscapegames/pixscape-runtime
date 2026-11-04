@@ -2,6 +2,10 @@ package games.pixscape.runtime.render.lighting;
 
 /** Cold triangle data: XYZ, normalized image UV, normal. Shared by receiver and caster. */
 public final class LightingSurface {
+    /** Borrowed authored material publication, shared by visible and shadow variants. */
+    public int materialShader = -1;
+    public games.pixscape.runtime.component.ShaderParamsComponent materialParameters;
+    public float materialColor = com.badlogic.gdx.graphics.Color.WHITE.toFloatBits();
     public final float[] vertices;
     public boolean receiveLight = true, shadowCaster, twoSided, approximate;
     /** Derived simple-sheet topology: six vertices in SpriteSurfaceSupport.corner order, never a local mesh/tile. */
@@ -38,12 +42,18 @@ public final class LightingSurface {
     public int[] receiverShadowGroups;
     /** Cold per-physical-triangle lighting policy, independent of exclusion provenance. */
     public boolean[] receiverSpriteShading;
+    /** Draw-only partition borrows the original receiver's live shadow groups and material policy. */
+    public LightingSurface sourceReceiver;
+    public int[] sourceTriangleOffsets;
+
     public float receiverLightingMode(int offset) {
+        if (sourceReceiver != null) return sourceReceiver.receiverLightingMode(sourceTriangleOffsets[offset / 24]);
         if (offset >= 0 && receiverSpriteShading != null && receiverSpriteShading[offset / 24]) return -2f;
         return twoSided ? 1f : actor ? -1f : 0f;
     }
     public int casterShadowGroup(){return shadowGroupId<0?selfShadowExclusionId:shadowGroupId;}
     public int receiverShadowGroup(int offset){
+        if (sourceReceiver != null) return sourceReceiver.receiverShadowGroup(sourceTriangleOffsets[offset / 24]);
         if(offset<0)return 0;
         return receiverShadowGroups==null?(shadowGroupId<0?receiverExclusionId(offset):shadowGroupId):receiverShadowGroups[offset/24];
     }

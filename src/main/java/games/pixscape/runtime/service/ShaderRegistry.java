@@ -46,6 +46,9 @@ public final class ShaderRegistry {
     private static Array<ShaderRole> rolesByIdx = new Array<>();
     private static ObjectMap<String, Array<ShaderFloatParam>> defaultUniforms = new ObjectMap<>();
     private static Array<ShaderParameterLayout> parameterLayoutsByIdx = new Array<>();
+    private static Array<SurfaceShader> surfacesByIdx = new Array<>();
+    private static int surfaceRevision;
+    private static int surfaceCount;
     private static ObjectIntMap<String> reservedIndices = new ObjectIntMap<>();
     private static final String INDEX_FILE = "shader-indices.json";
     private static final int MAX_SHADERS = 1 << SortKey64.SHADER_BITS;
@@ -272,6 +275,79 @@ public final class ShaderRegistry {
         return parameterLayoutsByIdx.get(shaderIndex);
     }
 
+    /** Complete indexed lookup, including absent and legacy shader contracts. */
+    public static SurfaceShader getSurface(int shaderIndex) {
+        return shaderIndex < 0 || shaderIndex >= surfacesByIdx.size ? null : surfacesByIdx.get(shaderIndex);
+    }
+
+    public static boolean isUnlit(int shaderIndex) {
+        SurfaceShader surface = getSurface(shaderIndex);
+        return surface != null && surface.lighting == SurfaceShader.Lighting.UNLIT;
+    }
+
+    public static int surfaceRevision() { return surfaceRevision; }
+    public static boolean hasSurfaceShaders() { return surfaceCount != 0; }
+
+    public static String surfaceVersion() {
+        return getShaderVariant() == ShaderVariant.DESKTOP_GL30 ? "#version 330 core\n"
+                : "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
+    }
+
+    /** Cold shader-generation boundary. IDs come only from the existing registry allocator. */
+    public static String surfaceLightingSources(boolean shadow) {
+        StringBuilder result = new StringBuilder("flat in highp vec2 surfaceMaterial;uniform highp float u_time;uniform highp sampler2D u_entityParams;\n");
+        result.append(SurfaceShader.samplingFunctions());
+        result.append(SurfaceShader.parameterFunction("surfaceMaterial.y"));
+        for (int i = 0; i < surfacesByIdx.size; i++) {
+            SurfaceShader surface = surfacesByIdx.get(i);
+            if (surface == null) continue;
+            if (!shadow) result.append(surface.function("surfaceColor" + i, false));
+            result.append(surface.function("surfaceMask" + i, true));
+        }
+        result.append("float surfaceMask(vec2 uv){int material=int(surfaceMaterial.x);\n");
+        for (int i = 0; i < surfacesByIdx.size; i++) if (surfacesByIdx.get(i) != null)
+            result.append("if(material==").append(i).append(")return surfaceMask").append(i).append("(uv,u_time);\n");
+        result.append("return 1.;}\n");
+        if (!shadow) {
+            result.append("vec4 surfaceColor(vec4 base,vec2 uv){if(surfaceMask(uv)<.5)discard;int material=int(surfaceMaterial.x);\n");
+            for (int i = 0; i < surfacesByIdx.size; i++) if (surfacesByIdx.get(i) != null)
+                result.append("if(material==").append(i).append(")return surfaceColor").append(i).append("(pixscapeSample(pixscapeLocalUV(uv)),uv,u_time);\n");
+            result.append("return base;}\n");
+        }
+        return result.toString();
+    }
+
+    public static void testCompileSurface(String name, SurfaceShader surface) {
+        ShaderProgram program = compileSurface(name, surface);
+        program.dispose();
+        games.pixscape.runtime.render.lighting.LightingRenderer.validateSurfaceVariants(surface);
+    }
+
+    private static ShaderProgram compileSurface(String name, SurfaceShader surface) {
+        ShaderProgram program = new ShaderProgram(SurfaceShader.directVertex(surfaceVersion()),
+                surface.directFragment(surfaceVersion()));
+        if (!program.isCompiled()) {
+            String log = program.getLog();
+            program.dispose();
+            throw new IllegalArgumentException("Surface shader '" + name + "': " + log);
+        }
+        return program;
+    }
+
+    private static int registerSurface(String name, SurfaceShader surface, ShaderOrigin origin) {
+        ShaderProgram program = compileSurface(name, surface);
+        int index = registerOrReplace(name, program, ShaderMode.TEXTURE_ARRAY, origin, ShaderRole.MATERIAL);
+        surfacesByIdx.set(index, surface);
+        surfaceCount++;
+        parameterLayoutsByIdx.set(index, surface.parameters);
+        Array<ShaderFloatParam> defaults = ShaderParamsComponent.newShaderFloatArray();
+        for (int i = 0; i < surface.parameters.size(); i++)
+            defaults.add(new ShaderFloatParam(surface.parameters.name(i), surface.parameters.defaultValue(i)));
+        defaultUniforms.put(name, defaults);
+        surfaceRevision++;
+        return index;
+    }
+
     /** Registers an ordered, float-only table layout for a material shader. */
     public static void registerParameterLayout(String shaderName, Array<ShaderFloatParam> defaults) {
         int index = indexOf(shaderName);
@@ -323,6 +399,8 @@ public final class ShaderRegistry {
         rolesByIdx.clear();
         defaultUniforms.clear();
         parameterLayoutsByIdx.clear();
+        surfacesByIdx.clear();surfaceCount=0;
+        surfaceRevision++;
         reservedIndices.clear();
         nextShaderIndex = 0;
 
@@ -337,6 +415,21 @@ public final class ShaderRegistry {
     }
 
     public static void reloadForProject(FileHandle projectDir, String shadersDir) {
+        reloadForProject(projectDir, shadersDir, false);
+    }
+
+    /** Authoring edits validate every generated lighting variant before registry publication. */
+    public static void reloadForProject(FileHandle projectDir, String shadersDir, boolean validateSurfaces) {
+        reloadForProject(projectDir,shadersDir,validateSurfaces,null,null);
+    }
+
+    /** Rename the authored identity without reallocating its material/parameter slot. */
+    public static void renameForProject(FileHandle projectDir,String shadersDir,String oldName,String newName) {
+        if(indexOf(oldName)<0 || indexOf(newName)>=0)throw new IllegalArgumentException("Invalid shader rename");
+        reloadForProject(projectDir,shadersDir,true,oldName,newName);
+    }
+
+    private static void reloadForProject(FileHandle projectDir,String shadersDir,boolean validateSurfaces,String oldName,String newName) {
         RegistrySnapshot previousState = new RegistrySnapshot();
         String oldRoot = projectShadersRoot == null ? null : projectShadersRoot.path();
         String newRoot = projectDir == null || shadersDir == null ? null : projectDir.child(shadersDir).path();
@@ -352,7 +445,13 @@ public final class ShaderRegistry {
                 }
                 nextShaderIndex = previousNext;
             }
+            if(oldName!=null) {
+                int slot=previousState.names.get(oldName,-1);
+                reservedIndices.remove(oldName,-1);reservedIndices.put(newName,slot);
+            }
             initDefaults();
+            if (validateSurfaces && hasSurfaceShaders())
+                games.pixscape.runtime.render.lighting.LightingRenderer.validateSurfaceVariants(null);
         } catch (RuntimeException | Error failure) {
             disposePrograms(byIdx);
             previousState.restore();
@@ -370,6 +469,9 @@ public final class ShaderRegistry {
         final Array<ShaderRole> roles = rolesByIdx;
         final ObjectMap<String, Array<ShaderFloatParam>> defaults = defaultUniforms;
         final Array<ShaderParameterLayout> layouts = parameterLayoutsByIdx;
+        final Array<SurfaceShader> surfaces = surfacesByIdx;
+        final int revision = surfaceRevision;
+        final int count = surfaceCount;
         final ObjectIntMap<String> reserved = reservedIndices;
         final int next = nextShaderIndex;
         final boolean wasInitialized = initialized;
@@ -387,6 +489,8 @@ public final class ShaderRegistry {
             rolesByIdx = roles;
             defaultUniforms = defaults;
             parameterLayoutsByIdx = layouts;
+            surfacesByIdx = surfaces;
+            surfaceRevision = revision;surfaceCount=count;
             reservedIndices = reserved;
             nextShaderIndex = next;
             initialized = wasInitialized;
@@ -406,6 +510,8 @@ public final class ShaderRegistry {
         rolesByIdx = new Array<>();
         defaultUniforms = new ObjectMap<>();
         parameterLayoutsByIdx = new Array<>();
+        surfacesByIdx = new Array<>();surfaceCount=0;
+        surfaceRevision++;
         reservedIndices = new ObjectIntMap<>();
         nextShaderIndex = 0;
         initialized = false;
@@ -928,6 +1034,10 @@ public final class ShaderRegistry {
     }
 
     private static void loadStructuredShader(FileHandle shaderDir, ShaderRole roleFromPath) {
+        loadStructuredShader(shaderDir, roleFromPath, ShaderOrigin.USER);
+    }
+
+    private static void loadStructuredShader(FileHandle shaderDir, ShaderRole roleFromPath, ShaderOrigin origin) {
         String shaderName = shaderDir.name();
         ShaderMode mode = ShaderMode.TEXTURE_ARRAY;
         ShaderRole role = roleFromPath;
@@ -957,7 +1067,7 @@ public final class ShaderRegistry {
         FileHandle vertFile = shaderDir.child(prefix + ".vert");
         FileHandle fragFile = shaderDir.child(prefix + ".frag");
 
-        if (!vertFile.exists() || !fragFile.exists()) {
+        if ((metadata == null || !metadata.has("contract")) && (!vertFile.exists() || !fragFile.exists())) {
             throw new IllegalStateException("Missing " + prefix + " variant for project shader '"
                     + shaderName + "' in " + shaderDir.path());
         }
@@ -980,7 +1090,12 @@ public final class ShaderRegistry {
             }
             layout = new ShaderParameterLayout(shaderName, defaults);
         }
-        registerProjectShader(shaderName, vertFile, fragFile, mode, role, layout);
+        SurfaceShader surface = SurfaceShader.read(metadata, shaderDir, layout);
+        if (surface != null) {
+            if (mode != ShaderMode.TEXTURE_ARRAY || role != ShaderRole.MATERIAL)
+                throw new IllegalArgumentException("Surface contract requires a texture-array material: " + shaderName);
+            registerSurface(shaderName, surface, origin);
+        } else registerProjectShader(shaderName, vertFile, fragFile, mode, role, layout);
         if (defaults != null) registerParameterLayout(shaderName, defaults);
     }
 
@@ -1046,28 +1161,33 @@ public final class ShaderRegistry {
     // ------------------------------------------------------------------------
 
     private static void loadExampleShaders() {
+        JsonValue catalog = new JsonReader().parse(resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/catalog.json"));
         FileHandle presets = resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/params.json");
-        if (!presets.exists()) return;
-
-        JsonValue root = new JsonReader().parse(presets);
-
-        for (JsonValue entry = root.child; entry != null; entry = entry.next) {
-            String name = entry.name;
-            if (name == null || isBlank(name)) continue;
-
+        JsonValue parameters = presets.exists() ? new JsonReader().parse(presets) : null;
+        for (JsonValue entry = catalog.child; entry != null; entry = entry.next) {
+            String name = entry.getString("name");
+            ShaderRole role = ShaderRole.valueOf(entry.getString("kind"));
+            // An authored old project copy remains a complete shader. Studio upgrades only
+            // copies whose sources and dependencies exactly match a known shipped version.
+            boolean projectLegacy = role == ShaderRole.MATERIAL && projectShadersRoot != null
+                    && projectShadersRoot.child("examples/material/" + variantDirName(getShaderVariant()) + "/" + name + ".frag").exists();
+            if (role == ShaderRole.MATERIAL && !projectLegacy) {
+                String path = entry.getString("path");
+                FileHandle directory = resolveShaderFile(RuntimeFs.RUNTIME_DIR_SHADER_EXAMPLES + "/" + path);
+                if (projectShadersRoot != null && !projectShadersRoot.child("examples/" + path).exists()) {
+                    FileHandle authored = projectShadersRoot.child("examples/" + path.replace("material/", "surface/"));
+                    if (authored.child("shader.json").exists()) directory = authored;
+                }
+                loadStructuredShader(directory, role, ShaderOrigin.EXAMPLE);
+                continue;
+            }
             Array<ShaderFloatParam> defaults = ShaderParamsComponent.newShaderFloatArray();
-
-            for (JsonValue uniform = entry.child; uniform != null; uniform = uniform.next) {
-                if (uniform.name == null || isBlank(uniform.name)) continue;
-                defaults.add(new ShaderFloatParam(uniform.name, uniform.asFloat()));
-            }
-
+            JsonValue values = parameters == null ? null : parameters.get(name);
+            if (values != null) for (JsonValue value = values.child; value != null; value = value.next)
+                defaults.add(new ShaderFloatParam(value.name, value.asFloat()));
             defaultUniforms.put(name, defaults);
-            boolean materialLoaded = tryExample(name, "material", ShaderMode.TEXTURE_ARRAY, ShaderRole.MATERIAL);
-            boolean fxLoaded = tryExample(name, "fx", ShaderMode.TEXTURE_ARRAY, ShaderRole.FX);
-            if (!materialLoaded && !fxLoaded) {
-                throw new IllegalStateException("Example shader '" + name + "' has parameters but no fragment variant");
-            }
+            if (!tryExample(name, role == ShaderRole.FX ? "fx" : "material", ShaderMode.TEXTURE_ARRAY, role))
+                throw new IllegalStateException("Missing supplied shader: " + name);
         }
     }
 
@@ -1233,6 +1353,8 @@ public final class ShaderRegistry {
             originsByIdx.set(existing, origin);
             rolesByIdx.set(existing, role);
             parameterLayoutsByIdx.set(existing, new ShaderParameterLayout(name, null));
+            if(surfacesByIdx.get(existing)!=null)surfaceCount--;
+            surfacesByIdx.set(existing, null);
 
             return existing;
         }
@@ -1250,6 +1372,7 @@ public final class ShaderRegistry {
         while (originsByIdx.size < size) originsByIdx.add(ShaderOrigin.USER);
         while (rolesByIdx.size < size) rolesByIdx.add(ShaderRole.MATERIAL);
         while (parameterLayoutsByIdx.size < size) parameterLayoutsByIdx.add(ShaderParameterLayout.EMPTY);
+        while (surfacesByIdx.size < size) surfacesByIdx.add(null);
     }
 
     private static void logError(String tag, String msg, Throwable t) {

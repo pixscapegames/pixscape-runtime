@@ -32,6 +32,7 @@ public final class ForwardLightingGlCheck {
             try{run();}catch(Throwable t){failure[0]=t;}finally{ShaderRegistry.disposeAll();InternalTextures.dispose();TextureRegistry.clear();Gdx.app.exit();}
         }},config);
         if(failure[0]!=null)throw new AssertionError("Forward GL integration",failure[0]);
+        UnlitForwardGlCheck.verify();
     }
     private static void run()throws Exception {
         ShaderRegistry.initDefaults();Gdx.gl.glViewport(0,0,64,32);
@@ -55,6 +56,8 @@ public final class ForwardLightingGlCheck {
         submit.prepareComposition();
         games.pixscape.runtime.engine.PixscapeEngine gameplay=new games.pixscape.runtime.engine.PixscapeEngine();
         gameplay.setForwardLighting(true);
+        java.lang.reflect.Field enabledField=games.pixscape.runtime.engine.PixscapeEngine.class.getDeclaredField("lightingEnabled");
+        enabledField.setAccessible(true);enabledField.setBoolean(gameplay,true);
         java.lang.reflect.Field gameplayWorld=games.pixscape.runtime.engine.PixscapeEngine.class.getDeclaredField("world");
         gameplayWorld.setAccessible(true);gameplayWorld.set(gameplay,world);
         games.pixscape.runtime.api.LightFacade firstLight=gameplay.api().entities().requireEntityId(activeLight).light();
@@ -68,7 +71,7 @@ public final class ForwardLightingGlCheck {
         secondLight.setEnabled(false);firstLight.setEnabled(true);
         Assert.assertNull("No historical scratch target",field(submit.lightingRenderer(),"scratch"));
         Assert.assertNull("No historical receiver program",field(submit.lightingRenderer(),"receiver"));
-        Object historical=field(submit,"composition");Assert.assertNull("No original target",field(historical,"original"));
+        Assert.assertNull("No Legacy composition allocated",field(submit,"composition"));
         Assert.assertEquals(64L*32*8,submit.forwardRenderer().textureBytes());
         int shader=ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName());
         assertCompactColorLayout(submit.forwardRenderer());
@@ -127,9 +130,9 @@ public final class ForwardLightingGlCheck {
         light.x=-100;clear();world.process();
         for(int x=4;x<60;x+=4)Assert.assertTrue("No clipped-factor light leaking onto the dark side",red(x,16)<5);
         assertUnmappedNormalBatching(world,q,submit,texture,shader);
-        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,26);
+        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,32);
         submit.setUseNormalMaps(false);submit.prepareComposition();
-        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,19);
+        assertCompactCapacityUpload(world,q,submit,texture,shader,stats,25);
         submit.setUseNormalMaps(true);submit.prepareComposition();
         // GLSL ES is compiled by this desktop driver; this is not a GLES/WebGL execution.
         String es="#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
@@ -144,7 +147,7 @@ public final class ForwardLightingGlCheck {
     private static void clear(){Gdx.gl.glClearColor(0,0,0,0);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);}
     private static void assertCompactColorLayout(ForwardLightingRenderer renderer)throws Exception{
         Mesh mesh=(Mesh)field(renderer,"mesh");VertexAttributes attributes=mesh.getVertexAttributes();
-        Assert.assertEquals("Forward vertices use 26 four-byte slots",104,attributes.vertexSize);
+        Assert.assertEquals("Forward vertices include the material and parameter row and image region",128,attributes.vertexSize);
         VertexAttribute color=null;
         for(int i=0;i<attributes.size();i++)if("a_color".equals(attributes.get(i).alias))color=attributes.get(i);
         Assert.assertNotNull(color);Assert.assertEquals(VertexAttributes.Usage.ColorPacked,color.usage);

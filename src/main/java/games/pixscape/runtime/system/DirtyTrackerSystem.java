@@ -35,6 +35,14 @@ public final class DirtyTrackerSystem extends BaseSystem {
 
     private final int initialCapacityHint;
 
+    // Independent of dirty-list consumption: readers cannot miss a layer mutation.
+    private long layerRevision;
+
+    /** Revision of explicit LAYER marks, including repeated marks before consumption. */
+    public long layerRevision() {
+        return layerRevision;
+    }
+
     /**
      * Packed bits: coarse + geom submask.
      */
@@ -173,6 +181,13 @@ public final class DirtyTrackerSystem extends BaseSystem {
     public void mark(int e, int coarseMask) {
         if ((coarseMask & DirtyBits.COARSE_MASK) == DirtyBits.NONE) return;
         if (!isActive(e)) return;
+
+        if ((coarseMask & DirtyBits.LAYER) != 0) layerRevision++;
+
+        if ((coarseMask & DirtyBits.JOINTS) != 0) {
+            Box2dSyncSystem sync = world.getSystem(Box2dSyncSystem.class);
+            if (sync != null) sync.publishJointRelations(e);
+        }
 
         ensureEntityIndex(e);
 

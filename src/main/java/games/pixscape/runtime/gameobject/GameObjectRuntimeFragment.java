@@ -1,7 +1,6 @@
 package games.pixscape.runtime.gameobject;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.badlogic.gdx.utils.Array;
 
 /** Asset-local hierarchy data for expert Runtime spawning; no scene placement is stored. */
 public final class GameObjectRuntimeFragment {
@@ -10,10 +9,10 @@ public final class GameObjectRuntimeFragment {
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public String sourceAssetId = "";
     public int rootSourceEntityId = -1;
-    public List<GameObjectAsset.GameObjectEntityData> entities =
-            new ArrayList<GameObjectAsset.GameObjectEntityData>();
-    public List<GameObjectAsset.GameObjectJointData> joints =
-            new ArrayList<GameObjectAsset.GameObjectJointData>();
+    public Array<GameObjectAsset.GameObjectEntityData> entities =
+            new Array<GameObjectAsset.GameObjectEntityData>();
+    public Array<GameObjectAsset.GameObjectJointData> joints =
+            new Array<GameObjectAsset.GameObjectJointData>();
 
     public static GameObjectRuntimeFragment fromAsset(
             GameObjectAsset asset, String sourceAssetId) {

@@ -3,6 +3,8 @@ package games.pixscape.runtime.render.lighting;
 /** Explicit GLSL fragments shared by the legacy and forward lighting receivers. */
 public final class LightingShaderSources {
     private LightingShaderSources() {}
+    private static final String FORWARD_AMBIENT="vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;";
+    private static final String FORWARD_COLOR_SAMPLE="texture(u_array,vec3(uv,flags.x))";
 
     /** Sprite normal-map sample transformed into lighting space. */
     static final String NORMAL_SAMPLE =
@@ -72,7 +74,7 @@ public final class LightingShaderSources {
     /** Legacy coverage, cutout and alpha handling before direct lighting. */
     private static final String LEGACY_RECEIVER_OPEN =
             "void main(){"
-            + "vec4 texel=image();"
+            + "vec4 texel=surfaceColor(image(),uv);"
             + "if(flags.w>=0.&&texel.a<flags.w)discard;"
             + "vec4 t=texel*color;"
             + "if(flags.w!= -2.&&t.a<=0.)discard;"
@@ -163,7 +165,10 @@ public final class LightingShaderSources {
             + "vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);";
 
     static String legacyReceiver(String version,String inputs,String image) {
-        return version+inputs+image+MACRO_NORMAL
+        return legacyReceiver(version,inputs,image,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    }
+    static String legacyReceiver(String version,String inputs,String image,String surface) {
+        return version+inputs+image+surface+MACRO_NORMAL
                 + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
                 + LEGACY_RECEIVER_OPEN+LEGACY_DIRECT_LIGHT_SETUP
                 + "vec3 normal=facade;"
@@ -172,7 +177,10 @@ public final class LightingShaderSources {
     }
 
     static String legacyMappedReceiver(String version,String inputs,String image) {
-        return version+inputs+image+MACRO_NORMAL+NORMAL_SAMPLE
+        return legacyMappedReceiver(version,inputs,image,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    }
+    static String legacyMappedReceiver(String version,String inputs,String image,String surface) {
+        return version+inputs+image+surface+MACRO_NORMAL+NORMAL_SAMPLE
                 + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
                 + LEGACY_RECEIVER_OPEN+LEGACY_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
@@ -188,39 +196,55 @@ public final class LightingShaderSources {
         return version
                 + "in vec2 a_screen,a_uv;in vec4 a_physical;in vec3 a_normal,a_curveNormal;in vec4 a_color,a_material;"
                 + (useNormalMaps?"in vec3 a_normalUV;in vec4 a_normalBasis;":"")
-                + "uniform mat4 u_matrix;"
+                + "in highp vec2 a_surfaceMaterial;flat out highp vec2 surfaceMaterial;in highp vec4 a_surfaceRegion;flat out highp vec4 surfaceRegion;uniform mat4 u_matrix;"
                 + "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;flat out float exclusionId;"
                 + (useNormalMaps?"out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;":"")
                 + "flat out float materialMode;"
-                + "void main(){uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"
+                + "void main(){surfaceMaterial=a_surfaceMaterial;surfaceRegion=a_surfaceRegion;uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"
                 + "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"
                 + (useNormalMaps?"normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;":"")
                 + "gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
     }
 
     static String forwardReceiver(String version,boolean useNormalMaps) {
-        return forwardReceiver(version,useNormalMaps,"uniform sampler2DArray u_array;",
-                "texture(u_array,vec3(uv,flags.x))");
+        return forwardReceiver(version,useNormalMaps,"uniform sampler2DArray u_array;vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}",
+                FORWARD_COLOR_SAMPLE);
     }
 
-    /** Shared lighting/coverage math. The owner supplies its color-resource declaration and expression. */
+    /** Shared lighting/coverage math. The owner supplies its color-resource declaration, surfaceImageSize() and expression. */
     public static String forwardReceiver(String version,boolean useNormalMaps,String colorUniforms,String colorSample) {
+        return forwardReceiver(version,useNormalMaps,colorUniforms,colorSample,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    }
+    static String forwardReceiver(String version,boolean useNormalMaps,String colorUniforms,String colorSample,String surface) {
         return version
                 + "in vec2 uv;"
                 + "in vec3 p,n;"
                 + "in vec4 color;"
                 + "flat in vec4 flags;"
                 + "flat in float exclusionId,materialMode;"
-                + colorUniforms
+                + surface
+                + colorUniforms + "vec4 surfaceImageAt(vec2 uv){return "+colorSample+";}"
                 + "uniform vec3 u_ambient;"
                 + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
                 + (useNormalMaps?NORMAL_SAMPLE:"vec3 lightingNormal(vec3 geometric){return geometric;}")+MACRO_NORMAL
-                + "void main(){vec4 texel="+colorSample+";"
-                + FORWARD_RECEIVER_COVERAGE+FORWARD_DIRECT_LIGHT_SETUP
+                + forwardMaterial(colorSample)+FORWARD_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
                 + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
-                + "vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;"
+                + FORWARD_AMBIENT
                 + "result=vec4(t.rgb*(ambient+u_color*value),alpha);"
                 + "}";
+    }
+
+    /** Same material coverage and HDR output, without direct-light inputs or calculations. */
+    static String unlitReceiver(String version) {
+        return version+"in vec2 uv;in vec4 color;flat in vec4 flags;flat in float materialMode;"
+                +"uniform sampler2DArray u_array;uniform vec3 u_ambient;out vec4 result;"
+                +"vec4 surfaceImageAt(vec2 uv){return texture(u_array,vec3(uv,flags.x));}vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}"
+                +games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false)+forwardMaterial(FORWARD_COLOR_SAMPLE)+FORWARD_AMBIENT
+                +"result=vec4(t.rgb*ambient,alpha);}";
+    }
+
+    private static String forwardMaterial(String colorSample) {
+        return "void main(){vec4 texel=surfaceColor("+colorSample+",uv);"+FORWARD_RECEIVER_COVERAGE;
     }
 }

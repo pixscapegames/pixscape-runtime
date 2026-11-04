@@ -54,6 +54,36 @@ public interface EntitiesAPI {
     EntityRef[] findAllByTag(String tag);
 
     /**
+     * Returns a caller-owned snapshot of direct members of all layers whose name
+     * exactly equals {@code layerName} (case-sensitive, without trimming), in the
+     * current World, like the other entity searches. Null, missing or empty layers
+     * return an empty array. Duplicate names are combined without duplicate entities.
+     * Layer entities are excluded; data-only objects are included. Membership uses
+     * {@code EntityIndexComponent.layerIndex} on top-level entities; Game Object
+     * members are excluded, without traversing their hierarchies.
+     * Order is unspecified; captured references become stale rather than following
+     * recycled IDs or replacement Worlds. Later mutations do not change this array.
+     *
+     * <p>The first call, or the first call after layer/membership invalidation, builds
+     * an O(L + E) index over layers and content entities. Unchanged calls cost O(1 + K)
+     * for K results and allocate only the snapshot and captured references. Transform
+     * and gameplay-property edits do not invalidate the index. Structural changes
+     * become visible after normal ECS subscription synchronization (World processing).
+     * Expert ECS edits to layer names/indices or entity membership must signal
+     * {@code DirtyTrackerSystem.layer(entityId)} after the edit.</p>
+     *
+     * <pre>{@code
+     * for (EntityRef point : api.entities().findAllByLayerName("spawn-points")) {
+     *     int role = point.properties().getInt("role", -1);
+     *     float x = point.transform().x();
+     *     float y = point.transform().y();
+     *     // Apply game logic according to role.
+     * }
+     * }</pre>
+     */
+    EntityRef[] findAllByLayerName(String layerName);
+
+    /**
      * Strictly resolves the entity currently indexed by {@code name}.
      * The returned reference can later become stale and inert.
      */

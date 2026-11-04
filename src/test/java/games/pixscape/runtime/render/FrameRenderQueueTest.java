@@ -42,9 +42,9 @@ public class FrameRenderQueueTest {
         Assert.assertEquals(4, queue.x4.length);
         Assert.assertEquals(4, queue.y4.length);
         Assert.assertEquals(4, queue.u1.length);
-        Assert.assertEquals(4, queue.v1.length);
+        Assert.assertEquals(0f, queue.atlasTopV(3), 0f);
         Assert.assertEquals(4, queue.u2.length);
-        Assert.assertEquals(4, queue.v2.length);
+        Assert.assertEquals(0f, queue.atlasBottomV(3), 0f);
         Assert.assertEquals(4, queue.colorPacked.length);
         Assert.assertEquals(4, queue.repeatFlags.length);
         Assert.assertEquals(4, queue.sourceDomain.length);
@@ -110,9 +110,9 @@ public class FrameRenderQueueTest {
         Assert.assertEquals(7f, queue.x4[0], 0f);
         Assert.assertEquals(8f, queue.y4[0], 0f);
         Assert.assertEquals(0.1f, queue.u1[0], 0f);
-        Assert.assertEquals(0.2f, queue.v1[0], 0f);
+        Assert.assertEquals(0.2f, queue.atlasTopV(0), 0f);
         Assert.assertEquals(0.3f, queue.u2[0], 0f);
-        Assert.assertEquals(0.4f, queue.v2[0], 0f);
+        Assert.assertEquals(0.4f, queue.atlasBottomV(0), 0f);
         Assert.assertEquals(0.75f, queue.colorPacked[0], 0f);
         Assert.assertEquals(RenderRepeatFlags.ANY, queue.repeatFlags[0]);
         Assert.assertEquals(FrameRenderQueue.SOURCE_TILED, queue.sourceDomain[0]);
@@ -181,6 +181,32 @@ public class FrameRenderQueueTest {
         new FrameRenderQueue(0);
     }
 
+    @Test public void publicVerticesSurviveGrowthAndSwapWithTheirSource() {
+        FrameRenderQueue queue = new FrameRenderQueue(1);
+        float[] quad = {0, 10, 0, 110, 100, 110, 100, 10};
+        games.pixscape.runtime.spatial.SpatialProjectedFaceCache faces =
+                new games.pixscape.runtime.spatial.SpatialProjectedFaceCache();
+        faces.slope = new float[]{.5f};
+        faces.intercept = new float[]{20};
+        faces.faceHeight = new float[]{10};
+        TileCornerSplit split = TileCornerSplit.prepare(faces, 0, quad, .125f, .875f, null);
+        for (TileCornerSplit.Piece piece : new TileCornerSplit.Piece[]{split.back, split.front}) {
+            queue.addQuad(1, 0, 0, 0, 0, 0, 0L, 0, 10, 0, 110, 100, 110, 100, 10,
+                    0, .125f, 1, .875f, 1, (byte)0, FrameRenderQueue.SOURCE_TILED, 123, -1);
+            queue.setTilePiece(queue.size - 1, piece);
+        }
+        queue.swap(0, 1);
+        Assert.assertEquals(123, queue.sourceSlot[0]);
+        Assert.assertEquals(123, queue.sourceSlot[1]);
+        Assert.assertEquals(30f, queue.y2[0], 0f);
+        Assert.assertEquals(80f, queue.y3[0], 0f);
+        Assert.assertEquals(queue.drawY(1, 0), queue.drawY(0, 1), 0f);
+        Assert.assertEquals(queue.drawV(1, 3), queue.drawV(0, 2), 0f);
+        Assert.assertNotEquals(queue.drawV(0, 1), queue.drawV(0, 2), 0f);
+        Assert.assertEquals(10f, queue.sourceY(1, 0), 0f);
+        Assert.assertEquals(110f, queue.sourceY(0, 2), 0f);
+    }
+
     private static void addDistinctQuad(FrameRenderQueue queue, int base, byte sourceDomain) {
         queue.addQuad(
                 base + 1,
@@ -227,9 +253,9 @@ public class FrameRenderQueueTest {
         Assert.assertEquals(base + 0.7f, queue.x4[index], 0f);
         Assert.assertEquals(base + 0.8f, queue.y4[index], 0f);
         Assert.assertEquals(base + 0.9f, queue.u1[index], 0f);
-        Assert.assertEquals(base + 1.1f, queue.v1[index], 0f);
+        Assert.assertEquals(base + 1.1f, queue.atlasTopV(index), 0f);
         Assert.assertEquals(base + 1.2f, queue.u2[index], 0f);
-        Assert.assertEquals(base + 1.3f, queue.v2[index], 0f);
+        Assert.assertEquals(base + 1.3f, queue.atlasBottomV(index), 0f);
         Assert.assertEquals(base + 1.4f, queue.colorPacked[index], 0f);
         Assert.assertEquals(RenderRepeatFlags.REPEAT_Y, queue.repeatFlags[index]);
         Assert.assertEquals(sourceDomain, queue.sourceDomain[index]);

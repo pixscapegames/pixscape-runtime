@@ -101,6 +101,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         draw.clearEntries();
         if (original == 0) draw.addEcsSlot(slot);
         draw.addTiledSlot(ref);
+        if (tiled.cornerSplits.containsKey(ref)) draw.add(RenderSourceDomain.SOURCE_TILED_FRONT, ref);
         if (original == 1) draw.addEcsSlot(slot);
         actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(),
                 world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class),
@@ -108,7 +109,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         snapshot.build(draw, ecs.getRenderCapacity(), actors);
         int[] index = new int[tiled.getCapacity()]; Arrays.fill(index, -1); index[ref] = original == 0 ? 1 : 0;
         new SpatialFaceAnchorResolver().resolve(faces, index, snapshot.drawIndexToBucketBefore,
-                snapshot.drawIndexToBucketAfter, draw.size);
+                snapshot.drawIndexToBucketAfter, draw.size, tiled);
         solver.solveVisual(actors, faces, new SpatialVisualAnchorSelector(), ecs, tiled, map, 0f, 0f);
         planner.begin(actors, snapshot.actorOriginalBucket, snapshot.bucketCount);
         planner.addRelations(actors, faces, solver, 8); planner.finish(actors);

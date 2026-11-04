@@ -1,0 +1,12 @@
+{
+  "name": "wave_uv",
+  "kind": "MATERIAL",
+  "mode": "TEXTURE_ARRAY",
+  "contract": "surface-v1",
+  "lighting": "LIT",
+  "parameters": {
+    "u_amplitude": 0.02,
+    "u_frequency": 8.0,
+    "u_speed": 1.5
+  }
+}

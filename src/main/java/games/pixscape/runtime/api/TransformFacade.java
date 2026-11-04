@@ -1,5 +1,7 @@
 package games.pixscape.runtime.api;
 
+import com.badlogic.gdx.math.Vector2;
+
 /**
  * High-level authored transform access for one entity.
  * For standalone entities and top-level Game Objects this is the normal authored world pose.
@@ -15,6 +17,38 @@ public interface TransformFacade {
     float x();
 
     float y();
+
+    /**
+     * Allocates a new independent vector containing {@link #x()} and {@link #y()}.
+     * Coordinates are local to the parent for Game Object members and authored world
+     * coordinates otherwise; no world-transform conversion is performed.
+     * Modifying the result never changes the entity or another call's result.
+     * A stale reference or an absent transform returns a new zero vector.
+     * For frequent calls, prefer {@link #xy(Vector2)} to reuse a vector.
+     */
+    Vector2 xy();
+
+    /**
+     * Copies {@link #x()} and {@link #y()} into {@code out} and returns that same vector,
+     * without allocating temporary objects. Suitable for frequent calls with a reused vector.
+     * Coordinates are local to the parent for Game Object members and authored world
+     * coordinates otherwise; no world-transform conversion is performed.
+     * The copied result is independent of the entity: modifying it never changes the entity.
+     * The vector is not retained, and this read does not invalidate the transform.
+     * A stale reference or an absent transform sets both coordinates to zero.
+     *
+     * <pre>{@code
+     * private final Vector2 position = new Vector2();
+     *
+     * // On each update:
+     * entity.transform().xy(position);
+     * }</pre>
+     *
+     * @param out the caller-owned vector to fill
+     * @return exactly {@code out}
+     * @throws IllegalArgumentException if {@code out} is null
+     */
+    Vector2 xy(Vector2 out);
 
     float rotationRad();
 

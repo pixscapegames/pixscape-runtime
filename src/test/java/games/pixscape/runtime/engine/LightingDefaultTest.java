@@ -14,10 +14,12 @@ public class LightingDefaultTest {
         engine.setForwardLighting(true);
         assertTrue(selection.getBoolean(engine));
     }
-    @Test public void implicitSubmitUsesLegacyAndExplicitForwardStillExists() {
+    @Test public void submittersDeferLightingAllocationUntilPreparation() {
         RenderSubmitSystem implicit = new RenderSubmitSystem(null,null,null,1,1,1,null,null,null);
         RenderSubmitSystem explicit = new RenderSubmitSystem(null,null,null,1,1,1,null,null,null,true);
         assertNull(implicit.forwardRenderer());
-        assertNotNull(explicit.forwardRenderer());
+        assertNull(explicit.forwardRenderer());
+        assertNull(implicit.lightingRenderer());
+        assertNull(explicit.lightingRenderer());
     }
 }

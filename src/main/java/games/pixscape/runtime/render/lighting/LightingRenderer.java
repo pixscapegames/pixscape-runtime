@@ -63,6 +63,7 @@ public final class LightingRenderer {
     private final IntBuffer queryResult=BufferUtils.newIntBuffer(1);
     private final games.pixscape.runtime.system.LightingGeometrySystem.ShadowPreparation shadowPreparation=this::prepareFrame;
     private int preparedCasterCount,preparedCasterRevision;
+    private float surfaceTime;
     private final LightingFrame.Light diagnosticLight=new LightingFrame.Light();
     {diagnosticLight.radius=1;diagnosticLight.falloff=1;diagnosticLight.resolution=512;}
     private final LightingSurface missing=new LightingSurface(new float[]{
@@ -82,7 +83,6 @@ public final class LightingRenderer {
         saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING,saved);int framebuffer=saved.get(0);
         saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT,saved);for(int i=0;i<4;i++)savedViewport[i]=saved.get(i);
         try { prepareResources(world,composition,shadowsOnly); }
-        catch(RuntimeException | Error failure){dispose();throw failure;}
         finally{Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER,framebuffer);
             Gdx.gl.glViewport(savedViewport[0],savedViewport[1],savedViewport[2],savedViewport[3]);}
     }
@@ -107,16 +107,8 @@ public final class LightingRenderer {
             preparedNormalMaps=useNormalMaps;
             String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                     "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-            String attributes="in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color;in vec4 a_flags;in vec2 a_screen;in float a_exclusionId;";
-            String vary="out vec3 p;out vec2 uv;out vec3 n;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
-            String vertex=version+attributes+vary+"in vec3 a_curveNormal;out vec3 curveNormal;uniform mat4 u_matrix;void main(){curveNormal=a_curveNormal;p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
-            String sample="uniform sampler2D u_tex0,u_tex1,u_tex2,u_tex3;vec4 image(){if(flags.x<.5)return texture(u_tex0,uv);if(flags.x<1.5)return texture(u_tex1,uv);if(flags.x<2.5)return texture(u_tex2,uv);return texture(u_tex3,uv);}";
-            String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
-            receiver=compile(vertex,LightingShaderSources.legacyReceiver(version,inputs,sample));
-            String normalVertex=version+attributes+vary+"in vec3 a_curveNormal;out vec3 curveNormal;uniform mat4 u_matrix;"+
-                    "in vec3 a_normalUV;in vec4 a_normalBasis;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;"+
-                    "void main(){normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;curveNormal=a_curveNormal;p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
-            if(useNormalMaps)mappedReceiver=compile(normalVertex,LightingShaderSources.legacyMappedReceiver(version,inputs,sample));
+            receiver=compile(receiverVertex(version,false),receiverFragment(version,false,ShaderRegistry.surfaceLightingSources(false)));
+            if(useNormalMaps)mappedReceiver=compile(receiverVertex(version,true),receiverFragment(version,true,ShaderRegistry.surfaceLightingSources(false)));
             accumulate=compile(version+"in vec3 a_position;in vec2 a_texCoord0;out vec2 uv;void main(){uv=a_texCoord0;gl_Position=vec4(a_position,1.);}",
                     version+"in vec2 uv;uniform sampler2D u_original,u_contribution;out vec4 result;void main(){vec3 base=texture(u_original,uv).rgb,c=texture(u_contribution,uv).rgb;result=vec4(c/max(base,vec3(1./65536.)),0.);}");
             receiver.bind();samplers(receiver);
@@ -154,6 +146,44 @@ public final class LightingRenderer {
             atlas=next;secondAtlas=nextSecond;resolution=required;
         }
     }
+    private static String receiverVertex(String version,boolean mapped){
+        return version+"in highp vec2 a_surfaceMaterial;flat out highp vec2 surfaceMaterial;in highp vec4 a_surfaceRegion;flat out highp vec4 surfaceRegion;"
+                +"in vec3 a_position;in vec2 a_uv;in vec3 a_normal;in vec4 a_color,a_flags;in vec2 a_screen;in float a_exclusionId;"
+                +"out vec3 p,n;out vec2 uv;out vec4 color;flat out vec4 flags;flat out float exclusionId;"
+                +"in vec3 a_curveNormal;out vec3 curveNormal;uniform mat4 u_matrix;"
+                +(mapped?"in vec3 a_normalUV;in vec4 a_normalBasis;out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;":"")
+                +"void main(){surfaceMaterial=a_surfaceMaterial;surfaceRegion=a_surfaceRegion;curveNormal=a_curveNormal;p=a_position;uv=a_uv;n=a_normal;color=a_color;flags=a_flags;exclusionId=a_exclusionId;"
+                +(mapped?"normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;":"")
+                +"gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
+    }
+    private static String receiverFragment(String version,boolean mapped,String surface){
+        String sample=shadowImageSource(4);
+        String inputs="in vec3 p;in vec2 uv;in vec3 n;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
+        return mapped?LightingShaderSources.legacyMappedReceiver(version,inputs,sample,surface):LightingShaderSources.legacyReceiver(version,inputs,sample,surface);
+    }
+    /** Editor compilation validation only. No targets, meshes, geometry or scene state are created. */
+    public static void validateSurfaceVariants(games.pixscape.runtime.render.SurfaceShader surface){
+        String version=ShaderRegistry.surfaceVersion();
+        String visible=surface==null?ShaderRegistry.surfaceLightingSources(false):surface.lightingFunctions(false);
+        String mask=surface==null?ShaderRegistry.surfaceLightingSources(true):surface.lightingFunctions(true);
+        for(boolean mapped:new boolean[]{false,true}){
+            compile(receiverVertex(version,mapped),receiverFragment(version,mapped,visible)).dispose();
+            compile(LightingShaderSources.forwardVertex(version,mapped),LightingShaderSources.forwardReceiver(version,mapped,"uniform sampler2DArray u_array;vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}","texture(u_array,vec3(uv,flags.x))",visible)).dispose();
+        }
+        for(boolean second:new boolean[]{false,true})compile(shadowVertex(version),shadowFragment(version,8,second,mask)).dispose();
+    }
+    private static String shadowVertex(String version){
+        return version+"in highp vec2 a_surfaceMaterial;flat out highp vec2 surfaceMaterial;in highp vec4 a_surfaceRegion;flat out highp vec4 surfaceRegion;"
+                +"in vec3 a_position;in vec2 a_uv;in vec4 a_color,a_flags;in float a_exclusionId;"
+                +"out vec3 p;out vec2 uv;out vec4 color;flat out vec4 flags;flat out float exclusionId;"
+                +"uniform mat4 u_matrix;void main(){surfaceMaterial=a_surfaceMaterial;surfaceRegion=a_surfaceRegion;p=a_position;uv=a_uv;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
+    }
+    private static String shadowFragment(String version,int slots,boolean second,String surface){
+        return version+"in vec3 p;in vec2 uv;in vec4 color;flat in vec4 flags;flat in float exclusionId;"
+                +shadowImageSource(slots)+surface+actorShadowMaskSource()+"uniform vec3 u_light;uniform float u_range;"
+                +(second?"uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}":
+                "layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
+    }
     private void prepareShadowProgram() {
         if(firstShadow!=null && secondShadow!=null)return;
         if(firstShadow==null){
@@ -162,21 +192,16 @@ public final class LightingRenderer {
         }
         String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                 "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-        String attributes="in vec3 a_position;in vec2 a_uv;in vec4 a_color;in vec4 a_flags;in float a_exclusionId;";
-        String vary="out vec3 p;out vec2 uv;out vec4 color;flat out vec4 flags;flat out float exclusionId;";
-        String inputs="in vec3 p;in vec2 uv;in vec4 color;flat in vec4 flags;flat in float exclusionId;";
-        String sample=shadowImageSource(shadowColorSlots)+actorShadowMaskSource();
-        String vertex=version+attributes+vary+"uniform mat4 u_matrix;void main(){p=a_position;uv=a_uv;color=a_color;flags=a_flags;exclusionId=a_exclusionId;gl_Position=u_matrix*vec4(p,1.);}";
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
         // geometric support ID. Both passes and both receiver paths use that same key.
         // Discard every layer of id1's group before depth-testing d2: an exterior
         // occultant behind several connected wall supports must remain available.
         if(firstShadow==null){
-            firstShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
+            firstShadow=compile(shadowVertex(version),shadowFragment(version,shadowColorSlots,false,ShaderRegistry.surfaceLightingSources(true)));
             firstShadow.bind();samplers(firstShadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots,false);
         }
         if(secondShadow==null){
-            secondShadow=compile(vertex,version+inputs+sample+"uniform vec3 u_light;uniform float u_range;uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}");
+            secondShadow=compile(shadowVertex(version),shadowFragment(version,shadowColorSlots,true,ShaderRegistry.surfaceLightingSources(true)));
             secondShadow.bind();samplers(secondShadow,shadowColorSlots);secondShadow.setUniformi("u_firstIdentity",shadowColorSlots);
         }
     }
@@ -187,13 +212,16 @@ public final class LightingRenderer {
         for(int i=0;i<slots;i++){if(i>0)source.append(',');source.append("u_tex").append(i);}
         source.append(";vec4 imageAt(vec2 uv){");
         for(int i=0;i<slots-1;i++)source.append("if(flags.x<").append(i).append(".5)return texture(u_tex").append(i).append(",uv);");
-        return source.append("return texture(u_tex").append(slots-1).append(",uv);}vec4 image(){return imageAt(uv);}").toString();
+        source.append("return texture(u_tex").append(slots-1).append(",uv);}vec4 image(){return imageAt(uv);}");
+        source.append("vec4 surfaceImageAt(vec2 uv){return imageAt(uv);}vec2 surfaceImageSize(){");
+        for(int i=0;i<slots-1;i++)source.append("if(flags.x<").append(i).append(".5)return vec2(textureSize(u_tex").append(i).append(",0));");
+        return source.append("return vec2(textureSize(u_tex").append(slots-1).append(",0));}").toString();
     }
     private static String actorShadowMaskSource(){
-        return "void shadowMask(){if(flags.y<9.){if(image().a*color.a<flags.w)discard;return;}"
+        return "void shadowMask(){if(flags.y<9.){if(surfaceMask(uv)<.5||image().a*color.a<flags.w)discard;return;}"
                 +"if(any(lessThan(uv,vec2(0)))||any(greaterThan(uv,vec2(1))))discard;"
                 +"vec2 localUV=uv;"
-                +"float a=imageAt(vec2(mix(color.r,color.b,localUV.x),mix(color.g,flags.z,localUV.y))).a*color.a;"
+                +"vec2 atlasUV=vec2(mix(color.r,color.b,localUV.x),mix(color.g,flags.z,localUV.y));if(surfaceMask(atlasUV)<.5)discard;float a=imageAt(atlasUV).a*color.a;"
                 +"if(a<flags.w)discard;}";
     }
     /** Borrows the current atlas; its lifetime belongs exclusively to this producer. */
@@ -243,7 +271,7 @@ public final class LightingRenderer {
         GLFrameBuffer.FrameBufferBuilder b=new GLFrameBuffer.FrameBufferBuilder(w,h);
         b.addFloatAttachment(depth?GL30.GL_R32F:GL30.GL_RGBA16F,depth?GL30.GL_RED:GL20.GL_RGBA,GL20.GL_FLOAT,true);
         if(depth)b.addDepthRenderBuffer(GL30.GL_DEPTH_COMPONENT24);
-        FrameBuffer f=b.build();f.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest,Texture.TextureFilter.Nearest);
+        FrameBuffer f=new games.pixscape.runtime.render.WorldFrameBuffer(b);f.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest,Texture.TextureFilter.Nearest);
         return f;
     }
     private static FrameBuffer twoDepthFirstTarget(int w,int h){
@@ -251,7 +279,7 @@ public final class LightingRenderer {
         b.addFloatAttachment(GL30.GL_R32F,GL30.GL_RED,GL20.GL_FLOAT,true);
         b.addFloatAttachment(GL30.GL_R32F,GL30.GL_RED,GL20.GL_FLOAT,true);
         b.addDepthRenderBuffer(GL30.GL_DEPTH_COMPONENT24);
-        FrameBuffer f=b.build();
+        FrameBuffer f=new games.pixscape.runtime.render.WorldFrameBuffer(b);
         for(Texture t:f.getTextureAttachments())t.setFilter(Texture.TextureFilter.Nearest,Texture.TextureFilter.Nearest);
         return f;
     }
@@ -311,7 +339,9 @@ public final class LightingRenderer {
                 int layer=queue.layerIndex[i];if(layers.maxLayerIndex()>=0 && (layer<0 || layer>layers.maxLayerIndex() || !layers.enabled[layer]))continue;
                 int blend=queue.blend[i];if(blend==3 || blend==4)continue;
                 LightingSurface s=queue.sourceDomain[i]==FrameRenderQueue.SOURCE_TILED?frame.tiles.get(queue.sourceSlot[i]):frame.entities.get(queue.sourceEntity[i]);
-                if(s==null || frame.diagnostic==0 && !s.receiveLight){
+                if (queue.tilePiece[i] != null) {
+                    s = queue.tilePiece[i].receiver;
+                } else if(s==null || frame.diagnostic==0 && !s.receiveLight){
                     // Unlit ordinary images still mask light with their actual four-corner coverage.
                     missing.imageQuad=s==null?queue.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS:s.imageQuad;
                     s=missing;}
@@ -321,12 +351,13 @@ public final class LightingRenderer {
                     if(mapped)batch.beginMapped(lightReceiver,stats);else batch.begin(lightReceiver,stats);
                     receiverPrepared=true;
                 }
-                quad[0]=queue.x1[i];quad[1]=queue.y1[i];quad[2]=queue.x2[i];quad[3]=queue.y2[i];
-                quad[4]=queue.x3[i];quad[5]=queue.y3[i];quad[6]=queue.x4[i];quad[7]=queue.y4[i];
-                boolean supported=ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE && queue.repeatFlags[i]==0;
+                quad[0]=queue.x1[i];quad[1]=queue.sourceY(i,0);quad[2]=queue.x2[i];quad[3]=queue.sourceY(i,1);
+                quad[4]=queue.x3[i];quad[5]=queue.sourceY(i,2);quad[6]=queue.x4[i];quad[7]=queue.sourceY(i,3);
+                boolean supported=(ShaderRegistry.getOrigin(queue.shader[i])==ShaderOrigin.CORE || ShaderRegistry.getSurface(queue.shader[i])!=null) && queue.repeatFlags[i]==0;
                 if(!supported && frame.diagnostic==0)throw new IllegalArgumentException(
                         "2.5D lighting requires standard coverage and color; unsupported shader/repeat at source entity "+queue.sourceEntity[i]);
-                batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.v1[i],queue.u2[i],queue.v2[i],queue.colorPacked[i],blend,quad,0,0,false,supported);
+                batch.material(queue.shader[i],queue.shaderParameters[i]);
+                batch.draw(s,queue.textureHandle[i],queue.u1[i],queue.atlasTopV(i),queue.u2[i],queue.atlasBottomV(i),queue.colorPacked[i],blend,quad,0,0,false,supported);
             }
             batch.flush();receiverDraws+=stats.drawCalls-draws;stats.receiverDraws+=stats.drawCalls-draws;receiverCpuNs+=System.nanoTime()-start;
             if(frame.timer!=null)frame.timer.end(LightingPassTimer.RECEIVERS);
@@ -351,7 +382,7 @@ public final class LightingRenderer {
         Gdx.gl.glScissor(influenceBounds.x,influenceBounds.y,influenceBounds.width,influenceBounds.height);
     }
     private void receiverUniforms(ShaderProgram shader,LightingFrame.Light l,LightingFrame frame,OrthographicCamera camera){
-        shader.bind();shader.setUniformMatrix("u_matrix",camera.combined);shader.setUniformf("u_light",l.x,l.y,l.z);
+        shader.bind();shader.setUniformi("u_entityParams",11);shader.setUniformf("u_time",frame.time);shader.setUniformMatrix("u_matrix",camera.combined);shader.setUniformf("u_light",l.x,l.y,l.z);
         shader.setUniformf("u_color",l.r*l.intensity,l.g*l.intensity,l.b*l.intensity);
         shader.setUniformf("u_range",l.radius);shader.setUniformf("u_falloff",l.falloff);
         shader.setUniformi("u_diagnostic",frame.diagnostic);shader.setUniformf("u_cone",l.cone?1:0,l.cosOuter,l.cosInner);
@@ -369,6 +400,7 @@ public final class LightingRenderer {
     }
 
     private void shadows(LightingFrame frame,LightingFrame.Light l,RenderStats stats){
+        surfaceTime=frame.time;
         if(atlas==null || l.resolution>resolution)
             throw new IllegalStateException("Shadow quality/resolution changed after frame preparation; prepare targets before submission");
         frame.casterIndex.query(frame,l,256,frame.staticCasterCount);
@@ -380,7 +412,7 @@ public final class LightingRenderer {
     }
     private void shadowMap(LightingFrame frame,LightingFrame.Light l,RenderStats stats,FrameBuffer output,com.badlogic.gdx.utils.IntArray candidates,ShaderProgram program,boolean identityTarget){
         prepareShadowTarget(output,identityTarget);
-        program.bind();program.setUniformf("u_light",l.x,l.y,l.z);program.setUniformf("u_range",l.radius);
+        program.bind();program.setUniformi("u_entityParams",11);program.setUniformf("u_time",surfaceTime);program.setUniformf("u_light",l.x,l.y,l.z);program.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
         for(int face=0;face<6;face++){
             shadowView(l,program,face);
@@ -391,7 +423,8 @@ public final class LightingRenderer {
                 if(c.surface.shadowVertices!=null?c.surface.shadowVertexCount==0:c.surface.vertices.length==0)continue;
                 if(c.surface.actorShadowRectangle!=null && c.surface.shadowVertices==c.surface.actorShadowRectangle.vertices)
                     c.surface.actorShadowRectangle.faceLight(l.x,l.y);
-                batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,Color.WHITE.toFloatBits(),0,null,0,0,true,true);
+                batch.material(c.surface.materialShader,c.surface.materialParameters);
+                batch.draw(c.surface,c.texture,c.u1,c.v1,c.u2,c.v2,c.surface.materialColor,0,null,0,0,true,true);
             }
             batch.flush();
         }
@@ -415,7 +448,7 @@ public final class LightingRenderer {
         if(secondAtlas==null)throw new IllegalStateException("Two-depth target was not prepared");
         atlas.getTextureAttachments().get(1).bind(shadowColorSlots);
         prepareShadowTarget(secondAtlas,false);
-        secondShadow.bind();secondShadow.setUniformf("u_light",l.x,l.y,l.z);secondShadow.setUniformf("u_range",l.radius);
+        secondShadow.bind();secondShadow.setUniformi("u_entityParams",11);secondShadow.setUniformf("u_time",surfaceTime);secondShadow.setUniformf("u_light",l.x,l.y,l.z);secondShadow.setUniformf("u_range",l.radius);
         projection.setToProjection(.05f,l.radius+256,90,1);eye.set(l.x,l.y,l.z);
         for(int face=0;face<6;face++){shadowView(l,secondShadow,face);batch.replay(secondShadow,stats);}
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);

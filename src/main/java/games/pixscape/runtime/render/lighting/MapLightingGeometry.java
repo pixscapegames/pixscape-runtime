@@ -135,7 +135,7 @@ public final class MapLightingGeometry {
 
     private boolean needsUpdate(TiledMapLayerData map, SpatialBlocksComponent blocks){
         return previous!=map || previousBlocks!=blocks || projection!=map.projection
-                || revision!=(blocks==null?0:blocks.revision) || ox!=map.originX || oy!=map.originY
+                || revision!=(blocks==null?0:blocks.geometryRevision()) || ox!=map.originX || oy!=map.originY
                 || altitude!=map.defaultTileAltitude || tw!=map.tileWidth || th!=map.tileHeight
                 || ((memberships.size>0||authoredDescriptions!=null&&authoredDescriptions.size>0)
                     &&contentRevision!=map.contentRevision());
@@ -143,7 +143,7 @@ public final class MapLightingGeometry {
 
     /** Structural preparation only. Production publication uses the native-quad overload above. */
     public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
-        int r = blocks == null ? 0 : blocks.revision;
+        int r = blocks == null ? 0 : blocks.geometryRevision();
         if (!needsUpdate(map,blocks)) return false;
         if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
             throw new IllegalArgumentException("Lighting volume reconstruction requires an ISO map");

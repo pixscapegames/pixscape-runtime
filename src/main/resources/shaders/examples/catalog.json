@@ -1,0 +1,37 @@
+[
+  {
+    "name": "glow_pulse",
+    "kind": "MATERIAL",
+    "path": "material/glow_pulse"
+  },
+  {
+    "name": "outline_soft",
+    "kind": "MATERIAL",
+    "path": "material/outline_soft"
+  },
+  {
+    "name": "wave_uv",
+    "kind": "MATERIAL",
+    "path": "material/wave_uv"
+  },
+  {
+    "name": "camera_postfx",
+    "kind": "FX",
+    "path": "fx"
+  },
+  {
+    "name": "Lit Dissolve",
+    "kind": "MATERIAL",
+    "path": "material/lit-dissolve"
+  },
+  {
+    "name": "Lit Pulse",
+    "kind": "MATERIAL",
+    "path": "material/lit-pulse"
+  },
+  {
+    "name": "Unlit Pulse",
+    "kind": "MATERIAL",
+    "path": "material/unlit-pulse"
+  }
+]

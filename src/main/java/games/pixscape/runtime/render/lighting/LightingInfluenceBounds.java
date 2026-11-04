@@ -34,11 +34,11 @@ public final class LightingInfluenceBounds {
                 if(s.imageQuad) {
                     int c=SpriteSurfaceSupport.corner(j/8);
                     sx=c==0?q.x1[i]:c==1?q.x2[i]:c==2?q.x3[i]:q.x4[i];
-                    sy=c==0?q.y1[i]:c==1?q.y2[i]:c==2?q.y3[i]:q.y4[i];
+                    sy=c==0?q.sourceY(i,0):c==1?q.sourceY(i,1):c==2?q.sourceY(i,2):q.sourceY(i,3);
                 } else {
                     // Match LightingBatch's actual float interpolation, including completion vertices.
                     sx=q.x1[i]+v[j+3]*(q.x4[i]-q.x1[i])+v[j+4]*(q.x2[i]-q.x1[i]);
-                    sy=q.y1[i]+v[j+3]*(q.y4[i]-q.y1[i])+v[j+4]*(q.y2[i]-q.y1[i]);
+                    sy=q.sourceY(i,0)+v[j+3]*(q.sourceY(i,3)-q.sourceY(i,0))+v[j+4]*(q.sourceY(i,1)-q.sourceY(i,0));
                 }
                 double px=(double)v[j]-v[j+1],py=((double)v[j]+v[j+1])*.5+v[j+2];
                 double dx=xx*(sx-px)+xy*(sy-py),dy=yx*(sx-px)+yy*(sy-py);

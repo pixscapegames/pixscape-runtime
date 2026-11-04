@@ -52,11 +52,14 @@ public final class TwoDepthShadowFixtureGlCheck {
         cfg.setInitialVisible(false);cfg.disableAudio(true);cfg.setWindowedMode(64,32);
         cfg.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
         new Lwjgl3Application(new ApplicationAdapter(){@Override public void create(){
+            com.badlogic.gdx.graphics.profiling.GLProfiler profiler=new com.badlogic.gdx.graphics.profiling.GLProfiler(Gdx.graphics);
+            profiler.setListener(com.badlogic.gdx.graphics.profiling.GLErrorListener.THROWING_LISTENER);profiler.enable();
+            InternalTextures.dispose();TextureRegistry.clear();
             try { for(quality=1;quality<=2;quality++){
                 forward=false;run();System.out.println("MULTI_ID_ORACLE_PASS renderer=historical quality="+quality+" resolution=256 orbit=12x3");
                 forward=true;run();System.out.println("MULTI_ID_ORACLE_PASS renderer=forward quality="+quality+" resolution=256 orbit=12x3");}
             } catch(Throwable error){ failure[0]=error; }
-            finally { ShaderRegistry.disposeAll();InternalTextures.dispose();TextureRegistry.clear();Gdx.app.exit(); }
+            finally { profiler.disable();ShaderRegistry.disposeAll();InternalTextures.dispose();TextureRegistry.clear();Gdx.app.exit(); }
         }},cfg);
         if(failure[0]!=null)throw new AssertionError("Two-depth controlled fixture",failure[0]);
     }

@@ -31,6 +31,7 @@ public class LightGameplayApiTest {
                 new RenderSpriteSyncSystem(dynamic), new LightingGeometrySystem(dynamic,
                 new TiledMapRenderState(1), queue, layers), new DirtyFlushSystem()).build());
         bindWorld(world);
+        Field enabled = PixscapeEngine.class.getDeclaredField("lightingEnabled"); enabled.setAccessible(true); enabled.setBoolean(engine, true);
     }
 
     private void bindWorld(World value) throws Exception {
@@ -196,7 +197,8 @@ public class LightGameplayApiTest {
         Assert.assertEquals(1,replacement.light().intensity(),0);
         World other = new World();
         try { bindWorld(other); replacement.light().setIntensity(4); Assert.assertFalse(replacement.exists()); }
-        finally { bindWorld(world); other.dispose(); }
+        finally { bindWorld(world);
+        Field enabled = PixscapeEngine.class.getDeclaredField("lightingEnabled"); enabled.setAccessible(true); enabled.setBoolean(engine, true); other.dispose(); }
         Assert.assertFalse("Rebinding must not revive handles",replacement.exists());
     }
 }
