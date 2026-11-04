@@ -2,7 +2,7 @@
 
 # Pixscape Runtime
 
-[![Version](https://img.shields.io/badge/version-0.2.2-orange.svg)](CHANGELOG.md)<br>
+[![Version](https://img.shields.io/badge/version-0.2.3-orange.svg)](CHANGELOG.md)<br>
 [![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20HTML5-green.svg)](#requirements)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)<br>
