@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.3-SNAPSHOT]
+## [0.2.3]
 
 ### Breaking changes
 
