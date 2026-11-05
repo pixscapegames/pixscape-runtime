@@ -255,8 +255,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         currentFaces = null;
         currentTileOrder = null;
         currentMapEntity = e;
-        if (map.projection == TiledProjection.ISO
-                && (tiled.spatialEnabled || map.spatialEnabled)) {
+        if (tiled.spatialEnabled || map.spatialEnabled) {
             ensureAllChunkRenderRefs(map);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(e, null);
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
@@ -434,8 +433,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             currentFaces = null;
             currentTileOrder = null;
             ensureAllChunkRenderRefs(map);
-            if (map.projection == TiledProjection.ISO
-                    && (tiled.spatialEnabled || map.spatialEnabled)) {
+            if (tiled.spatialEnabled || map.spatialEnabled) {
                 SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entityId, null);
                 SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(entityId, map);
                 runtime.compiled.ensure(blocks);

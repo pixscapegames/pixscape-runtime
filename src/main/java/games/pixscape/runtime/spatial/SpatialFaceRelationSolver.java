@@ -116,7 +116,17 @@ public final class SpatialFaceRelationSolver {
                     // A support line classifies sides; only its finite branch can supply a constraint.
                     // A merged straight branch still constrains every visually touched supporting tile.
                     // Closed intervals include endpoint tangencies on both adjacent branches deterministically.
-                    if (x + radius < faces.screenMinX[face] - RELATION_EPSILON
+                    if (faces.roofSupport[face]) {
+                        int bounds = actor * 4;
+                        float dx = ecs.offsetX[actors.actorSlot[actor]] - mapOffsetX;
+                        float dy = ecs.offsetY[actors.actorSlot[actor]] - mapOffsetY;
+                        // The visible roof patch, not its edge-on side, intersects the existing
+                        // authored influence envelope. Never grow that envelope to reach a wall.
+                        if (actors.influenceBounds[bounds + 2] + dx <= faces.screenMinX[face]
+                                || actors.influenceBounds[bounds] + dx >= faces.screenMaxX[face]
+                                || actors.influenceBounds[bounds + 3] + dy <= faces.surfaceMinY[face]
+                                || actors.influenceBounds[bounds + 1] + dy >= faces.surfaceMaxY[face]) continue;
+                    } else if (x + radius < faces.screenMinX[face] - RELATION_EPSILON
                             || x - radius > faces.screenMaxX[face] + RELATION_EPSILON) continue;
                     float lineY = faceLineYAtAltitude(faces, face, x, altitude);
                     byte type = SpatialLineRelation.circleRelation(lineY, y,
@@ -231,6 +241,7 @@ public final class SpatialFaceRelationSolver {
         float endpointX = 0f, endpointY = 0f;
         for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
             int face = faces.membershipFace[m];
+            if (faces.roofSupport[face]) continue;
             if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
@@ -247,6 +258,7 @@ public final class SpatialFaceRelationSolver {
         int capMembership = -1;
         for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
             int face = faces.membershipFace[m];
+            if (faces.roofSupport[face]) continue;
             if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];

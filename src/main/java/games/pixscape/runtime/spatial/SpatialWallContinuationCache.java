@@ -63,6 +63,7 @@ public final class SpatialWallContinuationCache {
                 int end = projected.structureFaceStart[s] + projected.structureFaceCount[s];
                 for (int f = projected.structureFaceStart[s]; f < end; f++) {
                     int compiledFace = projected.faceCompiledIndex[f];
+                    if (projected.roofSupport[f]) continue;
                     int orientation = set.orientation(compiledFace), axis = orientation / 2;
                     double shift = axis == 0 ? shiftX : shiftY, alongShift = axis == 0 ? shiftY : shiftX;
                     Face face = new Face(m, f, faceCount++, orientation,

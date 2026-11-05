@@ -15,6 +15,7 @@ public final class SpatialTileOrderCompiler {
     private int[] nodeGx = new int[0];
     private int[] nodeGy = new int[0];
     private int[] nodeByCell = new int[0];
+    private boolean[] anchoredNode = new boolean[0];
 
     private int segmentCount;
     private int[] segmentNode = new int[0];
@@ -48,6 +49,7 @@ public final class SpatialTileOrderCompiler {
                     + " has " + nodeCount + " occupied tiles; the 30-bit order capacity is "
                     + ORDER_CAPACITY + ".");
         }
+        anchoredNode = new boolean[nodeCount];
         buildSegments(layerEntity, map, compiled);
         buildEdges(layerEntity);
         int[] ranks = topologicalRanks(layerEntity);
@@ -112,10 +114,16 @@ public final class SpatialTileOrderCompiler {
                 }
             }
         }
+        for (SpatialRoofSupports roof : SpatialRoofSupports.collect(compiled, map)) {
+            int node = nodeAt(map, roof.gx, roof.gy);
+            if (node < 0) throw new SpatialTileOrderInvariantException("Unresolved roof anchor (" + roof.gx + "," + roof.gy + ").");
+            addSegment(node, roof.structure, -1, roof.minX, roof.frontY, roof.maxX, roof.frontY);
+        }
         canonicalizeSegments();
     }
 
     private void addSegment(int node, int structure, int face, float x1, float y1, float x2, float y2) {
+        anchoredNode[node] = true;
         ensureSegmentCapacity(segmentCount + 1);
         if (x2 < x1) {
             float swap = x1; x1 = x2; x2 = swap;
@@ -318,13 +326,22 @@ public final class SpatialTileOrderCompiler {
         return size;
     }
 
-    /** ISO follows descending projected depth and the Tiled gx tie; ORTHO retains its order. */
+    /** Plane tiles precede ORTHO occluders, so inserting an actor before a wall never
+     * puts a neighbouring ground column over it. Within occluders use row depth.
+     * ISO keeps its established diagonal tie rule. */
     int compareNodes(int first, int second) {
         if (isometricOrder) {
             long firstDiagonal = (long) nodeGx[first] + nodeGy[first];
             long secondDiagonal = (long) nodeGx[second] + nodeGy[second];
             if (firstDiagonal != secondDiagonal) return firstDiagonal > secondDiagonal ? -1 : 1;
             if (nodeGx[first] != nodeGx[second]) return nodeGx[first] < nodeGx[second] ? -1 : 1;
+        }
+        if (!isometricOrder) {
+            if (anchoredNode[first] != anchoredNode[second]) return anchoredNode[first] ? 1 : -1;
+            if (anchoredNode[first]) {
+                if (nodeGy[first] != nodeGy[second]) return nodeGy[first] > nodeGy[second] ? -1 : 1;
+                return Integer.compare(nodeGx[first], nodeGx[second]);
+            }
         }
         if (nodeGx[first] != nodeGx[second]) return nodeGx[first] > nodeGx[second] ? -1 : 1;
         if (nodeGy[first] != nodeGy[second]) return nodeGy[first] > nodeGy[second] ? -1 : 1;

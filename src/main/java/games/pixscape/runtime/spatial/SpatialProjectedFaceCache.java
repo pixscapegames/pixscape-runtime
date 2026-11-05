@@ -20,6 +20,9 @@ public final class SpatialProjectedFaceCache {
     public int[] faceCompiledIndex = new int[0];
     public float[] faceAltitude = new float[0];
     public float[] faceHeight = new float[0];
+    /** A roof support has no compiled vertical face (faceCompiledIndex == -1). */
+    public boolean[] roofSupport = new boolean[0];
+    public float[] surfaceMinY = new float[0], surfaceMaxY = new float[0];
     public float[] screenMinX = new float[0];
     public float[] screenMaxX = new float[0];
     public float[] slope = new float[0];
@@ -90,6 +93,9 @@ public final class SpatialProjectedFaceCache {
             faceCapacity += set.faceCount();
             membershipCapacity += set.anchorCellTotal();
         }
+        com.badlogic.gdx.utils.Array<SpatialRoofSupports> roofs = SpatialRoofSupports.collect(compiled, map);
+        faceCapacity += roofs.size;
+        membershipCapacity += roofs.size;
         ensureFaceCapacity(faceCapacity);
         ensureMembershipCapacity(membershipCapacity);
         ensureAnchorCapacity(membershipCapacity);
@@ -98,6 +104,7 @@ public final class SpatialProjectedFaceCache {
         faceAnchorIndexTotal = 0;
         structureCount = compiled.structureCount();
 
+        int roofIndex = 0;
         for (int structureIndex = 0; structureIndex < structureCount; structureIndex++) {
             CompiledSpatialStructure structure = compiled.structure(structureIndex);
             CompiledSpatialStructure.FaceSet set = structure.actorOccluder();
@@ -112,6 +119,7 @@ public final class SpatialProjectedFaceCache {
                 if (Math.abs(endpoints[2] - endpoints[0]) <= SpatialFaceRelationSolver.RELATION_EPSILON) continue;
 
                 int face = faceCount++;
+                roofSupport[face] = false;
                 faceOrientation[face] = set.orientation(compiledFace);
                 long startVertex = vertexKey(set.startX(compiledFace), set.startY(compiledFace));
                 long endVertex = vertexKey(set.endX(compiledFace), set.endY(compiledFace));
@@ -140,6 +148,23 @@ public final class SpatialProjectedFaceCache {
                     faceAnchorIndexTotal++;
                 }
                 faceAnchorIndexCount[face] = faceAnchorIndexTotal - faceAnchorIndexStart[face];
+            }
+            while (roofIndex < roofs.size && roofs.get(roofIndex).structure == structure.structureId()) {
+                SpatialRoofSupports roof = roofs.get(roofIndex++);
+                int face = faceCount++;
+                roofSupport[face] = true;
+                faceOrientation[face] = -1;
+                faceCompiledIndex[face] = -1;
+                faceStructureId[face] = structure.structureId();
+                faceAltitude[face] = roof.altitude; faceHeight[face] = roof.height;
+                surfaceMinY[face] = roof.minY; surfaceMaxY[face] = roof.maxY;
+                writeProjection(face, roof.minX, roof.frontY, roof.maxX, roof.frontY);
+                minX = Math.min(minX, roof.minX); maxX = Math.max(maxX, roof.maxX);
+                faceAnchorIndexStart[face] = faceAnchorIndexTotal;
+                faceAnchorIndexCount[face] = 1;
+                rawAnchorGx[faceAnchorIndexTotal] = roof.gx; rawAnchorGy[faceAnchorIndexTotal] = roof.gy;
+                faceAnchorScreenMinX[faceAnchorIndexTotal] = roof.minX;
+                faceAnchorScreenMaxX[faceAnchorIndexTotal++] = roof.maxX;
             }
             structureFaceCount[structureIndex] = faceCount - structureFaceStart[structureIndex];
             structureMinX[structureIndex] = minX;
@@ -234,6 +259,7 @@ public final class SpatialProjectedFaceCache {
     }
 
     private boolean supportsWall(int f, SpatialBlockData wall) {
+        if (roofSupport[f]) return false;
         if (wall == null || !wall.actorOccluder || wall.structureId != faceStructureId[f]) return false;
         float x1 = Float.intBitsToFloat((int) (faceMinVertex[f] >>> 32));
         float y1 = Float.intBitsToFloat((int) faceMinVertex[f]);
@@ -370,6 +396,7 @@ public final class SpatialProjectedFaceCache {
             starts.clear(); ends.clear();
             int end = structureFaceStart[structure] + structureFaceCount[structure];
             for (int face = structureFaceStart[structure]; face < end; face++) {
+                if (roofSupport[face]) continue;
                 Integer a = starts.put(faceMinVertex[face], face);
                 Integer b = ends.put(faceMaxVertex[face], face);
                 if (a != null) addLateralCorner(a, face, 1);
@@ -559,6 +586,8 @@ public final class SpatialProjectedFaceCache {
         faceCompiledIndex = grow(faceCompiledIndex, next);
         faceAltitude = grow(faceAltitude, next);
         faceHeight = grow(faceHeight, next);
+        roofSupport = Arrays.copyOf(roofSupport, next);
+        surfaceMinY = grow(surfaceMinY, next); surfaceMaxY = grow(surfaceMaxY, next);
         screenMinX = grow(screenMinX, next);
         screenMaxX = grow(screenMaxX, next);
         slope = grow(slope, next);
