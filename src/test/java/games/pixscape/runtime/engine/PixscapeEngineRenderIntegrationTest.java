@@ -10,6 +10,8 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderSubmitSystem;
@@ -20,6 +22,37 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PixscapeEngineRenderIntegrationTest {
+    @Test public void factoryExposesEachWorldsLiveOwningSceneUnderTheSharedType() {
+        // Studio supplies a subclass; consumers resolve the Runtime type.
+        SceneMetaRuntime first = new SceneMetaRuntime() { }, second = new SceneMetaRuntime();
+        World a = createSceneWorld(first), b = createSceneWorld(second), absent = createSceneWorld(null);
+        try {
+            Assert.assertSame(first, a.getRegistered(SceneMetaRuntime.class));
+            Assert.assertSame(second, b.getRegistered(SceneMetaRuntime.class));
+            Assert.assertNull(absent.getRegistered(SceneMetaRuntime.class));
+            first.lightingEnabled = false;
+            second.lightingEnabled = true;
+            Assert.assertFalse(a.getRegistered(SceneMetaRuntime.class).lightingEnabled);
+            Assert.assertTrue(b.getRegistered(SceneMetaRuntime.class).lightingEnabled);
+            first.lightingEnabled = true;
+            Assert.assertTrue(a.getRegistered(SceneMetaRuntime.class).lightingEnabled);
+        } finally {
+            absent.dispose(); b.dispose(); a.dispose();
+            InternalTextures.dispose();
+            games.pixscape.runtime.service.TextureRegistry.clear();
+        }
+    }
+
+    private static World createSceneWorld(SceneMetaRuntime meta) {
+        return WorldConfigFactory.buildWorld(new com.badlogic.gdx.graphics.OrthographicCamera(),
+                new DynamicEntityRenderState(), new LayerStateSOA(), new DrawList(), new FrameRenderQueue(),
+                new VfxRenderState(), new TiledMapRenderState(),
+                new games.pixscape.runtime.render.batch.performance.RenderStats(), 0,
+                new games.pixscape.runtime.service.AtlasRuntimeService(), null, null, meta, 16,
+                new games.pixscape.runtime.service.TileAnimationRegistry(),
+                new games.pixscape.runtime.service.AnimationRegistry(), null).getWorld();
+    }
+
     @Test public void frameObserverRunsAfterSubmissionWithoutAnApplicationSystemAndIsNotRetained() throws Exception {
         List<String> events=new ArrayList<>();
         World observed=new World(new com.artemis.WorldConfigurationBuilder().with(new BaseSystem(){

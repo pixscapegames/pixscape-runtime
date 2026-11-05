@@ -2,6 +2,7 @@ package games.pixscape.runtime.loading;
 
 import com.artemis.BaseSystem;
 import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
@@ -343,7 +344,11 @@ public final class WorldConfigFactory {
             postRenderCustomizer.accept(builder);
         }
 
-        World world = new World(builder.build());
+        WorldConfiguration configuration = builder.build();
+        // Keep the owning scene model available to world-local consumers (including editor history).
+        // Register under the shared type even when Studio supplies a SceneMeta subclass.
+        if (meta != null) configuration.register(SceneMetaRuntime.class.getName(), meta);
+        World world = new World(configuration);
 
         return new WorldBootstrapResult(
                 world,
