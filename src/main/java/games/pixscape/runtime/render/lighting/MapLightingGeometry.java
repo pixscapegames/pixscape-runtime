@@ -31,6 +31,7 @@ public final class MapLightingGeometry {
     private int publicationRevision;
     private Preview activePreview;
     public int publicationRevision(){return publicationRevision;}
+    public boolean isOrthogonal(){return projection==TiledProjection.ORTHO;}
     public void registerShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
         groups.add(owner,previous,previousBlocks,ids);
         // Curved occurrences keep their own identity; they must not bridge two facade groups.
@@ -92,7 +93,7 @@ public final class MapLightingGeometry {
             // A missing linked cell is not visited by the chunk loop below. Reject it
             // before a detached candidate can replace a live opaque caster.
             for(LongMap.Entry<Array<SpatialBlockData>> entry:next.memberships){
-                if(!requiresSilhouetteImage(entry.value))continue;
+                if(map.projection==TiledProjection.ORTHO || !requiresSilhouetteImage(entry.value))continue;
                 int gx=(int)(entry.key>>32),gy=(int)entry.key;
                 if(map.getTile(gx,gy)<=0)
                     throw new LightingAdmissionException("Silhouette caster linked cell is empty at ("+gx+","+gy+")");
@@ -104,7 +105,12 @@ public final class MapLightingGeometry {
                 int asset=chunk.assetIds[i];if(asset<=0)continue;
                 int gx=chunk.chunkX*map.chunkSize+i%chunk.chunkWidth;
                 int gy=chunk.chunkY*map.chunkSize+i/chunk.chunkWidth;
-                boolean required=explicit.contains(asset)||requiresSilhouetteImage(next.memberships.get(key(gx,gy)));
+                boolean linkedCaster=requiresSilhouetteImage(next.memberships.get(key(gx,gy)));
+                // Studio can edit an ORTHO map before its tile atlas is available.
+                // Publish its silhouette with the native image on the next resource revision.
+                if(map.projection==TiledProjection.ORTHO && linkedCaster && !explicit.contains(asset)
+                        && !quads.resolve(map,chunk,i,quad,false))continue;
+                boolean required=explicit.contains(asset)||linkedCaster;
                 if(required)for(int frame=0,count=quads.frameCount(asset);frame<count;frame++){
                     try {
                         if(!quads.resolveFrame(map,chunk,i,frame,quad))
@@ -145,8 +151,6 @@ public final class MapLightingGeometry {
     public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.geometryRevision();
         if (!needsUpdate(map,blocks)) return false;
-        if (blocks != null && blocks.hasBlocks() && map.projection != TiledProjection.ISO)
-            throw new IllegalArgumentException("Lighting volume reconstruction requires an ISO map");
         LongMap<Array<SpatialBlockData>> nextMemberships=new LongMap<Array<SpatialBlockData>>();
         IntMap<LocalSurfaceDescription> nextDescriptions=new IntMap<LocalSurfaceDescription>();
         com.badlogic.gdx.utils.IntSet assetIds=new com.badlogic.gdx.utils.IntSet();boolean nextHasRounded=false;
@@ -182,7 +186,7 @@ public final class MapLightingGeometry {
         if (blocks != null) for (int i = 0; i < blocks.blocks.size; i++) {
             SpatialBlockData b=blocks.blocks.get(i);
             if (usesSilhouette(b)) validateSilhouetteCaster(b,nextMemberships);
-            if ((b.shadowCaster || b.lightOccluder) && !usesSilhouette(b)) casterBlocks.add(b);
+            else if (b.shadowCaster || b.lightOccluder) casterBlocks.add(b);
         }
         rounded.prepare(map,nextMemberships,authoredDescriptions);
         memberships=nextMemberships;descriptions.clear();descriptions.putAll(nextDescriptions);
@@ -248,7 +252,7 @@ public final class MapLightingGeometry {
         }
         LocalSurfaceDescription description=descriptions.get(assetId);
         if(description!=null){
-            if(requiresSilhouetteImage(memberships.get(cell)))
+            if(map.projection==TiledProjection.ISO && requiresSilhouetteImage(memberships.get(cell)))
                 throw new LightingAdmissionException("Local authored support and linked volume contributions need an explicit ownership contract at ("+gx+","+gy+")");
             if(flags!=0)throw new LightingAdmissionException("Local volume description needs explicit transformed variant for tile flags");
             float[] origin=new float[3];LightingCoordinates.mapPoint(map,gx,gy,map.defaultTileAltitude,origin,0);
@@ -338,6 +342,7 @@ public final class MapLightingGeometry {
         if(owners!=null)for(SpatialBlockData owner:owners){
             if(!usesSilhouette(owner))continue;
             LightingSurface contribution=silhouetteCaster(map,owner,quad);
+            if(contribution==null)continue;
             if(surface.casterContributions==null)surface.casterContributions=new Array<LightingSurface>();
             surface.casterContributions.add(contribution);surface.shadowCaster=true;
         }
@@ -387,10 +392,12 @@ public final class MapLightingGeometry {
         Array<float[]> volumeFaces=faces(map,block,false);
         for(int i=0;i<volumeFaces.size;i++){
             float[] face=volumeFaces.get(i);
-            int count=compiler.compile(face,quad,compiled,0);if(count==0)continue;
+            int count=compiler.compile(face,quad,compiled,0,map.projection==TiledProjection.ORTHO);if(count==0)continue;
             float[] triangles=new float[count*8];System.arraycopy(compiled,0,triangles,0,triangles.length);
             triangles=rounded.trim(block.id,triangles);projected.add(triangles);length+=triangles.length;
         }
+        // A linked ORTHO tile can extend wholly past the physical end of its wall.
+        if(length==0 && map.projection==TiledProjection.ORTHO)return null;
         if(length==0)throw new LightingAdmissionException("Silhouette caster volume projects outside its linked tile image");
         float[] vertices=new float[length];int at=0;
         for(int i=0;i<projected.size;i++){float[] triangles=projected.get(i);System.arraycopy(triangles,0,vertices,at,triangles.length);at+=triangles.length;}
@@ -559,7 +566,7 @@ public final class MapLightingGeometry {
                 {x,y,t,a,y,t,a,c,t,x,c,t},{a,c,z,x,c,z,x,c,t,a,c,t},{a,y,z,a,c,z,a,c,t,a,y,t},
                 {x,c,z,a,c,z,a,y,z,x,y,z}};
         Array<float[]> out = new Array<float[]>();
-        for (int i = 0; i < (visible ? 3 : 6); i++) {
+        for (int i = 0; i < 6; i++) {
             float[] q = new float[32], point = new float[3];
             for (int n = 0; n < 4; n++) {
                 LightingCoordinates.mapPoint(m,cells[i][n*3],cells[i][n*3+1],cells[i][n*3+2],point,0);
@@ -570,6 +577,10 @@ public final class MapLightingGeometry {
             float nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
             float length=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
             if (length == 0) continue;
+            // The common camera ray is (-1,-1,+1). Select physical front surfaces,
+            // not a projection-specific list of three faces. In ORTHO both X sides
+            // are edge-on and must not acquire an artificial receiving area.
+            if (visible && (-nx-ny+nz)/length <= .000001f) continue;
             for(int n=0;n<4;n++){q[n*8+5]=nx/length;q[n*8+6]=ny/length;q[n*8+7]=nz/length;}
             out.add(q);
         }

@@ -9,6 +9,10 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.BufferUtils;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
+import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.ShaderMode;
@@ -29,10 +33,10 @@ public class NormalMapGlSmokeTest {
         cfg.setInitialVisible(false);cfg.setWindowedMode(64,32);cfg.disableAudio(true);
         cfg.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
         new Lwjgl3Application(new ApplicationAdapter(){public void create(){
-            World world=null;MultiTextureMeshBatch batch=null;Texture color=null;NormalMapAtlas normals=null;
+            World world=null;MultiTextureMeshBatch batch=null;Texture color=null;NormalMapAtlas normals=null;Pixmap cp=null;
             try {
                 ShaderRegistry.initDefaults();TextureRegistry.clear();Gdx.gl.glClearColor(0,0,0,0);
-                Pixmap cp=new Pixmap(1,1,Pixmap.Format.RGBA8888);cp.setColor(Color.WHITE);cp.fill();color=new Texture(cp);cp.dispose();
+                cp=new Pixmap(1,1,Pixmap.Format.RGBA8888);cp.setColor(Color.WHITE);cp.fill();color=new Texture(cp);
                 Pixmap np=new Pixmap(4,1,Pixmap.Format.RGBA8888);
                 np.drawPixel(0,0,0x8080ffff);np.drawPixel(1,0,0xff8080ff);np.drawPixel(2,0,0x80ff80ff);
                 np.drawPixel(3,0,0xda80daff);
@@ -47,12 +51,13 @@ public class NormalMapGlSmokeTest {
                 RenderStats stats=new RenderStats();batch=new MultiTextureMeshBatch(64);
                 RenderSubmitSystem submit=new RenderSubmitSystem(layers,q,camera,0,0,0,batch,stats,new RenderStatsSink(100));
                 world=new World(new WorldConfigurationBuilder().with(submit).build());submit.setEnabled(false);world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(world.create());world.process();
+                int actorEntity = world.create();
                 q.addQuad(TextureRegistry.handleOf(color),ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName()),1,0,0,0,0,
-                        0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_ECS,0,1);
+                        0,0,0,32,64,32,64,0,0,0,1,1,Color.WHITE.toFloatBits(),(byte)0,FrameRenderQueue.SOURCE_ECS,0,actorEntity);
                 float[] vertices=new float[48];int[] corner={0,1,2,0,2,3};float[] x={0,0,64,64},y={0,32,32,0};
                 for(int i=0;i<6;i++){int c=corner[i],o=i*8;vertices[o]=LightingCoordinates.worldX(x[c],y[c],0);vertices[o+1]=LightingCoordinates.worldY(x[c],y[c],0);
                     vertices[o+3]=c>=2?1:0;vertices[o+4]=c==1||c==2?1:0;vertices[o+7]=1;}
-                LightingSurface s=new LightingSurface(vertices);q.lighting.entities.put(1,s);q.lighting.diagnostic=2;
+                LightingSurface s=new LightingSurface(vertices);q.lighting.entities.put(actorEntity,s);q.lighting.diagnostic=2;
                 submit.prepareComposition();submit.setEnabled(true);
                 float[][] expected={{-.57735f,-.57735f,.57735f},{.7071f,-.7071f,0},{.40825f,.40825f,.81650f}};
                 for(boolean actor:new boolean[]{false,true})for(int id=1;id<=3;id++)for(int face=0;face<2;face++){
@@ -91,7 +96,7 @@ public class NormalMapGlSmokeTest {
                 q.x1[0]=q.x2[0]=0;q.x3[0]=q.x4[0]=64;q.y1[0]=q.y4[0]=0;q.y2[0]=q.y3[0]=32;q.lighting.diagnostic=0;
                 var receiverMap=new games.pixscape.runtime.tiled.TiledMapLayerData(4,4,8,4,4,games.pixscape.runtime.tiled.TiledProjection.ISO);
                 MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(receiverMap,null);float[] receiverQuad={0,0,0,32,64,32,64,0};
-                LightingSurface complete=geometry.receiver(receiverMap,0,0,1,(byte)0,receiverQuad);complete.normalMap=normals.resolve(1);q.lighting.entities.put(1,complete);
+                LightingSurface complete=geometry.receiver(receiverMap,0,0,1,(byte)0,receiverQuad);complete.normalMap=normals.resolve(1);q.lighting.entities.put(actorEntity,complete);
                 LightingFrame.Light light=new LightingFrame.Light();light.falloff=1;light.intensity=.4f;light.r=light.g=light.b=1;light.resolution=512;q.lighting.lights.add(light);
                 int pixelWidth=Gdx.graphics.getBackBufferWidth(),pixelHeight=Gdx.graphics.getBackBufferHeight();
                 // A neighboring/offscreen caster still occludes the continuous mapped receiver.
@@ -108,7 +113,7 @@ public class NormalMapGlSmokeTest {
                 Assert.assertTrue("Neighbor must still occlude normal-mapped reception",(sample.get(0)&255)>shadowed+3);
                 // The upright wall support receives a neighboring obstacle's shadow as well.
                 LightingSurface upright=new LightingSurface(new float[48]);SpriteSurfaceSupport.sheet(upright.vertices,receiverQuad,.5f,0,0,1,-1);
-                upright.normalMap=normals.resolve(1);q.lighting.entities.put(1,upright);
+                upright.normalMap=normals.resolve(1);q.lighting.entities.put(actorEntity,upright);
                 for(int i=0;i<6;i++)casterVertices[i*8+1]-=20;
                 caster.bounds();q.lighting.casters.add(caster);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();sample.clear();Gdx.gl.glReadPixels(pixelWidth/2,pixelHeight/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);shadowed=sample.get(0)&255;
                 byte[] wallShadow=renderBytes(world,pixelWidth,pixelHeight);
@@ -116,33 +121,13 @@ public class NormalMapGlSmokeTest {
                 Assert.assertArrayEquals("An actor caster casts the same shadow onto a decor wall",wallShadow,renderBytes(world,pixelWidth,pixelHeight));
                 q.lighting.casters.clear();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();sample.clear();Gdx.gl.glReadPixels(pixelWidth/2,pixelHeight/2,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,sample);
                 Assert.assertTrue("Neighbor must occlude the upright wall",(sample.get(0)&255)>shadowed+3);
-                // Actors see decor occlusion only; even a nearer actor/self caster cannot hide a wall.
                 upright.actor=true;
-                LightingFrame.Caster self=new LightingFrame.Caster();self.surface=upright;self.texture=TextureRegistry.handleOf(color);
-                self.u2=self.v2=1;self.bounds();
-                float[] nearActorVertices=casterVertices.clone();
-                for(int o=0;o<nearActorVertices.length;o+=8){nearActorVertices[o]=(nearActorVertices[o]+light.x)*.5f;
-                    nearActorVertices[o+1]=(nearActorVertices[o+1]+light.y)*.5f;nearActorVertices[o+2]=(nearActorVertices[o+2]+light.z)*.5f;}
-                LightingFrame.Caster nearerActor=new LightingFrame.Caster();nearerActor.surface=new LightingSurface(nearActorVertices);
-                nearerActor.surface.actor=true;nearerActor.texture=TextureRegistry.handleOf(color);nearerActor.u2=nearerActor.v2=1;nearerActor.bounds();
-                for(boolean mapped:new boolean[]{false,true})for(int blend:new int[]{0,1,2,7}){
-                    upright.normalMap=mapped?normals.resolve(1):null;q.blend[0]=blend;
-                    light.quality=0;byte[] unshadowed=renderBytes(world,pixelWidth,pixelHeight);
-                    for(int quality:new int[]{1,2}){
-                        light.quality=quality;caster.surface.actor=true;q.lighting.casters.add(caster);q.lighting.casters.add(self);
-                        Assert.assertArrayEquals("Other actor and own caster never occlude the actor",unshadowed,renderBytes(world,pixelWidth,pixelHeight));
-                        q.lighting.casters.clear();caster.surface.actor=false;q.lighting.casters.add(caster);
-                        byte[] decorOccluded=renderBytes(world,pixelWidth,pixelHeight);
-                        Assert.assertFalse("Opaque decor must occlude direct actor light",java.util.Arrays.equals(unshadowed,decorOccluded));
-                        q.lighting.casters.add(self);q.lighting.casters.add(nearerActor);
-                        Assert.assertArrayEquals("Self and nearer actor cannot replace or hide decor occlusion",decorOccluded,renderBytes(world,pixelWidth,pixelHeight));
-                        q.lighting.casters.clear();
-                        // Empty decor after a nonempty frame must not retain old occlusion.
-                        caster.surface.actor=true;q.lighting.casters.add(caster);
-                        Assert.assertArrayEquals("Decor atlas clears when only actor casters remain",unshadowed,renderBytes(world,pixelWidth,pixelHeight));
-                        q.lighting.casters.clear();
-                    }
-                }
+                upright.forwardTopology=ForwardTopology.NATIVE;
+                var identities = new ShadowExclusionIdentities();
+                upright.selfShadowExclusionId = identities.idForActor(actorEntity);
+                caster.surface.selfShadowExclusionId = identities.idForActor(world.create());
+                verifyActorShadows(world,submit,q,normals,upright,caster,light);
+                verifyForwardActorShadows(layers,q,camera,cp,color,normals,upright,caster,light);
                 // Actual alpha opening in a decor support transmits the direct contribution.
                 Pixmap holeImage=new Pixmap(16,16,Pixmap.Format.RGBA8888);holeImage.setColor(Color.WHITE);holeImage.fill();
                 holeImage.setBlending(Pixmap.Blending.None);holeImage.setColor(0,0,0,0);holeImage.fillRectangle(4,4,8,8);Texture hole=new Texture(holeImage);holeImage.dispose();
@@ -155,12 +140,87 @@ public class NormalMapGlSmokeTest {
                 }finally{q.lighting.casters.clear();hole.dispose();}
                 Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
             }catch(Throwable e){failure[0]=e;}finally{
+                if(cp!=null)cp.dispose();
                 if(world!=null)world.dispose();if(batch!=null)batch.close();if(normals!=null)normals.dispose();if(color!=null)color.dispose();
                 ShaderRegistry.disposeAll();TextureRegistry.clear();Gdx.app.exit();
             }
         }},cfg);
         if(failure[0]!=null)throw new AssertionError("Normal GL integration",failure[0]);
     }
+    private static void verifyForwardActorShadows(LayerStateSOA layers, FrameRenderQueue queue,
+            OrthographicCamera camera, Pixmap colorPixels, Texture color, NormalMapAtlas normals,
+            LightingSurface receiver, LightingFrame.Caster other, LightingFrame.Light light) {
+        var bundle = AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(color),
+                colorPixels.getWidth(), colorPixels.getHeight(), GLCaps.detect());
+        var batch = new TextureArrayMeshBatch(64);
+        batch.setTextureArrayBundle(bundle);
+        var submit = new RenderSubmitSystem(layers, queue, camera, 0, 0, 0, batch,
+                new RenderStats(), new RenderStatsSink(100), true);
+        World world = new World(new WorldConfigurationBuilder().with(submit).build());
+        int previousShader = queue.shader[0];
+        try {
+            submit.setEnabled(false);
+            world.getMapper(PointLightComponent.class).create(world.create());
+            world.process();
+            queue.shader[0] = ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName());
+            submit.prepareComposition();
+            Assert.assertTrue(submit.isForwardEffective());
+            submit.setEnabled(true);
+            verifyActorShadows(world, submit, queue, normals, receiver, other, light);
+        } finally {
+            queue.shader[0] = previousShader;
+            world.dispose();
+            batch.close();
+            bundle.textureArray.dispose();
+        }
+    }
+
+    private static void verifyActorShadows(World world, RenderSubmitSystem submit, FrameRenderQueue queue,
+            NormalMapAtlas normals, LightingSurface receiver, LightingFrame.Caster other, LightingFrame.Light light) {
+        int receiverId = receiver.selfShadowExclusionId;
+        int otherId = other.surface.selfShadowExclusionId;
+        Assert.assertNotEquals(receiverId, otherId);
+        // The same interposed opaque sheet represents each actor in turn. Its shadow with
+        // the foreign identity is the positive control for the self-exclusion comparison.
+        int width = Gdx.graphics.getBackBufferWidth();
+        int height = Gdx.graphics.getBackBufferHeight();
+        for (boolean mapped : new boolean[]{false, true}) {
+            receiver.normalMap = mapped ? normals.resolve(1) : null;
+            for (int blend : new int[]{0, 1, 2, 7}) {
+                queue.blend[0] = blend;
+                light.quality = 0;
+                byte[] lit = renderBytes(world, width, height);
+                for (int quality : new int[]{1, 2}) {
+                    String mode = (submit.isForwardEffective() ? "forward" : "legacy")
+                            + ", blend=" + blend + ", quality=" + quality + ", normalMap=" + mapped;
+                    light.quality = quality;
+                    other.surface.actor = true;
+                    other.surface.selfShadowExclusionId = receiverId;
+                    queue.lighting.casters.add(other);
+                    submit.lightingRenderer().prepareFrame(queue.lighting);
+                    Assert.assertArrayEquals("Own caster must leave the actor lit: " + mode,
+                            lit, renderBytes(world, width, height));
+
+                    other.surface.selfShadowExclusionId = otherId;
+                    byte[] shadow = renderBytes(world, width, height);
+                    boolean darker = false;
+                    for (int i = 0; i < shadow.length; i += 4) {
+                        if ((shadow[i] & 255) < (lit[i] & 255)) { darker = true; break; }
+                    }
+                    Assert.assertTrue("Interposed actor must darken the receiver: " + mode, darker);
+                    other.surface.actor = false;
+                    Assert.assertArrayEquals("Opaque decor with the same geometry: " + mode,
+                            shadow, renderBytes(world, width, height));
+
+                    // TwoDepthShadowFixtureGlCheck covers combined own and exterior casters.
+                    queue.lighting.casters.clear();
+                    Assert.assertArrayEquals("Removing the last caster must clear its shadow: " + mode,
+                            lit, renderBytes(world, width, height));
+                }
+            }
+        }
+    }
+
     private static byte[] renderBytes(World world,int width,int height){
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);world.process();
         ByteBuffer pixels=BufferUtils.newByteBuffer(width*height*4);

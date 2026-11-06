@@ -19,12 +19,21 @@ public final class WallShadowGroups {
     }
     private final Array<Wall> walls=new Array<>();
     public void add(int owner,TiledMapLayerData map,SpatialBlocksComponent blocks,ShadowExclusionIdentities ids){
-        if(blocks==null||map.projection!=TiledProjection.ISO||map.tileWidth!=2*map.tileHeight)return;
+        if(blocks==null || (map.projection==TiledProjection.ISO && map.tileWidth!=2*map.tileHeight))return;
         for(SpatialBlockData b:blocks.blocks){
-            if(!b.actorOccluder||b.structureId<=0||b.id<=0||!b.hasLinkedTileRefs())continue;
+            if(b.structureId<=0||b.id<=0||!b.hasLinkedTileRefs())continue;
+            if(map.projection==TiledProjection.ORTHO ? !MapLightingGeometry.usesSilhouette(b) : !b.actorOccluder)continue;
             Wall w=new Wall();w.owner=owner;w.id=ids.idFor(owner,b.id);w.block=b;w.map=map;
-            float[] p=new float[3];LightingCoordinates.mapPoint(map,b.x,b.y,b.altitude,p,0);w.x0=p[0];w.y0=p[1];
-            LightingCoordinates.mapPoint(map,b.x+b.width,b.y+b.depth,b.altitude,p,0);w.x1=p[0];w.y1=p[1];walls.add(w);
+            if(map.projection==TiledProjection.ORTHO){
+                // ORTHO wall strips follow the map axes in the ground plane.
+                w.x0=map.originX+b.x*map.tileWidth;w.x1=map.originX+(b.x+b.width)*map.tileWidth;
+                float base=map.originY-map.defaultTileAltitude;
+                w.y0=base+b.y*map.tileHeight;w.y1=base+(b.y+b.depth)*map.tileHeight;
+            }else{
+                float[] p=new float[3];LightingCoordinates.mapPoint(map,b.x,b.y,b.altitude,p,0);w.x0=p[0];w.y0=p[1];
+                LightingCoordinates.mapPoint(map,b.x+b.width,b.y+b.depth,b.altitude,p,0);w.x1=p[0];w.y1=p[1];
+            }
+            walls.add(w);
         }
     }
     public void connectWalls(){
@@ -38,7 +47,7 @@ public final class WallShadowGroups {
             }else{
                 // Same physical strip, touching storeys and positive longitudinal span.
                 // General overlap, a shared owner or structureId alone never establishes this edge.
-                joined=a.map.tileWidth==b.map.tileWidth&&a.map.tileHeight==b.map.tileHeight
+                joined=a.map.projection==b.map.projection && a.map.tileWidth==b.map.tileWidth&&a.map.tileHeight==b.map.tileHeight
                     &&(near(a.block.altitude+a.block.height,b.block.altitude)||near(b.block.altitude+b.block.height,a.block.altitude))
                     &&sameStrip(a,b)
                     &&(a.block.width>a.block.depth?Math.min(a.x1,b.x1)>Math.max(a.x0,b.x0)

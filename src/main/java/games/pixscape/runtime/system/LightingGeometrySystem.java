@@ -78,6 +78,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private final ShadowExclusionIdentities shadowExclusionIdentities = new ShadowExclusionIdentities();
     private final float[] corners = new float[8];
     private int staticRevision=Integer.MIN_VALUE;
+    private boolean orthogonalMaps;
     public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue,LayerStateSOA layers) {
         this.dynamic=dynamic;this.tiled=tiled;this.queue=queue;frame=queue.lighting;this.layers=layers;
     }
@@ -92,6 +93,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     /** Cold scene preparation: reserve actor storage without advancing animation or processing World. */
     public void prepareRuntimeAvailability() {
         if(!queue.lightingEnabled)return;
+        ActiveLights.validateShadowSupport(world);
         frame=queue.lighting;
         for(int slot=0;slot<dynamic.activeCount;slot++){
             int e=dynamic.renderSlotToEntityId[slot];if(e<0 || dynamic.light[slot]!=0)continue;
@@ -118,11 +120,13 @@ public final class LightingGeometrySystem extends BaseSystem {
         frame.lights.clear();frame.tiles=tiled.lightingSurfaces;
         if(staticRevision!=tiled.lightingRevision){
         frame.casters.clear();
+        orthogonalMaps=false;
         staticOwners.clear();
         // Registry survives map rebuilds; dynamic identities must never alias new supports.
         int serial=0;
         for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps) {
             if(!world.getEntityManager().isActive(entry.key)) continue;
+            if(entry.value.isOrthogonal())orthogonalMaps=true;
             staticOwners.add(entry.key);
             for(int i=0;i<entry.value.casters.size;i++) {
                 LightingSurface surface=entry.value.casters.get(i);
@@ -278,6 +282,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         l.z=p!=null?p.height:c.height;l.r=p!=null?p.r:c.r;l.g=p!=null?p.g:c.g;l.b=p!=null?p.b:c.b;
         l.intensity=p!=null?p.intensity:c.intensity;l.radius=p!=null?p.radius:c.radius;
         l.falloff=p!=null?p.falloff:c.falloff;l.quality=p!=null?p.shadowQuality:c.shadowQuality;
+        if(orthogonalMaps && l.quality>1)throw new LightingAdmissionException(ActiveLights.ORTHO_SHADOW_LIMIT);
         l.resolution=p!=null?p.shadowResolution:c.shadowResolution;l.cone=c!=null;
         if(l.quality<0 || l.quality>2 || l.resolution!=256 && l.resolution!=512 && l.resolution!=1024)
             throw new IllegalArgumentException("Light shadow quality/resolution must be 0..2 and 256/512/1024");

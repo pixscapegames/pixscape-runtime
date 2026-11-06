@@ -31,6 +31,18 @@ public class WallShadowGroupsTest {
         assertNotEquals(a,groups.group(ids.idFor(10,4)));
         assertEquals(0,groups.group(0));
     }
+    @Test public void orthoCollinearStripsShareGroupsButPerpendicularReturnsCastOntoThem(){
+        var map=new TiledMapLayerData(12,12,32,16,4,TiledProjection.ORTHO);
+        var ids=new ShadowExclusionIdentities();var groups=new WallShadowGroups();
+        var blocks=new SpatialBlocksComponent();
+        blocks.blocks.add(wall(1,1,0,2,3,.25f,0));blocks.blocks.add(wall(2,1,3,2,3,.25f,0));
+        blocks.blocks.add(wall(3,1,5.75f,2,.25f,3,0));blocks.blocks.add(wall(4,1,5.75f,5,.25f,3,0));
+        for(var block:blocks.blocks){block.shadowCaster=true;block.actorOccluder=false;}
+        groups.add(0,map,blocks,ids);groups.connectWalls();
+        assertEquals(groups.group(ids.idFor(0,1)),groups.group(ids.idFor(0,2)));
+        assertEquals(groups.group(ids.idFor(0,3)),groups.group(ids.idFor(0,4)));
+        assertNotEquals(groups.group(ids.idFor(0,2)),groups.group(ids.idFor(0,3)));
+    }
     @Test public void ownGroupIsSeparateFromIdentityAndLegacyIsUnchanged(){
         var s=new LightingSurface(new float[48]);s.selfShadowExclusionId=29;
         s.receiverExclusionIds=new int[]{18,0};

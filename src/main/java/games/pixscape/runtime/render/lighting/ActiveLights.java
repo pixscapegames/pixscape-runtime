@@ -44,4 +44,33 @@ public final class ActiveLights {
         if(count(world)>1)throw new LightingAdmissionException(
                 "Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
     }
+
+    /** Cold admission only; map projection is owned by each map, not by the scene or renderer. */
+    public static boolean hasOrthogonalMaps(World world) {
+        IntBag maps=world.getAspectSubscriptionManager().get(Aspect.all(
+                games.pixscape.runtime.component.TiledLayerComponent.class)).getEntities();
+        com.artemis.ComponentMapper<games.pixscape.runtime.component.TiledLayerComponent> mapper=
+                world.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class);
+        for(int i=0;i<maps.size();i++) {
+            games.pixscape.runtime.component.TiledLayerComponent map=mapper.get(maps.get(i));
+            if((map.data==null?map.projection:map.data.projection)==games.pixscape.runtime.tiled.TiledProjection.ORTHO)return true;
+        }
+        return false;
+    }
+
+    public static final String ORTHO_SHADOW_LIMIT =
+            "ORTHO maps support None and Hard shadows. Set Shadows to None or Hard on active lights.";
+
+    /** Disabled lights retain their settings; enabling them must pass this admission again. */
+    public static void validateShadowSupport(World world) {
+        if(!hasOrthogonalMaps(world))return;
+        IntBag lights=world.getAspectSubscriptionManager().get(Aspect.one(PointLightComponent.class,ConeLightComponent.class)).getEntities();
+        for(int i=0;i<lights.size();i++) {
+            int e=lights.get(i);if(!isActive(world,e))continue;
+            PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(e,null);
+            ConeLightComponent c=world.getMapper(ConeLightComponent.class).getSafe(e,null);
+            if(p!=null&&p.shadowQuality>1 || c!=null&&c.shadowQuality>1)
+                throw new LightingAdmissionException(ORTHO_SHADOW_LIMIT+" Light entity: "+e+".");
+        }
+    }
 }

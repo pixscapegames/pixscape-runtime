@@ -7,6 +7,9 @@ public final class SilhouetteFaceCompiler {
     private final float[] a=new float[80],b=new float[80];
     /** Writes interleaved XYZ/UV/normal triangles; returns their vertex count. */
     public int compile(float[] face,float[] quad,float[] output,int outputOffset){
+        return compile(face,quad,output,outputOffset,false);
+    }
+    int compile(float[] face,float[] quad,float[] output,int outputOffset,boolean includeEdgeOn){
         System.arraycopy(face,0,a,0,32);
         for(int o=0;o<32;o+=8)
             SilhouetteImageMapping.imageUV(quad,LightingCoordinates.screenX(a[o],a[o+1]),
@@ -15,12 +18,21 @@ public final class SilhouetteFaceCompiler {
         count=cut(a,count,b,0,1,0,true);count=cut(b,count,a,0,1,-1,false);
         float area=0;
         for(int i=0;i<count;i++){int j=(i+1)%count;area+=a[i*8+3]*a[j*8+4]-a[j*8+3]*a[i*8+4];}
-        if(count<3 || Math.abs(area)*.5f<=.000001f)return 0;
+        if(count<3 || (!includeEdgeOn && Math.abs(area)*.5f<=.000001f))return 0;
         int at=outputOffset;
-        for(int i=1;i<count-1;i++)for(int k=0;k<3;k++){
-            int v=k==0?0:k==1?i:i+1;System.arraycopy(a,v*8,output,at,8);at+=8;
+        for(int i=1;i<count-1;i++){
+            // A vertical side can have collinear UVs and still span a real XYZ triangle.
+            if(includeEdgeOn && !hasPhysicalArea(a,i*8,(i+1)*8))continue;
+            for(int k=0;k<3;k++){
+                int v=k==0?0:k==1?i:i+1;System.arraycopy(a,v*8,output,at,8);at+=8;
+            }
         }
         return (at-outputOffset)/8;
+    }
+    private static boolean hasPhysicalArea(float[] p,int i,int j){
+        double ax=p[i]-p[0],ay=p[i+1]-p[1],az=p[i+2]-p[2];
+        double bx=p[j]-p[0],by=p[j+1]-p[1],bz=p[j+2]-p[2];
+        return ax*by!=ay*bx || ay*bz!=az*by || az*bx!=ax*bz;
     }
     private static int cut(float[] input,int count,float[] output,float a,float b,float c,boolean positive){
         if(count<3)return 0;

@@ -54,7 +54,16 @@ public final class GrazingLightGlCheck {
                     for(int i=0;i<6;i++){int c=corner[i],o=i*8;vertices[o+3]=c>=2?1:0;vertices[o+4]=c==1||c==2?1:0;}
                     LightingSurface surface=new LightingSurface(vertices);surface.imageQuad=true;q.lighting.entities.put(receiver,surface);
                     LightingFrame.Light light=new LightingFrame.Light();light.radius=512;light.falloff=1.5f;light.intensity=.4f;light.r=light.g=light.b=1;light.resolution=256;
-                    q.lighting.lights.add(light);submit.prepareComposition();compileEs300OnDesktop(submit);submit.setEnabled(true);
+                    q.lighting.lights.add(light);submit.prepareComposition();
+                    Assert.assertNull(submit.lightingRenderer().shadowTexture());
+                    for(String name:new String[]{"firstShadow","secondShadow"}) {
+                        java.lang.reflect.Field f=LightingRenderer.class.getDeclaredField(name);f.setAccessible(true);
+                        Assert.assertNull("None must not compile shadow shaders",f.get(submit.lightingRenderer()));
+                    }
+                    // The separate ES syntax check explicitly requests shadow preparation.
+                    component.shadowQuality=1;submit.prepareComposition();compileEs300OnDesktop(submit);
+                    component.shadowQuality=0;submit.prepareComposition();
+                    Assert.assertNull(submit.lightingRenderer().shadowTexture());submit.setEnabled(true);
                     // Distinct orientations, deliberately nonunit normals: normalization is part of the contract.
                     for(float[] n:new float[][]{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{.6f,.8f,0}})for(boolean mapped:new boolean[]{false,true})for(boolean curved:new boolean[]{false,true}){
                         surface.curveNormals=curved?new float[18]:null;

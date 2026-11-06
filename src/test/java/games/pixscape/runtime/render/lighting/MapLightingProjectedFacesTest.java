@@ -201,7 +201,10 @@ public class MapLightingProjectedFacesTest {
         map.defaultTileAltitude++;Assert.assertTrue(geometry.ensure(map,replacement));
         map.tileWidth=64;Assert.assertTrue(geometry.ensure(map,replacement));
         map.projection=TiledProjection.ORTHO;
-        try{geometry.ensure(map,replacement);Assert.fail("A changed unsupported projection must not reuse stale geometry");}catch(IllegalArgumentException expected){}
+        Assert.assertTrue("A changed projection must rebuild its physical receivers",geometry.ensure(map,replacement));
+        Assert.assertEquals(0,geometry.casters.size);
+        Assert.assertEquals(1,geometry.receiver(map,0,0,7,(byte)0,QUAD).casterContributions.size);
+        Assert.assertFalse(geometry.ensure(map,replacement));
     }
 
     @Test public void casterGeometryAndSingleOwnerReceiversStayUnchangedByExtraNonOverlappingMembership(){

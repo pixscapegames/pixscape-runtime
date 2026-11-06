@@ -95,9 +95,9 @@ public final class LightingRenderer {
             pointMapper=world.getMapper(PointLightComponent.class);coneMapper=world.getMapper(ConeLightComponent.class);
         }
         if(Gdx.gl30==null)throw new IllegalStateException("2.5D lighting requires GL3/GLES3/WebGL2 float render targets");
-        prepareShadowProgram();
+        ActiveLights.validateShadowSupport(world);
+        prepareBatch();
         batch.prepareNormalMaps(useNormalMaps && !shadowsOnly);
-        prepareTwoDepthGpuTimer();
         if(receiver!=null && preparedNormalMaps!=useNormalMaps){
             receiver.dispose();receiver=null;
             if(mappedReceiver!=null)mappedReceiver.dispose();mappedReceiver=null;
@@ -125,15 +125,16 @@ public final class LightingRenderer {
         }
         // Scene preparation includes authored disabled lights so later activation needs no target rebuild.
         int required=0;
+        boolean orthogonal=ActiveLights.hasOrthogonalMaps(world);
         IntBag entities=lightSubscription.getEntities();
         for(int i=0;i<entities.size();i++){
             int e=entities.get(i);PointLightComponent p=pointMapper.getSafe(e,null);
             ConeLightComponent c=coneMapper.getSafe(e,null);
-            if(p!=null && p.shadowQuality!=0)required=Math.max(required,p.shadowResolution);
-            if(c!=null && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
+            if(p!=null && p.shadowQuality!=0 && (!orthogonal || p.shadowQuality==1))required=Math.max(required,p.shadowResolution);
+            if(c!=null && c.shadowQuality!=0 && (!orthogonal || c.shadowQuality==1))required=Math.max(required,c.shadowResolution);
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
-        requireTwoDepthAttachments();
+        if(required>0){prepareShadowProgram();prepareTwoDepthGpuTimer();requireTwoDepthAttachments();}
         if(required!=resolution){
             FrameBuffer next=required==0?null:twoDepthFirstTarget(required*3,required*2);
             FrameBuffer nextSecond=null;
@@ -184,12 +185,16 @@ public final class LightingRenderer {
                 +(second?"uniform sampler2D u_firstIdentity;out float distanceValue;void main(){shadowMask();float id1=texelFetch(u_firstIdentity,ivec2(gl_FragCoord.xy),0).r;if(id1>.5&&id1==exclusionId)discard;distanceValue=length(p-u_light)/u_range;}":
                 "layout(location=0)out float distanceValue;layout(location=1)out float casterIdentity;void main(){shadowMask();distanceValue=length(p-u_light)/u_range;casterIdentity=exclusionId;}");
     }
-    private void prepareShadowProgram() {
-        if(firstShadow!=null && secondShadow!=null)return;
-        if(firstShadow==null){
+    private void prepareBatch() {
+        if(batch==null){
             saved.clear();Gdx.gl.glGetIntegerv(GL20.GL_MAX_TEXTURE_IMAGE_UNITS,saved);
             shadowColorSlots=shadowColorSlotsFor(saved.get(0));
+            batch=new LightingBatch(shadowColorSlots,false);
         }
+    }
+    private void prepareShadowProgram() {
+        if(firstShadow!=null && secondShadow!=null)return;
+        prepareBatch();
         String version=Gdx.app.getType()==Application.ApplicationType.Desktop?"#version 330 core\n":
                 "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
         // exclusionId is the cold shadow-group key supplied by LightingBatch, not a
@@ -198,7 +203,7 @@ public final class LightingRenderer {
         // occultant behind several connected wall supports must remain available.
         if(firstShadow==null){
             firstShadow=compile(shadowVertex(version),shadowFragment(version,shadowColorSlots,false,ShaderRegistry.surfaceLightingSources(true)));
-            firstShadow.bind();samplers(firstShadow,shadowColorSlots);batch=new LightingBatch(shadowColorSlots,false);
+            firstShadow.bind();samplers(firstShadow,shadowColorSlots);
         }
         if(secondShadow==null){
             secondShadow=compile(shadowVertex(version),shadowFragment(version,shadowColorSlots,true,ShaderRegistry.surfaceLightingSources(true)));
