@@ -38,6 +38,9 @@ public final class SpatialWallContinuationCache {
             SpatialLayerFaceRuntime runtime = runtimes[m]; TiledMapLayerData map = maps[m];
             SpatialProjectedFaceCache projected = runtime.projected;
             revisions[m] = projected.revision(); faceOffsets[m] = faceCount;
+            // Every reader uses projected indices. Roof slots reserve identity but have no wall references.
+            faceCount += projected.faceCount;
+            faces.setSize(faceCount);
             double shiftX = map.projection == TiledProjection.ISO
                     ? (double) map.originX / map.tileWidth + ((double) map.originY - map.defaultTileAltitude) / map.tileHeight
                     : (double) map.originX / map.tileWidth;
@@ -66,11 +69,11 @@ public final class SpatialWallContinuationCache {
                     if (projected.roofSupport[f]) continue;
                     int orientation = set.orientation(compiledFace), axis = orientation / 2;
                     double shift = axis == 0 ? shiftX : shiftY, alongShift = axis == 0 ? shiftY : shiftX;
-                    Face face = new Face(m, f, faceCount++, orientation,
+                    Face face = new Face(m, f, faceOffsets[m] + f, orientation,
                             set.constantCoordinate(compiledFace) + shift,
                             set.startCoordinate(compiledFace) + alongShift,
                             set.endCoordinate(compiledFace) + alongShift);
-                    faces.add(face);
+                    faces.set(face.global, face);
                     if (group == null) continue;
                     for (int b = 0; b < group.size; b++) {
                         Wall wall = group.get(b);
@@ -87,7 +90,10 @@ public final class SpatialWallContinuationCache {
             connect(upper, edges.get(new Edge(upper.axis, upper.crossMax)), maps, false);
         }
         references = new Reference[faceCount][];
-        for (int f = 0; f < faces.size; f++) flatten(faces.get(f), faces, maps);
+        for (int f = 0; f < faces.size; f++) {
+            Face wallFace = faces.get(f);
+            if (wallFace != null) flatten(wallFace, faces, maps);
+        }
         rebuildCount++;
         return true;
     }
@@ -179,7 +185,9 @@ public final class SpatialWallContinuationCache {
             for (int actor = 0; actor < actorCount; actor++) {
                 int end = solver.actorRelationStart[actor] + solver.actorRelationCount[actor];
                 for (int r = solver.actorRelationStart[actor]; r < end; r++) {
-                    int key = actor * faceCount + faceOffsets[m] + solver.relationFaceIndex[r];
+                    int face = faceOffsets[m] + solver.relationFaceIndex[r];
+                    if (references[face] == null) continue; // Roofs order actors natively, never as wall witnesses.
+                    int key = actor * faceCount + face;
                     byte type = solver.relationType[r];
                     if (stamps[key] != stamp) { stamps[key] = stamp; types[key] = type; }
                     else if (types[key] != type) types[key] = 3;
@@ -191,6 +199,7 @@ public final class SpatialWallContinuationCache {
     byte resolve(int map, int face, int actor, float x, float radius, float bottom, byte nativeType) {
         if (sources[map].projected.faceAltitude[face] <= bottom) return nativeType;
         Reference[] candidates = references[faceOffsets[map] + face];
+        if (candidates == null) return nativeType;
         float nearestBase = Float.NEGATIVE_INFINITY; byte relation = 0;
         for (int i = 0; i < candidates.length; i++) {
             Reference ref = candidates[i]; int key = actor * faceCount + ref.face;
@@ -206,7 +215,10 @@ public final class SpatialWallContinuationCache {
     }
 
     public int rebuildCount() { return rebuildCount; }
-    int referenceCount(int map, int face) { return references[faceOffsets[map] + face].length; }
+    int referenceCount(int map, int face) {
+        Reference[] candidates = references[faceOffsets[map] + face];
+        return candidates == null ? 0 : candidates.length;
+    }
 
     private static final class Edge {
         final int axis; final double coordinate;

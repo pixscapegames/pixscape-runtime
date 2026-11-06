@@ -27,6 +27,49 @@ import java.lang.reflect.Field;
 
 /** Exercises the installed composition system and extracted queue, with two authored wall portions. */
 public class SpatialWallContinuationTest {
+    @Test public void roofBeforeLowerWallCannotStandInForItsWitnessOnTheUpperMap() {
+        try (Fixture f = new Fixture(true)) {
+            SpatialBlocksComponent lower = f.world.getMapper(SpatialBlocksComponent.class).get(f.owners[0]);
+            lower.blocks.first().id = lower.blocks.first().structureId = 2;
+            SpatialBlockData vertical = new SpatialBlockData();
+            vertical.id = vertical.structureId = 1;
+            vertical.x = 1; vertical.y = 1; vertical.width = .25f; vertical.depth = 6;
+            vertical.height = 128;
+            vertical.beginAuthoredLinkedTileRefs();
+            for (int y : new int[]{1, 4, 7}) vertical.addLinkedTileRef(1, y, 1);
+            lower.blocks.add(vertical);
+            SpatialLayerFaceRuntime[] runtimes = {new SpatialLayerFaceRuntime(), new SpatialLayerFaceRuntime()};
+            for (int m = 0; m < runtimes.length; m++) {
+                f.maps[m].projection = TiledProjection.ORTHO;
+                runtimes[m].compiled.ensure(m == 0 ? lower : f.upperBlocks);
+                runtimes[m].projected.ensure(runtimes[m].compiled, f.maps[m]);
+                runtimes[m].relations.actorRelationStart = new int[]{0};
+                runtimes[m].relations.actorRelationCount = new int[]{0};
+            }
+            SpatialProjectedFaceCache faces = runtimes[0].projected;
+            int lowerWall = faces.structureFaceStart[1], roof = lowerWall - 1;
+            Assert.assertTrue(faces.roofSupport[roof]);
+            Assert.assertEquals(2, faces.faceStructureId[lowerWall]);
+
+            SpatialWallContinuationCache cache = new SpatialWallContinuationCache();
+            cache.ensure(runtimes, f.maps, new int[]{0, 0}, 2);
+            byte front = SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE;
+            byte behind = SpatialFaceRelationSolver.ACTOR_BEHIND_FACE;
+            SpatialFaceRelationSolver retained = runtimes[0].relations;
+            retained.actorRelationCount[0] = 1;
+            retained.relationType = new byte[]{behind};
+            retained.relationFaceIndex = new int[]{roof};
+            cache.capture(runtimes, 1);
+            Assert.assertEquals("A roof is not a wall witness", front, cache.resolve(1, 0, 0, 1100, 8, 0, front));
+            retained.relationFaceIndex[0] = lowerWall;
+            cache.capture(runtimes, 1);
+            Assert.assertEquals("The corresponding lower wall is a witness", behind,
+                    cache.resolve(1, 0, 0, 1100, 8, 0, front));
+            Assert.assertEquals(0, cache.referenceCount(0, roof));
+            Assert.assertEquals(front, cache.resolve(0, roof, 0, 1100, 8, -1, front));
+        }
+    }
+
     @Test public void behindBothSpriteSizesStayBehindAtTheStrictUpperBaseThreshold() {
         for (boolean large : new boolean[]{false, true}) try (Fixture f = new Fixture(large)) {
             for (float height : new float[]{127, 128, 129}) {

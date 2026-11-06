@@ -13,6 +13,11 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialFaceRelationSolver;
+import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
+import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
+import games.pixscape.runtime.spatial.SpatialRectangleTestData;
+import games.pixscape.runtime.spatial.SpatialWallContinuationCache;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
@@ -20,6 +25,65 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialRenderOrderSystemTest {
+
+    @Test public void orthogonalWallAfterRoofKeepsItsProjectedFaceDuringActorMotion() throws Exception {
+        Fixture f = new Fixture(1024);
+        f.createLayer(2, true);
+        TiledMapLayerData map = f.createBlockMap(16, 16, 16, 16, 300);
+        SpatialBlockData first = block(1, 6.75f, 2, .25f, 10);
+        first.structureId = 1;
+        first.height = 16;
+        first.beginAuthoredLinkedTileRefs();
+        for (int y = 2; y <= 12; y++) {
+            first.addLinkedTileRef(6, y, 1);
+            map.setTile(6, y, 1);
+        }
+        SpatialBlockData second = block(2, 10, 2, 2, .25f);
+        second.structureId = 2;
+        second.height = 16;
+        int owner = f.createBlockTiledLayer(1, map, first, second);
+        int roof = f.createLinkedTile(map, 6, 5, 1, 1, 10);
+        int wall = f.createLinkedTile(map, 10, 2, 1, 1, 20);
+        for (int ref : new int[]{roof, wall}) {
+            int x = ref == roof ? 96 : 160, y = ref == roof ? 80 : 32;
+            f.tiledState.x1[ref] = f.tiledState.x4[ref] = x;
+            f.tiledState.x2[ref] = f.tiledState.x3[ref] = x + 16;
+            f.tiledState.y1[ref] = f.tiledState.y2[ref] = y;
+            f.tiledState.y3[ref] = f.tiledState.y4[ref] = y + 16;
+        }
+        int actor = f.createActor(168, 28, 0, 2, true);
+        SpatialRectangleTestData.setHeight(
+                f.world.getMapper(SpatialHeightComponent.class).get(actor), 24);
+        for (int y : new int[]{28, 40, 28}) {
+            f.setActorPosition(actor, 168, y);
+            f.process();
+            int[] order = f.drawOrder();
+            Assert.assertTrue(indexOf(order, actor) >= 0 && indexOf(order, wall) >= 0);
+            Assert.assertTrue(f.spatial.faceRelationCount() > 0);
+            Assert.assertEquals(y == 28, indexOf(order, wall) < indexOf(order, actor));
+        }
+        f.setActorPosition(actor, 108, 84);
+        f.process();
+        int[] order = f.drawOrder();
+        Assert.assertTrue(indexOf(order, actor) >= 0 && indexOf(order, actor) < indexOf(order, roof));
+        SpatialLayerFaceRuntime runtime = f.registry.forLayer(owner, map);
+        int roofAnchor = runtime.projected.anchorForCell(6, 5);
+        Assert.assertTrue(roofAnchor >= 0);
+        int face = runtime.projected.membershipFace[runtime.projected.anchorMembershipHead[roofAnchor]];
+        Assert.assertTrue(runtime.projected.roofSupport[face]);
+        Assert.assertTrue(face < runtime.projected.structureFaceStart[1]);
+        Assert.assertEquals(1, runtime.relations.relationCount);
+        Assert.assertEquals(face, runtime.relations.relationFaceIndex[0]);
+        Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE, runtime.relations.relationType[0]);
+
+        java.lang.reflect.Field cacheField = SpatialRenderOrderSystem.class.getDeclaredField("wallContinuations");
+        cacheField.setAccessible(true);
+        Assert.assertEquals(1, ((SpatialWallContinuationCache) cacheField.get(f.spatial)).rebuildCount());
+        Assert.assertEquals(1, runtime.compiled.compilationCount());
+        Assert.assertEquals(1, runtime.projected.projectionCount());
+        Assert.assertEquals(1, runtime.tileOrder.tileOrderCompileCount);
+        f.world.dispose();
+    }
 
     @Test
     public void editorReadsTheCollectedEnvelopeWithoutChangingTheRenderQuad() {
@@ -1566,6 +1630,7 @@ public class SpatialRenderOrderSystemTest {
         final DrawList drawList;
         final RenderStats stats;
         final World world;
+        final SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
         final SpatialRenderOrderSystem spatial;
 
         int[] beforeSpatialOrder;
@@ -1587,7 +1652,7 @@ public class SpatialRenderOrderSystemTest {
             }
             drawList = new DrawList(capacity);
             stats = new RenderStats();
-            spatial = new SpatialRenderOrderSystem(ecsState, tiledState, drawList);
+            spatial = new SpatialRenderOrderSystem(ecsState, tiledState, drawList, registry);
 
             WorldConfigurationBuilder builder = new WorldConfigurationBuilder()
                     .with(
