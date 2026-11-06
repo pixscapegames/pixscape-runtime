@@ -1,9 +1,5 @@
 package games.pixscape.runtime.render.lighting;
 
-import com.artemis.World;
-import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -109,22 +105,5 @@ public class OrthoLightingGeometryTest {
             else {assertEquals(72,sx,.0001);rightArea+=area;}
         }
         assertEquals(16*9,leftArea,.001);assertEquals(leftArea,rightArea,.001);
-    }
-
-    @Test public void hardIsAdmittedAndActivePcfIsRejectedWithoutErasingStoredSettings() {
-        World world=new World(new WorldConfiguration());
-        try {
-            TiledLayerComponent map=world.getMapper(TiledLayerComponent.class).create(world.create());map.projection=TiledProjection.ORTHO;
-            PointLightComponent light=world.getMapper(PointLightComponent.class).create(world.create());light.enabled=true;light.shadowQuality=1;light.intensity=0;
-            world.process();
-            ActiveLights.validateShadowSupport(world);
-            light.shadowQuality=2;
-            try {ActiveLights.validateShadowSupport(world);fail("ORTHO PCF must not be admitted");}
-            catch(LightingAdmissionException expected){assertTrue(expected.getMessage().contains("Shadows to None"));}
-            assertEquals(2,light.shadowQuality);
-            light.enabled=false;ActiveLights.validateShadowSupport(world);assertEquals(2,light.shadowQuality);
-            light.enabled=true;light.shadowQuality=0;ActiveLights.validateShadowSupport(world);
-            map.projection=TiledProjection.ISO;light.shadowQuality=1;ActiveLights.validateShadowSupport(world);
-        } finally {world.dispose();}
     }
 }

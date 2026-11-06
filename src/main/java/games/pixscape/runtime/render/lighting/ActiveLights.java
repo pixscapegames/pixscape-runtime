@@ -58,19 +58,4 @@ public final class ActiveLights {
         return false;
     }
 
-    public static final String ORTHO_SHADOW_LIMIT =
-            "ORTHO maps support None and Hard shadows. Set Shadows to None or Hard on active lights.";
-
-    /** Disabled lights retain their settings; enabling them must pass this admission again. */
-    public static void validateShadowSupport(World world) {
-        if(!hasOrthogonalMaps(world))return;
-        IntBag lights=world.getAspectSubscriptionManager().get(Aspect.one(PointLightComponent.class,ConeLightComponent.class)).getEntities();
-        for(int i=0;i<lights.size();i++) {
-            int e=lights.get(i);if(!isActive(world,e))continue;
-            PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(e,null);
-            ConeLightComponent c=world.getMapper(ConeLightComponent.class).getSafe(e,null);
-            if(p!=null&&p.shadowQuality>1 || c!=null&&c.shadowQuality>1)
-                throw new LightingAdmissionException(ORTHO_SHADOW_LIMIT+" Light entity: "+e+".");
-        }
-    }
 }

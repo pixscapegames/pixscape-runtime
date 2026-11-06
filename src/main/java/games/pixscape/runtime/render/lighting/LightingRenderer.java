@@ -95,7 +95,6 @@ public final class LightingRenderer {
             pointMapper=world.getMapper(PointLightComponent.class);coneMapper=world.getMapper(ConeLightComponent.class);
         }
         if(Gdx.gl30==null)throw new IllegalStateException("2.5D lighting requires GL3/GLES3/WebGL2 float render targets");
-        ActiveLights.validateShadowSupport(world);
         prepareBatch();
         batch.prepareNormalMaps(useNormalMaps && !shadowsOnly);
         if(receiver!=null && preparedNormalMaps!=useNormalMaps){
@@ -125,13 +124,12 @@ public final class LightingRenderer {
         }
         // Scene preparation includes authored disabled lights so later activation needs no target rebuild.
         int required=0;
-        boolean orthogonal=ActiveLights.hasOrthogonalMaps(world);
         IntBag entities=lightSubscription.getEntities();
         for(int i=0;i<entities.size();i++){
             int e=entities.get(i);PointLightComponent p=pointMapper.getSafe(e,null);
             ConeLightComponent c=coneMapper.getSafe(e,null);
-            if(p!=null && p.shadowQuality!=0 && (!orthogonal || p.shadowQuality==1))required=Math.max(required,p.shadowResolution);
-            if(c!=null && c.shadowQuality!=0 && (!orthogonal || c.shadowQuality==1))required=Math.max(required,c.shadowResolution);
+            if(p!=null && p.shadowQuality!=0)required=Math.max(required,p.shadowResolution);
+            if(c!=null && c.shadowQuality!=0)required=Math.max(required,c.shadowResolution);
         }
         if(required!=0 && required!=256 && required!=512 && required!=1024)throw new IllegalArgumentException("Unsupported shadow resolution");
         if(required>0){prepareShadowProgram();prepareTwoDepthGpuTimer();requireTwoDepthAttachments();}

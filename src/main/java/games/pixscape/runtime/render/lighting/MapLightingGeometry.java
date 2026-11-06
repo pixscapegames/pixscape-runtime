@@ -31,7 +31,6 @@ public final class MapLightingGeometry {
     private int publicationRevision;
     private Preview activePreview;
     public int publicationRevision(){return publicationRevision;}
-    public boolean isOrthogonal(){return projection==TiledProjection.ORTHO;}
     public void registerShadowGroups(int owner,ShadowExclusionIdentities ids,WallShadowGroups groups){
         groups.add(owner,previous,previousBlocks,ids);
         // Curved occurrences keep their own identity; they must not bridge two facade groups.

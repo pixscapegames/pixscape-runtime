@@ -12,7 +12,10 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneLoadHandle;
@@ -48,7 +51,7 @@ public final class SceneRenderPreparationGlCheck {
         FileHandle project = root.child(PixscapeEngine.RUNTIME_DIR_NAME);
         project.child("project.json").writeString("{\"projectFileName\":\"test\",\"version\":\"1\","
                 + "\"currentSceneName\":\"test\",\"scenes\":{\"test\":{\"name\":\"test\","
-                + "\"file\":\"test.json\",\"sceneSchemaVersion\":3,\"nextEntityStableId\":3,"
+                + "\"file\":\"test.json\",\"sceneSchemaVersion\":3,\"nextEntityStableId\":4,"
                 + "\"nextPhysicsShapeId\":1}}}", false, "UTF-8");
         project.child("atlases/test.atlas").writeString("", false, "UTF-8");
         writeScene(project.child("scenes/test.json"));
@@ -97,6 +100,9 @@ public final class SceneRenderPreparationGlCheck {
 
                         PointLightComponent light = engine.getWorld().getMapper(PointLightComponent.class)
                                 .get(engine.findEntityByStableId(2));
+                        light.shadowQuality = 1;
+                        submit.prepareComposition();
+                        Assert.assertSame("Hard and PCF share shadow targets", atlas, get(renderer, "atlas"));
                         light.shadowResolution = 512;
                         submit.prepareComposition();
                         Assert.assertNotSame(atlas, get(renderer, "atlas"));
@@ -159,11 +165,18 @@ public final class SceneRenderPreparationGlCheck {
             world.getMapper(PixscapeIdentityComponent.class).create(layer).stableId = 1;
             int entity = world.create();
             world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = 2;
-            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity).layerIndex=0;
+            world.getMapper(EntityIndexComponent.class).create(entity).layerIndex=0;
             world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(entity);
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entity);
             light.shadowResolution = 256;
-            light.shadowQuality = 1;
+            light.shadowQuality = 2;
+            int mapEntity = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(mapEntity).stableId = 3;
+            world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
+            TiledLayerComponent map = world.getMapper(TiledLayerComponent.class).create(mapEntity);
+            map.projection = TiledProjection.ORTHO;
+            map.mapWidthCells = map.mapHeightCells = map.chunkSize = 4;
+            map.tileWidth = map.tileHeight = 16;
             world.process();
             file.parent().mkdirs();
             try (OutputStream out = file.write(false)) {
