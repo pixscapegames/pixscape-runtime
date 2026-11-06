@@ -5,10 +5,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.NumberUtils;
-import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.render.batch.ShaderParameterRows;
 import games.pixscape.runtime.render.batch.ShaderParameterTexture;
-import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 

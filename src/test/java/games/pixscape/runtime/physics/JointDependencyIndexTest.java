@@ -1,6 +1,7 @@
 package games.pixscape.runtime.physics;
 
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class JointDependencyIndexTest {

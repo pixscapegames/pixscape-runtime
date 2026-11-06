@@ -1,16 +1,23 @@
 package games.pixscape.runtime.render;
 
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.glutils.*;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.ShaderFloatParam;
-import games.pixscape.runtime.render.batch.*;
+import games.pixscape.runtime.render.batch.GLCaps;
+import games.pixscape.runtime.render.batch.MetricsBatch;
+import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 import org.junit.Assert;
 
 /** Real supplied materials: relocated atlas regions, neighbours, flips, alpha and entity rows. */

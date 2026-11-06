@@ -6,6 +6,7 @@ import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class SpatialOrthoRoofTest {

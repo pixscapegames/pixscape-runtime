@@ -7,13 +7,13 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.BufferUtils;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.batch.ShaderParameterRows;
+import games.pixscape.runtime.render.batch.ShaderParameterTexture;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.NormalMapBinding;
-import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.service.ShaderRegistry;
-import games.pixscape.runtime.render.batch.ShaderParameterRows;
-import games.pixscape.runtime.render.batch.ShaderParameterTexture;
+import games.pixscape.runtime.service.TextureRegistry;
 
 import java.nio.IntBuffer;
 

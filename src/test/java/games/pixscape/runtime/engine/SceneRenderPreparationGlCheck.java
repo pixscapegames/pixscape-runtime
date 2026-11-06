@@ -14,12 +14,12 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 
 import java.io.OutputStream;

@@ -3,6 +3,7 @@ package games.pixscape.runtime.render;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.utils.BufferUtils;
+
 import java.nio.IntBuffer;
 
 /** Draws ordinary world materials into the caller's target without an intermediate target.

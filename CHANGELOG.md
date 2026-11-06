@@ -1,13 +1,22 @@
 # Changelog
 
+
+## [0.2.4]
+
+### Added
+* Wall volumes on orthographic Tiled maps can now cast hard or PCF-filtered shadows with point and cone lights.
+
+### Fixed
+* Fixed actor draw order along walls on orthographic maps. Actors keep the correct depth when crossing tile boundaries along a continuous roof.
+* Each world now exposes its own scene metadata, so systems and editor commands use the lighting settings of the scene they operate on.
+
+
 ## [0.2.3]
 
 ### Breaking changes
-
 * Custom render submitters that read `FrameRenderQueue.v1` or `v2` directly must be updated and recompiled. For each queue entry, read the position with `drawX(entry, corner)` and `drawY(entry, corner)`, and the UVs with `drawU(entry, corner)` and `drawV(entry, corner)`. Submit corners 0–3 in bottom-left, top-left, top-right, bottom-right order. A split wall tile can produce two entries with an actor drawn between them. Use `atlasTopV` and `atlasBottomV` only for the full source region.
 
 ### Added
-
 * Added Lit and Unlit `surface-v1` materials that work across renderers. They support per-entity parameters, atlas-safe sprite sampling and an optional cutout mask shared by the sprite and its shadow. Examples include Lit Pulse, Unlit Pulse and Lit Dissolve.
 * Added `PixscapeEngine.setLightingEnabled(boolean)` to switch scene lighting at runtime. Unlit scenes draw directly to the caller’s target and defer lighting resources until needed. Existing scenes without a lighting flag keep their lighting.
 * Added `findAllByLayerName(name)` to find the direct members of all layers with a given name.
@@ -15,29 +24,26 @@
 * Added `setParticleReserve(effect, count)` to prepare a chosen number of particle effects before a scene is ready.
 
 ### Changed
-
 * Declare spawnable Game Objects in the scene’s Runtime Availability. The Runtime now validates and prepares each definition before the scene is ready. Spawning reuses that definition, and removing an instance no longer requires rebuilding the entire hierarchy.
 * The supplied `glow_pulse` material is Unlit. `wave_uv` and `outline_soft` are Lit. All three retain their shader names, parameter names and original shadow silhouettes.
 * Lit scenes without active local lights use the Legacy ambient pass and retain their renderer preference for when a light becomes active.
 * Dispose the current project before calling `loadProject` with a different root. Loading the same project again remains safe.
 
 ### Fixed
-
 * Fixed actor draw order at lateral isometric wall corners. An actor crossing the opening can now appear behind one wall face and in front of the other.
 * Fixed HTML/GWT loading of Game Object assets containing lists of entities, shapes or joints.
 * Fixed per-entity material parameter uploads on GLES3 devices such as the Samsung A33.
 * Fixed world framebuffers failing to restore after Android GL context loss.
 
+
 ## [0.2.2]
 
 ### Breaking changes
-
 * World rendering now requires renderable, blendable RGBA16F support (GL3/GLES3/WebGL2).
 * Custom texture-array shaders must use per-entity material parameters instead of per-entity float uniforms.
 * HUD documents now require schema 2; legacy HUD assets using schema 1 or fixed reference dimensions must be recreated.
 
 ### Added
-
 * Added actor shadows with per-animation foot calibration and thickness.
 * Added an ambient-light exemption for particle instances.
 * Added continuous cone-light inclination.
@@ -46,27 +52,24 @@
 * Added Scene2D HUD screens with widget access, tables and reusable dialogs.
 
 ### Changed
-
 * HUD screens now adapt to the available viewport; root Tables can fill it and cells can define maximum dimensions.
 * Spatial actor influence and map-plane projection now follow the authored spatial height and altitude.
 
 ### Fixed
-
 * Fixed lighting alignment on deformed images.
 * Fixed vertical wall joins that could force linked image anchors into the physical wall envelope.
 * Fixed Spatial projection and ordering for map-plane altitude and local wall junctions.
 
+
 ## [0.2.1]
 
 ### Fixed
-
 * Fixed HTML/GWT scene loading for Tiled maps using TiledProjection.
 
 
 ## [0.2.0]
 
 ### Breaking changes
-
 * Removed the legacy Layer type system. `LayerComponent` now represents a universal Layer with only its composition index and optional Spatial Actor capability.
 * Removed dedicated Light, Physics and Tiled Layer semantics. Lights, physical entities and Tiled Maps now belong to ordinary Layers.
 * Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledMapRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
@@ -74,14 +77,12 @@
 * Schema 3 scenes using the obsolete `LayerComponent.type` representation are rejected and must be re-exported with a compatible Studio version.
 
 ### Added
-
 * Added first-class Tiled Map entities with their own identity, Layer placement, z-index and Map configuration.
 * Added support for multiple independently configured Tiled Maps in the same Scene and in the same Layer.
 * Added Map-level render composition so a Tiled Map participates in global Layer/z ordering as one atomic composition block.
 * Added strict Runtime validation for Tiled Map ownership, Layer references and obsolete Layer representations.
 
 ### Changed
-
 * Spatial Actor participation is now an ordinary Layer property instead of a dedicated Layer type.
 * Tiled Map Spatial Depth is now fully independent from ordinary Layer Spatial Actor participation.
 * Tiled Maps can coexist with sprites, animations, lights and other ordinary entities inside the same Layer.
@@ -92,19 +93,16 @@
 * Simplified `SceneMetaRuntime` by removing obsolete Tiled scene metadata and unused Runtime state.
 
 ### Improved
-
 * Simplified Layer-state construction and rendering by removing special-case Layer categories.
 * Reduced coupling between Tiled, Spatial, Physics and Layer systems through explicit Map ownership.
 * Improved support for mixed-content Layers and multiple Maps without changing the internal ordering rules of individual Tiled Maps.
 
 ### Fixed
-
 * Fixed Tiled Map Spatial Depth changes incorrectly affecting ordinary Layer Spatial Actor state.
 * Fixed Runtime Tiled collision toggling so disabling collisions preserves authored collision data and enabling them recreates native Box2D state when allowed.
 * Prevented ambiguous Tiled Map lookup through Layer indices when multiple Maps share the same Layer.
 
 ### Tests
-
 * Added regression coverage for universal Layers and removal of legacy Layer types.
 * Added ownership and persistence coverage for independently configured Tiled Maps.
 * Added render-composition coverage for mixed ordinary entities and Map blocks across Layer/z ordering.
@@ -115,7 +113,6 @@
 ## [0.1.10]
 
 ### Added
-
 * Added typed custom properties for Runtime entities, with String, Boolean, Integer, Float, Color, Object and recursively nested Class values.
 * Added read-only high-level custom-property access through `EntityRef#properties()`.
 * Added persistent authored polygon and polyline geometry.
@@ -125,22 +122,18 @@
 * Added `EntitiesAPI#findAllByTag(String)` for retrieving all entities sharing a tag.
 
 ### Changed
-
 * Updated the prefab asset format to version 3 to persist quad deformation; version 2 prefabs remain supported and are migrated when loaded.
 * Quad deformation and sprite Repeat are now mutually exclusive when non-zero deformation is active.
 * Extended the public API support contracts for authored geometry, custom properties and related expert ECS components.
 
 ### Improved
-
 * Improved custom-property validation, copying and storage for Studio authoring and Runtime access.
 * Shared Tiled animation stepping logic between tiled cells and animated Tiled entities.
 
 ### Fixed
-
 * Fixed HTML/GWT reflection coverage for Runtime prefab fragments and newly authored Runtime data types.
 
 ### Tests
-
 * Added regression coverage for custom-property storage, serialization and high-level access.
 * Added regression coverage for Color, Object and nested Class properties.
 * Added regression coverage for authored polygon/polyline serialization and geometry access.
@@ -151,7 +144,6 @@
 ## [0.1.9]
 
 ### Breaking changes
-
 * Replaced the legacy fixture authoring schema with persistent `PhysicsShapeData` and `PhysicsGeometryData`.
 * Physics scenes and prefab data using the previous schema must be recreated or re-exported.
 * Moved spatial domain classes to `games.pixscape.runtime.spatial` and Artemis spatial components to `games.pixscape.runtime.component.spatial`.
@@ -163,7 +155,6 @@
 * Animation spawning now requires a registered Animation definition; direct atlas assets are no longer accepted as implicit animations.
 
 ### Added
-
 * Added scene-wide persistent physics shape identities with monotonic allocation and strict load validation.
 * Added an authored-to-compiled physics pipeline with polygon validation, decomposition and derived fixture caches.
 * Added linked physics shapes whose geometry is derived from Spatial Block footprints.
@@ -182,7 +173,6 @@
 * Added atomic animation switching by asset ID or name, animation-and-clip playback, and read-only authored animation definition queries.
 
 ### Changed
-
 * Scene READY now guarantees acquisition and required heavyweight preparation of known scene dependencies and declared Runtime Availability resources; normal gameplay no longer performs implicit scene-resource loading or particle preparation after READY.
 * Particle spawning and effect replacement now require the requested effect to have been prepared before READY and reject unavailable resources before mutating ECS state.
 * Reduced Spatial query and frame-preparation overhead by avoiding full scene-layer and inactive slot-range scans.
@@ -203,7 +193,6 @@
 * Runtime references now preserve entity incarnation identity and report stale access consistently after removal or world replacement.
 
 ### Improved
-
 * Asset lookup by Asset ID now uses the atlas binding index instead of repeatedly scanning and regrouping atlas regions.
 * Reduced repeated atlas resolution work during sprite and animation spawning, entity rebinds, prefab instantiation and tiled rendering.
 * Animation systems now reuse indexed frame groups and precomputed region metadata.
@@ -214,7 +203,6 @@
 * Released temporary texture-array CPU image backing after GPU upload, avoiding retained GWT Pixmap/canvas memory.
 
 ### Fixed
-
 * Fixed stale or duplicated physics shape identities across scene loading and prefab instantiation.
 * Prevented invalid body, fixture, polygon or joint data from being partially published.
 * Fixed Spatial actor footprints becoming stale after physics or pixels-per-meter changes.
@@ -229,7 +217,6 @@
 * Fixed Runtime Availability prefab spawning on HTML/WebGL by including Runtime prefab types in GWT reflection.
 
 ### Tests
-
 * Expanded regression coverage for physics persistence, compilation, prefabs, joints, Spatial integration and stable-frame behavior.
 * Added regression coverage for atlas index construction, asset grouping, indexed API resolution, animations, prefabs and tiled rendering.
 * Revalidated the indexed asset pipeline on Desktop and through forced GWT compilation.
@@ -239,10 +226,10 @@
 * Added grouped facade identity and failure-contract coverage, with forced GWT compilation and Java 8 compatibility validation.
 * Added regression coverage for declared prefab availability, strict pre-READY particle preparation and deferred HTML resource delivery without post-READY gameplay loading.
 
+
 ## [0.1.8]
 
 ### Added
-
 * Added runtime loading for exported `tileset-profiles.json` metadata.
 * Added runtime tileset profile lookup by tile asset ID.
 * Added profile-aware tiled sprite placement support for native-size tiles.
@@ -266,7 +253,6 @@
 * Added source-aware Spatial layer runtime ownership to prevent scene-scoped caches from being reused with a different tiled map source.
 
 ### Changed
-
 * Tiled runtime rendering now uses tileset profile placement when profile metadata is available.
 * Tiled transform flags are still applied after base profile placement.
 * Runtime project loading now carries tileset profile metadata into tiled rendering systems.
@@ -277,7 +263,6 @@
 * Spatial layer runtime caches now use both the layer entity and tiled-map source identity when validating cached structures, projected faces and anchors.
 
 ### Fixed
-
 * Fixed runtime placement support for tiles whose native image size differs from their logical tiled cell size.
 * Fixed tall/isometric tiles requiring explicit placement metadata instead of relying on implicit tile-size assumptions.
 * Fixed missing tileset profiles being reported as diagnostics instead of silently falling back to legacy placement.
@@ -297,7 +282,6 @@
 * Improved dynamic actor ordering accuracy around complex 2.5D tiled structures.
 
 ### Tests
-
 * Added runtime tileset profile manifest loading tests.
 * Added regression coverage for sprite/body lifecycle rendering and spatial tiled ordering.
 * Added regression tests for circle footprint spatial relations, including corners, seams, multi-slice coverage, large/small radii, deduplication, and flicker prevention.
@@ -309,14 +293,12 @@
 ## [0.1.7]
 
 ### Changed
-
 * Runtime artifacts now target Java 8-compatible bytecode while continuing to build with JDK 21.
 
 
 ## [0.1.6]
 
 ### Added
-
 * Added Runtime Profiler for lightweight frame, update, render, and system timing diagnostics.
 * Added one-shot tiled animation playback API for triggering tiled animations from runtime code.
 * Added new SOA-based spatial system foundation for deterministic 2.5D actor/block ordering.
@@ -325,7 +307,6 @@
 * Added `pixscape.tiled.spatialSortVerify=true` compact verification logging for spatial tiled ordering.
 
 ### Changed
-
 * Spatial-enabled isometric tiled layers now use spatial tiled ordering by default.
 * Spatial tiled ordering now preserves ISO depth while grouping exclusive block anchors inside the same ISO diagonal.
 * Shared spatial block anchors are now treated as junction anchors and no longer disable spatial tiled ordering.
@@ -333,7 +314,6 @@
 * Added `pixscape.tiled.spatialSort=false` debug opt-out to restore default ISO tiled ordering when needed.
 
 ### Fixed
-
 * Fixed spatial tiled anchor interleaving that could make actors render on the wrong side of isometric walls.
 * Fixed false spatial ordering conflicts caused by shared corner/junction tiles expanding block anchor intervals.
 * Particle effect replacement is failure-atomic and keeps the previous valid effect when replacement fails.
@@ -380,6 +360,7 @@
 - Avoided ECS lockups during tiled map edits by extending tiled APIs to mutate runtime tile data through dedicated facades.
 - Preserved tile animation definitions and lookup behavior when loading runtime projects.
 - Expanded API, animation loading, and tile animation tests for the 0.1.4 runtime surface.
+
 
 ## [0.1.3]
 
@@ -466,6 +447,7 @@
 - Preserved tiled transformations when tiled maps are rebuilt or resized
 - Fixed tiled animation atlas dependencies during repack and cleanup
 - Fixed tiled animation preview and placement ghost rendering
+
 
 ## [0.1.1] - 2026-03-22
 

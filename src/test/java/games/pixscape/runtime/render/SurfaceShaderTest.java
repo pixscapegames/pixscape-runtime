@@ -1,9 +1,12 @@
 package games.pixscape.runtime.render;
+
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 public class SurfaceShaderTest {
  @Test public void missingContractPreservesLegacyAndExplicitContractRequiresItsBody() {
   assertNull(SurfaceShader.read(new JsonReader().parse("{}"),new FileHandle("missing"),ShaderParameterLayout.EMPTY));

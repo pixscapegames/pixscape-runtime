@@ -4,12 +4,13 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.JsonReader;
 import games.pixscape.runtime.component.VisibilityComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.render.lighting.ActiveLights;
 import games.pixscape.runtime.render.lighting.LightingAdmissionException;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class SceneRendererSettingsTest {

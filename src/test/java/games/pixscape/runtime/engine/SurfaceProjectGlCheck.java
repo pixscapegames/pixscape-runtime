@@ -1,21 +1,28 @@
 package games.pixscape.runtime.engine;
 
-import com.artemis.*;
-import com.artemis.io.*;
+import com.artemis.Aspect;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.artemis.io.JsonArtemisSerializer;
+import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.utils.BufferUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.system.*;
+import games.pixscape.runtime.loading.SceneLoadHandle;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.ShaderMode;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.system.RenderSubmitSystem;
 import org.junit.Assert;
+
 import java.nio.file.Files;
 
 /** Saved-project integration: production loader, ECS extraction, material rows and mode activation. */

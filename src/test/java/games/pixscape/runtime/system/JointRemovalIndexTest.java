@@ -3,9 +3,11 @@ package games.pixscape.runtime.system;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.render.JointDirtyBits;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class JointRemovalIndexTest {

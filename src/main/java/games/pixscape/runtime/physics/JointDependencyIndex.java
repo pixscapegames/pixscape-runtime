@@ -1,6 +1,7 @@
 package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.utils.IntArray;
+
 import java.util.Arrays;
 
 /** INTERNAL joint relations owned by one World's Box2dSyncSystem, even without native Physics. */

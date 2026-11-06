@@ -4,7 +4,8 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.*;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.lighting.LightingFrame;
@@ -12,6 +13,7 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.*;
 import org.junit.*;
+
 import java.lang.reflect.Field;
 
 public class LightGameplayApiTest {

@@ -2,14 +2,15 @@ package games.pixscape.runtime.engine;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
-import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.api.*;
+import games.pixscape.runtime.api.EntityRef;
 import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.render.ShaderMode;
-import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 import org.junit.Assert;
 

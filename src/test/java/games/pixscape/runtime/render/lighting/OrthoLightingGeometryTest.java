@@ -5,6 +5,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class OrthoLightingGeometryTest {
