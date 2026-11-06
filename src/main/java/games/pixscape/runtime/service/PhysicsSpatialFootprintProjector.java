@@ -55,6 +55,7 @@ public final class PhysicsSpatialFootprintProjector {
 
     public void invalidate(SpatialPhysicsFootprintComponent target, int physicsGeneration) {
         if (target == null) return;
+        target.projectedFixtures = null;
         target.valid = false;
         target.localOffsetXPx = 0f;
         target.localOffsetYPx = 0f;

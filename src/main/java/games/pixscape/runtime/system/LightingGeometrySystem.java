@@ -23,6 +23,12 @@ public final class LightingGeometrySystem extends BaseSystem {
     @com.artemis.annotations.SkipWire private ShadowPreparation shadowPreparation;
     /** Frame-publication resource boundary; never called by render submission. */
     public void setShadowPreparation(ShadowPreparation preparation){shadowPreparation=preparation;}
+    private boolean editingActorFootprints;
+
+    /** Studio can temporarily remove an actor's physics body while editing its scene. */
+    public void allowIncompleteAuthoringFootprints() {
+        editingActorFootprints = true;
+    }
     private final DynamicEntityRenderState dynamic;
     private final TiledMapRenderState tiled;
     private LightingFrame frame;
@@ -247,7 +253,14 @@ public final class LightingGeometrySystem extends BaseSystem {
         if(rectangle==null)throw new LightingAdmissionException("Spatial actor "+e+" has no rectangle for its active representation");
         games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent foot=footprints.getSafe(e,null);
         games.pixscape.runtime.component.TransformComponent t=transforms.getSafe(e,null);
-        if(foot==null||!foot.valid||t==null)throw new LightingAdmissionException("Spatial actor "+e+" has no valid footprint anchor");
+        if(t==null)throw new LightingAdmissionException("Spatial actor "+e+" has no transform for its footprint anchor");
+        if(foot==null || !foot.valid){
+            if(editingActorFootprints && (foot==null || !foot.invalidSpatialFootprint)){
+                surface.shadowCaster=false;
+                return;
+            }
+            throw new LightingAdmissionException("Spatial actor "+e+" has no valid footprint anchor");
+        }
         GameObjectHierarchySystem hierarchy=world.getSystem(GameObjectHierarchySystem.class);
         games.pixscape.runtime.hierarchy.WorldTransformState state=hierarchy==null?null:hierarchy.worldTransforms();
         boolean resolved=state!=null&&state.isResolved(e);

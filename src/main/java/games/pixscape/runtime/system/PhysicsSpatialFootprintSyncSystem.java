@@ -72,6 +72,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
             if (compiled == null || !compiled.valid) {
                 if (footprint != null
                         && (footprint.valid
+                        || footprint.projectedFixtures != null
                         || footprint.physicsGeneration != compiledGeneration(compiled)
                         || footprint.sourcePhysicsShapeId != 0
                         || footprint.invalidSpatialFootprint)) {
@@ -81,6 +82,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
             }
             if (!forceResync
                     && footprint != null
+                    && footprint.projectedFixtures == compiled.fixtures
                     && footprint.physicsGeneration == compiled.generation) {
                 continue;
             }
@@ -95,6 +97,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
                 footprint = mFootprint.create(entityId);
             }
             projector.publish(footprint, projection);
+            footprint.projectedFixtures = compiled.fixtures;
         }
     }
 
@@ -107,6 +110,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
             SpatialPhysicsFootprintComponent footprint = mFootprint.get(entityId);
             if (footprint != null
                     && (footprint.valid
+                    || footprint.projectedFixtures != null
                     || footprint.sourcePhysicsShapeId != 0
                     || footprint.invalidSpatialFootprint)) {
                 projector.invalidate(footprint, footprint.physicsGeneration + 1);

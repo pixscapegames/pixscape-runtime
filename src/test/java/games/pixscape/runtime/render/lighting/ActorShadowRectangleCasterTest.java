@@ -71,6 +71,56 @@ public class ActorShadowRectangleCasterTest {
             for(int k=2;k<8;k++)assertEquals(before[o+k],c.lightVertices[o+k],.0001);
         }
     }
+    @Test public void onlyAnAuthoringWorldMaySuspendAnIncompleteActorShadow() {
+        DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
+        FrameRenderQueue queue = new FrameRenderQueue(4);
+        LightingGeometrySystem geometry = new LightingGeometrySystem(dynamic, new TiledMapRenderState(4),
+                queue, new LayerStateSOA(1));
+        World world = new World(new WorldConfigurationBuilder().with(geometry).build());
+        try {
+            int actor = world.create();
+            int slot = dynamic.acquireSlotForEntity(actor);
+            dynamic.enabled[slot] = true;
+            dynamic.x3[slot] = dynamic.x4[slot] = 32;
+            dynamic.y2[slot] = dynamic.y3[slot] = 64;
+            world.getMapper(TransformComponent.class).create(actor);
+            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(actor);
+            height.rectangles = new ActorSpatialRectangles();
+            height.rectangles.staticRectangle = new ActorSpatialRectangleData();
+            world.getMapper(SurfaceLightingComponent.class).create(actor).shadowCaster = true;
+            assertThrows(LightingAdmissionException.class, world::process);
+
+            geometry.allowIncompleteAuthoringFootprints();
+            world.process();
+            LightingSurface surface = queue.lighting.entities.get(actor);
+            assertTrue(surface.receiveLight);
+            assertEquals(0, queue.lighting.casters.size);
+            SpatialPhysicsFootprintComponent foot = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
+            foot.valid = true;
+            world.process();
+            assertSame(surface, queue.lighting.casters.first().surface);
+            foot.valid = false;
+            world.process();
+            assertNull(surface.shadowVertices);
+            assertEquals(0, surface.shadowVertexCount);
+            assertFalse(surface.shadowCaster);
+            assertEquals(0, queue.lighting.casters.size);
+            foot.valid = true;
+            world.process();
+            assertSame(surface, queue.lighting.casters.first().surface);
+            assertEquals(6, surface.shadowVertexCount);
+
+            foot.valid = false;
+            foot.invalidSpatialFootprint = true;
+            assertThrows(LightingAdmissionException.class, world::process);
+            foot.invalidSpatialFootprint = false;
+            world.getMapper(TransformComponent.class).remove(actor);
+            assertThrows(LightingAdmissionException.class, world::process);
+        } finally {
+            world.dispose();
+        }
+    }
+
     @Test public void ecsPublicationTracksClipsFramesAndAltitudeWithoutChangingTheSprite(){
         DynamicEntityRenderState d=new DynamicEntityRenderState(4);FrameRenderQueue q=new FrameRenderQueue(4);
         TiledMapRenderState tiled=new TiledMapRenderState(4);
