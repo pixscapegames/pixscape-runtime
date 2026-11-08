@@ -73,6 +73,18 @@ public final class TileChunk {
      * Avoids duplicates in animatedLocalIndices.
      */
     private transient boolean[] animatedMembership;
+    private transient TiledMapLayerData animationOwner;
+    transient int animatedChunkIndex = -1;
+
+    void bindAnimationOwner(TiledMapLayerData owner) {
+        animationOwner = owner;
+        animatedChunkIndex = -1;
+        animationMembershipChanged();
+    }
+
+    private void animationMembershipChanged() {
+        if (animationOwner != null) animationOwner.updateAnimatedChunk(this);
+    }
 
     public int renderRefStartIndex = -1;
     public int renderRefCount;
@@ -436,10 +448,7 @@ public final class TileChunk {
         animFinished[localIndex] = false;
         animHoldLastFrame[localIndex] = false;
 
-        if (!animatedMembership[localIndex]) {
-            animatedMembership[localIndex] = true;
-            animatedLocalIndices.add(localIndex);
-        }
+        ensureAnimatedMembership(localIndex);
     }
 
     public void setAnimationState(int localIndex,
@@ -613,6 +622,7 @@ public final class TileChunk {
             animatedMembership[localIndex] = true;
             animatedLocalIndices.add(localIndex);
         }
+        animationMembershipChanged();
     }
 
     private void removeAnimatedMembership(int localIndex) {
@@ -625,6 +635,7 @@ public final class TileChunk {
         for (int i = 0; i < animatedLocalIndices.size; i++) {
             if (animatedLocalIndices.get(i) == localIndex) {
                 animatedLocalIndices.removeIndex(i);
+                animationMembershipChanged();
                 break;
             }
         }

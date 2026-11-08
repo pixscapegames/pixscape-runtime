@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.ObjectMap;
 
 import java.util.Comparator;
 
@@ -71,6 +72,7 @@ final class AtlasAssetIndexBuilder {
         }
 
         IntMap<AtlasAssetBinding> bindings = new IntMap<>(groups.size);
+        ObjectMap<String, AtlasAssetBinding> names = new ObjectMap<>(groups.size);
         for (int i = 0, n = orderedGroups.size; i < n; i++) {
             MutableAssetGroup group = orderedGroups.get(i);
             TextureAtlas.AtlasRegion first = group.regions.first();
@@ -97,8 +99,13 @@ final class AtlasAssetIndexBuilder {
                         "Atlas '" + atlasTag + "' contains a duplicate binding for asset ID "
                                 + group.assetId + ".");
             }
+            String key = AtlasAssetIndex.nameKey(group.regionGroup.substring(
+                    0, group.regionGroup.lastIndexOf(ASSET_MARKER)));
+            // Explicit collision policy: preserve the first atlas-region encounter, just as
+            // the former public API scan did. IDs remain the unambiguous lookup path.
+            if (!names.containsKey(key)) names.put(key, bindings.get(group.assetId));
         }
-        return new AtlasAssetIndex(bindings, visits);
+        return new AtlasAssetIndex(bindings, names, visits);
     }
 
     private static int parseAssetId(String atlasTag, String regionName, int marker) {

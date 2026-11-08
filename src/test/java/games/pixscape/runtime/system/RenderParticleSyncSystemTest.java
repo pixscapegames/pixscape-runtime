@@ -31,6 +31,73 @@ import java.lang.reflect.Proxy;
 
 public class RenderParticleSyncSystemTest {
 
+    @Test
+    public void noEmittersSkipLayerVisitsButStillClearFrame() {
+        VfxRenderState state = new VfxRenderState(8);
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                state, new OrthographicCamera(), 0, new AtlasRuntimeService(), null);
+        int[] visits = {0};
+        particles.setLayerVisitObserver(() -> visits[0]++);
+        World world = new World(new WorldConfigurationBuilder().with(particles).build());
+        try {
+            for (int i = 0; i < 1000; i++) {
+                world.getMapper(LayerComponent.class).create(world.create()).layerIndex = i;
+            }
+            for (int i = 0; i < 100; i++) {
+                state.activeCount = 1;
+                world.process();
+                Assert.assertEquals(0, state.activeCount);
+            }
+            Assert.assertEquals("No particle consumes layer visibility", 0, visits[0]);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void firstEmitterAfterIdleFramesReadsCurrentLayersAndRemovalStopsVisits() throws Exception {
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0, new AtlasRuntimeService(), null);
+        int[] visits = {0};
+        particles.setLayerVisitObserver(() -> visits[0]++);
+        World world = new World(new WorldConfigurationBuilder().with(particles).build());
+        ObjectMap<String, ParticleEffectPool> pools = field(particles.particleAvailability(), "pools");
+        ParticleEffectPool pool = new ParticleEffectPool(new ParticleEffect(), 0, 4);
+        pools.put("main|empty.p", pool);
+        try {
+            int layer = world.create();
+            world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
+            VisibilityComponent visible = world.getMapper(VisibilityComponent.class).create(layer);
+            visible.visible = true;
+            world.process();
+            visible.visible = false; // Direct authored edits while there are no consumers.
+            world.process();
+            Assert.assertEquals(0, visits[0]);
+            int entity = world.create();
+            world.getMapper(TransformComponent.class).create(entity);
+            world.getMapper(EntityIndexComponent.class).create(entity).layerIndex = 4;
+            ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).create(entity);
+            emitter.effectPath = "empty.p";
+            emitter.atlasTag = "main";
+            world.process();
+            Assert.assertEquals(1, visits[0]);
+            Assert.assertFalse(particles.isLayerVisible(entity));
+            visible.visible = true;
+            world.process();
+            Assert.assertEquals(2, visits[0]);
+            Assert.assertTrue(particles.isLayerVisible(entity));
+            IntMap<ParticleEffectPool.PooledEffect> effects = field(particles, "effects");
+            Assert.assertNotNull(effects.get(entity));
+            world.delete(entity);
+            world.process();
+            Assert.assertEquals(2, visits[0]);
+            Assert.assertNull(effects.get(entity));
+            Assert.assertEquals(1, pool.getFree());
+        } finally {
+            world.dispose();
+        }
+    }
+
     private Application previousApp;
 
     @Rule
@@ -164,6 +231,9 @@ public class RenderParticleSyncSystemTest {
         VisibilityComponent actorVisibility = world.getMapper(VisibilityComponent.class).create(actorEntity);
         actorVisibility.visible = true;
         actorVisibility.inView = true;
+        // Layer visibility is consumed while processing particle emitters.
+        world.getMapper(TransformComponent.class).create(actorEntity);
+        world.getMapper(ParticleEmitterComponent.class).create(actorEntity);
 
         world.process();
 

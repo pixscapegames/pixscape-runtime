@@ -11,6 +11,36 @@ import org.junit.Test;
 
 public class PhysicsSpatialFootprintSyncSystemTest {
     @Test
+    public void eachEntityIsCheckedOnceAndAnIsolatedMutationProjectsOnlyItsFootprint() {
+        PhysicsSpatialFootprintSyncSystem sync = new PhysicsSpatialFootprintSyncSystem(100f);
+        int[] work = {0, 0};
+        sync.setTestObserver(new PhysicsSpatialFootprintSyncSystem.TestObserver() {
+            public void onProjection() { work[0]++; }
+            public void onCacheVisit() { work[1]++; }
+        });
+        World world = new World(new WorldConfigurationBuilder().with(sync).build());
+        try {
+            int last = -1;
+            for (int i = 0; i < 1000; i++) {
+                last = world.create();
+                PhysicsCompiledFixturesComponent compiled = world.getMapper(PhysicsCompiledFixturesComponent.class).create(last);
+                compiled.fixtures.add(circle(0.5f, 0f));
+                compiled.valid = true;
+                compiled.generation = 1;
+            }
+            world.process();
+            work[0] = work[1] = 0;
+            for (int i = 0; i < 10; i++) world.process();
+            Assert.assertEquals(0, work[0]);
+            Assert.assertEquals("One grouped pass instead of two overlapping subscriptions", 10000, work[1]);
+            work[1] = 0;
+            world.getMapper(PhysicsCompiledFixturesComponent.class).get(last).generation++;
+            world.process();
+            Assert.assertEquals(1, work[0]);
+            Assert.assertEquals(1000, work[1]);
+        } finally { world.dispose(); }
+    }
+    @Test
     public void ppmChangeReprojectsWithoutChangingPhysicsGeneration() {
         PhysicsSpatialFootprintSyncSystem sync =
                 new PhysicsSpatialFootprintSyncSystem(100f);

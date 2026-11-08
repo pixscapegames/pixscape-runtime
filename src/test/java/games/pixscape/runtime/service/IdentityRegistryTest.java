@@ -9,6 +9,34 @@ import org.junit.Test;
 public class IdentityRegistryTest {
 
     @Test
+    public void restoredIdentityIsPreservedWithoutAdvancingAllocator() {
+        World world = new World(new WorldConfiguration());
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 50;
+        IdentityRegistry registry = new IdentityRegistry();
+        registry.bind(world, meta);
+        try {
+            int entity = world.create();
+            registry.setIdentity(entity, 41, "loaded-from-studio");
+            for (int i = 0; i < 20; i++) {
+                Assert.assertEquals(41, registry.getStableId(entity));
+                Assert.assertEquals(41, registry.ensureStableId(entity));
+                Assert.assertEquals(entity, registry.findByStableId(41));
+                Assert.assertEquals("loaded-from-studio", registry.getName(entity));
+                Assert.assertEquals(50, meta.nextEntityStableId);
+            }
+            world.process();
+            registry.rebuild();
+            Assert.assertEquals(41, registry.ensureStableId(entity));
+            Assert.assertEquals(entity, registry.findByStableId(41));
+            Assert.assertEquals(50, meta.nextEntityStableId);
+        } finally {
+            registry.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void differentRegistriesCannotBindTheSameWorld() {
         World world = new World(new WorldConfiguration());
         IdentityRegistry first = new IdentityRegistry();

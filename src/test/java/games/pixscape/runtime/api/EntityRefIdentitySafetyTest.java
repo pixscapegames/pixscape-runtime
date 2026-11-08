@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
@@ -102,6 +103,49 @@ public class EntityRefIdentitySafetyTest {
     }
 
     @Test
+    public void liveReferencesReadOptionalIdentityWithoutAssigningUntilExplicitlyRequested() {
+        PixscapeEngine engine = new PixscapeEngine();
+        disableRendering(engine);
+        try {
+            engine.initEmptyRuntime();
+            World world = engine.getWorld();
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.nextEntityStableId = 100;
+            engine.getIdentityRegistry().bind(world, meta);
+            int entity = world.create();
+            tiled(world, entity, 2);
+            EntityRef ref = engine.api().entities().requireEntityId(entity);
+            TiledMapRef map = engine.api().tiled().requireEntityId(entity);
+
+            for (int i = 0; i < 20; i++) {
+                Assert.assertTrue(ref.exists());
+                Assert.assertTrue(map.exists());
+                Assert.assertEquals(-1, ref.stableId());
+                Assert.assertEquals(-1, map.stableId());
+                Assert.assertEquals(-1, engine.api().entities().stableIdOf(entity));
+                Assert.assertEquals(-1, engine.getIdentityRegistry().getStableId(entity));
+                Assert.assertFalse(world.getMapper(PixscapeIdentityComponent.class).has(entity));
+                Assert.assertEquals(100, meta.nextEntityStableId);
+            }
+
+            int assigned = engine.api().entities().ensureStableId(entity);
+            Assert.assertEquals(100, assigned);
+            PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).get(entity);
+            // No World processing or subscription barrier before these lookups.
+            Assert.assertEquals(entity, engine.api().entities().requireStableId(assigned).entityId());
+            Assert.assertEquals(entity, engine.api().tiled().requireStableId(assigned).entityId());
+            Assert.assertEquals(entity, engine.getIdentityRegistry().findByStableId(assigned));
+            for (int i = 0; i < 20; i++) {
+                Assert.assertEquals(assigned, ref.stableId());
+                Assert.assertEquals(assigned, map.stableId());
+                Assert.assertEquals(assigned, engine.api().entities().ensureStableId(entity));
+                Assert.assertSame(identity, world.getMapper(PixscapeIdentityComponent.class).get(entity));
+                Assert.assertEquals(101, meta.nextEntityStableId);
+            }
+        } finally { engine.dispose(); }
+    }
+
+    @Test
     public void recycledEntityIdDoesNotRetargetRefsOrChildFacades() {
         PixscapeEngine engine = new PixscapeEngine();
         disableRendering(engine);
@@ -137,6 +181,9 @@ public class EntityRefIdentitySafetyTest {
             TiledMapLayerData replacementMap = tiled(world, replacement, 4);
 
             Assert.assertFalse(oldEntity.exists());
+            Assert.assertEquals(-1, oldEntity.stableId());
+            Assert.assertFalse(oldTiled.exists());
+            Assert.assertEquals(-1, oldTiled.stableId());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
             assertStalePosition(oldTransform);
             Assert.assertEquals(0, oldTiled.map().width());
@@ -231,6 +278,9 @@ public class EntityRefIdentitySafetyTest {
             int replacementStableId = engine.api().entities().ensureStableId(replacement);
 
             Assert.assertNotEquals(firstStableId, replacementStableId);
+            Assert.assertEquals(-1, oldRef.stableId());
+            Assert.assertEquals(replacementStableId,
+                    engine.api().entities().requireEntityId(replacement).stableId());
             Assert.assertFalse(oldRef.exists());
             Assert.assertFalse(engine.api().entities().ofStableId(firstStableId).exists());
             EntityRef freshRef = engine.api().entities().ofStableId(replacementStableId);

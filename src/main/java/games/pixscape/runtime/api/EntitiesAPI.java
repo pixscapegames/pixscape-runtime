@@ -3,7 +3,10 @@ package games.pixscape.runtime.api;
 /**
  * High-level entity identity access.
  *
- * <p>Use {@code stableId} as the preferred persistent/public identity.
+ * <p>A stable identity is optional for Runtime creations that do not need one.
+ * Identities loaded from Studio and those required by existing relations are preserved.
+ * Use {@link #ensureStableId(int)} for explicit assignment; identity reads do not allocate IDs.
+ * Use {@code stableId} as the preferred persistent/public identity when one is needed.
  * {@code entityId} is runtime/ECS-oriented and may be short-lived or recycled. Single identity/name resolutions use
  * the existing indexes, but acquiring an EntityRef allocates its captured handle. Resolve once
  * during setup and retain references/facades for per-frame control; reacquire after replacement.
@@ -90,19 +93,33 @@ public interface EntitiesAPI {
     EntityRef requireName(String name);
 
     /**
-     * Resolves runtime {@code entityId} from {@code stableId}, or {@code -1} when missing.
+     * Resolves the current runtime {@code entityId} from an assigned {@code stableId},
+     * or {@code -1} when no live entity is indexed by that stable ID. This does not
+     * imply that entities without assigned identities are absent.
+     * Use {@link #existsStableId(int)} to check this stable-ID lookup, or
+     * {@link #existsEntityId(int)} when checking a raw runtime entity ID.
      */
     int entityIdOf(int stableId);
 
     int findEntityId(int stableId, int defaultValue);
 
     /**
-     * Resolves persistent/public {@code stableId} from runtime {@code entityId}.
+     * Reads the assigned persistent/public identity of the current runtime {@code entityId},
+     * or {@code -1} when no assigned identity is available (including a live entity without one).
+     * Does not create an identity component, assign an ID, or advance the allocator.
+     * Use {@link #existsEntityId(int)} to check the raw ID, not a comparison with {@code -1}.
+     * Raw entity IDs may be recycled; retain an {@link EntityRef} and use
+     * {@link EntityRef#exists()} when incarnation safety is required.
      */
     int stableIdOf(int entityId);
 
     /**
-     * Ensures and returns a stableId for the runtime {@code entityId}.
+     * Explicitly assigns and immediately indexes a stable ID for the active runtime
+     * {@code entityId} if needed, creating its identity component when absent.
+     * Returns the existing identity without consuming another ID when already assigned.
+     * Returns {@code -1} if the raw entity ID is inactive or no World is bound.
+     * Use {@link #existsEntityId(int)} to check that raw ID before requesting assignment;
+     * raw IDs do not protect against entity-ID recycling.
      */
     int ensureStableId(int entityId);
 

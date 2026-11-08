@@ -255,8 +255,9 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         currentFaces = null;
         currentTileOrder = null;
         currentMapEntity = e;
+        boolean allChunkRefsChecked = tiled.spatialEnabled || map.spatialEnabled || lightingChanged;
+        if (allChunkRefsChecked) ensureAllChunkRenderRefs(map);
         if (tiled.spatialEnabled || map.spatialEnabled) {
-            ensureAllChunkRenderRefs(map);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(e, null);
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(e, map);
             runtime.compiled.ensure(blocks);
@@ -270,7 +271,6 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         if(lightingChanged){
             // Native quads were admitted together above. Publish all affected receivers and
             // caster bindings before camera culling, including removals and off-screen edits.
-            ensureAllChunkRenderRefs(map);
             for(TileChunk chunk:map.getChunks())rebuildChunk(chunk,map,e,tiled.atlasTag);
         }
         if (!map.visible) return;
@@ -293,7 +293,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
                 testedChunkCount++;
 
-                ensureChunkRenderRefs(chunk);
+                if (!allChunkRefsChecked) ensureChunkRenderRefs(chunk);
                 if (chunk.dirtyState == TileChunk.DirtyState.FULL) {
                     dirtyFullChunkCount++;
                     rebuildChunk(chunk, map, e, tiled.atlasTag);
@@ -511,7 +511,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         recomputeChunkVisualBounds(chunk);
     }
 
+    private transient Runnable chunkRefVisitObserver;
+
+    void setChunkRefVisitObserver(Runnable observer) { chunkRefVisitObserver = observer; }
+
     private void ensureChunkRenderRefs(TileChunk chunk) {
+        if (chunkRefVisitObserver != null) chunkRefVisitObserver.run();
         int cellCount = chunk.cellCount();
         if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != cellCount) {
             chunk.renderRefStartIndex = tiledState.registerRefs(cellCount);

@@ -6,6 +6,11 @@
 * Added `gameObjects().spawnDeferred(...)` for contact callbacks and other explicitly deferred spawns. Success receives a complete instance at the start of a subsequent render; failures and scene-retirement cancellations have a separate callback.
 
 ### Changed
+* Game Object composition retains unchanged sibling order and sorts only affected parent groups, while continuing to resolve frame-dependent visibility and bounds.
+* Tiled animation visits the map's indexed animated chunks instead of searching every chunk; animation mutations and grid replacement maintain membership.
+* Physics-to-Spatial synchronization checks compiled caches and orphan footprints in one grouped pass. Tiled synchronization avoids repeated chunk-reference checks within the same pass, retaining off-screen references and direct mutation detection.
+* Asset lookups by logical name now use the atlas publication index, including misses, while preserving case-insensitive aliases and first-group resolution of homonyms.
+* Particle synchronization skips layer visibility scans when there are no emitters, while still clearing frame output and releasing removed effects.
 * `gameObjects().spawn(...)` now returns with composed transforms, materializable bodies and all authored joints ready, without advancing simulation or processing the World. Native creation while Box2D is locked is rejected before mutation; assets without native physics remain permitted.
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 

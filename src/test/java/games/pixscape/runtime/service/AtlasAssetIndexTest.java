@@ -10,6 +10,154 @@ import org.junit.Test;
 
 public class AtlasAssetIndexTest {
 
+    @Test
+    public void publicNameLookupsDoNotVisitPublishedRegions() throws Exception {
+        TestTexture texture = new TestTexture(32, 32);
+        CountingTextureAtlas atlas = new CountingTextureAtlas();
+        for (int i = 1; i <= 2000; i++) {
+            atlas.getRegions().add(region(texture, "folder/item" + i + ".png__a" + i,
+                    -1, 0, 0, 8, 8));
+        }
+        TestAtlasRuntimeService service = new TestAtlasRuntimeService();
+        service.publishOwned("main", atlas);
+        games.pixscape.runtime.engine.PixscapeEngine engine = engineWithAtlas(service);
+        atlas.countedRegions.visits = 0;
+        for (int i = 0; i < 100; i++) {
+            games.pixscape.runtime.api.AssetRegionRef ref = engine.api().assets().region(" ITEM2000.PNG ");
+            Assert.assertEquals(2000, ref.assetId());
+            Assert.assertSame(texture, ref.region().getTexture());
+            Assert.assertEquals(8f, ref.width(), 0f);
+            Assert.assertFalse(engine.api().assets().contains("missing"));
+        }
+        Assert.assertEquals("Published lookups, including misses, must not visit atlas regions",
+                0, atlas.countedRegions.visits);
+        atlas.countedRegions.get(1999).name = "renamed__a2000";
+        service.publishOwned("main", atlas);
+        Assert.assertEquals(2000, service.indexBuildRegionVisits("main"));
+        atlas.countedRegions.visits = 0;
+        Assert.assertFalse(engine.api().assets().contains("item2000"));
+        Assert.assertEquals(2000, engine.api().assets().region("renamed").assetId());
+        Assert.assertEquals(100, engine.api().assets().region("item100").assetId());
+        Assert.assertEquals(0, atlas.countedRegions.visits);
+    }
+
+    private static games.pixscape.runtime.engine.PixscapeEngine engineWithAtlas(
+            AtlasRuntimeService service) throws Exception {
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("atlasRuntimeService");
+        field.setAccessible(true);
+        field.set(engine, service);
+        return engine;
+    }
+
+    @Test
+    public void namesPreserveAliasesHomonymsAndPublicationLifecycle() throws Exception {
+        TestTexture texture = new TestTexture(32, 32);
+        AtlasRuntimeService service = new AtlasRuntimeService();
+        TextureAtlas first = atlas(
+                region(texture, "dir/Hero.png__a9", -1, 0, 0, 8, 8),
+                region(texture, "other/HERO.jpg__a2", -1, 0, 0, 16, 16),
+                region(texture, "\u0130con__a3", -1, 0, 0, 4, 4));
+        service.loadBorrowed("main", first);
+        games.pixscape.runtime.api.AssetsAPI assets = engineWithAtlas(service).api().assets();
+        Assert.assertEquals(9, assets.region(" C:\\folder\\hErO.png ").assetId());
+        Assert.assertEquals(2, assets.region(2).assetId());
+        Assert.assertEquals(3, assets.region("icon").assetId());
+        Assert.assertFalse(assets.contains((String) null));
+        Assert.assertFalse(assets.contains("  "));
+        Assert.assertFalse(assets.contains("missing"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> assets.region("missing"));
+
+        Assert.assertThrows(IllegalStateException.class, () -> service.loadBorrowed("main",
+                atlas(region(texture, "bad__a0", -1, 0, 0, 8, 8))));
+        Assert.assertEquals(9, assets.region("hero").assetId());
+        service.loadBorrowed("other", atlas(region(texture, "hero__a7", -1, 0, 0, 8, 8)));
+        service.loadBorrowed("main", atlas(region(texture, "replacement__a4", -1, 0, 0, 8, 8)));
+        Assert.assertFalse(assets.contains("hero"));
+        Assert.assertEquals(4, assets.region("replacement").assetId());
+        Assert.assertEquals(7, service.resolveBindingByName("hero", "other").assetId());
+        service.unload("main");
+        Assert.assertFalse(assets.contains("replacement"));
+        service.loadBorrowed("main", first);
+        Assert.assertEquals(9, assets.region("hero").assetId());
+        service.unloadAll();
+        Assert.assertFalse(assets.contains("hero"));
+        Assert.assertNull(service.resolveBindingByName("hero", "other"));
+    }
+
+    @Test
+    public void nameIndexPreservesSimpleCaseMatchingForSupplementaryLetters() {
+        String upper = new String(Character.toChars(0x10400));
+        String lower = new String(Character.toChars(0x10428));
+        // Compare against the original API predicate on the executing JVM.
+        Assert.assertTrue(upper.equalsIgnoreCase(lower));
+        AtlasAssetIndex index = AtlasAssetIndexBuilder.build("main", atlas(
+                region(new TestTexture(32, 32), upper + "__a1", -1, 0, 0, 8, 8)));
+        Assert.assertSame(index.get(1), index.getByName(lower));
+    }
+
+    @Test
+    public void webGlNamesPreserveGwtLowerCaseAndLengthComparison() {
+        com.badlogic.gdx.Application previous = com.badlogic.gdx.Gdx.app;
+        com.badlogic.gdx.Gdx.app = (com.badlogic.gdx.Application) java.lang.reflect.Proxy.newProxyInstance(
+                com.badlogic.gdx.Application.class.getClassLoader(),
+                new Class<?>[]{com.badlogic.gdx.Application.class},
+                (proxy, method, args) -> method.getName().equals("getType")
+                        ? com.badlogic.gdx.Application.ApplicationType.WebGL : null);
+        try {
+            TestTexture texture = new TestTexture(32, 32);
+            String upper = new String(Character.toChars(0x10400));
+            String lower = new String(Character.toChars(0x10428));
+            AtlasAssetIndex index = AtlasAssetIndexBuilder.build("main", atlas(
+                    region(texture, "\u0130__a1", -1, 0, 0, 8, 8),
+                    region(texture, "i\u0307__a2", -1, 0, 0, 8, 8),
+                    region(texture, upper + "__a3", -1, 0, 0, 8, 8)));
+            Assert.assertNull(index.getByName("i"));
+            Assert.assertSame(index.get(1), index.getByName("\u0130"));
+            Assert.assertSame(index.get(2), index.getByName("i\u0307"));
+            Assert.assertSame(index.get(3), index.getByName(lower));
+        } finally {
+            com.badlogic.gdx.Gdx.app = previous;
+        }
+    }
+
+    @Test
+    public void namedSpritesAreUsableBeforeProcessingAndAfterReplacement() throws Exception {
+        TestTexture texture = new TestTexture(32, 32);
+        CountingTextureAtlas atlas = countingAtlas(region(texture, "hero__a9", -1, 0, 0, 8, 8));
+        AtlasRuntimeService service = new AtlasRuntimeService();
+        service.loadBorrowed("main", atlas);
+        games.pixscape.runtime.engine.PixscapeEngine engine = engineWithAtlas(service);
+        com.artemis.World world = new com.artemis.World(new com.artemis.WorldConfigurationBuilder().build());
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("world");
+        field.setAccessible(true);
+        field.set(engine, world);
+        try {
+            atlas.countedRegions.visits = 0;
+            games.pixscape.runtime.api.SpriteRef sprite = engine.api().sprites().spawn("HERO", 3f, 4f);
+            Assert.assertTrue(sprite.entity().exists());
+            Assert.assertEquals(3f, sprite.transform().x(), 0f);
+            games.pixscape.runtime.component.TextureRegionComponent rendered = world.getMapper(
+                    games.pixscape.runtime.component.TextureRegionComponent.class).get(sprite.entityId());
+            Assert.assertTrue(rendered.valid);
+            Assert.assertEquals(8f, rendered.pixW, 0f);
+            Assert.assertEquals(TextureRegistry.handleOf(texture), world.getMapper(
+                    games.pixscape.runtime.component.RenderMaterialComponent.class).get(sprite.entityId()).textureHandle);
+            Assert.assertEquals(0, atlas.countedRegions.visits);
+            world.process();
+            service.loadBorrowed("main", atlas(region(texture, "hero__a10", -1, 0, 0, 16, 16)));
+            games.pixscape.runtime.api.SpriteRef next = engine.api().sprites().spawn("hero", 5f, 6f);
+            Assert.assertTrue(next.entity().exists());
+            Assert.assertEquals(10, world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class)
+                    .get(next.entityId()).assetId);
+            Assert.assertEquals(16f, world.getMapper(games.pixscape.runtime.component.TextureRegionComponent.class)
+                    .get(next.entityId()).pixW, 0f);
+        } finally {
+            world.dispose();
+            service.unloadAll();
+        }
+    }
+
     @Before
     public void setUp() {
         TextureRegistry.clear();
@@ -358,17 +506,28 @@ public class AtlasAssetIndexTest {
     private static final class CountingTextureAtlas extends TextureAtlas {
         int getRegionsCalls;
         int findRegionsCalls;
+        final CountingRegions countedRegions = new CountingRegions();
 
         @Override
         public Array<TextureAtlas.AtlasRegion> getRegions() {
             getRegionsCalls++;
-            return super.getRegions();
+            return countedRegions;
         }
 
         @Override
         public Array<TextureAtlas.AtlasRegion> findRegions(String name) {
             findRegionsCalls++;
             return super.findRegions(name);
+        }
+    }
+
+    private static final class CountingRegions extends Array<TextureAtlas.AtlasRegion> {
+        int visits;
+
+        @Override
+        public TextureAtlas.AtlasRegion get(int index) {
+            visits++;
+            return super.get(index);
         }
     }
 

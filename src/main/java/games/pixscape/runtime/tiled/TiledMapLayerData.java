@@ -65,6 +65,32 @@ public final class TiledMapLayerData {
     // =========================
 
     private final IntMap<TileChunk> chunks = new IntMap<>();
+    private final transient com.badlogic.gdx.utils.Array<TileChunk> animatedChunks =
+            new com.badlogic.gdx.utils.Array<>(false, 8, TileChunk.class);
+
+    /** INTERNAL: complete derived membership, maintained by TileChunk animation operations. */
+    public int animatedChunkCount() { return animatedChunks.size; }
+
+    /** INTERNAL: borrowed member; reverse iteration permits removal during animation advance. */
+    public TileChunk animatedChunkAt(int index) { return animatedChunks.get(index); }
+
+    void updateAnimatedChunk(TileChunk chunk) {
+        if (getChunk(chunk.chunkX, chunk.chunkY) != chunk || !chunk.hasAnimatedTiles()) {
+            removeAnimatedChunk(chunk);
+        } else if (chunk.animatedChunkIndex < 0) {
+            chunk.animatedChunkIndex = animatedChunks.size;
+            animatedChunks.add(chunk);
+        }
+    }
+
+    /** INTERNAL: retires a detached chunk encountered by the animation consumer. */
+    public void removeAnimatedChunk(TileChunk chunk) {
+        int index = chunk.animatedChunkIndex;
+        if (index < 0 || index >= animatedChunks.size || animatedChunks.get(index) != chunk) return;
+        animatedChunks.removeIndex(index);
+        if (index < animatedChunks.size) animatedChunks.get(index).animatedChunkIndex = index;
+        chunk.animatedChunkIndex = -1;
+    }
     private transient int contentRevision;
     private transient int contentStateRevision;
     private transient int contentMutationDepth;
@@ -125,6 +151,8 @@ public final class TiledMapLayerData {
 
     public void initializeChunks() {
 
+        for (int i = 0; i < animatedChunks.size; i++) animatedChunks.get(i).animatedChunkIndex = -1;
+        animatedChunks.clear();
         chunks.clear();
 
         chunksX = Math.max(1, (mapWidth + chunkSize - 1) / chunkSize);
@@ -151,6 +179,7 @@ public final class TiledMapLayerData {
                 updateChunkBounds(chunk);
 
                 chunks.put(packChunk(cx, cy), chunk);
+                chunk.bindAnimationOwner(this);
             }
         }
 

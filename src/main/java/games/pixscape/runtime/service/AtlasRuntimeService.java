@@ -92,7 +92,9 @@ public class AtlasRuntimeService {
      * Uses an externally owned atlas without taking disposal ownership.
      *
      * <p>This is the object-reuse seam for AssetManager integration. The owner
-     * must keep the atlas alive until it is unloaded from this service.</p>
+     * must keep the atlas alive until it is unloaded from this service. Finish region and
+     * name edits before publication. After editing an externally owned atlas, publish it
+     * again at a safe point to replace both the ID and name indexes atomically.</p>
      */
     public void loadBorrowed(String tag, TextureAtlas atlas) {
         load(tag, atlas, false);
@@ -267,6 +269,18 @@ public class AtlasRuntimeService {
         if (tag == null || isBlank(tag)) return null;
         AtlasAssetIndex index = indexesByTag.get(tag);
         return index != null ? index.get(assetId) : null;
+    }
+
+    /**
+     * Resolves a case-insensitive logical name without directory or extension in O(1)
+     * average index time, plus normalization proportional to the input name length.
+     * Homonyms resolve to the first group encountered in the published atlas; use an ID
+     * to disambiguate. Returns null for an absent name or atlas, without loading resources.
+     */
+    public AtlasAssetBinding resolveBindingByName(String name, String tag) {
+        if (tag == null || isBlank(tag)) return null;
+        AtlasAssetIndex index = indexesByTag.get(tag);
+        return index != null ? index.getByName(name) : null;
     }
 
     private static void requirePositiveAssetId(int assetId) {

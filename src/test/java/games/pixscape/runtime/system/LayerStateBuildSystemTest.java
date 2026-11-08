@@ -13,6 +13,36 @@ import org.junit.Test;
 
 public class LayerStateBuildSystemTest {
 
+    @Test public void directLayerWritesAndDeletionArePublishedWithoutDirtySignals() {
+        LayerStateSOA state = new LayerStateSOA(4);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new LayerStateBuildSystem(state, null)).build());
+        try {
+            int entity = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
+            layer.layerIndex = 1;
+            VisibilityComponent visible = world.getMapper(VisibilityComponent.class).create(entity);
+            games.pixscape.runtime.component.LayerParallaxComponent parallax = world.getMapper(
+                    games.pixscape.runtime.component.LayerParallaxComponent.class).create(entity);
+            world.process();
+            visible.visible = false;
+            parallax.factorX = 0.25f;
+            world.process();
+            Assert.assertFalse(state.enabled[1]);
+            Assert.assertEquals(0.25f, state.parallaxX[1], 0f);
+            layer.layerIndex = 2;
+            visible.visible = true;
+            world.process();
+            Assert.assertFalse(state.enabled[1]);
+            Assert.assertTrue(Float.isNaN(state.parallaxX[1]));
+            Assert.assertTrue(state.enabled[2]);
+            world.delete(entity);
+            world.process();
+            Assert.assertFalse(state.enabled[2]);
+            Assert.assertTrue(Float.isNaN(state.parallaxX[2]));
+        } finally { world.dispose(); }
+    }
+
     @Test
     public void scenePhysicsParallaxRemainsGloballyAvailable() {
         // Arrange

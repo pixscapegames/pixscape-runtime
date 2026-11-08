@@ -10,7 +10,7 @@ package games.pixscape.runtime.api;
  * <p>Facades obtained from this reference remain bound to the same captured entity. When stale,
  * their queries return the safe absence/default values documented by each facade and mutations
  * have no effect. {@link #entityId()} still reports the captured short-lived ID for diagnostics;
- * {@link #stableId()} returns {@code -1} once stale.</p>
+ * A stable identity is optional; use {@link #exists()} to check reference validity.</p>
  */
 public interface EntityRef {
     /**
@@ -19,7 +19,13 @@ public interface EntityRef {
     int entityId();
 
     /**
-     * Returns the preferred persistent/public identity, or {@code -1} when stale.
+     * Returns the assigned persistent/public identity, or {@code -1} if no identity
+     * has been assigned or this reference is stale. A live entity may have no stable identity.
+     * This is a read-only lookup: it does not create an identity component, assign an ID,
+     * or advance the allocator. Use {@link EntitiesAPI#ensureStableId(int)} to assign one explicitly.
+     *
+     * <p>You should use {@link #exists() ref.exists()} to check whether the referenced entity still exists.
+     * Do not infer reference validity from the stable ID.</p>
      */
     int stableId();
 

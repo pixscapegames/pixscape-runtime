@@ -39,6 +39,19 @@ public class GameObjectHierarchySystemTest {
     }
 
     @Test
+    public void directReparentBetweenTwoSynchronizationPhasesIsObservedWithoutDirtySignal() {
+        int first = entity(10, true, -1);
+        int second = entity(20, true, -1);
+        int child = entity(30, false, 10);
+        world.process();
+        hierarchy.ensureCurrentTopology();
+        Assert.assertEquals(first, hierarchy.topology().parentEntityId[child]);
+        world.getMapper(GameObjectMemberComponent.class).get(child).parentStableId = 20;
+        hierarchy.ensureCurrentTopology();
+        Assert.assertEquals(second, hierarchy.topology().parentEntityId[child]);
+    }
+
+    @Test
     public void emptyHierarchyBuildsAnEmptyTraversal() {
         world.process();
 

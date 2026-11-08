@@ -4,7 +4,6 @@ import com.artemis.ComponentMapper;
 import com.artemis.annotations.All;
 import com.artemis.annotations.Exclude;
 import com.artemis.systems.IteratingSystem;
-import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -19,6 +18,8 @@ import games.pixscape.runtime.tiled.animation.*;
 @All({EntityIndexComponent.class, TiledLayerComponent.class})
 @Exclude(LayerComponent.class)
 public final class TiledAnimationSystem extends IteratingSystem implements ProfiledSystem {
+    private transient Runnable chunkVisitObserver;
+    void setChunkVisitObserver(Runnable observer) { chunkVisitObserver = observer; }
 
     private ComponentMapper<TiledLayerComponent> mTiled;
 
@@ -85,9 +86,13 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
         if (!map.visible) return;
         if (frameDeltaMs <= 0) return;
 
-        IntMap.Values<TileChunk> values = map.getChunks();
-        while (values.hasNext()) {
-            TileChunk chunk = values.next();
+        for (int index = map.animatedChunkCount() - 1; index >= 0; index--) {
+            TileChunk chunk = map.animatedChunkAt(index);
+            if (chunkVisitObserver != null) chunkVisitObserver.run();
+            if (map.getChunk(chunk.chunkX, chunk.chunkY) != chunk) {
+                map.removeAnimatedChunk(chunk);
+                continue;
+            }
             if (chunk == null || !chunk.hasAnimatedTiles()) {
                 continue;
             }

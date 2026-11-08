@@ -14,6 +14,19 @@ Java visibility alone does not define the supported API. A `public` class may st
 
 Support levels describe API compatibility and maintenance intent. They do not define a support SLA or a commercial support commitment.
 
+Availability is defined by each operation, not by Java visibility or a non-null facade.
+Strict creation and lookup methods must provide the usable result they promise or report failure;
+tolerant entity/capability queries and borrowed lifecycle-bound resources retain their documented
+absence and stale-handle semantics. Progressive scene loads and deferred spawns have explicit
+completion boundaries. Do not use an extra render or simulation step to obtain a result promised
+synchronously. Tests must assert usable resources and associations, not only absence of exceptions.
+
+Atlas asset resolution by ID and logical name uses the complete publication index, including
+misses. Name matching ignores case, directories and extensions, and preserves the first matching
+atlas group for homonyms; IDs disambiguate. Externally owned atlas edits require republication at
+a safe lifecycle point. Region snapshots protect UV data but borrow the atlas texture and do not
+extend its lifetime.
+
 ## 1. API levels
 
 ### `HIGH_LEVEL`
@@ -204,6 +217,16 @@ Disposing an engine and later creating another is supported.
 Running multiple independent Pixscape engines concurrently against the same LibGDX graphics context is outside the supported contract.
 
 Entity references, typed references, borrowed ECS objects, render state, physics objects, and other derived objects may become stale after the corresponding World, scene, or Runtime rebuild. Reacquire them as documented.
+
+Stable identity is optional for Runtime creations that do not need it. Identities loaded
+from Studio and identities required by existing relations are preserved. `ensureStableId(...)`
+is the explicit assignment operation; repeated calls preserve an existing identity without
+consuming another ID. `stableId()` is a read: it does not create an identity component,
+assign an ID, or change the allocator. Its `-1` result can mean either an unassigned
+identity on a live entity or a stale reference. You should use `ref.exists()` to check
+whether the referenced entity still exists, never `ref.stableId() != -1`. Typed references
+may additionally require their capability, as documented by their `exists()` method.
+For raw entity IDs, use `entities().existsEntityId(entityId)`; raw IDs can be recycled.
 
 The `PixscapeEngine` Javadoc is the authoritative reference for engine lifecycle details.
 

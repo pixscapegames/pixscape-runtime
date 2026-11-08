@@ -14,6 +14,63 @@ import org.junit.Test;
 public class GameObjectRenderCompositionTest {
 
     @Test
+    public void localOrderTracksReparentRemovalAndRecycledEntityIds() {
+        Fixture f = new Fixture(32);
+        try {
+            int left = f.gameObject(10, -1, 0, 0);
+            int right = f.gameObject(20, -1, 0, 0);
+            int child = f.gameObject(30, 10, 0, 1);
+            f.process();
+            Assert.assertEquals(child, f.composition.state().orderedFirstChildEntityId[left]);
+            f.world.getMapper(GameObjectMemberComponent.class).get(child).parentStableId = 20;
+            f.process();
+            Assert.assertEquals(-1, f.composition.state().orderedFirstChildEntityId[left]);
+            Assert.assertEquals(child, f.composition.state().orderedFirstChildEntityId[right]);
+            f.world.delete(child);
+            f.process();
+            Assert.assertEquals(-1, f.composition.state().orderedFirstChildEntityId[right]);
+            int replacement = f.gameObject(40, 10, 0, -1);
+            Assert.assertEquals(child, replacement);
+            f.process();
+            Assert.assertEquals(replacement, f.composition.state().orderedFirstChildEntityId[left]);
+            Assert.assertEquals(-1, f.composition.state().orderedFirstChildEntityId[right]);
+            f.world.getMapper(GameObjectMemberComponent.class).remove(replacement);
+            f.process();
+            Assert.assertEquals(-1, f.composition.state().orderedFirstChildEntityId[left]);
+        } finally { f.world.dispose(); }
+    }
+
+    @Test
+    public void stableLocalOrderDoesNotRevisitSortKeysAndOneEditSortsOnlyItsParent() {
+        Fixture f = new Fixture(2048);
+        try {
+            int edited = -1, editedParent = -1;
+            for (int p = 0; p < 100; p++) {
+                int rootId = 1 + p * 11;
+                int root = f.gameObject(rootId, -1, 0, 0);
+                for (int c = 1; c <= 10; c++) {
+                    int slot = f.member(rootId + c, rootId, 0, c);
+                    if (p == 0 && c == 10) {
+                        edited = f.entityForSlot(slot);
+                        editedParent = root;
+                    }
+                }
+            }
+            f.process();
+            int[] visits = {0};
+            f.composition.setKeyVisitObserver(() -> visits[0]++);
+            for (int i = 0; i < 10; i++) f.process();
+            Assert.assertEquals("Stable frames must not sort unchanged siblings", 0, visits[0]);
+            f.indexForEntity(edited).zIndex = -10; // Supported direct authored mutation.
+            f.process();
+            Assert.assertTrue("Only the ten affected siblings may be compared", visits[0] > 0 && visits[0] < 200);
+            Assert.assertEquals(edited, f.composition.state().orderedFirstChildEntityId[editedParent]);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
     public void rootOrdersOneAtomicBlockAndNestedRootsExpandInTheirLocalSlot() {
         Fixture fixture = new Fixture(64);
         int bottom = fixture.standalone(1, 0, -1);

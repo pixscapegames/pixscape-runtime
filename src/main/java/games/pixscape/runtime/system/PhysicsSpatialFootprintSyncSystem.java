@@ -20,8 +20,7 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
 
     private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
     private ComponentMapper<SpatialPhysicsFootprintComponent> mFootprint;
-    private EntitySubscription compiledSubscription;
-    private EntitySubscription footprintSubscription;
+    private EntitySubscription cacheSubscription;
     private transient TestObserver testObserver;
 
     public PhysicsSpatialFootprintSyncSystem(float pixelsPerMeter) {
@@ -40,43 +39,50 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
     protected void initialize() {
         mCompiled = world.getMapper(PhysicsCompiledFixturesComponent.class);
         mFootprint = world.getMapper(SpatialPhysicsFootprintComponent.class);
-        compiledSubscription = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PhysicsCompiledFixturesComponent.class));
-        footprintSubscription = world.getAspectSubscriptionManager()
-                .get(Aspect.all(SpatialPhysicsFootprintComponent.class));
+        cacheSubscription = world.getAspectSubscriptionManager()
+                .get(Aspect.one(PhysicsCompiledFixturesComponent.class,
+                        SpatialPhysicsFootprintComponent.class));
     }
 
     @Override
     protected void processSystem() {
         syncCompiledCaches();
-        invalidateOrphanFootprints();
         forceResync = false;
     }
 
     /** Prepares persistent Spatial physics footprints without processing a gameplay frame. */
     public void prepareRuntimeAvailability() {
         syncCompiledCaches();
-        invalidateOrphanFootprints();
         forceResync = false;
     }
 
     private void syncCompiledCaches() {
-        IntBag entities = compiledSubscription.getEntities();
+        IntBag entities = cacheSubscription.getEntities();
         int[] data = entities.getData();
         for (int i = 0, n = entities.size(); i < n; i++) {
+            if (testObserver != null) testObserver.onCacheVisit();
             int entityId = data[i];
-            PhysicsCompiledFixturesComponent compiled = mCompiled.get(entityId);
+            PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(entityId, null);
             SpatialPhysicsFootprintComponent footprint =
                     mFootprint.getSafe(entityId, null);
 
-            if (compiled == null || !compiled.valid) {
+            if (compiled == null) {
+                if (footprint != null
+                        && (footprint.valid || footprint.projectedFixtures != null
+                        || footprint.sourcePhysicsShapeId != 0
+                        || footprint.invalidSpatialFootprint)) {
+                    projector.invalidate(footprint, footprint.physicsGeneration + 1);
+                }
+                continue;
+            }
+            if (!compiled.valid) {
                 if (footprint != null
                         && (footprint.valid
                         || footprint.projectedFixtures != null
-                        || footprint.physicsGeneration != compiledGeneration(compiled)
+                        || footprint.physicsGeneration != compiled.generation
                         || footprint.sourcePhysicsShapeId != 0
                         || footprint.invalidSpatialFootprint)) {
-                    projector.invalidate(footprint, compiledGeneration(compiled));
+                    projector.invalidate(footprint, compiled.generation);
                 }
                 continue;
             }
@@ -101,28 +107,6 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
         }
     }
 
-    private void invalidateOrphanFootprints() {
-        IntBag entities = footprintSubscription.getEntities();
-        int[] data = entities.getData();
-        for (int i = 0, n = entities.size(); i < n; i++) {
-            int entityId = data[i];
-            if (mCompiled.has(entityId)) continue;
-            SpatialPhysicsFootprintComponent footprint = mFootprint.get(entityId);
-            if (footprint != null
-                    && (footprint.valid
-                    || footprint.projectedFixtures != null
-                    || footprint.sourcePhysicsShapeId != 0
-                    || footprint.invalidSpatialFootprint)) {
-                projector.invalidate(footprint, footprint.physicsGeneration + 1);
-            }
-        }
-    }
-
-    private static int compiledGeneration(
-            PhysicsCompiledFixturesComponent compiled) {
-        return compiled != null ? compiled.generation : 0;
-    }
-
     private static void validatePixelsPerMeter(float pixelsPerMeter) {
         if (Float.isNaN(pixelsPerMeter)
                 || Float.isInfinite(pixelsPerMeter)
@@ -138,5 +122,6 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
 
     interface TestObserver {
         void onProjection();
+        default void onCacheVisit() { }
     }
 }

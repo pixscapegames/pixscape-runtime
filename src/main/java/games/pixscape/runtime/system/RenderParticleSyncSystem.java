@@ -67,6 +67,11 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
     private final AtlasRuntimeService atlasRuntimeService;
     private ParticleRuntimeAvailability particleAvailability;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private transient Runnable layerVisitObserver;
+
+    void setLayerVisitObserver(Runnable observer) {
+        layerVisitObserver = observer;
+    }
 
     public RenderParticleSyncSystem(VfxRenderState vfxState,
                                     OrthographicCamera camera,
@@ -187,12 +192,12 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         float dt = world.getDelta();
 
         vfxState.clearFrame();
-        refreshLayerVisibility();
 
         IntBag bag = subscription.getEntities();
         int[] data = bag.getData();
         int count = bag.size();
         if (count == 0) return;
+        refreshLayerVisibility();
 
         for (int i = 0; i < count; i++) {
             int e = data[i];
@@ -564,6 +569,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         for (int i = 0, n = bag.size(); i < n; i++) {
             int e = data[i];
             LayerComponent li = mLayerIndex.getSafe(e, null);
+            if (layerVisitObserver != null) layerVisitObserver.run();
             if (li == null) continue;
             VisibilityComponent vis = mVis.getSafe(e, null);
             boolean visible = (vis == null) || vis.isVisible();

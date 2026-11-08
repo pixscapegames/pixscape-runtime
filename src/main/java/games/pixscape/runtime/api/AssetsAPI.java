@@ -12,7 +12,9 @@ public interface AssetsAPI {
      * Resolves an exported atlas region by its logical name.
      *
      * <p>Names are matched against the normalized atlas region name, without directory and
-     * extension suffixes.</p>
+     * extension suffixes, ignoring case and trimming caller input. If several assets have
+     * the same logical name, the first group in atlas order wins; use the asset ID to
+     * disambiguate. Present and absent names use the index built at atlas publication.</p>
      *
      * @param name asset name to resolve
      * @return resolved region metadata and texture region

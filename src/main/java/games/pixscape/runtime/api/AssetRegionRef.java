@@ -19,7 +19,9 @@ public interface AssetRegionRef {
     /**
      * Returns this reference's defensive texture-region snapshot.
      *
-     * <p>Mutating the returned object does not modify the indexed atlas binding.</p>
+     * <p>Mutating the returned object does not modify the indexed atlas binding. The
+     * underlying texture is borrowed: reacquire the reference after atlas replacement
+     * or scene retirement, and never dispose that texture through this reference.</p>
      */
     TextureRegion region();
 

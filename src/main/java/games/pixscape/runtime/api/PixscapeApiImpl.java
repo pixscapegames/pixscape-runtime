@@ -4,7 +4,6 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
@@ -452,19 +451,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         return isBlank(tag) ? "main" : tag;
     }
 
-    private static int assetIdFromRegionName(String regionName) {
-        if (regionName == null) return -1;
-        int marker = regionName.lastIndexOf("__a");
-        if (marker < 0 || marker + 3 >= regionName.length()) return -1;
-        int value = 0;
-        for (int i = marker + 3; i < regionName.length(); i++) {
-            char c = regionName.charAt(i);
-            if (c < '0' || c > '9') return -1;
-            value = value * 10 + (c - '0');
-        }
-        return value;
-    }
-
     private static String normalizedName(String regionName) {
         if (regionName == null) return "";
         int marker = regionName.lastIndexOf("__a");
@@ -478,26 +464,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             base = base.substring(0, dot);
         }
         return base;
-    }
-
-    private static String normalizeLookupName(String name) {
-        if (name == null) return null;
-        String normalized = name.trim();
-        if (normalized.isEmpty()) return null;
-        normalized = normalized.replace('\\', '/');
-        int slash = normalized.lastIndexOf('/');
-        if (slash >= 0 && slash + 1 < normalized.length()) {
-            normalized = normalized.substring(slash + 1);
-        }
-        int dot = normalized.lastIndexOf('.');
-        if (dot > 0) {
-            normalized = normalized.substring(0, dot);
-        }
-        return normalized;
-    }
-
-    private static boolean matchesLookupName(String regionName, String lookupName) {
-        return regionName != null && lookupName != null && regionName.equalsIgnoreCase(lookupName);
     }
 
     private static int createSpriteEntity(PixscapeEngine engine,
@@ -2993,25 +2959,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         AtlasAssetBinding resolveByName(String name) {
-            String normalized = normalizeLookupName(name);
-            if (normalized == null) return null;
             AtlasRuntimeService atlasService = engine.getAtlasRuntimeService();
-            if (atlasService == null) return null;
-            String atlasTag = currentAtlasTag(engine);
-            TextureAtlas atlas = atlasService.getAtlas(atlasTag);
-            if (atlas == null) return null;
-
-            Array<TextureAtlas.AtlasRegion> regions = atlas.getRegions();
-            for (int i = 0; i < regions.size; i++) {
-                TextureAtlas.AtlasRegion region = regions.get(i);
-                int assetId = assetIdFromRegionName(region.name);
-                if (assetId <= 0) continue;
-                String regionName = normalizedName(region.name);
-                if (matchesLookupName(regionName, normalized)) {
-                    return atlasService.resolveBinding(assetId, atlasTag);
-                }
-            }
-            return null;
+            return atlasService != null
+                    ? atlasService.resolveBindingByName(name, currentAtlasTag(engine)) : null;
         }
 
         AtlasAssetBinding requireById(int assetId) {

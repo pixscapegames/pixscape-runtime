@@ -32,6 +32,28 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
+    @Test public void spatialChunksAreCheckedOncePerFrameIncludingOffscreenChunks() {
+        Fixture f = createLargeMapFixture();
+        try {
+            f.map.mapWidth = 1000;
+            f.map.mapHeight = 1;
+            f.map.chunkSize = 1;
+            f.map.initializeChunks();
+            f.map.spatialEnabled = true;
+            f.world.process();
+            int[] visits = {0};
+            f.tiledSync.setChunkRefVisitObserver(() -> visits[0]++);
+            for (int i = 0; i < 10; i++) f.world.process();
+            Assert.assertEquals(10000, visits[0]);
+            Assert.assertTrue(f.map.getChunk(999, 0).renderRefStartIndex >= 0);
+            visits[0] = 0;
+            f.map.setTile(999, 0, 1);
+            f.world.process();
+            Assert.assertEquals(1000, visits[0]);
+            Assert.assertTrue(f.map.getChunk(999, 0).renderRefStartIndex >= 0);
+        } finally { f.world.dispose(); }
+    }
+
     @Test public void independentBodyInsertionPreservesMapChunksButRealGeometryStillInvalidates() {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
         GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem();

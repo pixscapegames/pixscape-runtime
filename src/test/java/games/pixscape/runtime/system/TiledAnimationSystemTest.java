@@ -17,6 +17,80 @@ import org.junit.Test;
 public class TiledAnimationSystemTest {
 
     @Test
+    public void animationMembershipSurvivesClearRemovalAndGridReplacement() {
+        TileAnimationRegistry registry = new TileAnimationRegistry();
+        registry.put(definition(10, new int[]{101, 102}, new int[]{40, 40}));
+        TiledAnimationSystem system = new TiledAnimationSystem(registry);
+        system.setAdvanceOnlyVisibleChunks(false);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        try {
+            int entity = world.create();
+            world.getMapper(EntityIndexComponent.class).create(entity);
+            TiledMapLayerData map = new TiledMapLayerData(3, 1, 16, 16, 1);
+            world.getMapper(TiledLayerComponent.class).create(entity).data = map;
+            for (int x = 0; x < 3; x++) {
+                map.setTile(x, 0, 10);
+                TileAnimationStateSupport.syncWorldCell(map.getChunk(x, 0), 0, 0, registry);
+            }
+            Assert.assertEquals(3, map.animatedChunkCount());
+            map.getChunk(1, 0).clearAnimationState(0);
+            Assert.assertEquals(2, map.animatedChunkCount());
+            world.setDelta(0.016f);
+            world.process();
+            Assert.assertEquals(16, map.getChunk(0, 0).getAnimFrameElapsedMs(0));
+            Assert.assertEquals(16, map.getChunk(2, 0).getAnimFrameElapsedMs(0));
+            com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks = map.getChunks();
+            while (chunks.hasNext()) { chunks.next(); chunks.remove(); }
+            world.process();
+            Assert.assertEquals(0, map.animatedChunkCount());
+            map.initializeChunks();
+            map.setTile(0, 0, 10);
+            TileChunk old = map.getChunk(0, 0);
+            TileAnimationStateSupport.syncWorldCell(old, 0, 0, registry);
+            map.initializeChunks();
+            TileAnimationStateSupport.syncWorldCell(old, 0, 0, registry);
+            Assert.assertEquals(0, map.animatedChunkCount());
+            map.setTile(2, 0, 10);
+            TileAnimationStateSupport.syncWorldCell(map.getChunk(2, 0), 0, 0, registry);
+            world.process();
+            Assert.assertEquals(16, map.getChunk(2, 0).getAnimFrameElapsedMs(0));
+            registry.clear();
+            world.process();
+            Assert.assertEquals(0, map.animatedChunkCount());
+        } finally { world.dispose(); }
+    }
+
+    @Test
+    public void largeMapVisitsOnlyAnimatedChunksIncludingAnIsolatedNewAnimation() {
+        TileAnimationRegistry registry = new TileAnimationRegistry();
+        registry.put(definition(10, new int[]{101, 102}, new int[]{40, 40}));
+        TiledAnimationSystem system = new TiledAnimationSystem(registry);
+        system.setAdvanceOnlyVisibleChunks(false);
+        int[] visits = {0};
+        system.setChunkVisitObserver(() -> visits[0]++);
+        World world = new World(new WorldConfigurationBuilder().with(system).build());
+        try {
+            int entity = world.create();
+            world.getMapper(EntityIndexComponent.class).create(entity);
+            TiledMapLayerData map = new TiledMapLayerData(1000, 1, 16, 16, 1);
+            world.getMapper(TiledLayerComponent.class).create(entity).data = map;
+            world.setDelta(0.016f);
+            for (int i = 0; i < 10; i++) world.process();
+            Assert.assertEquals("No animation means no chunk search", 0, visits[0]);
+            map.setTile(999, 0, 10);
+            TileAnimationStateSupport.syncWorldCell(map.getChunk(999, 0), 0, 0, registry);
+            world.process();
+            Assert.assertEquals(1, visits[0]);
+            Assert.assertEquals(16, map.getChunk(999, 0).getAnimFrameElapsedMs(0));
+            visits[0] = 0;
+            for (int i = 0; i < 10; i++) world.process();
+            Assert.assertEquals(10, visits[0]);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
     public void variableDurationsCrossMultipleFramesAndDirtyOnlyForVisualChange() {
         Fixture fixture = fixture(new int[]{101, 102, 103}, new int[]{40, 70, 90});
         fixture.chunk.dirtyState = TileChunk.DirtyState.CLEAN;

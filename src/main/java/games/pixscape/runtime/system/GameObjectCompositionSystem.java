@@ -24,7 +24,13 @@ public final class GameObjectCompositionSystem extends BaseSystem {
 
     private int[] orderA = new int[16];
     private int[] orderB = new int[16];
-    private final int[] radixCounts = new int[256];
+    private int[] observedParent = new int[0], observedFirst = new int[0], observedNext = new int[0];
+    private int[] observedZ = new int[0], observedStableId = new int[0];
+    private boolean[] orderPending = new boolean[0];
+    private final com.badlogic.gdx.utils.IntArray pendingParents = new com.badlogic.gdx.utils.IntArray(false, 16);
+    private transient Runnable keyVisitObserver;
+
+    void setKeyVisitObserver(Runnable observer) { keyVisitObserver = observer; }
 
     public GameObjectCompositionSystem(DynamicEntityRenderState renderState) {
         this(renderState, 16);
@@ -51,8 +57,7 @@ public final class GameObjectCompositionSystem extends BaseSystem {
             state.ensureEntityCapacity(entityId);
             state.effectiveLayer[entityId] = -1;
             state.hierarchyVisible[entityId] = true;
-            state.orderedFirstChildEntityId[entityId] = -1;
-            state.orderedNextSiblingEntityId[entityId] = -1;
+            observeOrderInputs(entityId, topology);
             state.boundsResolved[entityId] = false;
         }
 
@@ -107,62 +112,96 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         }
     }
 
+    // Observe direct authored mutations in the traversal already needed for frame composition.
+    // No second source of authored order and no additional World traversal are introduced.
+    private void observeOrderInputs(int entity, GameObjectTopologyState topology) {
+        ensureObservedCapacity(entity + 1);
+        int parent = topology.parentEntityId[entity];
+        int first = topology.firstChildEntityId[entity];
+        int next = topology.nextSiblingEntityId[entity];
+        EntityIndexComponent index = entityIndices.getSafe(entity, null);
+        PixscapeIdentityComponent identity = identities.getSafe(entity, null);
+        int z = index != null ? index.zIndex : 0;
+        int stable = identity != null ? identity.stableId : 0;
+        if (observedFirst[entity] != first) markParent(entity);
+        if (observedParent[entity] != parent || observedNext[entity] != next
+                || observedZ[entity] != z || observedStableId[entity] != stable) {
+            markParent(observedParent[entity]);
+            markParent(parent);
+        }
+        observedParent[entity] = parent;
+        observedFirst[entity] = first;
+        observedNext[entity] = next;
+        observedZ[entity] = z;
+        observedStableId[entity] = stable;
+    }
+
+    private void markParent(int parent) {
+        if (parent < 0) return;
+        ensureObservedCapacity(parent + 1);
+        if (orderPending[parent]) return;
+        orderPending[parent] = true;
+        pendingParents.add(parent);
+    }
+
+    private void ensureObservedCapacity(int required) {
+        int old = observedParent.length;
+        if (required <= old) return;
+        int capacity = Math.max(required, Math.max(16, old * 2));
+        observedParent = Arrays.copyOf(observedParent, capacity);
+        observedFirst = Arrays.copyOf(observedFirst, capacity);
+        observedNext = Arrays.copyOf(observedNext, capacity);
+        observedZ = Arrays.copyOf(observedZ, capacity);
+        observedStableId = Arrays.copyOf(observedStableId, capacity);
+        orderPending = Arrays.copyOf(orderPending, capacity);
+        Arrays.fill(observedParent, old, capacity, -1);
+        Arrays.fill(observedFirst, old, capacity, -1);
+        Arrays.fill(observedNext, old, capacity, -1);
+    }
+
     private void rebuildLocalOrder(GameObjectTopologyState topology) {
-        int memberCount = 0;
-        ensureOrderCapacity(topology.traversalSize);
-        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
-             entityId = topology.nextTraversalEntityId[entityId]) {
-            if (topology.parented[entityId]) orderA[memberCount++] = entityId;
-        }
-        if (memberCount == 0) return;
-
-        int[] source = orderA;
-        int[] target = orderB;
-        for (int pass = 0; pass < 10; pass++) {
-            Arrays.fill(radixCounts, 0);
-            int shift = pass < 4 ? pass * 8 : pass < 6 ? (pass - 4) * 8 : (pass - 6) * 8;
-            for (int i = 0; i < memberCount; i++) {
-                radixCounts[(keyByte(source[i], topology, pass, shift))]++;
+        while (pendingParents.size > 0) {
+            int parent = pendingParents.pop();
+            orderPending[parent] = false;
+            state.ensureEntityCapacity(parent);
+            state.orderedFirstChildEntityId[parent] = -1;
+            int count = 0;
+            for (int child = topology.firstChildEntityId[parent]; child >= 0;
+                 child = topology.nextSiblingEntityId[child]) {
+                ensureOrderCapacity(count + 1);
+                orderA[count++] = child;
             }
-            int sum = 0;
-            for (int bucket = 0; bucket < 256; bucket++) {
-                int count = radixCounts[bucket];
-                radixCounts[bucket] = sum;
-                sum += count;
+            // Stable bottom-up merge: bounded O(k log k) for this parent's k children,
+            // without fixed radix-bucket work for every small sibling group.
+            int[] source = orderA, target = orderB;
+            for (int width = 1; width < count; width *= 2) {
+                for (int start = 0; start < count; start += 2 * width) {
+                    int middle = Math.min(start + width, count), end = Math.min(start + 2 * width, count);
+                    int left = start, right = middle;
+                    for (int out = start; out < end; out++) {
+                        target[out] = right >= end || (left < middle && compareOrder(source[left], source[right]) <= 0)
+                                ? source[left++] : source[right++];
+                    }
+                }
+                int[] swap = source; source = target; target = swap;
             }
-            for (int i = 0; i < memberCount; i++) {
-                int entityId = source[i];
-                target[radixCounts[keyByte(entityId, topology, pass, shift)]++] = entityId;
+            for (int i = count - 1; i >= 0; i--) {
+                int child = source[i];
+                state.orderedNextSiblingEntityId[child] = state.orderedFirstChildEntityId[parent];
+                state.orderedFirstChildEntityId[parent] = child;
             }
-            int[] swap = source;
-            source = target;
-            target = swap;
-        }
-
-        for (int i = memberCount - 1; i >= 0; i--) {
-            int entityId = source[i];
-            int parentEntityId = topology.parentEntityId[entityId];
-            state.orderedNextSiblingEntityId[entityId] =
-                    state.orderedFirstChildEntityId[parentEntityId];
-            state.orderedFirstChildEntityId[parentEntityId] = entityId;
         }
     }
 
-    private int keyByte(int entityId, GameObjectTopologyState topology, int pass, int shift) {
-        int key;
-        if (pass < 4) {
-            PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
-            key = identity != null ? identity.stableId : 0;
-        } else if (pass < 6) {
-            EntityIndexComponent index = entityIndices.getSafe(entityId, null);
-            int z = index != null ? index.zIndex : 0;
-            key = z - SortKey64.MIN_Z;
-        } else {
-            PixscapeIdentityComponent parentIdentity = identities.getSafe(
-                    topology.parentEntityId[entityId], null);
-            key = parentIdentity != null ? parentIdentity.stableId : 0;
-        }
-        return (key >>> shift) & 0xff;
+    private int compareOrder(int left, int right) {
+        if (keyVisitObserver != null) { keyVisitObserver.run(); keyVisitObserver.run(); }
+        // Preserve the former radix keys, including their unsigned 16/32-bit interpretation.
+        int lz = (observedZ[left] - SortKey64.MIN_Z) & 0xffff;
+        int rz = (observedZ[right] - SortKey64.MIN_Z) & 0xffff;
+        if (lz != rz) return lz < rz ? -1 : 1;
+        int li = observedStableId[left] ^ Integer.MIN_VALUE;
+        int ri = observedStableId[right] ^ Integer.MIN_VALUE;
+        return li == ri ? 0 : li < ri ? -1 : 1;
     }
 
     private void rebuildDerivedBounds(GameObjectTopologyState topology) {

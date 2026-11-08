@@ -25,6 +25,10 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
  */
 public final class IdentityRegistry {
 
+    /**
+     * No assigned stable identity. This value does not mean that an entity is destroyed;
+     * check {@link com.artemis.EntityManager#isActive(int)} in the bound World for a raw entity ID.
+     */
     public static final int UNASSIGNED_STABLE_ID = -1;
     public static final String DEFAULT_NAME = "unnamed";
 
@@ -190,6 +194,15 @@ public final class IdentityRegistry {
         return allocated;
     }
 
+    /**
+     * Explicitly assigns and indexes an identity for an active entity when needed.
+     * Existing identities, including restored Studio identities, are returned without
+     * consuming another ID. Newly assigned identities are immediately resolvable by
+     * {@link #findByStableId(int)}, before subscription synchronization.
+     * Returns {@code -1} if {@code eid} is inactive or the registry has no bound World.
+     * Check {@link com.artemis.EntityManager#isActive(int)} in the bound World for a raw ID;
+     * use an {@link games.pixscape.runtime.api.EntityRef} for incarnation-safe access.
+     */
     public int ensureStableId(int eid) {
         if (!isEntityActive(eid)) return UNASSIGNED_STABLE_ID;
 
@@ -225,6 +238,13 @@ public final class IdentityRegistry {
         return stableId != UNASSIGNED_STABLE_ID && byStableId.containsKey(stableId);
     }
 
+    /**
+     * Returns the active entity currently indexed by {@code stableId}, or {@code -1}
+     * when the ID is unassigned, not indexed, inactive, or no World is bound.
+     * A missing stable-ID lookup says nothing about entities without assigned identities.
+     * For a raw entity ID, check {@link com.artemis.EntityManager#isActive(int)} in the
+     * bound World; raw IDs may be recycled.
+     */
     public int findByStableId(int stableId) {
         if (stableId == UNASSIGNED_STABLE_ID || world == null) return -1;
 
@@ -234,6 +254,15 @@ public final class IdentityRegistry {
         return world.getEntityManager().isActive(eid) ? eid : -1;
     }
 
+    /**
+     * Reads the identity component for the raw entity ID without creating a component,
+     * assigning an ID, or advancing the allocator. Returns {@code -1} when the identity
+     * is unassigned, the component is absent, {@code eid} is negative, or no World is bound.
+     * This lookup does not check entity liveness or capture an incarnation.
+     * Check {@link com.artemis.EntityManager#isActive(int)} in the bound World for a raw ID;
+     * retain an {@link games.pixscape.runtime.api.EntityRef} and use
+     * {@link games.pixscape.runtime.api.EntityRef#exists()} to avoid following a recycled ID.
+     */
     public int getStableId(int eid) {
         if (eid < 0 || mIdentity == null) return UNASSIGNED_STABLE_ID;
 
