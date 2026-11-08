@@ -4323,5 +4323,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public GameObjectInstance spawn(String name, float x, float y) {
             return engine.spawnGameObject(name, x, y);
         }
+
+        @Override
+        public void spawnDeferred(String name, float x, float y,
+                                  java.util.function.Consumer<GameObjectInstance> success,
+                                  java.util.function.Consumer<Throwable> failure) {
+            engine.spawnGameObjectDeferred(name, x, y, success, failure);
+        }
     }
 }

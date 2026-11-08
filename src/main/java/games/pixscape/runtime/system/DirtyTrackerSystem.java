@@ -469,6 +469,22 @@ public final class DirtyTrackerSystem extends BaseSystem {
         return jointSubByEntity[e];
     }
 
+    /** Acknowledges only the physics work completed by a targeted materialization. */
+    void acknowledgePhysics(int e) {
+        if (e < 0 || e >= bitsByEntity.length) return;
+        bitsByEntity[e] &= ~DirtyBits.PHYSICS;
+        physicsSubByEntity[e] = 0;
+        removeFromList(e, DirtyBits.PHYSICS);
+    }
+
+    /** Acknowledges only the joint work completed by a targeted materialization. */
+    void acknowledgeJoint(int e) {
+        if (e < 0 || e >= bitsByEntity.length) return;
+        bitsByEntity[e] &= ~DirtyBits.JOINTS;
+        jointSubByEntity[e] = 0;
+        removeFromList(e, DirtyBits.JOINTS);
+    }
+
     private IntArray listOf(int bit) {
         switch (bit) {
             case DirtyBits.GEOMETRY:

@@ -169,7 +169,6 @@ public final class GameObjectHierarchySystem extends BaseSystem {
      * still use the normal validation/rebuild boundary on the next synchronization.
      */
     public void registerPreparedSpawn(IntBag created) {
-        if (topologyDirty) return;
         for (int i = 0; i < created.size(); i++) {
             registerPreparedSpawn(created.get(i));
         }
@@ -177,7 +176,6 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     /** INTERNAL: publishes one freshly created entity, including a prepared standalone particle. */
     public void registerPreparedSpawn(int entityId) {
-        if (topologyDirty) return;
         // Joint entities have identities but no transform and must also skip insertion dirtiness.
         preparedInsertions.add(entityId);
         ensureCapacity(entityId);
@@ -198,6 +196,24 @@ public final class GameObjectHierarchySystem extends BaseSystem {
             topology.rootEntityId[entityId] = entityId;
         }
         topology.appendTraversal(entityId);
+    }
+
+    /** Resolves only a newly registered detached hierarchy, in its prepared parent-first order. */
+    public void resolvePreparedSpawn(IntBag created) {
+        for (int i = 0; i < created.size(); i++) {
+            resolveEntityFromCurrentAuthoredTransform(created.get(i));
+        }
+    }
+
+    /** Unpublishes one failed, newly allocated entity without visiting existing hierarchies. */
+    public void discardPreparedSpawn(int entityId) {
+        if (entityId < topology.getEntityCapacity()) {
+            topology.unlinkDeletedEntity(entityId);
+            worldTransforms.clear(entityId);
+            observedParentStableId[entityId] = -1;
+            observedStableId[entityId] = -1;
+        }
+        preparedInsertions.remove(entityId);
     }
 
     /**

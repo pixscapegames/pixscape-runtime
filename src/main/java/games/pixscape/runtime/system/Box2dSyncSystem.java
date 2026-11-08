@@ -9,6 +9,7 @@ import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.*;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
@@ -39,6 +40,11 @@ import games.pixscape.runtime.service.Box2dWorldService;
  * bodies and joints are derived resources that may be rebuilt. Replacing or re-enabling the bound
  * {@link Box2dWorldService} schedules the required body/fixture bootstrap and joint rebuild before
  * normal stepping. The system is World-owned, phase-sensitive, and not thread-safe.</p>
+ *
+ * <p>Body membership changes are observed through ECS subscriptions. In-place edits to authored
+ * physics fields or compiled fixture publication must mark the entity through
+ * {@link DirtyTrackerSystem#physics(int, int)}. Stable frames do not scan bodies to discover
+ * unannounced changes. Native ownership is retained independently of pooled ECS components.</p>
  */
 public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem {
     private static final float TRANSFORM_SYNC_EPSILON = 1e-6f;
@@ -76,6 +82,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private EntitySubscription subWanted;   // T + Body
     private EntitySubscription subRuntime;  // RuntimeBody
     private EntitySubscription jointsSub;   // JointBase insert/remove only
+    private EntitySubscription allEntities;
 
     private final Vector2 tmp = new Vector2();
     private static final int MAX_POLYGON_VERTICES = 8;
@@ -88,13 +95,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private boolean fullRebuildPending = true;
     private boolean bootstrapStepPending = false;
 
+    // Structural notifications survive disabled frames and are reconciled before stepping.
+    private final IntArray pendingBodies = new IntArray(false, 16);
+    private final IntSet pendingBodySet = new IntSet();
+
     private final JointDependencyIndex jointDependencies = new JointDependencyIndex();
     // Native ownership can lag authored endpoints until ECS synchronization.
     private final ObjectIntMap<Joint> nativeJointEntities = new ObjectIntMap<>();
     private final IntArray removalQueue = new IntArray(false, 16);
     private final IntSet removalSeen = new IntSet();
 
-    private final Array<Body> bodyScratch = new Array<>(false, 64);
+    // Sole native ownership authority for this binding. Runtime components only mirror it;
+    // pooling or delayed subscription observation must not abandon a live body.
+    private final IntMap<Body> nativeBodies = new IntMap<>();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public Box2dSyncSystem(Box2dWorldService box2d) {
@@ -102,7 +115,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     public void setBox2d(Box2dWorldService box2d) {
-        if (this.box2d != box2d) nativeJointEntities.clear();
+        if (this.box2d != box2d) {
+            nativeJointEntities.clear();
+            nativeBodies.clear();
+        }
         this.box2d = box2d;
         lastGx = Float.NaN;
         lastGy = Float.NaN;
@@ -169,6 +185,27 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 TransformComponent.class,
                 PhysicsBodyComponent.class
         ));
+        EntitySubscription.SubscriptionListener bodyChanges = new EntitySubscription.SubscriptionListener() {
+            @Override public void inserted(IntBag entities) {
+                for (int i = 0; i < entities.size(); i++) {
+                    int entity = entities.get(i);
+                    Body owner = nativeBodies.get(entity);
+                    PhysicsRuntimeBodyComponent rt = mRuntime.getSafe(entity, null);
+                    // Prepared spawns publish before Artemis observes their components.
+                    // Real subsequent mutations still have their own dirty/removal tickets.
+                    if (owner == null || rt == null || rt.body != owner || !isWantedEntity(entity)) {
+                        queueBody(entity);
+                    }
+                }
+            }
+            @Override public void removed(IntBag entities) { enqueue(entities); }
+            private void enqueue(IntBag entities) {
+                for (int i = 0; i < entities.size(); i++) queueBody(entities.get(i));
+            }
+        };
+        subWanted.addSubscriptionListener(bodyChanges);
+        asm.get(Aspect.all(PhysicsCompiledFixturesComponent.class)).addSubscriptionListener(bodyChanges);
+        asm.get(Aspect.all(TiledLayerComponent.class)).addSubscriptionListener(bodyChanges);
 
         subRuntime = asm.get(Aspect.all(
                 PhysicsRuntimeBodyComponent.class
@@ -183,16 +220,26 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 int[] data = entities.getData();
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     destroyRuntimeBodyByEntityId(data[i]);
+                    queueBody(data[i]);
                 }
             }
         });
 
         // Aspect.all also reports entities created/deleted before their first insertion.
-        asm.get(Aspect.all()).addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) { }
+        allEntities = asm.get(Aspect.all());
+        allEntities.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+            @Override public void inserted(IntBag entities) {
+                for (int i = 0; i < entities.size(); i++) {
+                    int entity = entities.get(i);
+                    // All authored components may have disappeared before any narrower
+                    // subscription observed the synchronously materialized spawn.
+                    if (nativeBodies.get(entity) != null && !isWantedEntity(entity)) queueBody(entity);
+                }
+            }
             @Override public void removed(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) {
                     int entity = entities.get(i);
+                    destroyRuntimeBodyByEntityId(entity);
                     // Regular joint removals belong to the joint subscription below.
                     // This callback covers entities it has never observed.
                     if (!jointsSub.getActiveEntityIds().get(entity)) unindexJoint(entity);
@@ -222,7 +269,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 for (int i = 0, n = entities.size(); i < n; i++) {
                     int jEid = data[i];
                     indexJoint(jEid);
-                    if (dirty != null) dirty.joint(jEid, JointDirtyBits.ALL);
+                    PhysicsRuntimeJointComponent rt = mJointRt.getSafe(jEid, null);
+                    if (dirty != null && (rt == null || rt.joint == null
+                            || nativeJointEntities.get(rt.joint, -1) != jEid)) {
+                        dirty.joint(jEid, JointDirtyBits.ALL);
+                    }
                 }
             }
 
@@ -267,54 +318,31 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         // 2) Physics dirty (bodies)
-        if (dirty != null && fullRebuildPending) {
+        if (fullRebuildPending) {
             IntBag wanted = subWanted.getEntities();
             int[] wantedData = wanted.getData();
             for (int i = 0, n = wanted.size(); i < n; i++) {
                 int e = wantedData[i];
-                if (hasAuthoredBody(e)) {
-                    requireCompiledCache(e);
-                    dirty.physics(e, PhysicsDirtyBits.ALL);
-                }
+                queueBody(e);
             }
+
+            // A whole-world reconciliation is only needed at bootstrap/rebind/re-enable.
+            IntBag runtime = subRuntime.getEntities();
+            for (int i = 0; i < runtime.size(); i++) queueBody(runtime.get(i));
 
             IntBag joints = jointsSub.getEntities();
             int[] jointsData = joints.getData();
             for (int i = 0, n = joints.size(); i < n; i++) {
                 int jEid = jointsData[i];
                 indexJoint(jEid);
-                dirty.joint(jEid, JointDirtyBits.ALL);
+                if (dirty != null) dirty.joint(jEid, JointDirtyBits.ALL);
             }
             fullRebuildPending = false;
         }
 
+        flushBodyNotifications();
         if (dirty != null) {
             dirty.consumePhysics(physicsDirtyConsumer);
-        }
-
-        // 3) Ensure wanted bodies exist
-        IntBag wanted = subWanted.getEntities();
-        int[] w = wanted.getData();
-        for (int i = 0, n = wanted.size(); i < n; i++) {
-            int e = w[i];
-            if (!hasAuthoredBody(e)) continue;
-            requireCompiledCache(e);
-            if (!hasMaterializableCompiledCache(e)) continue;
-
-            PhysicsRuntimeBodyComponent rt = mRuntime.has(e) ? mRuntime.get(e) : mRuntime.create(e);
-            if (rt.body == null) {
-                buildBody(e, rt);
-            }
-
-        }
-
-        // 4) Destroy runtime bodies no longer wanted
-        IntBag runtime = subRuntime.getEntities();
-        int[] r = runtime.getData();
-        for (int i = 0, n = runtime.size(); i < n; i++) {
-            int e = r[i];
-            boolean stillWanted = isWantedEntity(e);
-            if (!stillWanted) destroyRuntimeBody(e);
         }
 
         if (bootstrapStepPending && !fullRebuildPending) {
@@ -329,19 +357,21 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             bootstrapStepPending = false;
         }
 
-        // 5) Joints: only dirty
+        // 3) Joints: only dirty
         if (dirty != null) {
             dirty.consumeJoints(jointDirtyConsumer);
         }
 
-        // 6) Step
+        // 4) Step
         if (stepEnabled) {
             box2d.step(world.getDelta());
         }
 
-        // 7) Authoring owns native Body poses. Runtime-owned poses are reconstructed by the
+        // 5) Authoring owns native Body poses. Runtime-owned poses are reconstructed by the
         // dedicated post-Physics hierarchy writeback phase, even while stepping is paused.
         if (isRuntimePhysicsAuthoritative()) return;
+        IntBag wanted = subWanted.getEntities();
+        int[] w = wanted.getData();
         for (int i = 0, n = wanted.size(); i < n; i++) {
             int e = w[i];
             PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
@@ -370,7 +400,29 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
     }
 
+    private void queueBody(int entityId) {
+        if (pendingBodySet.add(entityId)) pendingBodies.add(entityId);
+    }
+
+    private void flushBodyNotifications() {
+        while (pendingBodies.size > 0) {
+            int entityId = pendingBodies.peek();
+            // EntityManager still reports deleted entities active during notification delivery.
+            if (allEntities.getActiveEntityIds().get(entityId)) {
+                if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);
+                else synchronizeDirtyBody(entityId);
+            }
+            pendingBodies.pop();
+            pendingBodySet.remove(entityId);
+        }
+    }
+
     private void synchronizeDirtyBody(int entityId) {
+        if (!allEntities.getActiveEntityIds().get(entityId)) return;
+        synchronizeBody(entityId);
+    }
+
+    private void synchronizeBody(int entityId) {
         if (hasAuthoredBody(entityId)) {
             requireCompiledCache(entityId);
         }
@@ -379,7 +431,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             return;
         }
 
-        int mask = dirty.physicsSub(entityId);
+        int mask = dirty != null ? dirty.physicsSub(entityId) : PhysicsDirtyBits.ALL;
         PhysicsRuntimeBodyComponent runtimeBody =
                 mRuntime.has(entityId) ? mRuntime.get(entityId) : mRuntime.create(entityId);
         if ((mask & PhysicsDirtyBits.ALL) != 0 || runtimeBody.body == null) {
@@ -399,6 +451,68 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         if (fullRebuildPending || bootstrapStepPending) {
             throw new IllegalStateException("Box2D Runtime availability did not close.");
         }
+    }
+
+    /** Checks the native boundary before a synchronous spawn allocates any entities or identities. */
+    public void requireSynchronousSpawnAvailable() {
+        if (box2d == null || box2d.world == null || box2d.isDisposed()) {
+            throw new IllegalStateException("Cannot spawn physical Game Object: Physics is unavailable.");
+        }
+        if (box2d.world.isLocked()) {
+            throw new IllegalStateException("Cannot spawn physical Game Object while Box2D is locked; use spawnDeferred().");
+        }
+    }
+
+    /**
+     * Materializes only a freshly created instance with resolved poses. Shares the normal
+     * body/joint creation and ownership paths, without subscriptions, a World pass or a step.
+     * All authored joints must be realized; the caller rolls the instance back on failure.
+     */
+    public void materializePreparedSpawn(IntBag entities) {
+        requireSynchronousSpawnAvailable();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (mJointBase.has(entity)) indexJoint(entity);
+        }
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (hasAuthoredBody(entity)) synchronizeBody(entity);
+        }
+        // Gears depend only on revolute/prismatic joints, never on another gear.
+        for (int pass = 0; pass < 2; pass++) {
+            for (int i = 0; i < entities.size(); i++) {
+                int entity = entities.get(i);
+                PhysicsJointComponent base = mJointBase.getSafe(entity, null);
+                if (base == null || (base.type == PhysicsJointComponent.TYPE_GEAR) != (pass == 1)) continue;
+                syncOneJoint(entity);
+                PhysicsRuntimeJointComponent rt = mJointRt.getSafe(entity, null);
+                if (rt == null || rt.joint == null) {
+                    throw new IllegalStateException("Cannot complete Game Object joint entityId " + entity
+                            + ": endpoints or source joints are not materializable.");
+                }
+            }
+        }
+        if (dirty != null) {
+            for (int i = 0; i < entities.size(); i++) {
+                dirty.acknowledgePhysics(entities.get(i));
+                dirty.acknowledgeJoint(entities.get(i));
+            }
+        }
+    }
+
+    /** Releases only resources belonging to a failed new instance, including unobserved components. */
+    public void discardPreparedSpawn(IntBag entities) {
+        for (int pass = 0; pass < 2; pass++) {
+            for (int i = 0; i < entities.size(); i++) {
+                int entity = entities.get(i);
+                PhysicsJointComponent base = mJointBase.getSafe(entity, null);
+                if (base != null && (base.type == PhysicsJointComponent.TYPE_GEAR) == (pass == 0)) {
+                    destroyRuntimeJointIfAny(entity);
+                    unindexJoint(entity);
+                }
+            }
+        }
+        for (int i = 0; i < entities.size(); i++) destroyRuntimeBodyByEntityId(entities.get(i));
     }
 
     // -------------------------------------------------------------
@@ -533,6 +647,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // -------------------------------------------------------------
 
     private boolean isWantedEntity(int e) {
+        if (testObserver != null) testObserver.onBodyEligibilityCheck();
         return hasAuthoredBody(e)
                 && isTiledCollisionEnabled(e)
                 && hasMaterializableCompiledCache(e);
@@ -586,6 +701,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private PhysicsCompiledFixturesComponent requireCompiledCache(int e) {
+        if (testObserver != null) testObserver.onBodyCacheCheck();
         PhysicsCompiledFixturesComponent compiled = mCompiled.getSafe(e, null);
         if (!hasPreparedCompiledCache(e)) {
             PixscapeIdentityComponent identity = mIdentity.getSafe(e, null);
@@ -600,21 +716,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         return compiled;
     }
 
-    private void buildBody(int e, PhysicsRuntimeBodyComponent rt) {
-        replaceBodyAtomically(e, rt, false);
-    }
-
     private void rebuildBody(int e, PhysicsRuntimeBodyComponent rt) {
-        replaceBodyAtomically(e, rt, rt.body != null);
+        replaceBodyAtomically(e, rt);
     }
 
-    private void replaceBodyAtomically(
-            int e, PhysicsRuntimeBodyComponent rt, boolean wakeForMutation) {
+    private void replaceBodyAtomically(int e, PhysicsRuntimeBodyComponent rt) {
         if (box2d == null || box2d.world == null || !isWantedEntity(e)) return;
 
         PhysicsCompiledFixturesComponent compiled = requireCompiledCache(e);
         if (testObserver != null) testObserver.onBodyRebuild();
-        Body previousBody = rt.body;
+        Body previousBody = nativeBodies.get(e);
+        // Restore the mirror if its pooled component was removed/reset. Keep the old
+        // owner and its joints intact until the complete candidate has been created.
+        rt.body = previousBody;
         float worldX = previousBody != null && isRuntimePhysicsAuthoritative()
                 ? box2d.mToPx(previousBody.getPosition().x)
                 : authoredWorldX(e, mT.get(e));
@@ -625,7 +739,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 ? previousBody.getAngle()
                 : authoredWorldRotation(e, mT.get(e));
         Body candidateBody = createBodyFromCompiled(
-                e, compiled.fixtures, wakeForMutation, worldX, worldY, worldRotation);
+                e, compiled.fixtures, previousBody != null, worldX, worldY, worldRotation);
 
         if (previousBody != null) {
             detachRuntimeJointsForBody(previousBody);
@@ -633,60 +747,29 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
 
         rt.body = candidateBody;
+        nativeBodies.put(e, candidateBody);
         rt.gen++;
         markJointsDirtyForBody(e);
     }
 
     private void destroyRuntimeBody(int e) {
-        if (!mRuntime.has(e)) return;
-
-        PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
-        if (rt != null && rt.body != null && box2d != null && box2d.world != null) {
-            detachRuntimeJointsForBody(rt.body);
-            box2d.world.destroyBody(rt.body);
-            rt.body = null;
-            rt.gen++;
-        }
-
-        markJointsDirtyForBody(e);
-        mRuntime.remove(e);
+        destroyRuntimeBodyByEntityId(e);
     }
 
     private void destroyRuntimeBodyByEntityId(int e) {
-        if (box2d == null || box2d.world == null) {
-            if (mRuntime.has(e)) mRuntime.remove(e);
-            return;
+        Body body = nativeBodies.get(e);
+        PhysicsRuntimeBodyComponent rt = mRuntime.getSafe(e, null);
+        if (body != null && box2d != null && box2d.world != null) {
+            detachRuntimeJointsForBody(body);
+            box2d.world.destroyBody(body);
         }
-
-        boolean destroyed = false;
-
-        if (mRuntime.has(e)) {
-            PhysicsRuntimeBodyComponent rt = mRuntime.get(e);
-            if (rt != null && rt.body != null) {
-                detachRuntimeJointsForBody(rt.body);
-                box2d.world.destroyBody(rt.body);
-                rt.body = null;
-                rt.gen++;
-                destroyed = true;
-            }
+        nativeBodies.remove(e);
+        if (rt != null) {
+            rt.body = null;
+            rt.gen++;
             mRuntime.remove(e);
         }
-
-        if (!destroyed) {
-            bodyScratch.clear();
-            box2d.world.getBodies(bodyScratch);
-            for (int i = 0; i < bodyScratch.size; i++) {
-                Body body = bodyScratch.get(i);
-                if (body == null) continue;
-                Object userData = body.getUserData();
-                if (!(userData instanceof Integer) || ((Integer) userData).intValue() != e) continue;
-                detachRuntimeJointsForBody(body);
-                box2d.world.destroyBody(body);
-                break;
-            }
-        }
-
-        markJointsDirtyForBody(e);
+        if (body != null || rt != null) markJointsDirtyForBody(e);
     }
 
     private Body createBodyFromCompiled(
@@ -1538,6 +1621,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     interface TestObserver {
+        default void onBodyEligibilityCheck() { }
+
+        default void onBodyCacheCheck() { }
+
         void onBodyCompile();
 
         void onShapeCompile();

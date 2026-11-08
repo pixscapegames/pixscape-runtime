@@ -173,6 +173,14 @@ Authored physics ECS data, supported physics authoring/query services, validatio
 
 Runtime body components, compiled caches, preparation candidates, and publication machinery remain internal.
 
+Body membership changes (addition/removal of authored body or transform components) are observed
+at ECS synchronization. In-place edits to authored physics definitions, including Tiled collision
+flags, must publish the appropriate physics dirty bits through `DirtyTrackerSystem.physics`.
+High-level setters and physics services handle their own invalidation. Internal compiled-fixture
+publication must also invalidate its owner. There is no per-frame scan to discover unannounced
+physics edits. Initial preparation and explicit physics reactivation still reconcile the whole
+physical domain; normal frames reconcile only structural notifications and dirty entities.
+
 Native objects should normally be acquired through supported APIs rather than by coupling application code to Runtime storage components.
 
 ## 9. Tiled and Spatial
@@ -228,8 +236,34 @@ project; attempting to replace its path while still loaded fails without changin
 
 Spawning copies mutable components, properties, animations, shapes and compiled fixtures,
 allocates fresh scene identities and publishes only the created entities to the identity index
-and prepared hierarchy. Native Box2D bodies/joints and normal render synchronization remain
-instance work in subsequent frames. READY does not promise allocation-free spawning.
+and prepared hierarchy. The public `gameObjects().spawn(...)` returns only after composed
+transforms, all materializable bodies and all authored joints are ready. It reuses targeted
+physics materialization without processing the World, synchronizing all ECS subscriptions,
+or stepping Box2D. Subsequent notifications preserve those resources and native properties
+applied immediately by gameplay. Normal render synchronization remains frame work.
+READY does not promise allocation-free spawning.
+
+An unsuccessful spawn rolls back its new native resources, identities and hierarchy membership;
+ECS deletion is scheduled without processing unrelated entities. Existing instances are untouched.
+Monotonic identity allocators are not rolled back or recycled. A joint whose endpoints or source
+joints cannot be materialized makes the entire attempt fail. Members without physics or with
+zero materializable fixtures still legitimately return `null` from `physics().body(...)`.
+
+If the asset needs native physics creation while Box2D is locked, synchronous spawn throws
+before allocating entities or identities. Assets needing no native physics remain permitted.
+`gameObjects().spawnDeferred(name, x, y, success, failure)` is the distinct contact-callback path:
+it queues against the current READY scene and runs FIFO at the start of the next normal render,
+before World systems and outside the native lock, on that render's calling thread. Success
+receives only a complete instance; failures are delivered after rollback. Requests submitted
+during callback delivery wait for a later render. No render or simulation is forced by submission.
+Scene retirement, World replacement or disposal cancels outstanding requests through failure
+on the lifecycle caller's thread, without transferring them to a new scene. A load failure
+before retiring the current scene does not cancel its requests. Without rendering or retirement,
+requests remain queued. Both callbacks are required; callback exceptions are logged and do not
+trigger a second notification or roll back a successful delivery. Engine thread affinity applies.
+
+The expert serialization-fragment spawner remains an ECS publication operation; it is not the
+high-level synchronous Game Object availability boundary.
 
 Particle availability uses the existing LibGDX `Pool`-based effect pool. By default it fills
 one effect per declared type, including its particle storage. Configure a different reserve

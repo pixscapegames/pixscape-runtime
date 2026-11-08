@@ -74,6 +74,9 @@ public interface PhysicsAPI {
     /**
      * Returns the live native body realized for {@code entity}, or {@code null} when the
      * entity is null, missing/inactive, or has no live runtime body.
+     * A successful synchronous Game Object spawn has already realized its materializable bodies;
+     * non-physical members and members with no materializable fixtures legitimately return null.
+     * This getter never creates physics or searches another member of the instance.
      *
      * <p>The body is borrowed and Runtime-owned; callers must not destroy it directly. Its
      * reference can change when Pixscape recreates physics or the body, and must not be cached

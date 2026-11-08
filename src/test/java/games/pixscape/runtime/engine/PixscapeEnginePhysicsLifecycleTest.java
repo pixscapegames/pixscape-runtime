@@ -972,7 +972,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 + "\"kind\":\"GROUP\",\"children\":[]}}";
     }
 
-    private static EngineFixture createEngineFixture() throws Exception {
+    static EngineFixture createEngineFixture() throws Exception {
         GdxNativesLoader.load();
 
         File directory = Files.createTempDirectory(
@@ -1334,11 +1334,11 @@ public class PixscapeEnginePhysicsLifecycleTest {
         return defaultValue(returnType);
     }
 
-    private static final class EngineFixture {
-        private final PixscapeEngine engine;
+    static final class EngineFixture {
+        final PixscapeEngine engine;
         private final RuntimeConfig config;
-        private final SceneMetaRuntime sceneA;
-        private final FileHandle projectDir;
+        final SceneMetaRuntime sceneA;
+        final FileHandle projectDir;
         private final AtlasRuntimeService atlasService;
         private final MetricsBatch metricsBatch;
         private final CandidateWorldProbe worldProbe;

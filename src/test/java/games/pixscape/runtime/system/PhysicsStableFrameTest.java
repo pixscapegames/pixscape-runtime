@@ -125,6 +125,9 @@ public class PhysicsStableFrameTest {
         Assert.assertEquals(0, counters.provenanceCreations);
         Assert.assertEquals(0, counters.polygonDecompositions);
 
+        Assert.assertEquals("Stable frames must not revisit body eligibility", 0, counters.eligibilityChecks);
+        Assert.assertEquals("Stable frames must not revalidate body caches", 0, counters.cacheChecks);
+
         int generationBeforeMutation = compiled.generation;
         PhysicsShapeData liveCircle = sources.shapes.first();
         liveCircle.geometry.radius = 0.5f;
@@ -154,6 +157,8 @@ public class PhysicsStableFrameTest {
 
     private static final class Counters
             implements Box2dSyncSystem.TestObserver {
+        int eligibilityChecks;
+        int cacheChecks;
         int bodyCompiles;
         int shapeCompiles;
         int polygonDecompositions;
@@ -161,12 +166,17 @@ public class PhysicsStableFrameTest {
         int provenanceCreations;
 
         void reset() {
+            eligibilityChecks = 0;
+            cacheChecks = 0;
             bodyCompiles = 0;
             shapeCompiles = 0;
             polygonDecompositions = 0;
             bodyRebuilds = 0;
             provenanceCreations = 0;
         }
+
+        @Override public void onBodyEligibilityCheck() { eligibilityChecks++; }
+        @Override public void onBodyCacheCheck() { cacheChecks++; }
 
         @Override
         public void onBodyCompile() {

@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectIntMap;
+import com.badlogic.gdx.utils.Queue;
 import games.pixscape.runtime.api.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
@@ -79,6 +80,8 @@ public final class PixscapeEngine {
     private SceneAvailabilityPlan activeSceneAvailability;
     private SceneAvailabilityPlan pendingSceneAvailability;
     private SceneLoadHandleImpl activeSceneLoad;
+    private Queue<DeferredGameObjectSpawn> pendingGameObjectSpawns = new Queue<>();
+    private Queue<DeferredGameObjectSpawn> deliveringGameObjectSpawns;
     private boolean assetManagerConfigurationLocked;
     private final AssetManagerFactory assetManagerFactory;
     private final ObjectIntMap<String> particleReserves = new ObjectIntMap<>();
@@ -503,11 +506,14 @@ public final class PixscapeEngine {
      *
      * <p>The definition must be declared in scene Runtime Availability. Loading validates and
      * prepares it once before READY; any number of independent instances can then be spawned.</p>
+     * <p>Returns only after composed transforms, materializable bodies and all authored joints
+     * are ready, without stepping or processing the World. Native creation under a Box2D lock
+     * is rejected before mutation; use {@link #spawnGameObjectDeferred} from contact callbacks.</p>
      *
      * @param name    Game Object name or canonical logical asset ID
      * @param rootWorldX world-space X coordinate of the new root
      * @param rootWorldY world-space Y coordinate of the new root
-     * @return result containing all created entity IDs
+     * @return the complete spawned instance
      * @throws IllegalStateException                      if the project or world is not initialized
      */
     public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
@@ -517,9 +523,97 @@ public final class PixscapeEngine {
         String logicalId = GameObjectAssetId.normalize(name);
         GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
                 identityRegistry, activeSceneMeta, atlasRuntimeService);
-        SpawnResult result = spawner.spawnPrepared(world,
+        SpawnResult result = spawner.spawnPreparedRuntime(world,
                 activeSceneAvailability.requireGameObject(logicalId), rootWorldX, rootWorldY);
         return new SpawnedGameObjectInstance(world, result, api().entities());
+    }
+
+    /** See {@link GameObjectsAPI#spawnDeferred} for scheduling, completion and cancellation. */
+    public void spawnGameObjectDeferred(String name, float x, float y,
+                                        Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
+        if (success == null || failure == null) throw new IllegalArgumentException("Spawn callbacks are required.");
+        if (!sceneLoaded || activeSceneAvailability == null || world == null) {
+            throw new IllegalStateException("No scene is READY for a deferred Game Object spawn.");
+        }
+        pendingGameObjectSpawns.addLast(new DeferredGameObjectSpawn(
+                activeSceneAvailability, world, name, x, y, success, failure));
+    }
+
+    private final class DeferredGameObjectSpawn {
+        final SceneAvailabilityPlan scene;
+        final World targetWorld;
+        final String name;
+        final float x, y;
+        final Consumer<GameObjectInstance> success;
+        final Consumer<Throwable> failure;
+
+        DeferredGameObjectSpawn(SceneAvailabilityPlan scene, World targetWorld, String name, float x, float y,
+                                Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
+            this.scene = scene;
+            this.targetWorld = targetWorld;
+            this.name = name;
+            this.x = x;
+            this.y = y;
+            this.success = success;
+            this.failure = failure;
+        }
+
+        void execute() {
+            GameObjectInstance instance;
+            try {
+                if (scene != activeSceneAvailability || targetWorld != world || !sceneLoaded) {
+                    throw new IllegalStateException("Deferred Game Object spawn cancelled: its scene or World was retired.");
+                }
+                instance = spawnGameObject(name, x, y);
+            } catch (RuntimeException | Error problem) {
+                fail(problem);
+                return;
+            }
+            try {
+                success.accept(instance);
+            } catch (RuntimeException | Error problem) {
+                logSpawnCallbackFailure(problem);
+            }
+        }
+
+        void fail(Throwable problem) {
+            try {
+                failure.accept(problem);
+            } catch (RuntimeException | Error callbackProblem) {
+                logSpawnCallbackFailure(callbackProblem);
+            }
+        }
+    }
+
+    private static void logSpawnCallbackFailure(Throwable problem) {
+        if (Gdx.app != null) Gdx.app.error("GameObjectSpawn", "Spawn callback failed.", problem);
+    }
+
+    private void deliverGameObjectSpawns() {
+        if (deliveringGameObjectSpawns != null || pendingGameObjectSpawns.size == 0) return;
+        if (box2dWorldService != null && box2dWorldService.world != null
+                && box2dWorldService.world.isLocked()) return;
+        // Detach this batch: callback submissions always belong to a later render.
+        deliveringGameObjectSpawns = pendingGameObjectSpawns;
+        pendingGameObjectSpawns = new Queue<>();
+        try {
+            while (deliveringGameObjectSpawns.size > 0) deliveringGameObjectSpawns.removeFirst().execute();
+        } finally {
+            deliveringGameObjectSpawns = null;
+        }
+    }
+
+    private void cancelGameObjectSpawns() {
+        if (pendingGameObjectSpawns.size == 0
+                && (deliveringGameObjectSpawns == null || deliveringGameObjectSpawns.size == 0)) return;
+        Queue<DeferredGameObjectSpawn> cancelled = pendingGameObjectSpawns;
+        pendingGameObjectSpawns = new Queue<>();
+        IllegalStateException reason = new IllegalStateException(
+                "Deferred Game Object spawn cancelled: its scene or World was retired.");
+        while (cancelled.size > 0) cancelled.removeFirst().fail(reason);
+        if (deliveringGameObjectSpawns != null) {
+            while (deliveringGameObjectSpawns.size > 0) deliveringGameObjectSpawns.removeFirst().fail(reason);
+        }
     }
 
     private static final class SpawnedGameObjectInstance implements GameObjectInstance {
@@ -1145,6 +1239,8 @@ public final class PixscapeEngine {
      * Disposes world and GPU-side runtime resources.
      */
     private void disposeWorldAndRuntime() {
+        sceneLoaded = false;
+        cancelGameObjectSpawns();
         identityRegistry.bind(null, null);
 
         if (hudScreenRuntime != null) {
@@ -1669,6 +1765,7 @@ public final class PixscapeEngine {
         lastSceneDefaultHudFailure = null;
         SceneAvailabilityPlan previous = activeSceneAvailability;
         activeSceneAvailability = null;
+        cancelGameObjectSpawns();
         previous.release();
     }
 
@@ -2073,6 +2170,8 @@ public final class PixscapeEngine {
     }
 
     private void processWorld() {
+        deliverGameObjectSpawns();
+        if (world == null) return;
         prepareRenderResources();
         if (systemProfiler.enabled()) {
             systemProfiler.beginFrame();

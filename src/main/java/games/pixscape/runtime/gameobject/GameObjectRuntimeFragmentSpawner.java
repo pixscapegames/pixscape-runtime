@@ -23,6 +23,7 @@ import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
@@ -73,11 +74,31 @@ public final class GameObjectRuntimeFragmentSpawner {
     /** With a scene-bound registry, O(model size), independent of the populated World size. */
     public SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
                                      float rootWorldX, float rootWorldY) {
+        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, false);
+    }
+
+    /** Publishes a complete Runtime instance, including native physics, without processing the World. */
+    public SpawnResult spawnPreparedRuntime(World world, PreparedGameObject prepared,
+                                            float rootWorldX, float rootWorldY) {
+        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, true);
+    }
+
+    private SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
+                                      float rootWorldX, float rootWorldY, boolean completeRuntime) {
         if (world == null) throw new IllegalArgumentException("world must not be null");
         if (prepared == null) throw new IllegalArgumentException("prepared model must not be null");
+        if (completeRuntime && (Float.isNaN(rootWorldX) || Float.isInfinite(rootWorldX)
+                || Float.isNaN(rootWorldY) || Float.isInfinite(rootWorldY))) {
+            throw new IllegalArgumentException("Game Object spawn position must be finite.");
+        }
         if (sceneMeta != null && !sceneMeta.physicsEnabled && prepared.hasPhysics) {
             throw new IllegalStateException(
                     "Cannot spawn a Game Object with authored Physics while scene Physics is disabled.");
+        }
+        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
+        if (completeRuntime && prepared.requiresNativePhysics) {
+            if (physics == null) throw new IllegalStateException("Physics synchronization is unavailable.");
+            physics.requireSynchronousSpawnAvailable();
         }
         if (!identityRegistry.isBoundTo(world, sceneMeta)) {
             identityRegistry.bind(world, sceneMeta);
@@ -107,6 +128,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             IntBag createdIds = toBag(created);
             GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
             if (hierarchy != null) hierarchy.registerPreparedSpawn(createdIds);
+            if (completeRuntime) {
+                if (hierarchy == null) throw new IllegalStateException("Game Object hierarchy is unavailable.");
+                hierarchy.resolvePreparedSpawn(createdIds);
+                if (prepared.requiresNativePhysics) physics.materializePreparedSpawn(createdIds);
+            }
             return new SpawnResult(createdIds, rootEntityId);
         } catch (RuntimeException failure) {
             rollback(world, created);
@@ -495,8 +521,14 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     private static void rollback(World world, IntArray created) {
+        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
+        if (physics != null) physics.discardPreparedSpawn(toBag(created));
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         for (int i = created.size - 1; i >= 0; i--) {
             int entityId = created.get(i);
+            if (hierarchy != null) hierarchy.discardPreparedSpawn(entityId);
+            if (dirty != null) dirty.clearEntity(entityId);
             IdentityRegistry.unindexEntityImmediately(world, entityId);
             if (world.getEntityManager().isActive(entityId)) world.delete(entityId);
         }
@@ -565,6 +597,7 @@ public final class GameObjectRuntimeFragmentSpawner {
         private final IntMap<PreparedAssetBinding> bindings;
         private final IntMap<PreparedPhysics> physics;
         private final boolean hasPhysics;
+        private final boolean requiresNativePhysics;
 
         private PreparedGameObject(GameObjectAsset asset, String sourceAssetId,
                                    Array<GameObjectAsset.GameObjectEntityData> ordered,
@@ -576,6 +609,12 @@ public final class GameObjectRuntimeFragmentSpawner {
             this.bindings = bindings;
             this.physics = physics;
             this.hasPhysics = hasPhysics;
+            boolean nativePhysics = !asset.joints.isEmpty();
+            for (int i = 0; i < ordered.size && !nativePhysics; i++) {
+                PreparedPhysics body = physics.get(ordered.get(i).sourceEntityId);
+                nativePhysics = body != null && body.fixtures.size > 0;
+            }
+            this.requiresNativePhysics = nativePhysics;
         }
     }
 }
