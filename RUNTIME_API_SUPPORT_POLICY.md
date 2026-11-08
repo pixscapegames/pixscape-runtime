@@ -173,6 +173,14 @@ Authored physics ECS data, supported physics authoring/query services, validatio
 
 Runtime body components, compiled caches, preparation candidates, and publication machinery remain internal.
 
+Body membership changes (addition/removal of authored body or transform components) are observed
+at ECS synchronization. In-place edits to authored physics definitions, including Tiled collision
+flags, must publish the appropriate physics dirty bits through `DirtyTrackerSystem.physics`.
+High-level setters and physics services handle their own invalidation. Internal compiled-fixture
+publication must also invalidate its owner. There is no per-frame scan to discover unannounced
+physics edits. Initial preparation and explicit physics reactivation still reconcile the whole
+physical domain; normal frames reconcile only structural notifications and dirty entities.
+
 Native objects should normally be acquired through supported APIs rather than by coupling application code to Runtime storage components.
 
 ## 9. Tiled and Spatial
