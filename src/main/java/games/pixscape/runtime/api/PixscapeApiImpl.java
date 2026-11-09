@@ -996,6 +996,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return properties != null ? properties.getClassValue(name) : null;
         }
 
+        @Override
+        public ImportedProperty getImportedValue(String name) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getImportedValue(name) : null;
+        }
+
         private PropertySet properties() {
             World world = handle.world();
             if (world == null) return null;
@@ -3398,6 +3404,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private final EntityReferenceTracker entityReferences;
         private final TiledAnimationsAPI animations;
 
+        @Override
+        public TileDefinition tile(int tilesetId, int localId) {
+            return engine.getTilesetProfiles().tile(tilesetId, localId);
+        }
+
         TiledApiImpl(PixscapeEngine engine, ECSAPI ecs, EntitiesAPI entities,
                      EntityReferenceTracker entityReferences) {
             this.engine = engine;
@@ -3873,6 +3884,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public int get(int x, int y) {
             TiledMapLayerData d = data();
             return d != null ? d.getTile(x, y) : 0;
+        }
+
+        @Override
+        public TileDefinition definition(int x, int y) {
+            int assetId = get(x, y);
+            TileAnimationDef animation = engine.getAnimatedTileRegistry().get(assetId);
+            if (animation != null) assetId = animation.baseTileAssetId();
+            return engine.getTilesetProfiles().tileForAsset(assetId);
         }
 
         @Override

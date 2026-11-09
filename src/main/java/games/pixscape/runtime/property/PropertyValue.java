@@ -2,6 +2,7 @@ package games.pixscape.runtime.property;
 
 import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.api.CustomProperties;
+import games.pixscape.runtime.api.ImportedProperty;
 
 /**
  * {@code SUPPORTED_EXPERT} concrete typed value stored in a
@@ -19,6 +20,9 @@ public final class PropertyValue {
     private String className = "";
     private PropertySet classProperties = new PropertySet();
     private transient ClassProperty classView;
+    private String importedType = "";
+    private String importedCustomType = "";
+    private transient ImportedProperty importedView;
 
     /**
      * Creates the valid default value {@code STRING("")} for serializers.
@@ -98,6 +102,26 @@ public final class PropertyValue {
         return type;
     }
 
+    /** Preserves a non-editable Tiled value without coercing it to a STRING property. */
+    public static PropertyValue ofImported(String type, String customType, String sourceXml) {
+        PropertyValue value = new PropertyValue(PropertyType.IMPORTED);
+        value.importedType = type;
+        value.importedCustomType = customType == null ? "" : customType;
+        value.stringValue = sourceXml;
+        value.validateState();
+        return value;
+    }
+
+    public ImportedProperty asImported() {
+        requireType(PropertyType.IMPORTED);
+        if (importedView == null) importedView = new ImportedProperty() {
+            @Override public String typeName() { return importedType; }
+            @Override public String customTypeName() { return importedCustomType; }
+            @Override public String sourceXml() { return stringValue; }
+        };
+        return importedView;
+    }
+
     public String asString() {
         requireType(PropertyType.STRING);
         return stringValue;
@@ -164,6 +188,8 @@ public final class PropertyValue {
         copy.integerValue = integerValue;
         copy.floatValue = floatValue;
         copy.className = className;
+        copy.importedType = importedType;
+        copy.importedCustomType = importedCustomType;
         copy.classProperties = classProperties != null ? classProperties.copy() : null;
         return copy;
     }
@@ -208,6 +234,10 @@ public final class PropertyValue {
                 throw new IllegalStateException("Class property members must not be null.");
             }
             classProperties.validate(depth + 1);
+        }
+        if (type == PropertyType.IMPORTED && (importedType == null || importedType.trim().isEmpty()
+                || importedCustomType == null || stringValue.isEmpty())) {
+            throw new IllegalStateException("Imported property requires its declared type and source XML.");
         }
     }
 
@@ -276,10 +306,10 @@ public final class PropertyValue {
         }
     }
 
-    private static final class PropertySetReadView implements CustomProperties {
+    static final class PropertySetReadView implements CustomProperties {
         private final PropertySet properties;
 
-        private PropertySetReadView(PropertySet properties) {
+        PropertySetReadView(PropertySet properties) {
             this.properties = properties;
         }
 
@@ -307,6 +337,9 @@ public final class PropertyValue {
         }
         @Override public ClassProperty getClassValue(String name) {
             return properties.getClassValue(name);
+        }
+        @Override public ImportedProperty getImportedValue(String name) {
+            return properties.getImportedValue(name);
         }
     }
 }

@@ -3,6 +3,8 @@ package games.pixscape.runtime.property;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.api.ClassProperty;
+import games.pixscape.runtime.api.CustomProperties;
+import games.pixscape.runtime.api.ImportedProperty;
 
 /**
  * {@code SUPPORTED_EXPERT} case-sensitive collection of named, typed Pixscape
@@ -18,6 +20,13 @@ import games.pixscape.runtime.api.ClassProperty;
 public final class PropertySet {
     private static final int MAX_NESTED_CLASS_DEPTH = 64;
     private ObjectMap<String, PropertyValue> values;
+    private transient CustomProperties readView;
+
+    /** Read-only live view, without exposing this mutable authoring collection. */
+    public CustomProperties readOnlyView() {
+        if (readView == null) readView = new PropertyValue.PropertySetReadView(this);
+        return readView;
+    }
 
     public PropertySet() {
         this(0);
@@ -193,6 +202,13 @@ public final class PropertySet {
         if (value == null) return null;
         requireType(name, value, PropertyType.CLASS);
         return value.asClass();
+    }
+
+    public ImportedProperty getImportedValue(String name) {
+        PropertyValue value = value(name);
+        if (value == null) return null;
+        requireType(name, value, PropertyType.IMPORTED);
+        return value.asImported();
     }
 
     public void clear() {

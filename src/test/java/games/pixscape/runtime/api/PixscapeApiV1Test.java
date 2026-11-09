@@ -250,7 +250,9 @@ public class PixscapeApiV1Test {
                 TiledAPI.class.getMethod("requireStableId", int.class).getReturnType());
         Assert.assertEquals(TiledAnimationsAPI.class,
                 TiledAPI.class.getMethod("animations").getReturnType());
-        Assert.assertEquals(5, TiledAPI.class.getDeclaredMethods().length);
+        Assert.assertEquals(TileDefinition.class,
+                TiledAPI.class.getMethod("tile", int.class, int.class).getReturnType());
+        Assert.assertEquals(6, TiledAPI.class.getDeclaredMethods().length);
 
         Method[] methods = TiledAPI.class.getMethods();
         for (int i = 0; i < methods.length; i++) {

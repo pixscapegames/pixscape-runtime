@@ -14,6 +14,15 @@ package games.pixscape.runtime.api;
 public interface TileEditFacade {
     int get(int x, int y);
 
+    /**
+     * Returns the shared definition referenced by this cell, or null for an empty/out-of-bounds
+     * cell, stale map or missing exported definition. Imported animated tiles resolve their
+     * authored base definition, never the current animation frame. O(1); no data is created.
+     * Animations authored without a source tile (including older imports) have no definition
+     * and return null; no identity is inferred from their name or first frame.
+     */
+    TileDefinition definition(int x, int y);
+
     byte getFlags(int x, int y);
 
     TileEditFacade set(int x, int y, int assetId);

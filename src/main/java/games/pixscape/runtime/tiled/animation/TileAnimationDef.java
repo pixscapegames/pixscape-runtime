@@ -45,6 +45,7 @@ public final class TileAnimationDef {
         TileAnimationDefData copy = new TileAnimationDefData();
         copy.id = source.id;
         copy.name = source.name;
+        copy.baseTileAssetId = source.baseTileAssetId;
         copy.frameAssetIds = Arrays.copyOf(source.frameAssetIds, source.frameAssetIds.length);
         copy.frameDurationsMs = Arrays.copyOf(source.frameDurationsMs, source.frameDurationsMs.length);
 
@@ -59,6 +60,8 @@ public final class TileAnimationDef {
     public String name() {
         return data.name;
     }
+
+    public int baseTileAssetId() { return data.baseTileAssetId; }
 
     public int frameCount() {
         return data.frameAssetIds.length;
@@ -92,6 +95,7 @@ public final class TileAnimationDef {
         TileAnimationDefData out = new TileAnimationDefData();
         out.id = data.id;
         out.name = data.name;
+        out.baseTileAssetId = data.baseTileAssetId;
         out.frameAssetIds = Arrays.copyOf(data.frameAssetIds, data.frameAssetIds.length);
         out.frameDurationsMs = Arrays.copyOf(data.frameDurationsMs, data.frameDurationsMs.length);
         return out;

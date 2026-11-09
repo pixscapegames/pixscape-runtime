@@ -3,12 +3,14 @@ package games.pixscape.runtime.api;
 import games.pixscape.runtime.property.PropertyType;
 
 /**
- * {@code HIGH_LEVEL} read-only custom properties of a Runtime entity.
+ * {@code HIGH_LEVEL} read-only custom properties of a Runtime entity or tile definition.
  *
  * <p>V1 supports {@link PropertyType#STRING}, {@link PropertyType#BOOLEAN},
  * {@link PropertyType#INTEGER}, {@link PropertyType#FLOAT}, {@link PropertyType#COLOR}, and
  * {@link PropertyType#OBJECT}, and recursively nested {@link PropertyType#CLASS} values. COLOR
- * values are packed RGBA8888 integers ({@code 0xRRGGBBAA}).</p>
+ * values are packed RGBA8888 integers ({@code 0xRRGGBBAA}). Unsupported imported tile values
+ * use {@link PropertyType#IMPORTED}: their source type and payload remain available through
+ * {@link #getImportedValue(String)}, without conversion to STRING or entity stable IDs.</p>
  *
  * <p>Property names are case-sensitive. Missing properties use the supplied getter fallback;
  * existing properties of the wrong type throw an {@link IllegalStateException}. A stale entity
@@ -52,4 +54,7 @@ public interface CustomProperties {
      * An existing property of another type throws an {@link IllegalStateException}.
      */
     ClassProperty getClassValue(String name);
+
+    /** Returns preserved imported data, null when absent; throws for a different property type. */
+    ImportedProperty getImportedValue(String name);
 }

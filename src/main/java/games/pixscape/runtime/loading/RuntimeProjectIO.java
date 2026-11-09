@@ -215,6 +215,7 @@ public final class RuntimeProjectIO {
             def.id = node.getInt("id", 0);
             def.name = node.getString("name", null);
             def.frameAssetIds = readIntArray(node.get("frameAssetIds"));
+            def.baseTileAssetId = node.getInt("baseTileAssetId", 0);
             def.frameDurationsMs = readIntArray(node.get("frameDurationsMs"));
 
             data.animations.add(def);
@@ -316,6 +317,14 @@ public final class RuntimeProjectIO {
         profile.offsetY = node.getInt("offsetY", 0);
         profile.renderSize = parseTilesetRenderSize(node.getString("renderSize", "native"), path);
         profile.tileAssetIds = readIntArray(node.get("tileAssetIds"));
+        JsonValue tiles = node.get("tiles");
+        if (tiles != null && !tiles.isArray()) throw new GdxRuntimeException("tiles must be an array: " + path);
+        com.badlogic.gdx.utils.Json json = new com.badlogic.gdx.utils.Json();
+        for (JsonValue tile = tiles == null ? null : tiles.child; tile != null; tile = tile.next) {
+            games.pixscape.runtime.tiled.profile.TileDefinitionData definition =
+                    json.readValue(games.pixscape.runtime.tiled.profile.TileDefinitionData.class, tile);
+            profile.tiles.add(definition);
+        }
         com.badlogic.gdx.utils.IntSet members = new com.badlogic.gdx.utils.IntSet();
         for (int id : profile.tileAssetIds) members.add(id);
         JsonValue normals = node.get("normalMaps");

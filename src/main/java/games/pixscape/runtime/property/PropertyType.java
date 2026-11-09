@@ -16,5 +16,7 @@ public enum PropertyType {
     FLOAT,
     COLOR,
     OBJECT,
-    CLASS
+    CLASS,
+    /** Imported data whose source semantics are not editable/interpreted by Pixscape. */
+    IMPORTED
 }
