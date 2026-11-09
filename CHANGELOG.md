@@ -3,6 +3,7 @@
 ## [0.2.5-SNAPSHOT]
 
 ### Added
+* Added allocation-free `PhysicsAPI.pxToM(float)` and `mToPx(float)` conversions using the current effective pixels-per-meter scale for native Box2D coordinates.
 * Added `gameObjects().spawnDeferred(...)` for contact callbacks and other explicitly deferred spawns. Success receives a complete instance at the start of a subsequent render; failures and scene-retirement cancellations have a separate callback.
 
 ### Changed

@@ -21,6 +21,37 @@ import java.lang.reflect.Field;
 public class PhysicsApiTest {
 
     @Test
+    public void scalarConversionsUseNonStandardPpmForPositiveZeroAndNegativeValues() throws Exception {
+        PixscapeEngine engine = new PixscapeEngine();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.pixelsPerMeter = 64f;
+        setField(engine, "activeSceneMeta", meta);
+        PhysicsAPI physics = engine.api().physics();
+
+        Assert.assertEquals(2.5f, physics.pxToM(160f), 0f);
+        Assert.assertEquals(160f, physics.mToPx(2.5f), 0f);
+        Assert.assertEquals(0f, physics.pxToM(0f), 0f);
+        Assert.assertEquals(0f, physics.mToPx(0f), 0f);
+        Assert.assertEquals(-2.5f, physics.pxToM(-160f), 0f);
+        Assert.assertEquals(-160f, physics.mToPx(-2.5f), 0f);
+    }
+
+    @Test
+    public void scalarConversionsResolveEffectivePpmOnEveryCall() throws Exception {
+        PixscapeEngine engine = new PixscapeEngine();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.pixelsPerMeter = 64f;
+        setField(engine, "activeSceneMeta", meta);
+        PhysicsAPI physics = engine.api().physics();
+
+        Assert.assertEquals(2.5f, physics.pxToM(160f), 0f);
+        Assert.assertEquals(160f, physics.mToPx(2.5f), 0f);
+        meta.pixelsPerMeter = 80f;
+        Assert.assertEquals(2f, physics.pxToM(160f), 0f);
+        Assert.assertEquals(200f, physics.mToPx(2.5f), 0f);
+    }
+
+    @Test
     public void facadeIsCachedAndSettingsExposeSafeEffectiveValues() throws Exception {
         PixscapeEngine engine = new PixscapeEngine();
         PhysicsAPI physics = engine.api().physics();
@@ -99,6 +130,8 @@ public class PhysicsApiTest {
             meta.physicsEnabled = true;
             Assert.assertTrue(physics.isRunning());
             Assert.assertEquals(80f, physics.pixelsPerMeter(), 0f);
+            Assert.assertEquals(2f, physics.pxToM(160f), 0f);
+            Assert.assertEquals(160f, physics.mToPx(2f), 0f);
             Assert.assertSame(first.service.world, physics.box2dWorld());
 
             int withoutBody = first.world.create();
@@ -120,6 +153,8 @@ public class PhysicsApiTest {
             Assert.assertTrue(physics.isRunning());
             Assert.assertSame(second.service.world, physics.box2dWorld());
             Assert.assertEquals(120f, physics.pixelsPerMeter(), 0f);
+            Assert.assertEquals(2f, physics.pxToM(240f), 0f);
+            Assert.assertEquals(240f, physics.mToPx(2f), 0f);
             Assert.assertNull(physics.body(bodyRef));
 
             second.sync.setStepEnabled(false);

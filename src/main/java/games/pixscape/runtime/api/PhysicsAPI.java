@@ -33,6 +33,41 @@ public interface PhysicsAPI {
     float pixelsPerMeter();
 
     /**
+     * Converts pixels (Pixscape world units) to meters using the current effective
+     * {@link #pixelsPerMeter()} value. This scalar conversion does not allocate.
+     * Native Box2D methods such as {@link Body#setTransform(float, float, float)}
+     * expect positions in meters, not Pixscape world units.
+     *
+     * <pre>{@code
+     * var physics = api.physics();
+     * body.setTransform(
+     *     physics.pxToM(x),
+     *     physics.pxToM(y),
+     *     body.getAngle()
+     * );
+     * }</pre>
+     *
+     * @param px a coordinate or distance in Pixscape world units (pixels)
+     * @return {@code px / pixelsPerMeter()}
+     */
+    default float pxToM(float px) {
+        return px / pixelsPerMeter();
+    }
+
+    /**
+     * Converts meters to pixels (Pixscape world units) using the current effective
+     * {@link #pixelsPerMeter()} value. Native Box2D positions are in meters;
+     * this scalar conversion does not allocate or change the native body's units.
+     *
+     * @param m a coordinate or distance in meters
+     * @return {@code m * pixelsPerMeter()}
+     * @see #pxToM(float)
+     */
+    default float mToPx(float m) {
+        return m * pixelsPerMeter();
+    }
+
+    /**
      * Returns the active scene's effective horizontal physics parallax factor.
      * An unset internal {@code NaN} value, or no active scene, is exposed as {@code 1f}.
      */
