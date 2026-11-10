@@ -116,6 +116,29 @@ The following table summarizes the intended API surface. It is not an exhaustive
 
 A supported type can contain individual members with a different contract. In particular, a high-level API may expose an expert getter or native object without making the returned implementation high-level.
 
+### Visual scale and Runtime Physics
+
+`EntityRef.transform().setScale(...)`, `setScaleX(...)`, and `setScaleY(...)` change
+visual scale. The sprite and animation scale shortcuts use the same contract.
+An ordinary sprite or animation with its own Body accepts negative, uniform, and
+non-uniform finite scale, including when that Body has joints. Box2D writeback
+preserves this scale. Fixtures, spatial volumes, and joints are neither resized
+nor rebuilt automatically; Studio shape/joint adjustment behavior is not a Runtime
+operation. A sign change flips the image without reflecting an asymmetric or
+offset collision, and a non-centered origin can also shift the image.
+
+Scale propagates to children according to the existing hierarchy rules. Game
+Objects require positive uniform scale, including those with their own Body;
+single-axis setters must leave a valid uniform pair. Ancestors of Bodies require
+unit scale. While Runtime Physics owns a descendant Body, all scale setters on
+its ancestors remain blocked. A purely visual child without a Body or physical
+descendants remains mutable even when its parent has a Body. Non-finite values
+and invalid Game Object scale pairs are rejected before mutation.
+
+Position, rotation, and origin retain their ownership guard: they cannot be
+changed through the generic transform API while Runtime Physics owns the entity's
+Body or any descendant Body, including while simulation stepping is paused.
+
 ## 4. ECS, authored state, and serialized data
 
 Pixscape intentionally keeps Artemis available as an expert extension layer.

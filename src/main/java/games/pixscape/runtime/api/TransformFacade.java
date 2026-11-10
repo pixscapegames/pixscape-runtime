@@ -9,9 +9,15 @@ import com.badlogic.gdx.math.Vector2;
  * facade does not expose the resolved world transform.
  * Setters establish a standalone authored transform when it is absent.
  * Non-finite position, rotation, scale, origin, and delta values are rejected before mutation.
- * Negative finite scale remains supported.
- * Generic mutation throws {@link IllegalStateException} while Runtime Physics owns this entity's
- * Body or a descendant Body.
+ * Scale is visual: it changes rendered geometry and propagates through the existing hierarchy,
+ * but never resizes or rebuilds physics fixtures, spatial volumes, or joints. Changing its sign
+ * flips the image without reflecting its collision; a non-centered origin can also shift the image.
+ * Ordinary entities support negative, uniform, and non-uniform finite scale, including entities
+ * with their own Body and joints. Game Objects require positive uniform scale, and ancestors of
+ * Bodies require unit scale. Scale mutations throw {@link IllegalStateException} while Runtime
+ * Physics owns a descendant Body, but an entity's own Body does not prevent visual scaling.
+ * Position, rotation, and origin mutations remain forbidden while Runtime Physics owns this
+ * entity's Body or a descendant Body. Rejected mutations leave the transform unchanged.
  */
 public interface TransformFacade {
     float x();
@@ -68,12 +74,16 @@ public interface TransformFacade {
 
     TransformFacade rotateByRad(float radians);
 
+    /** Sets both visual scale axes; subject to the type's hierarchy and physics restrictions. */
     TransformFacade setScale(float uniform);
 
+    /** Sets visual scale without resizing fixtures, spatial volumes, or joints. */
     TransformFacade setScale(float sx, float sy);
 
+    /** Sets visual X scale, preserving Y; the resulting pair must satisfy Game Object constraints. */
     TransformFacade setScaleX(float sx);
 
+    /** Sets visual Y scale, preserving X; the resulting pair must satisfy Game Object constraints. */
     TransformFacade setScaleY(float sy);
 
     TransformFacade setOrigin(float ox, float oy);

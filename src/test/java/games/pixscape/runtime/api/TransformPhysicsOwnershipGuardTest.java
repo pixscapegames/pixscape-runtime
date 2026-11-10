@@ -17,7 +17,7 @@ import java.lang.reflect.Field;
 /** Runtime P2 contract coverage for high-level transform ownership protection. */
 public class TransformPhysicsOwnershipGuardTest {
     @Test
-    public void runtimePhysicsRejectsEveryGenericTransformMutationForEachBodyType() throws Exception {
+    public void runtimePhysicsPreservesPoseAndOriginGuardsForEachBodyType() throws Exception {
         Harness harness = new Harness();
         int body = harness.entity(1, false, -1);
         PhysicsBodyComponent physics = harness.world.getMapper(PhysicsBodyComponent.class).create(body);
@@ -35,13 +35,81 @@ public class TransformPhysicsOwnershipGuardTest {
             assertRejected(new Runnable() { @Override public void run() { transform.moveBy(1f, 2f); } });
             assertRejected(new Runnable() { @Override public void run() { transform.setRotationRad(0.5f); } });
             assertRejected(new Runnable() { @Override public void run() { transform.rotateByRad(0.5f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setScale(2f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setScaleX(2f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setScaleY(2f); } });
             assertRejected(new Runnable() { @Override public void run() { transform.setOrigin(2f, 3f); } });
         }
         Assert.assertEquals(3f, authored.x, 0f);
         Assert.assertEquals(4f, authored.y, 0f);
+        Assert.assertEquals(0f, authored.rotationRad, 0f);
+        Assert.assertEquals(0f, authored.originX, 0f);
+        Assert.assertEquals(0f, authored.originY, 0f);
+    }
+
+    @Test
+    public void ownBodyAllowsEveryScaleSetterAndSpriteAnimationShortcut() throws Exception {
+        Harness harness = new Harness();
+        int entity = harness.entity(1, false, -1);
+        PhysicsBodyComponent physics = harness.world.getMapper(PhysicsBodyComponent.class).create(entity);
+        harness.world.getMapper(TextureRegionComponent.class).create(entity);
+        harness.activateRuntimePhysics();
+        EntityRef ref = harness.engine.api().entities().ofEntityId(entity);
+        TransformFacade transform = ref.transform();
+        SpriteRef sprite = new PixscapeApiImpl.SpriteRefImpl(ref);
+        AnimationRef animation = new PixscapeApiImpl.AnimationRefImpl(ref);
+        for (int type = PhysicsBodyComponent.STATIC; type <= PhysicsBodyComponent.DYNAMIC; type++) {
+            physics.type = type;
+            transform.setScale(1f).setScaleX(-1f);
+            assertScale(transform, -1f, 1f);
+            transform.setScaleY(-2f);
+            assertScale(transform, -1f, -2f);
+            transform.setScale(3f);
+            assertScale(transform, 3f, 3f);
+            transform.setScale(-2f, 4f);
+            assertScale(transform, -2f, 4f);
+            Assert.assertSame(sprite, sprite.scale(2f));
+            assertScale(transform, 2f, 2f);
+            Assert.assertSame(sprite, sprite.scale(-3f, 4f));
+            assertScale(transform, -3f, 4f);
+            Assert.assertSame(animation, animation.scale(-2f));
+            assertScale(transform, -2f, -2f);
+            animation.transform().setScale(0f, 2f);
+            assertScale(transform, 0f, 2f);
+        }
+        for (float invalid : new float[]{Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(invalid));
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(5f, invalid));
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleX(invalid));
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleY(invalid));
+            assertScale(transform, 0f, 2f);
+        }
+    }
+
+    @Test
+    public void gameObjectOwnBodyAllowsOnlyPositiveUniformCandidateBeforeMutation() throws Exception {
+        Harness harness = new Harness();
+        int root = harness.entity(1, true, -1);
+        harness.world.getMapper(PhysicsBodyComponent.class).create(root);
+        harness.activateRuntimePhysics();
+        TransformFacade transform = harness.engine.api().entities().ofEntityId(root).transform();
+        transform.setScale(2f).setScale(3f, 3f).setScaleX(3f).setScaleY(3f);
+        assertScale(transform, 3f, 3f);
+        for (float invalid : new float[]{-1f, 0f, 2f, Float.NaN, Float.POSITIVE_INFINITY}) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleX(invalid));
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleY(invalid));
+            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(3f, invalid));
+            assertScale(transform, 3f, 3f);
+        }
+        Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(-2f));
+        Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(0f));
+        assertScale(transform, 3f, 3f);
+        assertRejected(() -> transform.setPosition(1f, 2f));
+        assertRejected(() -> transform.setRotationRad(1f));
+        assertRejected(() -> transform.setOrigin(1f, 2f));
+        harness.world.process();
+    }
+
+    private static void assertScale(TransformFacade transform, float sx, float sy) {
+        Assert.assertEquals(sx, transform.scaleX(), 0f);
+        Assert.assertEquals(sy, transform.scaleY(), 0f);
     }
 
     @Test
@@ -68,6 +136,8 @@ public class TransformPhysicsOwnershipGuardTest {
         int child = harness.entity(3, false, 2);
         harness.world.getMapper(PhysicsBodyComponent.class).create(child)
                 .type = PhysicsBodyComponent.KINEMATIC;
+        harness.world.getMapper(PhysicsBodyComponent.class).create(root);
+        int visual = harness.entity(5, false, 1);
         int sibling = harness.entity(4, false, -1);
         harness.activateRuntimePhysics();
 
@@ -76,6 +146,21 @@ public class TransformPhysicsOwnershipGuardTest {
                 harness.engine.api().entities().ofEntityId(root).transform().setScale(2f);
             }
         });
+
+        for (int ancestor : new int[]{root, middle}) {
+            TransformFacade transform = harness.engine.api().entities().ofEntityId(ancestor).transform();
+            assertRejected(() -> transform.setScale(2f));
+            assertRejected(() -> transform.setScale(2f, 2f));
+            assertRejected(() -> transform.setScaleX(1f));
+            assertRejected(() -> transform.setScaleY(1f));
+            assertRejected(() -> transform.setPosition(1f, 2f));
+            assertRejected(() -> transform.setRotationRad(1f));
+            assertRejected(() -> transform.setOrigin(1f, 2f));
+            assertScale(transform, 1f, 1f);
+        }
+        TransformFacade visualTransform = harness.engine.api().entities().ofEntityId(visual).transform();
+        visualTransform.setScale(-2f, 3f).setPosition(4f, 5f);
+        assertScale(visualTransform, -2f, 3f);
         assertRejected(new Runnable() {
             @Override public void run() {
                 harness.engine.api().entities().ofEntityId(middle).transform().setOrigin(5f, 6f);
@@ -93,6 +178,10 @@ public class TransformPhysicsOwnershipGuardTest {
         int child = harness.entity(2, false, 1);
         harness.world.getMapper(PhysicsBodyComponent.class).create(child);
         harness.prepareHierarchy();
+
+        TransformFacade rootTransform = harness.engine.api().entities().ofEntityId(root).transform();
+        Assert.assertThrows(IllegalArgumentException.class, () -> rootTransform.setScale(2f));
+        assertScale(rootTransform, 1f, 1f);
 
         harness.engine.api().entities().ofEntityId(root).transform().setPosition(7f, 8f);
         Assert.assertEquals(7f, harness.world.getMapper(TransformComponent.class).get(root).x, 0f);

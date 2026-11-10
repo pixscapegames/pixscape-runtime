@@ -1314,7 +1314,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScale(float sx, float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale", sx, sy);
-            requirePhysicsMutationAllowed(handle);
+            requireScaleMutationAllowed(sx, sy);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
                 t.scaleX = sx;
@@ -1326,28 +1326,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TransformFacade setScaleX(float sx) {
-            if (handle.world() == null) return this;
-            requireFinite("Transform scale x", sx);
-            requirePhysicsMutationAllowed(handle);
-            TransformComponent t = t(true);
-            if (t != null && t.scaleX != sx) {
-                t.scaleX = sx;
-                markGeometry(GeometryDirty.SCALE);
-            }
-            return this;
+            return setScale(sx, scaleY());
         }
 
         @Override
         public TransformFacade setScaleY(float sy) {
-            if (handle.world() == null) return this;
-            requireFinite("Transform scale y", sy);
-            requirePhysicsMutationAllowed(handle);
-            TransformComponent t = t(true);
-            if (t != null && t.scaleY != sy) {
-                t.scaleY = sy;
-                markGeometry(GeometryDirty.SCALE);
-            }
-            return this;
+            return setScale(scaleX(), sy);
         }
 
         @Override
@@ -1381,6 +1365,27 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             DirtyTrackerSystem dirty = world != null
                     ? world.getSystem(DirtyTrackerSystem.class) : null;
             if (dirty != null) dirty.geometry(handle.entityId, subMask);
+        }
+
+        private void requireScaleMutationAllowed(float sx, float sy) {
+            World world = handle.world();
+            // Validate the complete candidate before creating or changing the transform.
+            if (world.getMapper(GameObjectComponent.class).has(handle.entityId)
+                    && (sx <= 0f || Float.compare(sx, sy) != 0)) {
+                throw new IllegalArgumentException(
+                        "Game Object parent scale must be finite, positive, and uniform.");
+            }
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (hierarchy == null || !hierarchy.containsPhysicsInDescendants(handle.entityId)) return;
+            PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
+            if (authority != null && authority.isRuntimePhysics()) {
+                throw new IllegalStateException(
+                        "Scale mutation is not allowed while Runtime Physics owns a descendant Body.");
+            }
+            if (Float.compare(sx, 1f) != 0 || Float.compare(sy, 1f) != 0) {
+                throw new IllegalArgumentException(
+                        "Physics Game Object hierarchy requires parent scale (1, 1).");
+            }
         }
 
         private static void requirePhysicsMutationAllowed(EntityHandle handle) {
