@@ -239,6 +239,20 @@ public final class IdentityRegistry {
     }
 
     /**
+     * Copies all currently indexed, active entities for a cold authoring snapshot, including
+     * prepared creations not yet published to Artemis subscriptions. O(index size); never
+     * call this collection traversal from frame processing or individual resolution paths.
+     */
+    public void collectIndexedEntityIds(IntArray out) {
+        out.clear();
+        if (world == null) return;
+        for (IntMap.Entry<Integer> entry : byStableId.entries()) {
+            int entity = entry.value;
+            if (world.getEntityManager().isActive(entity)) out.add(entity);
+        }
+    }
+
+    /**
      * Returns the active entity currently indexed by {@code stableId}, or {@code -1}
      * when the ID is unassigned, not indexed, inactive, or no World is bound.
      * A missing stable-ID lookup says nothing about entities without assigned identities.

@@ -1,5 +1,6 @@
 package games.pixscape.runtime.helper;
 
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
 
 /**
@@ -7,6 +8,27 @@ import games.pixscape.runtime.component.OrientedBoundsComponent;
  */
 public final class OrientedBoundsHelper {
     private OrientedBoundsHelper() {
+    }
+
+    /** Resolves the axes and extents of an authored rectangle using its world rotation/scale. */
+    public static void setAxesAndExtents(OrientedBoundsComponent b, float width, float height,
+                                         float rotation, float scaleX, float scaleY) {
+        b.ux = MathUtils.cos(rotation);
+        b.uy = MathUtils.sin(rotation);
+        b.vx = -b.uy;
+        b.vy = b.ux;
+        b.hx = 0.5f * width * Math.abs(scaleX);
+        b.hy = 0.5f * height * Math.abs(scaleY);
+    }
+
+    /** Resolves the center using world pivot/scale and the authored local origin. */
+    public static void setCenter(OrientedBoundsComponent b, float width, float height,
+                                  float originX, float originY, float worldX, float worldY,
+                                  float scaleX, float scaleY) {
+        float dx = (width * 0.5f - originX) * scaleX;
+        float dy = (height * 0.5f - originY) * scaleY;
+        b.cx = worldX + b.ux * dx + b.vx * dy;
+        b.cy = worldY + b.uy * dx + b.vy * dy;
     }
 
     /**

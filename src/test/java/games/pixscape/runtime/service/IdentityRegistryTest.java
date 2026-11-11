@@ -9,6 +9,39 @@ import org.junit.Test;
 public class IdentityRegistryTest {
 
     @Test
+    public void authoringSnapshotIncludesPreparedEntitiesAndExcludesUnindexedOrDeletedOnes() {
+        World world = new World(new WorldConfiguration());
+        IdentityRegistry registry = new IdentityRegistry();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        registry.bind(world, meta);
+        com.badlogic.gdx.utils.IntArray snapshot = new com.badlogic.gdx.utils.IntArray();
+        try {
+            registry.collectIndexedEntityIds(snapshot);
+            Assert.assertEquals(0, snapshot.size);
+            int prepared = world.create();
+            registry.ensureStableId(prepared);
+            world.create(); // Unassigned entities are intentionally outside the identity snapshot.
+            int highWater = meta.nextEntityStableId;
+            for (int i = 0; i < 3; i++) {
+                registry.collectIndexedEntityIds(snapshot);
+                Assert.assertEquals(1, snapshot.size);
+                Assert.assertEquals(prepared, snapshot.first());
+                Assert.assertEquals(highWater, meta.nextEntityStableId);
+            }
+            world.process();
+            world.delete(prepared);
+            world.process();
+            registry.collectIndexedEntityIds(snapshot);
+            Assert.assertEquals(0, snapshot.size);
+        } finally {
+            registry.bind(null, null);
+            registry.collectIndexedEntityIds(snapshot);
+            Assert.assertEquals(0, snapshot.size);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void restoredIdentityIsPreservedWithoutAdvancingAllocator() {
         World world = new World(new WorldConfiguration());
         SceneMetaRuntime meta = new SceneMetaRuntime();

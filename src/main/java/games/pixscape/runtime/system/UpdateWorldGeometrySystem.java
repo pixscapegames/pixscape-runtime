@@ -3,10 +3,10 @@ package games.pixscape.runtime.system;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.annotations.SkipWire;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.QuadGeometryHelper;
+import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -95,33 +95,15 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
 
             // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
-                float cos = MathUtils.cos(worldRotation);
-                float sin = MathUtils.sin(worldRotation);
-
-                b.ux = cos;
-                b.uy = sin;
-                b.vx = -sin;
-                b.vy = cos;
-
-                float sx = worldScaleX;
-                float sy = worldScaleY;
-
-                b.hx = 0.5f * d.width * Math.abs(sx);
-                b.hy = 0.5f * d.height * Math.abs(sy);
-
+                OrientedBoundsHelper.setAxesAndExtents(b, d.width, d.height,
+                        worldRotation, worldScaleX, worldScaleY);
             }
 
             // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB
             if ((sub & GeometryDirty.AABB_MASK) != 0) {
 
-                float pivotWorldX = worldX;
-                float pivotWorldY = worldY;
-
-                float dx = (d.width * 0.5f - t.originX) * worldScaleX;
-                float dy = (d.height * 0.5f - t.originY) * worldScaleY;
-
-                b.cx = pivotWorldX + b.ux * dx + b.vx * dy;
-                b.cy = pivotWorldY + b.uy * dx + b.vy * dy;
+                OrientedBoundsHelper.setCenter(b, d.width, d.height, t.originX, t.originY,
+                        worldX, worldY, worldScaleX, worldScaleY);
 
                 QuadGeometryHelper.toWorldCorners(
                         b, t, mQuad.getSafe(e, null), worldScaleX, worldScaleY, tmpCorners);
