@@ -789,7 +789,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public void destroyEntityId(int entityId) {
             World world = engine.getWorld();
             if (world == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
-            world.delete(entityId);
+            entityReferences.removals.schedule(world, entityId);
         }
 
         @Override

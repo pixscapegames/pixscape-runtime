@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
@@ -41,6 +42,35 @@ public final class PhysicsService {
     private static final PhysicsBodyCompiler BODY_COMPILER = new PhysicsBodyCompiler();
     private static final PhysicsCompiledFixtureCachePublisher CACHE_PUBLISHER =
             new PhysicsCompiledFixtureCachePublisher();
+
+    /**
+     * Cold persistence-boundary check, linear in the supplied entities. Use the loader's
+     * returned IDs before publication; subscriptions need not contain loaded entities yet.
+     * Artemis follows entity references when saving, even when their bodies no longer exist.
+     */
+    public static void requireJointBodies(World world, IntBag entityIds, String context) {
+        for (int i = 0; i < entityIds.size(); i++) {
+            requireJointBodies(world, entityIds.get(i), context);
+        }
+    }
+
+    /** Checks one complete authored relation at publication, independent of native availability. */
+    public static void requireJointBodies(World world, int entity, String context) {
+        PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).getSafe(entity, null);
+        if (joint == null) return;
+        ComponentMapper<PhysicsBodyComponent> bodies = world.getMapper(PhysicsBodyComponent.class);
+        String endpoint = !isExistingBody(world, bodies, joint.aEid) ? "aEid"
+                : !isExistingBody(world, bodies, joint.bEid) ? "bEid" : null;
+        if (endpoint == null) return;
+        PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(entity, null);
+        throw new IllegalArgumentException(context + " has a joint without two existing bodies: entityId="
+                + entity + ", stableId=" + (identity != null ? identity.stableId : -1)
+                + ", " + endpoint + "=" + ("aEid".equals(endpoint) ? joint.aEid : joint.bEid) + ".");
+    }
+
+    private static boolean isExistingBody(World world, ComponentMapper<PhysicsBodyComponent> bodies, int entity) {
+        return entity >= 0 && world.getEntityManager().isActive(entity) && bodies.has(entity);
+    }
 
     public static void requireNoAuthoredPhysics(
             World world, IntBag entityIds, String context) {
@@ -868,22 +898,22 @@ public final class PhysicsService {
     }
 
     public void deleteJoint(int jointEid) {
-        if (jointEid < 0) return;
+        deleteEntityAndDependentJoints(world, jointEid);
+    }
 
-        try {
-            world.delete(jointEid);
-        } catch (Throwable ignore) {
-            if (mDist.has(jointEid)) mDist.remove(jointEid);
-            if (mRev.has(jointEid)) mRev.remove(jointEid);
-            if (mPrism.has(jointEid)) mPrism.remove(jointEid);
-            if (mWheel.has(jointEid)) mWheel.remove(jointEid);
-            if (mFriction.has(jointEid)) mFriction.remove(jointEid);
-            if (mMotor.has(jointEid)) mMotor.remove(jointEid);
-            if (mWeld.has(jointEid)) mWeld.remove(jointEid);
-            if (mPulley.has(jointEid)) mPulley.remove(jointEid);
-            if (mGear.has(jointEid)) mGear.remove(jointEid);
-            if (mJoint.has(jointEid)) mJoint.remove(jointEid);
+    /** Deletes a standalone entity and its joint dependency closure in one ECS batch. */
+    public static void deleteEntityAndDependentJoints(World world, int entityId) {
+        if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
+        IntArray affected = collectJointsAffectedByEntityRemoval(
+                world, IntArray.with(entityId), new IntArray(false, 8));
+        games.pixscape.runtime.system.Box2dSyncSystem sync =
+                world.getSystem(games.pixscape.runtime.system.Box2dSyncSystem.class);
+        for (int i = 0; i < affected.size; i++) {
+            int joint = affected.get(i);
+            world.delete(joint);
+            if (sync != null) sync.jointDependencies().remove(joint);
         }
+        if (!affected.contains(entityId)) world.delete(entityId);
     }
 
     /**

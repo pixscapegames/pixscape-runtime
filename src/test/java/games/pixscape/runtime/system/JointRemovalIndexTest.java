@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.render.JointDirtyBits;
 import org.junit.Test;
@@ -11,12 +12,36 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JointRemovalIndexTest {
+    @Test public void deletingSourceJointAlsoDeletesDependentGear() {
+        Box2dSyncSystem sync = new Box2dSyncSystem(null);
+        World world = new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(16), sync).build());
+        try {
+            int a = body(world), b = body(world);
+            int first = world.create(), second = world.create(), gear = world.create();
+            for (int entity : new int[]{first, second, gear}) {
+                var base = world.getMapper(PhysicsJointComponent.class).create(entity);
+                base.aEid = a; base.bEid = b;
+                base.type = entity == gear ? PhysicsJointComponent.TYPE_GEAR : PhysicsJointComponent.TYPE_REVOLUTE;
+            }
+            var data = world.getMapper(PhysicsGearJointComponent.class).create(gear);
+            data.joint1Eid = first; data.joint2Eid = second;
+            world.process();
+            new games.pixscape.runtime.service.PhysicsService(world, null).deleteJoint(first);
+            world.process();
+            assertFalse(world.getEntityManager().isActive(first));
+            assertFalse(world.getEntityManager().isActive(gear));
+            assertTrue(world.getEntityManager().isActive(second));
+            assertTrue(world.getEntityManager().isActive(a));
+            assertTrue(world.getEntityManager().isActive(b));
+        } finally { world.dispose(); }
+    }
+
     @Test public void sameFrameRetargetingAndGhostDeletionKeepOnlyCurrentRelations() {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         Box2dSyncSystem sync = new Box2dSyncSystem(null);
         World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
         try {
-            int a = world.create(), b = world.create(), c = world.create(), joint = world.create();
+            int a = body(world), b = body(world), c = body(world), joint = world.create();
             var base = world.getMapper(PhysicsJointComponent.class).create(joint);
             base.aEid = a; base.bEid = b;
             dirty.joint(joint, JointDirtyBits.ALL);
@@ -39,9 +64,11 @@ public class JointRemovalIndexTest {
         Box2dSyncSystem sync = new Box2dSyncSystem(null);
         World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
         try {
+            int bodyA = body(world), bodyB = body(world);
             int first = world.create(), second = world.create(), third = world.create(), gear = world.create();
             for (int entity : new int[]{first, second, third, gear}) {
-                world.getMapper(PhysicsJointComponent.class).create(entity);
+                var base = world.getMapper(PhysicsJointComponent.class).create(entity);
+                base.aEid = bodyA; base.bEid = bodyB;
             }
             var data = world.getMapper(PhysicsGearJointComponent.class).create(gear);
             data.joint1Eid = first; data.joint2Eid = second;
@@ -64,8 +91,12 @@ public class JointRemovalIndexTest {
         Box2dSyncSystem sync = new Box2dSyncSystem(null);
         World world = new World(new WorldConfigurationBuilder().with(dirty, sync).build());
         try {
+            int bodyA = body(world), bodyB = body(world);
             int a = world.create(), b = world.create(), gear = world.create();
-            for (int entity : new int[]{a, b, gear}) world.getMapper(PhysicsJointComponent.class).create(entity);
+            for (int entity : new int[]{a, b, gear}) {
+                var base = world.getMapper(PhysicsJointComponent.class).create(entity);
+                base.aEid = bodyA; base.bEid = bodyB;
+            }
             var links = world.getMapper(PhysicsGearJointComponent.class).create(gear);
             links.joint1Eid = a; links.joint2Eid = a;
             dirty.joint(gear, JointDirtyBits.ALL);
@@ -76,6 +107,12 @@ public class JointRemovalIndexTest {
             assertEquals(2, found.size);
             assertTrue(found.contains(a)); assertTrue(found.contains(gear)); assertFalse(found.contains(b));
         } finally { world.dispose(); }
+    }
+
+    private static int body(World world) {
+        int entity = world.create();
+        world.getMapper(PhysicsBodyComponent.class).create(entity);
+        return entity;
     }
 
     private static IntArray closure(Box2dSyncSystem sync, int seed) {

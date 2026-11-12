@@ -29,6 +29,7 @@ import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /**
@@ -275,7 +276,7 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 effectAtlasTags.remove(e);
                 appliedLooping.remove(e, 0);
                 fx.free();
-                world.delete(e);
+                PhysicsService.deleteEntityAndDependentJoints(world, e);
                 continue;
             }
 

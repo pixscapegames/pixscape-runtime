@@ -28,6 +28,7 @@ import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.PhysicsService;
 
 
 /**
@@ -204,6 +205,32 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             }
         };
         subWanted.addSubscriptionListener(bodyChanges);
+        // Authored body removal must also remove its joints in the same mutation.
+        // Inspect only indexed dependents; native Physics may be disabled or unavailable.
+        asm.get(Aspect.all(PhysicsBodyComponent.class)).addSubscriptionListener(
+                new EntitySubscription.SubscriptionListener() {
+                    @Override public void inserted(IntBag entities) { }
+                    @Override public void removed(IntBag entities) {
+                        for (int i = 0; i < entities.size(); i++) {
+                            int body = entities.get(i);
+                            if (allEntities.getActiveEntityIds().get(body) && mBodyDef.has(body)) continue;
+                            IntArray dependents = jointDependencies.jointsForBody(body);
+                            if (dependents == null) continue;
+                            for (int j = 0; j < dependents.size; j++) {
+                                int joint = dependents.get(j);
+                                // Artemis retains deleted components until after these callbacks.
+                                // Aspect.all has already published the complete batch of deletions.
+                                if (!allEntities.getActiveEntityIds().get(joint)) continue;
+                                PhysicsJointComponent base = mJointBase.getSafe(joint, null);
+                                if (base == null) continue;
+                                PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).getSafe(joint, null);
+                                throw new IllegalArgumentException("Body removal left an authored joint: entityId="
+                                        + joint + ", stableId=" + (identity != null ? identity.stableId : -1)
+                                        + ", removedBody=" + body + ".");
+                            }
+                        }
+                    }
+                });
         asm.get(Aspect.all(PhysicsCompiledFixturesComponent.class)).addSubscriptionListener(bodyChanges);
         asm.get(Aspect.all(TiledLayerComponent.class)).addSubscriptionListener(bodyChanges);
 
@@ -284,6 +311,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                     int jEid = data[i];
                     unindexJoint(jEid);
                     destroyRuntimeJointIfAny(jEid);
+                    // Body teardown can have queued this now-deleted joint for rebuild.
+                    if (dirty != null) dirty.acknowledgeJoint(jEid);
                 }
             }
         });
@@ -527,8 +556,15 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     /** Publishes one complete authored joint after its fields have been assigned. */
     public void publishJointRelations(int joint) {
         if (joint < 0 || mJointBase == null) return;
+        // Native teardown may dirty a joint while Artemis still retains its deleted
+        // components. The all-entity subscription publishes deletions before joint callbacks.
+        if (jointsSub.getActiveEntityIds().get(joint) && !allEntities.getActiveEntityIds().get(joint)) {
+            jointDependencies.remove(joint);
+            return;
+        }
         PhysicsJointComponent base = mJointBase.getSafe(joint, null);
         if (base == null) { jointDependencies.remove(joint); return; }
+        PhysicsService.requireJointBodies(world, joint, "Joint publication");
         PhysicsGearJointComponent gear = mGear.getSafe(joint, null);
         jointDependencies.publish(joint, base.aEid, base.bEid,
                 gear != null ? gear.joint1Eid : -1, gear != null ? gear.joint2Eid : -1);

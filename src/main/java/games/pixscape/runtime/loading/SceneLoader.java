@@ -231,7 +231,10 @@ public final class SceneLoader {
     private static void validatePhysicsSchema(SaveFileFormat format, World world,
             SceneMetaRuntime sceneMeta,
             FileHandle sceneFile) {
-        if (sceneMeta.physicsEnabled) return;
+        if (sceneMeta.physicsEnabled) {
+            PhysicsService.requireJointBodies(world, format.entities, "Scene '" + sceneFile.path() + "'");
+            return;
+        }
 
         PhysicsService.requireNoAuthoredPhysics(
                 world,

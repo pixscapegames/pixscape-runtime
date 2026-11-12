@@ -48,6 +48,36 @@ public class EntityRefIdentitySafetyTest {
         GdxNativesLoader.load();
     }
 
+    @Test
+    public void numericDeletionIncludesDependentJoints() {
+        for (boolean stable : new boolean[]{false, true}) {
+            PixscapeEngine engine = new PixscapeEngine();
+            disableRendering(engine);
+            try {
+                engine.initEmptyRuntime();
+                World world = engine.getWorld();
+                engine.getIdentityRegistry().bind(world, new SceneMetaRuntime());
+                int a = world.create();
+                int b = world.create();
+                world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(a);
+                world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(b);
+                int joint = world.create();
+                games.pixscape.runtime.component.physics.PhysicsJointComponent base = world.getMapper(
+                        games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(joint);
+                base.aEid = a;
+                base.bEid = b;
+                int stableId = engine.getIdentityRegistry().ensureStableId(a);
+                world.process();
+                if (stable) engine.api().entities().destroyStableId(stableId);
+                else engine.api().entities().destroyEntityId(a);
+                world.process();
+                Assert.assertFalse(world.getEntityManager().isActive(a));
+                Assert.assertFalse(world.getEntityManager().isActive(joint));
+                Assert.assertTrue(world.getEntityManager().isActive(b));
+            } finally { engine.dispose(); }
+        }
+    }
+
     @Before
     public void installLibGdxProxies() {
         previousApp = Gdx.app;

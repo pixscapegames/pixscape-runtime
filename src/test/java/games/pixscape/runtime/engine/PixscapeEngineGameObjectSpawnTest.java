@@ -210,15 +210,16 @@ public class PixscapeEngineGameObjectSpawnTest {
         }
     }
 
-    @Test public void removingAllAuthoredPhysicsBeforeObservationStillReleasesNativeOwner() throws Exception {
+    @Test public void removingBodyBeforeObservationRejectsSurvivingAuthoredJoint() throws Exception {
         try (Harness h = new Harness(asset())) {
             h.ready(); GameObjectInstance instance = h.spawn();
             int player = instance.requireMember("playerAnimation").entityId();
             h.engine.getWorld().getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).remove(player);
             h.engine.getWorld().getMapper(games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent.class).remove(player);
-            h.frame(0);
-            assertNull(h.player(instance)); assertEquals(1, h.nativeWorld().getBodyCount());
-            assertEquals(0, h.nativeWorld().getJointCount());
+            // Removing only the body leaves the instance's authored joint dangling.
+            // This must fail at publication, not silently disappear from native Physics.
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> h.frame(0));
+            assertTrue(failure.getMessage(), failure.getMessage().contains("Joint publication"));
         }
     }
 

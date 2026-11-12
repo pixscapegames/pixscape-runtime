@@ -164,6 +164,32 @@ public class RenderParticleSyncSystemTest {
     }
 
     @Test
+    public void completedParticleDeletesItsDependentJoint() throws Exception {
+        RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0, new AtlasRuntimeService(), null);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(16), new Box2dSyncSystem(null), particles).build());
+        ObjectMap<String, ParticleEffectPool> pools = field(particles.particleAvailability(), "pools");
+        pools.put("main|empty.p", new ParticleEffectPool(new ParticleEffect(), 0, 4));
+        try {
+            int entity = world.create(), other = world.create(), joint = world.create();
+            world.getMapper(TransformComponent.class).create(entity);
+            world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(entity);
+            world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(other);
+            var base = world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(joint);
+            base.aEid = entity; base.bEid = other;
+            ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).create(entity);
+            emitter.effectPath = "empty.p";
+            emitter.atlasTag = "main";
+            emitter.autoRemoveWhenComplete = true;
+            world.process();
+            Assert.assertFalse(world.getEntityManager().isActive(entity));
+            Assert.assertFalse(world.getEntityManager().isActive(joint));
+            Assert.assertTrue(world.getEntityManager().isActive(other));
+        } finally { world.dispose(); }
+    }
+
+    @Test
     public void completedParticlesUnlinkAfterHierarchyAndReturnTheirEffectOnlyOnce() throws Exception {
         GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem();
         RenderParticleSyncSystem particles = new RenderParticleSyncSystem(
