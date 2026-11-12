@@ -23,7 +23,9 @@ public class ConeLightComponent extends PooledComponent {
     // Direction (deg, 0 = +X)
     public float rotationDeg = 0f;
 
-    /** Elevation from the horizontal XY plane; positive toward +Z, in -90..90 degrees. */
+    /**
+     * Elevation from the horizontal XY plane; positive toward +Z, in -90..90 degrees.
+     */
     public float inclinationDeg = 0f;
 
     // Cone edge softening (0..1)
@@ -34,7 +36,9 @@ public class ConeLightComponent extends PooledComponent {
 
     // Enabled flag (important for the editor)
     public boolean enabled = true;
-    /** Source Z in common lighting pixel units. */
+    /**
+     * Source Z in common lighting pixel units.
+     */
     public float height = 128f;
     public int shadowQuality = 1;
     public int shadowResolution = 512;
@@ -52,6 +56,8 @@ public class ConeLightComponent extends PooledComponent {
         softness = 0.1f;
         falloff = 1.5f;
         enabled = true;
-        height = 128f; shadowQuality = 1; shadowResolution = 512;
+        height = 128f;
+        shadowQuality = 1;
+        shadowResolution = 512;
     }
 }

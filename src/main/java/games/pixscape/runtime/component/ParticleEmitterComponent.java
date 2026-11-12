@@ -30,7 +30,9 @@ public final class ParticleEmitterComponent extends PooledComponent {
      */
     public boolean looping = true;
 
-    /** Exempts this instance's own particle color from world ambient lighting only. */
+    /**
+     * Exempts this instance's own particle color from world ambient lighting only.
+     */
     public boolean ignoreAmbientLighting = false;
 
     /**
@@ -41,7 +43,9 @@ public final class ParticleEmitterComponent extends PooledComponent {
     public boolean paused = false;
     public boolean playRequested = false;
     public boolean restartRequested = false;
-    /** Runtime request to stop emission and retire after live particles finish. */
+    /**
+     * Runtime request to stop emission and retire after live particles finish.
+     */
     public transient boolean completionRequested = false;
 
     public ParticleEmitterComponent() {

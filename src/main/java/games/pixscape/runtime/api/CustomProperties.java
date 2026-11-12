@@ -55,6 +55,8 @@ public interface CustomProperties {
      */
     ClassProperty getClassValue(String name);
 
-    /** Returns preserved imported data, null when absent; throws for a different property type. */
+    /**
+     * Returns preserved imported data, null when absent; throws for a different property type.
+     */
     ImportedProperty getImportedValue(String name);
 }

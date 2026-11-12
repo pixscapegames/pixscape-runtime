@@ -10,7 +10,9 @@ import games.pixscape.runtime.render.SortKey64;
 
 import java.util.Arrays;
 
-/** Resolves effective layer, inherited visibility, local child order, and derived root bounds. */
+/**
+ * Resolves effective layer, inherited visibility, local child order, and derived root bounds.
+ */
 public final class GameObjectCompositionSystem extends BaseSystem {
     private final DynamicEntityRenderState renderState;
     private final GameObjectCompositionState state;
@@ -30,7 +32,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private final com.badlogic.gdx.utils.IntArray pendingParents = new com.badlogic.gdx.utils.IntArray(false, 16);
     private transient Runnable keyVisitObserver;
 
-    void setKeyVisitObserver(Runnable observer) { keyVisitObserver = observer; }
+    void setKeyVisitObserver(Runnable observer) {
+        keyVisitObserver = observer;
+    }
 
     public GameObjectCompositionSystem(DynamicEntityRenderState renderState) {
         this(renderState, 16);
@@ -74,7 +78,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         return state;
     }
 
-    /** Returns whether the entity currently contributes drawable bounds to its Game Object. */
+    /**
+     * Returns whether the entity currently contributes drawable bounds to its Game Object.
+     */
     public boolean contributesDrawableBounds(int entityId) {
         if (entityId < 0 || entityId >= state.hierarchyVisible.length
                 || gameObjects.has(entityId) || !state.hierarchyVisible[entityId]) {
@@ -183,7 +189,9 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                                 ? source[left++] : source[right++];
                     }
                 }
-                int[] swap = source; source = target; target = swap;
+                int[] swap = source;
+                source = target;
+                target = swap;
             }
             for (int i = count - 1; i >= 0; i--) {
                 int child = source[i];
@@ -194,7 +202,10 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     }
 
     private int compareOrder(int left, int right) {
-        if (keyVisitObserver != null) { keyVisitObserver.run(); keyVisitObserver.run(); }
+        if (keyVisitObserver != null) {
+            keyVisitObserver.run();
+            keyVisitObserver.run();
+        }
         // Preserve the former radix keys, including their unsigned 16/32-bit interpretation.
         int lz = (observedZ[left] - SortKey64.MIN_Z) & 0xffff;
         int rz = (observedZ[right] - SortKey64.MIN_Z) & 0xffff;

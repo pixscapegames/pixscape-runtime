@@ -37,7 +37,7 @@ public interface SpriteFacade {
      * An unavailable or invalid asset causes {@link IllegalArgumentException} before mutation,
      * preserving the previous authored asset and live render binding.</p>
      *
-     * @param assetId asset id to assign
+     * @param assetId  asset id to assign
      * @param atlasTag atlas tag to resolve against, or blank for {@code main}
      * @return this facade for chaining
      */
@@ -80,7 +80,7 @@ public interface SpriteFacade {
      * Sets the sprite render size in world units.
      * Zero and negative finite dimensions retain their existing Runtime semantics.
      *
-     * @param width render width in world units
+     * @param width  render width in world units
      * @param height render height in world units
      * @return this facade for chaining
      * @throws IllegalArgumentException when either dimension is NaN or infinite

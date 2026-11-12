@@ -7,7 +7,9 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Stable identity for the built-in HUD TextButton style. */
+/**
+ * Stable identity for the built-in HUD TextButton style.
+ */
 public final class HudBuiltInTextButtonStyle {
     public static final String BACKGROUND_REGION =
             "__pixscape_internal__/__ps_internal_white_px";
@@ -15,12 +17,16 @@ public final class HudBuiltInTextButtonStyle {
     private HudBuiltInTextButtonStyle() {
     }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }
 
-    /** Creates one independent style over caller-owned packed resources. */
+    /**
+     * Creates one independent style over caller-owned packed resources.
+     */
     public static TextButton.TextButtonStyle create(TextureRegion background, BitmapFont font) {
         if (background == null) throw new IllegalArgumentException("Background region is required.");
         if (font == null) throw new IllegalArgumentException("BitmapFont is required.");

@@ -21,7 +21,9 @@ public interface ParticleRef {
 
     ParticleRef stop();
 
-    /** Stops emission and removes the effect after its existing particles finish. */
+    /**
+     * Stops emission and removes the effect after its existing particles finish.
+     */
     ParticleRef complete();
 
     /**

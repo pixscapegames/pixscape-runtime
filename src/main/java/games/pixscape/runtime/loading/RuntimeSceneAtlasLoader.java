@@ -20,10 +20,11 @@ public final class RuntimeSceneAtlasLoader {
                                       FileHandle projectDir,
                                       AtlasRuntimeService atlasRuntimeService,
                                       TextureAtlas availableAtlas) {
-        loadSceneAtlas(cfg,sceneName,projectDir,atlasRuntimeService,availableAtlas,null);
+        loadSceneAtlas(cfg, sceneName, projectDir, atlasRuntimeService, availableAtlas, null);
     }
-    public static void loadSceneAtlas(RuntimeConfig cfg,String sceneName,FileHandle projectDir,
-            AtlasRuntimeService atlasRuntimeService,TextureAtlas availableAtlas,TextureAtlas availableNormals) {
+
+    public static void loadSceneAtlas(RuntimeConfig cfg, String sceneName, FileHandle projectDir,
+                                      AtlasRuntimeService atlasRuntimeService, TextureAtlas availableAtlas, TextureAtlas availableNormals) {
         if (cfg == null || sceneName == null || sceneName.isEmpty()) {
             Gdx.app.error("RuntimeSceneAtlasLoader", "Invalid cfg/sceneName, skip atlas load.");
             return;
@@ -45,15 +46,18 @@ public final class RuntimeSceneAtlasLoader {
             throw new IllegalArgumentException(
                     "Manager-owned scene atlas is required for '" + sceneName + "'.");
         }
-        games.pixscape.runtime.service.NormalMapAtlas normalAtlas = !meta.lightingEnabled || !meta.useNormalMaps || availableNormals==null?null
-                : new games.pixscape.runtime.service.NormalMapAtlas(sceneDirName,availableNormals,availableAtlas,false);
+        games.pixscape.runtime.service.NormalMapAtlas normalAtlas = !meta.lightingEnabled || !meta.useNormalMaps || availableNormals == null ? null
+                : new games.pixscape.runtime.service.NormalMapAtlas(sceneDirName, availableNormals, availableAtlas, false);
         try {
-            if(meta.lightingEnabled && meta.useNormalMaps) {
-                games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles=RuntimeProjectIO.loadTilesetProfiles(projectDir);
-                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(sceneDirName,availableAtlas,normalAtlas,profiles,projectDir);
+            if (meta.lightingEnabled && meta.useNormalMaps) {
+                games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles = RuntimeProjectIO.loadTilesetProfiles(projectDir);
+                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(sceneDirName, availableAtlas, normalAtlas, profiles, projectDir);
             }
             atlasRuntimeService.loadBorrowed(sceneDirName, availableAtlas, normalAtlas);
-        } catch(RuntimeException failure){if(normalAtlas!=null)normalAtlas.dispose();throw failure;}
+        } catch (RuntimeException failure) {
+            if (normalAtlas != null) normalAtlas.dispose();
+            throw failure;
+        }
         Gdx.app.log("RuntimeSceneAtlasLoader",
                 "Manager-owned scene atlas reused for '" + sceneName + "'.");
     }

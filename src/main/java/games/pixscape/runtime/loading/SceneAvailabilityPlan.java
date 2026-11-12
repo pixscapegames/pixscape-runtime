@@ -18,7 +18,9 @@ import games.pixscape.runtime.particle.ParticleEffectPath;
 
 import java.util.List;
 
-/** Small staged plan for the exact file/resource needs of one selected scene. */
+/**
+ * Small staged plan for the exact file/resource needs of one selected scene.
+ */
 public final class SceneAvailabilityPlan {
 
     private final FileAvailabilityService availability;
@@ -29,7 +31,7 @@ public final class SceneAvailabilityPlan {
     private final String normalCandidatePath;
     private final games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles normalProfiles;
     private String normalAtlasPath;
-    private boolean normalAtlasRequested,normalRequirementsChecked;
+    private boolean normalAtlasRequested, normalRequirementsChecked;
     private final FileHandle effectsRoot;
     private final FileHandle gameObjectsRoot;
     private final Array<String> particlePaths = new Array<>();
@@ -48,7 +50,9 @@ public final class SceneAvailabilityPlan {
     private final ObjectMap<String, PreparedGameObject> gameObjects = new ObjectMap<>();
     private boolean gameObjectsPrepared;
 
-    /** Called after atlas publication and before READY. This plan owns the models until release. */
+    /**
+     * Called after atlas publication and before READY. This plan owns the models until release.
+     */
     public void prepareGameObjects(GameObjectRuntimeFragmentSpawner spawner) {
         requireActive();
         if (!isComplete()) throw new IllegalStateException("Scene files are not available: " + sceneName);
@@ -63,7 +67,9 @@ public final class SceneAvailabilityPlan {
         gameObjectsPrepared = true;
     }
 
-    /** Complete lookup, including misses; never reads or prepares files during gameplay. */
+    /**
+     * Complete lookup, including misses; never reads or prepares files during gameplay.
+     */
     public PreparedGameObject requireGameObject(String logicalId) {
         requireActive();
         PreparedGameObject model = gameObjects.get(logicalId);
@@ -76,20 +82,22 @@ public final class SceneAvailabilityPlan {
                                  RuntimeConfig config,
                                  FileHandle runtimeProjectDir,
                                  String sceneName) {
-        this(availability, config, runtimeProjectDir, sceneName, null,RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir));
+        this(availability, config, runtimeProjectDir, sceneName, null, RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir));
     }
-    public SceneAvailabilityPlan(FileAvailabilityService availability,RuntimeConfig config,FileHandle root,String sceneName,
-            games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles) {
-        this(availability,config,root,sceneName,null,profiles);
+
+    public SceneAvailabilityPlan(FileAvailabilityService availability, RuntimeConfig config, FileHandle root, String sceneName,
+                                 games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles) {
+        this(availability, config, root, sceneName, null, profiles);
     }
 
     // Package-private collection seam exercises the selected-root union without new metadata.
     SceneAvailabilityPlan(FileAvailabilityService availability, RuntimeConfig config,
                           FileHandle runtimeProjectDir, String sceneName, List<String> roots) {
-        this(availability,config,runtimeProjectDir,sceneName,roots,RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir));
+        this(availability, config, runtimeProjectDir, sceneName, roots, RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir));
     }
-    private SceneAvailabilityPlan(FileAvailabilityService availability,RuntimeConfig config,FileHandle runtimeProjectDir,
-            String sceneName,List<String> roots,games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles) {
+
+    private SceneAvailabilityPlan(FileAvailabilityService availability, RuntimeConfig config, FileHandle runtimeProjectDir,
+                                  String sceneName, List<String> roots, games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles profiles) {
         if (availability == null) throw new IllegalArgumentException("availability is null");
         if (config == null) throw new IllegalArgumentException("config is null");
         if (runtimeProjectDir == null) throw new IllegalArgumentException("runtimeProjectDir is null");
@@ -106,9 +114,9 @@ public final class SceneAvailabilityPlan {
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON)).path();
         this.atlasPath = runtimeProjectDir.child(config.atlasesDir)
                 .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS)).path();
-        this.normalCandidatePath=runtimeProjectDir.child(config.atlasesDir).child(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas").path();
-        this.normalProfiles=profiles;
-        this.normalRequirementsChecked=!meta.lightingEnabled || !meta.useNormalMaps;
+        this.normalCandidatePath = runtimeProjectDir.child(config.atlasesDir).child(sceneTag + games.pixscape.runtime.service.NormalMapAtlas.SUFFIX + ".atlas").path();
+        this.normalProfiles = profiles;
+        this.normalRequirementsChecked = !meta.lightingEnabled || !meta.useNormalMaps;
         this.effectsRoot = runtimeProjectDir.child(config.effectsDir);
         this.gameObjectsRoot = runtimeProjectDir.child(config.gameObjectsDir);
         this.runtimeProjectDir = runtimeProjectDir;
@@ -124,13 +132,16 @@ public final class SceneAvailabilityPlan {
             try {
                 releaseFiles();
             } catch (RuntimeException cleanupFailure) {
-                if (Gdx.app != null) Gdx.app.error("PixscapeHud", "Scene file acquisition cleanup failed for " + sceneName + ".", cleanupFailure);
+                if (Gdx.app != null)
+                    Gdx.app.error("PixscapeHud", "Scene file acquisition cleanup failed for " + sceneName + ".", cleanupFailure);
             }
             throw failure;
         }
     }
 
-    /** Activation-only acquisition. Reuses this scene's manager leases, including WebGL async loading. */
+    /**
+     * Activation-only acquisition. Reuses this scene's manager leases, including WebGL async loading.
+     */
     public void requestLightingNormals() {
         requireActive();
         if (normalAtlasRequested) return;
@@ -141,11 +152,13 @@ public final class SceneAvailabilityPlan {
         requireActive();
         availability.update();
         expandIfSceneAvailable();
-        if(!normalRequirementsChecked && dependenciesExpanded && availability.isAvailable(atlasPath,TextureAtlas.class)) {
-            if(games.pixscape.runtime.service.NormalMapAtlas.requiresNormals(availability.get(atlasPath,TextureAtlas.class),normalProfiles)) {
-                availability.request(normalCandidatePath,TextureAtlas.class);normalAtlasPath=normalCandidatePath;normalAtlasRequested=true;
+        if (!normalRequirementsChecked && dependenciesExpanded && availability.isAvailable(atlasPath, TextureAtlas.class)) {
+            if (games.pixscape.runtime.service.NormalMapAtlas.requiresNormals(availability.get(atlasPath, TextureAtlas.class), normalProfiles)) {
+                availability.request(normalCandidatePath, TextureAtlas.class);
+                normalAtlasPath = normalCandidatePath;
+                normalAtlasRequested = true;
             }
-            normalRequirementsChecked=true;
+            normalRequirementsChecked = true;
         }
         if (hudFiles != null) hudFiles.advance();
         return isComplete();
@@ -161,10 +174,10 @@ public final class SceneAvailabilityPlan {
     public boolean isComplete() {
         requireActive();
         if (!dependenciesExpanded) return false;
-        if(!normalRequirementsChecked)return false;
+        if (!normalRequirementsChecked) return false;
         if (hudFiles != null && !hudFiles.isComplete()) return false;
         if (!availability.isAvailable(atlasPath, TextureAtlas.class)) return false;
-        if(normalAtlasPath!=null && !availability.isAvailable(normalAtlasPath,TextureAtlas.class))return false;
+        if (normalAtlasPath != null && !availability.isAvailable(normalAtlasPath, TextureAtlas.class)) return false;
         for (int i = 0; i < particlePaths.size; i++) {
             if (!availability.isFileAvailable(particlePaths.get(i))) return false;
         }
@@ -177,12 +190,13 @@ public final class SceneAvailabilityPlan {
     public float progress() {
         requireActive();
         int total = 2 + particlePaths.size + gameObjectPaths.size;
-        if(normalAtlasPath!=null)total++;
+        if (normalAtlasPath != null) total++;
         if (hudFiles != null) total += hudFiles.fileCount();
         int complete = availability.isFileAvailable(scenePath) ? 1 : 0;
         if (hudFiles != null) complete += hudFiles.completeFileCount();
         if (dependenciesExpanded && availability.isAvailable(atlasPath, TextureAtlas.class)) complete++;
-        if(dependenciesExpanded && normalAtlasPath!=null && availability.isAvailable(normalAtlasPath,TextureAtlas.class))complete++;
+        if (dependenciesExpanded && normalAtlasPath != null && availability.isAvailable(normalAtlasPath, TextureAtlas.class))
+            complete++;
         for (int i = 0; i < particlePaths.size; i++) {
             if (availability.isFileAvailable(particlePaths.get(i))) complete++;
         }
@@ -196,9 +210,10 @@ public final class SceneAvailabilityPlan {
         if (!isComplete()) throw new IllegalStateException("Scene resources are not available: " + sceneName);
         return availability.get(atlasPath, TextureAtlas.class);
     }
+
     public TextureAtlas normalAtlas() {
-        if(!isComplete())throw new IllegalStateException("Scene resources are not available: "+sceneName);
-        return normalAtlasPath==null?null:availability.get(normalAtlasPath,TextureAtlas.class);
+        if (!isComplete()) throw new IllegalStateException("Scene resources are not available: " + sceneName);
+        return normalAtlasPath == null ? null : availability.get(normalAtlasPath, TextureAtlas.class);
     }
 
     public void release() {
@@ -213,7 +228,9 @@ public final class SceneAvailabilityPlan {
         }
     }
 
-    /** Prepare physical resources before the engine crosses its destructive Scene boundary. */
+    /**
+     * Prepare physical resources before the engine crosses its destructive Scene boundary.
+     */
     public void prepareHudResources() {
         requireActive();
         if (!isComplete()) throw new IllegalStateException("Scene HUD files are not available: " + sceneName);
@@ -226,10 +243,17 @@ public final class SceneAvailabilityPlan {
         hudPrepared = true;
     }
 
-    /** INTERNAL non-owning access for automatic Scene default activation only. */
-    public HudResources hudResources() { requireActive(); return hudResources; }
+    /**
+     * INTERNAL non-owning access for automatic Scene default activation only.
+     */
+    public HudResources hudResources() {
+        requireActive();
+        return hudResources;
+    }
 
-    /** Sessions must already be closed; keep World file leases until World retirement completes. */
+    /**
+     * Sessions must already be closed; keep World file leases until World retirement completes.
+     */
     public void releaseHudResources() {
         HudResources previous = hudResources;
         hudResources = null;
@@ -251,10 +275,13 @@ public final class SceneAvailabilityPlan {
             }
         }
         requestedFiles.clear();
-        if(normalAtlasRequested){
-            normalAtlasRequested=false;
-            try{availability.release(normalAtlasPath,TextureAtlas.class);}
-            catch(RuntimeException cleanupFailure){if(failure==null)failure=cleanupFailure;}
+        if (normalAtlasRequested) {
+            normalAtlasRequested = false;
+            try {
+                availability.release(normalAtlasPath, TextureAtlas.class);
+            } catch (RuntimeException cleanupFailure) {
+                if (failure == null) failure = cleanupFailure;
+            }
         }
         if (atlasRequested) {
             atlasRequested = false;

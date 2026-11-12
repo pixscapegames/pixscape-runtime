@@ -4,7 +4,9 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Allocation-free, pure actor-versus-projected-face relation solver. */
+/**
+ * Allocation-free, pure actor-versus-projected-face relation solver.
+ */
 public final class SpatialFaceRelationSolver {
     public static final byte ACTOR_BEHIND_FACE = 1;
     public static final byte ACTOR_IN_FRONT_OF_FACE = 2;
@@ -32,7 +34,9 @@ public final class SpatialFaceRelationSolver {
     boolean visualRelations;
     float[] actorProjectedX = new float[0], actorProjectedY = new float[0];
 
-    /** Captures candidates and rejected relations for diagnostics; qualification always runs. */
+    /**
+     * Captures candidates and rejected relations for diagnostics; qualification always runs.
+     */
     public void setCaptureCandidates(boolean captureCandidates) {
         this.captureCandidates = captureCandidates;
     }
@@ -75,7 +79,9 @@ public final class SpatialFaceRelationSolver {
         }
     }
 
-    /** Selects anchors by the actor influence envelope and limits constraints to finite branch X intervals. */
+    /**
+     * Selects anchors by the actor influence envelope and limits constraints to finite branch X intervals.
+     */
     public void solveVisual(SpatialActorCollector actors, SpatialProjectedFaceCache faces,
                             SpatialVisualAnchorSelector selector, DynamicEntityRenderState ecs,
                             TiledMapRenderState tiled, TiledMapLayerData map,
@@ -161,8 +167,12 @@ public final class SpatialFaceRelationSolver {
      * not a proof of pixel visibility or full circle-versus-segment intersection.
      */
     void qualifyJunctionFronts(int actor, int start, SpatialProjectedFaceCache faces, float x, float radius) {
-        if (behindFaceStamp.length < faces.faceCount) behindFaceStamp = new int[capacity(behindFaceStamp.length, faces.faceCount)];
-        if (qualificationStamp == Integer.MAX_VALUE) { java.util.Arrays.fill(behindFaceStamp, 0); qualificationStamp = 0; }
+        if (behindFaceStamp.length < faces.faceCount)
+            behindFaceStamp = new int[capacity(behindFaceStamp.length, faces.faceCount)];
+        if (qualificationStamp == Integer.MAX_VALUE) {
+            java.util.Arrays.fill(behindFaceStamp, 0);
+            qualificationStamp = 0;
+        }
         int stamp = ++qualificationStamp;
         // Stamp all raw BEHIND witnesses before compaction to keep qualification order-independent.
         for (int relation = start; relation < relationCount; relation++)
@@ -195,7 +205,9 @@ public final class SpatialFaceRelationSolver {
         relationCount = writeIndex;
     }
 
-    /** Transfers already qualified floor witnesses, then reapplies the existing junction protection. */
+    /**
+     * Transfers already qualified floor witnesses, then reapplies the existing junction protection.
+     */
     public void applyWallContinuations(SpatialActorCollector actors, SpatialProjectedFaceCache faces,
                                        SpatialWallContinuationCache continuations, int mapIndex) {
         int write = 0;
@@ -206,13 +218,16 @@ public final class SpatialFaceRelationSolver {
                 int face = relationFaceIndex[r];
                 byte type = continuations.resolve(mapIndex, face, actor, actorProjectedX[actor],
                         actors.circleRadius(actor), actors.actorAltitude[actor], relationType[r]);
-                relationFaceIndex[write] = face; relationAnchorIndex[write] = relationAnchorIndex[r];
-                relationMembershipIndex[write] = relationMembershipIndex[r]; relationType[write++] = type;
+                relationFaceIndex[write] = face;
+                relationAnchorIndex[write] = relationAnchorIndex[r];
+                relationMembershipIndex[write] = relationMembershipIndex[r];
+                relationType[write++] = type;
             }
             relationCount = write;
             qualifyJunctionFronts(actor, start, faces, actorProjectedX[actor], actors.circleRadius(actor));
             write = relationCount;
-            actorRelationStart[actor] = start; actorRelationCount[actor] = write - start;
+            actorRelationStart[actor] = start;
+            actorRelationCount[actor] = write - start;
         }
         relationCount = write;
     }
@@ -220,9 +235,12 @@ public final class SpatialFaceRelationSolver {
     private void reject(int actor, int relation, int witness) {
         if (rejectedCount == rejectedActor.length) {
             int n = capacity(rejectedCount, rejectedCount + 1);
-            rejectedActor = grow(rejectedActor, n); rejectedFace = grow(rejectedFace, n);
-            rejectedAnchor = grow(rejectedAnchor, n); rejectedMembership = grow(rejectedMembership, n);
-            rejectedWitnessFace = grow(rejectedWitnessFace, n); rejectedReason = grow(rejectedReason, n);
+            rejectedActor = grow(rejectedActor, n);
+            rejectedFace = grow(rejectedFace, n);
+            rejectedAnchor = grow(rejectedAnchor, n);
+            rejectedMembership = grow(rejectedMembership, n);
+            rejectedWitnessFace = grow(rejectedWitnessFace, n);
+            rejectedReason = grow(rejectedReason, n);
         }
         rejectedActor[rejectedCount] = actor;
         rejectedFace[rejectedCount] = relationFaceIndex[relation];
@@ -232,17 +250,20 @@ public final class SpatialFaceRelationSolver {
         rejectedReason[rejectedCount++] = REJECTED_DISTANT_JUNCTION_FRONT;
     }
 
-    public int relationCount() { return relationCount; }
+    public int relationCount() {
+        return relationCount;
+    }
 
     private static int endpointMembership(SpatialProjectedFaceCache faces, int anchor,
-                                         float x, float y, float altitude, float bottom, float top) {
+                                          float x, float y, float altitude, float bottom, float top) {
         // Endpoint distance and cap ordering use the same altitude plane as the branch relation.
         float nearestDistance = Float.POSITIVE_INFINITY;
         float endpointX = 0f, endpointY = 0f;
         for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
             int face = faces.membershipFace[m];
             if (faces.roofSupport[face]) continue;
-            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom))
+                continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
                 float ey = faceLineYAtAltitude(faces, face, ex, altitude);
@@ -250,7 +271,9 @@ public final class SpatialFaceRelationSolver {
                 float distance = dx * dx + dy * dy;
                 if (distance < nearestDistance || distance == nearestDistance
                         && (ex < endpointX || ex == endpointX && ey < endpointY)) {
-                    nearestDistance = distance; endpointX = ex; endpointY = ey;
+                    nearestDistance = distance;
+                    endpointX = ex;
+                    endpointY = ey;
                 }
             }
         }
@@ -259,7 +282,8 @@ public final class SpatialFaceRelationSolver {
         for (int m = faces.anchorMembershipHead[anchor]; m >= 0; m = faces.membershipNext[m]) {
             int face = faces.membershipFace[m];
             if (faces.roofSupport[face]) continue;
-            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom)) continue;
+            if (!(top > faces.faceAltitude[face] && faces.faceAltitude[face] + faces.faceHeight[face] > bottom))
+                continue;
             for (int end = 0; end < 2; end++) {
                 float ex = end == 0 ? faces.screenMinX[face] : faces.screenMaxX[face];
                 float ey = faceLineYAtAltitude(faces, face, ex, altitude);
@@ -284,7 +308,9 @@ public final class SpatialFaceRelationSolver {
         return circleMaxX >= intervalMinX && circleMinX < intervalMaxX;
     }
 
-    /** Projection adds absoluteAltitude - mapPlane; rebasing a face therefore adds actorAltitude - faceBase. */
+    /**
+     * Projection adds absoluteAltitude - mapPlane; rebasing a face therefore adds actorAltitude - faceBase.
+     */
     private static float faceLineYAtAltitude(SpatialProjectedFaceCache faces, int face, float x, float actorAltitude) {
         return faces.slope[face] * x + faces.intercept[face] + actorAltitude - faces.faceAltitude[face];
     }
@@ -313,7 +339,8 @@ public final class SpatialFaceRelationSolver {
         actorRelationCount = grow(actorRelationCount, next);
         actorCandidateStart = grow(actorCandidateStart, next);
         actorCandidateCount = grow(actorCandidateCount, next);
-        actorProjectedX = new float[next]; actorProjectedY = new float[next];
+        actorProjectedX = new float[next];
+        actorProjectedY = new float[next];
     }
 
     private void ensureCandidateCapacity(int required) {
@@ -331,7 +358,21 @@ public final class SpatialFaceRelationSolver {
         relationType = grow(relationType, next);
     }
 
-    private static int capacity(int current,int required){int next=Math.max(8,current);while(next<required)next<<=1;return next;}
-    private static int[] grow(int[] source,int next){int[] out=new int[next];System.arraycopy(source,0,out,0,source.length);return out;}
-    private static byte[] grow(byte[] source,int next){byte[] out=new byte[next];System.arraycopy(source,0,out,0,source.length);return out;}
+    private static int capacity(int current, int required) {
+        int next = Math.max(8, current);
+        while (next < required) next <<= 1;
+        return next;
+    }
+
+    private static int[] grow(int[] source, int next) {
+        int[] out = new int[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
+
+    private static byte[] grow(byte[] source, int next) {
+        byte[] out = new byte[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
 }

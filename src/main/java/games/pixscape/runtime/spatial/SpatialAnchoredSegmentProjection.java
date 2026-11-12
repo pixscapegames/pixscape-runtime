@@ -2,7 +2,9 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Shared allocation-free projection of one face clipped to one supporting tile cell. */
+/**
+ * Shared allocation-free projection of one face clipped to one supporting tile cell.
+ */
 final class SpatialAnchoredSegmentProjection {
     private SpatialAnchoredSegmentProjection() {
     }
@@ -31,8 +33,12 @@ final class SpatialAnchoredSegmentProjection {
         }
         if (Math.abs(out[2] - out[0]) <= SpatialLineRelation.EPSILON) return false;
         if (out[2] < out[0]) {
-            float swap = out[0]; out[0] = out[2]; out[2] = swap;
-            swap = out[1]; out[1] = out[3]; out[3] = swap;
+            float swap = out[0];
+            out[0] = out[2];
+            out[2] = swap;
+            swap = out[1];
+            out[1] = out[3];
+            out[3] = swap;
         }
         return true;
     }

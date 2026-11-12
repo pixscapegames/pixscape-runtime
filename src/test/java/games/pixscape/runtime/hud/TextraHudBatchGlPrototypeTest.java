@@ -24,7 +24,9 @@ import games.pixscape.runtime.service.TextureRegistry;
 import org.junit.Assert;
 import org.junit.Test;
 
-/** Reproducible GL30 prototype; intentionally excluded from the normal headless test task. */
+/**
+ * Reproducible GL30 prototype; intentionally excluded from the normal headless test task.
+ */
 public class TextraHudBatchGlPrototypeTest {
     private static final int WIDTH = 800;
     private static final int HEIGHT = 480;
@@ -218,12 +220,23 @@ public class TextraHudBatchGlPrototypeTest {
     private static void verifyNativeTypingApi(TypingLabel first, TypingLabel second) {
         final boolean[] eventReceived = {false};
         first.setTypingListener(new TypingListener() {
-            @Override public void event(String event) {
+            @Override
+            public void event(String event) {
                 if ("prototype-end".equals(event)) eventReceived[0] = true;
             }
-            @Override public void end() { }
-            @Override public void onChar(long ch) { }
-            @Override public String replaceVariable(String variable) { return null; }
+
+            @Override
+            public void end() {
+            }
+
+            @Override
+            public void onChar(long ch) {
+            }
+
+            @Override
+            public String replaceVariable(String variable) {
+                return null;
+            }
         });
 
         first.restart();

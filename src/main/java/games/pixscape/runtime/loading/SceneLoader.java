@@ -92,7 +92,7 @@ public final class SceneLoader {
     }
 
     private static void validateSerializedScene(String serialized, SceneMetaRuntime sceneMeta,
-            FileHandle sceneFile) {
+                                                FileHandle sceneFile) {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
         try {
@@ -134,17 +134,18 @@ public final class SceneLoader {
     }
 
     private static void validateActorSpatialRectangles(SaveFileFormat format, World world) {
-        for(int i=0;i<format.entities.size();i++) {
-            int e=format.entities.get(i);
-            games.pixscape.runtime.component.spatial.SpatialHeightComponent h=world.getMapper(
-                    games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(e,null);
-            if(h==null)continue;
-            if(h.rectangles==null)throw new IllegalArgumentException("Spatial actor "+e+" has no authored rectangles; reconfigure the actor");
+        for (int i = 0; i < format.entities.size(); i++) {
+            int e = format.entities.get(i);
+            games.pixscape.runtime.component.spatial.SpatialHeightComponent h = world.getMapper(
+                    games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(e, null);
+            if (h == null) continue;
+            if (h.rectangles == null)
+                throw new IllegalArgumentException("Spatial actor " + e + " has no authored rectangles; reconfigure the actor");
             h.rectangles.validate();
-            AnimationComponent animation=world.getMapper(AnimationComponent.class).getSafe(e,null);
-            AssetRefComponent asset=world.getMapper(AssetRefComponent.class).getSafe(e,null);
-            if(h.rectangles.get(asset==null?0:asset.assetId,animation==null?null:animation.currentClip)==null)
-                throw new IllegalArgumentException("Spatial actor "+e+" has no spatial rectangle for its active representation");
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(e, null);
+            AssetRefComponent asset = world.getMapper(AssetRefComponent.class).getSafe(e, null);
+            if (h.rectangles.get(asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip) == null)
+                throw new IllegalArgumentException("Spatial actor " + e + " has no spatial rectangle for its active representation");
         }
     }
 
@@ -229,8 +230,8 @@ public final class SceneLoader {
     }
 
     private static void validatePhysicsSchema(SaveFileFormat format, World world,
-            SceneMetaRuntime sceneMeta,
-            FileHandle sceneFile) {
+                                              SceneMetaRuntime sceneMeta,
+                                              FileHandle sceneFile) {
         if (sceneMeta.physicsEnabled) {
             PhysicsService.requireJointBodies(world, format.entities, "Scene '" + sceneFile.path() + "'");
             return;
@@ -243,7 +244,7 @@ public final class SceneLoader {
     }
 
     private static void validatePersistentIdentities(SaveFileFormat format, World world,
-            SceneMetaRuntime sceneMeta, FileHandle sceneFile) {
+                                                     SceneMetaRuntime sceneMeta, FileHandle sceneFile) {
         if (sceneMeta == null) {
             throw new IllegalArgumentException("Scene metadata is required to validate persistent identities: "
                     + sceneFile.path());
@@ -297,7 +298,7 @@ public final class SceneLoader {
     }
 
     private static void validateSpatialBlockIdentities(SpatialBlocksComponent component,
-            PixscapeIdentityComponent ownerIdentity, FileHandle sceneFile, int entityId) {
+                                                       PixscapeIdentityComponent ownerIdentity, FileHandle sceneFile, int entityId) {
         if (component == null) return;
         if (ownerIdentity == null || ownerIdentity.stableId <= 0) {
             throw identityFailure(sceneFile, "spatialOwnerStableId", entityId,
@@ -336,7 +337,7 @@ public final class SceneLoader {
     }
 
     private static IllegalArgumentException identityFailure(FileHandle sceneFile, String domain, int entityId,
-            int badId, int highWater, String reason) {
+                                                            int badId, int highWater, String reason) {
         return new IllegalArgumentException("Scene '" + sceneFile.path() + "', domain " + domain + ", entity "
                 + entityId + ", bad/max ID " + badId + ", high-water " + highWater + ": " + reason + ".");
     }
@@ -400,17 +401,19 @@ public final class SceneLoader {
         }
     }
 
-    /** Cold load/export check: feature-era independent planes require explicit conversion. */
+    /**
+     * Cold load/export check: feature-era independent planes require explicit conversion.
+     */
     public static void validateMapLightingConvention(String serialized, String source) {
-        JsonValue root=new JsonReader().parse(serialized), identifiers=root.get("componentIdentifiers");
-        JsonValue name=identifiers!=null ? identifiers.get(TiledLayerComponent.class.getName()) : null;
-        String mapName=name!=null ? name.asString() : "TiledLayerComponent";
-        JsonValue entities=root.get("entities");
-        for(JsonValue entity=entities!=null ? entities.child : null;entity!=null;entity=entity.next) {
-            JsonValue components=entity.get("components"),map=components!=null ? components.get(mapName) : null;
-            if(map!=null && map.has("lightingPlaneAltitude"))
-                throw new IllegalArgumentException(source+" entity="+entity.name
-                        +" contains obsolete lightingPlaneAltitude. Explicitly convert this feature-era scene to the drawn-plane altitude convention before loading/exporting.");
+        JsonValue root = new JsonReader().parse(serialized), identifiers = root.get("componentIdentifiers");
+        JsonValue name = identifiers != null ? identifiers.get(TiledLayerComponent.class.getName()) : null;
+        String mapName = name != null ? name.asString() : "TiledLayerComponent";
+        JsonValue entities = root.get("entities");
+        for (JsonValue entity = entities != null ? entities.child : null; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components"), map = components != null ? components.get(mapName) : null;
+            if (map != null && map.has("lightingPlaneAltitude"))
+                throw new IllegalArgumentException(source + " entity=" + entity.name
+                        + " contains obsolete lightingPlaneAltitude. Explicitly convert this feature-era scene to the drawn-plane altitude convention before loading/exporting.");
         }
     }
 

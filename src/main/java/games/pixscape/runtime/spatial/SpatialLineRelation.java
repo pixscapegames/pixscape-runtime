@@ -1,6 +1,8 @@
 package games.pixscape.runtime.spatial;
 
-/** Shared sign convention for a projected lower edge and a witness point. */
+/**
+ * Shared sign convention for a projected lower edge and a witness point.
+ */
 public final class SpatialLineRelation {
     public static final float EPSILON = 0.0001f;
 
@@ -13,7 +15,9 @@ public final class SpatialLineRelation {
                 : SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE;
     }
 
-    /** A circle crossing the support line keeps the existing center-based deterministic side. */
+    /**
+     * A circle crossing the support line keeps the existing center-based deterministic side.
+     */
     public static byte circleRelation(float lineYAtCenter,
                                       float centerY,
                                       float inverseNormalLength,

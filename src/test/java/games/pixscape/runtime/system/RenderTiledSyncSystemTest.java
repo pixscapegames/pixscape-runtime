@@ -32,7 +32,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class RenderTiledSyncSystemTest {
-    @Test public void spatialChunksAreCheckedOncePerFrameIncludingOffscreenChunks() {
+    @Test
+    public void spatialChunksAreCheckedOncePerFrameIncludingOffscreenChunks() {
         Fixture f = createLargeMapFixture();
         try {
             f.map.mapWidth = 1000;
@@ -51,10 +52,13 @@ public class RenderTiledSyncSystemTest {
             f.world.process();
             Assert.assertEquals(1000, visits[0]);
             Assert.assertTrue(f.map.getChunk(999, 0).renderRefStartIndex >= 0);
-        } finally { f.world.dispose(); }
+        } finally {
+            f.world.dispose();
+        }
     }
 
-    @Test public void independentBodyInsertionPreservesMapChunksButRealGeometryStillInvalidates() {
+    @Test
+    public void independentBodyInsertionPreservesMapChunksButRealGeometryStillInvalidates() {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
         GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem();
         Fixture f = roundedAnimationFixture(640, dirty, hierarchy);
@@ -89,146 +93,239 @@ public class RenderTiledSyncSystemTest {
             Assert.assertEquals(20f, hierarchy.worldTransforms().x[map], 0f);
             Assert.assertTrue(f.tiledSync.persistentChunkCompilationCount() > compiled);
             Assert.assertNotSame(surface, f.tiledState.lightingSurfaces.get(ref));
-        } finally { f.world.dispose(); }
-    }
-
-    @Test public void allAnimationFramesAreAdmittedBeforePublicationAndCorrectionResumes(){
-        Fixture f=roundedAnimationFixture(512);
-        try {
-            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
-            LightingSurface previous=f.tiledState.lightingSurfaces.get(ref);
-            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
-            LightingSurface[] casters=geometry.casters.toArray(LightingSurface.class);
-            long key=f.tiledState.sortKey[ref];
-            SizedCountingAtlasRuntimeService atlas=(SizedCountingAtlasRuntimeService)f.atlas;
-            atlas.secondHeight=128;atlas.resources++;
-            try {f.world.process();Assert.fail("Second frame must be rejected before it is displayed");}
-            catch(LightingAdmissionException expected){
-                Assert.assertTrue(expected.getMessage(),expected.getMessage().contains("asset 1 at (0,0) frame 1"));
-            }
-            Assert.assertSame(previous,f.tiledState.lightingSurfaces.get(ref));
-            Assert.assertArrayEquals(casters,geometry.casters.toArray(LightingSurface.class));
-            Assert.assertEquals(key,f.tiledState.sortKey[ref]);
-            Assert.assertEquals(0,f.map.getChunk(0,0).getAnimFrameIndex(0));
-            atlas.secondHeight=512;atlas.resources++;f.world.process();
-            Assert.assertNotNull(f.tiledState.lightingSurfaces.get(ref));
-        } finally {f.world.dispose();}
-    }
-
-    @Test public void compatibleAnimationReusesGeometryAndNeverDuplicatesCasters(){
-        Fixture f=roundedAnimationFixture(512);
-        try {
-            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
-            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
-            LightingSurface surface=f.tiledState.lightingSurfaces.get(ref);
-            int count=geometry.casters.size,compiled=geometry.roundedGeometryCompilationCount();
-            Assert.assertEquals(1,compiled);
-            for(int frame=0;frame<20;frame++){
-                int calls=f.atlas.resolveCalls;
-                setFrame(f,frame%2);f.world.process();
-                Assert.assertSame(surface,f.tiledState.lightingSurfaces.get(ref));
-                Assert.assertEquals(401+frame%2,f.tiledState.textureHandle[ref]);
-                Assert.assertEquals(count,geometry.casters.size);
-                Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
-                Assert.assertEquals("Only the active binding is resolved on a hot update",1,f.atlas.resolveCalls-calls);
-            }
-        } finally {f.world.dispose();}
-    }
-
-    @Test public void variantAdmissionRestoresActiveQuadReceiverAndCaster(){
-        Fixture f=roundedAnimationFixture(640);
-        try {
-            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
-            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
-            int count=geometry.casters.size;
-            LightingSurface first=f.tiledState.lightingSurfaces.get(ref);
-            Assert.assertEquals(401,f.tiledState.textureHandle[ref]);
-            int compiled=geometry.roundedGeometryCompilationCount();
-            // A stale last-variant receiver would compile again here.
-            setFrame(f,0);f.world.process();Assert.assertSame(first,f.tiledState.lightingSurfaces.get(ref));
-            Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
-            setFrame(f,1);f.world.process();Assert.assertNotSame(first,f.tiledState.lightingSurfaces.get(ref));
-            Assert.assertEquals(402,f.tiledState.textureHandle[ref]);Assert.assertEquals(count,geometry.casters.size);
-            geometry.invalidate();f.world.process();
-            compiled=geometry.roundedGeometryCompilationCount();
-            LightingSurface second=f.tiledState.lightingSurfaces.get(ref);
-            setFrame(f,1);f.world.process();Assert.assertSame(second,f.tiledState.lightingSurfaces.get(ref));
-            Assert.assertEquals(compiled,geometry.roundedGeometryCompilationCount());
-            Assert.assertEquals(count,geometry.casters.size);
-        } finally {f.world.dispose();}
-    }
-
-    @Test public void lateFrameRefusalIsTypedAndDoesNotPartiallyWriteTheSlot(){
-        Fixture f=roundedAnimationFixture(512);
-        try {
-            f.world.process();int e=onlyMapEntity(f.world),ref=refFor(f.map,0,0);
-            LightingSurface previous=f.tiledState.lightingSurfaces.get(ref);
-            MapLightingGeometry geometry=f.tiledState.lightingMaps.get(e);
-            LightingSurface[] casters=geometry.casters.toArray(LightingSurface.class);
-            long key=f.tiledState.sortKey[ref];
-            // Simulate a late resource change, without its normal publication invalidation.
-            ((SizedCountingAtlasRuntimeService)f.atlas).secondHeight=128;setFrame(f,1);
-            try {f.world.process();Assert.fail();}catch(LightingAdmissionException expected){}
-            Assert.assertEquals(401,f.tiledState.textureHandle[ref]);Assert.assertEquals(key,f.tiledState.sortKey[ref]);
-            Assert.assertSame(previous,f.tiledState.lightingSurfaces.get(ref));
-            Assert.assertArrayEquals(casters,geometry.casters.toArray(LightingSurface.class));
-        } finally {f.world.dispose();}
-    }
-
-    private static void setFrame(Fixture f,int frame){
-        TileChunk chunk=f.map.getChunk(0,0);chunk.setAnimationFrameIndex(0,frame);
-        chunk.dirtyLocalIndices.add(0);chunk.dirtyState=TileChunk.DirtyState.PARTIAL;
-    }
-
-    private static Fixture roundedAnimationFixture(int secondHeight, com.artemis.BaseSystem... preparation){
-        RuntimeTilesetProfile p=profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,TiledProjection.ISO);
-        p.tileAssetIds=new int[]{1,2};
-        Fixture f=createProfilePlacementFixture(profilesWith(p),TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,228,264,preparation);
-        ((SizedCountingAtlasRuntimeService)f.atlas).secondHeight=secondHeight;
-        f.world.process();int e=onlyMapEntity(f.world);
-        SpatialBlocksComponent blocks=f.world.getMapper(SpatialBlocksComponent.class).create(e);
-        for(int i=0;i<2;i++){
-            SpatialBlockData b=new SpatialBlockData();b.id=blocks.allocateNextSpatialBlockId();
-            b.width=i==0?3:.25f;b.depth=i==0?.25f:3;b.height=157.34424f;b.shadowCaster=true;
-            SpatialBlockData.LinkedTileRef r=new SpatialBlockData.LinkedTileRef();r.tileAssetId=1;b.linkedTileRefs.add(r);blocks.blocks.add(b);
+        } finally {
+            f.world.dispose();
         }
-        TileSurfaceDescription d=new TileSurfaceDescription();d.assetId=1;d.rounded=new RoundedWallDescription();
-        TiledLayerComponent tiled=f.world.getMapper(TiledLayerComponent.class).get(e);
-        tiled.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();tiled.lightingDescriptions.add(d);
-        TileAnimationDefData data=new TileAnimationDefData();data.id=1;data.frameAssetIds=new int[]{1,2};data.frameDurationsMs=new int[]{100,100};
-        TileAnimationDef def=new TileAnimationDef(data);f.tiledSync.setAnimatedTileLookup(id->id==1?def:null);
+    }
+
+    @Test
+    public void allAnimationFramesAreAdmittedBeforePublicationAndCorrectionResumes() {
+        Fixture f = roundedAnimationFixture(512);
+        try {
+            f.world.process();
+            int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
+            LightingSurface previous = f.tiledState.lightingSurfaces.get(ref);
+            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            LightingSurface[] casters = geometry.casters.toArray(LightingSurface.class);
+            long key = f.tiledState.sortKey[ref];
+            SizedCountingAtlasRuntimeService atlas = (SizedCountingAtlasRuntimeService) f.atlas;
+            atlas.secondHeight = 128;
+            atlas.resources++;
+            try {
+                f.world.process();
+                Assert.fail("Second frame must be rejected before it is displayed");
+            } catch (LightingAdmissionException expected) {
+                Assert.assertTrue(expected.getMessage(), expected.getMessage().contains("asset 1 at (0,0) frame 1"));
+            }
+            Assert.assertSame(previous, f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertArrayEquals(casters, geometry.casters.toArray(LightingSurface.class));
+            Assert.assertEquals(key, f.tiledState.sortKey[ref]);
+            Assert.assertEquals(0, f.map.getChunk(0, 0).getAnimFrameIndex(0));
+            atlas.secondHeight = 512;
+            atlas.resources++;
+            f.world.process();
+            Assert.assertNotNull(f.tiledState.lightingSurfaces.get(ref));
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void compatibleAnimationReusesGeometryAndNeverDuplicatesCasters() {
+        Fixture f = roundedAnimationFixture(512);
+        try {
+            f.world.process();
+            int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
+            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            LightingSurface surface = f.tiledState.lightingSurfaces.get(ref);
+            int count = geometry.casters.size, compiled = geometry.roundedGeometryCompilationCount();
+            Assert.assertEquals(1, compiled);
+            for (int frame = 0; frame < 20; frame++) {
+                int calls = f.atlas.resolveCalls;
+                setFrame(f, frame % 2);
+                f.world.process();
+                Assert.assertSame(surface, f.tiledState.lightingSurfaces.get(ref));
+                Assert.assertEquals(401 + frame % 2, f.tiledState.textureHandle[ref]);
+                Assert.assertEquals(count, geometry.casters.size);
+                Assert.assertEquals(compiled, geometry.roundedGeometryCompilationCount());
+                Assert.assertEquals("Only the active binding is resolved on a hot update", 1, f.atlas.resolveCalls - calls);
+            }
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void variantAdmissionRestoresActiveQuadReceiverAndCaster() {
+        Fixture f = roundedAnimationFixture(640);
+        try {
+            f.world.process();
+            int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
+            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            int count = geometry.casters.size;
+            LightingSurface first = f.tiledState.lightingSurfaces.get(ref);
+            Assert.assertEquals(401, f.tiledState.textureHandle[ref]);
+            int compiled = geometry.roundedGeometryCompilationCount();
+            // A stale last-variant receiver would compile again here.
+            setFrame(f, 0);
+            f.world.process();
+            Assert.assertSame(first, f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(compiled, geometry.roundedGeometryCompilationCount());
+            setFrame(f, 1);
+            f.world.process();
+            Assert.assertNotSame(first, f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(402, f.tiledState.textureHandle[ref]);
+            Assert.assertEquals(count, geometry.casters.size);
+            geometry.invalidate();
+            f.world.process();
+            compiled = geometry.roundedGeometryCompilationCount();
+            LightingSurface second = f.tiledState.lightingSurfaces.get(ref);
+            setFrame(f, 1);
+            f.world.process();
+            Assert.assertSame(second, f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertEquals(compiled, geometry.roundedGeometryCompilationCount());
+            Assert.assertEquals(count, geometry.casters.size);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void lateFrameRefusalIsTypedAndDoesNotPartiallyWriteTheSlot() {
+        Fixture f = roundedAnimationFixture(512);
+        try {
+            f.world.process();
+            int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
+            LightingSurface previous = f.tiledState.lightingSurfaces.get(ref);
+            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            LightingSurface[] casters = geometry.casters.toArray(LightingSurface.class);
+            long key = f.tiledState.sortKey[ref];
+            // Simulate a late resource change, without its normal publication invalidation.
+            ((SizedCountingAtlasRuntimeService) f.atlas).secondHeight = 128;
+            setFrame(f, 1);
+            try {
+                f.world.process();
+                Assert.fail();
+            } catch (LightingAdmissionException expected) {
+            }
+            Assert.assertEquals(401, f.tiledState.textureHandle[ref]);
+            Assert.assertEquals(key, f.tiledState.sortKey[ref]);
+            Assert.assertSame(previous, f.tiledState.lightingSurfaces.get(ref));
+            Assert.assertArrayEquals(casters, geometry.casters.toArray(LightingSurface.class));
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    private static void setFrame(Fixture f, int frame) {
+        TileChunk chunk = f.map.getChunk(0, 0);
+        chunk.setAnimationFrameIndex(0, frame);
+        chunk.dirtyLocalIndices.add(0);
+        chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
+    }
+
+    private static Fixture roundedAnimationFixture(int secondHeight, com.artemis.BaseSystem... preparation) {
+        RuntimeTilesetProfile p = profile(1, RuntimeTilesetAnchor.BOTTOM_CENTER, 256, 128, 0, 0, TiledProjection.ISO);
+        p.tileAssetIds = new int[]{1, 2};
+        Fixture f = createProfilePlacementFixture(profilesWith(p), TiledProjection.ISO, 256, 128, 256, 512, 1, (byte) 0, 64, 64, 228, 264, preparation);
+        ((SizedCountingAtlasRuntimeService) f.atlas).secondHeight = secondHeight;
+        f.world.process();
+        int e = onlyMapEntity(f.world);
+        SpatialBlocksComponent blocks = f.world.getMapper(SpatialBlocksComponent.class).create(e);
+        for (int i = 0; i < 2; i++) {
+            SpatialBlockData b = new SpatialBlockData();
+            b.id = blocks.allocateNextSpatialBlockId();
+            b.width = i == 0 ? 3 : .25f;
+            b.depth = i == 0 ? .25f : 3;
+            b.height = 157.34424f;
+            b.shadowCaster = true;
+            SpatialBlockData.LinkedTileRef r = new SpatialBlockData.LinkedTileRef();
+            r.tileAssetId = 1;
+            b.linkedTileRefs.add(r);
+            blocks.blocks.add(b);
+        }
+        TileSurfaceDescription d = new TileSurfaceDescription();
+        d.assetId = 1;
+        d.rounded = new RoundedWallDescription();
+        TiledLayerComponent tiled = f.world.getMapper(TiledLayerComponent.class).get(e);
+        tiled.lightingDescriptions = new com.badlogic.gdx.utils.Array<>();
+        tiled.lightingDescriptions.add(d);
+        TileAnimationDefData data = new TileAnimationDefData();
+        data.id = 1;
+        data.frameAssetIds = new int[]{1, 2};
+        data.frameDurationsMs = new int[]{100, 100};
+        TileAnimationDef def = new TileAnimationDef(data);
+        f.tiledSync.setAnimatedTileLookup(id -> id == 1 ? def : null);
         return f;
     }
-    @Test public void explicitCasterPublicationDoesNotDependOnCameraAndFailedCandidateKeepsReferences(){
-        Fixture f=createProfilePlacementFixture(profilesWith(profile(1,RuntimeTilesetAnchor.BOTTOM_CENTER,256,128,0,0,games.pixscape.runtime.tiled.TiledProjection.ISO)),
-                games.pixscape.runtime.tiled.TiledProjection.ISO,256,128,256,512,1,(byte)0,64,64,-10000,-10000);
-        f.world.process();int e=onlyMapEntity(f.world);
-        TiledLayerComponent t=f.world.getMapper(TiledLayerComponent.class).get(e);
-        games.pixscape.runtime.component.spatial.SpatialBlocksComponent blocks=f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(e);
-        for(int i=0;i<2;i++){
-            games.pixscape.runtime.spatial.SpatialBlockData b=new games.pixscape.runtime.spatial.SpatialBlockData();b.id=blocks.allocateNextSpatialBlockId();
-            b.width=i==0?3:.25f;b.depth=i==0?.25f:3;b.height=157.34424f;b.shadowCaster=true;
-            games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef r=new games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef();r.tileAssetId=1;b.linkedTileRefs.add(r);blocks.blocks.add(b);
+
+    @Test
+    public void explicitCasterPublicationDoesNotDependOnCameraAndFailedCandidateKeepsReferences() {
+        Fixture f = createProfilePlacementFixture(profilesWith(profile(1, RuntimeTilesetAnchor.BOTTOM_CENTER, 256, 128, 0, 0, games.pixscape.runtime.tiled.TiledProjection.ISO)),
+                games.pixscape.runtime.tiled.TiledProjection.ISO, 256, 128, 256, 512, 1, (byte) 0, 64, 64, -10000, -10000);
+        f.world.process();
+        int e = onlyMapEntity(f.world);
+        TiledLayerComponent t = f.world.getMapper(TiledLayerComponent.class).get(e);
+        games.pixscape.runtime.component.spatial.SpatialBlocksComponent blocks = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(e);
+        for (int i = 0; i < 2; i++) {
+            games.pixscape.runtime.spatial.SpatialBlockData b = new games.pixscape.runtime.spatial.SpatialBlockData();
+            b.id = blocks.allocateNextSpatialBlockId();
+            b.width = i == 0 ? 3 : .25f;
+            b.depth = i == 0 ? .25f : 3;
+            b.height = 157.34424f;
+            b.shadowCaster = true;
+            games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef r = new games.pixscape.runtime.spatial.SpatialBlockData.LinkedTileRef();
+            r.tileAssetId = 1;
+            b.linkedTileRefs.add(r);
+            blocks.blocks.add(b);
         }
-        games.pixscape.runtime.render.lighting.TileSurfaceDescription d=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();d.assetId=1;d.rounded=new games.pixscape.runtime.render.lighting.RoundedWallDescription();
-        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();t.lightingDescriptions.add(d);f.world.process();
-        int ref=refFor(f.map,0,0);games.pixscape.runtime.render.lighting.LightingSurface first=f.tiledState.lightingSurfaces.get(ref);
-        Assert.assertNotNull(first.casterSurface);Assert.assertEquals(0,f.tiledState.getVisibleRefCount());
-        int opaqueCount=f.tiledState.lightingMaps.get(e).casters.size;
-        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height+=20;blocks.revision++;f.world.process();
-        games.pixscape.runtime.render.lighting.LightingSurface second=f.tiledState.lightingSurfaces.get(ref);Assert.assertNotSame(first,second);
-        float max=0;for(int i=2;i<second.casterSurface.vertices.length;i+=8)max=Math.max(max,second.casterSurface.vertices[i]);Assert.assertEquals(177.34424f,max,.0001f);
-        Assert.assertEquals(opaqueCount,f.tiledState.lightingMaps.get(e).casters.size);
-        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height=450;blocks.revision++;
-        try{f.world.process();Assert.fail();}catch(games.pixscape.runtime.render.lighting.LightingAdmissionException expected){}
-        Assert.assertSame(second,f.tiledState.lightingSurfaces.get(ref));Assert.assertEquals(opaqueCount,f.tiledState.lightingMaps.get(e).casters.size);
-        for(games.pixscape.runtime.spatial.SpatialBlockData b:blocks.blocks)b.height=177.34424f;blocks.revision++;f.world.process();
-        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();f.world.process();Assert.assertNull(f.tiledState.lightingSurfaces.get(ref).casterSurface);
-        t.lightingDescriptions=new com.badlogic.gdx.utils.Array<>();t.lightingDescriptions.add(d);f.world.process();
-        games.pixscape.runtime.render.lighting.LightingSurface restored=f.tiledState.lightingSurfaces.get(ref);Assert.assertNotNull(restored.casterSurface);
-        int compiled=f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount();
-        f.camera.position.set(228,264,0);f.world.process();Assert.assertSame(restored,f.tiledState.lightingSurfaces.get(ref));
-        Assert.assertEquals(compiled,f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount());f.world.dispose();
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription d = new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+        d.assetId = 1;
+        d.rounded = new games.pixscape.runtime.render.lighting.RoundedWallDescription();
+        t.lightingDescriptions = new com.badlogic.gdx.utils.Array<>();
+        t.lightingDescriptions.add(d);
+        f.world.process();
+        int ref = refFor(f.map, 0, 0);
+        games.pixscape.runtime.render.lighting.LightingSurface first = f.tiledState.lightingSurfaces.get(ref);
+        Assert.assertNotNull(first.casterSurface);
+        Assert.assertEquals(0, f.tiledState.getVisibleRefCount());
+        int opaqueCount = f.tiledState.lightingMaps.get(e).casters.size;
+        for (games.pixscape.runtime.spatial.SpatialBlockData b : blocks.blocks) b.height += 20;
+        blocks.revision++;
+        f.world.process();
+        games.pixscape.runtime.render.lighting.LightingSurface second = f.tiledState.lightingSurfaces.get(ref);
+        Assert.assertNotSame(first, second);
+        float max = 0;
+        for (int i = 2; i < second.casterSurface.vertices.length; i += 8)
+            max = Math.max(max, second.casterSurface.vertices[i]);
+        Assert.assertEquals(177.34424f, max, .0001f);
+        Assert.assertEquals(opaqueCount, f.tiledState.lightingMaps.get(e).casters.size);
+        for (games.pixscape.runtime.spatial.SpatialBlockData b : blocks.blocks) b.height = 450;
+        blocks.revision++;
+        try {
+            f.world.process();
+            Assert.fail();
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException expected) {
+        }
+        Assert.assertSame(second, f.tiledState.lightingSurfaces.get(ref));
+        Assert.assertEquals(opaqueCount, f.tiledState.lightingMaps.get(e).casters.size);
+        for (games.pixscape.runtime.spatial.SpatialBlockData b : blocks.blocks) b.height = 177.34424f;
+        blocks.revision++;
+        f.world.process();
+        t.lightingDescriptions = new com.badlogic.gdx.utils.Array<>();
+        f.world.process();
+        Assert.assertNull(f.tiledState.lightingSurfaces.get(ref).casterSurface);
+        t.lightingDescriptions = new com.badlogic.gdx.utils.Array<>();
+        t.lightingDescriptions.add(d);
+        f.world.process();
+        games.pixscape.runtime.render.lighting.LightingSurface restored = f.tiledState.lightingSurfaces.get(ref);
+        Assert.assertNotNull(restored.casterSurface);
+        int compiled = f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount();
+        f.camera.position.set(228, 264, 0);
+        f.world.process();
+        Assert.assertSame(restored, f.tiledState.lightingSurfaces.get(ref));
+        Assert.assertEquals(compiled, f.tiledState.lightingMaps.get(e).roundedGeometryCompilationCount());
+        f.world.dispose();
     }
 
     private static final DisplayOffsetResolverCreator RUNTIME_DISPLAY_OFFSETS =
@@ -264,19 +361,27 @@ public class RenderTiledSyncSystemTest {
         for (int i = 0; i < 20; i++) {
             f.camera.position.x = i % 2 == 0 ? 16 : 48;
             f.camera.zoom = i % 2 == 0 ? 1 : 2;
-            f.camera.update(); f.world.process();
+            f.camera.update();
+            f.world.process();
         }
         Assert.assertEquals(prepared, order.preparationCount());
-        f.map.setTile(0, 0, 0); f.world.process();
+        f.map.setTile(0, 0, 0);
+        f.world.process();
         Assert.assertEquals(++prepared, order.preparationCount());
-        f.map.setTile(0, 0, 1); f.world.process(); // Restore authored content (undo).
+        f.map.setTile(0, 0, 1);
+        f.world.process(); // Restore authored content (undo).
         Assert.assertEquals(++prepared, order.preparationCount());
-        f.map.setTile(0, 0, 0); f.world.process(); // Redo.
+        f.map.setTile(0, 0, 0);
+        f.world.process(); // Redo.
         Assert.assertEquals(++prepared, order.preparationCount());
-        f.world.process(); Assert.assertEquals(prepared, order.preparationCount());
+        f.world.process();
+        Assert.assertEquals(prepared, order.preparationCount());
         f.world.getMapper(TiledLayerComponent.class).get(entity).data = new TiledMapLayerData(2, 2, 16, 16, 2);
-        f.world.process(); Assert.assertNotSame(order, f.tiledState.orderForMap(entity));
-        f.world.delete(entity); f.world.process(); Assert.assertNull(f.tiledState.orderForMap(entity));
+        f.world.process();
+        Assert.assertNotSame(order, f.tiledState.orderForMap(entity));
+        f.world.delete(entity);
+        f.world.process();
+        Assert.assertNull(f.tiledState.orderForMap(entity));
         f.world.dispose();
     }
 
@@ -285,7 +390,9 @@ public class RenderTiledSyncSystemTest {
         Fixture f = createSingleChunkFixture();
         games.pixscape.runtime.tiled.animation.TileAnimationDefData data =
                 new games.pixscape.runtime.tiled.animation.TileAnimationDefData();
-        data.id = 1; data.frameAssetIds = new int[]{1, 1, 2}; data.frameDurationsMs = new int[]{100, 100, 100};
+        data.id = 1;
+        data.frameAssetIds = new int[]{1, 1, 2};
+        data.frameDurationsMs = new int[]{100, 100, 100};
         games.pixscape.runtime.tiled.animation.TileAnimationDef animation =
                 new games.pixscape.runtime.tiled.animation.TileAnimationDef(data);
         f.tiledSync.setAnimatedTileLookup(id -> id == 1 ? animation : null);
@@ -294,13 +401,15 @@ public class RenderTiledSyncSystemTest {
         int prepared = order.preparationCount();
         TileChunk chunk = f.map.getChunk(0, 0);
         chunk.setAnimationFrameIndex(0, 1);
-        chunk.dirtyLocalIndices.add(0); chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
+        chunk.dirtyLocalIndices.add(0);
+        chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
         f.world.process();
         Assert.assertEquals(prepared, order.preparationCount());
         int ref = refFor(f.map, 0, 0);
         long oldKey = f.tiledState.sortKey[ref];
         chunk.setAnimationFrameIndex(0, 2);
-        chunk.dirtyLocalIndices.add(0); chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
+        chunk.dirtyLocalIndices.add(0);
+        chunk.dirtyState = TileChunk.DirtyState.PARTIAL;
         f.world.process();
         Assert.assertEquals(prepared + 1, order.preparationCount());
         Assert.assertNotEquals(oldKey, f.tiledState.sortKey[ref]);
@@ -317,7 +426,7 @@ public class RenderTiledSyncSystemTest {
 
         Assert.assertEquals(2, fixture.tiledSync.preparedPersistentChunkCount());
         for (IntMap.Values<TileChunk> chunks =
-                fixture.map.getChunks(); chunks.hasNext(); ) {
+             fixture.map.getChunks(); chunks.hasNext(); ) {
             Assert.assertEquals(TileChunk.DirtyState.CLEAN,
                     chunks.next().dirtyState);
         }
@@ -1367,7 +1476,7 @@ public class RenderTiledSyncSystemTest {
         World world = new World(new WorldConfigurationBuilder()
                 .with(
                         tiledSync,
-                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1,-1),
+                        new RenderBuildDrawListSystem(new DynamicEntityRenderState(64), tiledState, layerState, drawList, stats, 64, -1, -1),
                         new RenderSortSystem(null, tiledState, drawList)
                 )
                 .build());
@@ -1891,10 +2000,10 @@ public class RenderTiledSyncSystemTest {
     }
 
     private static TiledMapLayerData addParallaxMap(World world,
-                                                     int layerIndex,
-                                                     float originX,
-                                                     float originY,
-                                                     games.pixscape.runtime.tiled.TiledProjection projection) {
+                                                    int layerIndex,
+                                                    float originX,
+                                                    float originY,
+                                                    games.pixscape.runtime.tiled.TiledProjection projection) {
         TiledLayerComponent tiled = createTiledMapEntity(world, layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
@@ -2015,8 +2124,12 @@ public class RenderTiledSyncSystemTest {
     private static final class SizedCountingAtlasRuntimeService extends CountingAtlasRuntimeService {
         private final int spriteWidth;
         private final int spriteHeight;
-        int secondHeight,resources;
-        @Override public int publicationRevision(String tag){return resources;}
+        int secondHeight, resources;
+
+        @Override
+        public int publicationRevision(String tag) {
+            return resources;
+        }
 
         private SizedCountingAtlasRuntimeService(int spriteWidth, int spriteHeight) {
             this.spriteWidth = spriteWidth;
@@ -2026,7 +2139,8 @@ public class RenderTiledSyncSystemTest {
         @Override
         public AtlasAssetBinding resolveBinding(int assetId, String tag) {
             resolveCalls++;
-            if(assetId==2&&secondHeight>0)return AtlasBindingTestFactory.single(2,"frame-2",0,0,1,1,402,spriteWidth,secondHeight);
+            if (assetId == 2 && secondHeight > 0)
+                return AtlasBindingTestFactory.single(2, "frame-2", 0, 0, 1, 1, 402, spriteWidth, secondHeight);
             if (assetId == 1) {
                 return AtlasBindingTestFactory.single(
                         assetId,

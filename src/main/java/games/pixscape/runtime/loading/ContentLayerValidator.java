@@ -8,9 +8,12 @@ import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 
-/** Checks the scene boundary between Layer entities and indexed content. */
+/**
+ * Checks the scene boundary between Layer entities and indexed content.
+ */
 public final class ContentLayerValidator {
-    private ContentLayerValidator() { }
+    private ContentLayerValidator() {
+    }
 
     public static void validateWorld(World world, String source) {
         IntBag invalid = world.getAspectSubscriptionManager().get(

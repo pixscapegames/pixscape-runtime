@@ -27,11 +27,17 @@ public final class CompiledFixtureData {
     public short maskBits;
     public short groupIndex;
 
-    /** Transient source provenance, not fixture identity. */
+    /**
+     * Transient source provenance, not fixture identity.
+     */
     public int physicsShapeId;
-    /** Explicit Spatial footprint ownership propagated from the authored shape. */
+    /**
+     * Explicit Spatial footprint ownership propagated from the authored shape.
+     */
     public boolean spatialFootprint;
-    /** Transient index within one compilation result. */
+    /**
+     * Transient index within one compilation result.
+     */
     public int partIndex;
 
     public CompiledFixtureData copy() {

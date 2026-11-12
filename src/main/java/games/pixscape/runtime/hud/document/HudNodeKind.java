@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Stable version-1 schema tokens for the deliberately bounded Scene2D construction vocabulary. */
+/**
+ * Stable version-1 schema tokens for the deliberately bounded Scene2D construction vocabulary.
+ */
 public enum HudNodeKind {
     GROUP,
     TABLE,

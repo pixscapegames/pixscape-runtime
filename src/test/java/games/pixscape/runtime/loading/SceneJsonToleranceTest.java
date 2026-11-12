@@ -12,7 +12,9 @@ import org.junit.Test;
 
 import java.io.File;
 
-/** Probes JSON tolerance that determines the published schema's null/unknown policy. */
+/**
+ * Probes JSON tolerance that determines the published schema's null/unknown policy.
+ */
 public class SceneJsonToleranceTest {
     private static final String FIXTURE = "examples/minimal-export/scenes/scene1.json";
 
@@ -47,7 +49,7 @@ public class SceneJsonToleranceTest {
     public void archetypeOnlyLayerConflictIsRejectedBeforeWorldReplacement() throws Exception {
         String source = new FileHandle(new File(FIXTURE)).readString("UTF-8");
         String changed = source.replace("\"RenderMaterialComponent\"]",
-                "\"RenderMaterialComponent\", \"LayerComponent\"]")
+                        "\"RenderMaterialComponent\", \"LayerComponent\"]")
                 .replace("\"EntityIndexComponent\": { \"layerIndex\": 0, \"zIndex\": 0 },", "");
         Assert.assertNotEquals(source, changed);
         assertRejectedBeforeWorldReplacement(changed);
@@ -57,7 +59,7 @@ public class SceneJsonToleranceTest {
     public void archetypeIndexAndExplicitLayerConflictIsRejected() throws Exception {
         String source = new FileHandle(new File(FIXTURE)).readString("UTF-8");
         String changed = source.replace("\"RenderMaterialComponent\"]",
-                "\"RenderMaterialComponent\", \"LayerComponent\"]")
+                        "\"RenderMaterialComponent\", \"LayerComponent\"]")
                 .replace("\"EntityIndexComponent\": { \"layerIndex\": 0, \"zIndex\": 0 },",
                         "\"LayerComponent\": { \"layerIndex\": 0 },");
         Assert.assertNotEquals(source, changed);

@@ -54,7 +54,12 @@ public final class SpatialOrderingKernel {
         return composedSize;
     }
 
-    public int unresolvedConstraintCount() { return planner.unresolvedConstraintCount(); }
-    public int actorOrderingFallbackCount() { return planner.actorOrderingFallbackCount(); }
+    public int unresolvedConstraintCount() {
+        return planner.unresolvedConstraintCount();
+    }
+
+    public int actorOrderingFallbackCount() {
+        return planner.actorOrderingFallbackCount();
+    }
 
 }

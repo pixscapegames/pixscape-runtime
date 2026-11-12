@@ -40,16 +40,22 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     private games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
     private final boolean preferForward;
     private boolean forwardEffective;
-    private int preparedSurfaceRevision=-1;
-    private int batchRegistryRevision=-1;
+    private int preparedSurfaceRevision = -1;
+    private int batchRegistryRevision = -1;
     private boolean preparedNormalMaps;
     private final DirectWorldPass direct = new DirectWorldPass();
-    private final LightingGeometrySystem.ShadowPreparation framePreparation=this::prepareLightingFrame;
+    private final LightingGeometrySystem.ShadowPreparation framePreparation = this::prepareLightingFrame;
     private LightParameterBinding lightParameters;
     private float time = 0f;
     private boolean useNormalMaps = true;
-    /** Configure before prepareComposition, never during submission. */
-    public void setUseNormalMaps(boolean enabled) { useNormalMaps = enabled; }
+
+    /**
+     * Configure before prepareComposition, never during submission.
+     */
+    public void setUseNormalMaps(boolean enabled) {
+        useNormalMaps = enabled;
+    }
+
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
 
@@ -64,13 +70,13 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
                               MetricsBatch batch,
                               RenderStats stats,
                               RenderStatsSink statsSink) {
-        this(layerState,frameQueue,cam,ambientMulR,ambientMulG,ambientMulB,batch,stats,statsSink,false);
+        this(layerState, frameQueue, cam, ambientMulR, ambientMulG, ambientMulB, batch, stats, statsSink, false);
     }
 
-    public RenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
-                              float ambientMulR,float ambientMulG,float ambientMulB,MetricsBatch batch,
-                              RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
-        this.preferForward=forwardLighting;
+    public RenderSubmitSystem(LayerStateSOA layerState, FrameRenderQueue frameQueue, OrthographicCamera cam,
+                              float ambientMulR, float ambientMulG, float ambientMulB, MetricsBatch batch,
+                              RenderStats stats, RenderStatsSink statsSink, boolean forwardLighting) {
+        this.preferForward = forwardLighting;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -83,9 +89,13 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         this.fallbackShaderMode = resolveFallbackShaderMode(batch);
     }
 
-    /** INTERNAL engine propagation; consumes final frame values without resource/geometry work. */
+    /**
+     * INTERNAL engine propagation; consumes final frame values without resource/geometry work.
+     */
     public void setAmbientLight(float r, float g, float b) {
-        ambientMulR = r; ambientMulG = g; ambientMulB = b;
+        ambientMulR = r;
+        ambientMulG = g;
+        ambientMulB = b;
     }
 
     private static ShaderMode resolveFallbackShaderMode(MetricsBatch batch) {
@@ -99,7 +109,8 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
     }
 
     @Override
-    protected void initialize() { }
+    protected void initialize() {
+    }
 
     @Override
     protected void begin() {
@@ -126,120 +137,176 @@ public final class RenderSubmitSystem extends BaseSystem implements ProfiledSyst
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
-    /** Existing setup/viewport boundary. Off performs no lighting preparation. */
+    /**
+     * Existing setup/viewport boundary. Off performs no lighting preparation.
+     */
     public void prepareComposition() {
-        if(batchRegistryRevision!=ShaderRegistry.surfaceRevision()) {
+        if (batchRegistryRevision != ShaderRegistry.surfaceRevision()) {
             metricsBatch.abort();
-            batchRegistryRevision=ShaderRegistry.surfaceRevision();
+            batchRegistryRevision = ShaderRegistry.surfaceRevision();
         }
-        if(!frameQueue.lightingEnabled)return;
-        if(lighting==null || preparedSurfaceRevision!=ShaderRegistry.surfaceRevision() || preparedNormalMaps!=useNormalMaps)
-            replaceLightingResources(preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world)>0);
+        if (!frameQueue.lightingEnabled) return;
+        if (lighting == null || preparedSurfaceRevision != ShaderRegistry.surfaceRevision() || preparedNormalMaps != useNormalMaps)
+            replaceLightingResources(preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world) > 0);
         prepareSelectedResources();
     }
 
-    /** Activation is a cold boundary: edits made while Off may change the effective renderer. */
+    /**
+     * Activation is a cold boundary: edits made while Off may change the effective renderer.
+     */
     public void prepareLightingActivation() {
-        boolean selected=preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world)>0;
-        if(lighting!=null && selected!=forwardEffective)replaceLightingResources(selected);
+        boolean selected = preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world) > 0;
+        if (lighting != null && selected != forwardEffective) replaceLightingResources(selected);
         prepareComposition();
     }
 
     private void replaceLightingResources(boolean selectForward) {
-        WorldLightComposition nextComposition=selectForward?null:new WorldLightComposition();
-        AmbientContributionRenderer nextAmbient=selectForward?null:new AmbientContributionRenderer();
-        games.pixscape.runtime.render.lighting.LightingRenderer nextLighting=new games.pixscape.runtime.render.lighting.LightingRenderer();
-        games.pixscape.runtime.render.lighting.ForwardLightingRenderer nextForward=selectForward?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
+        WorldLightComposition nextComposition = selectForward ? null : new WorldLightComposition();
+        AmbientContributionRenderer nextAmbient = selectForward ? null : new AmbientContributionRenderer();
+        games.pixscape.runtime.render.lighting.LightingRenderer nextLighting = new games.pixscape.runtime.render.lighting.LightingRenderer();
+        games.pixscape.runtime.render.lighting.ForwardLightingRenderer nextForward = selectForward ? new games.pixscape.runtime.render.lighting.ForwardLightingRenderer() : null;
         direct.begin();
         try {
             nextLighting.setUseNormalMaps(useNormalMaps);
-            if(selectForward){
-                if(!(metricsBatch instanceof TextureArrayMeshBatch))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
+            if (selectForward) {
+                if (!(metricsBatch instanceof TextureArrayMeshBatch))
+                    throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
                 nextForward.setUseNormalMaps(useNormalMaps);
-                nextForward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());nextLighting.prepareShadows(world);
-            }else{nextComposition.prepare();nextAmbient.prepare();nextLighting.prepare(world,nextComposition);}
-        }catch(RuntimeException | Error failure){
-            nextLighting.dispose();if(nextForward!=null)nextForward.dispose();if(nextComposition!=null)nextComposition.dispose();if(nextAmbient!=null)nextAmbient.dispose();
-            LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
-            if(geometry!=null)geometry.setShadowPreparation(lighting==null?null:framePreparation);
+                nextForward.prepare(world, ((TextureArrayMeshBatch) metricsBatch).getBundle());
+                nextLighting.prepareShadows(world);
+            } else {
+                nextComposition.prepare();
+                nextAmbient.prepare();
+                nextLighting.prepare(world, nextComposition);
+            }
+        } catch (RuntimeException | Error failure) {
+            nextLighting.dispose();
+            if (nextForward != null) nextForward.dispose();
+            if (nextComposition != null) nextComposition.dispose();
+            if (nextAmbient != null) nextAmbient.dispose();
+            LightingGeometrySystem geometry = world.getSystem(LightingGeometrySystem.class);
+            if (geometry != null) geometry.setShadowPreparation(lighting == null ? null : framePreparation);
             throw failure;
-        }finally{direct.end();}
+        } finally {
+            direct.end();
+        }
         disposeLightingResources();
-        composition=nextComposition;ambientContribution=nextAmbient;lighting=nextLighting;forward=nextForward;
-        forwardEffective=selectForward;preparedNormalMaps=useNormalMaps;preparedSurfaceRevision=ShaderRegistry.surfaceRevision();
-        if(lightParameters==null)lightParameters=new LightParameterBinding(world);
-        LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
-        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+        composition = nextComposition;
+        ambientContribution = nextAmbient;
+        lighting = nextLighting;
+        forward = nextForward;
+        forwardEffective = selectForward;
+        preparedNormalMaps = useNormalMaps;
+        preparedSurfaceRevision = ShaderRegistry.surfaceRevision();
+        if (lightParameters == null) lightParameters = new LightParameterBinding(world);
+        LightingGeometrySystem geometry = world.getSystem(LightingGeometrySystem.class);
+        if (geometry != null) geometry.setShadowPreparation(framePreparation);
     }
 
-    private void prepareSelectedResources(){
-        if(forwardEffective){forward.prepare(world,((TextureArrayMeshBatch)metricsBatch).getBundle());lighting.prepareShadows(world);}
-        else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
-        LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
-        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+    private void prepareSelectedResources() {
+        if (forwardEffective) {
+            forward.prepare(world, ((TextureArrayMeshBatch) metricsBatch).getBundle());
+            lighting.prepareShadows(world);
+        } else {
+            composition.prepare();
+            ambientContribution.prepare();
+            lighting.prepare(world, composition);
+        }
+        LightingGeometrySystem geometry = world.getSystem(LightingGeometrySystem.class);
+        if (geometry != null) geometry.setShadowPreparation(framePreparation);
     }
 
-    /** Uses the already published light set; no second World traversal per frame. */
-    private void prepareLightingFrame(games.pixscape.runtime.render.lighting.LightingFrame frame){
-        boolean selected=preferForward && frame.lights.size>0;
-        if(selected!=forwardEffective)replaceLightingResources(selected);
+    /**
+     * Uses the already published light set; no second World traversal per frame.
+     */
+    private void prepareLightingFrame(games.pixscape.runtime.render.lighting.LightingFrame frame) {
+        boolean selected = preferForward && frame.lights.size > 0;
+        if (selected != forwardEffective) replaceLightingResources(selected);
         lighting.prepareFrame(frame);
     }
 
-    private void disposeLightingResources(){
-        if(ambientContribution!=null)ambientContribution.dispose();if(lighting!=null)lighting.dispose();
-        if(composition!=null)composition.dispose();if(forward!=null)forward.dispose();
+    private void disposeLightingResources() {
+        if (ambientContribution != null) ambientContribution.dispose();
+        if (lighting != null) lighting.dispose();
+        if (composition != null) composition.dispose();
+        if (forward != null) forward.dispose();
     }
 
-    public boolean isForwardEffective(){return frameQueue.lightingEnabled && forwardEffective;}
+    public boolean isForwardEffective() {
+        return frameQueue.lightingEnabled && forwardEffective;
+    }
 
-    public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
-    public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
+    public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer() {
+        return forward;
+    }
 
-    @Override protected void dispose() { disposeLightingResources(); }
+    public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer() {
+        return lighting;
+    }
+
+    @Override
+    protected void dispose() {
+        disposeLightingResources();
+    }
 
     void render() {
-        if(!frameQueue.lightingEnabled){
-            stats.forwardLighting=false;direct.begin();
-            try{renderPass(LightCompositionPass.DIRECT,0);}catch(RuntimeException | Error failure){metricsBatch.abort(failure);throw failure;}finally{direct.end();}
+        if (!frameQueue.lightingEnabled) {
+            stats.forwardLighting = false;
+            direct.begin();
+            try {
+                renderPass(LightCompositionPass.DIRECT, 0);
+            } catch (RuntimeException | Error failure) {
+                metricsBatch.abort(failure);
+                throw failure;
+            } finally {
+                direct.end();
+            }
             return;
         }
-        frameQueue.lighting.time=time;
-        stats.forwardLighting=forwardEffective;
-        if(forwardEffective){forward.render(frameQueue,layerState,cam,lighting,ambientMulR,ambientMulG,ambientMulB,stats);return;}
+        frameQueue.lighting.time = time;
+        stats.forwardLighting = forwardEffective;
+        if (forwardEffective) {
+            forward.render(frameQueue, layerState, cam, lighting, ambientMulR, ambientMulG, ambientMulB, stats);
+            return;
+        }
         Throwable failure = null;
         try {
             ambientContribution.beginFrame(frameQueue);
             composition.beginOriginal();
-            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
-            int drawsBefore=stats.drawCalls;
+            if (frameQueue.lighting.timer != null) frameQueue.lighting.timer.begin(0);
+            int drawsBefore = stats.drawCalls;
             renderPass(LightCompositionPass.ORIGINAL, 0);
-            stats.colorDraws+=stats.drawCalls-drawsBefore;
-            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
+            stats.colorDraws += stats.drawCalls - drawsBefore;
+            if (frameQueue.lighting.timer != null) frameQueue.lighting.timer.end(0);
             lighting.render(frameQueue, layerState, cam, composition, stats);
-            drawsBefore=stats.drawCalls;
+            drawsBefore = stats.drawCalls;
             if (frameQueue.lighting.diagnostic == 0)
                 ambientContribution.render(frameQueue, cam, composition, stats, this);
-            stats.ambientDraws+=stats.drawCalls-drawsBefore;
-            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
-            composition.compose(frameQueue.lighting.diagnostic==0?ambientMulR:0,
-                    frameQueue.lighting.diagnostic==0?ambientMulG:0,frameQueue.lighting.diagnostic==0?ambientMulB:0,stats);
-            if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(4);
+            stats.ambientDraws += stats.drawCalls - drawsBefore;
+            if (frameQueue.lighting.timer != null) frameQueue.lighting.timer.begin(4);
+            composition.compose(frameQueue.lighting.diagnostic == 0 ? ambientMulR : 0,
+                    frameQueue.lighting.diagnostic == 0 ? ambientMulG : 0, frameQueue.lighting.diagnostic == 0 ? ambientMulB : 0, stats);
+            if (frameQueue.lighting.timer != null) frameQueue.lighting.timer.end(4);
         } catch (RuntimeException | Error error) {
             failure = error;
             metricsBatch.abort(error);
             ambientContribution.abort();
             lighting.abort();
             throw error;
-        } finally { composition.end(failure); }
+        } finally {
+            composition.end(failure);
+        }
     }
 
     void renderPass(int pass, int first) {
         renderPass(pass, first, frameQueue.size);
     }
-    @Override public void replayAmbientMaterials(int first, int end) {
+
+    @Override
+    public void replayAmbientMaterials(int first, int end) {
         renderPass(LightCompositionPass.AMBIENT, first, end);
     }
+
     private void renderPass(int pass, int first, int end) {
 
         cam.update();

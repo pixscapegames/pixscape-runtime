@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Typed native Slider payload using a logical Skin style name. */
+/**
+ * Typed native Slider payload using a logical Skin style name.
+ */
 public final class HudSliderData {
     public HudSliderOrientation orientation = HudSliderOrientation.HORIZONTAL;
     public float min;

@@ -65,7 +65,9 @@ public final class TileAnimationPlaybackStepper {
         out.frameElapsedMs = elapsedMs;
     }
 
-    /** Mutable caller-owned transition result, reused to avoid hot-path allocation. */
+    /**
+     * Mutable caller-owned transition result, reused to avoid hot-path allocation.
+     */
     public static final class Result {
         public byte playbackState;
         public byte playbackMode;

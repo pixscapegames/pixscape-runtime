@@ -10,7 +10,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
-/** Flat projected actor-occluder faces and canonical map-local tile anchors. */
+/**
+ * Flat projected actor-occluder faces and canonical map-local tile anchors.
+ */
 public final class SpatialProjectedFaceCache {
 
     public int faceCount;
@@ -20,7 +22,9 @@ public final class SpatialProjectedFaceCache {
     public int[] faceCompiledIndex = new int[0];
     public float[] faceAltitude = new float[0];
     public float[] faceHeight = new float[0];
-    /** A roof support has no compiled vertical face (faceCompiledIndex == -1). */
+    /**
+     * A roof support has no compiled vertical face (faceCompiledIndex == -1).
+     */
     public boolean[] roofSupport = new boolean[0];
     public float[] surfaceMinY = new float[0], surfaceMaxY = new float[0];
     public float[] screenMinX = new float[0];
@@ -40,16 +44,22 @@ public final class SpatialProjectedFaceCache {
     public boolean[] anchorResolved = new boolean[0];
     public int[] anchorBeforeBucket = new int[0];
     public int[] anchorAfterBucket = new int[0];
-    /** Derived reverse index. Membership indices refer to faceAnchorIndices. */
+    /**
+     * Derived reverse index. Membership indices refer to faceAnchorIndices.
+     */
     public int[] anchorMembershipHead = new int[0];
     public int[] membershipNext = new int[0];
     public int[] membershipFace = new int[0];
-    /** Direct authored-wall junction witnesses, indexed by the FRONT membership. */
+    /**
+     * Direct authored-wall junction witnesses, indexed by the FRONT membership.
+     */
     int[] membershipJunctionStart = new int[0];
     int[] membershipJunctionCount = new int[0];
     int[] junctionFace = new int[0];
     float[] junctionMinX = new float[0], junctionMaxX = new float[0];
-    /** Real lateral endpoint pairs, indexed by their shared tile. */
+    /**
+     * Real lateral endpoint pairs, indexed by their shared tile.
+     */
     int[] anchorCornerHead = new int[0];
     int[] cornerNext = new int[0];
     int[] cornerMembershipA = new int[0];
@@ -156,13 +166,17 @@ public final class SpatialProjectedFaceCache {
                 faceOrientation[face] = -1;
                 faceCompiledIndex[face] = -1;
                 faceStructureId[face] = structure.structureId();
-                faceAltitude[face] = roof.altitude; faceHeight[face] = roof.height;
-                surfaceMinY[face] = roof.minY; surfaceMaxY[face] = roof.maxY;
+                faceAltitude[face] = roof.altitude;
+                faceHeight[face] = roof.height;
+                surfaceMinY[face] = roof.minY;
+                surfaceMaxY[face] = roof.maxY;
                 writeProjection(face, roof.minX, roof.frontY, roof.maxX, roof.frontY);
-                minX = Math.min(minX, roof.minX); maxX = Math.max(maxX, roof.maxX);
+                minX = Math.min(minX, roof.minX);
+                maxX = Math.max(maxX, roof.maxX);
                 faceAnchorIndexStart[face] = faceAnchorIndexTotal;
                 faceAnchorIndexCount[face] = 1;
-                rawAnchorGx[faceAnchorIndexTotal] = roof.gx; rawAnchorGy[faceAnchorIndexTotal] = roof.gy;
+                rawAnchorGx[faceAnchorIndexTotal] = roof.gx;
+                rawAnchorGy[faceAnchorIndexTotal] = roof.gy;
                 faceAnchorScreenMinX[faceAnchorIndexTotal] = roof.minX;
                 faceAnchorScreenMaxX[faceAnchorIndexTotal++] = roof.maxX;
             }
@@ -189,8 +203,13 @@ public final class SpatialProjectedFaceCache {
         return true;
     }
 
-    public int revision() { return revision; }
-    public int projectionCount() { return projectionCount; }
+    public int revision() {
+        return revision;
+    }
+
+    public int projectionCount() {
+        return projectionCount;
+    }
 
     /**
      * Cold-only provenance compilation within this map owner. Direct authored walls must
@@ -204,7 +223,11 @@ public final class SpatialProjectedFaceCache {
         membershipJunctionCount = new int[faceAnchorIndexTotal];
         IntArray neighbors = new IntArray();
         FloatArray minimum = new FloatArray(), maximum = new FloatArray();
-        if (source == null) { junctionFace = new int[0]; junctionMinX = junctionMaxX = new float[0]; return; }
+        if (source == null) {
+            junctionFace = new int[0];
+            junctionMinX = junctionMaxX = new float[0];
+            return;
+        }
         float[] local = new float[4];
         for (int f = 0; f < faceCount; f++) {
             int end = faceAnchorIndexStart[f] + faceAnchorIndexCount[f];
@@ -224,12 +247,14 @@ public final class SpatialProjectedFaceCache {
                     map.projectSpatialPoint(vertical ? constant : lo, vertical ? lo : constant, faceAltitude[f], local, 0);
                     map.projectSpatialPoint(vertical ? constant : hi, vertical ? hi : constant, faceAltitude[f], local, 2);
                     if (Math.max(local[0], local[2]) < faceAnchorScreenMinX[m] - SpatialLineRelation.EPSILON
-                            || Math.min(local[0], local[2]) > faceAnchorScreenMaxX[m] + SpatialLineRelation.EPSILON) continue;
+                            || Math.min(local[0], local[2]) > faceAnchorScreenMaxX[m] + SpatialLineRelation.EPSILON)
+                        continue;
                     for (int j = 0; j < source.blocks.size; j++) {
                         SpatialBlockData b = source.blocks.get(j);
                         if (i == j || b == null || !b.actorOccluder || b.structureId != a.structureId
                                 || Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) <= SpatialWallGeometry.GEOMETRY_EPSILON
-                                || Math.min(a.y + a.depth, b.y + b.depth) - Math.max(a.y, b.y) <= SpatialWallGeometry.GEOMETRY_EPSILON) continue;
+                                || Math.min(a.y + a.depth, b.y + b.depth) - Math.max(a.y, b.y) <= SpatialWallGeometry.GEOMETRY_EPSILON)
+                            continue;
                         for (int other = 0; other < faceCount; other++) {
                             if ((faceOrientation[f] < CompiledSpatialStructure.MIN_Y)
                                     == (faceOrientation[other] < CompiledSpatialStructure.MIN_Y)) continue;
@@ -239,15 +264,22 @@ public final class SpatialProjectedFaceCache {
                             float y1 = Float.intBitsToFloat((int) faceMinVertex[other]);
                             float x2 = Float.intBitsToFloat((int) (faceMaxVertex[other] >>> 32));
                             float y2 = Float.intBitsToFloat((int) faceMaxVertex[other]);
-                            float lower = bv ? Math.max(Math.min(y1,y2), b.y) : Math.max(Math.min(x1,x2), b.x);
-                            float upper = bv ? Math.min(Math.max(y1,y2), b.y+b.depth) : Math.min(Math.max(x1,x2), b.x+b.width);
+                            float lower = bv ? Math.max(Math.min(y1, y2), b.y) : Math.max(Math.min(x1, x2), b.x);
+                            float upper = bv ? Math.min(Math.max(y1, y2), b.y + b.depth) : Math.min(Math.max(x1, x2), b.x + b.width);
                             map.projectSpatialPoint(bv ? x1 : lower, bv ? lower : y1, faceAltitude[other], local, 0);
                             map.projectSpatialPoint(bv ? x1 : upper, bv ? upper : y1, faceAltitude[other], local, 2);
-                            float min = Math.min(local[0],local[2]), max = Math.max(local[0],local[2]);
+                            float min = Math.min(local[0], local[2]), max = Math.max(local[0], local[2]);
                             boolean duplicate = false;
-                            for(int p=membershipJunctionStart[m];p<neighbors.size;p++)
-                                if(neighbors.get(p)==other && minimum.get(p)==min && maximum.get(p)==max) { duplicate=true; break; }
-                            if(!duplicate) { neighbors.add(other); minimum.add(min); maximum.add(max); }
+                            for (int p = membershipJunctionStart[m]; p < neighbors.size; p++)
+                                if (neighbors.get(p) == other && minimum.get(p) == min && maximum.get(p) == max) {
+                                    duplicate = true;
+                                    break;
+                                }
+                            if (!duplicate) {
+                                neighbors.add(other);
+                                minimum.add(min);
+                                maximum.add(max);
+                            }
                         }
                     }
                 }
@@ -255,7 +287,8 @@ public final class SpatialProjectedFaceCache {
             }
         }
         junctionFace = neighbors.toArray();
-        junctionMinX = minimum.toArray(); junctionMaxX = maximum.toArray();
+        junctionMinX = minimum.toArray();
+        junctionMaxX = maximum.toArray();
     }
 
     private boolean supportsWall(int f, SpatialBlockData wall) {
@@ -326,7 +359,9 @@ public final class SpatialProjectedFaceCache {
         throw new IllegalStateException("Missing canonical Spatial anchor.");
     }
 
-    /** Complete derived index, rebuilt with projection/membership publication. */
+    /**
+     * Complete derived index, rebuilt with projection/membership publication.
+     */
     public int anchorForCell(int gx, int gy) {
         Integer anchor = anchorByCell.get(cellKey(gx, gy));
         return anchor != null ? anchor : -1;
@@ -368,8 +403,12 @@ public final class SpatialProjectedFaceCache {
 
     private void writeProjection(int face, float x1, float y1, float x2, float y2) {
         if (x2 < x1) {
-            float swap = x1; x1 = x2; x2 = swap;
-            swap = y1; y1 = y2; y2 = swap;
+            float swap = x1;
+            x1 = x2;
+            x2 = swap;
+            swap = y1;
+            y1 = y2;
+            y2 = swap;
         }
         screenMinX[face] = x1;
         screenMaxX[face] = x2;
@@ -383,17 +422,21 @@ public final class SpatialProjectedFaceCache {
                 | (Float.floatToIntBits(y == 0f ? 0f : y) & 0xffffffffL);
     }
 
-    /** Cold rebuild: index exact compiled vertices; intersect sorted memberships linearly. */
+    /**
+     * Cold rebuild: index exact compiled vertices; intersect sorted memberships linearly.
+     */
     private int[] splitFaceByAnchor = new int[0];
     byte[] membershipPiece = new byte[0];
 
     private void buildLateralCorners() {
-        if (anchorCornerHead.length < anchorCount) anchorCornerHead = new int[capacity(anchorCornerHead.length, anchorCount)];
+        if (anchorCornerHead.length < anchorCount)
+            anchorCornerHead = new int[capacity(anchorCornerHead.length, anchorCount)];
         Arrays.fill(anchorCornerHead, 0, anchorCount, -1);
         cornerCount = 0;
         LongMap<Integer> starts = new LongMap<>(), ends = new LongMap<>();
         for (int structure = 0; structure < structureCount; structure++) {
-            starts.clear(); ends.clear();
+            starts.clear();
+            ends.clear();
             int end = structureFaceStart[structure] + structureFaceCount[structure];
             for (int face = structureFaceStart[structure]; face < end; face++) {
                 if (roofSupport[face]) continue;
@@ -416,17 +459,26 @@ public final class SpatialProjectedFaceCache {
         int ea = ma + faceAnchorIndexCount[a], eb = mb + faceAnchorIndexCount[b];
         while (ma < ea && mb < eb) {
             int aa = faceAnchorIndices[ma], ab = faceAnchorIndices[mb];
-            if (aa < ab) { ma++; continue; }
-            if (ab < aa) { mb++; continue; }
+            if (aa < ab) {
+                ma++;
+                continue;
+            }
+            if (ab < aa) {
+                mb++;
+                continue;
+            }
             // Qualify the shared endpoint of this pair; a different face may cross the cell.
             float vertexX = opening < 0 ? screenMaxX[a] : screenMinX[a];
             if (vertexX < faceAnchorScreenMinX[ma] || vertexX > faceAnchorScreenMaxX[ma]
                     || vertexX < faceAnchorScreenMinX[mb] || vertexX > faceAnchorScreenMaxX[mb]) {
-                ma++; mb++; continue;
+                ma++;
+                mb++;
+                continue;
             }
             if (cornerCount == cornerNext.length) {
                 int n = capacity(cornerCount, cornerCount + 1);
-                cornerNext = grow(cornerNext, n); cornerMembershipA = grow(cornerMembershipA, n);
+                cornerNext = grow(cornerNext, n);
+                cornerMembershipA = grow(cornerMembershipA, n);
                 cornerMembershipB = grow(cornerMembershipB, n);
             }
             cornerMembershipA[cornerCount] = ma++;
@@ -436,7 +488,9 @@ public final class SpatialProjectedFaceCache {
         }
     }
 
-    /** Bind the two image regions to authored walls while ownership and projected faces are stable. */
+    /**
+     * Bind the two image regions to authored walls while ownership and projected faces are stable.
+     */
     private void bindCornerPieces(SpatialBlocksComponent blocks) {
         splitFaceByAnchor = new int[anchorCount];
         Arrays.fill(splitFaceByAnchor, -1);
@@ -474,7 +528,10 @@ public final class SpatialProjectedFaceCache {
                 // Reject junctions formed by the short end caps of the same two walls.
                 if ((n.depth > n.width) != acrossY || (f.depth > f.width) == acrossY
                         || !supportsWall(candidate, n) || !supportsWall(candidate == a ? b : a, f)) continue;
-                if (edge >= 0) { edge = -1; break; }
+                if (edge >= 0) {
+                    edge = -1;
+                    break;
+                }
                 edge = candidate;
                 near = n;
                 far = f;
@@ -485,7 +542,10 @@ public final class SpatialProjectedFaceCache {
             for (int m = anchorMembershipHead[anchor]; m >= 0; m = membershipNext[m]) {
                 int face = membershipFace[m];
                 boolean onNear = supportsWall(face, near), onFar = supportsWall(face, far);
-                if (!onNear && !onFar) { complete = false; break; }
+                if (!onNear && !onFar) {
+                    complete = false;
+                    break;
+                }
                 // At a shared end cap the continuous, longitudinal face supplies the relation.
                 boolean longitudinal = (faceOrientation[face] < CompiledSpatialStructure.MIN_Y) == acrossY;
                 membershipPiece[m] = (byte) (onNear && (!onFar || longitudinal) ? 1 : 0);
@@ -498,7 +558,9 @@ public final class SpatialProjectedFaceCache {
         return anchor < 0 || anchor >= anchorCount ? -1 : splitFaceByAnchor[anchor];
     }
 
-    /** A through wall can supply a render piece, but an unsplit T is not a terminal opening. */
+    /**
+     * A through wall can supply a render piece, but an unsplit T is not a terminal opening.
+     */
     private void retainTerminalCornersForDiagnostics() {
         if (cornerCount == 0) return;
         IntSet throughStructures = new IntSet();
@@ -529,7 +591,8 @@ public final class SpatialProjectedFaceCache {
     boolean isLocalLateralSector(int corner, float x, float y, float radius) {
         int ma = cornerMembershipA[corner], mb = cornerMembershipB[corner];
         if (x + radius < Math.max(faceAnchorScreenMinX[ma], faceAnchorScreenMinX[mb]) - SpatialLineRelation.EPSILON
-                || x - radius > Math.min(faceAnchorScreenMaxX[ma], faceAnchorScreenMaxX[mb]) + SpatialLineRelation.EPSILON) return false;
+                || x - radius > Math.min(faceAnchorScreenMaxX[ma], faceAnchorScreenMaxX[mb]) + SpatialLineRelation.EPSILON)
+            return false;
         int a = membershipFace[ma], b = membershipFace[mb];
         boolean opensWest = faceMaxVertex[a] == faceMaxVertex[b];
         float vertexX = opensWest ? screenMaxX[a] : screenMinX[a];
@@ -580,14 +643,16 @@ public final class SpatialProjectedFaceCache {
     private void ensureFaceCapacity(int required) {
         if (required <= faceStructureId.length) return;
         int next = capacity(faceStructureId.length, required);
-        faceMinVertex = new long[next]; faceMaxVertex = new long[next];
+        faceMinVertex = new long[next];
+        faceMaxVertex = new long[next];
         faceOrientation = new byte[next];
         faceStructureId = grow(faceStructureId, next);
         faceCompiledIndex = grow(faceCompiledIndex, next);
         faceAltitude = grow(faceAltitude, next);
         faceHeight = grow(faceHeight, next);
         roofSupport = Arrays.copyOf(roofSupport, next);
-        surfaceMinY = grow(surfaceMinY, next); surfaceMaxY = grow(surfaceMaxY, next);
+        surfaceMinY = grow(surfaceMinY, next);
+        surfaceMaxY = grow(surfaceMaxY, next);
         screenMinX = grow(screenMinX, next);
         screenMaxX = grow(screenMaxX, next);
         slope = grow(slope, next);
@@ -629,8 +694,27 @@ public final class SpatialProjectedFaceCache {
         structureMaxX = grow(structureMaxX, next);
     }
 
-    private static int capacity(int current, int required) { int next=Math.max(4,current); while(next<required)next<<=1; return next; }
-    private static int[] grow(int[] source,int next){int[] out=new int[next];System.arraycopy(source,0,out,0,source.length);return out;}
-    private static float[] grow(float[] source,int next){float[] out=new float[next];System.arraycopy(source,0,out,0,source.length);return out;}
-    private static boolean[] grow(boolean[] source,int next){boolean[] out=new boolean[next];System.arraycopy(source,0,out,0,source.length);return out;}
+    private static int capacity(int current, int required) {
+        int next = Math.max(4, current);
+        while (next < required) next <<= 1;
+        return next;
+    }
+
+    private static int[] grow(int[] source, int next) {
+        int[] out = new int[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
+
+    private static float[] grow(float[] source, int next) {
+        float[] out = new float[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
+
+    private static boolean[] grow(boolean[] source, int next) {
+        boolean[] out = new boolean[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
 }

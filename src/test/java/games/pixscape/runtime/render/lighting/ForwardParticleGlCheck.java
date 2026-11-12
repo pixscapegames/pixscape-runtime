@@ -28,7 +28,9 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Runs in the existing desktop GL check, using the real prepared particle producer. */
+/**
+ * Runs in the existing desktop GL check, using the real prepared particle producer.
+ */
 final class ForwardParticleGlCheck {
     static void verify() throws Exception {
         Path directory = Files.createTempDirectory("forward-particle");
@@ -144,7 +146,10 @@ final class ForwardParticleGlCheck {
 
     private static int pixel() {
         Pixmap pixels = Pixmap.createFromFrameBuffer(32, 16, 1, 1);
-        try { return pixels.getPixel(0, 0); }
-        finally { pixels.dispose(); }
+        try {
+            return pixels.getPixel(0, 0);
+        } finally {
+            pixels.dispose();
+        }
     }
 }

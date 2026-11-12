@@ -20,18 +20,23 @@ import org.junit.Test;
 
 import java.io.File;
 
-/** GL-free loading evidence for the published example and the optional local demo corpus. */
+/**
+ * GL-free loading evidence for the published example and the optional local demo corpus.
+ */
 public class PublishedExportLoadTest {
-    @Test public void existingSilhouettePocLoadsOrExplicitlyRejectsMissingActorSpatialRectanglesWithoutMutation(){
-        FileHandle root=new FileHandle(new File("../shadow-volume-silhouette-demo/assets/pixscape-project"));
-        Assume.assumeTrue("Existing POC copy only",root.child("project.json").exists());
-        try { loadEveryScene(root); }
-        catch (RuntimeException incompatible) {
+    @Test
+    public void existingSilhouettePocLoadsOrExplicitlyRejectsMissingActorSpatialRectanglesWithoutMutation() {
+        FileHandle root = new FileHandle(new File("../shadow-volume-silhouette-demo/assets/pixscape-project"));
+        Assume.assumeTrue("Existing POC copy only", root.child("project.json").exists());
+        try {
+            loadEveryScene(root);
+        } catch (RuntimeException incompatible) {
             if (!missingActorSpatialRectangles(incompatible)) throw incompatible;
             // Optional user-owned corpus is intentionally not migrated by tests.
             return;
         }
     }
+
     @Test
     public void minimalExampleLoadsWithRuntimeAndAtlasDescriptor() {
         FileHandle root = new FileHandle(new File("examples/minimal-export"));
@@ -49,7 +54,7 @@ public class PublishedExportLoadTest {
         Assume.assumeTrue("The sibling tiled-iso-demo checkout is optional",
                 root.child("project.json").exists());
         loadEveryScene(root);
-        for(FileHandle asset : root.child("gameobjects").list(".gameobject"))
+        for (FileHandle asset : root.child("gameobjects").list(".gameobject"))
             loadCurrentGameObjectOrAssertVolumeRejection(asset);
         for (FileHandle descriptor : root.child("hud").list(".hudscreen")) {
             HudScreenAsset asset = new HudScreenAssetLoader().load(root,
@@ -83,17 +88,19 @@ public class PublishedExportLoadTest {
     }
 
     private static boolean missingActorSpatialRectangles(Throwable error) {
-        for(Throwable cause=error;cause!=null;cause=cause.getCause()) {
-            String message=cause.getMessage();
-            if(message!=null && (message.contains("has no authored rectangles; reconfigure the actor")
-                    || message.contains("Spatial actor spatial rectangles are missing:")))return true;
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            String message = cause.getMessage();
+            if (message != null && (message.contains("has no authored rectangles; reconfigure the actor")
+                    || message.contains("Spatial actor spatial rectangles are missing:"))) return true;
         }
         return false;
     }
+
     private static void loadCurrentGameObjectOrAssertVolumeRejection(FileHandle file) {
-        try { new GameObjectAssetLoader().load(file); }
-        catch (RuntimeException incompatible) {
-            if(!missingActorSpatialRectangles(incompatible))throw incompatible;
+        try {
+            new GameObjectAssetLoader().load(file);
+        } catch (RuntimeException incompatible) {
+            if (!missingActorSpatialRectangles(incompatible)) throw incompatible;
         }
     }
 }

@@ -4,7 +4,9 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectIntMap;
 import games.pixscape.runtime.component.ShaderFloatParam;
 
-/** Ordered numeric parameter slots for one material shader. */
+/**
+ * Ordered numeric parameter slots for one material shader.
+ */
 public final class ShaderParameterLayout {
     public static final int MAX_FLOATS = 16;
     public static final ShaderParameterLayout EMPTY = new ShaderParameterLayout("<none>", null);
@@ -40,16 +42,29 @@ public final class ShaderParameterLayout {
         }
     }
 
-    public String shaderName() { return shaderName; }
-    public int size() { return names.length; }
-    public String name(int slot) { return names[slot]; }
-    public float defaultValue(int slot) { return defaults[slot]; }
+    public String shaderName() {
+        return shaderName;
+    }
+
+    public int size() {
+        return names.length;
+    }
+
+    public String name(int slot) {
+        return names[slot];
+    }
+
+    public float defaultValue(int slot) {
+        return defaults[slot];
+    }
 
     public int slot(String name) {
         return slots.get(name, -1);
     }
 
-    /** Stable GLSL names keep slot changes from reassigning another parameter's meaning. */
+    /**
+     * Stable GLSL names keep slot changes from reassigning another parameter's meaning.
+     */
     public String glslDefines() {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < names.length; i++) {

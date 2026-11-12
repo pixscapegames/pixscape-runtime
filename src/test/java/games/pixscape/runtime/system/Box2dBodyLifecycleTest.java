@@ -18,9 +18,12 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-/** Native integration: structural lifecycle changes must not require a full-world sweep. */
+/**
+ * Native integration: structural lifecycle changes must not require a full-world sweep.
+ */
 public class Box2dBodyLifecycleTest {
-    @Test public void lateBodiesAndRemovedOrRestoredComponentsAreObservedWithoutManualDirtyMarks() {
+    @Test
+    public void lateBodiesAndRemovedOrRestoredComponentsAreObservedWithoutManualDirtyMarks() {
         try (Harness h = new Harness()) {
             h.world.process(); // Close bootstrap before spawning.
             int e = h.body();
@@ -41,7 +44,8 @@ public class Box2dBodyLifecycleTest {
         }
     }
 
-    @Test public void stableRuntimeDoesNoBodyChecksAndOneEditDoesNotVisitOtherBodies() {
+    @Test
+    public void stableRuntimeDoesNoBodyChecksAndOneEditDoesNotVisitOtherBodies() {
         try (Harness h = new Harness()) {
             int changed = h.body();
             for (int i = 0; i < 1000; i++) h.body();
@@ -60,7 +64,8 @@ public class Box2dBodyLifecycleTest {
         }
     }
 
-    @Test public void tiledComponentChangesAndCollisionTogglesReconcileOnlyThatBody() {
+    @Test
+    public void tiledComponentChangesAndCollisionTogglesReconcileOnlyThatBody() {
         try (Harness h = new Harness()) {
             int e = h.body();
             h.world.process();
@@ -83,7 +88,8 @@ public class Box2dBodyLifecycleTest {
         }
     }
 
-    @Test public void disabledFramesAndDeletedEntitiesDoNotLoseOrResurrectBodies() {
+    @Test
+    public void disabledFramesAndDeletedEntitiesDoNotLoseOrResurrectBodies() {
         try (Harness h = new Harness()) {
             int removed = h.body();
             h.world.process();
@@ -109,7 +115,8 @@ public class Box2dBodyLifecycleTest {
         }
     }
 
-    @Test public void removingRuntimeComponentRecreatesWantedBodyWithoutLeakingOldNativeBody() {
+    @Test
+    public void removingRuntimeComponentRecreatesWantedBodyWithoutLeakingOldNativeBody() {
         try (Harness h = new Harness()) {
             int e = h.body();
             h.world.process();
@@ -120,7 +127,8 @@ public class Box2dBodyLifecycleTest {
         }
     }
 
-    @Test public void missingCompiledCacheStillFailsAndPublishedCacheAllowsRetry() {
+    @Test
+    public void missingCompiledCacheStillFailsAndPublishedCacheAllowsRetry() {
         try (Harness h = new Harness()) {
             h.world.process();
             int e = h.world.create();
@@ -139,6 +147,7 @@ public class Box2dBodyLifecycleTest {
         final Box2dSyncSystem sync;
         final World world;
         final Counts counts = new Counts();
+
         Harness() {
             GdxNativesLoader.load();
             box2d = new Box2dWorldService(100, new Vector2());
@@ -148,6 +157,7 @@ public class Box2dBodyLifecycleTest {
             authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
             world = new World(new WorldConfigurationBuilder().with(dirty, authority, sync).build());
         }
+
         int body() {
             int e = world.create();
             world.getMapper(TransformComponent.class).create(e);
@@ -155,6 +165,7 @@ public class Box2dBodyLifecycleTest {
             prepare(e);
             return e;
         }
+
         void prepare(int e) {
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(e);
             shapes.shapes.add(PhysicsService.createDefaultShape(e + 1));
@@ -162,24 +173,63 @@ public class Box2dBodyLifecycleTest {
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(e),
                     PhysicsService.prepareBodyCandidate(shapes.shapes));
         }
+
         Body nativeBody(int e) {
             PhysicsRuntimeBodyComponent rt = world.getMapper(PhysicsRuntimeBodyComponent.class).getSafe(e, null);
             return rt != null ? rt.body : null;
         }
-        @Override public void close() { world.dispose(); box2d.dispose(); }
+
+        @Override
+        public void close() {
+            world.dispose();
+            box2d.dispose();
+        }
     }
 
     private static class Counts implements Box2dSyncSystem.TestObserver {
         int checks, rebuilds;
-        void reset() { checks = rebuilds = 0; }
-        @Override public void onBodyEligibilityCheck() { checks++; }
-        @Override public void onBodyCacheCheck() { checks++; }
-        @Override public void onBodyRebuild() { rebuilds++; }
-        @Override public void onBodyCompile() { }
-        @Override public void onShapeCompile() { }
-        @Override public void onPolygonDecomposition() { }
-        @Override public void beforeCreateFixture(int e, CompiledFixtureData fixture) { }
-        @Override public void onFixtureProvenanceCreated(int e, CompiledFixtureData fixture) { }
-        @Override public void beforeCreateOrRebuildJoint(int e) { }
+
+        void reset() {
+            checks = rebuilds = 0;
+        }
+
+        @Override
+        public void onBodyEligibilityCheck() {
+            checks++;
+        }
+
+        @Override
+        public void onBodyCacheCheck() {
+            checks++;
+        }
+
+        @Override
+        public void onBodyRebuild() {
+            rebuilds++;
+        }
+
+        @Override
+        public void onBodyCompile() {
+        }
+
+        @Override
+        public void onShapeCompile() {
+        }
+
+        @Override
+        public void onPolygonDecomposition() {
+        }
+
+        @Override
+        public void beforeCreateFixture(int e, CompiledFixtureData fixture) {
+        }
+
+        @Override
+        public void onFixtureProvenanceCreated(int e, CompiledFixtureData fixture) {
+        }
+
+        @Override
+        public void beforeCreateOrRebuildJoint(int e) {
+        }
     }
 }

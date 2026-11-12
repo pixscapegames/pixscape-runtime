@@ -2,9 +2,12 @@ package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.utils.Disposable;
 
-/** {@code INTERNAL} live HUD screen; always owns its session, explicitly owns or borrows its environment. */
+/**
+ * {@code INTERNAL} live HUD screen; always owns its session, explicitly owns or borrows its environment.
+ */
 public final class ActiveHudScreen implements Disposable {
-    public enum ResourceOwnership { OWNED, BORROWED }
+    public enum ResourceOwnership {OWNED, BORROWED}
+
     private final String screenId;
     private final HudScreenAsset asset;
     private final HudResources resources;

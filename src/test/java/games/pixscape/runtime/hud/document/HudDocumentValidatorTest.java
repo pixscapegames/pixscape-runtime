@@ -22,10 +22,25 @@ public class HudDocumentValidatorTest {
         root.tooltip.fontAssetId = -1;
         root.tooltip.styleName = "missing";
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
         };
         HudValidationResult result = validator.validate(new HudDocumentV1(root), catalog);
         Assert.assertFalse(result.isValid());
@@ -226,11 +241,28 @@ public class HudDocumentValidatorTest {
         pane.scrollPane = new HudScrollPaneData();
         pane.scrollPane.styleName = "empty-scroll";
         HudResourceCatalog catalog = new HudResourceCatalog() {
-            @Override public boolean hasRegion(String name) { return false; }
-            @Override public boolean hasDrawable(String name) { return false; }
-            @Override public boolean hasLabelStyle(String name) { return false; }
-            @Override public boolean hasTextButtonStyle(String name) { return false; }
-            @Override public boolean hasScrollPaneStyle(String name) {
+            @Override
+            public boolean hasRegion(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDrawable(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasScrollPaneStyle(String name) {
                 return "empty-scroll".equals(name);
             }
         };
@@ -766,9 +798,20 @@ public class HudDocumentValidatorTest {
         label.label.styleName = "fontless";
         label.label.fontAssetId = 42;
         HudResourceCatalog catalog = new EmptyResourceCatalog() {
-            @Override public boolean hasLabelStyle(String name) { return "fontless".equals(name); }
-            @Override public boolean hasLabelStyleFont(String name) { return false; }
-            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return "fontless".equals(name);
+            }
+
+            @Override
+            public boolean hasLabelStyleFont(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBitmapFont(int assetId) {
+                return assetId == 42;
+            }
         };
 
         Assert.assertTrue(issues(validator.validate(new HudDocumentV1(label), catalog)),
@@ -787,9 +830,20 @@ public class HudDocumentValidatorTest {
         label.textraLabel.styleName = "fontless";
         label.textraLabel.fontAssetId = 42;
         HudResourceCatalog catalog = new EmptyResourceCatalog() {
-            @Override public boolean hasLabelStyle(String name) { return "fontless".equals(name); }
-            @Override public boolean hasLabelStyleFont(String name) { return false; }
-            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
+            @Override
+            public boolean hasLabelStyle(String name) {
+                return "fontless".equals(name);
+            }
+
+            @Override
+            public boolean hasLabelStyleFont(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean hasBitmapFont(int assetId) {
+                return assetId == 42;
+            }
         };
 
         Assert.assertTrue(issues(validator.validate(new HudDocumentV1(label), catalog)),
@@ -828,17 +882,28 @@ public class HudDocumentValidatorTest {
         root.children.add(HudChild.direct(field));
         root.children.add(HudChild.direct(select));
         HudResourceCatalog catalog = new EmptyResourceCatalog() {
-            @Override public boolean hasBitmapFont(int assetId) { return assetId == 42; }
-            @Override public boolean hasTextButtonStyle(String name, boolean override) {
+            @Override
+            public boolean hasBitmapFont(int assetId) {
+                return assetId == 42;
+            }
+
+            @Override
+            public boolean hasTextButtonStyle(String name, boolean override) {
                 return override && "fontless".equals(name);
             }
-            @Override public boolean hasCheckBoxStyle(String name, boolean override) {
+
+            @Override
+            public boolean hasCheckBoxStyle(String name, boolean override) {
                 return override && "fontless".equals(name);
             }
-            @Override public boolean hasTextFieldStyle(String name, boolean override) {
+
+            @Override
+            public boolean hasTextFieldStyle(String name, boolean override) {
                 return override && "fontless".equals(name);
             }
-            @Override public boolean hasSelectBoxStyle(String name, boolean override) {
+
+            @Override
+            public boolean hasSelectBoxStyle(String name, boolean override) {
                 return override && "fontless".equals(name);
             }
         };
@@ -1058,20 +1123,62 @@ public class HudDocumentValidatorTest {
     }
 
     private static class EmptyResourceCatalog implements HudResourceCatalog {
-        @Override public boolean hasRegion(String name) { return false; }
-        @Override public boolean hasDrawable(String name) { return false; }
-        @Override public boolean hasLabelStyle(String name) { return false; }
-        @Override public boolean hasTextButtonStyle(String name) { return false; }
+        @Override
+        public boolean hasRegion(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasDrawable(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasLabelStyle(String name) {
+            return false;
+        }
+
+        @Override
+        public boolean hasTextButtonStyle(String name) {
+            return false;
+        }
     }
 
     private static final class FixtureResourceCatalog extends EmptyResourceCatalog {
-        @Override public boolean hasBuiltInLabelStyle() { return true; }
-        @Override public boolean hasBuiltInTextButtonStyle() { return true; }
-        @Override public boolean hasBuiltInImageButtonStyle() { return true; }
-        @Override public boolean hasBuiltInTextFieldStyle() { return true; }
-        @Override public boolean hasBuiltInSelectBoxStyle() { return true; }
-        @Override public boolean hasBuiltInSliderStyle() { return true; }
-        @Override public boolean hasBuiltInProgressBarStyle() { return true; }
+        @Override
+        public boolean hasBuiltInLabelStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInTextButtonStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInImageButtonStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInTextFieldStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInSelectBoxStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInSliderStyle() {
+            return true;
+        }
+
+        @Override
+        public boolean hasBuiltInProgressBarStyle() {
+            return true;
+        }
 
         @Override
         public boolean hasRegion(String name) {
@@ -1112,7 +1219,9 @@ public class HudDocumentValidatorTest {
         public boolean hasSliderStyle(String name) {
             return "compact-slider".equals(name);
         }
-        @Override public boolean hasProgressBarStyle(String name) {
+
+        @Override
+        public boolean hasProgressBarStyle(String name) {
             return "compact-progress".equals(name);
         }
     }

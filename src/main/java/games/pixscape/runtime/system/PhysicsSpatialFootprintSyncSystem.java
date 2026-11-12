@@ -50,7 +50,9 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
         forceResync = false;
     }
 
-    /** Prepares persistent Spatial physics footprints without processing a gameplay frame. */
+    /**
+     * Prepares persistent Spatial physics footprints without processing a gameplay frame.
+     */
     public void prepareRuntimeAvailability() {
         syncCompiledCaches();
         forceResync = false;
@@ -122,6 +124,8 @@ public final class PhysicsSpatialFootprintSyncSystem extends BaseSystem {
 
     interface TestObserver {
         void onProjection();
-        default void onCacheVisit() { }
+
+        default void onCacheVisit() {
+        }
     }
 }

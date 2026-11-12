@@ -13,7 +13,8 @@ import org.junit.Test;
 
 public class LayerStateBuildSystemTest {
 
-    @Test public void directLayerWritesAndDeletionArePublishedWithoutDirtySignals() {
+    @Test
+    public void directLayerWritesAndDeletionArePublishedWithoutDirtySignals() {
         LayerStateSOA state = new LayerStateSOA(4);
         World world = new World(new WorldConfigurationBuilder()
                 .with(new LayerStateBuildSystem(state, null)).build());
@@ -40,7 +41,9 @@ public class LayerStateBuildSystemTest {
             world.process();
             Assert.assertFalse(state.enabled[2]);
             Assert.assertTrue(Float.isNaN(state.parallaxX[2]));
-        } finally { world.dispose(); }
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test

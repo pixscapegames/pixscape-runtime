@@ -128,7 +128,7 @@ public class PixscapeApiV1Test {
         int actor = world.create();
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 4;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(actor),2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(actor), 2f);
         int slot = state.acquireSlotForEntity(actor);
         state.kind[slot] = RenderKind.SPRITE;
         state.enabled[slot] = true;
@@ -178,7 +178,7 @@ public class PixscapeApiV1Test {
         Assert.assertEquals("The regression must exercise Artemis ID reuse", actor, replacement);
         world.getMapper(TransformComponent.class).create(replacement);
         world.getMapper(EntityIndexComponent.class).create(replacement).layerIndex = 4;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(replacement),2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(replacement), 2f);
         SpatialPhysicsFootprintComponent replacementFootprint =
                 world.getMapper(SpatialPhysicsFootprintComponent.class).create(replacement);
         replacementFootprint.valid = true;
@@ -612,16 +612,28 @@ public class PixscapeApiV1Test {
         dirty.clearAll();
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setPosition(Float.NaN, 9f); }
+            @Override
+            public void run() {
+                facade.setPosition(Float.NaN, 9f);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setScale(Float.POSITIVE_INFINITY); }
+            @Override
+            public void run() {
+                facade.setScale(Float.POSITIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setOrigin(9f, Float.NEGATIVE_INFINITY); }
+            @Override
+            public void run() {
+                facade.setOrigin(9f, Float.NEGATIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setRotationRad(Float.NaN); }
+            @Override
+            public void run() {
+                facade.setRotationRad(Float.NaN);
+            }
         });
 
         Assert.assertEquals(1f, transform.x, 0f);
@@ -651,13 +663,22 @@ public class PixscapeApiV1Test {
         dirty.clearAll();
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { sprite.sprite().setSize(Float.NaN, 10f); }
+            @Override
+            public void run() {
+                sprite.sprite().setSize(Float.NaN, 10f);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { sprite.sprite().setSize(10f, Float.POSITIVE_INFINITY); }
+            @Override
+            public void run() {
+                sprite.sprite().setSize(10f, Float.POSITIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { sprite.sprite().setSize(Float.NEGATIVE_INFINITY, 10f); }
+            @Override
+            public void run() {
+                sprite.sprite().setSize(Float.NEGATIVE_INFINITY, 10f);
+            }
         });
 
         Assert.assertEquals(16f, dimensions.width, 0f);
@@ -673,23 +694,35 @@ public class PixscapeApiV1Test {
         int entity = world.create();
         SpatialHeightComponent spatial = world.edit(entity).create(SpatialHeightComponent.class);
         spatial.altitude = 2f;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,5f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, 5f);
         world.process();
         SpatialEntityFacade facade = engine.api().entities().ofEntityId(entity).spatial();
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         dirty.clearAll();
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setHeight(Float.NaN); }
+            @Override
+            public void run() {
+                facade.setHeight(Float.NaN);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setHeight(Float.POSITIVE_INFINITY); }
+            @Override
+            public void run() {
+                facade.setHeight(Float.POSITIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setHeight(Float.NEGATIVE_INFINITY); }
+            @Override
+            public void run() {
+                facade.setHeight(Float.NEGATIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setVolume(Float.NaN, 3f); }
+            @Override
+            public void run() {
+                facade.setVolume(Float.NaN, 3f);
+            }
         });
 
         Assert.assertEquals(2f, spatial.altitude, 0f);
@@ -948,10 +981,14 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(engine.api().tiled().ofEntityId(999).map().isInside(0, 0));
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { ref.map().setOrigin(Float.NaN, 2f); }
+            @Override
+            public void run() {
+                ref.map().setOrigin(Float.NaN, 2f);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 ref.spatial().setDefaultVolume(1f, Float.POSITIVE_INFINITY);
             }
         });
@@ -962,10 +999,16 @@ public class PixscapeApiV1Test {
         Assert.assertEquals(0f, data.defaultTileAltitude, 0f);
         Assert.assertEquals(0f, data.defaultTileHeight, 0f);
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { ref.map().resize(0, 4); }
+            @Override
+            public void run() {
+                ref.map().resize(0, 4);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { ref.map().resize(4, -1); }
+            @Override
+            public void run() {
+                ref.map().resize(4, -1);
+            }
         });
         Assert.assertEquals(4, ref.map().width());
         Assert.assertEquals(4, ref.map().height());
@@ -1721,10 +1764,16 @@ public class PixscapeApiV1Test {
         setField(engine, "atlasRuntimeService", new FakeAtlasRuntimeService(42));
 
         assertUnknownAnimationRejected(new Runnable() {
-            @Override public void run() { engine.api().animations().spawn(42, 0f, 0f); }
+            @Override
+            public void run() {
+                engine.api().animations().spawn(42, 0f, 0f);
+            }
         }, "id: 42");
         assertUnknownAnimationRejected(new Runnable() {
-            @Override public void run() { engine.api().animations().spawn("hero", 0f, 0f); }
+            @Override
+            public void run() {
+                engine.api().animations().spawn("hero", 0f, 0f);
+            }
         }, "name: 'hero'");
 
         Assert.assertEquals(0, engine.getAnimationRegistry().size());
@@ -1789,7 +1838,10 @@ public class PixscapeApiV1Test {
 
         facade.setStateTime(2f);
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { facade.setStateTime(Float.NaN); }
+            @Override
+            public void run() {
+                facade.setStateTime(Float.NaN);
+            }
         });
         Assert.assertEquals(2f, facade.stateTime(), 0f);
         facade.setStateTime(-1f);
@@ -2055,19 +2107,28 @@ public class PixscapeApiV1Test {
 
         engine.getAnimationRegistry().put(singleClipAnimation(44, "unauthorized", 24f, "cast"));
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { animation.setAnimation(44); }
+            @Override
+            public void run() {
+                animation.setAnimation(44);
+            }
         });
         assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { animation.setAnimation("missing"); }
+            @Override
+            public void run() {
+                animation.setAnimation("missing");
+            }
         });
         assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
 
         state.animationAssetIds.add(45);
         engine.getAnimationRegistry().put(singleClipAnimation(45, "unavailable", 30f, "jump"));
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { animation.setAnimation(45); }
+            @Override
+            public void run() {
+                animation.setAnimation(45);
+            }
         });
         assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
     }
@@ -2087,7 +2148,10 @@ public class PixscapeApiV1Test {
         state.frame = 3;
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { animation.play(43, "walk"); }
+            @Override
+            public void run() {
+                animation.play(43, "walk");
+            }
         });
         assertAnimationState(asset, state, 42, "idle", 6f, false, false, 2f, 3);
 
@@ -2116,10 +2180,16 @@ public class PixscapeApiV1Test {
         Assert.assertTrue(byId.hasClip("attack"));
         Assert.assertFalse(byId.hasClip("missing"));
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { engine.api().animations().definition(99); }
+            @Override
+            public void run() {
+                engine.api().animations().definition(99);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { engine.api().animations().definition("missing"); }
+            @Override
+            public void run() {
+                engine.api().animations().definition("missing");
+            }
         });
     }
 

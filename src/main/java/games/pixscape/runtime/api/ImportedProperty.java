@@ -7,6 +7,8 @@ package games.pixscape.runtime.api;
  */
 public interface ImportedProperty {
     String typeName();
+
     String customTypeName();
+
     String sourceXml();
 }

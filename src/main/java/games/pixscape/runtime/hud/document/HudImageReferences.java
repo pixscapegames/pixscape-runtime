@@ -1,8 +1,12 @@
 package games.pixscape.runtime.hud.document;
 
-/** Visits every explicit image reference carried by one HUD node. */
+/**
+ * Visits every explicit image reference carried by one HUD node.
+ */
 public final class HudImageReferences {
-    /** Receives the node-relative field path and its configured image reference. */
+    /**
+     * Receives the node-relative field path and its configured image reference.
+     */
     public interface Visitor {
         void visit(HudNode node, String fieldPath, HudImageData image);
     }
@@ -10,7 +14,9 @@ public final class HudImageReferences {
     private HudImageReferences() {
     }
 
-    /** Visits references in stable document-field order, ignoring absent optional states. */
+    /**
+     * Visits references in stable document-field order, ignoring absent optional states.
+     */
     public static void visit(HudNode node, Visitor visitor) {
         if (node == null) throw new IllegalArgumentException("HUD node is required.");
         if (visitor == null) throw new IllegalArgumentException("Image visitor is required.");

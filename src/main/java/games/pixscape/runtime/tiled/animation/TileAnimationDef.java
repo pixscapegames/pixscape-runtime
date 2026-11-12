@@ -61,7 +61,9 @@ public final class TileAnimationDef {
         return data.name;
     }
 
-    public int baseTileAssetId() { return data.baseTileAssetId; }
+    public int baseTileAssetId() {
+        return data.baseTileAssetId;
+    }
 
     public int frameCount() {
         return data.frameAssetIds.length;

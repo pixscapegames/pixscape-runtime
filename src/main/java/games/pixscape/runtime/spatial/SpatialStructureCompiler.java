@@ -536,7 +536,9 @@ public final class SpatialStructureCompiler {
             end = new float[capacity];
         }
 
-        int size() { return size; }
+        int size() {
+            return size;
+        }
 
         void add(byte faceOrientation, float constant, float faceStart, float faceEnd) {
             if (!(faceEnd > faceStart + SpatialWallGeometry.GEOMETRY_EPSILON)) return;

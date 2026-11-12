@@ -86,7 +86,9 @@ public final class TiledLayerComponent extends PooledComponent {
         return false;
     }
 
-    /** Builds transient map data exclusively from this map's authored configuration. */
+    /**
+     * Builds transient map data exclusively from this map's authored configuration.
+     */
     public TiledMapLayerData createMapData() {
         validateMapConfiguration();
         TiledMapLayerData result = new TiledMapLayerData(

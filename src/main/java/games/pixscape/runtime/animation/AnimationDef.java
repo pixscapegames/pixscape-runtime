@@ -83,7 +83,9 @@ public final class AnimationDef implements AnimationDefinition {
         return clip(clipName) != null;
     }
 
-    /** Returns the registry-owned clip in O(1) average time, or {@code null}. */
+    /**
+     * Returns the registry-owned clip in O(1) average time, or {@code null}.
+     */
     public AnimationClipDef clip(String clipName) {
         if (isBlank(clipName)) return null;
         return clipsByName.get(clipName);

@@ -5,18 +5,23 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
-/** Blend policy for replaying the final queue without changing its order or materials. */
+/**
+ * Blend policy for replaying the final queue without changing its order or materials.
+ */
 public final class LightCompositionPass {
     public static final int ORIGINAL = 0;
     public static final int FIELD = 1;
     public static final int ORIGINAL_EXEMPT = 2;
     public static final int MASK = 3;
     public static final int CONTRIBUTION = 4;
-    /** Ordered replay selector; resolved per entry before applying blend state. */
+    /**
+     * Ordered replay selector; resolved per entry before applying blend state.
+     */
     public static final int AMBIENT = 5;
     public static final int DIRECT = 6;
 
-    private LightCompositionPass() {}
+    private LightCompositionPass() {
+    }
 
     public static void apply(int pass, boolean light, int blendId, MetricsBatch batch,
                              ShaderProgram shader, RenderStats stats) {
@@ -33,12 +38,14 @@ public final class LightCompositionPass {
             }
             shader.bind();
             if (shader.hasUniform("u_worldCoverage")) shader.setUniformf("u_worldCoverage", opaque ? 1f : 0f);
-            if (shader.hasUniform("u_cutoutThreshold")) shader.setUniformf("u_cutoutThreshold", blend == BlendMode.CUTOUT ? .5f : -1f);
+            if (shader.hasUniform("u_cutoutThreshold"))
+                shader.setUniformf("u_cutoutThreshold", blend == BlendMode.CUTOUT ? .5f : -1f);
         }
     }
 
     public static boolean skip(int pass, boolean light, int blend) {
-        if (pass == DIRECT || pass == ORIGINAL || pass == AMBIENT || pass == CONTRIBUTION || pass == ORIGINAL_EXEMPT) return light;
+        if (pass == DIRECT || pass == ORIGINAL || pass == AMBIENT || pass == CONTRIBUTION || pass == ORIGINAL_EXEMPT)
+            return light;
         return !light && (blend == BlendMode.ADDITIVE.id || blend == BlendMode.ADDITIVE_ALPHA.id);
     }
 
@@ -62,7 +69,9 @@ public final class LightCompositionPass {
         return blend == BlendMode.OPAQUE || blend == BlendMode.CUTOUT ? GL20.GL_ZERO : GL20.GL_ONE_MINUS_SRC_ALPHA;
     }
 
-    /** Coverage in the original buffer, independent of emitted additive RGB. */
+    /**
+     * Coverage in the original buffer, independent of emitted additive RGB.
+     */
     public static int coverageSource(BlendMode blend) {
         return blend == BlendMode.ADDITIVE || blend == BlendMode.ADDITIVE_ALPHA ? GL20.GL_ZERO : GL20.GL_ONE;
     }

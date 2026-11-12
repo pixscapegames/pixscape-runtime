@@ -1,6 +1,8 @@
 package games.pixscape.runtime.animation;
 
-/** Immutable clip semantics owned by an {@link AnimationDef}. */
+/**
+ * Immutable clip semantics owned by an {@link AnimationDef}.
+ */
 public final class AnimationClipDef {
 
     private final String name;

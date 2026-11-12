@@ -22,7 +22,9 @@ public final class Box2dWorldService {
     public World world;
     private boolean disposed;
 
-    /** Pixscape world units/pixels per Box2D meter. */
+    /**
+     * Pixscape world units/pixels per Box2D meter.
+     */
     public float ppm;
     private boolean doSleep = true;
     private final Vector2 gravity = new Vector2();

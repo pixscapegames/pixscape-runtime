@@ -1,9 +1,13 @@
 package games.pixscape.runtime.hud.document;
 
-/** Typed ImageTextButton payload with optional native style-image overrides. */
+/**
+ * Typed ImageTextButton payload with optional native style-image overrides.
+ */
 public final class HudImageTextButtonData {
     public String text;
-    /** Null or blank selects the built-in Default style. */
+    /**
+     * Null or blank selects the built-in Default style.
+     */
     public String styleName;
     public Integer fontAssetId;
     public HudImageData imageUp;

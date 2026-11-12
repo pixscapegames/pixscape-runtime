@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** One ordered authored button in a Dialog's native button table. */
+/**
+ * One ordered authored button in a Dialog's native button table.
+ */
 public final class HudDialogResultButton {
     public HudNode button;
     public String resultId;

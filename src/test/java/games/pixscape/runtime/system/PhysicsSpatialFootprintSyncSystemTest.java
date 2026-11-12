@@ -15,8 +15,13 @@ public class PhysicsSpatialFootprintSyncSystemTest {
         PhysicsSpatialFootprintSyncSystem sync = new PhysicsSpatialFootprintSyncSystem(100f);
         int[] work = {0, 0};
         sync.setTestObserver(new PhysicsSpatialFootprintSyncSystem.TestObserver() {
-            public void onProjection() { work[0]++; }
-            public void onCacheVisit() { work[1]++; }
+            public void onProjection() {
+                work[0]++;
+            }
+
+            public void onCacheVisit() {
+                work[1]++;
+            }
         });
         World world = new World(new WorldConfigurationBuilder().with(sync).build());
         try {
@@ -38,8 +43,11 @@ public class PhysicsSpatialFootprintSyncSystemTest {
             world.process();
             Assert.assertEquals(1, work[0]);
             Assert.assertEquals(1000, work[1]);
-        } finally { world.dispose(); }
+        } finally {
+            world.dispose();
+        }
     }
+
     @Test
     public void ppmChangeReprojectsWithoutChangingPhysicsGeneration() {
         PhysicsSpatialFootprintSyncSystem sync =

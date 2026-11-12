@@ -32,7 +32,9 @@ public class EntityRefIdentitySafetyTest {
     // Lifecycle/identity fixtures use a fake GL; real rendering has its own GL integration tests.
     private static void disableRendering(PixscapeEngine engine) {
         engine.setRenderSubmitSystemSupplier(() -> new com.artemis.BaseSystem() {
-            @Override protected void processSystem() { }
+            @Override
+            protected void processSystem() {
+            }
         });
     }
 
@@ -74,7 +76,9 @@ public class EntityRefIdentitySafetyTest {
                 Assert.assertFalse(world.getEntityManager().isActive(a));
                 Assert.assertFalse(world.getEntityManager().isActive(joint));
                 Assert.assertTrue(world.getEntityManager().isActive(b));
-            } finally { engine.dispose(); }
+            } finally {
+                engine.dispose();
+            }
         }
     }
 
@@ -172,7 +176,9 @@ public class EntityRefIdentitySafetyTest {
                 Assert.assertSame(identity, world.getMapper(PixscapeIdentityComponent.class).get(entity));
                 Assert.assertEquals(101, meta.nextEntityStableId);
             }
-        } finally { engine.dispose(); }
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -387,13 +393,17 @@ public class EntityRefIdentitySafetyTest {
             var replacement = spawner.spawnAsset(world, asset, "gameobjects/test.gameobject", 0, 0);
             Assert.assertTrue("Regression exercises recycled entity IDs",
                     replacement.createdEntityIds().contains(first.rootEntityId()));
-            root.remove(); nested.remove(); leaf.remove();
+            root.remove();
+            nested.remove();
+            leaf.remove();
             world.process();
             for (int i = 0; i < replacement.createdEntityIds().size(); i++) {
                 Assert.assertTrue(world.getEntityManager().isActive(replacement.createdEntityIds().get(i)));
             }
             Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
-        } finally { engine.dispose(); }
+        } finally {
+            engine.dispose();
+        }
     }
 
     private static void assertStalePosition(TransformFacade transform) {

@@ -10,7 +10,9 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.ContentLayerValidator;
 
-/** Activation-time validation for Tiled Map ownership. */
+/**
+ * Activation-time validation for Tiled Map ownership.
+ */
 public final class TiledMapOwnership {
     private TiledMapOwnership() {
     }

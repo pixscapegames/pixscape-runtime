@@ -36,8 +36,8 @@ public interface TiledAnimationsAPI {
      * scene atlas.</p>
      *
      * @param animatedTileAssetId asset id used by map cells to reference the animation
-     * @param frameAssetIds ordered frame asset ids
-     * @param frameDurationsMs frame durations in milliseconds, aligned with {@code frameAssetIds}
+     * @param frameAssetIds       ordered frame asset ids
+     * @param frameDurationsMs    frame durations in milliseconds, aligned with {@code frameAssetIds}
      * @return this registry facade for chaining
      */
     TiledAnimationsAPI put(int animatedTileAssetId, int[] frameAssetIds, int[] frameDurationsMs);

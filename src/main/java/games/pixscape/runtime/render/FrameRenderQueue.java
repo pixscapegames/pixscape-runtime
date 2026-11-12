@@ -15,7 +15,9 @@ package games.pixscape.runtime.render;
  * the queue from the engine must not dispose it or retain entry assumptions across rebuilds.</p>
  */
 public final class FrameRenderQueue {
-    /** Published receiver/caster/light data; does not change image ordering. */
+    /**
+     * Published receiver/caster/light data; does not change image ordering.
+     */
     public games.pixscape.runtime.render.lighting.LightingFrame lighting;
     public boolean lightingEnabled;
     public static final byte SOURCE_NONE = RenderSourceDomain.SOURCE_NONE;
@@ -43,36 +45,58 @@ public final class FrameRenderQueue {
     private float[] sourceBottomY, sourceTopY;
     public float[] colorPacked;
     public byte[] repeatFlags;
-    /** Derived light identity; independent of shader and blend selection. */
+    /**
+     * Derived light identity; independent of shader and blend selection.
+     */
     public byte[] light;
-    /** Derived VFX instance participation; ordinary images always publish false. */
+    /**
+     * Derived VFX instance participation; ordinary images always publish false.
+     */
     public boolean[] ignoreAmbientLighting;
-    /** Frame-local material admission, written by the original submission path. */
+    /**
+     * Frame-local material admission, written by the original submission path.
+     */
     public byte[] ambientMaterial;
-    /** Prepared read-only parameter references; submission never looks up source entities. */
+    /**
+     * Prepared read-only parameter references; submission never looks up source entities.
+     */
     public games.pixscape.runtime.component.ShaderParamsComponent[] shaderParameters;
 
-    /** Native tile provenance for the lighting passes. Positions in x1..y4 always describe the drawn region. */
+    /**
+     * Native tile provenance for the lighting passes. Positions in x1..y4 always describe the drawn region.
+     */
     public TileCornerSplit.Piece[] tilePiece;
 
-    /** Draw vertices are ordered bottom-left, top-left, top-right, bottom-right (indices 0..3). */
+    /**
+     * Draw vertices are ordered bottom-left, top-left, top-right, bottom-right (indices 0..3).
+     */
     public float drawX(int i, int corner) {
         switch (corner) {
-            case 0: return x1[i];
-            case 1: return x2[i];
-            case 2: return x3[i];
-            case 3: return x4[i];
-            default: throw new IndexOutOfBoundsException();
+            case 0:
+                return x1[i];
+            case 1:
+                return x2[i];
+            case 2:
+                return x3[i];
+            case 3:
+                return x4[i];
+            default:
+                throw new IndexOutOfBoundsException();
         }
     }
 
     public float drawY(int i, int corner) {
         switch (corner) {
-            case 0: return y1[i];
-            case 1: return y2[i];
-            case 2: return y3[i];
-            case 3: return y4[i];
-            default: throw new IndexOutOfBoundsException();
+            case 0:
+                return y1[i];
+            case 1:
+                return y2[i];
+            case 2:
+                return y3[i];
+            case 3:
+                return y4[i];
+            default:
+                throw new IndexOutOfBoundsException();
         }
     }
 
@@ -87,11 +111,20 @@ public final class FrameRenderQueue {
         return corner == 0 || corner == 3 ? v2[i] : v1[i];
     }
 
-    /** Full source atlas bounds for material sampling and clamping. Use drawV for vertex UVs. */
-    public float atlasTopV(int i) { return v1[i]; }
-    public float atlasBottomV(int i) { return v2[i]; }
+    /**
+     * Full source atlas bounds for material sampling and clamping. Use drawV for vertex UVs.
+     */
+    public float atlasTopV(int i) {
+        return v1[i];
+    }
 
-    /** Original image basis for interpolating prepared lighting attributes. */
+    public float atlasBottomV(int i) {
+        return v2[i];
+    }
+
+    /**
+     * Original image basis for interpolating prepared lighting attributes.
+     */
     public float sourceY(int i, int corner) {
         if (tilePiece[i] == null) return drawY(i, corner);
         return corner == 0 || corner == 3 ? sourceBottomY[i] : sourceTopY[i];
@@ -111,13 +144,17 @@ public final class FrameRenderQueue {
     public int[] sourceSlot;
     public int[] sourceEntity;
 
-    public FrameRenderQueue() { this(true); }
+    public FrameRenderQueue() {
+        this(true);
+    }
 
     public FrameRenderQueue(boolean lightingEnabled) {
         setLightingEnabled(lightingEnabled);
     }
 
-    /** Publication boundary. Off keeps any existing cache but never creates it. */
+    /**
+     * Publication boundary. Off keeps any existing cache but never creates it.
+     */
     public void setLightingEnabled(boolean enabled) {
         if (enabled && lighting == null) lighting = new games.pixscape.runtime.render.lighting.LightingFrame();
         lightingEnabled = enabled;
@@ -149,9 +186,14 @@ public final class FrameRenderQueue {
 
     public void setCapacity(int newCapacity) {
         if (lighting != null) {
-        lighting.entities.clear();lighting.tiles.clear();lighting.lights.clear();lighting.casters.clear();
-        lighting.staticCasterCount=0;lighting.diagnostic=0;lighting.timer=null;
-        lighting.casterIndex.rebuild(lighting,0);
+            lighting.entities.clear();
+            lighting.tiles.clear();
+            lighting.lights.clear();
+            lighting.casters.clear();
+            lighting.staticCasterCount = 0;
+            lighting.diagnostic = 0;
+            lighting.timer = null;
+            lighting.casterIndex.rebuild(lighting, 0);
         }
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("FrameRenderQueue capacity must be > 0");
@@ -380,7 +422,8 @@ public final class FrameRenderQueue {
             copy(oldColorPacked, colorPacked, count);
             copy(oldRepeatFlags, repeatFlags, count);
             copy(oldLight, light, count);
-            if (oldIgnoreAmbientLighting != null) System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
+            if (oldIgnoreAmbientLighting != null)
+                System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
             if (oldAmbientMaterial != null) System.arraycopy(oldAmbientMaterial, 0, ambientMaterial, 0, count);
             if (oldShaderParameters != null) System.arraycopy(oldShaderParameters, 0, shaderParameters, 0, count);
 

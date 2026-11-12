@@ -56,7 +56,9 @@ public final class HudResourceRequirements {
                 new LinkedHashSet<Integer>(bitmapFontAssetIds));
     }
 
-    /** Derives the complete requirement union in one cold-path traversal of validated nodes. */
+    /**
+     * Derives the complete requirement union in one cold-path traversal of validated nodes.
+     */
     public static HudResourceRequirements from(ValidatedHudDocument document) {
         if (document == null) {
             throw new IllegalArgumentException("ValidatedHudDocument is required.");

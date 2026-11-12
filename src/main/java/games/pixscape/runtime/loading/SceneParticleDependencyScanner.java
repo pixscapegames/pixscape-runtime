@@ -6,7 +6,9 @@ import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 
-/** Performs one lightweight scene-JSON scan for authored particle effect paths. */
+/**
+ * Performs one lightweight scene-JSON scan for authored particle effect paths.
+ */
 final class SceneParticleDependencyScanner {
 
     private SceneParticleDependencyScanner() {

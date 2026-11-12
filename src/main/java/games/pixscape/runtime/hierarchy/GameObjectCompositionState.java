@@ -2,7 +2,9 @@ package games.pixscape.runtime.hierarchy;
 
 import java.util.Arrays;
 
-/** Derived, non-serialized hierarchy composition data indexed by Artemis entity ID. */
+/**
+ * Derived, non-serialized hierarchy composition data indexed by Artemis entity ID.
+ */
 public final class GameObjectCompositionState {
     private static final int MIN_CAPACITY = 16;
 

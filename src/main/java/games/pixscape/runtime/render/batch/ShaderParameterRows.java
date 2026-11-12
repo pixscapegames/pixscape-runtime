@@ -3,7 +3,9 @@ package games.pixscape.runtime.render.batch;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.ShaderFloatParam;
 
-/** CPU staging for a draw's numeric parameters; row zero holds shader defaults. */
+/**
+ * CPU staging for a draw's numeric parameters; row zero holds shader defaults.
+ */
 public final class ShaderParameterRows {
     public static final int FLOATS_PER_ROW = ShaderParameterLayout.MAX_FLOATS;
     public static final int DEFAULT_CAPACITY = 1024;
@@ -38,13 +40,29 @@ public final class ShaderParameterRows {
         indexRow(0);
     }
 
-    public boolean isFull() { return rowCount == capacity; }
-    public int capacity() { return capacity; }
-    public int rowCount() { return rowCount; }
-    public int currentId() { return currentId; }
-    public float[] data() { return rows; }
+    public boolean isFull() {
+        return rowCount == capacity;
+    }
 
-    /** Returns an existing/new row, or -1 when a distinct row requires a draw flush first. */
+    public int capacity() {
+        return capacity;
+    }
+
+    public int rowCount() {
+        return rowCount;
+    }
+
+    public int currentId() {
+        return currentId;
+    }
+
+    public float[] data() {
+        return rows;
+    }
+
+    /**
+     * Returns an existing/new row, or -1 when a distinct row requires a draw flush first.
+     */
     public int setEntityParameters(Array<ShaderFloatParam> overrides) {
         int count = overrides == null ? 0 : overrides.size;
         if (count == 0) {
@@ -91,7 +109,9 @@ public final class ShaderParameterRows {
         return currentId;
     }
 
-    /** Called after a draw: old rows may now be reused, while repeated quads retain current values. */
+    /**
+     * Called after a draw: old rows may now be reused, while repeated quads retain current values.
+     */
     public void afterFlush() {
         if (rowCount == 1 && currentId == 0) return;
         rowCount = 1;

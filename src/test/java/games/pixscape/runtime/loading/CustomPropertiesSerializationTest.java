@@ -112,7 +112,8 @@ public class CustomPropertiesSerializationTest {
     @Test
     public void sceneLoaderRejectsNullClassName() throws Exception {
         assertMalformedClassRejected("null-class-name", new ClassCorruptor() {
-            @Override public void corrupt(PropertyValue value) throws Exception {
+            @Override
+            public void corrupt(PropertyValue value) throws Exception {
                 setField(value, "className", null);
             }
         }, "type name must not be null");
@@ -121,7 +122,8 @@ public class CustomPropertiesSerializationTest {
     @Test
     public void sceneLoaderRejectsBlankClassName() throws Exception {
         assertMalformedClassRejected("blank-class-name", new ClassCorruptor() {
-            @Override public void corrupt(PropertyValue value) throws Exception {
+            @Override
+            public void corrupt(PropertyValue value) throws Exception {
                 setField(value, "className", "  ");
             }
         }, "type name must not be blank");
@@ -130,7 +132,8 @@ public class CustomPropertiesSerializationTest {
     @Test
     public void sceneLoaderRejectsNullClassMembers() throws Exception {
         assertMalformedClassRejected("null-class-members", new ClassCorruptor() {
-            @Override public void corrupt(PropertyValue value) throws Exception {
+            @Override
+            public void corrupt(PropertyValue value) throws Exception {
                 setField(value, "classProperties", null);
             }
         }, "members must not be null");
@@ -139,7 +142,8 @@ public class CustomPropertiesSerializationTest {
     @Test
     public void sceneLoaderRejectsMalformedNestedClassMember() throws Exception {
         assertMalformedClassRejected("malformed-class-member", new ClassCorruptor() {
-            @Override public void corrupt(PropertyValue value) throws Exception {
+            @Override
+            public void corrupt(PropertyValue value) throws Exception {
                 PropertySet members = classMembers(value);
                 PropertyValue invalid = PropertyValue.ofFloat(1f);
                 setField(invalid, "floatValue", Float.NaN);

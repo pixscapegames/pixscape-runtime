@@ -47,29 +47,88 @@ public final class CompiledSpatialStructure {
         this.diagnostics = diagnostics;
     }
 
-    public int structureId() { return structureId; }
-    public float minX() { return minX; }
-    public float minY() { return minY; }
-    public float maxX() { return maxX; }
-    public float maxY() { return maxY; }
-    public float altitude() { return altitude; }
-    public float height() { return height; }
-    public float lowerZ() { return altitude; }
-    public float upperZ() { return altitude + height; }
-    public FaceSet complete() { return complete; }
-    public FaceSet actorOccluder() { return actorOccluder; }
-    public Diagnostics diagnostics() { return diagnostics; }
+    public int structureId() {
+        return structureId;
+    }
 
-    /** Complete-structure indexed accessors used by the Studio overlay. */
-    public int segmentCount() { return complete.faceCount(); }
-    public float startX(int face) { return complete.startX(face); }
-    public float startY(int face) { return complete.startY(face); }
-    public float endX(int face) { return complete.endX(face); }
-    public float endY(int face) { return complete.endY(face); }
-    public int normalX(int face) { return complete.normalX(face); }
-    public int normalY(int face) { return complete.normalY(face); }
+    public float minX() {
+        return minX;
+    }
 
-    /** Flat, immutable-by-contract face arrays exposed through allocation-free indexed reads. */
+    public float minY() {
+        return minY;
+    }
+
+    public float maxX() {
+        return maxX;
+    }
+
+    public float maxY() {
+        return maxY;
+    }
+
+    public float altitude() {
+        return altitude;
+    }
+
+    public float height() {
+        return height;
+    }
+
+    public float lowerZ() {
+        return altitude;
+    }
+
+    public float upperZ() {
+        return altitude + height;
+    }
+
+    public FaceSet complete() {
+        return complete;
+    }
+
+    public FaceSet actorOccluder() {
+        return actorOccluder;
+    }
+
+    public Diagnostics diagnostics() {
+        return diagnostics;
+    }
+
+    /**
+     * Complete-structure indexed accessors used by the Studio overlay.
+     */
+    public int segmentCount() {
+        return complete.faceCount();
+    }
+
+    public float startX(int face) {
+        return complete.startX(face);
+    }
+
+    public float startY(int face) {
+        return complete.startY(face);
+    }
+
+    public float endX(int face) {
+        return complete.endX(face);
+    }
+
+    public float endY(int face) {
+        return complete.endY(face);
+    }
+
+    public int normalX(int face) {
+        return complete.normalX(face);
+    }
+
+    public int normalY(int face) {
+        return complete.normalY(face);
+    }
+
+    /**
+     * Flat, immutable-by-contract face arrays exposed through allocation-free indexed reads.
+     */
     public static final class FaceSet {
         private final byte[] orientation;
         private final float[] constantCoordinate;
@@ -106,16 +165,45 @@ public final class CompiledSpatialStructure {
             this.anchorGy = anchorGy;
         }
 
-        public int faceCount() { return orientation.length; }
-        public byte orientation(int face) { return orientation[face]; }
-        public float constantCoordinate(int face) { return constantCoordinate[face]; }
-        public float startCoordinate(int face) { return startCoordinate[face]; }
-        public float endCoordinate(int face) { return endCoordinate[face]; }
-        public int anchorCellStart(int face) { return anchorCellStart[face]; }
-        public int anchorCellCount(int face) { return anchorCellCount[face]; }
-        public int anchorCellTotal() { return anchorGx.length; }
-        public int anchorGx(int anchor) { return anchorGx[anchor]; }
-        public int anchorGy(int anchor) { return anchorGy[anchor]; }
+        public int faceCount() {
+            return orientation.length;
+        }
+
+        public byte orientation(int face) {
+            return orientation[face];
+        }
+
+        public float constantCoordinate(int face) {
+            return constantCoordinate[face];
+        }
+
+        public float startCoordinate(int face) {
+            return startCoordinate[face];
+        }
+
+        public float endCoordinate(int face) {
+            return endCoordinate[face];
+        }
+
+        public int anchorCellStart(int face) {
+            return anchorCellStart[face];
+        }
+
+        public int anchorCellCount(int face) {
+            return anchorCellCount[face];
+        }
+
+        public int anchorCellTotal() {
+            return anchorGx.length;
+        }
+
+        public int anchorGx(int anchor) {
+            return anchorGx[anchor];
+        }
+
+        public int anchorGy(int anchor) {
+            return anchorGy[anchor];
+        }
 
         public float startX(int face) {
             return isVertical(orientation[face]) ? constantCoordinate[face] : startCoordinate[face];
@@ -146,7 +234,9 @@ public final class CompiledSpatialStructure {
         }
     }
 
-    /** Compile-time diagnostics kept outside the hot face arrays. */
+    /**
+     * Compile-time diagnostics kept outside the hot face arrays.
+     */
     public static final class Diagnostics {
         private final int inputWallCount;
         private final int canonicalXCoordinateCount;
@@ -181,16 +271,48 @@ public final class CompiledSpatialStructure {
             this.compileDurationNanos = compileDurationNanos;
         }
 
-        public int inputWallCount() { return inputWallCount; }
-        public int structureCount() { return 1; }
-        public int canonicalXCoordinateCount() { return canonicalXCoordinateCount; }
-        public int canonicalYCoordinateCount() { return canonicalYCoordinateCount; }
-        public int coveredCellCount() { return coveredCellCount; }
-        public int rawBoundaryIntervalCount() { return rawBoundaryIntervalCount; }
-        public int mergedFaceCount() { return mergedFaceCount; }
-        public int actorCoveredCellCount() { return actorCoveredCellCount; }
-        public int actorRawBoundaryIntervalCount() { return actorRawBoundaryIntervalCount; }
-        public int actorMergedFaceCount() { return actorMergedFaceCount; }
-        public long compileDurationNanos() { return compileDurationNanos; }
+        public int inputWallCount() {
+            return inputWallCount;
+        }
+
+        public int structureCount() {
+            return 1;
+        }
+
+        public int canonicalXCoordinateCount() {
+            return canonicalXCoordinateCount;
+        }
+
+        public int canonicalYCoordinateCount() {
+            return canonicalYCoordinateCount;
+        }
+
+        public int coveredCellCount() {
+            return coveredCellCount;
+        }
+
+        public int rawBoundaryIntervalCount() {
+            return rawBoundaryIntervalCount;
+        }
+
+        public int mergedFaceCount() {
+            return mergedFaceCount;
+        }
+
+        public int actorCoveredCellCount() {
+            return actorCoveredCellCount;
+        }
+
+        public int actorRawBoundaryIntervalCount() {
+            return actorRawBoundaryIntervalCount;
+        }
+
+        public int actorMergedFaceCount() {
+            return actorMergedFaceCount;
+        }
+
+        public long compileDurationNanos() {
+            return compileDurationNanos;
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.badlogic.gdx.Application.ApplicationType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectMap;
+
 import java.util.Locale;
 
 /**
@@ -29,7 +30,9 @@ public final class AtlasAssetIndex {
         return byAssetId.get(assetId);
     }
 
-    /** Resolves a logical name, including misses, without visiting any atlas regions. */
+    /**
+     * Resolves a logical name, including misses, without visiting any atlas regions.
+     */
     public AtlasAssetBinding getByName(String name) {
         if (name == null) return null;
         name = name.trim();

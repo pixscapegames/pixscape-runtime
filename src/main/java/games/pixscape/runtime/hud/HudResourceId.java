@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
-/** Normalization for project-relative physical resources declared by a HUD screen. */
+/**
+ * Normalization for project-relative physical resources declared by a HUD screen.
+ */
 final class HudResourceId {
 
     private HudResourceId() {
@@ -26,7 +28,9 @@ final class HudResourceId {
         return normalized;
     }
 
-    /** Resolve a file-relative reference within the project, without filesystem canonicalization. */
+    /**
+     * Resolve a file-relative reference within the project, without filesystem canonicalization.
+     */
     static String resolveRelative(String owner, String reference) {
         String path = reference.replace('\\', '/');
         if (path.startsWith("/") || path.indexOf(':') >= 0) {
@@ -37,7 +41,8 @@ final class HudResourceId {
         for (String segment : joined.split("/")) {
             if (segment.length() == 0 || ".".equals(segment)) continue;
             if ("..".equals(segment)) {
-                if (segments.isEmpty()) throw new IllegalArgumentException("Scene HUD reference escapes project: " + reference);
+                if (segments.isEmpty())
+                    throw new IllegalArgumentException("Scene HUD reference escapes project: " + reference);
                 segments.remove(segments.size() - 1);
             } else segments.add(segment);
         }

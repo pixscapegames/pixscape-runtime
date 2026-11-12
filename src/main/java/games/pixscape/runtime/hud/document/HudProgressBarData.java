@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Typed native ProgressBar payload using a logical Skin style name. */
+/**
+ * Typed native ProgressBar payload using a logical Skin style name.
+ */
 public final class HudProgressBarData {
     public HudSliderOrientation orientation = HudSliderOrientation.HORIZONTAL;
     public float min;

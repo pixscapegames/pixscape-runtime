@@ -2,7 +2,9 @@ package games.pixscape.runtime.gameobject;
 
 import com.badlogic.gdx.utils.Array;
 
-/** Asset-local hierarchy data for expert Runtime spawning; no scene placement is stored. */
+/**
+ * Asset-local hierarchy data for expert Runtime spawning; no scene placement is stored.
+ */
 public final class GameObjectRuntimeFragment {
     public static final int CURRENT_SCHEMA_VERSION = 3;
 

@@ -54,7 +54,9 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
         this.displayOffsetResolver = new IdentityLayerDisplayOffsetResolver();
     }
 
-    /** Extracts all render domains with the owning Layer's display parallax. */
+    /**
+     * Extracts all render domains with the owning Layer's display parallax.
+     */
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
                                          TiledMapRenderState tiledState,
                                          VfxRenderState vfxState,
@@ -71,7 +73,9 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
                 drawList, frameQueue, stats, ecsEndExclusive, vfxStartInclusive, vfxEndExclusive);
     }
 
-    /** Extracts all render domains using the World's display-space authority. */
+    /**
+     * Extracts all render domains using the World's display-space authority.
+     */
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
                                          TiledMapRenderState tiledState,
                                          VfxRenderState vfxState,

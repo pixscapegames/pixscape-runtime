@@ -4,7 +4,9 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.github.tommyettinger.textra.Styles;
 import com.github.tommyettinger.textra.TypingLabel;
 
-/** Typing labels do not advance or recompute their layout while absent from the visible HUD tree. */
+/**
+ * Typing labels do not advance or recompute their layout while absent from the visible HUD tree.
+ */
 final class HudTypingLabel extends TypingLabel {
     HudTypingLabel(String text, Styles.LabelStyle style) {
         super(text, style);

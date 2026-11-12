@@ -55,12 +55,16 @@ public final class MaterializedHud implements Disposable {
         this.tooltips = new LinkedHashMap<Actor, TextTooltip>(tooltips);
     }
 
-    /** Returns the actual native root of the materialized Scene2D tree. */
+    /**
+     * Returns the actual native root of the materialized Scene2D tree.
+     */
     public Actor root() {
         return root;
     }
 
-    /** Returns the complete immutable authored-ID-to-Actor index. */
+    /**
+     * Returns the complete immutable authored-ID-to-Actor index.
+     */
     public Map<String, Actor> actorById() {
         return actorById;
     }
@@ -73,7 +77,9 @@ public final class MaterializedHud implements Disposable {
         return actorById.get(nodeId);
     }
 
-    /** O(1) average typed lookup; returned native Dialog belongs to this HUD instance. */
+    /**
+     * O(1) average typed lookup; returned native Dialog belongs to this HUD instance.
+     */
     public HudDialog dialog(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (actor == null) throw new IllegalArgumentException("HUD Dialog ID '" + nodeId + "' does not exist.");
@@ -82,7 +88,9 @@ public final class MaterializedHud implements Disposable {
         return (HudDialog) actor;
     }
 
-    /** O(1) average typed lookup of the native List; listeners and items belong to the live actor. */
+    /**
+     * O(1) average typed lookup of the native List; listeners and items belong to the live actor.
+     */
     @SuppressWarnings("unchecked")
     public com.badlogic.gdx.scenes.scene2d.ui.List<String> list(String nodeId) {
         Actor actor = actorById.get(nodeId);
@@ -92,88 +100,118 @@ public final class MaterializedHud implements Disposable {
         return (com.badlogic.gdx.scenes.scene2d.ui.List<String>) actor;
     }
 
-    /** O(1) average lookup of the borrowed native Label; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native Label; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.Label label(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Label)) throw wrongType(nodeId, "Label", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.Label) actor;
     }
 
-    /** O(1) average lookup of the borrowed native Button; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native Button; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.Button button(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Button)) throw wrongType(nodeId, "Button", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.Button) actor;
     }
 
-    /** O(1) average lookup of the borrowed native TextButton; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native TextButton; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.TextButton textButton(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextButton)) throw wrongType(nodeId, "TextButton", actor);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextButton))
+            throw wrongType(nodeId, "TextButton", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.TextButton) actor;
     }
 
-    /** O(1) average lookup of the borrowed native CheckBox; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native CheckBox; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.CheckBox checkBox(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.CheckBox)) throw wrongType(nodeId, "CheckBox", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.CheckBox) actor;
     }
 
-    /** O(1) average lookup of the borrowed native Slider; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native Slider; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.Slider slider(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Slider)) throw wrongType(nodeId, "Slider", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.Slider) actor;
     }
 
-    /** O(1) average lookup of the borrowed native ProgressBar; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native ProgressBar; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.ProgressBar progressBar(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.ProgressBar)) throw wrongType(nodeId, "ProgressBar", actor);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.ProgressBar))
+            throw wrongType(nodeId, "ProgressBar", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.ProgressBar) actor;
     }
 
-    /** O(1) average lookup of the borrowed native Image; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native Image; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.Image image(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Image)) throw wrongType(nodeId, "Image", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.Image) actor;
     }
 
-    /** O(1) average lookup of the borrowed native TextField; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native TextField; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.TextField textField(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextField)) throw wrongType(nodeId, "TextField", actor);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextField))
+            throw wrongType(nodeId, "TextField", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.TextField) actor;
     }
 
-    /** O(1) average lookup of the borrowed native SelectBox; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native SelectBox; throws for absent ID or wrong type.
+     */
     @SuppressWarnings("unchecked")
     public com.badlogic.gdx.scenes.scene2d.ui.SelectBox<String> selectBox(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.SelectBox)) throw wrongType(nodeId, "SelectBox", actor);
+        if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.SelectBox))
+            throw wrongType(nodeId, "SelectBox", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.SelectBox<String>) actor;
     }
 
-    /** O(1) average lookup of the borrowed native Window; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native Window; throws for absent ID or wrong type.
+     */
     public com.badlogic.gdx.scenes.scene2d.ui.Window window(String nodeId) {
         Actor actor = actorById.get(nodeId);
         if (!(actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Window)) throw wrongType(nodeId, "Window", actor);
         return (com.badlogic.gdx.scenes.scene2d.ui.Window) actor;
     }
 
-    /** O(1) average lookup of the borrowed native TextraLabel; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native TextraLabel; throws for absent ID or wrong type.
+     */
     public com.github.tommyettinger.textra.TextraLabel textraLabel(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.github.tommyettinger.textra.TextraLabel)) throw wrongType(nodeId, "TextraLabel", actor);
+        if (!(actor instanceof com.github.tommyettinger.textra.TextraLabel))
+            throw wrongType(nodeId, "TextraLabel", actor);
         return (com.github.tommyettinger.textra.TextraLabel) actor;
     }
 
-    /** O(1) average lookup of the borrowed native TypingLabel; throws for absent ID or wrong type. */
+    /**
+     * O(1) average lookup of the borrowed native TypingLabel; throws for absent ID or wrong type.
+     */
     public com.github.tommyettinger.textra.TypingLabel typingLabel(String nodeId) {
         Actor actor = actorById.get(nodeId);
-        if (!(actor instanceof com.github.tommyettinger.textra.TypingLabel)) throw wrongType(nodeId, "TypingLabel", actor);
+        if (!(actor instanceof com.github.tommyettinger.textra.TypingLabel))
+            throw wrongType(nodeId, "TypingLabel", actor);
         return (com.github.tommyettinger.textra.TypingLabel) actor;
     }
 
@@ -182,18 +220,24 @@ public final class MaterializedHud implements Disposable {
                 + (actor == null ? "does not exist" : "is not a " + expected) + ".");
     }
 
-    /** Returns a materialized explicit Table cell, or null when the cell is absent. */
+    /**
+     * Returns a materialized explicit Table cell, or null when the cell is absent.
+     */
     public Cell<?> cell(String cellId) {
         return cellById.get(cellId);
     }
 
-    /** Native owner Table for an explicit cell, or null when the cell is absent. */
+    /**
+     * Native owner Table for an explicit cell, or null when the cell is absent.
+     */
     public Table cellTable(String cellId) {
         Cell<?> cell = cellById.get(cellId);
         return cell != null ? cell.getTable() : null;
     }
 
-    /** Complete immutable index of explicit authored cells for this materialization. */
+    /**
+     * Complete immutable index of explicit authored cells for this materialization.
+     */
     public Map<String, Cell<?>> cellById() {
         return cellById;
     }

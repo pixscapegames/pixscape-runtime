@@ -5,7 +5,9 @@ import games.pixscape.runtime.hud.*;
 
 import java.util.*;
 
-/** Strict, deterministic, GL-free validator for {@link HudDocumentV1}. */
+/**
+ * Strict, deterministic, GL-free validator for {@link HudDocumentV1}.
+ */
 public final class HudDocumentValidator {
     public HudValidationResult validate(HudDocumentV1 document) {
         return validate(document, null);

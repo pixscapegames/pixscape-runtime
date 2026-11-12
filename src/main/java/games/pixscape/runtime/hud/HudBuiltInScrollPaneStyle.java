@@ -6,9 +6,12 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Complete native default ScrollPane style over the packed white HUD region. */
+/**
+ * Complete native default ScrollPane style over the packed white HUD region.
+ */
 public final class HudBuiltInScrollPaneStyle {
-    private HudBuiltInScrollPaneStyle() { }
+    private HudBuiltInScrollPaneStyle() {
+    }
 
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;

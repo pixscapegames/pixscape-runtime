@@ -248,7 +248,9 @@ public final class WorldConfigFactory {
                 preRenderCustomizer, postRenderCustomizer);
     }
 
-    /** Builds a world with its injected display-space offset authority. */
+    /**
+     * Builds a world with its injected display-space offset authority.
+     */
     public static WorldBootstrapResult buildWorld(
             OrthographicCamera camera,
             DynamicEntityRenderState dynamicEntityState,
@@ -499,7 +501,7 @@ public final class WorldConfigFactory {
         );
 
         if (submitSupplier != null) {
-            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue,layerState,atlasRuntimeService));
+            builder.with(new LightingGeometrySystem(dynamicEntityState, tiledState, frameQueue, layerState, atlasRuntimeService));
             builder.with(profiled(submitSupplier.get(), systemProfiler));
         }
     }

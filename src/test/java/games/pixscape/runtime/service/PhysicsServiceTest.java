@@ -251,7 +251,9 @@ public class PhysicsServiceTest {
             Assert.assertFalse(affected.contains(staticB));
             Assert.assertFalse(affected.contains(dynamicB));
 
-            removed.clear(); removed.add(gear); removed.add(source1);
+            removed.clear();
+            removed.add(gear);
+            removed.add(source1);
             affected = PhysicsService.collectJointsAffectedByEntityRemoval(world, removed, affected);
             Assert.assertEquals(gear, affected.get(0));
             Assert.assertEquals(source1, affected.get(1));
@@ -336,7 +338,10 @@ public class PhysicsServiceTest {
             processPhysics(world);
             Assert.assertEquals(0, box2d.world.getJointCount());
             Assert.assertFalse(world.getEntityManager().isActive(joint));
-        } finally { world.dispose(); box2d.dispose(); }
+        } finally {
+            world.dispose();
+            box2d.dispose();
+        }
     }
 
     private static int createBody(

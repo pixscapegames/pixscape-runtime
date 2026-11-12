@@ -14,7 +14,9 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 
-/** Cold-boundary validator for authored Game Object hierarchy relations. */
+/**
+ * Cold-boundary validator for authored Game Object hierarchy relations.
+ */
 public final class GameObjectHierarchyValidator {
     private final World world;
     private final IdentityRegistry identities;
@@ -59,7 +61,9 @@ public final class GameObjectHierarchyValidator {
         this.coneLights = world.getMapper(ConeLightComponent.class);
     }
 
-    /** Validates one relation and its complete ancestor chain in O(depth). */
+    /**
+     * Validates one relation and its complete ancestor chain in O(depth).
+     */
     public void validateMember(int memberEntityId) {
         requireActive(memberEntityId, "member");
         chainStableIds.clear();
@@ -180,7 +184,9 @@ public final class GameObjectHierarchyValidator {
         for (int i = 0; i < path.size; i++) setState(path.get(i), (byte) 2);
     }
 
-    /** Physics fixtures are Body-local, so every inherited Game Object frame must be unit scale. */
+    /**
+     * Physics fixtures are Body-local, so every inherited Game Object frame must be unit scale.
+     */
     private void validatePhysicsAncestry(int bodyEntityId) {
         int current = bodyEntityId;
         while (members.has(current)) {

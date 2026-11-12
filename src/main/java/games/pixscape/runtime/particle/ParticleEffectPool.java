@@ -23,6 +23,7 @@ import com.badlogic.gdx.utils.Pool;
  * Derived from libGDX ParticleEffectPool and modified by Pixscape only for
  * package relocation and use with Pixscape's ParticleEffect fork.
  */
+
 /**
  * {@code SUPPORTED_EXPERT} pool for copies of one {@link ParticleEffect} template.
  *

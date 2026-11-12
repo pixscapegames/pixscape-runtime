@@ -25,8 +25,8 @@ public interface AnimationsAPI {
      * Creates an animated entity from a registered animation asset id.
      *
      * @param assetId registered animation asset id
-     * @param x initial world x position
-     * @param y initial world y position
+     * @param x       initial world x position
+     * @param y       initial world y position
      * @return fluent reference to the created animation entity
      * @throws IllegalArgumentException when the animation is unknown or unavailable
      */
@@ -36,8 +36,8 @@ public interface AnimationsAPI {
      * Creates an animated entity from a registered animation name.
      *
      * @param name registered animation name
-     * @param x initial world x position
-     * @param y initial world y position
+     * @param x    initial world x position
+     * @param y    initial world y position
      * @return fluent reference to the created animation entity
      * @throws IllegalArgumentException when the animation is unknown or unavailable
      */

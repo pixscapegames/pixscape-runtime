@@ -8,7 +8,9 @@ public final class TiledMapLayerData {
 
     private static final float EPSILON = 0.0001f;
 
-    /** Authoritative continuous Spatial V3 projection, including the tile-cell origin and absolute altitude. */
+    /**
+     * Authoritative continuous Spatial V3 projection, including the tile-cell origin and absolute altitude.
+     */
     public void projectSpatialPoint(float gx, float gy, float absoluteAltitude, float[] out, int offset) {
         if (out == null || offset < 0 || offset + 1 >= out.length) return;
         float cellOffsetX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
@@ -29,12 +31,17 @@ public final class TiledMapLayerData {
     public float originX;
     public float originY;
     public boolean spatialEnabled;
-    /** Converts absolute volume altitude to displacement from the already drawn map plane. */
+
+    /**
+     * Converts absolute volume altitude to displacement from the already drawn map plane.
+     */
     public float spatialAltitudeOffset(float absoluteAltitude) {
         return absoluteAltitude - defaultTileAltitude;
     }
 
-    /** Exact continuous inverse of projectSpatialPoint, including the ISO cell anchor once. */
+    /**
+     * Exact continuous inverse of projectSpatialPoint, including the ISO cell anchor once.
+     */
     public float spatialWorldToTileX(float x, float y, float absoluteAltitude) {
         float anchorX = projection == TiledProjection.ISO ? tileWidth * 0.5f : 0f;
         return projectWorldToTileX(x - anchorX, y - spatialAltitudeOffset(absoluteAltitude));
@@ -45,7 +52,9 @@ public final class TiledMapLayerData {
         return projectWorldToTileY(x - anchorX, y - spatialAltitudeOffset(absoluteAltitude));
     }
 
-    /** Absolute altitude of the drawn reference plane; also the effective altitude without override. */
+    /**
+     * Absolute altitude of the drawn reference plane; also the effective altitude without override.
+     */
     public float defaultTileAltitude;
     public float defaultTileHeight;
 
@@ -68,11 +77,19 @@ public final class TiledMapLayerData {
     private final transient com.badlogic.gdx.utils.Array<TileChunk> animatedChunks =
             new com.badlogic.gdx.utils.Array<>(false, 8, TileChunk.class);
 
-    /** INTERNAL: complete derived membership, maintained by TileChunk animation operations. */
-    public int animatedChunkCount() { return animatedChunks.size; }
+    /**
+     * INTERNAL: complete derived membership, maintained by TileChunk animation operations.
+     */
+    public int animatedChunkCount() {
+        return animatedChunks.size;
+    }
 
-    /** INTERNAL: borrowed member; reverse iteration permits removal during animation advance. */
-    public TileChunk animatedChunkAt(int index) { return animatedChunks.get(index); }
+    /**
+     * INTERNAL: borrowed member; reverse iteration permits removal during animation advance.
+     */
+    public TileChunk animatedChunkAt(int index) {
+        return animatedChunks.get(index);
+    }
 
     void updateAnimatedChunk(TileChunk chunk) {
         if (getChunk(chunk.chunkX, chunk.chunkY) != chunk || !chunk.hasAnimatedTiles()) {
@@ -83,7 +100,9 @@ public final class TiledMapLayerData {
         }
     }
 
-    /** INTERNAL: retires a detached chunk encountered by the animation consumer. */
+    /**
+     * INTERNAL: retires a detached chunk encountered by the animation consumer.
+     */
     public void removeAnimatedChunk(TileChunk chunk) {
         int index = chunk.animatedChunkIndex;
         if (index < 0 || index >= animatedChunks.size || animatedChunks.get(index) != chunk) return;
@@ -91,6 +110,7 @@ public final class TiledMapLayerData {
         if (index < animatedChunks.size) animatedChunks.get(index).animatedChunkIndex = index;
         chunk.animatedChunkIndex = -1;
     }
+
     private transient int contentRevision;
     private transient int contentStateRevision;
     private transient int contentMutationDepth;
@@ -104,7 +124,9 @@ public final class TiledMapLayerData {
     private transient IntIntMap atomicIndexByCell = new IntIntMap();
 
     public boolean visible = true;
-    /** Runtime-only gate for native Box2D materialization; authored physics remains in ECS. */
+    /**
+     * Runtime-only gate for native Box2D materialization; authored physics remains in ECS.
+     */
     public boolean collisionEnabled = true;
     public boolean hasPreviousChunkWindow = false;
     public int previousChunkMinX = 0;
@@ -278,7 +300,9 @@ public final class TiledMapLayerData {
         }
     }
 
-    /** Opens an isolated candidate mutation. Nested atomic mutations are not supported. */
+    /**
+     * Opens an isolated candidate mutation. Nested atomic mutations are not supported.
+     */
     public void beginAtomicMutation() {
         if (atomicMutationOpen) {
             throw new IllegalStateException("An atomic tiled map mutation is already open.");
@@ -291,7 +315,9 @@ public final class TiledMapLayerData {
         atomicIndexByCell.clear();
     }
 
-    /** Writes candidate content without publishing revisions, dirty state, or render invalidation. */
+    /**
+     * Writes candidate content without publishing revisions, dirty state, or render invalidation.
+     */
     public void setTileStaged(int gx, int gy, int assetId, byte flags) {
         if (!atomicMutationOpen) {
             throw new IllegalStateException("An atomic tiled map mutation was not started.");
@@ -319,7 +345,9 @@ public final class TiledMapLayerData {
         chunk.transformFlags[localIndex] = safeFlags;
     }
 
-    /** Publishes the complete candidate as one coherent map content revision. */
+    /**
+     * Publishes the complete candidate as one coherent map content revision.
+     */
     public void commitAtomicMutation() {
         requireAtomicMutation();
         boolean changed = false;
@@ -344,7 +372,9 @@ public final class TiledMapLayerData {
         }
     }
 
-    /** Restores the exact cell content and publishes no state change. */
+    /**
+     * Restores the exact cell content and publishes no state change.
+     */
     public void rollbackAtomicMutation() {
         requireAtomicMutation();
         for (int i = 0; i < atomicMutationCount; i++) {
@@ -389,12 +419,16 @@ public final class TiledMapLayerData {
         return (gx << 16) ^ (gy & 0xFFFF);
     }
 
-    /** Begins a bulk map mutation whose static-order revision is published once at commit. */
+    /**
+     * Begins a bulk map mutation whose static-order revision is published once at commit.
+     */
     public void beginContentMutation() {
         contentMutationDepth++;
     }
 
-    /** Commits one bulk map mutation. Nested mutations publish only at the outer boundary. */
+    /**
+     * Commits one bulk map mutation. Nested mutations publish only at the outer boundary.
+     */
     public void endContentMutation() {
         if (contentMutationDepth <= 0) {
             throw new IllegalStateException("Tiled map content mutation was not started.");
@@ -547,86 +581,86 @@ public final class TiledMapLayerData {
         beginContentMutation();
         try {
 
-        final class SavedTile {
-            final int assetId;
-            final byte flags;
-            final float altitude;
-            final float height;
-            final int spatialFlags;
-            final boolean spatialOverride;
+            final class SavedTile {
+                final int assetId;
+                final byte flags;
+                final float altitude;
+                final float height;
+                final int spatialFlags;
+                final boolean spatialOverride;
 
-            SavedTile(int assetId,
-                      byte flags,
-                      float altitude,
-                      float height,
-                      int spatialFlags,
-                      boolean spatialOverride) {
-                this.assetId = assetId;
-                this.flags = flags;
-                this.altitude = altitude;
-                this.height = height;
-                this.spatialFlags = spatialFlags;
-                this.spatialOverride = spatialOverride;
-            }
-        }
-
-        IntMap<IntMap<SavedTile>> saved = new IntMap<>();
-
-        IntMap.Values<TileChunk> values = chunks.values();
-        while (values.hasNext()) {
-            TileChunk chunk = values.next();
-
-            for (int ly = 0; ly < chunk.chunkHeight; ly++) {
-                for (int lx = 0; lx < chunk.chunkWidth; lx++) {
-
-                    int asset = chunk.get(lx, ly);
-                    byte flags = chunk.getTransformFlags(lx, ly);
-                    float altitude = chunk.getAltitude(lx, ly);
-                    float height = chunk.getHeight(lx, ly);
-                    int spatialFlags = chunk.getSpatialFlags(lx, ly);
-                    boolean spatialOverride = chunk.hasSpatialOverride(lx, ly);
-
-                    if (asset == 0 && !spatialOverride) continue;
-
-                    int gx = chunk.chunkX * chunkSize + lx;
-                    int gy = chunk.chunkY * chunkSize + ly;
-
-                    IntMap<SavedTile> col = saved.get(gx);
-                    if (col == null) {
-                        col = new IntMap<>();
-                        saved.put(gx, col);
-                    }
-                    col.put(gy, new SavedTile(asset, flags, altitude, height, spatialFlags, spatialOverride));
+                SavedTile(int assetId,
+                          byte flags,
+                          float altitude,
+                          float height,
+                          int spatialFlags,
+                          boolean spatialOverride) {
+                    this.assetId = assetId;
+                    this.flags = flags;
+                    this.altitude = altitude;
+                    this.height = height;
+                    this.spatialFlags = spatialFlags;
+                    this.spatialOverride = spatialOverride;
                 }
             }
-        }
 
-        this.mapWidth = newWidth;
-        this.mapHeight = newHeight;
+            IntMap<IntMap<SavedTile>> saved = new IntMap<>();
 
-        initializeChunks();
+            IntMap.Values<TileChunk> values = chunks.values();
+            while (values.hasNext()) {
+                TileChunk chunk = values.next();
 
-        IntMap.Keys xs = saved.keys();
-        while (xs.hasNext) {
-            int gx = xs.next();
-            IntMap<SavedTile> ys = saved.get(gx);
+                for (int ly = 0; ly < chunk.chunkHeight; ly++) {
+                    for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
-            IntMap.Keys yKeys = ys.keys();
-            while (yKeys.hasNext) {
-                int gy = yKeys.next();
-                SavedTile savedTile = ys.get(gy);
+                        int asset = chunk.get(lx, ly);
+                        byte flags = chunk.getTransformFlags(lx, ly);
+                        float altitude = chunk.getAltitude(lx, ly);
+                        float height = chunk.getHeight(lx, ly);
+                        int spatialFlags = chunk.getSpatialFlags(lx, ly);
+                        boolean spatialOverride = chunk.hasSpatialOverride(lx, ly);
 
-                if (isInside(gx, gy)) {
-                    setTile(gx, gy, savedTile.assetId, savedTile.flags);
-                    if (savedTile.spatialOverride) {
-                        setTileSpatialOverride(gx, gy, savedTile.altitude, savedTile.height, savedTile.spatialFlags);
+                        if (asset == 0 && !spatialOverride) continue;
+
+                        int gx = chunk.chunkX * chunkSize + lx;
+                        int gy = chunk.chunkY * chunkSize + ly;
+
+                        IntMap<SavedTile> col = saved.get(gx);
+                        if (col == null) {
+                            col = new IntMap<>();
+                            saved.put(gx, col);
+                        }
+                        col.put(gy, new SavedTile(asset, flags, altitude, height, spatialFlags, spatialOverride));
                     }
                 }
             }
-        }
 
-        markAllChunksContentDirty();
-        markContentChanged();
+            this.mapWidth = newWidth;
+            this.mapHeight = newHeight;
+
+            initializeChunks();
+
+            IntMap.Keys xs = saved.keys();
+            while (xs.hasNext) {
+                int gx = xs.next();
+                IntMap<SavedTile> ys = saved.get(gx);
+
+                IntMap.Keys yKeys = ys.keys();
+                while (yKeys.hasNext) {
+                    int gy = yKeys.next();
+                    SavedTile savedTile = ys.get(gy);
+
+                    if (isInside(gx, gy)) {
+                        setTile(gx, gy, savedTile.assetId, savedTile.flags);
+                        if (savedTile.spatialOverride) {
+                            setTileSpatialOverride(gx, gy, savedTile.altitude, savedTile.height, savedTile.spatialFlags);
+                        }
+                    }
+                }
+            }
+
+            markAllChunksContentDirty();
+            markContentChanged();
         } finally {
             endContentMutation();
         }

@@ -5,7 +5,9 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
-/** Owns scene particle templates and pools shared by loading and frame synchronization. */
+/**
+ * Owns scene particle templates and pools shared by loading and frame synchronization.
+ */
 public final class ParticleRuntimeAvailability {
     private final AtlasRuntimeService atlasRuntimeService;
     private final FileHandle effectsRoot;
@@ -22,20 +24,27 @@ public final class ParticleRuntimeAvailability {
         this.effectsRoot = effectsRoot;
     }
 
-    /** Strictly prepares one known scene dependency. */
+    /**
+     * Strictly prepares one known scene dependency.
+     */
     public void prepare(String atlasTag, String effectPath) {
         prepare(atlasTag, effectPath, 1);
     }
 
-    /** Reserves actual effects and their particle storage, not just the pool's backing array. */
+    /**
+     * Reserves actual effects and their particle storage, not just the pool's backing array.
+     */
     public void prepare(String atlasTag, String effectPath, int initialInstances) {
         if (initialInstances < 0) throw new IllegalArgumentException("Particle reserve must be non-negative.");
         ParticleEffectPool pool = pool(atlasTag, effectPath, initialInstances);
-        if (initialInstances > pool.max) throw new IllegalStateException("Particle pool was prepared with a smaller retention limit.");
+        if (initialInstances > pool.max)
+            throw new IllegalStateException("Particle pool was prepared with a smaller retention limit.");
         pool.fill(Math.max(0, initialInstances - pool.getFree()));
     }
 
-    /** Obtains an instance from a pool prepared before READY or by an explicit authoring rebuild. */
+    /**
+     * Obtains an instance from a pool prepared before READY or by an explicit authoring rebuild.
+     */
     public ParticleEffectPool.PooledEffect obtain(String atlasTag, String effectPath) {
         String normalizedAtlasTag = requireText(atlasTag, "atlasTag");
         String normalizedEffectPath = ParticleEffectPath.normalize(effectPath);
@@ -71,7 +80,9 @@ public final class ParticleRuntimeAvailability {
         return obtainCount;
     }
 
-    int effectConstructionCount() { return effectConstructionCount; }
+    int effectConstructionCount() {
+        return effectConstructionCount;
+    }
 
     public void clear() {
         for (ParticleEffectPool pool : pools.values()) pool.clear();
@@ -110,7 +121,8 @@ public final class ParticleRuntimeAvailability {
             template.setEmittersCleanUpBlendFunction(false);
             // Pool.max bounds retained free effects, not concurrent effects. Exhaustion grows on demand.
             ParticleEffectPool created = new ParticleEffectPool(template, initialInstances, Math.max(16, initialInstances)) {
-                @Override protected PooledEffect newObject() {
+                @Override
+                protected PooledEffect newObject() {
                     PooledEffect effect = super.newObject();
                     for (ParticleEmitter emitter : effect.getEmitters()) {
                         if (!emitter.getSprites().isEmpty()) emitter.preAllocateParticles();

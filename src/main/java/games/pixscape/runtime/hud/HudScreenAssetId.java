@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
-/** Canonical project-relative logical identity for a HUD screen asset. */
+/**
+ * Canonical project-relative logical identity for a HUD screen asset.
+ */
 public final class HudScreenAssetId {
     public static final String DIRECTORY = "hud";
     private static final String PREFIX = DIRECTORY + "/";
@@ -33,7 +35,9 @@ public final class HudScreenAssetId {
         return value == null || value.trim().length() == 0 ? null : normalize(value);
     }
 
-    /** Returns the file stem encoded by a canonical or shorthand logical screen ID. */
+    /**
+     * Returns the file stem encoded by a canonical or shorthand logical screen ID.
+     */
     public static String assetName(String value) {
         String normalized = normalize(value);
         return normalized.substring(PREFIX.length());

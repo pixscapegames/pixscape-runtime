@@ -416,7 +416,7 @@ public final class PixscapeEngine {
      * @param sceneName configured scene name; blank resolves through the current/default scene
      * @return this engine after the requested scene is active and ready
      * @throws IllegalArgumentException if the resolved scene is unknown
-     * @throws RuntimeException if file, scene, or Runtime preparation fails
+     * @throws RuntimeException         if file, scene, or Runtime preparation fails
      */
     public PixscapeEngine loadScene(String sceneName) {
         if (!loaded) loadProject(userRootDir);
@@ -454,7 +454,7 @@ public final class PixscapeEngine {
      *
      * @param sceneName configured scene name; blank resolves through the current/default scene
      * @return the new engine-owned load handle
-     * @throws IllegalStateException if the project is not loaded or another load is active
+     * @throws IllegalStateException    if the project is not loaded or another load is active
      * @throws IllegalArgumentException if the resolved scene is unknown
      */
     public SceneLoadHandle beginLoadScene(String sceneName) {
@@ -469,7 +469,7 @@ public final class PixscapeEngine {
         }
         releasePendingSceneAvailability();
         pendingSceneAvailability = new SceneAvailabilityPlan(
-                fileAvailability, cfg, runtimeProjectDir, resolved,tilesetProfiles);
+                fileAvailability, cfg, runtimeProjectDir, resolved, tilesetProfiles);
         activeSceneLoad = new SceneLoadHandleImpl(pendingSceneAvailability);
         return activeSceneLoad;
     }
@@ -480,7 +480,7 @@ public final class PixscapeEngine {
      *
      * <p>The hierarchy is validated before its entities are published into the active world.</p>
      *
-     * @param fragment Game Object fragment to instantiate
+     * @param fragment   Game Object fragment to instantiate
      * @param rootWorldX world-space X coordinate of the new root
      * @param rootWorldY world-space Y coordinate of the new root
      * @return the placed instance, including its root and members
@@ -510,11 +510,11 @@ public final class PixscapeEngine {
      * are ready, without stepping or processing the World. Native creation under a Box2D lock
      * is rejected before mutation; use {@link #spawnGameObjectDeferred} from contact callbacks.</p>
      *
-     * @param name    Game Object name or canonical logical asset ID
+     * @param name       Game Object name or canonical logical asset ID
      * @param rootWorldX world-space X coordinate of the new root
      * @param rootWorldY world-space Y coordinate of the new root
      * @return the complete spawned instance
-     * @throws IllegalStateException                      if the project or world is not initialized
+     * @throws IllegalStateException if the project or world is not initialized
      */
     public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
         if (!sceneLoaded || activeSceneAvailability == null || world == null) {
@@ -528,7 +528,9 @@ public final class PixscapeEngine {
         return new SpawnedGameObjectInstance(world, result, api().entities());
     }
 
-    /** See {@link GameObjectsAPI#spawnDeferred} for scheduling, completion and cancellation. */
+    /**
+     * See {@link GameObjectsAPI#spawnDeferred} for scheduling, completion and cancellation.
+     */
     public void spawnGameObjectDeferred(String name, float x, float y,
                                         Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
         if (success == null || failure == null) throw new IllegalArgumentException("Spawn callbacks are required.");
@@ -816,8 +818,10 @@ public final class PixscapeEngine {
         render(null);
     }
 
-    /** One-frame observation after world submission, before HUD and deferred texture disposal.
-     * The callback is not an ECS system and is never retained across scene loading. */
+    /**
+     * One-frame observation after world submission, before HUD and deferred texture disposal.
+     * The callback is not an ECS system and is never retained across scene loading.
+     */
     public void render(Runnable afterWorld) {
         if (activeSceneLoad != null
                 && !activeSceneLoad.isReady() && !activeSceneLoad.isFailed()) return;
@@ -887,7 +891,9 @@ public final class PixscapeEngine {
         return lastSceneDefaultHudFailure;
     }
 
-    /** Returns whether the active HUD's native Stage currently owns keyboard focus. */
+    /**
+     * Returns whether the active HUD's native Stage currently owns keyboard focus.
+     */
     public boolean hasHudKeyboardFocus() {
         if (hudScreenRuntime == null) {
             throw new IllegalStateException("PixscapeEngine must be initialized before HUD focus is requested.");
@@ -937,12 +943,16 @@ public final class PixscapeEngine {
         return this;
     }
 
-    /** Returns the borrowed expert physics service for the current World, or {@code null}. */
+    /**
+     * Returns the borrowed expert physics service for the current World, or {@code null}.
+     */
     public Box2dWorldService getBox2dWorldService() {
         return box2dWorldService;
     }
 
-    /** Returns the borrowed expert physics synchronization system for the current World. */
+    /**
+     * Returns the borrowed expert physics synchronization system for the current World.
+     */
     public Box2dSyncSystem getBox2dSyncSystem() {
         return box2dSyncSystem;
     }
@@ -1062,12 +1072,16 @@ public final class PixscapeEngine {
     // Getters
     // ---------------------------------------------------------------------
 
-    /** Returns the borrowed expert project configuration owned by this engine. */
+    /**
+     * Returns the borrowed expert project configuration owned by this engine.
+     */
     public RuntimeConfig config() {
         return cfg;
     }
 
-    /** Returns borrowed metadata for the active scene, or {@code null} when none is active. */
+    /**
+     * Returns borrowed metadata for the active scene, or {@code null} when none is active.
+     */
     public SceneMetaRuntime getActiveSceneMeta() {
         return activeSceneMeta;
     }
@@ -1184,12 +1198,16 @@ public final class PixscapeEngine {
         return stats;
     }
 
-    /** Returns the borrowed expert rolling render-statistics sink owned by this engine. */
+    /**
+     * Returns the borrowed expert rolling render-statistics sink owned by this engine.
+     */
     public RenderStatsSink getRenderStatsSink() {
         return statsSink;
     }
 
-    /** Returns the borrowed expert atlas service; published atlas contents are lifecycle-bound. */
+    /**
+     * Returns the borrowed expert atlas service; published atlas contents are lifecycle-bound.
+     */
     public AtlasRuntimeService getAtlasRuntimeService() {
         return atlasRuntimeService;
     }
@@ -1219,16 +1237,16 @@ public final class PixscapeEngine {
     private Supplier<BaseSystem> createDefaultRenderSubmitSystemSupplier() {
         return () -> {
             RenderSubmitSystem submit = new RenderSubmitSystem(
-                layerState,
-                frameQueue,
-                worldCamera,
-                ambientMulR,
-                ambientMulG,
-                ambientMulB,
-                metricsBatch,
-                stats,
-                statsSink,
-                forwardLighting
+                    layerState,
+                    frameQueue,
+                    worldCamera,
+                    ambientMulR,
+                    ambientMulG,
+                    ambientMulB,
+                    metricsBatch,
+                    stats,
+                    statsSink,
+                    forwardLighting
             );
             submit.setUseNormalMaps(useNormalMaps);
             return submit;
@@ -1586,7 +1604,7 @@ public final class PixscapeEngine {
                         candidate.sceneName(),
                         runtimeProjectDir,
                         atlasRuntimeService,
-                        candidate.atlas(),candidate.normalAtlas());
+                        candidate.atlas(), candidate.normalAtlas());
                 rebindAtlas(candidate.sceneTag());
                 forceFullDirtyAfterLoad();
                 candidate.prepareGameObjects(new GameObjectRuntimeFragmentSpawner(
@@ -1634,8 +1652,8 @@ public final class PixscapeEngine {
         requireSystem(LayerStateBuildSystem.class).prepareRuntimeAvailability();
         requireSystem(RenderSpriteSyncSystem.class).prepareRuntimeAvailability();
         requireSystem(GameObjectCompositionSystem.class).prepareRuntimeAvailability();
-        LightingGeometrySystem lightingGeometry=world.getSystem(LightingGeometrySystem.class);
-        if(lightingGeometry!=null)lightingGeometry.prepareRuntimeAvailability();
+        LightingGeometrySystem lightingGeometry = world.getSystem(LightingGeometrySystem.class);
+        if (lightingGeometry != null) lightingGeometry.prepareRuntimeAvailability();
         rebuildRuntimeRegistries();
         requireSystem(DirtyFlushSystem.class).finishRuntimeAvailability();
     }
@@ -1684,7 +1702,7 @@ public final class PixscapeEngine {
                 }
             }
             logHudFailure("Unable to activate default HUD " + meta.defaultHudScreenId
-                    + " for Scene " + meta.name + ". The Scene remains active without a HUD.",
+                            + " for Scene " + meta.name + ". The Scene remains active without a HUD.",
                     failure);
         }
     }
@@ -1804,31 +1822,31 @@ public final class PixscapeEngine {
 
             tiled.data.beginContentMutation();
             try {
-            for (int t = 0; t < tiled.tileXs.size; t++) {
-                int gx = tiled.tileXs.get(t);
-                int gy = tiled.tileYs.get(t);
-                int assetId = tiled.tileAssetIds.get(t);
-                byte flags = tiled.tileTransformFlags.get(t);
-                float altitude = tiled.sparseTileAltitude(t);
-                float height = tiled.sparseTileHeight(t);
-                int spatialFlags = tiled.sparseTileSpatialFlags(t);
+                for (int t = 0; t < tiled.tileXs.size; t++) {
+                    int gx = tiled.tileXs.get(t);
+                    int gy = tiled.tileYs.get(t);
+                    int assetId = tiled.tileAssetIds.get(t);
+                    byte flags = tiled.tileTransformFlags.get(t);
+                    float altitude = tiled.sparseTileAltitude(t);
+                    float height = tiled.sparseTileHeight(t);
+                    int spatialFlags = tiled.sparseTileSpatialFlags(t);
 
-                tiled.data.setTile(gx, gy, assetId, flags);
-                if (tiled.hasSparseSpatialOverride(t)) {
-                    tiled.data.setTileSpatialOverride(gx, gy, altitude, height, spatialFlags);
+                    tiled.data.setTile(gx, gy, assetId, flags);
+                    if (tiled.hasSparseSpatialOverride(t)) {
+                        tiled.data.setTileSpatialOverride(gx, gy, altitude, height, spatialFlags);
+                    }
+
+                    int cx = gx / tiled.data.chunkSize;
+                    int cy = gy / tiled.data.chunkSize;
+
+                    TileChunk chunk = tiled.data.getChunk(cx, cy);
+
+                    if (chunk != null) {
+                        int lx = gx - (cx * tiled.data.chunkSize);
+                        int ly = gy - (cy * tiled.data.chunkSize);
+                        TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, animatedTileRegistry);
+                    }
                 }
-
-                int cx = gx / tiled.data.chunkSize;
-                int cy = gy / tiled.data.chunkSize;
-
-                TileChunk chunk = tiled.data.getChunk(cx, cy);
-
-                if (chunk != null) {
-                    int lx = gx - (cx * tiled.data.chunkSize);
-                    int ly = gy - (cy * tiled.data.chunkSize);
-                    TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, animatedTileRegistry);
-                }
-            }
             } finally {
                 tiled.data.endContentMutation();
             }
@@ -1975,17 +1993,27 @@ public final class PixscapeEngine {
         throw new IllegalStateException("RuntimeConfig has no scenes.");
     }
 
-    /** Returns the selected renderer; renderer selection itself is a preparation-time choice. */
+    /**
+     * Returns the selected renderer; renderer selection itself is a preparation-time choice.
+     */
     public boolean isForwardLighting() {
         RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
         return lightingEnabled && submit != null && submit.isForwardEffective();
     }
-    public boolean prefersForwardLighting() { return forwardLighting; }
-    public boolean isLightingEnabled() { return lightingEnabled; }
 
-    /** Render-thread activation boundary. Returns false while normal assets are loading (HTML included).
+    public boolean prefersForwardLighting() {
+        return forwardLighting;
+    }
+
+    public boolean isLightingEnabled() {
+        return lightingEnabled;
+    }
+
+    /**
+     * Render-thread activation boundary. Returns false while normal assets are loading (HTML included).
      * Call again before rendering until true. The previous mode remains effective until validation
-     * succeeds; exceptions carry the admission/asset diagnostic. Individual lights are never changed. */
+     * succeeds; exceptions carry the admission/asset diagnostic. Individual lights are never changed.
+     */
     public boolean setLightingEnabled(boolean enabled) {
         if (enabled == lightingEnabled) return true;
         if (world == null || !sceneLoaded) throw new IllegalStateException("Load a scene before changing lighting");
@@ -1997,36 +2025,58 @@ public final class PixscapeEngine {
             games.pixscape.runtime.service.NormalMapAtlas candidate = normals == null ? null
                     : new games.pixscape.runtime.service.NormalMapAtlas(tag, normals, activeSceneAvailability.atlas(), false);
             try {
-                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(tag,activeSceneAvailability.atlas(),candidate,
-                        RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir),runtimeProjectDir);
-                atlasRuntimeService.publishNormalMaps(tag,candidate);
-            } catch(RuntimeException failure) { if(candidate!=null)candidate.dispose(); throw failure; }
+                games.pixscape.runtime.service.NormalMapAtlas.validateDeclarations(tag, activeSceneAvailability.atlas(), candidate,
+                        RuntimeProjectIO.loadTilesetProfiles(runtimeProjectDir), runtimeProjectDir);
+                atlasRuntimeService.publishNormalMaps(tag, candidate);
+            } catch (RuntimeException failure) {
+                if (candidate != null) candidate.dispose();
+                throw failure;
+            }
         }
         boolean previous = frameQueue.lightingEnabled;
         try {
-            frameQueue.setLightingEnabled(enabled); tiledState.lightingEnabled=enabled;
-            if(enabled) {
-                RenderTiledSyncSystem tiled=world.getSystem(RenderTiledSyncSystem.class);
-                if(tiled!=null){tiled.invalidateLighting();tiled.prepareRuntimeAvailability();}
-                LightingGeometrySystem geometry=world.getSystem(LightingGeometrySystem.class);
-                if(geometry!=null)geometry.prepareRuntimeAvailability();
-                RenderSubmitSystem submit=world.getSystem(RenderSubmitSystem.class);
-                if(submit!=null && submit.isEnabled())submit.prepareLightingActivation();
+            frameQueue.setLightingEnabled(enabled);
+            tiledState.lightingEnabled = enabled;
+            if (enabled) {
+                RenderTiledSyncSystem tiled = world.getSystem(RenderTiledSyncSystem.class);
+                if (tiled != null) {
+                    tiled.invalidateLighting();
+                    tiled.prepareRuntimeAvailability();
+                }
+                LightingGeometrySystem geometry = world.getSystem(LightingGeometrySystem.class);
+                if (geometry != null) geometry.prepareRuntimeAvailability();
+                RenderSubmitSystem submit = world.getSystem(RenderSubmitSystem.class);
+                if (submit != null && submit.isEnabled()) submit.prepareLightingActivation();
             }
-            lightingEnabled=enabled;
+            lightingEnabled = enabled;
             return true;
-        } catch(RuntimeException | Error failure) {
-            frameQueue.setLightingEnabled(previous);tiledState.lightingEnabled=previous;
+        } catch (RuntimeException | Error failure) {
+            frameQueue.setLightingEnabled(previous);
+            tiledState.lightingEnabled = previous;
             throw failure;
         }
     }
 
-    /** Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected). */
-    public float ambientRed() { return ambientMulR; }
-    /** Current linear world ambient green multiplier. */
-    public float ambientGreen() { return ambientMulG; }
-    /** Current linear world ambient blue multiplier. */
-    public float ambientBlue() { return ambientMulB; }
+    /**
+     * Current linear world ambient red multiplier (HUD and ambient-exempt content are unaffected).
+     */
+    public float ambientRed() {
+        return ambientMulR;
+    }
+
+    /**
+     * Current linear world ambient green multiplier.
+     */
+    public float ambientGreen() {
+        return ambientMulG;
+    }
+
+    /**
+     * Current linear world ambient blue multiplier.
+     */
+    public float ambientBlue() {
+        return ambientMulB;
+    }
 
     /**
      * Changes linear world ambient RGB, each finite and in [0,1], without reloading the Scene.
@@ -2037,9 +2087,13 @@ public final class PixscapeEngine {
      * systems can read the ambient getters; the built-in Legacy and Forward consumers are updated.
      */
     public PixscapeEngine setAmbientLight(float r, float g, float b) {
-        requireAmbientChannel(r); requireAmbientChannel(g); requireAmbientChannel(b);
+        requireAmbientChannel(r);
+        requireAmbientChannel(g);
+        requireAmbientChannel(b);
         if (ambientMulR == r && ambientMulG == g && ambientMulB == b) return this;
-        ambientMulR = r; ambientMulG = g; ambientMulB = b;
+        ambientMulR = r;
+        ambientMulG = g;
+        ambientMulB = b;
         RenderSubmitSystem submit = world == null ? null : world.getSystem(RenderSubmitSystem.class);
         if (submit != null) submit.setAmbientLight(r, g, b);
         return this;
@@ -2052,8 +2106,8 @@ public final class PixscapeEngine {
 
     private void applyAmbientFromMeta(SceneMetaRuntime meta) {
         lightingEnabled = meta != null && meta.lightingEnabled;
-        if(frameQueue!=null)frameQueue.setLightingEnabled(lightingEnabled);
-        if(tiledState!=null)tiledState.lightingEnabled=lightingEnabled;
+        if (frameQueue != null) frameQueue.setLightingEnabled(lightingEnabled);
+        if (tiledState != null) tiledState.lightingEnabled = lightingEnabled;
         useNormalMaps = meta == null || meta.useNormalMaps;
         forwardLighting = forwardLightingOverride != null ? forwardLightingOverride : meta != null && meta.forwardLighting;
         if (meta == null) {
@@ -2318,11 +2372,15 @@ public final class PixscapeEngine {
         return loaded;
     }
 
-    /** Selects the whole-world renderer before project/scene preparation. Defaults to the scene selection (Legacy when absent);
-     * pass false to explicitly select the legacy reference renderer. */
+    /**
+     * Selects the whole-world renderer before project/scene preparation. Defaults to the scene selection (Legacy when absent);
+     * pass false to explicitly select the legacy reference renderer.
+     */
     public PixscapeEngine setForwardLighting(boolean enabled) {
-        if(loaded)throw new IllegalStateException("Forward lighting must be selected before loadProject()");
-        forwardLightingOverride=enabled;forwardLighting=enabled;return this;
+        if (loaded) throw new IllegalStateException("Forward lighting must be selected before loadProject()");
+        forwardLightingOverride = enabled;
+        forwardLighting = enabled;
+        return this;
     }
 
     public PixscapeEngine setPlatformTarget(PlatformTarget target) {

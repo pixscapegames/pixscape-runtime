@@ -1,12 +1,15 @@
 package games.pixscape.runtime.gameobject;
 
-/** Canonical project-relative logical identity for a Game Object asset. */
+/**
+ * Canonical project-relative logical identity for a Game Object asset.
+ */
 public final class GameObjectAssetId {
     public static final String DIRECTORY = "gameobjects";
     private static final String PREFIX = DIRECTORY + "/";
     private static final String RUNTIME_FRAGMENT_SUFFIX = ".pixfragment.json";
 
-    private GameObjectAssetId() { }
+    private GameObjectAssetId() {
+    }
 
     public static String normalize(String value) {
         if (value == null) throw new IllegalArgumentException("Game Object asset ID is required.");

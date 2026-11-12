@@ -10,7 +10,9 @@ import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 
-/** Strict reader/writer for the independent Game Object asset schema. */
+/**
+ * Strict reader/writer for the independent Game Object asset schema.
+ */
 public final class GameObjectAssetLoader {
     private final Json json = createJson();
 
@@ -181,8 +183,8 @@ public final class GameObjectAssetLoader {
         if (entity.physicsBody != null) validateBody(entity, file);
         if (entity.physicsShapes != null) validateShapes(entity, file);
         if (entity.spatialHeight != null) {
-            if(entity.spatialHeight.rectangles==null)
-                throw new IllegalArgumentException("Spatial actor rectangles are missing: "+entity.sourceEntityId);
+            if (entity.spatialHeight.rectangles == null)
+                throw new IllegalArgumentException("Spatial actor rectangles are missing: " + entity.sourceEntityId);
             entity.spatialHeight.rectangles.validate();
             requireFinite(entity.spatialHeight.altitude, "spatialHeight.altitude", entity.sourceEntityId, file);
         }
@@ -344,16 +346,26 @@ public final class GameObjectAssetLoader {
 
     private static boolean hasMatchingPayload(GameObjectAsset.GameObjectJointData joint) {
         switch (joint.type) {
-            case PhysicsJointComponent.TYPE_DISTANCE: return joint.distance != null;
-            case PhysicsJointComponent.TYPE_REVOLUTE: return joint.revolute != null;
-            case PhysicsJointComponent.TYPE_PRISMATIC: return joint.prismatic != null;
-            case PhysicsJointComponent.TYPE_PULLEY: return joint.pulley != null;
-            case PhysicsJointComponent.TYPE_GEAR: return joint.gear != null;
-            case PhysicsJointComponent.TYPE_WHEEL: return joint.wheel != null;
-            case PhysicsJointComponent.TYPE_WELD: return joint.weld != null;
-            case PhysicsJointComponent.TYPE_FRICTION: return joint.friction != null;
-            case PhysicsJointComponent.TYPE_MOTOR: return joint.motor != null;
-            default: return false;
+            case PhysicsJointComponent.TYPE_DISTANCE:
+                return joint.distance != null;
+            case PhysicsJointComponent.TYPE_REVOLUTE:
+                return joint.revolute != null;
+            case PhysicsJointComponent.TYPE_PRISMATIC:
+                return joint.prismatic != null;
+            case PhysicsJointComponent.TYPE_PULLEY:
+                return joint.pulley != null;
+            case PhysicsJointComponent.TYPE_GEAR:
+                return joint.gear != null;
+            case PhysicsJointComponent.TYPE_WHEEL:
+                return joint.wheel != null;
+            case PhysicsJointComponent.TYPE_WELD:
+                return joint.weld != null;
+            case PhysicsJointComponent.TYPE_FRICTION:
+                return joint.friction != null;
+            case PhysicsJointComponent.TYPE_MOTOR:
+                return joint.motor != null;
+            default:
+                return false;
         }
     }
 

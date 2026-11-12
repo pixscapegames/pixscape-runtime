@@ -132,20 +132,31 @@ public class RenderParticleSyncSystemTest {
         }
     }
 
-    @Test public void ambientApiIsPerInstanceAndDoesNotChangePlayback() throws Exception {
-        World world=new World(new WorldConfigurationBuilder().build());
+    @Test
+    public void ambientApiIsPerInstanceAndDoesNotChangePlayback() throws Exception {
+        World world = new World(new WorldConfigurationBuilder().build());
         try {
-            int a=world.create(),b=world.create();world.process();
-            PixscapeEngine engine=new PixscapeEngine();setField(engine,"world",world);
-            ParticleFacade first=engine.api().entities().ofEntityId(a).particles();
-            ParticleFacade second=engine.api().entities().ofEntityId(b).particles();
-            Assert.assertFalse(first.isIgnoringAmbientLighting());Assert.assertFalse(first.exists());
-            first.setIgnoreAmbientLighting(true);Assert.assertTrue(first.isIgnoringAmbientLighting());
-            Assert.assertFalse(second.isIgnoringAmbientLighting());Assert.assertFalse(second.exists());
-            ParticleEmitterComponent c=world.getMapper(ParticleEmitterComponent.class).get(a);
-            Assert.assertTrue(c.autoStart);Assert.assertTrue(c.looping);Assert.assertFalse(c.restartRequested);
-            first.setIgnoreAmbientLighting(false);Assert.assertFalse(first.isIgnoringAmbientLighting());
-        } finally {world.dispose();}
+            int a = world.create(), b = world.create();
+            world.process();
+            PixscapeEngine engine = new PixscapeEngine();
+            setField(engine, "world", world);
+            ParticleFacade first = engine.api().entities().ofEntityId(a).particles();
+            ParticleFacade second = engine.api().entities().ofEntityId(b).particles();
+            Assert.assertFalse(first.isIgnoringAmbientLighting());
+            Assert.assertFalse(first.exists());
+            first.setIgnoreAmbientLighting(true);
+            Assert.assertTrue(first.isIgnoringAmbientLighting());
+            Assert.assertFalse(second.isIgnoringAmbientLighting());
+            Assert.assertFalse(second.exists());
+            ParticleEmitterComponent c = world.getMapper(ParticleEmitterComponent.class).get(a);
+            Assert.assertTrue(c.autoStart);
+            Assert.assertTrue(c.looping);
+            Assert.assertFalse(c.restartRequested);
+            first.setIgnoreAmbientLighting(false);
+            Assert.assertFalse(first.isIgnoringAmbientLighting());
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
@@ -177,7 +188,8 @@ public class RenderParticleSyncSystemTest {
             world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(entity);
             world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).create(other);
             var base = world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(joint);
-            base.aEid = entity; base.bEid = other;
+            base.aEid = entity;
+            base.bEid = other;
             ParticleEmitterComponent emitter = world.getMapper(ParticleEmitterComponent.class).create(entity);
             emitter.effectPath = "empty.p";
             emitter.atlasTag = "main";
@@ -186,7 +198,9 @@ public class RenderParticleSyncSystemTest {
             Assert.assertFalse(world.getEntityManager().isActive(entity));
             Assert.assertFalse(world.getEntityManager().isActive(joint));
             Assert.assertTrue(world.getEntityManager().isActive(other));
-        } finally { world.dispose(); }
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
@@ -219,7 +233,9 @@ public class RenderParticleSyncSystemTest {
                 Assert.assertEquals(rebuilds, hierarchy.rebuildCount());
                 Assert.assertEquals(1, pool.getFree());
             }
-        } finally { world.dispose(); }
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
@@ -754,9 +770,12 @@ public class RenderParticleSyncSystemTest {
 
         Assert.assertEquals(1, vfxState.activeCount);
         Assert.assertEquals(expected.id, vfxState.blend[0]);
-        Assert.assertEquals(17,vfxState.sourceEmitter[0]);Assert.assertTrue(vfxState.ignoreAmbientLighting[0]);
-        vfxState.clearFrame();collectEffect.invoke(system,effect,0,0,18,null,false);
-        Assert.assertEquals(18,vfxState.sourceEmitter[0]);Assert.assertFalse(vfxState.ignoreAmbientLighting[0]);
+        Assert.assertEquals(17, vfxState.sourceEmitter[0]);
+        Assert.assertTrue(vfxState.ignoreAmbientLighting[0]);
+        vfxState.clearFrame();
+        collectEffect.invoke(system, effect, 0, 0, 18, null, false);
+        Assert.assertEquals(18, vfxState.sourceEmitter[0]);
+        Assert.assertFalse(vfxState.ignoreAmbientLighting[0]);
     }
 
     private static final class CapturingParticleEffect extends ParticleEffect {

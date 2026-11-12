@@ -24,7 +24,9 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
-/** Opt-in integration test: requires an actual desktop GL30 context. */
+/**
+ * Opt-in integration test: requires an actual desktop GL30 context.
+ */
 public class ShaderParameterBatchGlSmokeTest {
     private static final String FRAGMENT = "#version 330 core\n"
             + "flat in int v_paramId;\n"
@@ -55,7 +57,8 @@ public class ShaderParameterBatchGlSmokeTest {
             AtlasRuntimeService.TextureArrayBundle bundle;
             FileHandle projectDir;
 
-            @Override public void create() {
+            @Override
+            public void create() {
                 try {
                     Assert.assertNotNull(Gdx.gl30);
                     ShaderRegistry.initDefaults();
@@ -419,7 +422,8 @@ public class ShaderParameterBatchGlSmokeTest {
                 Assert.assertEquals("blue at x=" + x, blue, pixel.get(2) & 255, tolerance);
             }
 
-            @Override public void dispose() {
+            @Override
+            public void dispose() {
                 if (batch != null) batch.close();
                 if (bundle != null) bundle.textureArray.dispose();
                 if (shader != null) shader.dispose();

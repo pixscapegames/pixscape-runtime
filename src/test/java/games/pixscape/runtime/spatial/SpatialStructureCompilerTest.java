@@ -264,8 +264,8 @@ public class SpatialStructureCompilerTest {
     }
 
     private static void assertNoSegmentOnInteriorLine(CompiledSpatialStructure compiled,
-                                                       float coordinate,
-                                                       boolean vertical) {
+                                                      float coordinate,
+                                                      boolean vertical) {
         for (int i = 0; i < compiled.segmentCount(); i++) {
             boolean onLine = vertical
                     ? Float.compare(compiled.startX(i), coordinate) == 0

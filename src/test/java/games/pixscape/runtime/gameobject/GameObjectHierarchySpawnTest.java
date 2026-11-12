@@ -22,7 +22,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
-    @Test public void repeatedPreparedSpawnsKeepInstancesIndependentAndAvoidTopologyRebuild() throws Exception {
+    @Test
+    public void repeatedPreparedSpawnsKeepInstancesIndependentAndAvoidTopologyRebuild() throws Exception {
         World world = new World(new WorldConfigurationBuilder().with(
                 new DirtyTrackerSystem(64), new games.pixscape.runtime.system.GameObjectHierarchySystem()).build());
         IdentityRegistry identities = new IdentityRegistry();
@@ -66,27 +67,38 @@ public class GameObjectHierarchySpawnTest {
                     .spawnPrepared(world, model, 50, 60);
             Assert.assertEquals(second.rootEntityId(), identities.findByStableId(stable(world, second.rootEntityId())));
             Assert.assertTrue(replacementMeta.nextEntityStableId > meta.nextEntityStableId);
-        } finally { file.delete(); identities.bind(null, null); world.dispose(); }
+        } finally {
+            file.delete();
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 
-    @Test public void actorSpatialRectanglesSurviveAssetSerializationAndRuntimeSpawn(){
-        GameObjectAsset asset=hierarchy();GameObjectAsset.GameObjectEntityData child=asset.entities.get(1);
-        child.spatialHeight=new GameObjectAsset.SpatialHeightData();
-        child.spatialHeight.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
-        child.spatialHeight.rectangles.staticRectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-        child.spatialHeight.rectangles.staticRectangle.pivotX=37.25f;
-        GameObjectAssetLoader loader=new GameObjectAssetLoader();GameObjectAsset loaded=loader.fromJson(loader.toJson(asset));
-        Assert.assertEquals(37.25f,loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX,0);
-        World world=new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
-        try{
-            SpawnResult spawned=new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(),new SceneMetaRuntime(),new AtlasRuntimeService())
-                    .spawnAsset(world,loaded,"gameobjects/actor-foot-test.gameobject",0,0);world.process();
-            SpatialHeightComponent s=world.getMapper(SpatialHeightComponent.class).get(spawned.createdEntityIds().get(1));
-            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.pivotX,0);
-            loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX=90;
-            Assert.assertEquals(37.25f,s.rectangles.staticRectangle.pivotX,0);
-        }finally{world.dispose();}
+    @Test
+    public void actorSpatialRectanglesSurviveAssetSerializationAndRuntimeSpawn() {
+        GameObjectAsset asset = hierarchy();
+        GameObjectAsset.GameObjectEntityData child = asset.entities.get(1);
+        child.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        child.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        child.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        child.spatialHeight.rectangles.staticRectangle.pivotX = 37.25f;
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
+        GameObjectAsset loaded = loader.fromJson(loader.toJson(asset));
+        Assert.assertEquals(37.25f, loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX, 0);
+        World world = new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
+        try {
+            SpawnResult spawned = new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(), new SceneMetaRuntime(), new AtlasRuntimeService())
+                    .spawnAsset(world, loaded, "gameobjects/actor-foot-test.gameobject", 0, 0);
+            world.process();
+            SpatialHeightComponent s = world.getMapper(SpatialHeightComponent.class).get(spawned.createdEntityIds().get(1));
+            Assert.assertEquals(37.25f, s.rectangles.staticRectangle.pivotX, 0);
+            loaded.entities.get(1).spatialHeight.rectangles.staticRectangle.pivotX = 90;
+            Assert.assertEquals(37.25f, s.rectangles.staticRectangle.pivotX, 0);
+        } finally {
+            world.dispose();
+        }
     }
+
     @Test
     public void fragmentCreatesRealHierarchyWithFreshIdsAndRemappedReferences() {
         World world = new World(new WorldConfigurationBuilder()

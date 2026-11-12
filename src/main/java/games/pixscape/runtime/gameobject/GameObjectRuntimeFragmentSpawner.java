@@ -29,7 +29,9 @@ import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
 import java.util.Map;
 
-/** Builds a real ECS Game Object hierarchy from authored asset-local data. */
+/**
+ * Builds a real ECS Game Object hierarchy from authored asset-local data.
+ */
 public final class GameObjectRuntimeFragmentSpawner {
     private final IdentityRegistry identityRegistry;
     private final SceneMetaRuntime sceneMeta;
@@ -61,7 +63,9 @@ public final class GameObjectRuntimeFragmentSpawner {
         return spawnPrepared(world, prepareValidated(asset, sourceAssetId), rootWorldX, rootWorldY);
     }
 
-    /** Loading boundary: the loader validates once, and the prepared model exclusively owns its data. */
+    /**
+     * Loading boundary: the loader validates once, and the prepared model exclusively owns its data.
+     */
     public PreparedGameObject prepare(FileHandle file, String sourceAssetId) {
         return prepareValidated(new GameObjectAssetLoader().load(file), sourceAssetId);
     }
@@ -71,13 +75,17 @@ public final class GameObjectRuntimeFragmentSpawner {
                 prepareAssetBindings(asset.entities), preparePhysics(asset.entities), containsAuthoredPhysics(asset));
     }
 
-    /** With a scene-bound registry, O(model size), independent of the populated World size. */
+    /**
+     * With a scene-bound registry, O(model size), independent of the populated World size.
+     */
     public SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
                                      float rootWorldX, float rootWorldY) {
         return spawnPrepared(world, prepared, rootWorldX, rootWorldY, false);
     }
 
-    /** Publishes a complete Runtime instance, including native physics, without processing the World. */
+    /**
+     * Publishes a complete Runtime instance, including native physics, without processing the World.
+     */
     public SpawnResult spawnPreparedRuntime(World world, PreparedGameObject prepared,
                                             float rootWorldX, float rootWorldY) {
         return spawnPrepared(world, prepared, rootWorldX, rootWorldY, true);
@@ -152,7 +160,9 @@ public final class GameObjectRuntimeFragmentSpawner {
         return false;
     }
 
-    /** Publishes standalone Scene joints only after every hierarchy Body endpoint exists. */
+    /**
+     * Publishes standalone Scene joints only after every hierarchy Body endpoint exists.
+     */
     private void createJoints(World world, Array<GameObjectAsset.GameObjectJointData> joints,
                               IntIntMap sourceToEntity, int rootEntityId, IntArray created) {
         if (joints.isEmpty()) return;
@@ -168,8 +178,10 @@ public final class GameObjectRuntimeFragmentSpawner {
             base.aEid = sourceToEntity.get(source.bodyALocalEntityId, -1);
             base.bEid = sourceToEntity.get(source.bodyBLocalEntityId, -1);
             base.collideConnected = source.collideConnected;
-            base.anchorAx = source.anchorAx; base.anchorAy = source.anchorAy;
-            base.anchorBx = source.anchorBx; base.anchorBy = source.anchorBy;
+            base.anchorAx = source.anchorAx;
+            base.anchorAy = source.anchorAy;
+            base.anchorBx = source.anchorBx;
+            base.anchorBy = source.anchorBy;
             applyTypedJoint(world, jointEntityId, source, rootEntityId);
         }
         for (int i = 0; i < joints.size; i++) {
@@ -187,21 +199,32 @@ public final class GameObjectRuntimeFragmentSpawner {
         switch (source.type) {
             case PhysicsJointComponent.TYPE_DISTANCE: {
                 PhysicsDistanceJointComponent value = world.getMapper(PhysicsDistanceJointComponent.class).create(entityId);
-                value.lengthM = source.distance.lengthM; value.frequencyHz = source.distance.frequencyHz;
-                value.dampingRatio = source.distance.dampingRatio; break;
+                value.lengthM = source.distance.lengthM;
+                value.frequencyHz = source.distance.frequencyHz;
+                value.dampingRatio = source.distance.dampingRatio;
+                break;
             }
             case PhysicsJointComponent.TYPE_REVOLUTE: {
                 PhysicsRevoluteJointComponent value = world.getMapper(PhysicsRevoluteJointComponent.class).create(entityId);
-                value.enableLimit = source.revolute.enableLimit; value.lowerAngleRad = source.revolute.lowerAngleRad;
-                value.upperAngleRad = source.revolute.upperAngleRad; value.enableMotor = source.revolute.enableMotor;
-                value.motorSpeedRad = source.revolute.motorSpeedRad; value.maxMotorTorque = source.revolute.maxMotorTorque; break;
+                value.enableLimit = source.revolute.enableLimit;
+                value.lowerAngleRad = source.revolute.lowerAngleRad;
+                value.upperAngleRad = source.revolute.upperAngleRad;
+                value.enableMotor = source.revolute.enableMotor;
+                value.motorSpeedRad = source.revolute.motorSpeedRad;
+                value.maxMotorTorque = source.revolute.maxMotorTorque;
+                break;
             }
             case PhysicsJointComponent.TYPE_PRISMATIC: {
                 PhysicsPrismaticJointComponent value = world.getMapper(PhysicsPrismaticJointComponent.class).create(entityId);
-                value.axisX = source.prismatic.axisX; value.axisY = source.prismatic.axisY;
-                value.enableLimit = source.prismatic.enableLimit; value.lowerTranslationM = source.prismatic.lowerTranslationM;
-                value.upperTranslationM = source.prismatic.upperTranslationM; value.enableMotor = source.prismatic.enableMotor;
-                value.motorSpeedMps = source.prismatic.motorSpeedMps; value.maxMotorForce = source.prismatic.maxMotorForce; break;
+                value.axisX = source.prismatic.axisX;
+                value.axisY = source.prismatic.axisY;
+                value.enableLimit = source.prismatic.enableLimit;
+                value.lowerTranslationM = source.prismatic.lowerTranslationM;
+                value.upperTranslationM = source.prismatic.upperTranslationM;
+                value.enableMotor = source.prismatic.enableMotor;
+                value.motorSpeedMps = source.prismatic.motorSpeedMps;
+                value.maxMotorForce = source.prismatic.maxMotorForce;
+                break;
             }
             case PhysicsJointComponent.TYPE_PULLEY: {
                 PhysicsPulleyJointComponent value = world.getMapper(PhysicsPulleyJointComponent.class).create(entityId);
@@ -209,35 +232,56 @@ public final class GameObjectRuntimeFragmentSpawner {
                         source.pulley.groundAnchorALocalX, source.pulley.groundAnchorALocalY);
                 float[] b = rootLocalMetersToWorldMeters(world, rootEntityId,
                         source.pulley.groundAnchorBLocalX, source.pulley.groundAnchorBLocalY);
-                value.groundAx = a[0]; value.groundAy = a[1]; value.groundBx = b[0]; value.groundBy = b[1];
-                value.lengthAM = source.pulley.lengthAM; value.lengthBM = source.pulley.lengthBM; value.ratio = source.pulley.ratio; break;
+                value.groundAx = a[0];
+                value.groundAy = a[1];
+                value.groundBx = b[0];
+                value.groundBy = b[1];
+                value.lengthAM = source.pulley.lengthAM;
+                value.lengthBM = source.pulley.lengthBM;
+                value.ratio = source.pulley.ratio;
+                break;
             }
             case PhysicsJointComponent.TYPE_GEAR: {
                 PhysicsGearJointComponent value = world.getMapper(PhysicsGearJointComponent.class).create(entityId);
-                value.ratio = source.gear.ratio; break;
+                value.ratio = source.gear.ratio;
+                break;
             }
             case PhysicsJointComponent.TYPE_WHEEL: {
                 PhysicsWheelJointComponent value = world.getMapper(PhysicsWheelJointComponent.class).create(entityId);
-                value.frequencyHz = source.wheel.frequencyHz; value.dampingRatio = source.wheel.dampingRatio;
-                value.enableMotor = source.wheel.enableMotor; value.motorSpeedRad = source.wheel.motorSpeedRad;
-                value.maxMotorTorque = source.wheel.maxMotorTorque; value.axisX = source.wheel.axisX; value.axisY = source.wheel.axisY; break;
+                value.frequencyHz = source.wheel.frequencyHz;
+                value.dampingRatio = source.wheel.dampingRatio;
+                value.enableMotor = source.wheel.enableMotor;
+                value.motorSpeedRad = source.wheel.motorSpeedRad;
+                value.maxMotorTorque = source.wheel.maxMotorTorque;
+                value.axisX = source.wheel.axisX;
+                value.axisY = source.wheel.axisY;
+                break;
             }
             case PhysicsJointComponent.TYPE_WELD: {
                 PhysicsWeldJointComponent value = world.getMapper(PhysicsWeldJointComponent.class).create(entityId);
-                value.referenceAngleRad = source.weld.referenceAngleRad; value.frequencyHz = source.weld.frequencyHz;
-                value.dampingRatio = source.weld.dampingRatio; break;
+                value.referenceAngleRad = source.weld.referenceAngleRad;
+                value.frequencyHz = source.weld.frequencyHz;
+                value.dampingRatio = source.weld.dampingRatio;
+                break;
             }
             case PhysicsJointComponent.TYPE_FRICTION: {
                 PhysicsFrictionJointComponent value = world.getMapper(PhysicsFrictionJointComponent.class).create(entityId);
-                value.maxForce = source.friction.maxForce; value.maxTorque = source.friction.maxTorque; break;
+                value.maxForce = source.friction.maxForce;
+                value.maxTorque = source.friction.maxTorque;
+                break;
             }
             case PhysicsJointComponent.TYPE_MOTOR: {
                 PhysicsMotorJointComponent value = world.getMapper(PhysicsMotorJointComponent.class).create(entityId);
-                value.linearOffsetX = source.motor.linearOffsetX; value.linearOffsetY = source.motor.linearOffsetY;
-                value.angularOffsetRad = source.motor.angularOffsetRad; value.maxForce = source.motor.maxForce;
-                value.maxTorque = source.motor.maxTorque; value.correctionFactor = source.motor.correctionFactor; break;
+                value.linearOffsetX = source.motor.linearOffsetX;
+                value.linearOffsetY = source.motor.linearOffsetY;
+                value.angularOffsetRad = source.motor.angularOffsetRad;
+                value.maxForce = source.motor.maxForce;
+                value.maxTorque = source.motor.maxTorque;
+                value.correctionFactor = source.motor.correctionFactor;
+                break;
             }
-            default: throw new IllegalArgumentException("Unsupported Game Object joint type " + source.type);
+            default:
+                throw new IllegalArgumentException("Unsupported Game Object joint type " + source.type);
         }
     }
 
@@ -381,21 +425,27 @@ public final class GameObjectRuntimeFragmentSpawner {
             world.getMapper(CustomPropertiesComponent.class).create(entityId).properties =
                     remapProperties(data.customProperties, sourceToStable);
         }
-        if (data.visibility != null) world.getMapper(VisibilityComponent.class).create(entityId).visible = data.visibility.visible;
+        if (data.visibility != null)
+            world.getMapper(VisibilityComponent.class).create(entityId).visible = data.visibility.visible;
         if (data.boundsFlags != null) {
             if (data.boundsFlags.hasAabb) world.getMapper(AABBComponent.class).create(entityId);
             if (data.boundsFlags.hasObb) world.getMapper(OrientedBoundsComponent.class).create(entityId);
         }
         if (data.dimensions != null) {
             DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entityId);
-            dimensions.width = data.dimensions.width; dimensions.height = data.dimensions.height;
+            dimensions.width = data.dimensions.width;
+            dimensions.height = data.dimensions.height;
         }
         if (data.quadDeform != null) {
             QuadDeformComponent quad = world.getMapper(QuadDeformComponent.class).create(entityId);
-            quad.blX = data.quadDeform.blX; quad.blY = data.quadDeform.blY;
-            quad.brX = data.quadDeform.brX; quad.brY = data.quadDeform.brY;
-            quad.trX = data.quadDeform.trX; quad.trY = data.quadDeform.trY;
-            quad.tlX = data.quadDeform.tlX; quad.tlY = data.quadDeform.tlY;
+            quad.blX = data.quadDeform.blX;
+            quad.blY = data.quadDeform.blY;
+            quad.brX = data.quadDeform.brX;
+            quad.brY = data.quadDeform.brY;
+            quad.trX = data.quadDeform.trX;
+            quad.trY = data.quadDeform.trY;
+            quad.tlX = data.quadDeform.tlX;
+            quad.tlY = data.quadDeform.tlY;
         }
         RenderMaterialComponent material = null;
         if (data.renderMaterial != null || data.assetRef != null) {
@@ -407,15 +457,18 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
         if (data.assetRef != null) {
             AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).create(entityId);
-            assetRef.assetId = data.assetRef.assetId; assetRef.atlasTag = data.assetRef.atlasTag;
+            assetRef.assetId = data.assetRef.assetId;
+            assetRef.atlasTag = data.assetRef.atlasTag;
             publishBinding(world, entityId, material, preparedBinding);
         }
         if (data.tint != null) world.getMapper(TintComponent.class).create(entityId).rgba = data.tint.rgba;
         if (data.animation != null) {
             AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
             animation.animationAssetIds.addAll(data.animation.animationAssetIds);
-            animation.fps = data.animation.fps; animation.playing = data.animation.playing;
-            animation.loop = data.animation.loop; animation.stateTime = data.animation.stateTime;
+            animation.fps = data.animation.fps;
+            animation.playing = data.animation.playing;
+            animation.loop = data.animation.loop;
+            animation.stateTime = data.animation.stateTime;
             animation.frame = data.animation.frame;
             animation.currentClip = data.animation.currentClip != null ? data.animation.currentClip : "";
         }
@@ -427,31 +480,51 @@ public final class GameObjectRuntimeFragmentSpawner {
         }
         if (data.repeat != null) {
             RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
-            repeat.repeatX = data.repeat.repeatX; repeat.repeatY = data.repeat.repeatY;
+            repeat.repeatX = data.repeat.repeatX;
+            repeat.repeatY = data.repeat.repeatY;
         }
-        if(data.surfaceLighting!=null){
-            games.pixscape.runtime.component.SurfaceLightingComponent source=data.surfaceLighting;
-            games.pixscape.runtime.component.SurfaceLightingComponent target=world.getMapper(games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entityId);
-            target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
-            target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
-            target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
+        if (data.surfaceLighting != null) {
+            games.pixscape.runtime.component.SurfaceLightingComponent source = data.surfaceLighting;
+            games.pixscape.runtime.component.SurfaceLightingComponent target = world.getMapper(games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entityId);
+            target.receiveLight = source.receiveLight;
+            target.shadowCaster = source.shadowCaster;
+            target.altitude = source.altitude;
+            target.anchorU = source.anchorU;
+            target.anchorV = source.anchorV;
+            target.directionX = source.directionX;
+            target.directionY = source.directionY;
+            target.alphaThreshold = source.alphaThreshold;
+            target.description = source.description == null ? null : source.description.copy();
         }
         if (data.pointLight != null) {
             PointLightComponent light = world.getMapper(PointLightComponent.class).create(entityId);
-            light.r = data.pointLight.r; light.g = data.pointLight.g; light.b = data.pointLight.b;
-            light.intensity = data.pointLight.intensity; light.radius = data.pointLight.radius;
-            light.height=data.pointLight.height;light.shadowQuality=data.pointLight.shadowQuality;light.shadowResolution=data.pointLight.shadowResolution;
-            light.falloff = data.pointLight.falloff; light.enabled = data.pointLight.enabled;
+            light.r = data.pointLight.r;
+            light.g = data.pointLight.g;
+            light.b = data.pointLight.b;
+            light.intensity = data.pointLight.intensity;
+            light.radius = data.pointLight.radius;
+            light.height = data.pointLight.height;
+            light.shadowQuality = data.pointLight.shadowQuality;
+            light.shadowResolution = data.pointLight.shadowResolution;
+            light.falloff = data.pointLight.falloff;
+            light.enabled = data.pointLight.enabled;
         }
         if (data.coneLight != null) {
             ConeLightComponent light = world.getMapper(ConeLightComponent.class).create(entityId);
-            light.r = data.coneLight.r; light.g = data.coneLight.g; light.b = data.coneLight.b;
-            light.intensity = data.coneLight.intensity; light.radius = data.coneLight.radius;
-            light.coneAngleDeg = data.coneLight.coneAngleDeg; light.rotationDeg = data.coneLight.rotationDeg;
+            light.r = data.coneLight.r;
+            light.g = data.coneLight.g;
+            light.b = data.coneLight.b;
+            light.intensity = data.coneLight.intensity;
+            light.radius = data.coneLight.radius;
+            light.coneAngleDeg = data.coneLight.coneAngleDeg;
+            light.rotationDeg = data.coneLight.rotationDeg;
             light.inclinationDeg = data.coneLight.inclinationDeg;
-            light.softness = data.coneLight.softness; light.falloff = data.coneLight.falloff;
+            light.softness = data.coneLight.softness;
+            light.falloff = data.coneLight.falloff;
             light.enabled = data.coneLight.enabled;
-            light.height=data.coneLight.height;light.shadowQuality=data.coneLight.shadowQuality;light.shadowResolution=data.coneLight.shadowResolution;
+            light.height = data.coneLight.height;
+            light.shadowQuality = data.coneLight.shadowQuality;
+            light.shadowResolution = data.coneLight.shadowResolution;
         }
         if (data.spatialHeight != null) {
             SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
@@ -494,13 +567,19 @@ public final class GameObjectRuntimeFragmentSpawner {
                                        PreparedAssetBinding prepared) {
         TextureRegionComponent region = world.getMapper(TextureRegionComponent.class).create(entityId);
         if (prepared == null || prepared.binding == null) {
-            region.valid = false; material.textureHandle = 0; return;
+            region.valid = false;
+            material.textureHandle = 0;
+            return;
         }
         AtlasRegionMetadata metadata = prepared.binding.metadata();
-        region.u1 = metadata.u1(); region.v1 = metadata.v1();
-        region.u2 = metadata.u2(); region.v2 = metadata.v2();
-        region.pixW = metadata.pixelWidth(); region.pixH = metadata.pixelHeight();
-        region.valid = true; material.textureHandle = metadata.textureHandle();
+        region.u1 = metadata.u1();
+        region.v1 = metadata.v1();
+        region.u2 = metadata.u2();
+        region.v2 = metadata.v2();
+        region.pixW = metadata.pixelWidth();
+        region.pixH = metadata.pixelHeight();
+        region.valid = true;
+        material.textureHandle = metadata.textureHandle();
     }
 
     private static PropertySet remapProperties(PropertySet source, IntIntMap sourceToStable) {
@@ -557,7 +636,10 @@ public final class GameObjectRuntimeFragmentSpawner {
 
     private static final class PreparedAssetBinding {
         final AtlasAssetBinding binding;
-        PreparedAssetBinding(AtlasAssetBinding binding) { this.binding = binding; }
+
+        PreparedAssetBinding(AtlasAssetBinding binding) {
+            this.binding = binding;
+        }
     }
 
     private static PhysicsBodyComponent copyBody(GameObjectAsset.PhysicsBodyData source) {

@@ -26,52 +26,106 @@ public class SceneAvailabilityPlanTest {
 
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
-    @Test public void disabledNormalsAreNeverAcquiredAndReactivationLoadsThem() throws Exception {
-        File root=temp.newFolder("normal-option");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
-        RuntimeConfig config=config();config.getSceneMeta("A").lightingEnabled=true;var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
-        var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
-        RecordingAssetManager manager=manager(root);
-        manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){
-            public TextureAtlas load(AssetManager m,String name,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){
-                TrackingAtlas atlas=new TrackingAtlas();
-                if(!name.contains(".normals")){var region=new TextureAtlas.AtlasRegion(new PlanTexture(),0,0,1,1);region.name="color__a7";atlas.getRegions().add(region);}
+
+    @Test
+    public void disabledNormalsAreNeverAcquiredAndReactivationLoadsThem() throws Exception {
+        File root = temp.newFolder("normal-option");
+        write(root, "scenes/A.json", "{}");
+        write(root, "atlases/A.atlas", "");
+        write(root, "atlases/A.normals.atlas", "");
+        RuntimeConfig config = config();
+        config.getSceneMeta("A").lightingEnabled = true;
+        var profiles = games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        var profile = new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();
+        profile.tilesetId = 1;
+        profile.tileAssetIds = new int[]{7};
+        profile.normalMapSources.put(7, "normals/7.png");
+        profiles.add(profile);
+        RecordingAssetManager manager = manager(root);
+        manager.setLoader(TextureAtlas.class, new SynchronousAssetLoader<TextureAtlas, TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()) {
+            public TextureAtlas load(AssetManager m, String name, FileHandle f, TextureAtlasLoader.TextureAtlasParameter p) {
+                TrackingAtlas atlas = new TrackingAtlas();
+                if (!name.contains(".normals")) {
+                    var region = new TextureAtlas.AtlasRegion(new PlanTexture(), 0, 0, 1, 1);
+                    region.name = "color__a7";
+                    atlas.getRegions().add(region);
+                }
                 return atlas;
             }
-            public Array<AssetDescriptor> getDependencies(String n,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){return null;}
-        });
-        FileAvailabilityService availability=new FileAvailabilityService(manager,false);
-        try {
-            for(boolean enabled:new boolean[]{false,true,false}){
-                config.getSceneMeta("A").useNormalMaps=enabled;
-                int before=manager.loadCounts.getOrDefault(path(root,"atlases/A.normals.atlas"),0);
-                SceneAvailabilityPlan plan=new SceneAvailabilityPlan(availability,config,new FileHandle(root),"A",profiles);
-                while(!plan.update()){}
-                assertNotNull(plan.atlas());assertEquals(enabled,plan.normalAtlas()!=null);
-                assertEquals(before+(enabled?1:0),(int)manager.loadCounts.getOrDefault(path(root,"atlases/A.normals.atlas"),0));
-                plan.release();assertFalse(manager.isLoaded(path(root,"atlases/A.normals.atlas")));
+
+            public Array<AssetDescriptor> getDependencies(String n, FileHandle f, TextureAtlasLoader.TextureAtlasParameter p) {
+                return null;
             }
-            assertEquals("Authored normal references survive disabled sessions","normals/7.png",profile.normalMapSources.get(7));
-        } finally {availability.dispose();manager.dispose();}
-    }
-    @Test public void normalAtlasIsAcquiredBeforeReadyAndReleasedWithScene() throws Exception {
-        File root=temp.newFolder("normal-atlas");write(root,"scenes/A.json","{}");write(root,"atlases/A.atlas","");write(root,"atlases/A.normals.atlas","");
-        RuntimeConfig config=config();config.getSceneMeta("A").lightingEnabled=true;var profiles=games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
-        var profile=new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();profile.tilesetId=1;profile.tileAssetIds=new int[]{7};profile.normalMapSources.put(7,"normals/7.png");profiles.add(profile);
-        RecordingAssetManager manager=manager(root);final Map<String,TrackingAtlas> objects=new LinkedHashMap<>();
-        manager.setLoader(TextureAtlas.class,new SynchronousAssetLoader<TextureAtlas,TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()){
-            public TextureAtlas load(AssetManager m,String name,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){TrackingAtlas a=new TrackingAtlas();if(!name.contains(".normals")){var r=new TextureAtlas.AtlasRegion(new PlanTexture(),0,0,1,1);r.name="color__a7";a.getRegions().add(r);}objects.put(name,a);return a;}
-            public Array<AssetDescriptor> getDependencies(String n,FileHandle f,TextureAtlasLoader.TextureAtlasParameter p){return null;}
         });
-        FileAvailabilityService availability=new FileAvailabilityService(manager,false);
-        SceneAvailabilityPlan plan=new SceneAvailabilityPlan(availability,config,new FileHandle(root),"A",profiles);
-        while(!plan.update()){}
-        assertEquals(1f,plan.progress(),0f);assertNotSame(plan.atlas(),plan.normalAtlas());
-        assertEquals(Integer.valueOf(1),manager.loadCounts.get(path(root,"atlases/A.normals.atlas")));
-        plan.release();for(TrackingAtlas a:objects.values())assertTrue(a.disposed);
-        assertFalse(manager.isLoaded(path(root,"atlases/A.normals.atlas")));availability.dispose();manager.dispose();
+        FileAvailabilityService availability = new FileAvailabilityService(manager, false);
+        try {
+            for (boolean enabled : new boolean[]{false, true, false}) {
+                config.getSceneMeta("A").useNormalMaps = enabled;
+                int before = manager.loadCounts.getOrDefault(path(root, "atlases/A.normals.atlas"), 0);
+                SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle(root), "A", profiles);
+                while (!plan.update()) {
+                }
+                assertNotNull(plan.atlas());
+                assertEquals(enabled, plan.normalAtlas() != null);
+                assertEquals(before + (enabled ? 1 : 0), (int) manager.loadCounts.getOrDefault(path(root, "atlases/A.normals.atlas"), 0));
+                plan.release();
+                assertFalse(manager.isLoaded(path(root, "atlases/A.normals.atlas")));
+            }
+            assertEquals("Authored normal references survive disabled sessions", "normals/7.png", profile.normalMapSources.get(7));
+        } finally {
+            availability.dispose();
+            manager.dispose();
+        }
     }
 
-    @Test public void sceneAcquisitionFailureReleasesEarlierHudLeasesAndKeepsOriginalFailure() {
+    @Test
+    public void normalAtlasIsAcquiredBeforeReadyAndReleasedWithScene() throws Exception {
+        File root = temp.newFolder("normal-atlas");
+        write(root, "scenes/A.json", "{}");
+        write(root, "atlases/A.atlas", "");
+        write(root, "atlases/A.normals.atlas", "");
+        RuntimeConfig config = config();
+        config.getSceneMeta("A").lightingEnabled = true;
+        var profiles = games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+        var profile = new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();
+        profile.tilesetId = 1;
+        profile.tileAssetIds = new int[]{7};
+        profile.normalMapSources.put(7, "normals/7.png");
+        profiles.add(profile);
+        RecordingAssetManager manager = manager(root);
+        final Map<String, TrackingAtlas> objects = new LinkedHashMap<>();
+        manager.setLoader(TextureAtlas.class, new SynchronousAssetLoader<TextureAtlas, TextureAtlasLoader.TextureAtlasParameter>(manager.getFileHandleResolver()) {
+            public TextureAtlas load(AssetManager m, String name, FileHandle f, TextureAtlasLoader.TextureAtlasParameter p) {
+                TrackingAtlas a = new TrackingAtlas();
+                if (!name.contains(".normals")) {
+                    var r = new TextureAtlas.AtlasRegion(new PlanTexture(), 0, 0, 1, 1);
+                    r.name = "color__a7";
+                    a.getRegions().add(r);
+                }
+                objects.put(name, a);
+                return a;
+            }
+
+            public Array<AssetDescriptor> getDependencies(String n, FileHandle f, TextureAtlasLoader.TextureAtlasParameter p) {
+                return null;
+            }
+        });
+        FileAvailabilityService availability = new FileAvailabilityService(manager, false);
+        SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle(root), "A", profiles);
+        while (!plan.update()) {
+        }
+        assertEquals(1f, plan.progress(), 0f);
+        assertNotSame(plan.atlas(), plan.normalAtlas());
+        assertEquals(Integer.valueOf(1), manager.loadCounts.get(path(root, "atlases/A.normals.atlas")));
+        plan.release();
+        for (TrackingAtlas a : objects.values()) assertTrue(a.disposed);
+        assertFalse(manager.isLoaded(path(root, "atlases/A.normals.atlas")));
+        availability.dispose();
+        manager.dispose();
+    }
+
+    @Test
+    public void sceneAcquisitionFailureReleasesEarlierHudLeasesAndKeepsOriginalFailure() {
         RuntimeConfig config = config();
         config.getSceneMeta("A").defaultHudScreenId = "a";
         FileLeaseTestManager manager = new FileLeaseTestManager();
@@ -85,10 +139,14 @@ public class SceneAvailabilityPlanTest {
             assertEquals(manager.acquired, manager.released);
             assertFalse(manager.released.containsKey(manager.failAcquisition));
             assertEquals(0, manager.getQueuedAssets());
-        } finally { availability.dispose(); manager.dispose(); }
+        } finally {
+            availability.dispose();
+            manager.dispose();
+        }
     }
 
-    @Test public void declaredInputFailureReleasesHudAndSceneLeases() {
+    @Test
+    public void declaredInputFailureReleasesHudAndSceneLeases() {
         RuntimeConfig config = config();
         config.getSceneMeta("A").defaultHudScreenId = "a";
         config.getSceneMeta("A").runtimeGameObjectIds.add("../invalid");
@@ -100,10 +158,14 @@ public class SceneAvailabilityPlanTest {
             assertEquals(3, manager.acquired.size());
             assertEquals(manager.acquired, manager.released);
             assertEquals(0, manager.getQueuedAssets());
-        } finally { availability.dispose(); manager.dispose(); }
+        } finally {
+            availability.dispose();
+            manager.dispose();
+        }
     }
 
-    @Test public void successfulPlanConstructionTransfersLeasesToNormalRelease() {
+    @Test
+    public void successfulPlanConstructionTransfersLeasesToNormalRelease() {
         RuntimeConfig config = config();
         config.getSceneMeta("A").defaultHudScreenId = "a";
         FileLeaseTestManager manager = new FileLeaseTestManager();
@@ -112,10 +174,14 @@ public class SceneAvailabilityPlanTest {
             SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle("project"), "A");
             assertEquals(3, manager.acquired.size());
             assertTrue(manager.released.isEmpty());
-            plan.release(); plan.release();
+            plan.release();
+            plan.release();
             assertEquals(manager.acquired, manager.released);
             assertEquals(0, manager.getQueuedAssets());
-        } finally { availability.dispose(); manager.dispose(); }
+        } finally {
+            availability.dispose();
+            manager.dispose();
+        }
     }
 
     @Test
@@ -165,31 +231,41 @@ public class SceneAvailabilityPlanTest {
             assertFalse(manager.loadCounts.containsKey(path(root, "ui/page-a.png")));
             assertFalse(manager.loadCounts.containsKey(path(root, "atlases/hud/B/hud.atlas")));
         } finally {
-            plan.release(); plan.release();
+            plan.release();
+            plan.release();
             assertEquals(0, manager.getLoadedAssets());
-            availability.dispose(); manager.dispose();
+            availability.dispose();
+            manager.dispose();
         }
     }
 
     @Test
     public void rootlessSceneNeverRequestsSceneHudBundle() throws Exception {
         File root = temp.newFolder("hud-no-environment");
-        write(root, "scenes/A.json", "{}"); write(root, "atlases/A.atlas", "");
+        write(root, "scenes/A.json", "{}");
+        write(root, "atlases/A.atlas", "");
         RuntimeConfig config = config();
         RecordingAssetManager manager = manager(root);
         manager.setLoader(TextureAtlas.class, new StubAtlasLoader(manager.getFileHandleResolver(), new TrackingAtlas()));
         FileAvailabilityService availability = new FileAvailabilityService(manager, false);
         SceneAvailabilityPlan plan = new SceneAvailabilityPlan(availability, config, new FileHandle(root), "A");
         try {
-            plan.finishOnNative(); plan.prepareHudResources();
-            assertNull(plan.hudResources()); assertEquals(2, manager.loadCounts.size());
-        } finally { plan.release(); availability.dispose(); manager.dispose(); }
+            plan.finishOnNative();
+            plan.prepareHudResources();
+            assertNull(plan.hudResources());
+            assertEquals(2, manager.loadCounts.size());
+        } finally {
+            plan.release();
+            availability.dispose();
+            manager.dispose();
+        }
     }
 
     @Test
     public void missingSecondSceneHudPageIsReadinessFailureAndReleasesFiles() throws Exception {
         File root = temp.newFolder("missing-hud-page");
-        write(root, "scenes/A.json", "{}"); write(root, "atlases/A.atlas", "");
+        write(root, "scenes/A.json", "{}");
+        write(root, "atlases/A.atlas", "");
         write(root, "atlases/hud/A/hud.atlas", hudPage("present.png") + "\n" + hudPage("absent.png"));
         write(root, "atlases/hud/A/present.png", "staged-only");
         writeHud(root, "layout", "", "GROUP");
@@ -203,8 +279,11 @@ public class SceneAvailabilityPlanTest {
             assertThrows(RuntimeException.class, plan::finishOnNative);
             assertNull(plan.hudResources());
         } finally {
-            plan.release(); plan.release(); assertEquals(0, manager.getLoadedAssets());
-            availability.dispose(); manager.dispose();
+            plan.release();
+            plan.release();
+            assertEquals(0, manager.getLoadedAssets());
+            availability.dispose();
+            manager.dispose();
         }
     }
 
@@ -567,7 +646,7 @@ public class SceneAvailabilityPlanTest {
 
         @Override
         public Array<AssetDescriptor> getDependencies(String fileName, FileHandle file,
-                TextureAtlasLoader.TextureAtlasParameter parameter) {
+                                                      TextureAtlasLoader.TextureAtlasParameter parameter) {
             return null;
         }
     }
@@ -581,8 +660,21 @@ public class SceneAvailabilityPlanTest {
             super.dispose();
         }
     }
+
     private static final class PlanTexture extends com.badlogic.gdx.graphics.Texture {
-        PlanTexture(){super();}public int getWidth(){return 1;}public int getHeight(){return 1;}
-        public void dispose(){}
+        PlanTexture() {
+            super();
+        }
+
+        public int getWidth() {
+            return 1;
+        }
+
+        public int getHeight() {
+            return 1;
+        }
+
+        public void dispose() {
+        }
     }
 }

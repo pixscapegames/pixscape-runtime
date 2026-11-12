@@ -11,7 +11,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JointIntegrityPublicationTest {
-    @Test public void orphanInsertionFailsEvenWithoutNativePhysics() {
+    @Test
+    public void orphanInsertionFailsEvenWithoutNativePhysics() {
         try (Fixture f = new Fixture()) {
             f.world.getMapper(PhysicsBodyComponent.class).remove(f.a);
             IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, f.world::process);
@@ -19,7 +20,8 @@ public class JointIntegrityPublicationTest {
         }
     }
 
-    @Test public void bodyComponentRemovalCannotLeaveSilentJoint() {
+    @Test
+    public void bodyComponentRemovalCannotLeaveSilentJoint() {
         try (Fixture f = new Fixture()) {
             f.world.process();
             f.world.getMapper(PhysicsBodyComponent.class).remove(f.a);
@@ -27,7 +29,8 @@ public class JointIntegrityPublicationTest {
         }
     }
 
-    @Test public void bodyDeletionCannotLeaveSilentJoint() {
+    @Test
+    public void bodyDeletionCannotLeaveSilentJoint() {
         try (Fixture f = new Fixture()) {
             f.world.process();
             f.world.delete(f.b);
@@ -35,7 +38,8 @@ public class JointIntegrityPublicationTest {
         }
     }
 
-    @Test public void retargetingRejectsNonBodyAtDirtyPublication() {
+    @Test
+    public void retargetingRejectsNonBodyAtDirtyPublication() {
         try (Fixture f = new Fixture()) {
             f.world.process();
             f.world.getMapper(PhysicsJointComponent.class).get(f.joint).bEid = f.world.create();
@@ -45,7 +49,8 @@ public class JointIntegrityPublicationTest {
         }
     }
 
-    @Test public void deletingJointAndBodyTogetherRemainsValid() {
+    @Test
+    public void deletingJointAndBodyTogetherRemainsValid() {
         try (Fixture f = new Fixture()) {
             f.world.process();
             f.world.delete(f.a);
@@ -61,12 +66,23 @@ public class JointIntegrityPublicationTest {
         final World world = new World(new WorldConfigurationBuilder()
                 .with(dirty, new Box2dSyncSystem(null)).build());
         final int a = body(), b = body(), joint = world.create();
+
         Fixture() {
             PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(joint);
-            base.aEid = a; base.bEid = b;
+            base.aEid = a;
+            base.bEid = b;
             world.getMapper(PhysicsDistanceJointComponent.class).create(joint);
         }
-        int body() { int e = world.create(); world.getMapper(PhysicsBodyComponent.class).create(e); return e; }
-        @Override public void close() { world.dispose(); }
+
+        int body() {
+            int e = world.create();
+            world.getMapper(PhysicsBodyComponent.class).create(e);
+            return e;
+        }
+
+        @Override
+        public void close() {
+            world.dispose();
+        }
     }
 }

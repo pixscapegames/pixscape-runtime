@@ -33,7 +33,9 @@ public interface TiledMapFacade {
 
     TiledMapFacade setAtlasTag(String atlasTag);
 
-    /** Returns this map's authored projection, or {@code null} when stale or missing. */
+    /**
+     * Returns this map's authored projection, or {@code null} when stale or missing.
+     */
     TiledProjection projection();
 
     TiledMapFacade setVisible(boolean visible);

@@ -40,7 +40,10 @@ public class TiledAnimationSystemTest {
             Assert.assertEquals(16, map.getChunk(0, 0).getAnimFrameElapsedMs(0));
             Assert.assertEquals(16, map.getChunk(2, 0).getAnimFrameElapsedMs(0));
             com.badlogic.gdx.utils.IntMap.Values<TileChunk> chunks = map.getChunks();
-            while (chunks.hasNext()) { chunks.next(); chunks.remove(); }
+            while (chunks.hasNext()) {
+                chunks.next();
+                chunks.remove();
+            }
             world.process();
             Assert.assertEquals(0, map.animatedChunkCount());
             map.initializeChunks();
@@ -57,7 +60,9 @@ public class TiledAnimationSystemTest {
             registry.clear();
             world.process();
             Assert.assertEquals(0, map.animatedChunkCount());
-        } finally { world.dispose(); }
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test

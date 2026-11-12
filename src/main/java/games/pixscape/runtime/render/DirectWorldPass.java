@@ -6,17 +6,22 @@ import com.badlogic.gdx.utils.BufferUtils;
 
 import java.nio.IntBuffer;
 
-/** Draws ordinary world materials into the caller's target without an intermediate target.
- * Viewport, scissor and framebuffer are never changed. Restore only the state this pass uses. */
+/**
+ * Draws ordinary world materials into the caller's target without an intermediate target.
+ * Viewport, scissor and framebuffer are never changed. Restore only the state this pass uses.
+ */
 public final class DirectWorldPass {
     private final IntBuffer scratch = BufferUtils.newIntBuffer(1);
     private int source, destination, sourceAlpha, destinationAlpha, equation, equationAlpha;
     private boolean blend, depth, cull, depthWrite;
 
     public void begin() {
-        source = read(GL20.GL_BLEND_SRC_RGB); destination = read(GL20.GL_BLEND_DST_RGB);
-        sourceAlpha = read(GL20.GL_BLEND_SRC_ALPHA); destinationAlpha = read(GL20.GL_BLEND_DST_ALPHA);
-        equation = read(GL20.GL_BLEND_EQUATION_RGB); equationAlpha = read(GL20.GL_BLEND_EQUATION_ALPHA);
+        source = read(GL20.GL_BLEND_SRC_RGB);
+        destination = read(GL20.GL_BLEND_DST_RGB);
+        sourceAlpha = read(GL20.GL_BLEND_SRC_ALPHA);
+        destinationAlpha = read(GL20.GL_BLEND_DST_ALPHA);
+        equation = read(GL20.GL_BLEND_EQUATION_RGB);
+        equationAlpha = read(GL20.GL_BLEND_EQUATION_ALPHA);
         blend = Gdx.gl.glIsEnabled(GL20.GL_BLEND);
         depth = Gdx.gl.glIsEnabled(GL20.GL_DEPTH_TEST);
         depthWrite = games.pixscape.runtime.render.lighting.LightingGlState.readDepthWriteMask(scratch) != 0;
@@ -30,14 +35,19 @@ public final class DirectWorldPass {
         Gdx.gl.glBlendFuncSeparate(source, destination, sourceAlpha, destinationAlpha);
         Gdx.gl.glBlendEquationSeparate(equation, equationAlpha);
         Gdx.gl.glDepthMask(depthWrite);
-        enable(GL20.GL_BLEND, blend); enable(GL20.GL_DEPTH_TEST, depth); enable(GL20.GL_CULL_FACE, cull);
+        enable(GL20.GL_BLEND, blend);
+        enable(GL20.GL_DEPTH_TEST, depth);
+        enable(GL20.GL_CULL_FACE, cull);
     }
 
     private int read(int name) {
-        scratch.clear(); Gdx.gl.glGetIntegerv(name, scratch); return scratch.get(0);
+        scratch.clear();
+        Gdx.gl.glGetIntegerv(name, scratch);
+        return scratch.get(0);
     }
 
     private static void enable(int capability, boolean enabled) {
-        if (enabled) Gdx.gl.glEnable(capability); else Gdx.gl.glDisable(capability);
+        if (enabled) Gdx.gl.glEnable(capability);
+        else Gdx.gl.glDisable(capability);
     }
 }

@@ -21,14 +21,15 @@ public final class SpatialActorCollector {
 
     public void setRepresentationMappers(ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations,
                                          ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets) {
-        this.animations=animations;this.assets=assets;
+        this.animations = animations;
+        this.assets = assets;
     }
 
     private ActorSpatialRectangleData rectangle(int entity, SpatialHeightComponent spatial) {
-        if(spatial==null || spatial.rectangles==null)return null;
-        games.pixscape.runtime.component.AnimationComponent animation=animations==null?null:animations.getSafe(entity,null);
-        games.pixscape.runtime.component.AssetRefComponent asset=assets==null?null:assets.getSafe(entity,null);
-        return spatial.rectangles.get(asset==null?0:asset.assetId,animation==null?null:animation.currentClip);
+        if (spatial == null || spatial.rectangles == null) return null;
+        games.pixscape.runtime.component.AnimationComponent animation = animations == null ? null : animations.getSafe(entity, null);
+        games.pixscape.runtime.component.AssetRefComponent asset = assets == null ? null : assets.getSafe(entity, null);
+        return spatial.rectangles.get(asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip);
     }
 
     private final SpatialActorGeometry.Footprint tmpFootprint = new SpatialActorGeometry.Footprint();
@@ -37,8 +38,14 @@ public final class SpatialActorCollector {
 
     public int[] actorSlot = new int[0];
     private int[] actorIndexBySlot = new int[0];
-    /** Frame snapshot identity for on-demand diagnostics; ECS ids are not durable identities. */
-    public int entityId(int actor) { return actorEntityId[actor]; }
+
+    /**
+     * Frame snapshot identity for on-demand diagnostics; ECS ids are not durable identities.
+     */
+    public int entityId(int actor) {
+        return actorEntityId[actor];
+    }
+
     int[] actorEntityId = new int[0];
     int[] actorDrawIndex = new int[0];
     int[] actorLayerIndex = new int[0];
@@ -62,7 +69,9 @@ public final class SpatialActorCollector {
         actorCount = 0;
     }
 
-    /** Complete frame-local lookup; cleared before collecting the next draw list. */
+    /**
+     * Complete frame-local lookup; cleared before collecting the next draw list.
+     */
     public int actorIndexForSlot(int slot) {
         return slot >= 0 && slot < actorIndexBySlot.length ? actorIndexBySlot[slot] : -1;
     }
@@ -138,13 +147,21 @@ public final class SpatialActorCollector {
         return actorCount;
     }
 
-    /** Uses the projected active rectangle collected for this frame, with display offsets applied once. */
+    /**
+     * Uses the projected active rectangle collected for this frame, with display offsets applied once.
+     */
     public void writeInfluenceQuad(int actor, float offsetX, float offsetY, float[] out) {
-        int b=actor*4;
-        float left=influenceBounds[b]+offsetX,bottom=influenceBounds[b+1]+offsetY;
-        float right=influenceBounds[b+2]+offsetX,top=influenceBounds[b+3]+offsetY;
-        out[0]=left;out[1]=bottom;out[2]=right;out[3]=bottom;
-        out[4]=right;out[5]=top;out[6]=left;out[7]=top;
+        int b = actor * 4;
+        float left = influenceBounds[b] + offsetX, bottom = influenceBounds[b + 1] + offsetY;
+        float right = influenceBounds[b + 2] + offsetX, top = influenceBounds[b + 3] + offsetY;
+        out[0] = left;
+        out[1] = bottom;
+        out[2] = right;
+        out[3] = bottom;
+        out[4] = right;
+        out[5] = top;
+        out[6] = left;
+        out[7] = top;
     }
 
     float circleRadius(int actor) {
@@ -185,8 +202,8 @@ public final class SpatialActorCollector {
             return false;
         }
 
-        ActorSpatialRectangleData rectangle=rectangle(entity,height);
-        if(rectangle==null)return false;
+        ActorSpatialRectangleData rectangle = rectangle(entity, height);
+        if (rectangle == null) return false;
         ensureActorCapacity(actorCount + 1);
         int actor = actorCount++;
         actorSlot[actor] = slot;
@@ -208,8 +225,8 @@ public final class SpatialActorCollector {
         actorFootY[actor] = tmpFootprint.footY;
         actorAltitude[actor] = tmpFootprint.bottom;
         actorHeight[actor] = rectangle.height;
-        ActorSpatialRectanglePlacement.influenceBounds(rectangle,tmpFootprint.footX,tmpFootprint.footY,
-                influenceBounds,actor*4);
+        ActorSpatialRectanglePlacement.influenceBounds(rectangle, tmpFootprint.footX, tmpFootprint.footY,
+                influenceBounds, actor * 4);
         actorCircleX[actor] = tmpFootprint.footX;
         actorCircleY[actor] = tmpFootprint.footY;
         actorCircleRadius[actor] = actorFootRadius(tmpFootprint);
@@ -349,7 +366,7 @@ public final class SpatialActorCollector {
         SpatialHeightComponent height = spatialHeightMapper != null
                 ? spatialHeightMapper.getSafe(entity, null)
                 : null;
-        ActorSpatialRectangleData rectangle=rectangle(entity,height);
+        ActorSpatialRectangleData rectangle = rectangle(entity, height);
         return rectangle != null && rectangle.width > 0f && rectangle.height > 0f;
     }
 

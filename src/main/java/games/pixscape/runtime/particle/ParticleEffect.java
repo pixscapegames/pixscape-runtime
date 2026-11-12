@@ -31,6 +31,7 @@ import java.io.*;
  * the Runtime particle package, uses Pixscape's emitter fork, and avoids
  * iterator allocation in Runtime-sensitive loops.
  */
+
 /**
  * {@code SUPPORTED_EXPERT} LibGDX-compatible 2D particle effect fork.
  *

@@ -15,41 +15,52 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
-/** Native ownership must survive pooled components and delayed subscription observation. */
+/**
+ * Native ownership must survive pooled components and delayed subscription observation.
+ */
 public class Box2dNativeOwnershipTest {
-    @Test public void removedBodyThenRestoredBeforeNextFrameHasOneNativeOwner() {
+    @Test
+    public void removedBodyThenRestoredBeforeNextFrameHasOneNativeOwner() {
         try (Harness h = new Harness()) {
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.physics.removePhysics(e);
             h.bodyComponents(e);
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
             h.world.process();
             assertEquals(1, h.box.world.getBodyCount());
             assertNotNull(h.nativeBody(e));
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void compiledComponentReplacementWithDirtyPreservesSingleOwner() {
+    @Test
+    public void compiledComponentReplacementWithDirtyPreservesSingleOwner() {
         try (Harness h = new Harness()) {
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.world.getMapper(PhysicsCompiledFixturesComponent.class).remove(e);
             h.publish(e);
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
             h.world.process();
             assertEquals(1, h.box.world.getBodyCount());
             assertNotNull(h.nativeBody(e));
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void invalidExistingCacheCanRetryAndThenDeleteWithoutLeak() {
+    @Test
+    public void invalidExistingCacheCanRetryAndThenDeleteWithoutLeak() {
         try (Harness h = new Harness()) {
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             Body original = h.nativeBody(e);
             h.world.getMapper(PhysicsCompiledFixturesComponent.class).get(e).valid = false;
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
@@ -60,26 +71,32 @@ public class Box2dNativeOwnershipTest {
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
             h.world.process();
             assertEquals(1, h.box.world.getBodyCount());
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void preparedBodyDeletedBeforeRuntimeSubscriptionObservationIsDestroyed() {
+    @Test
+    public void preparedBodyDeletedBeforeRuntimeSubscriptionObservationIsDestroyed() {
         try (Harness h = new Harness()) {
             h.sync.setEnabled(false);
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.sync.prepareRuntimeAvailability();
             assertNotNull(h.nativeBody(e));
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void preparedBodyRemovedBeforeRuntimeSubscriptionObservationIsDestroyed() {
+    @Test
+    public void preparedBodyRemovedBeforeRuntimeSubscriptionObservationIsDestroyed() {
         try (Harness h = new Harness()) {
             h.sync.setEnabled(false);
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.sync.prepareRuntimeAvailability();
             assertNotNull(h.nativeBody(e));
             h.physics.removePhysics(e);
@@ -88,7 +105,8 @@ public class Box2dNativeOwnershipTest {
         }
     }
 
-    @Test public void preparedBodyRemovedAndRestoredBeforeObservationHasOneNativeOwner() {
+    @Test
+    public void preparedBodyRemovedAndRestoredBeforeObservationHasOneNativeOwner() {
         try (Harness h = new Harness()) {
             h.sync.setEnabled(false);
             int e = h.world.create();
@@ -100,14 +118,17 @@ public class Box2dNativeOwnershipTest {
             h.physics.ensurePhysics(e);
             h.world.process();
             assertEquals("Restoration must replace the previous native body", 1, h.box.world.getBodyCount());
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals("Deletion must release all native ownership", 0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void resetRuntimeMirrorReplacesIndexedBodyAndRetainsRuntimePose() {
+    @Test
+    public void resetRuntimeMirrorReplacesIndexedBodyAndRetainsRuntimePose() {
         try (Harness h = new Harness()) {
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.nativeBody(e).setTransform(3f, 4f, 0.5f);
             h.world.getMapper(PhysicsRuntimeBodyComponent.class).get(e).body = null;
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
@@ -116,14 +137,17 @@ public class Box2dNativeOwnershipTest {
             assertEquals(3f, h.nativeBody(e).getPosition().x, 0f);
             assertEquals(4f, h.nativeBody(e).getPosition().y, 0f);
             assertEquals(0.5f, h.nativeBody(e).getAngle(), 0f);
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void replacementBeforeDeferredRuntimeRemovalDoesNotDestroyNewOwner() {
+    @Test
+    public void replacementBeforeDeferredRuntimeRemovalDoesNotDestroyNewOwner() {
         try (Harness h = new Harness()) {
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.world.getMapper(PhysicsRuntimeBodyComponent.class).remove(e);
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
             h.sync.prepareRuntimeAvailability();
@@ -132,17 +156,21 @@ public class Box2dNativeOwnershipTest {
             for (int i = 0; i < 3; i++) h.world.process();
             assertSame(replacement, h.nativeBody(e));
             assertEquals(1, h.box.world.getBodyCount());
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void deletedPreparedOwnerCannotDestroyRecycledEntityBody() {
+    @Test
+    public void deletedPreparedOwnerCannotDestroyRecycledEntityBody() {
         try (Harness h = new Harness()) {
             h.sync.setEnabled(false);
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.sync.prepareRuntimeAvailability();
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
             int replacement = h.body();
             assertEquals("Exercise Artemis ID recycling", e, replacement);
@@ -151,12 +179,14 @@ public class Box2dNativeOwnershipTest {
             h.world.process();
             assertSame(owner, h.nativeBody(replacement));
             assertEquals(1, h.box.world.getBodyCount());
-            h.world.delete(replacement); h.world.process();
+            h.world.delete(replacement);
+            h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void candidateFailureWithoutRuntimeComponentPreservesOwnerAndJointThenRetries() {
+    @Test
+    public void candidateFailureWithoutRuntimeComponentPreservesOwnerAndJointThenRetries() {
         try (Harness h = new Harness()) {
             int e = h.body(), other = h.body();
             h.world.getMapper(PhysicsShapesComponent.class).get(e).shapes.add(
@@ -182,16 +212,19 @@ public class Box2dNativeOwnershipTest {
             assertEquals(2, h.box.world.getBodyCount());
             assertEquals(1, h.box.world.getJointCount());
             h.world.process();
-            h.physics.removePhysics(e); h.world.process();
+            h.physics.removePhysics(e);
+            h.world.process();
             assertEquals(1, h.box.world.getBodyCount());
             assertEquals(0, h.box.world.getJointCount());
         }
     }
 
-    @Test public void deletionAfterFailedCandidateReleasesPreviousOwnerOnlyOnce() {
+    @Test
+    public void deletionAfterFailedCandidateReleasesPreviousOwnerOnlyOnce() {
         try (Harness h = new Harness()) {
             h.sync.setEnabled(false);
-            int e = h.body(); h.world.process();
+            int e = h.body();
+            h.world.process();
             h.sync.prepareRuntimeAvailability();
             h.world.getMapper(PhysicsRuntimeBodyComponent.class).remove(e);
             h.dirty.physics(e, PhysicsDirtyBits.ALL);
@@ -199,13 +232,15 @@ public class Box2dNativeOwnershipTest {
             assertThrows(IllegalStateException.class, h.sync::prepareRuntimeAvailability);
             assertEquals(1, h.box.world.getBodyCount());
             h.sync.setTestObserver(null);
-            h.world.delete(e); h.world.process();
+            h.world.delete(e);
+            h.world.process();
             h.world.process();
             assertEquals(0, h.box.world.getBodyCount());
         }
     }
 
-    @Test public void removingBodyReleasesNativeSourceAndDependentGearJoints() {
+    @Test
+    public void removingBodyReleasesNativeSourceAndDependentGearJoints() {
         try (Harness h = new Harness()) {
             int ground = h.body(), a = h.body(), b = h.body();
             h.world.getMapper(PhysicsBodyComponent.class).get(a).type = 2;
@@ -213,10 +248,12 @@ public class Box2dNativeOwnershipTest {
             int source1 = h.physics.createRevoluteJoint(ground, a, 0f, 0f);
             int source2 = h.physics.createRevoluteJoint(ground, b, 0f, 0f);
             int gear = h.physics.createGearJoint(source1, source2, 1f);
-            h.world.process(); h.world.process();
+            h.world.process();
+            h.world.process();
             assertNotNull(h.nativeJoint(gear));
             assertEquals(3, h.box.world.getJointCount());
-            h.physics.removePhysics(a); h.world.process();
+            h.physics.removePhysics(a);
+            h.world.process();
             assertEquals(2, h.box.world.getBodyCount());
             assertEquals(1, h.box.world.getJointCount());
             assertNull(h.nativeJoint(gear));
@@ -225,7 +262,8 @@ public class Box2dNativeOwnershipTest {
         }
     }
 
-    @Test public void replacingIndexedGroundBodyRebindsNativeSourcesAndDependentGear() {
+    @Test
+    public void replacingIndexedGroundBodyRebindsNativeSourcesAndDependentGear() {
         try (Harness h = new Harness()) {
             int ground = h.body(), a = h.body(), b = h.body();
             h.world.getMapper(PhysicsBodyComponent.class).get(a).type = 2;
@@ -233,12 +271,14 @@ public class Box2dNativeOwnershipTest {
             int source1 = h.physics.createRevoluteJoint(ground, a, 0f, 0f);
             int source2 = h.physics.createRevoluteJoint(ground, b, 0f, 0f);
             int gear = h.physics.createGearJoint(source1, source2, 1f);
-            h.world.process(); h.world.process();
+            h.world.process();
+            h.world.process();
             assertNotNull(h.nativeJoint(gear));
             h.world.getMapper(PhysicsRuntimeBodyComponent.class).remove(ground);
             h.dirty.physics(ground, PhysicsDirtyBits.ALL);
             h.sync.prepareRuntimeAvailability();
-            h.world.process(); h.world.process();
+            h.world.process();
+            h.world.process();
             assertEquals(3, h.box.world.getBodyCount());
             assertEquals(3, h.box.world.getJointCount());
             assertSame(h.nativeBody(ground), h.nativeJoint(source1).getBodyA());
@@ -246,7 +286,8 @@ public class Box2dNativeOwnershipTest {
             GearJoint nativeGear = (GearJoint) h.nativeJoint(gear);
             assertSame(h.nativeJoint(source1), nativeGear.getJoint1());
             assertSame(h.nativeJoint(source2), nativeGear.getJoint2());
-            h.physics.removePhysics(ground); h.world.process();
+            h.physics.removePhysics(ground);
+            h.world.process();
             assertEquals(2, h.box.world.getBodyCount());
             assertEquals(0, h.box.world.getJointCount());
         }
@@ -255,19 +296,45 @@ public class Box2dNativeOwnershipTest {
     private static final class FixtureFailure implements Box2dSyncSystem.TestObserver {
         private final int failAt;
         private int fixtureCount;
-        FixtureFailure() { this(1); }
-        FixtureFailure(int failAt) { this.failAt = failAt; }
-        @Override public void onBodyCompile() { }
-        @Override public void onShapeCompile() { }
-        @Override public void onPolygonDecomposition() { }
-        @Override public void onBodyRebuild() { }
-        @Override public void beforeCreateFixture(int e, CompiledFixtureData fixture) {
+
+        FixtureFailure() {
+            this(1);
+        }
+
+        FixtureFailure(int failAt) {
+            this.failAt = failAt;
+        }
+
+        @Override
+        public void onBodyCompile() {
+        }
+
+        @Override
+        public void onShapeCompile() {
+        }
+
+        @Override
+        public void onPolygonDecomposition() {
+        }
+
+        @Override
+        public void onBodyRebuild() {
+        }
+
+        @Override
+        public void beforeCreateFixture(int e, CompiledFixtureData fixture) {
             if (++fixtureCount == failAt) {
                 throw new IllegalStateException("Injected candidate fixture failure");
             }
         }
-        @Override public void onFixtureProvenanceCreated(int e, CompiledFixtureData fixture) { }
-        @Override public void beforeCreateOrRebuildJoint(int e) { }
+
+        @Override
+        public void onFixtureProvenanceCreated(int e, CompiledFixtureData fixture) {
+        }
+
+        @Override
+        public void beforeCreateOrRebuildJoint(int e) {
+        }
     }
 
     static final class Harness implements AutoCloseable {
@@ -276,6 +343,7 @@ public class Box2dNativeOwnershipTest {
         final Box2dSyncSystem sync;
         final World world;
         final PhysicsService physics;
+
         Harness() {
             GdxNativesLoader.load();
             box = new Box2dWorldService(100, new Vector2());
@@ -285,25 +353,38 @@ public class Box2dNativeOwnershipTest {
             world = new World(new WorldConfigurationBuilder().with(dirty, authority, sync).build());
             physics = new PhysicsService(world, box, new SceneMetaRuntime());
         }
-        int body() { int e = world.create(); bodyComponents(e); return e; }
+
+        int body() {
+            int e = world.create();
+            bodyComponents(e);
+            return e;
+        }
+
         void bodyComponents(int e) {
             world.getMapper(TransformComponent.class).create(e);
             physics.ensurePhysics(e);
         }
+
         void publish(int e) {
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(e);
             PhysicsService.publishPreparedCandidate(shapes,
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(e),
                     PhysicsService.prepareBodyCandidate(shapes.shapes));
         }
+
         Body nativeBody(int e) {
             PhysicsRuntimeBodyComponent rt = world.getMapper(PhysicsRuntimeBodyComponent.class).getSafe(e, null);
             return rt == null ? null : rt.body;
         }
+
         Joint nativeJoint(int e) {
             PhysicsRuntimeJointComponent rt = world.getMapper(PhysicsRuntimeJointComponent.class).getSafe(e, null);
             return rt == null ? null : rt.joint;
         }
-        public void close() { world.dispose(); box.dispose(); }
+
+        public void close() {
+            world.dispose();
+            box.dispose();
+        }
     }
 }

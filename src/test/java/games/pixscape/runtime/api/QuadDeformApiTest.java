@@ -108,13 +108,20 @@ public class QuadDeformApiTest {
         dirty.clearAll();
 
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { quad.setTopLeft(Float.NaN, 4f); }
+            @Override
+            public void run() {
+                quad.setTopLeft(Float.NaN, 4f);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() { quad.setBottomRight(3f, Float.POSITIVE_INFINITY); }
+            @Override
+            public void run() {
+                quad.setBottomRight(3f, Float.POSITIVE_INFINITY);
+            }
         });
         assertIllegalArgument(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 quad.set(1f, 2f, 3f, 4f, Float.NEGATIVE_INFINITY, 6f, 7f, 8f);
             }
         });
@@ -159,14 +166,20 @@ public class QuadDeformApiTest {
         ref.quadDeform().setTopLeft(7f, 8f);
 
         assertIllegalState(new Runnable() {
-            @Override public void run() { ref.sprite().setRepeat(true, false); }
+            @Override
+            public void run() {
+                ref.sprite().setRepeat(true, false);
+            }
         });
         Assert.assertFalse(repeat.repeatX);
         Assert.assertFalse(repeat.repeatY);
         assertComponent(entity, 0f, 0f, 0f, 0f, 0f, 0f, 7f, 8f);
 
         assertIllegalState(new Runnable() {
-            @Override public void run() { ref.sprite().setRepeat(false, true); }
+            @Override
+            public void run() {
+                ref.sprite().setRepeat(false, true);
+            }
         });
         Assert.assertFalse(repeat.repeatX);
         Assert.assertFalse(repeat.repeatY);
@@ -254,7 +267,10 @@ public class QuadDeformApiTest {
         final QuadDeformFacade quad = engine.api().entities().ofEntityId(entity).quadDeform();
 
         assertIllegalState(new Runnable() {
-            @Override public void run() { quad.setBottomLeft(1f, 2f); }
+            @Override
+            public void run() {
+                quad.setBottomLeft(1f, 2f);
+            }
         });
 
         Assert.assertFalse(world.getMapper(QuadDeformComponent.class).has(entity));

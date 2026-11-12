@@ -2,7 +2,9 @@ package games.pixscape.runtime.hud;
 
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 
-/** Native Scene2D style requirements shared by HUD Runtime and Studio authoring. */
+/**
+ * Native Scene2D style requirements shared by HUD Runtime and Studio authoring.
+ */
 public final class HudStyleUsability {
     private HudStyleUsability() {
     }
@@ -29,7 +31,7 @@ public final class HudStyleUsability {
     }
 
     public static boolean isUsableSelectBoxStyle(SelectBox.SelectBoxStyle style,
-                                                  boolean hasFontOverride) {
+                                                 boolean hasFontOverride) {
         return style != null && (hasFontOverride || style.font != null)
                 && style.fontColor != null
                 && style.listStyle != null
@@ -55,12 +57,16 @@ public final class HudStyleUsability {
         return style != null && style.background != null;
     }
 
-    /** Scene2D accepts every non-null ProgressBarStyle; all drawables are optional. */
+    /**
+     * Scene2D accepts every non-null ProgressBarStyle; all drawables are optional.
+     */
     public static boolean isUsableProgressBarStyle(ProgressBar.ProgressBarStyle style) {
         return style != null;
     }
 
-    /** Scene2D accepts every non-null ScrollPaneStyle; its drawables are optional. */
+    /**
+     * Scene2D accepts every non-null ScrollPaneStyle; its drawables are optional.
+     */
     public static boolean isUsableScrollPaneStyle(ScrollPane.ScrollPaneStyle style) {
         return style != null;
     }
@@ -71,7 +77,9 @@ public final class HudStyleUsability {
                 && (hasFontOverride || style.label.font != null);
     }
 
-    /** Window requires a title font; background, color, and stage background are optional. */
+    /**
+     * Window requires a title font; background, color, and stage background are optional.
+     */
     public static boolean isUsableWindowStyle(Window.WindowStyle style,
                                               boolean hasFontOverride) {
         return style != null && (hasFontOverride || style.titleFont != null);

@@ -92,7 +92,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
                 new ParticleRuntimeAvailability(atlasRuntimeService, effectsRoot);
     }
 
-    /** Strictly prepares every authored and explicitly declared scene dependency. */
+    /**
+     * Strictly prepares every authored and explicitly declared scene dependency.
+     */
     public void prepareRuntimeAvailability(
             String defaultAtlasTag, Array<String> declaredEffectPaths) {
         prepareRuntimeAvailability(defaultAtlasTag, declaredEffectPaths, new ObjectIntMap<String>());
@@ -134,7 +136,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return particleAvailability.isPrepared(atlasTag, effectPath);
     }
 
-    /** Fails unless scene loading or an explicit authoring publication prepared this resource. */
+    /**
+     * Fails unless scene loading or an explicit authoring publication prepared this resource.
+     */
     public void requirePrepared(String atlasTag, String effectPath) {
         if (!particleAvailability.isPrepared(atlasTag, effectPath)) {
             throw new IllegalStateException("Particle effect is unavailable: '"
@@ -368,7 +372,9 @@ public final class RenderParticleSyncSystem extends BaseSystem implements Profil
         return overlapX && overlapY;
     }
 
-    /** Invalidates particle instances and prepared pools without preparing resources. */
+    /**
+     * Invalidates particle instances and prepared pools without preparing resources.
+     */
     public void invalidateAllEffects() {
         for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
             IntMap.Entry<ParticleEffectPool.PooledEffect> entry = it.next();

@@ -235,7 +235,8 @@ public class VisualScalePhysicsIntegrationTest {
             return world.getMapper(PhysicsRuntimeBodyComponent.class).get(entity).body;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             engine.getIdentityRegistry().bind(null, null);
             world.dispose();
             box2d.dispose();

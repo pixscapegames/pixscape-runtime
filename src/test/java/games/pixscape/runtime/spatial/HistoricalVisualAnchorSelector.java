@@ -4,7 +4,9 @@ import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Frozen previous selector: isolates historical relation/locality tests from the new candidate contract. */
+/**
+ * Frozen previous selector: isolates historical relation/locality tests from the new candidate contract.
+ */
 final class HistoricalVisualAnchorSelector extends SpatialVisualAnchorSelector {
     private final float[] actorQuad = new float[8];
     private final float[] tileQuad = new float[8];
@@ -38,8 +40,10 @@ final class HistoricalVisualAnchorSelector extends SpatialVisualAnchorSelector {
             float y = (corner & 2) == 0 ? queryMinY : queryMaxY;
             float gx = map.projectWorldToTileX(x, y);
             float gy = map.projectWorldToTileY(x, y);
-            gxMin = Math.min(gxMin, gx); gxMax = Math.max(gxMax, gx);
-            gyMin = Math.min(gyMin, gy); gyMax = Math.max(gyMax, gy);
+            gxMin = Math.min(gxMin, gx);
+            gxMax = Math.max(gxMax, gx);
+            gyMin = Math.min(gyMin, gy);
+            gyMax = Math.max(gyMax, gy);
         }
         int fromGx = Math.max(0, (int) Math.floor(gxMin) - 1);
         int toGx = Math.min(map.mapWidth - 1, (int) Math.ceil(gxMax) + 1);
@@ -75,14 +79,31 @@ final class HistoricalVisualAnchorSelector extends SpatialVisualAnchorSelector {
 
     private static void setQuad(float[] q, float x1, float y1, float x2, float y2,
                                 float x3, float y3, float x4, float y4) {
-        q[0] = x1; q[1] = y1; q[2] = x2; q[3] = y2;
-        q[4] = x3; q[5] = y3; q[6] = x4; q[7] = y4;
+        q[0] = x1;
+        q[1] = y1;
+        q[2] = x2;
+        q[3] = y2;
+        q[4] = x3;
+        q[5] = y3;
+        q[6] = x4;
+        q[7] = y4;
     }
 
-    private static float minX(float[] q) { return Math.min(Math.min(q[0], q[2]), Math.min(q[4], q[6])); }
-    private static float maxX(float[] q) { return Math.max(Math.max(q[0], q[2]), Math.max(q[4], q[6])); }
-    private static float minY(float[] q) { return Math.min(Math.min(q[1], q[3]), Math.min(q[5], q[7])); }
-    private static float maxY(float[] q) { return Math.max(Math.max(q[1], q[3]), Math.max(q[5], q[7])); }
+    private static float minX(float[] q) {
+        return Math.min(Math.min(q[0], q[2]), Math.min(q[4], q[6]));
+    }
+
+    private static float maxX(float[] q) {
+        return Math.max(Math.max(q[0], q[2]), Math.max(q[4], q[6]));
+    }
+
+    private static float minY(float[] q) {
+        return Math.min(Math.min(q[1], q[3]), Math.min(q[5], q[7]));
+    }
+
+    private static float maxY(float[] q) {
+        return Math.max(Math.max(q[1], q[3]), Math.max(q[5], q[7]));
+    }
 
     private static boolean overlaps(float[] a, float[] b) {
         for (int i = 0; i < 4; i++) {
@@ -109,7 +130,10 @@ final class HistoricalVisualAnchorSelector extends SpatialVisualAnchorSelector {
         return (abC < 0f) != (abD < 0f) && (cdA < 0f) != (cdB < 0f);
     }
 
-    private static float cross(float ax, float ay, float bx, float by) { return ax * by - ay * bx; }
+    private static float cross(float ax, float ay, float bx, float by) {
+        return ax * by - ay * bx;
+    }
+
     private static boolean onSegment(float ax, float ay, float bx, float by, float x, float y) {
         return x >= Math.min(ax, bx) && x <= Math.max(ax, bx)
                 && y >= Math.min(ay, by) && y <= Math.max(ay, by);

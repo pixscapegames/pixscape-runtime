@@ -22,21 +22,33 @@ package games.pixscape.runtime.loading;
  * existing active scene untouched; a failure after construction begins leaves no active scene.</p>
  */
 public interface SceneLoadHandle {
-    /** Advances this load once; calls after READY or failure have no effect. */
+    /**
+     * Advances this load once; calls after READY or failure have no effect.
+     */
     void update();
 
-    /** Returns monotonic Pixscape-scoped progress in {@code [0, 1]}. */
+    /**
+     * Returns monotonic Pixscape-scoped progress in {@code [0, 1]}.
+     */
     float progress();
 
-    /** Returns the current work phase; failure does not introduce a separate phase value. */
+    /**
+     * Returns the current work phase; failure does not introduce a separate phase value.
+     */
     SceneLoadPhase phase();
 
-    /** Returns whether the requested scene has been published active with progress {@code 1}. */
+    /**
+     * Returns whether the requested scene has been published active with progress {@code 1}.
+     */
     boolean isReady();
 
-    /** Returns whether a loading step failed. */
+    /**
+     * Returns whether a loading step failed.
+     */
     boolean isFailed();
 
-    /** Returns the original load failure, or {@code null} while no failure occurred. */
+    /**
+     * Returns the original load failure, or {@code null} while no failure occurred.
+     */
     Throwable failure();
 }

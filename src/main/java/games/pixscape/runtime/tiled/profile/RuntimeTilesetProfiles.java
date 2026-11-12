@@ -81,7 +81,9 @@ public final class RuntimeTilesetProfiles {
         return byTileAssetId.get(tileAssetId);
     }
 
-    /** O(1), including absent local IDs. Indexes are built only at profile publication. */
+    /**
+     * O(1), including absent local IDs. Indexes are built only at profile publication.
+     */
     public TileDefinition tile(int tilesetId, int localId) {
         IntMap<TileDefinition> tiles = tilesByLocalId.get(tilesetId);
         return tiles == null ? null : tiles.get(localId);
@@ -94,16 +96,33 @@ public final class RuntimeTilesetProfiles {
     private static final class Definition implements TileDefinition {
         private final int tilesetId, localId, assetId;
         private final CustomProperties properties;
+
         Definition(int tilesetId, TileDefinitionData source) {
             this.tilesetId = tilesetId;
             localId = source.localId;
             assetId = source.assetId;
             properties = source.properties.copy().readOnlyView();
         }
-        @Override public int tilesetId() { return tilesetId; }
-        @Override public int localId() { return localId; }
-        @Override public int assetId() { return assetId; }
-        @Override public CustomProperties properties() { return properties; }
+
+        @Override
+        public int tilesetId() {
+            return tilesetId;
+        }
+
+        @Override
+        public int localId() {
+            return localId;
+        }
+
+        @Override
+        public int assetId() {
+            return assetId;
+        }
+
+        @Override
+        public CustomProperties properties() {
+            return properties;
+        }
     }
 
     public String normalMapSourceForTileAsset(int tileAssetId) {

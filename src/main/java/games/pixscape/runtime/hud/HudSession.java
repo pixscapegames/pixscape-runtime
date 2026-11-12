@@ -61,19 +61,25 @@ public final class HudSession implements Disposable {
         }
     }
 
-    /** Creates an empty live HUD instance using already prepared borrowed resources. */
+    /**
+     * Creates an empty live HUD instance using already prepared borrowed resources.
+     */
     public static HudSession create(
             HudScreenAsset asset, HudResources resources, ShaderProgram hudShader) {
         return new HudSession(asset, resources, hudShader);
     }
 
-    /** Advances Scene2D state. Negative deltas are passed through with normal Stage semantics. */
+    /**
+     * Advances Scene2D state. Negative deltas are passed through with normal Stage semantics.
+     */
     public void act(float delta) {
         requireUsable();
         stage.act(delta);
     }
 
-    /** Draws the Stage through the session-owned HudBatch without clearing the framebuffer. */
+    /**
+     * Draws the Stage through the session-owned HudBatch without clearing the framebuffer.
+     */
     public void draw() {
         requireUsable();
         viewport.apply(false);
@@ -87,12 +93,16 @@ public final class HudSession implements Disposable {
         }
     }
 
-    /** Updates the logical HUD surface to the available screen bounds. */
+    /**
+     * Updates the logical HUD surface to the available screen bounds.
+     */
     public void resize(int width, int height) {
         resize(0, 0, width, height);
     }
 
-    /** Places the HUD in a logical screen sub-region without global scaling. */
+    /**
+     * Places the HUD in a logical screen sub-region without global scaling.
+     */
     public void resize(int screenX, int screenY, int width, int height) {
         requireUsable();
         if (width <= 0 || height <= 0) {
@@ -104,7 +114,9 @@ public final class HudSession implements Disposable {
         layoutContent();
     }
 
-    /** Updates a host sub-region using the same unscaled HUD layout surface. */
+    /**
+     * Updates a host sub-region using the same unscaled HUD layout surface.
+     */
     public void resizeUnscaled(int screenX, int screenY, int width, int height) {
         requireUsable();
         if (width <= 0 || height <= 0) {
@@ -143,19 +155,25 @@ public final class HudSession implements Disposable {
         return disposed;
     }
 
-    /** Package-private borrowed Stage; valid only while this session is usable; do not dispose. */
+    /**
+     * Package-private borrowed Stage; valid only while this session is usable; do not dispose.
+     */
     Stage stage() {
         requireUsable();
         return stage;
     }
 
-    /** Package-private borrowed Viewport; valid only while this session is usable. */
+    /**
+     * Package-private borrowed Viewport; valid only while this session is usable.
+     */
     Viewport viewport() {
         requireUsable();
         return viewport;
     }
 
-    /** Package-private borrowed batch for Runtime inspection; do not dispose. */
+    /**
+     * Package-private borrowed batch for Runtime inspection; do not dispose.
+     */
     HudBatch hudBatch() {
         requireUsable();
         return hudBatch;

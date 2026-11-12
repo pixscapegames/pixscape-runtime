@@ -2,7 +2,9 @@ package games.pixscape.runtime.hierarchy;
 
 import java.util.Arrays;
 
-/** Derived, non-serialized Game Object topology indexed by Artemis entity ID. */
+/**
+ * Derived, non-serialized Game Object topology indexed by Artemis entity ID.
+ */
 public final class GameObjectTopologyState {
     private static final int MIN_CAPACITY = 16;
 
@@ -13,7 +15,9 @@ public final class GameObjectTopologyState {
     public int[] firstChildEntityId;
     public int[] nextSiblingEntityId;
     public int[] previousSiblingEntityId;
-    /** Parent-first linked traversal: unlinking an entity never shifts unrelated entities. */
+    /**
+     * Parent-first linked traversal: unlinking an entity never shifts unrelated entities.
+     */
     public int[] nextTraversalEntityId;
     public int[] previousTraversalEntityId;
     public int firstTraversalEntityId = -1;
@@ -84,7 +88,9 @@ public final class GameObjectTopologyState {
         firstChildEntityId[parent] = child;
     }
 
-    /** O(1) per deleted entity; the caller must reject surviving orphaned children. */
+    /**
+     * O(1) per deleted entity; the caller must reject surviving orphaned children.
+     */
     public void unlinkDeletedEntity(int entityId) {
         if (entityId < 0 || entityId >= entityCapacity) return;
         int parent = parentEntityId[entityId];

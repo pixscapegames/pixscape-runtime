@@ -2,7 +2,9 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Stable runtime-cache ownership shared by tiled synchronization and actor composition. */
+/**
+ * Stable runtime-cache ownership shared by tiled synchronization and actor composition.
+ */
 public final class SpatialLayerRuntimeRegistry {
     private SpatialLayerFaceRuntime[] layers = new SpatialLayerFaceRuntime[4];
     private TiledMapLayerData[] sourceMaps = new TiledMapLayerData[4];

@@ -10,7 +10,9 @@ public final class HudTableCell {
     public HudCellConstraints constraints = new HudCellConstraints();
     public HudNode content;
 
-    /** Required by libGDX Json. */
+    /**
+     * Required by libGDX Json.
+     */
     public HudTableCell() {
     }
 }

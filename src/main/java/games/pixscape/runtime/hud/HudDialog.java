@@ -43,15 +43,20 @@ public final class HudDialog extends Dialog {
                 getButtonTable().removeListener(listeners.get(i));
     }
 
-    /** Replaces the one callback, or removes it with null. With no callback, closing is allowed. */
-    public void onResult(ResultHandler handler) { resultHandler = handler; }
+    /**
+     * Replaces the one callback, or removes it with null. With no callback, closing is allowed.
+     */
+    public void onResult(ResultHandler handler) {
+        resultHandler = handler;
+    }
 
     void addResultButton(final Button button, final String resultId,
                          final boolean closeAfterActivation, boolean interactive) {
         button(button, resultId);
         if (!interactive) return;
         button.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent event, float x, float y) {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
                 if (button.isDisabled() || !open) return;
                 boolean previousCancellation = resultCancelled;
                 resultCancelled = false;
@@ -65,11 +70,15 @@ public final class HudDialog extends Dialog {
         });
     }
 
-    @Override protected void result(Object value) {
+    @Override
+    protected void result(Object value) {
         if (resultHandler != null && !resultHandler.onResult(this, (String) value)) cancel();
     }
 
-    @Override public void cancel() { resultCancelled = true; }
+    @Override
+    public void cancel() {
+        resultCancelled = true;
+    }
 
     void attach(HudDialogSlot slot, boolean stageLevel, boolean keepWithinStage) {
         this.slot = slot;
@@ -78,18 +87,22 @@ public final class HudDialog extends Dialog {
         setKeepWithinStage(stageLevel && keepWithinStage);
     }
 
-    public boolean isOpen() { return open; }
+    public boolean isOpen() {
+        return open;
+    }
 
     public void open() {
         if (slot != null && slot.getStage() != null) show(slot.getStage(), null);
     }
 
-    @Override public Dialog show(Stage stage) {
+    @Override
+    public Dialog show(Stage stage) {
         return show(stage, Actions.sequence(Actions.alpha(0),
                 Actions.fadeIn(.4f, Interpolation.fade)));
     }
 
-    @Override public Dialog show(Stage stage, Action action) {
+    @Override
+    public Dialog show(Stage stage, Action action) {
         if (open || slot == null || stage == null || slot.getStage() != stage
                 || !effectivelyVisible(slot)) return this;
         Vector2 position = stageLevel
@@ -115,7 +128,8 @@ public final class HudDialog extends Dialog {
         hide(null);
     }
 
-    @Override public void hide(Action action) {
+    @Override
+    public void hide(Action action) {
         if (!open) {
             if (getStage() != null && getParent() != slot) super.hide(null);
             setVisible(false);

@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
-/** Stable exported paths and atlas keys for standalone HUD bitmap-font assets. */
+/**
+ * Stable exported paths and atlas keys for standalone HUD bitmap-font assets.
+ */
 public final class HudBitmapFontResource {
     private HudBitmapFontResource() {
     }

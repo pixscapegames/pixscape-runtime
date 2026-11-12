@@ -2,7 +2,9 @@ package games.pixscape.runtime.particle;
 
 import com.badlogic.gdx.files.FileHandle;
 
-/** Authoritative normalization and resolution for Runtime particle effect files. */
+/**
+ * Authoritative normalization and resolution for Runtime particle effect files.
+ */
 public final class ParticleEffectPath {
 
     private ParticleEffectPath() {

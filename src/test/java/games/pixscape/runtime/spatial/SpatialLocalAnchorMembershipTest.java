@@ -95,19 +95,28 @@ public final class SpatialLocalAnchorMembershipTest {
     public void longMergedFaceSelectsExactlyOneMonotonicLocalAnchor() {
         int anchorCount = 64;
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
-        faces.faceCount = 1; faces.anchorCount = anchorCount;
-        faces.faceCompiledIndex = new int[]{0}; faces.faceStructureId = new int[]{1};
-        faces.faceAnchorIndexStart = new int[]{0}; faces.faceAnchorIndexCount = new int[]{anchorCount};
+        faces.faceCount = 1;
+        faces.anchorCount = anchorCount;
+        faces.faceCompiledIndex = new int[]{0};
+        faces.faceStructureId = new int[]{1};
+        faces.faceAnchorIndexStart = new int[]{0};
+        faces.faceAnchorIndexCount = new int[]{anchorCount};
         faces.faceAnchorIndices = new int[anchorCount];
         faces.faceAnchorScreenMinX = new float[anchorCount];
         faces.faceAnchorScreenMaxX = new float[anchorCount];
-        faces.anchorGx = new int[anchorCount]; faces.anchorGy = new int[anchorCount];
+        faces.anchorGx = new int[anchorCount];
+        faces.anchorGy = new int[anchorCount];
         faces.anchorResolved = new boolean[anchorCount];
-        faces.anchorBeforeBucket = new int[anchorCount]; faces.anchorAfterBucket = new int[anchorCount];
+        faces.anchorBeforeBucket = new int[anchorCount];
+        faces.anchorAfterBucket = new int[anchorCount];
         for (int i = 0; i < anchorCount; i++) {
-            faces.faceAnchorIndices[i] = i; faces.faceAnchorScreenMinX[i] = i; faces.faceAnchorScreenMaxX[i] = i + 1f;
-            faces.anchorGx[i] = i; faces.anchorResolved[i] = true;
-            faces.anchorBeforeBucket[i] = i; faces.anchorAfterBucket[i] = i + 1;
+            faces.faceAnchorIndices[i] = i;
+            faces.faceAnchorScreenMinX[i] = i;
+            faces.faceAnchorScreenMaxX[i] = i + 1f;
+            faces.anchorGx[i] = i;
+            faces.anchorResolved[i] = true;
+            faces.anchorBeforeBucket[i] = i;
+            faces.anchorAfterBucket[i] = i + 1;
         }
 
         SpatialActorCollector actor = actor(.5f, 0f);
@@ -171,19 +180,25 @@ public final class SpatialLocalAnchorMembershipTest {
 
     private static SpatialProjectedFaceCache seamFaces(int[][] memberships) {
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
-        faces.faceCount = 1; faces.anchorCount = 2;
-        faces.faceCompiledIndex = new int[]{0}; faces.faceStructureId = new int[]{1};
-        faces.faceAnchorIndexStart = new int[]{0}; faces.faceAnchorIndexCount = new int[]{2};
+        faces.faceCount = 1;
+        faces.anchorCount = 2;
+        faces.faceCompiledIndex = new int[]{0};
+        faces.faceStructureId = new int[]{1};
+        faces.faceAnchorIndexStart = new int[]{0};
+        faces.faceAnchorIndexCount = new int[]{2};
         faces.faceAnchorIndices = new int[]{memberships[0][0], memberships[0][1]};
-        faces.faceAnchorScreenMinX = new float[2]; faces.faceAnchorScreenMaxX = new float[2];
+        faces.faceAnchorScreenMinX = new float[2];
+        faces.faceAnchorScreenMaxX = new float[2];
         for (int membership = 0; membership < 2; membership++) {
             int anchor = faces.faceAnchorIndices[membership];
             faces.faceAnchorScreenMinX[membership] = anchor;
             faces.faceAnchorScreenMaxX[membership] = anchor + 1f;
         }
-        faces.anchorGx = new int[]{0, 1}; faces.anchorGy = new int[2];
+        faces.anchorGx = new int[]{0, 1};
+        faces.anchorGy = new int[2];
         faces.anchorResolved = new boolean[]{true, true};
-        faces.anchorBeforeBucket = new int[]{0, 1}; faces.anchorAfterBucket = new int[]{1, 2};
+        faces.anchorBeforeBucket = new int[]{0, 1};
+        faces.anchorAfterBucket = new int[]{1, 2};
         return faces;
     }
 
@@ -198,7 +213,9 @@ public final class SpatialLocalAnchorMembershipTest {
 
     private static SpatialFaceRelationSolver relation(int face) {
         SpatialFaceRelationSolver relations = new SpatialFaceRelationSolver();
-        relations.relationCount = 1; relations.actorRelationStart = new int[]{0}; relations.actorRelationCount = new int[]{1};
+        relations.relationCount = 1;
+        relations.actorRelationStart = new int[]{0};
+        relations.actorRelationCount = new int[]{1};
         relations.relationFaceIndex = new int[]{face};
         relations.relationType = new byte[]{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE};
         return relations;
@@ -206,16 +223,22 @@ public final class SpatialLocalAnchorMembershipTest {
 
     private static SpatialActorCollector actor(float x, float y) {
         SpatialActorCollector actor = new SpatialActorCollector();
-        actor.actorCount = 1; actor.actorSlot = new int[]{0}; actor.actorEntityId = new int[]{4};
-        actor.actorStableOrder = new int[]{0}; actor.actorDrawIndex = new int[]{0};
-        actor.actorCircleX = new float[]{x}; actor.actorCircleY = new float[]{y};
-        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{1};
+        actor.actorCount = 1;
+        actor.actorSlot = new int[]{0};
+        actor.actorEntityId = new int[]{4};
+        actor.actorStableOrder = new int[]{0};
+        actor.actorDrawIndex = new int[]{0};
+        actor.actorCircleX = new float[]{x};
+        actor.actorCircleY = new float[]{y};
+        actor.actorAltitude = new float[]{0};
+        actor.actorHeight = new float[]{1};
         return actor;
     }
 
     private static int[] allRanks(SpatialTileOrderCache order, int width, int height) {
         int[] ranks = new int[width * height];
-        for (int gy = 0; gy < height; gy++) for (int gx = 0; gx < width; gx++) ranks[gy * width + gx] = order.rank(gx, gy);
+        for (int gy = 0; gy < height; gy++)
+            for (int gx = 0; gx < width; gx++) ranks[gy * width + gx] = order.rank(gx, gy);
         return ranks;
     }
 
@@ -224,14 +247,16 @@ public final class SpatialLocalAnchorMembershipTest {
         for (int i = 0; i < ranks.length; i++) if (ranks[i] >= 0) count++;
         long[] keys = new long[count];
         int write = 0;
-        for (int i = 0; i < ranks.length; i++) if (ranks[i] >= 0) {
-            keys[write++] = SortKey64.packForBlendOrder30(0, BlendMode.ALPHA.id, 1, 2, ranks[i]);
-        }
+        for (int i = 0; i < ranks.length; i++)
+            if (ranks[i] >= 0) {
+                keys[write++] = SortKey64.packForBlendOrder30(0, BlendMode.ALPHA.id, 1, 2, ranks[i]);
+            }
         return keys;
     }
 
     private static byte relationType(SpatialFaceRelationSolver relations, int face) {
-        for (int i = 0; i < relations.relationCount; i++) if (relations.relationFaceIndex[i] == face) return relations.relationType[i];
+        for (int i = 0; i < relations.relationCount; i++)
+            if (relations.relationFaceIndex[i] == face) return relations.relationType[i];
         throw new AssertionError("Missing relation for face " + face);
     }
 
@@ -273,7 +298,9 @@ public final class SpatialLocalAnchorMembershipTest {
         throw new AssertionError("Missing anchor");
     }
 
-    private static Fixture auditedFixture() { return auditedFixture(false, 0); }
+    private static Fixture auditedFixture() {
+        return auditedFixture(false, 0);
+    }
 
     private static Fixture auditedFixture(boolean reverse, int idOffset) {
         TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
@@ -281,22 +308,28 @@ public final class SpatialLocalAnchorMembershipTest {
                 wall(1 + idOffset, 1, 1f, 4f, .29454708f, 25f, 154.57202f, vertical(1, 4, 28)),
                 wall(2 + idOffset, 1, 1f, 28.705452f, 12f, .29454708f, 154.57202f, horizontal(1, 12, 28)),
                 wall(3 + idOffset, 1, 12.705453f, 5f, .29454708f, 24f, 154.57202f, vertical(12, 5, 28)),
-                wall(4 + idOffset, 2, 5f, 24f, 2f, 2f, 148.18042f, new int[][]{{5,24},{6,24},{5,25},{6,25}})
+                wall(4 + idOffset, 2, 5f, 24f, 2f, 2f, 148.18042f, new int[][]{{5, 24}, {6, 24}, {5, 25}, {6, 25}})
         };
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         if (reverse) for (int i = walls.length - 1; i >= 0; i--) blocks.blocks.add(walls[i]);
         else for (int i = 0; i < walls.length; i++) blocks.blocks.add(walls[i]);
         blocks.revision = 1;
-        for (int i = 0; i < walls.length; i++) for (int j = 0; j < walls[i].linkedTileRefs.size; j++) {
-            SpatialBlockData.LinkedTileRef ref = walls[i].linkedTileRefs.get(j);
-            map.setTile(ref.gx, ref.gy, 1);
-        }
-        SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache(); compiled.ensure(blocks);
-        SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache(); faces.ensure(compiled, map);
-        SpatialTileOrderCache order = new SpatialTileOrderCache(); order.ensure(2, map, blocks, compiled);
+        for (int i = 0; i < walls.length; i++)
+            for (int j = 0; j < walls[i].linkedTileRefs.size; j++) {
+                SpatialBlockData.LinkedTileRef ref = walls[i].linkedTileRefs.get(j);
+                map.setTile(ref.gx, ref.gy, 1);
+            }
+        SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
+        compiled.ensure(blocks);
+        SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
+        faces.ensure(compiled, map);
+        SpatialTileOrderCache order = new SpatialTileOrderCache();
+        order.ensure(2, map, blocks, compiled);
         for (int anchor = 0; anchor < faces.anchorCount; anchor++) {
             int rank = order.rank(faces.anchorGx[anchor], faces.anchorGy[anchor]);
-            faces.anchorResolved[anchor] = true; faces.anchorBeforeBucket[anchor] = rank; faces.anchorAfterBucket[anchor] = rank + 1;
+            faces.anchorResolved[anchor] = true;
+            faces.anchorBeforeBucket[anchor] = rank;
+            faces.anchorAfterBucket[anchor] = rank + 1;
         }
         return new Fixture(faces, order);
     }
@@ -304,7 +337,13 @@ public final class SpatialLocalAnchorMembershipTest {
     private static SpatialBlockData wall(int id, int structure, float x, float y, float width, float depth,
                                          float height, int[][] anchors) {
         SpatialBlockData wall = new SpatialBlockData();
-        wall.id = id; wall.structureId = structure; wall.x = x; wall.y = y; wall.width = width; wall.depth = depth; wall.height = height;
+        wall.id = id;
+        wall.structureId = structure;
+        wall.x = x;
+        wall.y = y;
+        wall.width = width;
+        wall.depth = depth;
+        wall.height = height;
         wall.beginAuthoredLinkedTileRefs();
         for (int i = 0; i < anchors.length; i++) wall.addLinkedTileRef(anchors[i][0], anchors[i][1], 1);
         return wall;
@@ -325,6 +364,10 @@ public final class SpatialLocalAnchorMembershipTest {
     private static final class Fixture {
         final SpatialProjectedFaceCache faces;
         final SpatialTileOrderCache order;
-        Fixture(SpatialProjectedFaceCache faces, SpatialTileOrderCache order) { this.faces = faces; this.order = order; }
+
+        Fixture(SpatialProjectedFaceCache faces, SpatialTileOrderCache order) {
+            this.faces = faces;
+            this.order = order;
+        }
     }
 }

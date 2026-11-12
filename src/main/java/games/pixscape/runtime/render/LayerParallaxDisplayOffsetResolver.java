@@ -4,7 +4,9 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.helper.ParallaxHelper;
 
-/** Runtime display-space authority derived from Layer and Physics parallax. */
+/**
+ * Runtime display-space authority derived from Layer and Physics parallax.
+ */
 public final class LayerParallaxDisplayOffsetResolver implements LayerDisplayOffsetResolver {
 
     private final LayerStateSOA layerState;

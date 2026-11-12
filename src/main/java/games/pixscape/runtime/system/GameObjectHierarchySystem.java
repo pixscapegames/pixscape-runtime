@@ -22,7 +22,9 @@ import games.pixscape.runtime.service.IdentityRegistry;
 
 import java.util.Arrays;
 
-/** Owns the single Runtime topology and derived world-transform authority. */
+/**
+ * Owns the single Runtime topology and derived world-transform authority.
+ */
 public final class GameObjectHierarchySystem extends BaseSystem {
     private static final int MIN_CAPACITY = 16;
 
@@ -72,9 +74,12 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         // Artemis publishes actual deletions here, including create/delete in one frame.
         // EntityManager.isActive remains true until the end-of-frame purge.
         allEntities.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) { }
+            @Override
+            public void inserted(IntBag entities) {
+            }
 
-            @Override public void removed(IntBag entities) {
+            @Override
+            public void removed(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) {
                     int entityId = entities.get(i);
                     if (entityId < topology.getEntityCapacity()) {
@@ -148,7 +153,9 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         return topology;
     }
 
-    /** INTERNAL indexed command lookup. Raw ECS structural edits must be synchronized first. */
+    /**
+     * INTERNAL indexed command lookup. Raw ECS structural edits must be synchronized first.
+     */
     public GameObjectTopologyState topologyForRemoval() {
         if (topologyDirty) throw new IllegalStateException(
                 "Synchronize ECS structural edits before removing a hierarchy.");
@@ -174,7 +181,9 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         }
     }
 
-    /** INTERNAL: publishes one freshly created entity, including a prepared standalone particle. */
+    /**
+     * INTERNAL: publishes one freshly created entity, including a prepared standalone particle.
+     */
     public void registerPreparedSpawn(int entityId) {
         // Joint entities have identities but no transform and must also skip insertion dirtiness.
         preparedInsertions.add(entityId);
@@ -198,14 +207,18 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         topology.appendTraversal(entityId);
     }
 
-    /** Resolves only a newly registered detached hierarchy, in its prepared parent-first order. */
+    /**
+     * Resolves only a newly registered detached hierarchy, in its prepared parent-first order.
+     */
     public void resolvePreparedSpawn(IntBag created) {
         for (int i = 0; i < created.size(); i++) {
             resolveEntityFromCurrentAuthoredTransform(created.get(i));
         }
     }
 
-    /** Unpublishes one failed, newly allocated entity without visiting existing hierarchies. */
+    /**
+     * Unpublishes one failed, newly allocated entity without visiting existing hierarchies.
+     */
     public void discardPreparedSpawn(int entityId) {
         if (entityId < topology.getEntityCapacity()) {
             topology.unlinkDeletedEntity(entityId);
@@ -264,7 +277,9 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         if (topologyDirty) rebuildTopology();
     }
 
-    /** Resolves the complete parent-first traversal from current authored transforms. */
+    /**
+     * Resolves the complete parent-first traversal from current authored transforms.
+     */
     void resolveAllFromCurrentAuthoredTransforms() {
         for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
              entityId = topology.nextTraversalEntityId[entityId]) {
@@ -312,7 +327,7 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                     .validateEntities(world.getAspectSubscriptionManager().get(Aspect.all()).getEntities());
         }
 
-        for (int entityId = topology.firstTraversalEntityId; entityId >= 0;) {
+        for (int entityId = topology.firstTraversalEntityId; entityId >= 0; ) {
             int next = topology.nextTraversalEntityId[entityId];
             topology.clearEntity(entityId);
             // Topology replacement does not invalidate an unchanged entity's last pose.

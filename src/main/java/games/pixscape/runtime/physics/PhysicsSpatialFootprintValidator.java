@@ -2,7 +2,9 @@ package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.utils.Array;
 
-/** Validates explicit Spatial footprint ownership within one physics body. */
+/**
+ * Validates explicit Spatial footprint ownership within one physics body.
+ */
 public final class PhysicsSpatialFootprintValidator {
     private PhysicsSpatialFootprintValidator() {
     }

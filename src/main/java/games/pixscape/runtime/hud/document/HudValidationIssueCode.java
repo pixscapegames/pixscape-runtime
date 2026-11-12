@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Stable machine-readable codes produced by version-1 HUD document validation. */
+/**
+ * Stable machine-readable codes produced by version-1 HUD document validation.
+ */
 public enum HudValidationIssueCode {
     UNSUPPORTED_SCHEMA_VERSION,
     MISSING_ROOT,

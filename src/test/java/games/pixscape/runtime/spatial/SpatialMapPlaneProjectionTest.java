@@ -35,13 +35,21 @@ public class SpatialMapPlaneProjectionTest {
         map.setTile(27, 18, 1);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData block = new SpatialBlockData();
-        block.id = 1; block.structureId = 1;
-        block.x = 27; block.y = 18; block.width = 1; block.depth = 1;
-        block.altitude = 160; block.height = 128;
+        block.id = 1;
+        block.structureId = 1;
+        block.x = 27;
+        block.y = 18;
+        block.width = 1;
+        block.depth = 1;
+        block.altitude = 160;
+        block.height = 128;
         SpatialBlockData.LinkedTileRef ref = new SpatialBlockData.LinkedTileRef();
-        ref.gx = 27; ref.gy = 18; ref.tileAssetId = 1;
+        ref.gx = 27;
+        ref.gy = 18;
+        ref.tileAssetId = 1;
         block.linkedTileRefs.add(ref);
-        blocks.blocks.add(block); blocks.nextSpatialBlockId = 2;
+        blocks.blocks.add(block);
+        blocks.nextSpatialBlockId = 2;
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
         SpatialTileOrderCache order = new SpatialTileOrderCache();
@@ -71,10 +79,16 @@ public class SpatialMapPlaneProjectionTest {
         TiledMapLayerData map = map(TiledProjection.ISO);
         map.defaultTileAltitude = 128;
         SpatialBlockData block = new SpatialBlockData();
-        block.id = 1; block.x = 27; block.y = 18;
-        block.width = 1; block.depth = 2; block.altitude = 128; block.height = 128;
+        block.id = 1;
+        block.x = 27;
+        block.y = 18;
+        block.width = 1;
+        block.depth = 2;
+        block.altitude = 128;
+        block.height = 128;
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.physicsShapeId = 1; shape.spatialBlockId = 1;
+        shape.physicsShapeId = 1;
+        shape.spatialBlockId = 1;
         ResolvedPhysicsShape resolved = new PhysicsShapeResolver().resolveLinked(
                 shape, block, map, 0, 0, 0, 100, 1);
         Assert.assertEquals((1280 + map.originX) / 100, resolved.polygonVertices[0], .001f);
@@ -84,7 +98,8 @@ public class SpatialMapPlaneProjectionTest {
 
     private static TiledMapLayerData map(TiledProjection projection) {
         TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, projection);
-        map.originX = 37; map.originY = -83;
+        map.originX = 37;
+        map.originY = -83;
         return map;
     }
 }

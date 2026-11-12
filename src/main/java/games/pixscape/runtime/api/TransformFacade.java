@@ -74,16 +74,24 @@ public interface TransformFacade {
 
     TransformFacade rotateByRad(float radians);
 
-    /** Sets both visual scale axes; subject to the type's hierarchy and physics restrictions. */
+    /**
+     * Sets both visual scale axes; subject to the type's hierarchy and physics restrictions.
+     */
     TransformFacade setScale(float uniform);
 
-    /** Sets visual scale without resizing fixtures, spatial volumes, or joints. */
+    /**
+     * Sets visual scale without resizing fixtures, spatial volumes, or joints.
+     */
     TransformFacade setScale(float sx, float sy);
 
-    /** Sets visual X scale, preserving Y; the resulting pair must satisfy Game Object constraints. */
+    /**
+     * Sets visual X scale, preserving Y; the resulting pair must satisfy Game Object constraints.
+     */
     TransformFacade setScaleX(float sx);
 
-    /** Sets visual Y scale, preserving X; the resulting pair must satisfy Game Object constraints. */
+    /**
+     * Sets visual Y scale, preserving X; the resulting pair must satisfy Game Object constraints.
+     */
     TransformFacade setScaleY(float sy);
 
     TransformFacade setOrigin(float ox, float oy);

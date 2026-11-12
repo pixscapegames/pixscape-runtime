@@ -9,7 +9,9 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 
-/** Reusable submission values; the authored light component owns intensity. */
+/**
+ * Reusable submission values; the authored light component owns intensity.
+ */
 public final class LightParameterBinding {
     public static final String INTENSITY = "u_lightIntensity";
     private final ComponentMapper<PointLightComponent> points;

@@ -4,20 +4,32 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class FrameRenderQueueTest {
-    @Test public void participationFollowsQueueSwapsGrowthAndSlotReuse() {
-        FrameRenderQueue q=new FrameRenderQueue(1);
-        q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_VFX,0,-1);
-        games.pixscape.runtime.component.ShaderParamsComponent parameters=new games.pixscape.runtime.component.ShaderParamsComponent();
-        q.shaderParameters[0]=parameters;q.ambientMaterial[0]=2;
-        q.ignoreAmbientLighting[0]=true;q.ensureCapacity(2);Assert.assertTrue(q.ignoreAmbientLighting[0]);
-        Assert.assertSame(parameters,q.shaderParameters[0]);Assert.assertEquals(2,q.ambientMaterial[0]);
-        q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_ECS,0,1);
-        q.swap(0,1);Assert.assertFalse(q.ignoreAmbientLighting[0]);Assert.assertTrue(q.ignoreAmbientLighting[1]);
-        Assert.assertSame(parameters,q.shaderParameters[1]);Assert.assertNull(q.shaderParameters[0]);Assert.assertEquals(2,q.ambientMaterial[1]);
-        q.clear();q.addQuad(1,0,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,(byte)0,FrameRenderQueue.SOURCE_ECS,0,1);
+    @Test
+    public void participationFollowsQueueSwapsGrowthAndSlotReuse() {
+        FrameRenderQueue q = new FrameRenderQueue(1);
+        q.addQuad(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, (byte) 0, FrameRenderQueue.SOURCE_VFX, 0, -1);
+        games.pixscape.runtime.component.ShaderParamsComponent parameters = new games.pixscape.runtime.component.ShaderParamsComponent();
+        q.shaderParameters[0] = parameters;
+        q.ambientMaterial[0] = 2;
+        q.ignoreAmbientLighting[0] = true;
+        q.ensureCapacity(2);
+        Assert.assertTrue(q.ignoreAmbientLighting[0]);
+        Assert.assertSame(parameters, q.shaderParameters[0]);
+        Assert.assertEquals(2, q.ambientMaterial[0]);
+        q.addQuad(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, (byte) 0, FrameRenderQueue.SOURCE_ECS, 0, 1);
+        q.swap(0, 1);
         Assert.assertFalse(q.ignoreAmbientLighting[0]);
-        Assert.assertNull(q.shaderParameters[0]);Assert.assertEquals(0,q.ambientMaterial[0]);
-        q.reset();Assert.assertNull(q.shaderParameters[1]);
+        Assert.assertTrue(q.ignoreAmbientLighting[1]);
+        Assert.assertSame(parameters, q.shaderParameters[1]);
+        Assert.assertNull(q.shaderParameters[0]);
+        Assert.assertEquals(2, q.ambientMaterial[1]);
+        q.clear();
+        q.addQuad(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, (byte) 0, FrameRenderQueue.SOURCE_ECS, 0, 1);
+        Assert.assertFalse(q.ignoreAmbientLighting[0]);
+        Assert.assertNull(q.shaderParameters[0]);
+        Assert.assertEquals(0, q.ambientMaterial[0]);
+        q.reset();
+        Assert.assertNull(q.shaderParameters[1]);
     }
 
     @Test
@@ -181,7 +193,8 @@ public class FrameRenderQueueTest {
         new FrameRenderQueue(0);
     }
 
-    @Test public void publicVerticesSurviveGrowthAndSwapWithTheirSource() {
+    @Test
+    public void publicVerticesSurviveGrowthAndSwapWithTheirSource() {
         FrameRenderQueue queue = new FrameRenderQueue(1);
         float[] quad = {0, 10, 0, 110, 100, 110, 100, 10};
         games.pixscape.runtime.spatial.SpatialProjectedFaceCache faces =
@@ -192,7 +205,7 @@ public class FrameRenderQueueTest {
         TileCornerSplit split = TileCornerSplit.prepare(faces, 0, quad, .125f, .875f, null);
         for (TileCornerSplit.Piece piece : new TileCornerSplit.Piece[]{split.back, split.front}) {
             queue.addQuad(1, 0, 0, 0, 0, 0, 0L, 0, 10, 0, 110, 100, 110, 100, 10,
-                    0, .125f, 1, .875f, 1, (byte)0, FrameRenderQueue.SOURCE_TILED, 123, -1);
+                    0, .125f, 1, .875f, 1, (byte) 0, FrameRenderQueue.SOURCE_TILED, 123, -1);
             queue.setTilePiece(queue.size - 1, piece);
         }
         queue.swap(0, 1);

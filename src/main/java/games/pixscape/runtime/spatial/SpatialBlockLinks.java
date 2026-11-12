@@ -4,9 +4,12 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.ObjectSet;
 
-/** Cold load/authoring validation; never used for frame-time relation lookup. */
+/**
+ * Cold load/authoring validation; never used for frame-time relation lookup.
+ */
 public final class SpatialBlockLinks {
-    private SpatialBlockLinks() { }
+    private SpatialBlockLinks() {
+    }
 
     public static Array<SpatialBlockLink> copy(Array<SpatialBlockLink> links) {
         Array<SpatialBlockLink> result = new Array<>(SpatialBlockLink.class);
@@ -14,7 +17,9 @@ public final class SpatialBlockLinks {
         return result;
     }
 
-    /** Copies a selected set only when both local endpoints are mapped by its owner. */
+    /**
+     * Copies a selected set only when both local endpoints are mapped by its owner.
+     */
     public static Array<SpatialBlockLink> remap(Array<SpatialBlockLink> links, com.badlogic.gdx.utils.IntIntMap ids) {
         Array<SpatialBlockLink> result = new Array<>(SpatialBlockLink.class);
         if (links != null) for (SpatialBlockLink link : links) {
@@ -42,7 +47,8 @@ public final class SpatialBlockLinks {
             SpatialBlockData a = index.get(link.firstBlockId), b = index.get(link.secondBlockId);
             String pair = Math.min(link.firstBlockId, link.secondBlockId) + ":" + Math.max(link.firstBlockId, link.secondBlockId);
             if (!pairs.add(pair)) throw new IllegalArgumentException("Duplicate Spatial link " + pair + ".");
-            if (a == null || b == null) throw new IllegalArgumentException("Missing endpoint for Spatial link " + pair + ".");
+            if (a == null || b == null)
+                throw new IllegalArgumentException("Missing endpoint for Spatial link " + pair + ".");
             if (!contact(a, b, link.firstFace, link.secondFace))
                 throw new IllegalArgumentException("Invalid contact faces for Spatial link " + pair + ".");
             if (a.structureId != b.structureId || Float.compare(a.altitude, b.altitude) != 0
@@ -69,30 +75,41 @@ public final class SpatialBlockLinks {
 
     public static int contactFace(SpatialBlockData a, SpatialBlockData b) {
         int found = 0;
-        for (int face = 1; face <= 8; face *= 2) if (contact(a, b, face, opposite(face))) {
-            if (found != 0) return -1;
-            found = face;
-        }
+        for (int face = 1; face <= 8; face *= 2)
+            if (contact(a, b, face, opposite(face))) {
+                if (found != 0) return -1;
+                found = face;
+            }
         return found;
     }
 
     public static int opposite(int face) {
         switch (face) {
-            case 1: return 2;
-            case 2: return 1;
-            case 4: return 8;
-            case 8: return 4;
-            default: return 0;
+            case 1:
+                return 2;
+            case 2:
+                return 1;
+            case 4:
+                return 8;
+            case 8:
+                return 4;
+            default:
+                return 0;
         }
     }
 
     public static float coordinate(SpatialBlockData wall, int face) {
         switch (face) {
-            case 1: return wall.x;
-            case 2: return wall.x + wall.width;
-            case 4: return wall.y;
-            case 8: return wall.y + wall.depth;
-            default: throw new IllegalArgumentException("Unknown Spatial contact face " + face);
+            case 1:
+                return wall.x;
+            case 2:
+                return wall.x + wall.width;
+            case 4:
+                return wall.y;
+            case 8:
+                return wall.y + wall.depth;
+            default:
+                throw new IllegalArgumentException("Unknown Spatial contact face " + face);
         }
     }
 

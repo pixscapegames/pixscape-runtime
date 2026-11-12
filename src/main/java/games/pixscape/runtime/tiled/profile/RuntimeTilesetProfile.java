@@ -16,6 +16,8 @@ public final class RuntimeTilesetProfile {
     public RuntimeTilesetRenderSize renderSize = RuntimeTilesetRenderSize.NATIVE;
     public int[] tileAssetIds = new int[0];
     public final com.badlogic.gdx.utils.Array<TileDefinitionData> tiles = new com.badlogic.gdx.utils.Array<>();
-    /** Asset-owned, untrimmed PNG resources in original image coordinates; no lighting interpretation. */
+    /**
+     * Asset-owned, untrimmed PNG resources in original image coordinates; no lighting interpretation.
+     */
     public final com.badlogic.gdx.utils.IntMap<String> normalMapSources = new com.badlogic.gdx.utils.IntMap<>();
 }

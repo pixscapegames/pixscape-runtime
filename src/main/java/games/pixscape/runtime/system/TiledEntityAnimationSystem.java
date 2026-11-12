@@ -19,7 +19,9 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlaybackStepper;
 
-/** Advances Tiled animations attached to regular entities and updates their sprite visual state. */
+/**
+ * Advances Tiled animations attached to regular entities and updates their sprite visual state.
+ */
 public final class TiledEntityAnimationSystem extends IteratingSystem implements ProfiledSystem {
 
     private ComponentMapper<TiledAnimationComponent> mAnimation;

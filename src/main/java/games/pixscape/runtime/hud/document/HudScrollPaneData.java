@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Typed native ScrollPane payload; transient scroll position remains owned by Scene2D. */
+/**
+ * Typed native ScrollPane payload; transient scroll position remains owned by Scene2D.
+ */
 public final class HudScrollPaneData {
     public String styleName;
     public boolean scrollingDisabledX;

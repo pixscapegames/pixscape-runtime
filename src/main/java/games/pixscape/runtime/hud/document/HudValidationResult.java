@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Validation outcome containing either a materialization-safe wrapper or ordered issues. */
+/**
+ * Validation outcome containing either a materialization-safe wrapper or ordered issues.
+ */
 public final class HudValidationResult {
     private final List<HudValidationIssue> issues;
     private final ValidatedHudDocument validatedDocument;
@@ -24,7 +26,9 @@ public final class HudValidationResult {
         return issues;
     }
 
-    /** Returns the validated document and index, or {@code null} when validation failed. */
+    /**
+     * Returns the validated document and index, or {@code null} when validation failed.
+     */
     public ValidatedHudDocument validatedDocument() {
         return validatedDocument;
     }

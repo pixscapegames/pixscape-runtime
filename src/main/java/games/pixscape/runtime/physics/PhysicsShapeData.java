@@ -6,7 +6,9 @@ package games.pixscape.runtime.physics;
 public final class PhysicsShapeData {
     public int physicsShapeId = 0;
     public int spatialBlockId = 0;
-    /** Explicit owner of this entity's Spatial rendering footprint. */
+    /**
+     * Explicit owner of this entity's Spatial rendering footprint.
+     */
     public boolean spatialFootprint = false;
     public PhysicsGeometryData geometry;
 

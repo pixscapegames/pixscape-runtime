@@ -2,7 +2,9 @@ package games.pixscape.runtime.render;
 
 import com.badlogic.gdx.math.Vector2;
 
-/** Identity display-space authority for authored-coordinate Worlds. */
+/**
+ * Identity display-space authority for authored-coordinate Worlds.
+ */
 public final class IdentityLayerDisplayOffsetResolver implements LayerDisplayOffsetResolver {
 
     @Override

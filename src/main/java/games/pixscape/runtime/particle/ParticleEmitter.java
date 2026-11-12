@@ -36,6 +36,7 @@ import java.util.Arrays;
  * and exposes borrowed particle/active storage for allocation-free SOA render
  * extraction.
  */
+
 /**
  * {@code SUPPORTED_EXPERT} LibGDX-compatible emitter used by standalone effects and Pixscape
  * Runtime/Studio extraction.
@@ -168,7 +169,9 @@ public class ParticleEmitter {
         return active;
     }
 
-    /** Returns the traversal bound shared by the borrowed particle and active arrays. */
+    /**
+     * Returns the traversal bound shared by the borrowed particle and active arrays.
+     */
     public int getCapacity() {
         return maxParticleCount;
     }

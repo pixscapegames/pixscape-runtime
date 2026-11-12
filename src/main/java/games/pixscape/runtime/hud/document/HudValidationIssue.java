@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** One deterministic validation issue for an otherwise deserialized HUD document. */
+/**
+ * One deterministic validation issue for an otherwise deserialized HUD document.
+ */
 public final class HudValidationIssue {
     private final HudValidationIssueCode code;
     private final String message;

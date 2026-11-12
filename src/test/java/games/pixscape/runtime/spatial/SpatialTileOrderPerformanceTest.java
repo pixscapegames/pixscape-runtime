@@ -13,11 +13,18 @@ public class SpatialTileOrderPerformanceTest {
 
         TiledMapLayerData anchoredMap = filledMap(512, 2);
         SpatialBlockData wall = new SpatialBlockData();
-        wall.id = 1; wall.structureId = 1; wall.x = 0; wall.y = 0; wall.width = 512; wall.depth = 1;
-        wall.height = 32; wall.beginAuthoredLinkedTileRefs();
+        wall.id = 1;
+        wall.structureId = 1;
+        wall.x = 0;
+        wall.y = 0;
+        wall.width = 512;
+        wall.depth = 1;
+        wall.height = 32;
+        wall.beginAuthoredLinkedTileRefs();
         for (int gx = 0; gx < 512; gx++) wall.addLinkedTileRef(gx, 0, 1);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
-        blocks.blocks.add(wall); blocks.revision = 1;
+        blocks.blocks.add(wall);
+        blocks.revision = 1;
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(blocks);
         SpatialTileOrderCache anchored = new SpatialTileOrderCache();

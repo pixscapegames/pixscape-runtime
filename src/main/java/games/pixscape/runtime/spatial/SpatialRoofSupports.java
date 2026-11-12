@@ -8,7 +8,8 @@ import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Comparator;
 
-/** Cold projection of visible roof patches not already represented by an exposed wall edge.
+/**
+ * Cold projection of visible roof patches not already represented by an exposed wall edge.
  * ORTHO X faces are edge-on. Their omission must not omit the horizontal top surface too.
  * Image cells clip the visible surface, not its depth relation: every patch retains
  * the front ground edge of the continuous authored roof. A cell border is not a
@@ -21,13 +22,21 @@ final class SpatialRoofSupports {
 
     private SpatialRoofSupports(SpatialBlockData wall, int gx, int gy,
                                 float minX, float maxX, float minY, float maxY, float frontY) {
-        structure = wall.structureId; this.gx = gx; this.gy = gy;
-        this.minX = minX; this.maxX = maxX; this.minY = minY; this.maxY = maxY;
-        altitude = wall.altitude; height = wall.height;
+        structure = wall.structureId;
+        this.gx = gx;
+        this.gy = gy;
+        this.minX = minX;
+        this.maxX = maxX;
+        this.minY = minY;
+        this.maxY = maxY;
+        altitude = wall.altitude;
+        height = wall.height;
         this.frontY = frontY;
     }
 
-    /** Rebuilt only with compiled geometry/projection. No runtime-frame traversal. */
+    /**
+     * Rebuilt only with compiled geometry/projection. No runtime-frame traversal.
+     */
     static Array<SpatialRoofSupports> collect(SpatialCompiledLayerCache compiled, TiledMapLayerData map) {
         Array<SpatialRoofSupports> result = new Array<SpatialRoofSupports>();
         if (map.projection != TiledProjection.ORTHO || compiled.source() == null
@@ -69,13 +78,18 @@ final class SpatialRoofSupports {
             }
         }
         result.sort(ORDER);
-        for (int i = result.size - 1; i > 0; i--) if (ORDER.compare(result.get(i - 1), result.get(i)) == 0) result.removeIndex(i);
+        for (int i = result.size - 1; i > 0; i--)
+            if (ORDER.compare(result.get(i - 1), result.get(i)) == 0) result.removeIndex(i);
         return result;
     }
 
-    private static long key(int gx, int gy) { return (long) gx << 32 | (gy & 0xffffffffL); }
+    private static long key(int gx, int gy) {
+        return (long) gx << 32 | (gy & 0xffffffffL);
+    }
+
     private static final Comparator<SpatialRoofSupports> ORDER = new Comparator<SpatialRoofSupports>() {
-        @Override public int compare(SpatialRoofSupports a, SpatialRoofSupports b) {
+        @Override
+        public int compare(SpatialRoofSupports a, SpatialRoofSupports b) {
             int c = Integer.compare(a.structure, b.structure);
             if (c == 0) c = Integer.compare(a.gx, b.gx);
             if (c == 0) c = Integer.compare(a.gy, b.gy);

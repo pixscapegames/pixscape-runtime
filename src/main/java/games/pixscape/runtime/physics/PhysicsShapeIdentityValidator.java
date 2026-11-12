@@ -12,7 +12,8 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
  * Pure validation of the scene-wide persisted physics-shape identity domain.
  */
 public final class PhysicsShapeIdentityValidator {
-    private PhysicsShapeIdentityValidator() {}
+    private PhysicsShapeIdentityValidator() {
+    }
 
     public static void validateEntities(
             World world, IntBag entities, PhysicsShapeIdState state) {

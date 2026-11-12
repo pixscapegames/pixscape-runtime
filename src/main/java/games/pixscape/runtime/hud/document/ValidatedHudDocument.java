@@ -29,7 +29,9 @@ public final class ValidatedHudDocument {
         return nodeIndex;
     }
 
-    /** O(1) average lookup in the complete validated node index. */
+    /**
+     * O(1) average lookup in the complete validated node index.
+     */
     public HudNode node(String id) {
         return nodeIndex.get(id);
     }

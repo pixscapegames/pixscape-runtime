@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Stable categories for failures that occur before a HUD document can be validated. */
+/**
+ * Stable categories for failures that occur before a HUD document can be validated.
+ */
 public enum HudDocumentLoadCode {
     READ_FAILURE,
     MALFORMED_JSON,

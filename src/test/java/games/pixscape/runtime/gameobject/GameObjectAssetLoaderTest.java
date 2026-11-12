@@ -15,7 +15,8 @@ import java.io.File;
 public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
-    @Test public void literalJsonCollectionsPreserveOrderAndIdentities() {
+    @Test
+    public void literalJsonCollectionsPreserveOrderAndIdentities() {
         String json = "{schemaVersion:3,rootSourceEntityId:9,entities:["
                 + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
                 + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
@@ -62,7 +63,8 @@ public class GameObjectAssetLoaderTest {
         Assert.assertTrue(fileFailure.getMessage().contains("sourceEntityId 1"));
     }
 
-    @Test public void sceneLayerIndexCannotBeStoredInDefinition() {
+    @Test
+    public void sceneLayerIndexCannotBeStoredInDefinition() {
         String json = loader.toJson(validNestedAsset());
         String invalid = json.replaceFirst("\"entityIndex\"\\s*:\\s*\\{",
                 "\"entityIndex\": {\"layerIndex\": 3,");
@@ -123,43 +125,50 @@ public class GameObjectAssetLoaderTest {
         Assert.assertFalse(json.contains("layerIndex"));
     }
 
-    @Test public void missingRootIsRejected() {
+    @Test
+    public void missingRootIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.rootSourceEntityId = 99;
         rejected(asset, "rootSourceEntityId 99 is missing");
     }
 
-    @Test public void scenePositionCannotBeStoredOnAssetRoot() {
+    @Test
+    public void scenePositionCannotBeStoredOnAssetRoot() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(0).transform.x = 12f;
         rejected(asset, "scene placement belongs to each instance");
     }
 
-    @Test public void sceneRenderOrderCannotBeStoredOnAssetRoot() {
+    @Test
+    public void sceneRenderOrderCannotBeStoredOnAssetRoot() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(0).entityIndex.zIndex = 4;
         rejected(asset, "scene render order belongs to each instance");
     }
 
-    @Test public void duplicateSourceIdIsRejected() {
+    @Test
+    public void duplicateSourceIdIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).sourceEntityId = 1;
         rejected(asset, "duplicate sourceEntityId 1");
     }
 
-    @Test public void missingParentIsRejected() {
+    @Test
+    public void missingParentIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).parentSourceEntityId = 99;
         rejected(asset, "missing parentSourceEntityId 99");
     }
 
-    @Test public void directCycleIsRejected() {
+    @Test
+    public void directCycleIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).parentSourceEntityId = 2;
         rejected(asset, "cycle");
     }
 
-    @Test public void indirectCycleIsRejected() {
+    @Test
+    public void indirectCycleIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).parentSourceEntityId = 3;
         asset.entities.get(2).parentSourceEntityId = 2;
@@ -167,7 +176,8 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "cycle");
     }
 
-    @Test public void unsupportedSchemaIsRejected() {
+    @Test
+    public void unsupportedSchemaIsRejected() {
         try {
             loader.fromJson("{\"schemaVersion\":1,\"rootSourceEntityId\":1,\"entities\":[]}");
             Assert.fail("Expected rejection");
@@ -176,20 +186,23 @@ public class GameObjectAssetLoaderTest {
         }
     }
 
-    @Test public void externalObjectReferenceIsRejected() {
+    @Test
+    public void externalObjectReferenceIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).customProperties = new PropertySet()
                 .putObjectStableId("external", 500);
         rejected(asset, "unsupported external OBJECT reference 500");
     }
 
-    @Test public void nonFiniteTransformIsRejected() {
+    @Test
+    public void nonFiniteTransformIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).transform.x = Float.NaN;
         rejected(asset, "non-finite transform.x");
     }
 
-    @Test public void nonUniformGameObjectParentScaleIsRejected() {
+    @Test
+    public void nonUniformGameObjectParentScaleIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).transform.scaleY = 2f;
         rejected(asset, "positive uniform authored scale");
@@ -218,7 +231,7 @@ public class GameObjectAssetLoaderTest {
         GameObjectAsset.PhysicsShapeData restoredShape = restoredPhysical.physicsShapes.get(2);
         Assert.assertEquals(23, restoredShape.localShapeId);
         Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON, restoredShape.geometry.shapeType);
-        Assert.assertArrayEquals(new float[] {0f, 0f, 2f, 0f, 0f, 3f},
+        Assert.assertArrayEquals(new float[]{0f, 0f, 2f, 0f, 0f, 3f},
                 restoredShape.geometry.polygonVertices, 0f);
         Assert.assertEquals((short) 0x0002, restoredShape.categoryBits);
         Assert.assertEquals((short) 0x00F0, restoredShape.maskBits);
@@ -261,13 +274,15 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "positive finite dimensions");
     }
 
-    @Test public void physicsShapesRequireBody() {
+    @Test
+    public void physicsShapesRequireBody() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).physicsShapes.add(shape(1, box()));
         rejected(asset, "Physics Shapes without a Physics Body");
     }
 
-    @Test public void malformedPhysicsIsRejected() {
+    @Test
+    public void malformedPhysicsIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).physicsBody = body();
         GameObjectAsset.PhysicsShapeData invalid = shape(1, polygon());
@@ -276,14 +291,16 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "must be finite");
     }
 
-    @Test public void malformedPhysicsBodyIsRejected() {
+    @Test
+    public void malformedPhysicsBodyIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(2).physicsBody = body();
         asset.entities.get(2).physicsBody.gravityScale = Float.NaN;
         rejected(asset, "non-finite physicsBody.gravityScale");
     }
 
-    @Test public void physicalDescendantCannotHaveScaledGameObjectAncestor() {
+    @Test
+    public void physicalDescendantCannotHaveScaledGameObjectAncestor() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).transform.scaleX = 2f;
         asset.entities.get(1).transform.scaleY = 2f;
@@ -291,7 +308,8 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "Physics ancestor scale to be (1,1)");
     }
 
-    @Test public void v3InternalJointsRoundTripWithAssetLocalEndpoints() {
+    @Test
+    public void v3InternalJointsRoundTripWithAssetLocalEndpoints() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(0).physicsBody = body();
         asset.entities.get(1).physicsBody = body();
@@ -310,7 +328,8 @@ public class GameObjectAssetLoaderTest {
         Assert.assertEquals(3.5f, restoredJoint.distance.lengthM, 0f);
     }
 
-    @Test public void v3JointEndpointOutsideAssetIsRejected() {
+    @Test
+    public void v3JointEndpointOutsideAssetIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(0).physicsBody = body();
         asset.entities.get(1).physicsBody = body();
@@ -318,7 +337,8 @@ public class GameObjectAssetLoaderTest {
         rejected(asset, "requires two asset-local entity endpoints");
     }
 
-    @Test public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
+    @Test
+    public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
         GameObjectAsset asset = validNestedAsset();
         asset.schemaVersion = 2;
         rejected(asset, "schemaVersion must be 3");
@@ -424,7 +444,7 @@ public class GameObjectAssetLoaderTest {
         PhysicsGeometryData geometry = new PhysicsGeometryData();
         geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
         geometry.polygonVertexCount = 3;
-        geometry.polygonVertices = new float[] {0f, 0f, 2f, 0f, 0f, 3f};
+        geometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 0f, 3f};
         return geometry;
     }
 }

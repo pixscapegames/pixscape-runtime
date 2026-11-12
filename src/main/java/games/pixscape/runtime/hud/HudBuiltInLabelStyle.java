@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
-/** Stable identity for libGDX's bundled 15pt Liberation Sans Label style. */
+/**
+ * Stable identity for libGDX's bundled 15pt Liberation Sans Label style.
+ */
 public final class HudBuiltInLabelStyle {
     public static final String FONT_DESCRIPTOR = "com/badlogic/gdx/utils/lsans-15.fnt";
     public static final String FONT_PAGE = "com/badlogic/gdx/utils/lsans-15.png";
@@ -9,7 +11,9 @@ public final class HudBuiltInLabelStyle {
     private HudBuiltInLabelStyle() {
     }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }

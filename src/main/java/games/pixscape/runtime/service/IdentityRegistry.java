@@ -34,7 +34,9 @@ public final class IdentityRegistry {
 
     private static final ObjectMap<World, IdentityRegistry> REGISTRIES_BY_WORLD = new ObjectMap<>();
 
-    /** Runtime-internal access to the registry already bound to an ECS World. */
+    /**
+     * Runtime-internal access to the registry already bound to an ECS World.
+     */
     public static IdentityRegistry boundTo(World world) {
         return world != null ? REGISTRIES_BY_WORLD.get(world) : null;
     }
@@ -64,7 +66,9 @@ public final class IdentityRegistry {
     public IdentityRegistry() {
     }
 
-    /** INTERNAL: whether both the World and its authoritative allocator state are already bound. */
+    /**
+     * INTERNAL: whether both the World and its authoritative allocator state are already bound.
+     */
     public boolean isBoundTo(World world, SceneMetaRuntime sceneMeta) {
         return this.world == world && this.sceneMeta == sceneMeta;
     }
@@ -164,7 +168,9 @@ public final class IdentityRegistry {
         }
     }
 
-    /** Index only the newly published entity, including before Artemis subscription synchronization. */
+    /**
+     * Index only the newly published entity, including before Artemis subscription synchronization.
+     */
     public void indexEntityImmediately(int eid) {
         indexEntityFromComponent(eid);
     }

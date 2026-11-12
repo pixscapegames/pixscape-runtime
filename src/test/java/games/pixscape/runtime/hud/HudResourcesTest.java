@@ -151,7 +151,9 @@ public class HudResourcesTest {
             Assert.assertTrue(skinless.hasRegion("crosshair"));
             Assert.assertFalse(com.badlogic.gdx.utils.Disposable.class.isInstance(a));
             Assert.assertFalse(AutoCloseable.class.isInstance(a));
-        } finally { resources.dispose(); }
+        } finally {
+            resources.dispose();
+        }
         Assert.assertThrows(IllegalStateException.class, () -> a.region("crosshair"));
         Assert.assertThrows(IllegalStateException.class, () -> b.labelStyle("hud-title"));
         Assert.assertThrows(IllegalStateException.class, () -> resources.select(null));
@@ -338,7 +340,9 @@ public class HudResourcesTest {
             Assert.assertTrue(resources.skinIds().isEmpty());
             // Even a shared environment with zero/one Skin must not infer a selection.
             Assert.assertNull(selected.region("crosshair"));
-        } finally { resources.dispose(); }
+        } finally {
+            resources.dispose();
+        }
     }
 
     @Test

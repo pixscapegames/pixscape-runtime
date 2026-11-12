@@ -46,7 +46,9 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
         this.sceneMeta = sceneMeta;
     }
 
-    public LayerStateSOA state() { return layerState; }
+    public LayerStateSOA state() {
+        return layerState;
+    }
 
     @Override
     protected void begin() {
@@ -97,7 +99,9 @@ public final class LayerStateBuildSystem extends IteratingSystem implements Prof
         }
     }
 
-    /** Builds persistent layer state without running the normal render pipeline. */
+    /**
+     * Builds persistent layer state without running the normal render pipeline.
+     */
     public void prepareRuntimeAvailability() {
         begin();
         IntBag entities = world.getAspectSubscriptionManager()

@@ -3,7 +3,9 @@ package games.pixscape.runtime.hud;
 import games.pixscape.runtime.hud.document.HudValidationIssue;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 
-/** Typed lifecycle failure that preserves all ordered HUD document validation diagnostics. */
+/**
+ * Typed lifecycle failure that preserves all ordered HUD document validation diagnostics.
+ */
 public final class HudDocumentValidationException extends RuntimeException {
     public enum Phase {
         STRUCTURAL,

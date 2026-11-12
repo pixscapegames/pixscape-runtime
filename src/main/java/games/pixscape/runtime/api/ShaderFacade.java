@@ -26,7 +26,7 @@ public interface ShaderFacade {
      * Selects a shader by logical name.
      *
      * @throws IllegalArgumentException when the name is blank or unknown; the previous material
-     * state remains unchanged
+     *                                  state remains unchanged
      */
     ShaderFacade use(String shaderName);
 

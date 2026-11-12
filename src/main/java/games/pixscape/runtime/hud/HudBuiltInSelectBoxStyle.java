@@ -9,18 +9,25 @@ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Stable identity and complete native style for the built-in HUD SelectBox. */
+/**
+ * Stable identity and complete native style for the built-in HUD SelectBox.
+ */
 public final class HudBuiltInSelectBoxStyle {
     public static final String BACKGROUND_REGION = HudBuiltInTextButtonStyle.BACKGROUND_REGION;
 
-    private HudBuiltInSelectBoxStyle() { }
+    private HudBuiltInSelectBoxStyle() {
+    }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }
 
-    /** Creates an independent complete SelectBox/List/ScrollPane style over caller-owned resources. */
+    /**
+     * Creates an independent complete SelectBox/List/ScrollPane style over caller-owned resources.
+     */
     public static SelectBox.SelectBoxStyle create(TextureRegion white, BitmapFont font) {
         if (white == null) throw new IllegalArgumentException("White region is required.");
         if (font == null) throw new IllegalArgumentException("BitmapFont is required.");

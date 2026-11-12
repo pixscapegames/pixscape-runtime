@@ -9,7 +9,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class RenderExtractFrameQueueSystemTest {
-    @Test public void preparesMaterialParametersBeforeSubmissionAndDoesNotLeakThemIntoVfxSlots() {
+    @Test
+    public void preparesMaterialParametersBeforeSubmissionAndDoesNotLeakThemIntoVfxSlots() {
         DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
         VfxRenderState vfx = new VfxRenderState(1);
         DrawList list = new DrawList(1);
@@ -20,12 +21,19 @@ public class RenderExtractFrameQueueSystemTest {
             int entity = world.create();
             games.pixscape.runtime.component.ShaderParamsComponent parameters = world.getMapper(
                     games.pixscape.runtime.component.ShaderParamsComponent.class).create(entity);
-            int slot = ecs.acquireSlotForEntity(entity);writeSlot(ecs, slot, 20, 0, 0);
-            list.addEcsSlot(slot);world.process();
-            Assert.assertSame(parameters,queue.shaderParameters[0]);
-            list.clear();writeVfx(vfx,30);list.addVfxSlot(0);world.process();
+            int slot = ecs.acquireSlotForEntity(entity);
+            writeSlot(ecs, slot, 20, 0, 0);
+            list.addEcsSlot(slot);
+            world.process();
+            Assert.assertSame(parameters, queue.shaderParameters[0]);
+            list.clear();
+            writeVfx(vfx, 30);
+            list.addVfxSlot(0);
+            world.process();
             Assert.assertNull(queue.shaderParameters[0]);
-        } finally {world.dispose();}
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
@@ -140,7 +148,7 @@ public class RenderExtractFrameQueueSystemTest {
         int tiledRef = tiledState.registerRef();
         writeTiled(tiledState, tiledRef, 10);
 
-        vfxState.ignoreAmbientLighting[0]=true;
+        vfxState.ignoreAmbientLighting[0] = true;
         drawList.addTiledSlot(tiledRef);
         drawList.addEcsSlot(ecsSlot);
         drawList.addVfxSlot(0);
@@ -166,7 +174,8 @@ public class RenderExtractFrameQueueSystemTest {
         assertQueueEntry(queue, 1, ecsSlot, 120, 20, 3f, 4f, FrameRenderQueue.SOURCE_ECS);
         assertQueueEntry(queue, 2, 0, -1, 30, 0f, 0f, FrameRenderQueue.SOURCE_VFX);
         Assert.assertEquals(3, stats.frameQueueQuads);
-        Assert.assertFalse(queue.ignoreAmbientLighting[0]);Assert.assertFalse(queue.ignoreAmbientLighting[1]);
+        Assert.assertFalse(queue.ignoreAmbientLighting[0]);
+        Assert.assertFalse(queue.ignoreAmbientLighting[1]);
         Assert.assertTrue(queue.ignoreAmbientLighting[2]);
         Assert.assertTrue(stats.frameQueuePeakCapacity >= 3);
         Assert.assertTrue(stats.frameQueueGrowthCount > 0);

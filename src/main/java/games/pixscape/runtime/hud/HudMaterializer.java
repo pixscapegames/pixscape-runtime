@@ -21,15 +21,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Converts a validated V1 construction document into one detached native Scene2D actor tree. */
+/**
+ * Converts a validated V1 construction document into one detached native Scene2D actor tree.
+ */
 public final class HudMaterializer {
-    /** Converts a validated HUD document using borrowed visual resources. */
+    /**
+     * Converts a validated HUD document using borrowed visual resources.
+     */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudVisualResources resources) {
         return materialize(validatedDocument, resources, true);
     }
 
-    /** Studio authoring omits runtime interactions and keeps authored Dialogs visible for editing. */
+    /**
+     * Studio authoring omits runtime interactions and keeps authored Dialogs visible for editing.
+     */
     public MaterializedHud materialize(
             ValidatedHudDocument validatedDocument, HudVisualResources resources,
             boolean interactive) {
@@ -135,7 +141,7 @@ public final class HudMaterializer {
                     break;
                 case CELL:
                     addCell(actor instanceof HudDialog
-                            ? ((HudDialog) actor).getContentTable() : (Table) actor,
+                                    ? ((HudDialog) actor).getContentTable() : (Table) actor,
                             childActor, child.cell);
                     break;
                 case FREE:
@@ -487,14 +493,22 @@ public final class HudMaterializer {
                 final Actor target = actors.get(association.targetId);
                 final HudWindowActionKind action = association.action;
                 source.addListener(new ClickListener() {
-                    @Override public void clicked(InputEvent event, float x, float y) {
+                    @Override
+                    public void clicked(InputEvent event, float x, float y) {
                         if (source.isDisabled()) return;
                         if (target instanceof HudDialog) {
                             HudDialog dialog = (HudDialog) target;
                             switch (action) {
-                                case SHOW: dialog.open(); break;
-                                case HIDE: dialog.close(); break;
-                                case TOGGLE: if (dialog.isOpen()) dialog.close(); else dialog.open(); break;
+                                case SHOW:
+                                    dialog.open();
+                                    break;
+                                case HIDE:
+                                    dialog.close();
+                                    break;
+                                case TOGGLE:
+                                    if (dialog.isOpen()) dialog.close();
+                                    else dialog.open();
+                                    break;
                             }
                         } else {
                             Window window = (Window) target;
@@ -609,13 +623,20 @@ public final class HudMaterializer {
 
     private static void applyImageTextButtonOverrides(HudNode node, HudVisualResources resources,
                                                       ImageTextButton.ImageTextButtonStyle style) {
-        if (node.imageTextButton.imageUp != null) style.imageUp = resolveImage(node, resources, node.imageTextButton.imageUp, "imageUp");
-        if (node.imageTextButton.imageDown != null) style.imageDown = resolveImage(node, resources, node.imageTextButton.imageDown, "imageDown");
-        if (node.imageTextButton.imageOver != null) style.imageOver = resolveImage(node, resources, node.imageTextButton.imageOver, "imageOver");
-        if (node.imageTextButton.imageDisabled != null) style.imageDisabled = resolveImage(node, resources, node.imageTextButton.imageDisabled, "imageDisabled");
-        if (node.imageTextButton.imageChecked != null) style.imageChecked = resolveImage(node, resources, node.imageTextButton.imageChecked, "imageChecked");
-        if (node.imageTextButton.imageCheckedDown != null) style.imageCheckedDown = resolveImage(node, resources, node.imageTextButton.imageCheckedDown, "imageCheckedDown");
-        if (node.imageTextButton.imageCheckedOver != null) style.imageCheckedOver = resolveImage(node, resources, node.imageTextButton.imageCheckedOver, "imageCheckedOver");
+        if (node.imageTextButton.imageUp != null)
+            style.imageUp = resolveImage(node, resources, node.imageTextButton.imageUp, "imageUp");
+        if (node.imageTextButton.imageDown != null)
+            style.imageDown = resolveImage(node, resources, node.imageTextButton.imageDown, "imageDown");
+        if (node.imageTextButton.imageOver != null)
+            style.imageOver = resolveImage(node, resources, node.imageTextButton.imageOver, "imageOver");
+        if (node.imageTextButton.imageDisabled != null)
+            style.imageDisabled = resolveImage(node, resources, node.imageTextButton.imageDisabled, "imageDisabled");
+        if (node.imageTextButton.imageChecked != null)
+            style.imageChecked = resolveImage(node, resources, node.imageTextButton.imageChecked, "imageChecked");
+        if (node.imageTextButton.imageCheckedDown != null)
+            style.imageCheckedDown = resolveImage(node, resources, node.imageTextButton.imageCheckedDown, "imageCheckedDown");
+        if (node.imageTextButton.imageCheckedOver != null)
+            style.imageCheckedOver = resolveImage(node, resources, node.imageTextButton.imageCheckedOver, "imageCheckedOver");
     }
 
     private static boolean hasImageTextButtonOverrides(HudNode node) {

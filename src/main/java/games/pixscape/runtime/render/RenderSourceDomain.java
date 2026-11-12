@@ -5,10 +5,14 @@ public final class RenderSourceDomain {
     public static final byte SOURCE_ECS = 1;
     public static final byte SOURCE_TILED = 2;
     public static final byte SOURCE_VFX = 3;
-    /** Frame-local composition descriptor only; flattened before extraction. */
+    /**
+     * Frame-local composition descriptor only; flattened before extraction.
+     */
     public static final byte SOURCE_GAME_OBJECT = 4;
 
-    /** Second non-actor entry of a split tile, with the same native ref. */
+    /**
+     * Second non-actor entry of a split tile, with the same native ref.
+     */
     public static final byte SOURCE_TILED_FRONT = 5;
 
     private RenderSourceDomain() {

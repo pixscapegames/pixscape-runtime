@@ -201,10 +201,14 @@ public class HudScreenRuntimeTest {
             Assert.assertFalse(environment.isDisposed());
             Assert.assertNotNull(aView.labelStyle("default"));
             Assert.assertNotNull(bView.labelStyle("default"));
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
-    @Test public void borrowedDifferentEnvironmentsRemainOpenDuringReplacementAndShutdown() throws Exception {
+    @Test
+    public void borrowedDifferentEnvironmentsRemainOpenDuringReplacementAndShutdown() throws Exception {
         FileHandle root = twoSkinProject();
         HudResources first = shared(root), second = shared(root);
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
@@ -213,13 +217,20 @@ public class HudScreenRuntimeTest {
             ActiveHudScreen b = runtime.showBorrowing("b", second);
             Assert.assertTrue(a.session().isDisposed());
             Assert.assertSame(b, runtime.activeScreen());
-            runtime.dispose(); runtime.dispose();
+            runtime.dispose();
+            runtime.dispose();
             Assert.assertTrue(b.session().isDisposed());
-            Assert.assertFalse(first.isDisposed()); Assert.assertFalse(second.isDisposed());
-        } finally { runtime.dispose(); first.dispose(); second.dispose(); }
+            Assert.assertFalse(first.isDisposed());
+            Assert.assertFalse(second.isDisposed());
+        } finally {
+            runtime.dispose();
+            first.dispose();
+            second.dispose();
+        }
     }
 
-    @Test public void ownedToBorrowedDisposesOnlyOldOwner() throws Exception {
+    @Test
+    public void ownedToBorrowedDisposesOnlyOldOwner() throws Exception {
         FileHandle root = twoSkinProject();
         HudResources environment = shared(root);
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
@@ -232,10 +243,14 @@ public class HudScreenRuntimeTest {
             Assert.assertFalse(environment.isDisposed());
             runtime.dispose();
             Assert.assertFalse(environment.isDisposed());
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
-    @Test public void borrowingFromRetiringOwnedScreenIsRejectedBeforeReplacingIt() throws Exception {
+    @Test
+    public void borrowingFromRetiringOwnedScreenIsRejectedBeforeReplacingIt() throws Exception {
         FileHandle root = twoSkinProject();
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
         try {
@@ -247,10 +262,13 @@ public class HudScreenRuntimeTest {
             Assert.assertFalse(owned.resources().isDisposed());
             Assert.assertFalse(owned.session().isDisposed());
             Assert.assertEquals(allocations, generatedTextures);
-        } finally { runtime.dispose(); }
+        } finally {
+            runtime.dispose();
+        }
     }
 
-    @Test public void borrowedToOwnedLeavesOuterOwnerOpenAndShutdownClosesPrivateOwner() throws Exception {
+    @Test
+    public void borrowedToOwnedLeavesOuterOwnerOpenAndShutdownClosesPrivateOwner() throws Exception {
         FileHandle root = twoSkinProject();
         HudResources environment = shared(root);
         HudScreenRuntime runtime = new HudScreenRuntime(root, shader);
@@ -260,18 +278,24 @@ public class HudScreenRuntimeTest {
             Assert.assertTrue(borrowed.session().isDisposed());
             Assert.assertFalse(environment.isDisposed());
             Assert.assertFalse(owned.resources().isDisposed());
-            runtime.dispose(); runtime.dispose();
+            runtime.dispose();
+            runtime.dispose();
             Assert.assertTrue(owned.resources().isDisposed());
             Assert.assertFalse(environment.isDisposed());
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
-    @Test public void sessionsPrecedeSkinCatalogDisposalAndOwnersDisposeExactlyOnce() throws Exception {
+    @Test
+    public void sessionsPrecedeSkinCatalogDisposalAndOwnersDisposeExactlyOnce() throws Exception {
         FileHandle root = twoSkinProject();
         ActiveHudScreen active = new HudScreenLoader(root, shader).load("a");
         int[] skinDisposals = {0};
         active.resources().select("ui/a.json").skin().add("probe", (Disposable) () -> {
-            Assert.assertTrue(active.session().isDisposed()); skinDisposals[0]++;
+            Assert.assertTrue(active.session().isDisposed());
+            skinDisposals[0]++;
         }, Disposable.class);
         disposalOrder.clear();
         active.dispose();
@@ -287,16 +311,21 @@ public class HudScreenRuntimeTest {
         ActiveHudScreen b = new HudScreenLoader(root, shader).loadBorrowing("b", environment);
         int[] counts = {0, 0};
         environment.select("ui/a.json").skin().add("probe", (Disposable) () -> {
-            Assert.assertTrue(a.session().isDisposed()); Assert.assertTrue(b.session().isDisposed()); counts[0]++;
+            Assert.assertTrue(a.session().isDisposed());
+            Assert.assertTrue(b.session().isDisposed());
+            counts[0]++;
         }, Disposable.class);
         environment.select("ui/b.json").skin().add("probe", (Disposable) () -> counts[1]++, Disposable.class);
-        a.dispose(); b.dispose();
+        a.dispose();
+        b.dispose();
         Assert.assertArrayEquals(new int[]{0, 0}, counts);
-        environment.dispose(); environment.dispose();
+        environment.dispose();
+        environment.dispose();
         Assert.assertArrayEquals(new int[]{1, 1}, counts);
     }
 
-    @Test public void skinBStyleCannotSatisfySkinAAndFailedReplacementPreservesActive() throws Exception {
+    @Test
+    public void skinBStyleCannotSatisfySkinAAndFailedReplacementPreservesActive() throws Exception {
         FileHandle root = twoSkinProject();
         root.child("ui/a.json").writeString("{}", false);
         HudResources environment = shared(root);
@@ -311,10 +340,14 @@ public class HudScreenRuntimeTest {
             Assert.assertSame(b, runtime.activeScreen());
             Assert.assertFalse(environment.isDisposed());
             Assert.assertFalse(b.session().isDisposed());
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
-    @Test public void borrowedAssetDocumentSelectionAndRegionFailuresNeverDisposeEnvironment() throws Exception {
+    @Test
+    public void borrowedAssetDocumentSelectionAndRegionFailuresNeverDisposeEnvironment() throws Exception {
         FileHandle root = twoSkinProject();
         HudResources environment = shared(root);
         HudScreenLoader loader = new HudScreenLoader(root, shader);
@@ -335,10 +368,13 @@ public class HudScreenRuntimeTest {
             Assert.assertThrows(IllegalArgumentException.class, () -> loader.loadBorrowing("a", environment));
             Assert.assertFalse(environment.isDisposed());
             Assert.assertNotNull(environment.select("ui/b.json").labelStyle("default"));
-        } finally { environment.dispose(); }
+        } finally {
+            environment.dispose();
+        }
     }
 
-    @Test public void materializationFailuresRespectOwnedAndBorrowedLifetime() throws Exception {
+    @Test
+    public void materializationFailuresRespectOwnedAndBorrowedLifetime() throws Exception {
         FileHandle root = twoSkinProject();
         root.child("ui/a.json").writeString(
                 "{\"com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle\":{\"broken\":{}}}", false);
@@ -353,10 +389,13 @@ public class HudScreenRuntimeTest {
             Assert.assertFalse(environment.isDisposed());
             Assert.assertThrows(RuntimeException.class, () -> new HudScreenLoader(root, shader).load("a"));
             Assert.assertEquals("private two-page atlas + bundle cleaned", 3, deletedTextures - before);
-        } finally { environment.dispose(); }
+        } finally {
+            environment.dispose();
+        }
     }
 
-    @Test public void sessionFailuresRespectOwnershipAndCleanPartialSessionState() throws Exception {
+    @Test
+    public void sessionFailuresRespectOwnershipAndCleanPartialSessionState() throws Exception {
         FileHandle root = twoSkinProject();
         HudResources environment = shared(root);
         try {
@@ -377,10 +416,13 @@ public class HudScreenRuntimeTest {
             Assert.assertThrows(IllegalStateException.class, () -> new HudScreenLoader(root, shader).load("a"));
             Assert.assertTrue(deletedBuffers > buffersBefore);
             Assert.assertEquals(3, deletedTextures - texturesBefore);
-        } finally { environment.dispose(); }
+        } finally {
+            environment.dispose();
+        }
     }
 
-    @Test public void skinlessBorrowedLayoutLeavesEnvironmentOpen() throws Exception {
+    @Test
+    public void skinlessBorrowedLayoutLeavesEnvironmentOpen() throws Exception {
         FileHandle root = twoSkinProject();
         root.child("hud/layout.hudscreen").writeString("{\"schemaVersion\":1,\"skinId\":\"ui/absent.json\",\"documentId\":\"hud/layout.json\"}", false);
         root.child("hud/layout.json").writeString("{\"schemaVersion\":2,\"root\":{\"id\":\"root\",\"kind\":\"GROUP\",\"children\":[]}}", false);
@@ -393,7 +435,10 @@ public class HudScreenRuntimeTest {
             runtime.dispose();
             Assert.assertTrue(layout.session().isDisposed());
             Assert.assertFalse(environment.isDisposed());
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
     private FileHandle twoSkinProject() throws Exception {
@@ -402,7 +447,7 @@ public class HudScreenRuntimeTest {
         for (String id : new String[]{"a", "b"}) {
             String color = "a".equals(id) ? "ff0000ff" : "0000ffff";
             String skin = original.replace("\"hud-title\":{\"font\":\"default-font\"}",
-                    "\"default\":{\"font\":\"default-font\",\"fontColor\":{\"hex\":\"" + color + "\"}}")
+                            "\"default\":{\"font\":\"default-font\",\"fontColor\":{\"hex\":\"" + color + "\"}}")
                     .replace("\"hud-primary\"", "\"default\"");
             skin = skin.substring(0, skin.length() - 1)
                     + ",\"com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable\":{"
@@ -439,8 +484,10 @@ public class HudScreenRuntimeTest {
             skin.writeString(skin.readString().replace("default-font.fnt", "../fonts/default-font.fnt"), false);
         }
         root.child("ui/game.atlas").delete();
-        root.child("ui/page-a.png").delete(); root.child("ui/page-b.png").delete();
-        root.child("ui/default-font.fnt").delete(); root.child("ui/game.json").delete();
+        root.child("ui/page-a.png").delete();
+        root.child("ui/page-b.png").delete();
+        root.child("ui/default-font.fnt").delete();
+        root.child("ui/game.json").delete();
         List<String> reads = new ArrayList<>();
         if (exactKeys) {
             Gdx.files = (Files) Proxy.newProxyInstance(Files.class.getClassLoader(), new Class<?>[]{Files.class},
@@ -455,19 +502,25 @@ public class HudScreenRuntimeTest {
                 new com.badlogic.gdx.assets.loaders.SynchronousAssetLoader<com.badlogic.gdx.graphics.g2d.TextureAtlas,
                         com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter>(resolver) {
                     public com.badlogic.gdx.graphics.g2d.TextureAtlas load(com.badlogic.gdx.assets.AssetManager owner,
-                            String path, FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) {
+                                                                           String path, FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) {
                         return new com.badlogic.gdx.graphics.g2d.TextureAtlas();
                     }
+
                     public com.badlogic.gdx.utils.Array<com.badlogic.gdx.assets.AssetDescriptor> getDependencies(String path,
-                            FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) { return null; }
+                                                                                                                 FileHandle file, com.badlogic.gdx.assets.loaders.TextureAtlasLoader.TextureAtlasParameter parameters) {
+                        return null;
+                    }
                 });
         games.pixscape.runtime.loading.FileAvailabilityService availability =
                 new games.pixscape.runtime.loading.FileAvailabilityService(manager, false);
-        root.child("scenes").mkdirs(); root.child("scenes/scene.json").writeString("{}", false);
+        root.child("scenes").mkdirs();
+        root.child("scenes/scene.json").writeString("{}", false);
         root.child("atlases/scene.atlas").writeString("", false);
         games.pixscape.runtime.configuration.RuntimeConfig config = new games.pixscape.runtime.configuration.RuntimeConfig();
         games.pixscape.runtime.loading.SceneMetaRuntime meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
-        meta.name = "scene"; meta.file = "scene.json"; meta.defaultHudScreenId = "a";
+        meta.name = "scene";
+        meta.file = "scene.json";
+        meta.defaultHudScreenId = "a";
         config.scenes.put("scene", meta);
         java.lang.reflect.Constructor<games.pixscape.runtime.loading.SceneAvailabilityPlan> constructor =
                 games.pixscape.runtime.loading.SceneAvailabilityPlan.class.getDeclaredConstructor(
@@ -479,7 +532,8 @@ public class HudScreenRuntimeTest {
         HudResources environment = null;
         HudScreenRuntime runtime = new HudScreenRuntime(loadRoot, shader);
         try {
-            plan.finishOnNative(); plan.prepareHudResources();
+            plan.finishOnNative();
+            plan.prepareHudResources();
             environment = plan.hudResources();
             Assert.assertEquals(Arrays.asList("ui/a.json", "ui/b.json"), new ArrayList<String>(environment.skinIds()));
             Assert.assertEquals(atlasId, environment.atlasId());
@@ -503,28 +557,51 @@ public class HudScreenRuntimeTest {
                 Assert.assertTrue(reads.contains(root.child("fonts/default-font.fnt").path()));
                 for (String read : reads) Assert.assertFalse(read.contains("/../"));
             }
-            runtime.hide(); Assert.assertFalse(environment.isDisposed());
+            runtime.hide();
+            Assert.assertFalse(environment.isDisposed());
         } finally {
-            runtime.dispose(); plan.release(); plan.release();
+            runtime.dispose();
+            plan.release();
+            plan.release();
             if (environment != null) Assert.assertTrue(environment.isDisposed());
-            availability.dispose(); manager.dispose();
+            availability.dispose();
+            manager.dispose();
         }
     }
 
-    /** Preserves raw child keys like GWT and rejects dot segments instead of trusting the OS. */
+    /**
+     * Preserves raw child keys like GWT and rejects dot segments instead of trusting the OS.
+     */
     private static final class ExactKeyFile extends FileHandle {
         private final List<String> reads;
-        ExactKeyFile(String path, List<String> reads) { super(path); this.reads = reads; }
-        @Override public FileHandle child(String name) { return new ExactKeyFile(path() + "/" + name, reads); }
-        @Override public FileHandle parent() {
+
+        ExactKeyFile(String path, List<String> reads) {
+            super(path);
+            this.reads = reads;
+        }
+
+        @Override
+        public FileHandle child(String name) {
+            return new ExactKeyFile(path() + "/" + name, reads);
+        }
+
+        @Override
+        public FileHandle parent() {
             return new ExactKeyFile(path().substring(0, path().lastIndexOf('/')), reads);
         }
-        @Override public boolean exists() { return canonical() && super.exists(); }
-        @Override public java.io.InputStream read() {
+
+        @Override
+        public boolean exists() {
+            return canonical() && super.exists();
+        }
+
+        @Override
+        public java.io.InputStream read() {
             Assert.assertTrue("Noncanonical exact-key read: " + path(), canonical());
             reads.add(path());
             return super.read();
         }
+
         private boolean canonical() {
             for (String segment : path().replace('\\', '/').split("/")) {
                 if ("..".equals(segment) || ".".equals(segment)) return false;
@@ -533,7 +610,8 @@ public class HudScreenRuntimeTest {
         }
     }
 
-    @Test public void sceneBorrowedProfileIsAuthoritativeButExplicitShowRetainsOwnedValidation() throws Exception {
+    @Test
+    public void sceneBorrowedProfileIsAuthoritativeButExplicitShowRetainsOwnedValidation() throws Exception {
         FileHandle root = project();
         writeScreen(root, "game", "hud/game.json");
         copyFixture(root.child("hud/game.json"), "materializer-smoke.json");
@@ -554,7 +632,10 @@ public class HudScreenRuntimeTest {
             Assert.assertSame(borrowed, runtime.activeScreen());
             Assert.assertEquals(authored, assetFile.readString());
             Assert.assertFalse(environment.isDisposed());
-        } finally { runtime.dispose(); environment.dispose(); }
+        } finally {
+            runtime.dispose();
+            environment.dispose();
+        }
     }
 
     private static HudResources shared(FileHandle root) {
@@ -612,7 +693,8 @@ public class HudScreenRuntimeTest {
             TextButton button = (TextButton) active.materializedHud().actor("smoke-button");
             int[] worldTouches = {0};
             InputMultiplexer input = new InputMultiplexer(runtime.inputProcessor(), new InputAdapter() {
-                @Override public boolean touchDown(int screenX, int screenY, int pointer, int mouseButton) {
+                @Override
+                public boolean touchDown(int screenX, int screenY, int pointer, int mouseButton) {
                     worldTouches[0]++;
                     return true;
                 }
@@ -984,7 +1066,8 @@ public class HudScreenRuntimeTest {
         }
         if ("glGenTexture".equals(name)) generatedTextures++;
         if ("glDeleteBuffer".equals(name) || "glDeleteBuffers".equals(name)) {
-            deletedBuffers++; disposalOrder.add("buffer");
+            deletedBuffers++;
+            disposalOrder.add("buffer");
         }
         if ("glCreateShader".equals(name) || "glCreateProgram".equals(name)
                 || "glGenTexture".equals(name) || "glGenBuffer".equals(name)
@@ -1019,7 +1102,8 @@ public class HudScreenRuntimeTest {
             return null;
         }
         if ("glDeleteTextures".equals(name) || "glDeleteTexture".equals(name)) {
-            deletedTextures++; disposalOrder.add("texture");
+            deletedTextures++;
+            disposalOrder.add("texture");
         }
         if ("glDrawElements".equals(name)) drawCalls++;
         if ("glCheckFramebufferStatus".equals(name)) return GL20.GL_FRAMEBUFFER_COMPLETE;
@@ -1099,12 +1183,35 @@ public class HudScreenRuntimeTest {
     private static final class MutablePhysicsApi implements PhysicsAPI {
         private com.badlogic.gdx.physics.box2d.World world;
 
-        @Override public boolean isRunning() { return true; }
-        @Override public float pixelsPerMeter() { return 1f; }
-        @Override public float parallaxX() { return 1f; }
-        @Override public float parallaxY() { return 1f; }
-        @Override public com.badlogic.gdx.physics.box2d.World box2dWorld() { return world; }
-        @Override public Body body(EntityRef entity) { return null; }
+        @Override
+        public boolean isRunning() {
+            return true;
+        }
+
+        @Override
+        public float pixelsPerMeter() {
+            return 1f;
+        }
+
+        @Override
+        public float parallaxX() {
+            return 1f;
+        }
+
+        @Override
+        public float parallaxY() {
+            return 1f;
+        }
+
+        @Override
+        public com.badlogic.gdx.physics.box2d.World box2dWorld() {
+            return world;
+        }
+
+        @Override
+        public Body body(EntityRef entity) {
+            return null;
+        }
 
         @Override
         public Vector2 removeParallax(

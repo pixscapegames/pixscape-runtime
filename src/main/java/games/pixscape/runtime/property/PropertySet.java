@@ -22,7 +22,9 @@ public final class PropertySet {
     private ObjectMap<String, PropertyValue> values;
     private transient CustomProperties readView;
 
-    /** Read-only live view, without exposing this mutable authoring collection. */
+    /**
+     * Read-only live view, without exposing this mutable authoring collection.
+     */
     public CustomProperties readOnlyView() {
         if (readView == null) readView = new PropertyValue.PropertySetReadView(this);
         return readView;

@@ -388,7 +388,9 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
         }
     }
 
-    /** Publishes persistent sprite records without culling, sorting, or submission. */
+    /**
+     * Publishes persistent sprite records without culling, sorting, or submission.
+     */
     public void prepareRuntimeAvailability() {
         begin();
         processSystemInternal();

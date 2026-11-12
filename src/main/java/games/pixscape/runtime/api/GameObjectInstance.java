@@ -10,10 +10,14 @@ package games.pixscape.runtime.api;
  */
 public interface GameObjectInstance {
 
-    /** Returns the real Game Object root, which owns world placement and render order. */
+    /**
+     * Returns the real Game Object root, which owns world placement and render order.
+     */
     EntityRef root();
 
-    /** Returns a caller-owned snapshot of this instance's captured hierarchy members. */
+    /**
+     * Returns a caller-owned snapshot of this instance's captured hierarchy members.
+     */
     EntityRef[] members();
 
     /**
@@ -23,9 +27,13 @@ public interface GameObjectInstance {
      */
     EntityRef requireMember(String name);
 
-    /** Returns whether the captured root entity is still current in its Runtime World. */
+    /**
+     * Returns whether the captured root entity is still current in its Runtime World.
+     */
     boolean exists();
 
-    /** Schedules safe removal of this instance's surviving hierarchy and dependent joints. */
+    /**
+     * Schedules safe removal of this instance's surviving hierarchy and dependent joints.
+     */
     void despawn();
 }

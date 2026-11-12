@@ -1,221 +1,258 @@
 package games.pixscape.runtime.render.lighting;
 
-/** Explicit GLSL fragments shared by the legacy and forward lighting receivers. */
+/**
+ * Explicit GLSL fragments shared by the legacy and forward lighting receivers.
+ */
 public final class LightingShaderSources {
-    private LightingShaderSources() {}
-    private static final String FORWARD_AMBIENT="vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;";
-    private static final String FORWARD_COLOR_SAMPLE="texture(u_array,vec3(uv,flags.x))";
+    private LightingShaderSources() {
+    }
 
-    /** Sprite normal-map sample transformed into lighting space. */
+    private static final String FORWARD_AMBIENT = "vec3 ambient=materialMode>=16.?vec3(1.):u_ambient;";
+    private static final String FORWARD_COLOR_SAMPLE = "texture(u_array,vec3(uv,flags.x))";
+
+    /**
+     * Sprite normal-map sample transformed into lighting space.
+     */
     static final String NORMAL_SAMPLE =
             "in vec2 normalUV;"
-            + "flat in float normalSlot;"
-            + "flat in vec4 normalBasis;"
-            + "uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"
-            + "vec3 lightingNormal(vec3 geometric){"
-            + "if(normalSlot<-.5)return geometric;"
-            + "vec3 s;"
-            + "if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;"
-            + "else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;"
-            + "else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;"
-            + "else s=texture(u_normal3,normalUV).rgb;"
-            + "s=normalize(s*2.-1.);"
-            + "vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;"
-            + "return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));"
-            + "}";
+                    + "flat in float normalSlot;"
+                    + "flat in vec4 normalBasis;"
+                    + "uniform sampler2D u_normal0,u_normal1,u_normal2,u_normal3;"
+                    + "vec3 lightingNormal(vec3 geometric){"
+                    + "if(normalSlot<-.5)return geometric;"
+                    + "vec3 s;"
+                    + "if(normalSlot<.5)s=texture(u_normal0,normalUV).rgb;"
+                    + "else if(normalSlot<1.5)s=texture(u_normal1,normalUV).rgb;"
+                    + "else if(normalSlot<2.5)s=texture(u_normal2,normalUV).rgb;"
+                    + "else s=texture(u_normal3,normalUV).rgb;"
+                    + "s=normalize(s*2.-1.);"
+                    + "vec2 xy=normalBasis.xy*s.x+normalBasis.zw*s.y;"
+                    + "return normalize(xy.x*vec3(.7071067812,-.7071067812,0)+xy.y*vec3(.4082482905,.4082482905,.8164965809)+s.z*vec3(-.5773502692,-.5773502692,.5773502692));"
+                    + "}";
 
-    /** Macro normal used to orient curved facades without changing geometric shadow depth. */
+    /**
+     * Macro normal used to orient curved facades without changing geometric shadow depth.
+     */
     static final String MACRO_NORMAL =
             "in vec3 curveNormal;"
-            + "vec3 macroNormal(vec3 plane){"
-            + "return dot(curveNormal,curveNormal)>.0001?normalize(curveNormal):plane;"
-            + "}";
+                    + "vec3 macroNormal(vec3 plane){"
+                    + "return dot(curveNormal,curveNormal)>.0001?normalize(curveNormal):plane;"
+                    + "}";
 
-    /** Common shadow-map uniforms and receiver output. */
+    /**
+     * Common shadow-map uniforms and receiver output.
+     */
     static final String LIGHT_UNIFORMS =
             "uniform vec3 u_light,u_color,u_direction,u_cone;"
-            + "uniform float u_range,u_falloff;"
-            + "uniform int u_diagnostic;"
-            + "out vec4 result;"
-            + "uniform float u_resolution,u_atlasScale;"
-            + "uniform int u_quality;"
-            + "uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;";
+                    + "uniform float u_range,u_falloff;"
+                    + "uniform int u_diagnostic;"
+                    + "out vec4 result;"
+                    + "uniform float u_resolution,u_atlasScale;"
+                    + "uniform int u_quality;"
+                    + "uniform sampler2D u_shadow,u_shadowIdentity,u_shadowSecond;";
 
-    /** Cube-face atlas coordinates shared by hard shadows and PCF. */
+    /**
+     * Cube-face atlas coordinates shared by hard shadows and PCF.
+     */
     static final String SHADOW_COORDINATES =
             "vec2 shadowUV(vec3 d){"
-            + "vec3 a=abs(d);"
-            + "vec2 q;"
-            + "int f;"
-            + "if(a.x>=a.y&&a.x>=a.z){"
-                + "if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}"
-                + "else{f=1;q=vec2(d.z,-d.y)/a.x;}"
-            + "}else if(a.y>=a.z){"
-                + "if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}"
-                + "else{f=3;q=vec2(d.x,-d.z)/a.y;}"
-            + "}else{"
-                + "if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}"
-                + "else{f=5;q=vec2(-d.x,-d.y)/a.z;}"
-            + "}"
-            + "q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));"
-            + "return u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);"
-            + "}";
+                    + "vec3 a=abs(d);"
+                    + "vec2 q;"
+                    + "int f;"
+                    + "if(a.x>=a.y&&a.x>=a.z){"
+                    + "if(d.x>0.){f=0;q=vec2(-d.z,-d.y)/a.x;}"
+                    + "else{f=1;q=vec2(d.z,-d.y)/a.x;}"
+                    + "}else if(a.y>=a.z){"
+                    + "if(d.y>0.){f=2;q=vec2(d.x,d.z)/a.y;}"
+                    + "else{f=3;q=vec2(d.x,-d.z)/a.y;}"
+                    + "}else{"
+                    + "if(d.z>0.){f=4;q=vec2(d.x,-d.y)/a.z;}"
+                    + "else{f=5;q=vec2(-d.x,-d.y)/a.z;}"
+                    + "}"
+                    + "q=clamp(q*.5+.5,vec2(.5/u_resolution),vec2(1.-.5/u_resolution));"
+                    + "return u_atlasScale*(q+vec2(float(f%3),float(f/3)))/vec2(3.,2.);"
+                    + "}";
 
-    /** Selects d1 or d2 according to the receiver's exclusion identity. */
+    /**
+     * Selects d1 or d2 according to the receiver's exclusion identity.
+     */
     static final String SHADOW_DEPTH_SELECTION =
             "float visible(vec3 d,float distance,float bias){"
-            + "vec2 uv=shadowUV(d);"
-            + "float first=texture(u_shadow,uv).r*u_range;"
-            + "float id=texture(u_shadowIdentity,uv).r;"
-            + "float depth=exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;"
-            + "return distance-bias<=depth?1.:0.;"
-            + "}";
+                    + "vec2 uv=shadowUV(d);"
+                    + "float first=texture(u_shadow,uv).r*u_range;"
+                    + "float id=texture(u_shadowIdentity,uv).r;"
+                    + "float depth=exclusionId>.5&&id==exclusionId?texture(u_shadowSecond,uv).r*u_range:first;"
+                    + "return distance-bias<=depth?1.:0.;"
+                    + "}";
 
-    /** Legacy coverage, cutout and alpha handling before direct lighting. */
+    /**
+     * Legacy coverage, cutout and alpha handling before direct lighting.
+     */
     private static final String LEGACY_RECEIVER_OPEN =
             "void main(){"
-            + "vec4 texel=surfaceColor(image(),uv);"
-            + "if(flags.w>=0.&&texel.a<flags.w)discard;"
-            + "vec4 t=texel*color;"
-            + "if(flags.w!= -2.&&t.a<=0.)discard;"
-            + "float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"
-            + "vec3 outputColor=t.rgb;";
+                    + "vec4 texel=surfaceColor(image(),uv);"
+                    + "if(flags.w>=0.&&texel.a<flags.w)discard;"
+                    + "vec4 t=texel*color;"
+                    + "if(flags.w!= -2.&&t.a<=0.)discard;"
+                    + "float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;"
+                    + "vec3 outputColor=t.rgb;";
 
-    /** Normal length, macro facade orientation and the legacy direct-light guard. */
+    /**
+     * Normal length, macro facade orientation and the legacy direct-light guard.
+     */
     private static final String LEGACY_DIRECT_LIGHT_SETUP =
             "float value=0.;"
-            + "vec3 delta=p-u_light;"
-            + "float distance=length(delta);"
-            + "float normalLength=length(n);"
-            + "if(flags.y>.5&&normalLength>.0001){"
-            + "vec3 geometric=n/normalLength;"
-            + "vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);";
+                    + "vec3 delta=p-u_light;"
+                    + "float distance=length(delta);"
+                    + "float normalLength=length(n);"
+                    + "if(flags.y>.5&&normalLength>.0001){"
+                    + "vec3 geometric=n/normalLength;"
+                    + "vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);";
 
-    /** Cosine, facade gate and geometric bias; the geometric normal remains the depth reference. */
+    /**
+     * Cosine, facade gate and geometric bias; the geometric normal remains the depth reference.
+     */
     private static final String DIRECT_LIGHT_BIAS =
             "float cosine=dot(normal,-delta/max(distance,.0001));"
-            + "if(flags.z>.5)cosine=abs(cosine);"
-            + "float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;"
-            + "float visibility=1.;"
-            + "float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);"
-            + "float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;";
+                    + "if(flags.z>.5)cosine=abs(cosine);"
+                    + "float facadeGate=flags.z==0.?smoothstep(0.,.052335956,dot(facade,distance>0.?-delta/distance:vec3(0))):1.;"
+                    + "float visibility=1.;"
+                    + "float c=clamp(abs(dot(geometric,-delta/max(distance,.0001))),.1,1.);"
+                    + "float bias=2.304+1.5*distance/u_resolution*sqrt(max(0.,1.-c*c))/c;";
 
-    /** Hard-shadow and nine-tap PCF visibility. */
+    /**
+     * Hard-shadow and nine-tap PCF visibility.
+     */
     private static final String DIRECT_LIGHT_VISIBILITY =
             "if(u_quality==1&&facadeGate>0.)visibility=visible(delta,distance,bias);"
-            + "if(u_quality==2&&facadeGate>0.){"
-                + "vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);"
-                + "vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);"
-                + "visibility=0.;"
-                + "for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){"
+                    + "if(u_quality==2&&facadeGate>0.){"
+                    + "vec3 direction=normalize(delta),reference=abs(direction.z)<.9?vec3(0,0,1):vec3(0,1,0);"
+                    + "vec3 a=normalize(cross(direction,reference)),b=cross(direction,a);"
+                    + "visibility=0.;"
+                    + "for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){"
                     + "vec3 tap=normalize(direction+2./u_resolution*(float(x)*a+float(y)*b));"
                     + "float den=dot(tap,geometric);"
                     + "float dist=abs(den)>.0001?dot(delta,geometric)/den:distance;"
                     + "visibility+=visible(tap,max(.001,dist),bias);"
-                + "}"
-                + "visibility/=9.;"
-            + "}";
+                    + "}"
+                    + "visibility/=9.;"
+                    + "}";
 
-    /** Cone, attenuation and one-sided facade horizon. */
+    /**
+     * Cone, attenuation and one-sided facade horizon.
+     */
     private static final String DIRECT_LIGHT_CONE_ATTENUATION_HORIZON =
             "float cone=1.;"
-            + "if(u_cone.x>.5){"
-                + "float angle=dot(normalize(delta),u_direction);"
-                + "cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);"
-            + "}"
-            + "value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*cone*visibility;"
-            + "if(flags.z==0.){"
-                + "vec3 toLight=distance>0.?-delta/distance:vec3(0);"
-                + "float cG=dot(normal,toLight);"
-                + "value*=smoothstep(.052335956,.087155743,max(0.,cG))*facadeGate;"
-            + "}"
-            + "}";
+                    + "if(u_cone.x>.5){"
+                    + "float angle=dot(normalize(delta),u_direction);"
+                    + "cone=u_cone.z<=u_cone.y+.00001?step(u_cone.y,angle):smoothstep(u_cone.y,u_cone.z,angle);"
+                    + "}"
+                    + "value=pow(max(0.,1.-distance/u_range),max(.001,u_falloff))*max(.1,cosine)*cone*visibility;"
+                    + "if(flags.z==0.){"
+                    + "vec3 toLight=distance>0.?-delta/distance:vec3(0);"
+                    + "float cG=dot(normal,toLight);"
+                    + "value*=smoothstep(.052335956,.087155743,max(0.,cG))*facadeGate;"
+                    + "}"
+                    + "}";
 
-    /** Legacy result and user-visible diagnostics without a normal map. */
+    /**
+     * Legacy result and user-visible diagnostics without a normal map.
+     */
     private static final String LEGACY_RESULT =
             "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);"
-            + "if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);"
-            + "if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);"
-            + "if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);"
-            + "}";
+                    + "if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);"
+                    + "if(u_diagnostic==2)result=vec4((n*.5+.5)*alpha,alpha);"
+                    + "if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);"
+                    + "}";
 
-    /** Legacy result and diagnostics with a normal-map transformed normal. */
+    /**
+     * Legacy result and diagnostics with a normal-map transformed normal.
+     */
     private static final String MAPPED_LEGACY_RESULT =
             "result=vec4(outputColor*u_color*value*(flags.w< -2.5?1.:alpha),alpha);"
-            + "if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);"
-            + "if(u_diagnostic==2)result=vec4((lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha,alpha);"
-            + "if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);"
-            + "}";
+                    + "if(u_diagnostic==1)result=vec4(fract(abs(p)/256.)*alpha,alpha);"
+                    + "if(u_diagnostic==2)result=vec4((lightingNormal(normalLength>.0001?n/normalLength:vec3(0))*.5+.5)*alpha,alpha);"
+                    + "if(u_diagnostic==3)result=vec4((normalLength<.0001?vec3(1,0,1):abs(flags.y)>2.5?vec3(1,.2,.1):abs(flags.y)>1.5?vec3(.8,.6,.1):vec3(.1,.8,.4))*alpha,alpha);"
+                    + "}";
 
-    /** Forward coverage, cutout, additive emission and alpha handling before direct lighting. */
+    /**
+     * Forward coverage, cutout, additive emission and alpha handling before direct lighting.
+     */
     private static final String FORWARD_RECEIVER_COVERAGE =
             "if(flags.w>=0.&&texel.a<flags.w)discard;"
-            + "vec4 t=texel*color;"
-            + "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;"
-            + "float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;";
+                    + "vec4 t=texel*color;"
+                    + "if(flags.w!= -2.&&flags.w!= -3.&&mod(materialMode,16.)!=3.&&t.a<=0.)discard;"
+                    + "float alpha=flags.w== -2.||flags.w>=0.?1.:t.a;";
 
-    /** Forward range and macro-horizon early exit, followed by normal-map direct lighting. */
+    /**
+     * Forward range and macro-horizon early exit, followed by normal-map direct lighting.
+     */
     private static final String FORWARD_DIRECT_LIGHT_SETUP =
             "float value=0.;"
-            + "vec3 delta=p-u_light;"
-            + "float distance=length(delta);"
-            + "float normalLength=length(n);"
-            + "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&(flags.z!=0.||dot(lightingNormal(macroNormal(n/normalLength)),distance>0.?-delta/distance:vec3(0))>.052335956)){"
-            + "vec3 geometric=n/normalLength;"
-            + "vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);";
+                    + "vec3 delta=p-u_light;"
+                    + "float distance=length(delta);"
+                    + "float normalLength=length(n);"
+                    + "if(flags.y>.5&&normalLength>.0001&&distance<u_range&&(flags.z!=0.||dot(lightingNormal(macroNormal(n/normalLength)),distance>0.?-delta/distance:vec3(0))>.052335956)){"
+                    + "vec3 geometric=n/normalLength;"
+                    + "vec3 facade=flags.z< -1.5?vec3(-.5773502692,-.5773502692,.5773502692):macroNormal(geometric);";
 
-    static String legacyReceiver(String version,String inputs,String image) {
-        return legacyReceiver(version,inputs,image,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    static String legacyReceiver(String version, String inputs, String image) {
+        return legacyReceiver(version, inputs, image, games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
     }
-    static String legacyReceiver(String version,String inputs,String image,String surface) {
-        return version+inputs+image+surface+MACRO_NORMAL
-                + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
-                + LEGACY_RECEIVER_OPEN+LEGACY_DIRECT_LIGHT_SETUP
+
+    static String legacyReceiver(String version, String inputs, String image, String surface) {
+        return version + inputs + image + surface + MACRO_NORMAL
+                + LIGHT_UNIFORMS + SHADOW_COORDINATES + SHADOW_DEPTH_SELECTION
+                + LEGACY_RECEIVER_OPEN + LEGACY_DIRECT_LIGHT_SETUP
                 + "vec3 normal=facade;"
-                + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
+                + DIRECT_LIGHT_BIAS + DIRECT_LIGHT_VISIBILITY + DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
                 + LEGACY_RESULT;
     }
 
-    static String legacyMappedReceiver(String version,String inputs,String image) {
-        return legacyMappedReceiver(version,inputs,image,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    static String legacyMappedReceiver(String version, String inputs, String image) {
+        return legacyMappedReceiver(version, inputs, image, games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
     }
-    static String legacyMappedReceiver(String version,String inputs,String image,String surface) {
-        return version+inputs+image+surface+MACRO_NORMAL+NORMAL_SAMPLE
-                + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
-                + LEGACY_RECEIVER_OPEN+LEGACY_DIRECT_LIGHT_SETUP
+
+    static String legacyMappedReceiver(String version, String inputs, String image, String surface) {
+        return version + inputs + image + surface + MACRO_NORMAL + NORMAL_SAMPLE
+                + LIGHT_UNIFORMS + SHADOW_COORDINATES + SHADOW_DEPTH_SELECTION
+                + LEGACY_RECEIVER_OPEN + LEGACY_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
-                + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
+                + DIRECT_LIGHT_BIAS + DIRECT_LIGHT_VISIBILITY + DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
                 + MAPPED_LEGACY_RESULT;
     }
 
     static String forwardReceiver(String version) {
-        return forwardReceiver(version,true);
+        return forwardReceiver(version, true);
     }
 
-    static String forwardVertex(String version,boolean useNormalMaps) {
+    static String forwardVertex(String version, boolean useNormalMaps) {
         return version
                 + "in vec2 a_screen,a_uv;in vec4 a_physical;in vec3 a_normal,a_curveNormal;in vec4 a_color,a_material;"
-                + (useNormalMaps?"in vec3 a_normalUV;in vec4 a_normalBasis;":"")
+                + (useNormalMaps ? "in vec3 a_normalUV;in vec4 a_normalBasis;" : "")
                 + "in highp vec2 a_surfaceMaterial;flat out highp vec2 surfaceMaterial;in highp vec4 a_surfaceRegion;flat out highp vec4 surfaceRegion;uniform mat4 u_matrix;"
                 + "out vec2 uv;out vec3 p,n;out vec3 curveNormal;out vec4 color;flat out vec4 flags;flat out float exclusionId;"
-                + (useNormalMaps?"out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;":"")
+                + (useNormalMaps ? "out vec2 normalUV;flat out float normalSlot;flat out vec4 normalBasis;" : "")
                 + "flat out float materialMode;"
                 + "void main(){surfaceMaterial=a_surfaceMaterial;surfaceRegion=a_surfaceRegion;uv=a_uv;p=a_physical.xyz;n=a_normal;curveNormal=a_curveNormal;color=a_color;exclusionId=a_physical.w;materialMode=a_material.y;float blend=mod(materialMode,16.);"
                 + "flags=vec4(a_material.x,a_material.z,a_material.w,blend==7.?.5:blend==0.?-2.:blend==2.?-3.:-1.);"
-                + (useNormalMaps?"normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;":"")
+                + (useNormalMaps ? "normalUV=a_normalUV.xy;normalSlot=a_normalUV.z;normalBasis=a_normalBasis;" : "")
                 + "gl_Position=u_matrix*vec4(a_screen,0.,1.);}";
     }
 
-    static String forwardReceiver(String version,boolean useNormalMaps) {
-        return forwardReceiver(version,useNormalMaps,"uniform sampler2DArray u_array;vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}",
+    static String forwardReceiver(String version, boolean useNormalMaps) {
+        return forwardReceiver(version, useNormalMaps, "uniform sampler2DArray u_array;vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}",
                 FORWARD_COLOR_SAMPLE);
     }
 
-    /** Shared lighting/coverage math. The owner supplies its color-resource declaration, surfaceImageSize() and expression. */
-    public static String forwardReceiver(String version,boolean useNormalMaps,String colorUniforms,String colorSample) {
-        return forwardReceiver(version,useNormalMaps,colorUniforms,colorSample,games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
+    /**
+     * Shared lighting/coverage math. The owner supplies its color-resource declaration, surfaceImageSize() and expression.
+     */
+    public static String forwardReceiver(String version, boolean useNormalMaps, String colorUniforms, String colorSample) {
+        return forwardReceiver(version, useNormalMaps, colorUniforms, colorSample, games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false));
     }
-    static String forwardReceiver(String version,boolean useNormalMaps,String colorUniforms,String colorSample,String surface) {
+
+    static String forwardReceiver(String version, boolean useNormalMaps, String colorUniforms, String colorSample, String surface) {
         return version
                 + "in vec2 uv;"
                 + "in vec3 p,n;"
@@ -223,28 +260,30 @@ public final class LightingShaderSources {
                 + "flat in vec4 flags;"
                 + "flat in float exclusionId,materialMode;"
                 + surface
-                + colorUniforms + "vec4 surfaceImageAt(vec2 uv){return "+colorSample+";}"
+                + colorUniforms + "vec4 surfaceImageAt(vec2 uv){return " + colorSample + ";}"
                 + "uniform vec3 u_ambient;"
-                + LIGHT_UNIFORMS+SHADOW_COORDINATES+SHADOW_DEPTH_SELECTION
-                + (useNormalMaps?NORMAL_SAMPLE:"vec3 lightingNormal(vec3 geometric){return geometric;}")+MACRO_NORMAL
-                + forwardMaterial(colorSample)+FORWARD_DIRECT_LIGHT_SETUP
+                + LIGHT_UNIFORMS + SHADOW_COORDINATES + SHADOW_DEPTH_SELECTION
+                + (useNormalMaps ? NORMAL_SAMPLE : "vec3 lightingNormal(vec3 geometric){return geometric;}") + MACRO_NORMAL
+                + forwardMaterial(colorSample) + FORWARD_DIRECT_LIGHT_SETUP
                 + "vec3 normal=lightingNormal(facade);"
-                + DIRECT_LIGHT_BIAS+DIRECT_LIGHT_VISIBILITY+DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
+                + DIRECT_LIGHT_BIAS + DIRECT_LIGHT_VISIBILITY + DIRECT_LIGHT_CONE_ATTENUATION_HORIZON
                 + FORWARD_AMBIENT
                 + "result=vec4(t.rgb*(ambient+u_color*value),alpha);"
                 + "}";
     }
 
-    /** Same material coverage and HDR output, without direct-light inputs or calculations. */
+    /**
+     * Same material coverage and HDR output, without direct-light inputs or calculations.
+     */
     static String unlitReceiver(String version) {
-        return version+"in vec2 uv;in vec4 color;flat in vec4 flags;flat in float materialMode;"
-                +"uniform sampler2DArray u_array;uniform vec3 u_ambient;out vec4 result;"
-                +"vec4 surfaceImageAt(vec2 uv){return texture(u_array,vec3(uv,flags.x));}vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}"
-                +games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false)+forwardMaterial(FORWARD_COLOR_SAMPLE)+FORWARD_AMBIENT
-                +"result=vec4(t.rgb*ambient,alpha);}";
+        return version + "in vec2 uv;in vec4 color;flat in vec4 flags;flat in float materialMode;"
+                + "uniform sampler2DArray u_array;uniform vec3 u_ambient;out vec4 result;"
+                + "vec4 surfaceImageAt(vec2 uv){return texture(u_array,vec3(uv,flags.x));}vec2 surfaceImageSize(){return vec2(textureSize(u_array,0).xy);}"
+                + games.pixscape.runtime.service.ShaderRegistry.surfaceLightingSources(false) + forwardMaterial(FORWARD_COLOR_SAMPLE) + FORWARD_AMBIENT
+                + "result=vec4(t.rgb*ambient,alpha);}";
     }
 
     private static String forwardMaterial(String colorSample) {
-        return "void main(){vec4 texel=surfaceColor("+colorSample+",uv);"+FORWARD_RECEIVER_COVERAGE;
+        return "void main(){vec4 texel=surfaceColor(" + colorSample + ",uv);" + FORWARD_RECEIVER_COVERAGE;
     }
 }

@@ -6,18 +6,25 @@ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Stable identity and complete native style for the built-in HUD Slider. */
+/**
+ * Stable identity and complete native style for the built-in HUD Slider.
+ */
 public final class HudBuiltInSliderStyle {
     public static final String BACKGROUND_REGION = HudBuiltInTextButtonStyle.BACKGROUND_REGION;
 
-    private HudBuiltInSliderStyle() { }
+    private HudBuiltInSliderStyle() {
+    }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }
 
-    /** Creates an independent SliderStyle over a caller-owned packed white region. */
+    /**
+     * Creates an independent SliderStyle over a caller-owned packed white region.
+     */
     public static Slider.SliderStyle create(TextureRegion white) {
         if (white == null) throw new IllegalArgumentException("White region is required.");
         Slider.SliderStyle style = new Slider.SliderStyle();

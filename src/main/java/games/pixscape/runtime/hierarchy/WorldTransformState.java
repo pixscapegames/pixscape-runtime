@@ -90,7 +90,9 @@ public final class WorldTransformState {
         m12[entityId] = worldY;
     }
 
-    /** Publishes a resolved authored pose together with its exact hierarchy frame. */
+    /**
+     * Publishes a resolved authored pose together with its exact hierarchy frame.
+     */
     public void setResolvedFrame(
             int entityId,
             float worldX, float worldY, float worldRotationRad,

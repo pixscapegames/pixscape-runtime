@@ -8,7 +8,9 @@ import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
-/** API-owned scratch for the indexed removal closure. No World or handle is retained here. */
+/**
+ * API-owned scratch for the indexed removal closure. No World or handle is retained here.
+ */
 final class HierarchyRemoval {
     private final IntSet removed = new IntSet();
     private final IntArray queue = new IntArray(false, 16);
@@ -25,7 +27,8 @@ final class HierarchyRemoval {
             int current = queue.get(cursor);
             if (topology != null && current < topology.getEntityCapacity()) {
                 for (int child = topology.firstChildEntityId[current]; child >= 0;
-                     child = topology.nextSiblingEntityId[child]) add(child);
+                     child = topology.nextSiblingEntityId[child])
+                    add(child);
             }
             if (physics != null) {
                 if (world.getMapper(PhysicsBodyComponent.class).has(current)) {

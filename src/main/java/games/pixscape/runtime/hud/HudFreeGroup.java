@@ -9,7 +9,9 @@ import games.pixscape.runtime.hud.document.HudFreePlacement;
 import games.pixscape.runtime.hud.document.HudHorizontalAnchor;
 import games.pixscape.runtime.hud.document.HudVerticalAnchor;
 
-/** Thin Scene2D layout surface for immediate-parent FREE placements. */
+/**
+ * Thin Scene2D layout surface for immediate-parent FREE placements.
+ */
 final class HudFreeGroup extends WidgetGroup {
     private final ObjectMap<Actor, Placement> freePlacements =
             new ObjectMap<Actor, Placement>();

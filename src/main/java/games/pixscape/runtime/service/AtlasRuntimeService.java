@@ -73,17 +73,21 @@ public class AtlasRuntimeService {
             FileHandle normalFile = atlasFile.sibling(tag + NormalMapAtlas.SUFFIX + ".atlas");
             if (useNormalMaps && normalFile.exists()) normals = new NormalMapAtlas(tag, normalFile, atlas);
         } catch (RuntimeException failure) {
-            atlas.dispose(); if (normals != null) normals.dispose();
+            atlas.dispose();
+            if (normals != null) normals.dispose();
             throw failure;
         }
         load(tag, atlas, true, normals);
         Gdx.app.debug("AtlasService", "Loaded atlas '" + tag + "' from " + atlasFile.path());
     }
 
-    /** Publishes an already-created atlas and transfers its ownership to this service. */
+    /**
+     * Publishes an already-created atlas and transfers its ownership to this service.
+     */
     protected final void publishOwnedAtlas(String tag, TextureAtlas atlas) {
         load(tag, atlas, true);
     }
+
     protected final void publishOwnedAtlas(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
         load(tag, atlas, true, normals);
     }
@@ -99,6 +103,7 @@ public class AtlasRuntimeService {
     public void loadBorrowed(String tag, TextureAtlas atlas) {
         load(tag, atlas, false);
     }
+
     public void loadBorrowed(String tag, TextureAtlas atlas, NormalMapAtlas normals) {
         load(tag, atlas, false, normals);
     }
@@ -106,6 +111,7 @@ public class AtlasRuntimeService {
     private void load(String tag, TextureAtlas atlas, boolean owned) {
         load(tag, atlas, owned, null);
     }
+
     private void load(String tag, TextureAtlas atlas, boolean owned, NormalMapAtlas normals) {
         if (atlas == null) {
             throw new IllegalArgumentException(
@@ -185,6 +191,7 @@ public class AtlasRuntimeService {
     }
 
     // ---------------- access ----------------
+
     /**
      * Returns the precomputed first-region metadata in O(1) average time.
      */
@@ -198,18 +205,25 @@ public class AtlasRuntimeService {
     public TextureAtlas getAtlas(String tag) {
         return atlases.get(tag);
     }
-    /** O(1), including absent normal data; preparation never happens during lookup. */
+
+    /**
+     * O(1), including absent normal data; preparation never happens during lookup.
+     */
     public NormalMapBinding resolveNormal(int assetId, String tag) {
         if (assetId <= 0 || tag == null || isBlank(tag)) return null;
         NormalMapAtlas atlas = normalAtlases.get(tag);
         return atlas == null ? null : atlas.resolve(assetId);
     }
+
     public long normalTextureBytes() {
-        long bytes = 0; for (NormalMapAtlas atlas : normalAtlases.values()) bytes += atlas.textureBytes();
+        long bytes = 0;
+        for (NormalMapAtlas atlas : normalAtlases.values()) bytes += atlas.textureBytes();
         return bytes;
     }
 
-    /** Cold scene-local publication. A null descriptor releases only this tag's normal lease. */
+    /**
+     * Cold scene-local publication. A null descriptor releases only this tag's normal lease.
+     */
     public void replaceNormalMaps(String tag, FileHandle descriptor) {
         TextureAtlas colors = atlases.get(tag);
         if (colors == null) return;
@@ -221,7 +235,9 @@ public class AtlasRuntimeService {
         if (previous != null) previous.dispose();
     }
 
-    /** Publish a validated normal mapping while keeping the color atlas and its identity. */
+    /**
+     * Publish a validated normal mapping while keeping the color atlas and its identity.
+     */
     public void publishNormalMaps(String tag, NormalMapAtlas next) {
         NormalMapAtlas previous = normalAtlases.remove(tag);
         if (next != null) normalAtlases.put(tag, next);
@@ -229,7 +245,9 @@ public class AtlasRuntimeService {
         if (previous != null && previous != next) previous.dispose();
     }
 
-    /** Returns whether at least one successfully published atlas is currently usable. */
+    /**
+     * Returns whether at least one successfully published atlas is currently usable.
+     */
     public boolean hasPublishedAtlases() {
         return atlases.size > 0;
     }
@@ -242,7 +260,9 @@ public class AtlasRuntimeService {
         return tag != null ? publicationRevisions.get(tag, 0) : 0;
     }
 
-    /** Marks that a replacement atlas publication has been requested for {@code tag}. */
+    /**
+     * Marks that a replacement atlas publication has been requested for {@code tag}.
+     */
     public void markPublicationPending(String tag) {
         if (tag == null || isBlank(tag)) {
             throw new IllegalArgumentException("Atlas tag is blank.");
@@ -250,7 +270,9 @@ public class AtlasRuntimeService {
         pendingPublications.add(tag);
     }
 
-    /** Returns whether a requested replacement has not yet been successfully published. */
+    /**
+     * Returns whether a requested replacement has not yet been successfully published.
+     */
     public boolean isPublicationPending(String tag) {
         return tag != null && pendingPublications.contains(tag);
     }
@@ -344,7 +366,9 @@ public class AtlasRuntimeService {
                 textures, ATLAS_SIZE, ATLAS_SIZE, GLCaps.detect());
     }
 
-    /** Builds an independent fixed-page bundle without publishing world atlas state. */
+    /**
+     * Builds an independent fixed-page bundle without publishing world atlas state.
+     */
     public static TextureArrayBundle buildTextureArrayFromTextures(
             Array<Texture> textures, int arrayWidth, int arrayHeight, GLCaps caps) {
         InternalTextures.initIfNeeded();

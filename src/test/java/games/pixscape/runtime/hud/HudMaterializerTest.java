@@ -631,7 +631,10 @@ public class HudMaterializerTest {
 
         final int[] changes = {0};
         slider.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { changes[0]++; }
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                changes[0]++;
+            }
         });
         slider.setDisabled(false);
         slider.setValue(80f);
@@ -684,11 +687,28 @@ public class HudMaterializerTest {
             MaterializedHud hud = new HudMaterializer().materialize(
                     new HudDocumentValidator().validate(new HudDocumentV1(node)).validatedDocument(),
                     new HudVisualResources() {
-                        @Override public TextureRegion region(String name) { return null; }
-                        @Override public Drawable drawable(String name) { return null; }
-                        @Override public Label.LabelStyle labelStyle(String name) { return null; }
-                        @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-                        @Override public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
+                        @Override
+                        public TextureRegion region(String name) {
+                            return null;
+                        }
+
+                        @Override
+                        public Drawable drawable(String name) {
+                            return null;
+                        }
+
+                        @Override
+                        public Label.LabelStyle labelStyle(String name) {
+                            return null;
+                        }
+
+                        @Override
+                        public TextButton.TextButtonStyle textButtonStyle(String name) {
+                            return null;
+                        }
+
+                        @Override
+                        public ProgressBar.ProgressBarStyle progressBarStyle(String name) {
                             return "custom".equals(name) ? custom : null;
                         }
                     });
@@ -743,11 +763,28 @@ public class HudMaterializerTest {
         MaterializedHud hud = new HudMaterializer().materialize(
                 new HudDocumentValidator().validate(new HudDocumentV1(node)).validatedDocument(),
                 new HudVisualResources() {
-                    @Override public TextureRegion region(String name) { return null; }
-                    @Override public Drawable drawable(String name) { return null; }
-                    @Override public Label.LabelStyle labelStyle(String name) { return null; }
-                    @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-                    @Override public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
+                    @Override
+                    public TextureRegion region(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Drawable drawable(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Label.LabelStyle labelStyle(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public TextButton.TextButtonStyle textButtonStyle(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public ScrollPane.ScrollPaneStyle scrollPaneStyle(String name) {
                         return "empty".equals(name) ? shared : null;
                     }
                 });
@@ -786,11 +823,28 @@ public class HudMaterializerTest {
 
         MaterializedHud hud = new HudMaterializer().materialize(
                 validation.validatedDocument(), new HudVisualResources() {
-                    @Override public TextureRegion region(String name) { return null; }
-                    @Override public Drawable drawable(String name) { return null; }
-                    @Override public Label.LabelStyle labelStyle(String name) { return null; }
-                    @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-                    @Override public Slider.SliderStyle sliderStyle(String name) {
+                    @Override
+                    public TextureRegion region(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Drawable drawable(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Label.LabelStyle labelStyle(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public TextButton.TextButtonStyle textButtonStyle(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public Slider.SliderStyle sliderStyle(String name) {
                         return "custom".equals(name) ? custom : null;
                     }
                 });
@@ -1096,20 +1150,75 @@ public class HudMaterializerTest {
 
     private HudVisualResources overrideVisualResources(final BitmapFont override) {
         return new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return selectedResources.region(name); }
-            @Override public Drawable drawable(String name) { return selectedResources.drawable(name); }
-            @Override public Label.LabelStyle labelStyle(String name) { return selectedResources.labelStyle(name); }
-            @Override public Label.LabelStyle builtInLabelStyle() { return selectedResources.builtInLabelStyle(); }
-            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return selectedResources.textButtonStyle(name); }
-            @Override public TextButton.TextButtonStyle builtInTextButtonStyle() { return selectedResources.builtInTextButtonStyle(); }
-            @Override public TextField.TextFieldStyle textFieldStyle(String name) { return selectedResources.textFieldStyle(name); }
-            @Override public TextField.TextFieldStyle builtInTextFieldStyle() { return selectedResources.builtInTextFieldStyle(); }
-            @Override public SelectBox.SelectBoxStyle selectBoxStyle(String name) { return selectedResources.selectBoxStyle(name); }
-            @Override public SelectBox.SelectBoxStyle builtInSelectBoxStyle() { return selectedResources.builtInSelectBoxStyle(); }
-            @Override public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() { return selectedResources.builtInListStyle(); }
-            @Override public CheckBox.CheckBoxStyle checkBoxStyle(String name) { return selectedResources.checkBoxStyle(name); }
-            @Override public CheckBox.CheckBoxStyle builtInCheckBoxStyle() { return selectedResources.builtInCheckBoxStyle(); }
+            @Override
+            public TextureRegion region(String name) {
+                return selectedResources.region(name);
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return selectedResources.drawable(name);
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
+                return selectedResources.labelStyle(name);
+            }
+
+            @Override
+            public Label.LabelStyle builtInLabelStyle() {
+                return selectedResources.builtInLabelStyle();
+            }
+
+            @Override
+            public BitmapFont bitmapFont(int assetId) {
+                return assetId == 42 ? override : null;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
+                return selectedResources.textButtonStyle(name);
+            }
+
+            @Override
+            public TextButton.TextButtonStyle builtInTextButtonStyle() {
+                return selectedResources.builtInTextButtonStyle();
+            }
+
+            @Override
+            public TextField.TextFieldStyle textFieldStyle(String name) {
+                return selectedResources.textFieldStyle(name);
+            }
+
+            @Override
+            public TextField.TextFieldStyle builtInTextFieldStyle() {
+                return selectedResources.builtInTextFieldStyle();
+            }
+
+            @Override
+            public SelectBox.SelectBoxStyle selectBoxStyle(String name) {
+                return selectedResources.selectBoxStyle(name);
+            }
+
+            @Override
+            public SelectBox.SelectBoxStyle builtInSelectBoxStyle() {
+                return selectedResources.builtInSelectBoxStyle();
+            }
+
+            @Override
+            public com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle builtInListStyle() {
+                return selectedResources.builtInListStyle();
+            }
+
+            @Override
+            public CheckBox.CheckBoxStyle checkBoxStyle(String name) {
+                return selectedResources.checkBoxStyle(name);
+            }
+
+            @Override
+            public CheckBox.CheckBoxStyle builtInCheckBoxStyle() {
+                return selectedResources.builtInCheckBoxStyle();
+            }
         };
     }
 
@@ -1160,14 +1269,35 @@ public class HudMaterializerTest {
         Window.WindowStyle shared = new Window.WindowStyle();
         BitmapFont override = selectedResources.builtInLabelStyle().font;
         HudVisualResources visual = new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return null; }
-            @Override public Drawable drawable(String name) { return null; }
-            @Override public Label.LabelStyle labelStyle(String name) { return null; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-            @Override public Window.WindowStyle windowStyle(String name) {
+            @Override
+            public TextureRegion region(String name) {
+                return null;
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return null;
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public Window.WindowStyle windowStyle(String name) {
                 return "custom".equals(name) ? shared : null;
             }
-            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
+
+            @Override
+            public BitmapFont bitmapFont(int assetId) {
+                return assetId == 42 ? override : null;
+            }
         };
         HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
         MaterializedHud hud = new HudMaterializer().materialize(validation.validatedDocument(), visual);
@@ -1195,14 +1325,33 @@ public class HudMaterializerTest {
         Window.WindowStyle shared = new Window.WindowStyle();
         BitmapFont override = selectedResources.builtInLabelStyle().font;
         HudVisualResources visual = new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return null; }
-            @Override public Drawable drawable(String name) { return null; }
-            @Override public Label.LabelStyle labelStyle(String name) { return null; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-            @Override public Window.WindowStyle windowStyle(String name) {
+            @Override
+            public TextureRegion region(String name) {
+                return null;
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return null;
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public Window.WindowStyle windowStyle(String name) {
                 return "custom".equals(name) ? shared : null;
             }
-            @Override public BitmapFont bitmapFont(int assetId) {
+
+            @Override
+            public BitmapFont bitmapFont(int assetId) {
                 return assetId == 42 ? override : null;
             }
         };
@@ -1279,7 +1428,8 @@ public class HudMaterializerTest {
             Assert.assertEquals(4, hud.actorById().size());
             final int[] underlyingTouches = {0};
             InputMultiplexer routed = new InputMultiplexer(stage, new InputAdapter() {
-                @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                @Override
+                public boolean touchDown(int x, int y, int pointer, int button) {
                     underlyingTouches[0]++;
                     return true;
                 }
@@ -1366,10 +1516,18 @@ public class HudMaterializerTest {
             Assert.assertSame(dialog.getButtonTable(), applyActor.getParent());
             Assert.assertNull(dialog.getContentTable().getCell(confirmActor));
             Assert.assertSame(dialog, hud.dialog("dialog"));
-            try { hud.dialog("missing"); Assert.fail("missing ID"); }
-            catch (IllegalArgumentException expected) { Assert.assertTrue(expected.getMessage().contains("missing")); }
-            try { hud.dialog("confirm-button"); Assert.fail("wrong kind"); }
-            catch (IllegalArgumentException expected) { Assert.assertTrue(expected.getMessage().contains("confirm-button")); }
+            try {
+                hud.dialog("missing");
+                Assert.fail("missing ID");
+            } catch (IllegalArgumentException expected) {
+                Assert.assertTrue(expected.getMessage().contains("missing"));
+            }
+            try {
+                hud.dialog("confirm-button");
+                Assert.fail("wrong kind");
+            } catch (IllegalArgumentException expected) {
+                Assert.assertTrue(expected.getMessage().contains("confirm-button"));
+            }
 
             final int[] calls = {0};
             dialog.onResult((source, resultId) -> {
@@ -1430,9 +1588,15 @@ public class HudMaterializerTest {
             Assert.assertFalse(dialog.isOpen());
             dialog.open();
             dialog.validate();
-            dialog.onResult((source, resultId) -> { throw new IllegalStateException("validation failed"); });
-            try { clickActor(stage, confirmActor, 300); Assert.fail("callback exception"); }
-            catch (IllegalStateException expected) { Assert.assertEquals("validation failed", expected.getMessage()); }
+            dialog.onResult((source, resultId) -> {
+                throw new IllegalStateException("validation failed");
+            });
+            try {
+                clickActor(stage, confirmActor, 300);
+                Assert.fail("callback exception");
+            } catch (IllegalStateException expected) {
+                Assert.assertEquals("validation failed", expected.getMessage());
+            }
             Assert.assertTrue(dialog.isOpen());
         } finally {
             hud.dispose();
@@ -1470,7 +1634,10 @@ public class HudMaterializerTest {
             Assert.assertTrue(dialog.isVisible());
             dialog.validate();
             final int[] calls = {0};
-            dialog.onResult((source, id) -> { calls[0]++; return true; });
+            dialog.onResult((source, id) -> {
+                calls[0]++;
+                return true;
+            });
             clickActor(stage, hud.actor("confirm-button"), 300);
             Assert.assertEquals(0, calls[0]);
             Assert.assertTrue(dialog.isVisible());
@@ -1547,7 +1714,8 @@ public class HudMaterializerTest {
                 Assert.assertNull(stage.getScrollFocus());
                 final int[] underlyingTouches = {0};
                 InputMultiplexer inputs = new InputMultiplexer(stage, new InputAdapter() {
-                    @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                    @Override
+                    public boolean touchDown(int x, int y, int pointer, int button) {
                         underlyingTouches[0]++;
                         return true;
                     }
@@ -1942,7 +2110,10 @@ public class HudMaterializerTest {
             Assert.assertEquals(0, list.getSelectedIndex());
             final int[] changes = {0};
             list.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) { changes[0]++; }
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    changes[0]++;
+                }
             });
             float rowY = list.getHeight() - list.getStyle().background.getTopHeight()
                     - list.getItemHeight() * 1.5f;
@@ -2047,7 +2218,8 @@ public class HudMaterializerTest {
             stage.touchUp(390, 290, 0, 0);
             final int[] worldTouches = {0};
             InputMultiplexer routed = new InputMultiplexer(stage, new InputAdapter() {
-                @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                @Override
+                public boolean touchDown(int x, int y, int pointer, int button) {
                     worldTouches[0]++;
                     return true;
                 }
@@ -2427,14 +2599,35 @@ public class HudMaterializerTest {
         TextTooltip.TextTooltipStyle shared = new TextTooltip.TextTooltipStyle(
                 new Label.LabelStyle(), null);
         HudVisualResources visual = new HudVisualResources() {
-            @Override public TextureRegion region(String name) { return null; }
-            @Override public Drawable drawable(String name) { return null; }
-            @Override public Label.LabelStyle labelStyle(String name) { return null; }
-            @Override public TextButton.TextButtonStyle textButtonStyle(String name) { return null; }
-            @Override public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
+            @Override
+            public TextureRegion region(String name) {
+                return null;
+            }
+
+            @Override
+            public Drawable drawable(String name) {
+                return null;
+            }
+
+            @Override
+            public Label.LabelStyle labelStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public TextButton.TextButtonStyle textButtonStyle(String name) {
+                return null;
+            }
+
+            @Override
+            public TextTooltip.TextTooltipStyle textTooltipStyle(String name) {
                 return "custom".equals(name) ? shared : null;
             }
-            @Override public BitmapFont bitmapFont(int assetId) { return assetId == 42 ? override : null; }
+
+            @Override
+            public BitmapFont bitmapFont(int assetId) {
+                return assetId == 42 ? override : null;
+            }
         };
         HudValidationResult validation = new HudDocumentValidator().validate(new HudDocumentV1(root));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
@@ -2569,8 +2762,13 @@ public class HudMaterializerTest {
             return "hud-body-bitmap".equals(name) ? labelStyle : null;
         }
 
-        @Override public Label.LabelStyle builtInLabelStyle() { return labelStyle; }
-        @Override public BitmapFont bitmapFont(int assetId) {
+        @Override
+        public Label.LabelStyle builtInLabelStyle() {
+            return labelStyle;
+        }
+
+        @Override
+        public BitmapFont bitmapFont(int assetId) {
             return assetId == 42 ? bitmapFont : null;
         }
 
@@ -2579,7 +2777,8 @@ public class HudMaterializerTest {
             return "hud-primary".equals(name) ? textButtonStyle : null;
         }
 
-        @Override public TextButton.TextButtonStyle builtInTextButtonStyle() {
+        @Override
+        public TextButton.TextButtonStyle builtInTextButtonStyle() {
             return textButtonStyle;
         }
 
@@ -2734,7 +2933,9 @@ public class HudMaterializerTest {
         return table;
     }
 
-    /** Test-fixture invariant: every native tabular actor owns an explicit empty grid. */
+    /**
+     * Test-fixture invariant: every native tabular actor owns an explicit empty grid.
+     */
     private static void ensureExplicitTableLayouts(HudNode node) {
         if (node == null) return;
         if ((node.kind == HudNodeKind.TABLE || node.kind == HudNodeKind.WINDOW

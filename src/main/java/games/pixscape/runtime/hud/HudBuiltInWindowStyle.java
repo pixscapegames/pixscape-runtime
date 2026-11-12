@@ -7,9 +7,12 @@ import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Skin-independent native Window style over existing HUD resources. */
+/**
+ * Skin-independent native Window style over existing HUD resources.
+ */
 public final class HudBuiltInWindowStyle {
-    private HudBuiltInWindowStyle() { }
+    private HudBuiltInWindowStyle() {
+    }
 
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;

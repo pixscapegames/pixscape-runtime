@@ -33,7 +33,9 @@ public final class DrawList {
         return composition;
     }
 
-    /** Clears only the flattened entries while preserving staged composition items. */
+    /**
+     * Clears only the flattened entries while preserving staged composition items.
+     */
     public void clearEntries() {
         size = 0;
     }

@@ -5,11 +5,14 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.utils.Array;
 import com.github.tommyettinger.textra.Font;
 
-/** Creates standard TextraTypist fonts without mutating or owning their BitmapFont sources. */
+/**
+ * Creates standard TextraTypist fonts without mutating or owning their BitmapFont sources.
+ */
 public final class HudTextraFontFactory {
     private static final char SOLID_BLOCK = '\u2588';
 
-    private HudTextraFontFactory() { }
+    private HudTextraFontFactory() {
+    }
 
     /**
      * Builds a resource-owned base Font that borrows source glyph textures and the supplied white

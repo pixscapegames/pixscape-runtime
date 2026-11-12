@@ -30,7 +30,9 @@ public final class VfxRenderState {
     public byte[] repeatFlags;
 
     public int[] sourceEmitter;
-    /** Prepared once per owning effect; overwritten when a particle slot is reused. */
+    /**
+     * Prepared once per owning effect; overwritten when a particle slot is reused.
+     */
     public boolean[] ignoreAmbientLighting;
 
     public VfxRenderState() {
@@ -214,7 +216,8 @@ public final class VfxRenderState {
             copy(oldColorPacked, colorPacked, count);
             copy(oldRepeatFlags, repeatFlags, count);
             copy(oldSourceEmitter, sourceEmitter, count);
-            if (oldIgnoreAmbientLighting != null) System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
+            if (oldIgnoreAmbientLighting != null)
+                System.arraycopy(oldIgnoreAmbientLighting, 0, ignoreAmbientLighting, 0, count);
         }
 
         capacity = newCapacity;

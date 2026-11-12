@@ -21,8 +21,11 @@ package games.pixscape.runtime.api;
  */
 public interface LightFacade {
     boolean hasPoint();
+
     boolean hasCone();
+
     boolean enabled();
+
     /**
      * Occasional command, independent of Visible. Forward admission scans authored lights before
      * activation and rejects a second active light atomically, without fallback. Shadowed activation
@@ -30,15 +33,27 @@ public interface LightFacade {
      * Use intensity for per-frame fades.
      */
     LightFacade setEnabled(boolean enabled);
+
     float red();
+
     float green();
+
     float blue();
-    /** Finite linear RGB in [0,1]. Alpha is not a light parameter. */
+
+    /**
+     * Finite linear RGB in [0,1]. Alpha is not a light parameter.
+     */
     LightFacade setColor(float r, float g, float b);
+
     float intensity();
-    /** Finite nonnegative multiplier; zero does not disable admission or shadow rendering. */
+
+    /**
+     * Finite nonnegative multiplier; zero does not disable admission or shadow rendering.
+     */
     LightFacade setIntensity(float intensity);
+
     float radius();
+
     /**
      * Positive radius in common lighting pixels, at most Float.MAX_VALUE / 2. Resizes the authored
      * light proxy and adjusts its origin to preserve its center. Only size/origin geometry is dirtied;
@@ -46,29 +61,56 @@ public interface LightFacade {
      * as TransformFacade applies when adjusting the proxy origin.
      */
     LightFacade setRadius(float radius);
+
     float falloff();
-    /** Finite positive attenuation exponent (1 is linear). */
+
+    /**
+     * Finite positive attenuation exponent (1 is linear).
+     */
     LightFacade setFalloff(float falloff);
+
     float height();
-    /** Finite absolute source Z in common lighting pixels, independent of Spatial altitude/origin. */
+
+    /**
+     * Finite absolute source Z in common lighting pixels, independent of Spatial altitude/origin.
+     */
     LightFacade setHeight(float height);
+
     float coneAngleDeg();
-    /** Full cone opening in degrees, in (0,360]. */
+
+    /**
+     * Full cone opening in degrees, in (0,360].
+     */
     LightFacade setConeAngleDeg(float degrees);
+
     float inclinationDeg();
-    /** Elevation from horizontal XY in [-90,90] degrees; positive toward +Z. */
+
+    /**
+     * Elevation from horizontal XY in [-90,90] degrees; positive toward +Z.
+     */
     LightFacade setInclinationDeg(float degrees);
+
     float softness();
-    /** Cone edge softness in [0,1]. */
+
+    /**
+     * Cone edge softness in [0,1].
+     */
     LightFacade setSoftness(float softness);
-    /** 0 unshadowed, 1 hard shadows, 2 3x3 PCF. */
+
+    /**
+     * 0 unshadowed, 1 hard shadows, 2 3x3 PCF.
+     */
     int shadowQuality();
+
     /**
      * Occasional change in [0,2]. Nonzero quality requires sufficient prepared target capacity,
      * otherwise throws before mutation. PCF increases GPU sampling; enabling shadows can grow
      * replay capacity at frame publication. No shader/target preparation occurs in this setter.
      */
     LightFacade setShadowQuality(int quality);
-    /** Target request (256, 512 or 1024); changing it requires resource preparation. */
+
+    /**
+     * Target request (256, 512 or 1024); changing it requires resource preparation.
+     */
     int shadowResolution();
 }

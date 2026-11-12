@@ -12,7 +12,9 @@ import games.pixscape.runtime.loading.FileAvailabilityService;
 
 import java.util.*;
 
-/** INTERNAL, GL-free staged file discovery. The Scene plan, not this helper, owns resources. */
+/**
+ * INTERNAL, GL-free staged file discovery. The Scene plan, not this helper, owns resources.
+ */
 public final class SceneHudFiles {
     private final FileAvailabilityService availability;
     private final FileHandle project;
@@ -41,7 +43,8 @@ public final class SceneHudFiles {
                 try {
                     release();
                 } catch (RuntimeException cleanupFailure) {
-                    if (Gdx.app != null) Gdx.app.error("PixscapeHud", "HUD file acquisition cleanup failed.", cleanupFailure);
+                    if (Gdx.app != null)
+                        Gdx.app.error("PixscapeHud", "HUD file acquisition cleanup failed.", cleanupFailure);
                 }
                 throw failure;
             }
@@ -83,7 +86,8 @@ public final class SceneHudFiles {
                 }
                 if (requirements.requiresSkin()) {
                     String skinId = HudResourceId.normalizeOptional(screen.asset.skinId, "skinId");
-                    if (skinId == null) throw new IllegalArgumentException("Scene HUD " + screen.id + " requires skinId.");
+                    if (skinId == null)
+                        throw new IllegalArgumentException("Scene HUD " + screen.id + " requires skinId.");
                     if (!skins.containsKey(skinId)) {
                         skins.put(skinId, false);
                         request(skinId);
@@ -95,11 +99,13 @@ public final class SceneHudFiles {
         for (Map.Entry<String, Boolean> skin : skins.entrySet()) {
             if (skin.getValue() || !available(skin.getKey())) continue;
             JsonValue json = new JsonReader().parse(file(skin.getKey()));
-            if (!json.isObject()) throw new IllegalArgumentException("Scene HUD Skin must be an object: " + skin.getKey());
+            if (!json.isObject())
+                throw new IllegalArgumentException("Scene HUD Skin must be an object: " + skin.getKey());
             for (JsonValue section = json.child; section != null; section = section.next) {
                 if (!"BitmapFont".equals(section.name)
                         && !"com.badlogic.gdx.graphics.g2d.BitmapFont".equals(section.name)) continue;
-                if (!section.isObject()) throw new IllegalArgumentException("Invalid BitmapFont section: " + skin.getKey());
+                if (!section.isObject())
+                    throw new IllegalArgumentException("Invalid BitmapFont section: " + skin.getKey());
                 for (JsonValue font = section.child; font != null; font = font.next) {
                     JsonValue descriptor = font.isObject() ? font.get("file") : null;
                     if (descriptor == null || !descriptor.isString() || descriptor.asString().trim().length() == 0) {
@@ -130,7 +136,10 @@ public final class SceneHudFiles {
         return Collections.unmodifiableSet(bitmapFontAssetIds);
     }
 
-    public int fileCount() { return files.size(); }
+    public int fileCount() {
+        return files.size();
+    }
+
     public int completeFileCount() {
         int count = 0;
         for (String id : files) if (available(id)) count++;
@@ -156,10 +165,14 @@ public final class SceneHudFiles {
             files.add(id);
         }
     }
+
     private boolean available(String id) {
         return id != null && availability.isFileAvailable(project.child(id).path());
     }
-    private FileHandle file(String id) { return availability.file(project.child(id).path()); }
+
+    private FileHandle file(String id) {
+        return availability.file(project.child(id).path());
+    }
 
     private static final class Screen {
         final String id;
@@ -167,6 +180,7 @@ public final class SceneHudFiles {
         HudScreenAsset asset;
         String documentId;
         boolean expanded;
+
         Screen(String id) {
             this.id = id;
             assetId = id + HudScreenAsset.EXTENSION;

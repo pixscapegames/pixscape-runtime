@@ -129,7 +129,9 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
         }
     }
 
-    /** Runs persistent geometry preparation without advancing the normal World pipeline. */
+    /**
+     * Runs persistent geometry preparation without advancing the normal World pipeline.
+     */
     public void prepareRuntimeAvailability() {
         processSystemInternal();
     }

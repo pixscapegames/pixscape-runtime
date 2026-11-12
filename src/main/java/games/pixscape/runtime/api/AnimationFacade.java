@@ -46,7 +46,7 @@ public interface AnimationFacade {
      * default clip and fps while preserving playback and loop state.
      *
      * @throws IllegalArgumentException when the animation is unknown, unavailable, or not owned
-     * by this entity; the previous animation state remains unchanged
+     *                                  by this entity; the previous animation state remains unchanged
      */
     AnimationFacade setAnimation(int assetId);
 
@@ -55,7 +55,7 @@ public interface AnimationFacade {
      * default clip and fps while preserving playback and loop state.
      *
      * @throws IllegalArgumentException when the animation is unknown, unavailable, or not owned
-     * by this entity; the previous animation state remains unchanged
+     *                                  by this entity; the previous animation state remains unchanged
      */
     AnimationFacade setAnimation(String animationName);
 
@@ -63,7 +63,7 @@ public interface AnimationFacade {
      * Selects and starts an existing clip.
      *
      * @throws IllegalArgumentException when the clip name is blank or unknown; the previous
-     * animation state remains unchanged
+     *                                  animation state remains unchanged
      */
     AnimationFacade play(String clipName);
 
@@ -71,7 +71,7 @@ public interface AnimationFacade {
      * Atomically selects an owned animation and starts one of its clips.
      *
      * @throws IllegalArgumentException when the animation or clip is unknown, the animation is
-     * unavailable, or the animation is not owned by this entity; previous state remains unchanged
+     *                                  unavailable, or the animation is not owned by this entity; previous state remains unchanged
      */
     AnimationFacade play(int animationAssetId, String clipName);
 
@@ -79,7 +79,7 @@ public interface AnimationFacade {
      * Atomically selects an owned animation and starts one of its clips.
      *
      * @throws IllegalArgumentException when the animation or clip is unknown, the animation is
-     * unavailable, or the animation is not owned by this entity; previous state remains unchanged
+     *                                  unavailable, or the animation is not owned by this entity; previous state remains unchanged
      */
     AnimationFacade play(String animationName, String clipName);
 
@@ -87,7 +87,7 @@ public interface AnimationFacade {
      * Selects an existing clip and resets its frame and playback time.
      *
      * @throws IllegalArgumentException when the clip name is blank or unknown; the previous
-     * animation state remains unchanged
+     *                                  animation state remains unchanged
      */
     AnimationFacade setClip(String clipName);
 

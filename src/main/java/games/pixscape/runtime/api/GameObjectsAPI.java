@@ -27,9 +27,9 @@ public interface GameObjectsAPI {
      * @param y    world-space Y coordinate of the new root
      * @return an incarnation-safe handle for the newly spawned instance
      * @throws IllegalArgumentException if either position coordinate is not finite
-     * @throws IllegalStateException if physical creation is required while Box2D is locked;
-     *         this is checked before allocating entities or identities. Use {@link #spawnDeferred}
-     *         from contact callbacks instead. Assets without physics remain allowed.
+     * @throws IllegalStateException    if physical creation is required while Box2D is locked;
+     *                                  this is checked before allocating entities or identities. Use {@link #spawnDeferred}
+     *                                  from contact callbacks instead. Assets without physics remain allowed.
      */
     GameObjectInstance spawn(String name, float x, float y);
 
@@ -51,7 +51,7 @@ public interface GameObjectsAPI {
      * enqueue further requests; this API, like the engine, is not thread-safe.</p>
      *
      * @throws IllegalArgumentException if either callback is null
-     * @throws IllegalStateException if no scene is READY when the request is submitted
+     * @throws IllegalStateException    if no scene is READY when the request is submitted
      */
     void spawnDeferred(String name, float x, float y,
                        Consumer<GameObjectInstance> success, Consumer<Throwable> failure);

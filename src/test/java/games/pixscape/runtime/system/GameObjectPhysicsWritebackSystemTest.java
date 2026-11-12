@@ -21,7 +21,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-/** Runtime P1 coverage for authored hierarchy push and native parent-first writeback. */
+/**
+ * Runtime P1 coverage for authored hierarchy push and native parent-first writeback.
+ */
 public class GameObjectPhysicsWritebackSystemTest {
     private static final float EPSILON = 0.0001f;
 

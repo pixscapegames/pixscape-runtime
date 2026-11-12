@@ -148,7 +148,8 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             int start = tiledState.visibleMapRefStart(source);
             int refCount = tiledState.visibleMapRefCount(source);
             TiledRenderOrder prepared = tiledState.visibleMapPreparedOrder(source);
-            if (prepared != null && prepared.isPrepared()) prepared.filterVisible(tiledState, visibleRefs, start, refCount);
+            if (prepared != null && prepared.isPrepared())
+                prepared.filterVisible(tiledState, visibleRefs, start, refCount);
             else sortTiledRefSlice(visibleRefs, start, refCount);
             for (int refOffset = 0; refOffset < refCount; refOffset++) {
                 int ref = visibleRefs[start + refOffset];

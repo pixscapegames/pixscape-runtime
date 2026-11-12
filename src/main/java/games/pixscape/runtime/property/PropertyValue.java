@@ -102,7 +102,9 @@ public final class PropertyValue {
         return type;
     }
 
-    /** Preserves a non-editable Tiled value without coercing it to a STRING property. */
+    /**
+     * Preserves a non-editable Tiled value without coercing it to a STRING property.
+     */
     public static PropertyValue ofImported(String type, String customType, String sourceXml) {
         PropertyValue value = new PropertyValue(PropertyType.IMPORTED);
         value.importedType = type;
@@ -115,9 +117,20 @@ public final class PropertyValue {
     public ImportedProperty asImported() {
         requireType(PropertyType.IMPORTED);
         if (importedView == null) importedView = new ImportedProperty() {
-            @Override public String typeName() { return importedType; }
-            @Override public String customTypeName() { return importedCustomType; }
-            @Override public String sourceXml() { return stringValue; }
+            @Override
+            public String typeName() {
+                return importedType;
+            }
+
+            @Override
+            public String customTypeName() {
+                return importedCustomType;
+            }
+
+            @Override
+            public String sourceXml() {
+                return stringValue;
+            }
         };
         return importedView;
     }
@@ -313,32 +326,63 @@ public final class PropertyValue {
             this.properties = properties;
         }
 
-        @Override public int size() { return properties.size(); }
-        @Override public boolean isEmpty() { return properties.isEmpty(); }
-        @Override public boolean contains(String name) { return properties.contains(name); }
-        @Override public PropertyType typeOf(String name) { return properties.typeOf(name); }
-        @Override public String getString(String name, String fallback) {
+        @Override
+        public int size() {
+            return properties.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return properties.isEmpty();
+        }
+
+        @Override
+        public boolean contains(String name) {
+            return properties.contains(name);
+        }
+
+        @Override
+        public PropertyType typeOf(String name) {
+            return properties.typeOf(name);
+        }
+
+        @Override
+        public String getString(String name, String fallback) {
             return properties.getString(name, fallback);
         }
-        @Override public boolean getBoolean(String name, boolean fallback) {
+
+        @Override
+        public boolean getBoolean(String name, boolean fallback) {
             return properties.getBoolean(name, fallback);
         }
-        @Override public int getInt(String name, int fallback) {
+
+        @Override
+        public int getInt(String name, int fallback) {
             return properties.getInt(name, fallback);
         }
-        @Override public float getFloat(String name, float fallback) {
+
+        @Override
+        public float getFloat(String name, float fallback) {
             return properties.getFloat(name, fallback);
         }
-        @Override public int getColorRgba8888(String name, int fallback) {
+
+        @Override
+        public int getColorRgba8888(String name, int fallback) {
             return properties.getColorRgba8888(name, fallback);
         }
-        @Override public int getObjectStableId(String name, int fallback) {
+
+        @Override
+        public int getObjectStableId(String name, int fallback) {
             return properties.getObjectStableId(name, fallback);
         }
-        @Override public ClassProperty getClassValue(String name) {
+
+        @Override
+        public ClassProperty getClassValue(String name) {
             return properties.getClassValue(name);
         }
-        @Override public ImportedProperty getImportedValue(String name) {
+
+        @Override
+        public ImportedProperty getImportedValue(String name) {
             return properties.getImportedValue(name);
         }
     }

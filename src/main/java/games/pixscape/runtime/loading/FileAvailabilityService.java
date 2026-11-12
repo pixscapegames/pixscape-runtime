@@ -30,7 +30,9 @@ public final class FileAvailabilityService implements AutoCloseable {
     private final ObjectMap<String, Request> requests = new ObjectMap<>();
     private boolean disposed;
 
-    /** Creates a standalone service with an internally owned manager. */
+    /**
+     * Creates a standalone service with an internally owned manager.
+     */
     public FileAvailabilityService() {
         this(new AssetManager(new InternalFileHandleResolver()), true);
     }
@@ -55,7 +57,9 @@ public final class FileAvailabilityService implements AutoCloseable {
         release(path, AvailableFile.class);
     }
 
-    /** Acquires one Pixscape lease for the normalized key and required type. */
+    /**
+     * Acquires one Pixscape lease for the normalized key and required type.
+     */
     public <T> void request(String path, Class<T> type) {
         requireOpen();
         final String normalized = normalizePath(path);
@@ -90,7 +94,9 @@ public final class FileAvailabilityService implements AutoCloseable {
         }
     }
 
-    /** Releases one Pixscape lease and unloads only Pixscape's acquired reference. */
+    /**
+     * Releases one Pixscape lease and unloads only Pixscape's acquired reference.
+     */
     public void release(String path, Class<?> type) {
         requireOpen();
         String normalized = normalizePath(path);
@@ -105,7 +111,9 @@ public final class FileAvailabilityService implements AutoCloseable {
         unloadRequest(request);
     }
 
-    /** Advances the shared manager once and reports Pixscape-scoped completion. */
+    /**
+     * Advances the shared manager once and reports Pixscape-scoped completion.
+     */
     public boolean update() {
         requireOpen();
         assetManager.update();
@@ -113,7 +121,9 @@ public final class FileAvailabilityService implements AutoCloseable {
         return isComplete();
     }
 
-    /** Deterministic item-based progress for Pixscape requests only. */
+    /**
+     * Deterministic item-based progress for Pixscape requests only.
+     */
     public float progress() {
         requireOpen();
         if (requests.size == 0) return 1f;
@@ -146,7 +156,9 @@ public final class FileAvailabilityService implements AutoCloseable {
         return request != null && request.type == type && request.acquired;
     }
 
-    /** Returns the exact manager-owned resource. The caller does not own disposal. */
+    /**
+     * Returns the exact manager-owned resource. The caller does not own disposal.
+     */
     public <T> T get(String path, Class<T> type) {
         requireOpen();
         String normalized = normalizePath(path);
@@ -288,7 +300,7 @@ public final class FileAvailabilityService implements AutoCloseable {
 
         @Override
         public Array<AssetDescriptor> getDependencies(String fileName, FileHandle file,
-                AssetLoaderParameters<AvailableFile> parameter) {
+                                                      AssetLoaderParameters<AvailableFile> parameter) {
             return null;
         }
     }

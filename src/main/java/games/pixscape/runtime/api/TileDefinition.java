@@ -7,12 +7,23 @@ package games.pixscape.runtime.api;
  * remains readable after project replacement; resolve again to read the new project's data.
  */
 public interface TileDefinition {
-    /** Project asset ID of the owning tileset (also shown in the Studio selection context). */
+    /**
+     * Project asset ID of the owning tileset (also shown in the Studio selection context).
+     */
     int tilesetId();
-    /** Original Tiled ID within that tileset, including zero and gaps. Never a GID. */
+
+    /**
+     * Original Tiled ID within that tileset, including zero and gaps. Never a GID.
+     */
     int localId();
-    /** Logical Pixscape tile asset ID used by {@link TileEditFacade#set(int, int, int)}. */
+
+    /**
+     * Logical Pixscape tile asset ID used by {@link TileEditFacade#set(int, int, int)}.
+     */
     int assetId();
-    /** Always non-null; typed getters follow {@link CustomProperties}' absence/type rules. */
+
+    /**
+     * Always non-null; typed getters follow {@link CustomProperties}' absence/type rules.
+     */
     CustomProperties properties();
 }

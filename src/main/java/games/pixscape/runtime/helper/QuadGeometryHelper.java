@@ -29,7 +29,9 @@ public final class QuadGeometryHelper {
                 out8);
     }
 
-    /** Writes corners using an explicitly resolved world scale. */
+    /**
+     * Writes corners using an explicitly resolved world scale.
+     */
     public static void toWorldCorners(OrientedBoundsComponent bounds,
                                       TransformComponent transform,
                                       QuadDeformComponent deform,

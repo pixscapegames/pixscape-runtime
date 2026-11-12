@@ -6,7 +6,9 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
 
-/** Deterministic, GL-free JSON reader/writer for the strict version-2 HUD document. */
+/**
+ * Deterministic, GL-free JSON reader/writer for the strict version-2 HUD document.
+ */
 public final class HudDocumentCodec {
     private static final String MEMORY_SOURCE = "<memory>";
 
@@ -140,7 +142,7 @@ public final class HudDocumentCodec {
     }
 
     private static HudDocumentLoadException failure(HudDocumentLoadCode code, String source,
-                                                     String message, Throwable cause) {
+                                                    String message, Throwable cause) {
         return new HudDocumentLoadException(code, source, message, cause);
     }
 }

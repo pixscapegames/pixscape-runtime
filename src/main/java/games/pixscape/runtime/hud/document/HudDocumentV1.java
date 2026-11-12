@@ -13,7 +13,9 @@ public final class HudDocumentV1 {
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public HudNode root;
 
-    /** Required by libGDX Json. */
+    /**
+     * Required by libGDX Json.
+     */
     public HudDocumentV1() {
     }
 

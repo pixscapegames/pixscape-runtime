@@ -13,7 +13,9 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-/** Reusable world targets. Prepare at the frame boundary, never during queue submission. */
+/**
+ * Reusable world targets. Prepare at the frame boundary, never during queue submission.
+ */
 public final class WorldLightComposition implements Disposable {
     private final IntBuffer integers = BufferUtils.newIntBuffer(4);
     private final FloatBuffer zeroColor = BufferUtils.newFloatBuffer(4);
@@ -26,8 +28,10 @@ public final class WorldLightComposition implements Disposable {
     private int blendSrc, blendDst, blendSrcAlpha, blendDstAlpha, blendEquation, blendEquationAlpha;
 
     public void prepare() {
-        if (Gdx.gl30 == null) throw new IllegalStateException("World light composition requires GL3 / GLES3 / WebGL2 and blendable RGBA16F");
-        integers.clear(); Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
+        if (Gdx.gl30 == null)
+            throw new IllegalStateException("World light composition requires GL3 / GLES3 / WebGL2 and blendable RGBA16F");
+        integers.clear();
+        Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
         if (shader != null && original != null && width == Math.max(1, integers.get(2))
                 && height == Math.max(1, integers.get(3))) return;
         saveTarget();
@@ -45,8 +49,8 @@ public final class WorldLightComposition implements Disposable {
                 if (!shader.isCompiled()) throw new IllegalStateException(shader.getLog());
                 quad = new Mesh(true, 4, 6, VertexAttribute.Position(), VertexAttribute.TexCoords(0));
                 // Position() has three components.
-                quad.setVertices(new float[]{-1,-1,0,0,0, -1,1,0,0,1, 1,1,0,1,1, 1,-1,0,1,0});
-                quad.setIndices(new short[]{0,1,2,2,3,0});
+                quad.setVertices(new float[]{-1, -1, 0, 0, 0, -1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, -1, 0, 1, 0});
+                quad.setIndices(new short[]{0, 1, 2, 2, 3, 0});
                 allocate(1, 1);
                 verifyFloatBlending();
             }
@@ -55,7 +59,10 @@ public final class WorldLightComposition implements Disposable {
         } catch (RuntimeException | Error failure) {
             dispose();
             throw failure;
-        } finally { restoreTarget(); restoreBlend(); }
+        } finally {
+            restoreTarget();
+            restoreBlend();
+        }
     }
 
     private void allocate(int w, int h) {
@@ -81,117 +88,216 @@ public final class WorldLightComposition implements Disposable {
         if (original != null) original.dispose();
         if (field != null) field.dispose();
         if (ambientContribution != null) ambientContribution.dispose();
-        original = nextOriginal; field = nextField; ambientContribution = nextContribution; width = w; height = h;
+        original = nextOriginal;
+        field = nextField;
+        ambientContribution = nextContribution;
+        width = w;
+        height = h;
     }
 
-    /** Cold numerical check: unclamped accumulation, alpha masking, then RGBA8 readback. */
+    /**
+     * Cold numerical check: unclamped accumulation, alpha masking, then RGBA8 readback.
+     */
     private void verifyFloatBlending() {
         bindAndClear(field);
-        shader.bind(); shader.setUniformi("u_probe", 1);
-        shader.setUniformi("u_original", 0); shader.setUniformi("u_field", 1);
-        shader.setUniformi("u_ambientContribution", 0);shader.setUniformi("u_hasAmbientContribution", 0);
+        shader.bind();
+        shader.setUniformi("u_probe", 1);
+        shader.setUniformi("u_original", 0);
+        shader.setUniformi("u_field", 1);
+        shader.setUniformi("u_ambientContribution", 0);
+        shader.setUniformi("u_hasAmbientContribution", 0);
         // WebGL rejects attachment feedback even when a dynamic shader branch does not sample it.
-        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
-        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE1); Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE1);
+        Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
         shader.setUniformf("u_probeColor", .75f, .5f, .25f, .5f);
-        Gdx.gl.glEnable(GL20.GL_BLEND); Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE);
-        draw(); draw();
-        Gdx.gl.glBlendFunc(GL20.GL_ZERO, GL20.GL_ONE_MINUS_SRC_ALPHA); draw();
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE);
+        draw();
+        draw();
+        Gdx.gl.glBlendFunc(GL20.GL_ZERO, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        draw();
         bindAndClear(original);
         Gdx.gl.glDisable(GL20.GL_BLEND);
-        shader.bind(); shader.setUniformi("u_probe", 2); shader.setUniformi("u_field", 1);
-        field.getColorBufferTexture().bind(1); draw();
+        shader.bind();
+        shader.setUniformi("u_probe", 2);
+        shader.setUniformi("u_field", 1);
+        field.getColorBufferTexture().bind(1);
+        draw();
         ByteBuffer pixel = BufferUtils.newByteBuffer(4);
         Gdx.gl.glReadPixels(0, 0, 1, 1, GL20.GL_RGBA, GL20.GL_UNSIGNED_BYTE, pixel);
         if (Math.abs((pixel.get(0) & 255) - 96) > 2 || Math.abs((pixel.get(1) & 255) - 64) > 2
                 || Math.abs((pixel.get(2) & 255) - 32) > 2 || Gdx.gl.glGetError() != GL20.GL_NO_ERROR) {
             throw new IllegalStateException("RGBA16F render / additive blend / alpha mask verification failed; no fallback");
         }
-        shader.bind(); shader.setUniformi("u_probe", 0);
+        shader.bind();
+        shader.setUniformi("u_probe", 0);
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
     }
 
     public void beginOriginal() {
         if (original == null) throw new IllegalStateException("prepare() must run before world submission");
-        saveTarget(); active = true; hasAmbientContribution = false; bindAndClear(original);
+        saveTarget();
+        active = true;
+        hasAmbientContribution = false;
+        bindAndClear(original);
     }
-    /** Exactly one ordered visual contribution pass, after the existing light field. */
+
+    /**
+     * Exactly one ordered visual contribution pass, after the existing light field.
+     */
     public void beginAmbientContribution() {
-        if (!active || hasAmbientContribution) throw new IllegalStateException("Ambient contribution requires one active world submission");
-        hasAmbientContribution = true; bindAndClear(ambientContribution);
+        if (!active || hasAmbientContribution)
+            throw new IllegalStateException("Ambient contribution requires one active world submission");
+        hasAmbientContribution = true;
+        bindAndClear(ambientContribution);
     }
-    public void beginField() { bindAndClear(field); }
-    public Texture originalTexture() { return original.getColorBufferTexture(); }
-    public int targetWidth() { return width; }
-    public int targetHeight() { return height; }
-    /** Rebind the HDR field without clearing between independent light contributions. */
+
+    public void beginField() {
+        bindAndClear(field);
+    }
+
+    public Texture originalTexture() {
+        return original.getColorBufferTexture();
+    }
+
+    public int targetWidth() {
+        return width;
+    }
+
+    public int targetHeight() {
+        return height;
+    }
+
+    /**
+     * Rebind the HDR field without clearing between independent light contributions.
+     */
     public void resumeField() {
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, field.getFramebufferHandle());
-        Gdx.gl.glViewport(0,0,width,height); Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glViewport(0, 0, width, height);
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
 
     public void compose(float r, float g, float b, RenderStats stats) {
         restoreTarget();
-        original.getColorBufferTexture().bind(0); field.getColorBufferTexture().bind(1);
-        shader.bind(); shader.setUniformi("u_original", 0); shader.setUniformi("u_field", 1);
-        shader.setUniformi("u_probe", 0); shader.setUniformf("u_ambient", r, g, b);
+        original.getColorBufferTexture().bind(0);
+        field.getColorBufferTexture().bind(1);
+        shader.bind();
+        shader.setUniformi("u_original", 0);
+        shader.setUniformi("u_field", 1);
+        shader.setUniformi("u_probe", 0);
+        shader.setUniformf("u_ambient", r, g, b);
         // Inactive frames never bind/sample the previous contribution target.
         shader.setUniformi("u_hasAmbientContribution", hasAmbientContribution ? 1 : 0);
         shader.setUniformi("u_ambientContribution", hasAmbientContribution ? 2 : 0);
         if (hasAmbientContribution) ambientContribution.getColorBufferTexture().bind(2);
         // The original buffer contains premultiplied RGB and independent world coverage.
-        Gdx.gl.glEnable(GL20.GL_BLEND); Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
         Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        draw(); Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        draw();
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
         restoreBlend();
         active = false;
         if (stats != null) {
-            stats.drawCalls++; stats.presentationDraws++;stats.drawnIndices+=6;stats.textureBinds += hasAmbientContribution ? 3 : 2; stats.shaderBinds++;
-            stats.framebufferBinds += hasAmbientContribution ? 4 : 3; stats.framebufferSwitches += hasAmbientContribution ? 4 : 3;
+            stats.drawCalls++;
+            stats.presentationDraws++;
+            stats.drawnIndices += 6;
+            stats.textureBinds += hasAmbientContribution ? 3 : 2;
+            stats.shaderBinds++;
+            stats.framebufferBinds += hasAmbientContribution ? 4 : 3;
+            stats.framebufferSwitches += hasAmbientContribution ? 4 : 3;
         }
     }
 
-    private void draw() { quad.render(shader, GL20.GL_TRIANGLES, 0, 6); }
+    private void draw() {
+        quad.render(shader, GL20.GL_TRIANGLES, 0, 6);
+    }
+
     private void bindAndClear(FrameBuffer buffer) {
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, buffer.getFramebufferHandle());
-        Gdx.gl.glViewport(0, 0, width, height); Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glViewport(0, 0, width, height);
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
         // GL3/GLES3/WebGL2 attachment clear leaves the caller's clear color untouched.
         // LibGDX's WebGL backend cannot query that color with glGetFloatv.
-        zeroColor.clear(); Gdx.gl30.glClearBufferfv(GL30.GL_COLOR, 0, zeroColor);
+        zeroColor.clear();
+        Gdx.gl30.glClearBufferfv(GL30.GL_COLOR, 0, zeroColor);
     }
+
     private void saveTarget() {
-        integers.clear(); Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING, integers); framebuffer = integers.get(0);
-        integers.clear(); Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
+        integers.clear();
+        Gdx.gl.glGetIntegerv(GL20.GL_FRAMEBUFFER_BINDING, integers);
+        framebuffer = integers.get(0);
+        integers.clear();
+        Gdx.gl.glGetIntegerv(GL20.GL_VIEWPORT, integers);
         for (int i = 0; i < 4; i++) viewport[i] = integers.get(i);
         scissor = Gdx.gl.glIsEnabled(GL20.GL_SCISSOR_TEST);
         // Lighting restores the scissor box before returning; this scope owns its enable state.
-        blend=Gdx.gl.glIsEnabled(GL20.GL_BLEND);
-        blendSrc=readInteger(GL20.GL_BLEND_SRC_RGB);blendDst=readInteger(GL20.GL_BLEND_DST_RGB);
-        blendSrcAlpha=readInteger(GL20.GL_BLEND_SRC_ALPHA);blendDstAlpha=readInteger(GL20.GL_BLEND_DST_ALPHA);
-        blendEquation=readInteger(GL20.GL_BLEND_EQUATION_RGB);blendEquationAlpha=readInteger(GL20.GL_BLEND_EQUATION_ALPHA);
+        blend = Gdx.gl.glIsEnabled(GL20.GL_BLEND);
+        blendSrc = readInteger(GL20.GL_BLEND_SRC_RGB);
+        blendDst = readInteger(GL20.GL_BLEND_DST_RGB);
+        blendSrcAlpha = readInteger(GL20.GL_BLEND_SRC_ALPHA);
+        blendDstAlpha = readInteger(GL20.GL_BLEND_DST_ALPHA);
+        blendEquation = readInteger(GL20.GL_BLEND_EQUATION_RGB);
+        blendEquationAlpha = readInteger(GL20.GL_BLEND_EQUATION_ALPHA);
     }
+
     private void restoreTarget() {
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, framebuffer);
         Gdx.gl.glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-        if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST); else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+        if (scissor) Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        else Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
-    private int readInteger(int name){integers.clear();Gdx.gl.glGetIntegerv(name,integers);return integers.get(0);}
-    private void restoreBlend(){
-        Gdx.gl.glBlendEquationSeparate(blendEquation,blendEquationAlpha);
-        Gdx.gl.glBlendFuncSeparate(blendSrc,blendDst,blendSrcAlpha,blendDstAlpha);
-        if(blend)Gdx.gl.glEnable(GL20.GL_BLEND);else Gdx.gl.glDisable(GL20.GL_BLEND);
+
+    private int readInteger(int name) {
+        integers.clear();
+        Gdx.gl.glGetIntegerv(name, integers);
+        return integers.get(0);
     }
-    public void end() { if (active) { restoreTarget(); restoreBlend(); active = false; } }
+
+    private void restoreBlend() {
+        Gdx.gl.glBlendEquationSeparate(blendEquation, blendEquationAlpha);
+        Gdx.gl.glBlendFuncSeparate(blendSrc, blendDst, blendSrcAlpha, blendDstAlpha);
+        if (blend) Gdx.gl.glEnable(GL20.GL_BLEND);
+        else Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    public void end() {
+        if (active) {
+            restoreTarget();
+            restoreBlend();
+            active = false;
+        }
+    }
+
     public void end(Throwable failure) {
-        if (failure == null) { end(); return; }
-        try { end(); }
-        catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
+        if (failure == null) {
+            end();
+            return;
+        }
+        try {
+            end();
+        } catch (RuntimeException | Error cleanup) {
+            failure.addSuppressed(cleanup);
+        }
     }
-    public long textureBytes() { return (long) width * height * 20; }
+
+    public long textureBytes() {
+        return (long) width * height * 20;
+    }
+
     public void dispose() {
-        end(); if (original != null) original.dispose(); if (field != null) field.dispose();
+        end();
+        if (original != null) original.dispose();
+        if (field != null) field.dispose();
         if (ambientContribution != null) ambientContribution.dispose();
-        if (quad != null) quad.dispose(); if (shader != null) shader.dispose();
-        original = field = ambientContribution = null; quad = null; shader = null; width = height = 0; hasAmbientContribution = false;
+        if (quad != null) quad.dispose();
+        if (shader != null) shader.dispose();
+        original = field = ambientContribution = null;
+        quad = null;
+        shader = null;
+        width = height = 0;
+        hasAmbientContribution = false;
     }
 }

@@ -3,11 +3,16 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 
-/** Stable identity and native style for the built-in HUD ProgressBar. */
+/**
+ * Stable identity and native style for the built-in HUD ProgressBar.
+ */
 public final class HudBuiltInProgressBarStyle {
-    private HudBuiltInProgressBarStyle() { }
+    private HudBuiltInProgressBarStyle() {
+    }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }

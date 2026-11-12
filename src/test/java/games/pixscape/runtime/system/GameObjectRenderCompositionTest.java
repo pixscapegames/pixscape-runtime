@@ -37,7 +37,9 @@ public class GameObjectRenderCompositionTest {
             f.world.getMapper(GameObjectMemberComponent.class).remove(replacement);
             f.process();
             Assert.assertEquals(-1, f.composition.state().orderedFirstChildEntityId[left]);
-        } finally { f.world.dispose(); }
+        } finally {
+            f.world.dispose();
+        }
     }
 
     @Test

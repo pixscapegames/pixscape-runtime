@@ -2,7 +2,9 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Allocation-free primitive geometry and validation rules for authored rectangular walls. */
+/**
+ * Allocation-free primitive geometry and validation rules for authored rectangular walls.
+ */
 public final class SpatialWallGeometry {
     public static final float GEOMETRY_EPSILON = 0.0001f;
 
@@ -33,7 +35,9 @@ public final class SpatialWallGeometry {
         EMPTY_MAP_CELL
     }
 
-    /** Mutable caller-owned output for continuous exclusive footprint bounds. */
+    /**
+     * Mutable caller-owned output for continuous exclusive footprint bounds.
+     */
     public static final class Bounds {
         public float minX;
         public float maxX;
@@ -41,7 +45,9 @@ public final class SpatialWallGeometry {
         public float maxY;
     }
 
-    /** Mutable caller-owned output for the strict integer linked-cell rectangle. */
+    /**
+     * Mutable caller-owned output for the strict integer linked-cell rectangle.
+     */
     public static final class LinkedCellBounds {
         public int minGx;
         public int maxGxExclusive;
@@ -49,7 +55,9 @@ public final class SpatialWallGeometry {
         public int maxGyExclusive;
     }
 
-    /** Mutable caller-owned output for pairwise junction classification and bounds. */
+    /**
+     * Mutable caller-owned output for pairwise junction classification and bounds.
+     */
     public static final class Junction {
         public JunctionClassification classification = JunctionClassification.INVALID;
         public float minX;
@@ -101,10 +109,10 @@ public final class SpatialWallGeometry {
     }
 
     public static JunctionClassification classifyJunction(SpatialBlockData a,
-                                                           SpatialBlockData b,
-                                                           Bounds aBounds,
-                                                           Bounds bBounds,
-                                                           Junction out) {
+                                                          SpatialBlockData b,
+                                                          Bounds aBounds,
+                                                          Bounds bBounds,
+                                                          Junction out) {
         if (out == null || !extractBounds(a, aBounds) || !extractBounds(b, bBounds)) {
             if (out != null) out.classification = JunctionClassification.INVALID;
             return JunctionClassification.INVALID;
@@ -126,8 +134,8 @@ public final class SpatialWallGeometry {
     }
 
     public static CoverageValidation validateAuthoredWall(SpatialBlockData wall,
-                                                           TiledMapLayerData map,
-                                                           Bounds bounds) {
+                                                          TiledMapLayerData map,
+                                                          Bounds bounds) {
         if (wall == null) return CoverageValidation.MISSING_WALL;
         if (wall.id <= 0) return CoverageValidation.INVALID_BLOCK_ID;
         if (wall.structureId <= 0) return CoverageValidation.INVALID_STRUCTURE_ID;
@@ -189,7 +197,9 @@ public final class SpatialWallGeometry {
         return true;
     }
 
-    /** Lightweight runtime guard for consumers that only resolve authored anchor refs. */
+    /**
+     * Lightweight runtime guard for consumers that only resolve authored anchor refs.
+     */
     public static boolean hasUniqueLinkedTileRefs(SpatialBlockData wall) {
         if (wall == null || wall.linkedTileRefs == null || wall.linkedTileRefs.size == 0) return false;
         for (int i = 0; i < wall.linkedTileRefs.size; i++) {

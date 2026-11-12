@@ -60,7 +60,9 @@ public final class GLCaps {
         return es3;
     }
 
-    /** Validates a complete fixed-size TextureArray before GPU allocation. */
+    /**
+     * Validates a complete fixed-size TextureArray before GPU allocation.
+     */
     public void validateTextureArray(int width, int height, int requiredLayers) {
         if (!supportsTextureArray()) {
             throw new IllegalStateException(

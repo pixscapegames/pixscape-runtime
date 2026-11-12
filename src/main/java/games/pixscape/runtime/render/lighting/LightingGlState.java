@@ -5,13 +5,16 @@ import com.badlogic.gdx.graphics.GL20;
 
 import java.nio.IntBuffer;
 
-/** Native state queries; GWT supersource uses the equivalent WebGL queries. */
+/**
+ * Native state queries; GWT supersource uses the equivalent WebGL queries.
+ */
 public final class LightingGlState {
     static void readScissor(IntBuffer scratch, int[] bounds) {
         scratch.clear();
         Gdx.gl.glGetIntegerv(GL20.GL_SCISSOR_BOX, scratch);
         for (int i = 0; i < 4; i++) bounds[i] = scratch.get(i);
     }
+
     public static int readDepthWriteMask(IntBuffer scratch) {
         scratch.clear();
         Gdx.gl.glGetIntegerv(GL20.GL_DEPTH_WRITEMASK, scratch);

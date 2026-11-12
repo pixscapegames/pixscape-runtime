@@ -82,7 +82,8 @@ public class ParticleRuntimeAvailabilityTest {
         Assert.assertEquals(0, availability.obtainCount());
     }
 
-    @Test public void reserveAllocatesRealEffectsAndParticlesThenGrowsAndReusesWithoutParsing() throws Exception {
+    @Test
+    public void reserveAllocatesRealEffectsAndParticlesThenGrowsAndReusesWithoutParsing() throws Exception {
         FileHandle file = fixture("libgdx-standard.p");
         AtlasRuntimeService atlases = new AtlasRuntimeService();
         atlases.loadBorrowed("main", atlasWithRegion("smoke"));
@@ -107,7 +108,9 @@ public class ParticleRuntimeAvailabilityTest {
         Assert.assertEquals(0, reused.getEmitters().first().getActiveCount());
         Assert.assertFalse(reused.getEmitters().first().getAllowCompletion());
         Assert.assertEquals(1, availability.fileParseCount());
-        reused.free(); b.free(); overflow.free();
+        reused.free();
+        b.free();
+        overflow.free();
         availability.clear();
         Assert.assertFalse(availability.isPrepared("main", file.name()));
         Assert.assertThrows(IllegalStateException.class, () -> availability.obtain("main", file.name()));

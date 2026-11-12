@@ -4,7 +4,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.utils.Array;
 
-/** Upload data for prepared Pixmaps that deliberately cannot be reloaded. */
+/**
+ * Upload data for prepared Pixmaps that deliberately cannot be reloaded.
+ */
 final class OneShotPixmapTextureArrayData implements TextureArrayData {
 
     /*

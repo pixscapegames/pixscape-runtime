@@ -5,7 +5,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
-/** Compiles actor-independent lower-edge constraints into one canonical tile rank per occupied cell. */
+/**
+ * Compiles actor-independent lower-edge constraints into one canonical tile rank per occupied cell.
+ */
 public final class SpatialTileOrderCompiler {
     private static final float EPSILON = SpatialLineRelation.EPSILON;
     private static final long ORDER_CAPACITY = 1L << 30;
@@ -116,7 +118,8 @@ public final class SpatialTileOrderCompiler {
         }
         for (SpatialRoofSupports roof : SpatialRoofSupports.collect(compiled, map)) {
             int node = nodeAt(map, roof.gx, roof.gy);
-            if (node < 0) throw new SpatialTileOrderInvariantException("Unresolved roof anchor (" + roof.gx + "," + roof.gy + ").");
+            if (node < 0)
+                throw new SpatialTileOrderInvariantException("Unresolved roof anchor (" + roof.gx + "," + roof.gy + ").");
             addSegment(node, roof.structure, -1, roof.minX, roof.frontY, roof.maxX, roof.frontY);
         }
         canonicalizeSegments();
@@ -126,8 +129,12 @@ public final class SpatialTileOrderCompiler {
         anchoredNode[node] = true;
         ensureSegmentCapacity(segmentCount + 1);
         if (x2 < x1) {
-            float swap = x1; x1 = x2; x2 = swap;
-            swap = y1; y1 = y2; y2 = swap;
+            float swap = x1;
+            x1 = x2;
+            x2 = swap;
+            swap = y1;
+            y1 = y2;
+            y2 = swap;
         }
         int segment = segmentCount++;
         segmentNode[segment] = node;
@@ -163,8 +170,12 @@ public final class SpatialTileOrderCompiler {
             nextIntercept[write] = segmentIntercept[source];
             write++;
         }
-        segmentNode = nextNode; segmentStructure = nextStructure; segmentFace = nextFace;
-        segmentMinX = nextMinX; segmentMaxX = nextMaxX; segmentSlope = nextSlope;
+        segmentNode = nextNode;
+        segmentStructure = nextStructure;
+        segmentFace = nextFace;
+        segmentMinX = nextMinX;
+        segmentMaxX = nextMaxX;
+        segmentSlope = nextSlope;
         segmentIntercept = nextIntercept;
         segmentCount = write;
         for (int i = 0; i < segmentCount; i++) segmentOrder[i] = i;
@@ -326,9 +337,11 @@ public final class SpatialTileOrderCompiler {
         return size;
     }
 
-    /** Plane tiles precede ORTHO occluders, so inserting an actor before a wall never
+    /**
+     * Plane tiles precede ORTHO occluders, so inserting an actor before a wall never
      * puts a neighbouring ground column over it. Within occluders use row depth.
-     * ISO keeps its established diagonal tie rule. */
+     * ISO keeps its established diagonal tie rule.
+     */
     int compareNodes(int first, int second) {
         if (isometricOrder) {
             long firstDiagonal = (long) nodeGx[first] + nodeGy[first];
@@ -356,17 +369,38 @@ public final class SpatialTileOrderCompiler {
         edgeCount++;
     }
 
-    private int edgeFrom(int edge) { return (int) (edges[edge] >>> 32); }
-    private int edgeTo(int edge) { return (int) edges[edge]; }
-    private float lineY(int segment, float x) { return segmentSlope[segment] * x + segmentIntercept[segment]; }
-    private int sign(float value) { return value < -EPSILON ? -1 : value > EPSILON ? 1 : 0; }
-    private boolean near(float first, float second) { return Math.abs(first - second) <= EPSILON; }
+    private int edgeFrom(int edge) {
+        return (int) (edges[edge] >>> 32);
+    }
+
+    private int edgeTo(int edge) {
+        return (int) edges[edge];
+    }
+
+    private float lineY(int segment, float x) {
+        return segmentSlope[segment] * x + segmentIntercept[segment];
+    }
+
+    private int sign(float value) {
+        return value < -EPSILON ? -1 : value > EPSILON ? 1 : 0;
+    }
+
+    private boolean near(float first, float second) {
+        return Math.abs(first - second) <= EPSILON;
+    }
+
     private int nodeAt(TiledMapLayerData map, int gx, int gy) {
         return gx < 0 || gy < 0 || gx >= map.mapWidth || gy >= map.mapHeight
                 ? -1 : nodeByCell[gy * map.mapWidth + gx];
     }
-    private String anchor(int node) { return "(" + nodeGx[node] + "," + nodeGy[node] + ")"; }
-    private String segmentSource(int structure, int face) { return structure + "/" + face; }
+
+    private String anchor(int node) {
+        return "(" + nodeGx[node] + "," + nodeGy[node] + ")";
+    }
+
+    private String segmentSource(int structure, int face) {
+        return structure + "/" + face;
+    }
 
     private int compareSegments(int first, int second) {
         int result = Float.compare(segmentMinX[first], segmentMinX[second]);
@@ -387,8 +421,11 @@ public final class SpatialTileOrderCompiler {
             while (compareSegments(segmentOrder[i], pivot) < 0) i++;
             while (compareSegments(segmentOrder[j], pivot) > 0) j--;
             if (i <= j) {
-                int swap = segmentOrder[i]; segmentOrder[i] = segmentOrder[j]; segmentOrder[j] = swap;
-                i++; j--;
+                int swap = segmentOrder[i];
+                segmentOrder[i] = segmentOrder[j];
+                segmentOrder[j] = swap;
+                i++;
+                j--;
             }
         }
         if (low < j) sortSegments(low, j);
@@ -403,10 +440,17 @@ public final class SpatialTileOrderCompiler {
             while (edges[i] < pivot) i++;
             while (edges[j] > pivot) j--;
             if (i <= j) {
-                long edge = edges[i]; edges[i] = edges[j]; edges[j] = edge;
-                int value = edgeStructure[i]; edgeStructure[i] = edgeStructure[j]; edgeStructure[j] = value;
-                value = edgeFace[i]; edgeFace[i] = edgeFace[j]; edgeFace[j] = value;
-                i++; j--;
+                long edge = edges[i];
+                edges[i] = edges[j];
+                edges[j] = edge;
+                int value = edgeStructure[i];
+                edgeStructure[i] = edgeStructure[j];
+                edgeStructure[j] = value;
+                value = edgeFace[i];
+                edgeFace[i] = edgeFace[j];
+                edgeFace[j] = value;
+                i++;
+                j--;
             }
         }
         if (low < j) sortEdgesWithSources(low, j);
@@ -418,23 +462,52 @@ public final class SpatialTileOrderCompiler {
         nodeGx = new int[required];
         nodeGy = new int[required];
     }
+
     private void ensureSegmentCapacity(int required) {
         if (required <= segmentNode.length) return;
         int next = capacity(segmentNode.length, required);
-        segmentNode = grow(segmentNode, next); segmentStructure = grow(segmentStructure, next);
-        segmentFace = grow(segmentFace, next); segmentMinX = grow(segmentMinX, next);
-        segmentMaxX = grow(segmentMaxX, next); segmentSlope = grow(segmentSlope, next);
+        segmentNode = grow(segmentNode, next);
+        segmentStructure = grow(segmentStructure, next);
+        segmentFace = grow(segmentFace, next);
+        segmentMinX = grow(segmentMinX, next);
+        segmentMaxX = grow(segmentMaxX, next);
+        segmentSlope = grow(segmentSlope, next);
         segmentIntercept = grow(segmentIntercept, next);
     }
-    private void ensureSegmentOrderCapacity(int required) { if (required > segmentOrder.length) segmentOrder = new int[required]; }
-    private void ensureActiveCapacity(int required) { if (required > active.length) active = new int[required]; }
+
+    private void ensureSegmentOrderCapacity(int required) {
+        if (required > segmentOrder.length) segmentOrder = new int[required];
+    }
+
+    private void ensureActiveCapacity(int required) {
+        if (required > active.length) active = new int[required];
+    }
+
     private void ensureEdgeCapacity(int required) {
         if (required <= edges.length) return;
         int next = capacity(edges.length, required);
-        long[] expanded = new long[next]; System.arraycopy(edges, 0, expanded, 0, edges.length); edges = expanded;
-        edgeStructure = grow(edgeStructure, next); edgeFace = grow(edgeFace, next);
+        long[] expanded = new long[next];
+        System.arraycopy(edges, 0, expanded, 0, edges.length);
+        edges = expanded;
+        edgeStructure = grow(edgeStructure, next);
+        edgeFace = grow(edgeFace, next);
     }
-    private int capacity(int current, int required) { int next = Math.max(8, current); while (next < required) next <<= 1; return next; }
-    private int[] grow(int[] source, int next) { int[] out = new int[next]; System.arraycopy(source, 0, out, 0, source.length); return out; }
-    private float[] grow(float[] source, int next) { float[] out = new float[next]; System.arraycopy(source, 0, out, 0, source.length); return out; }
+
+    private int capacity(int current, int required) {
+        int next = Math.max(8, current);
+        while (next < required) next <<= 1;
+        return next;
+    }
+
+    private int[] grow(int[] source, int next) {
+        int[] out = new int[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
+
+    private float[] grow(float[] source, int next) {
+        float[] out = new float[next];
+        System.arraycopy(source, 0, out, 0, source.length);
+        return out;
+    }
 }

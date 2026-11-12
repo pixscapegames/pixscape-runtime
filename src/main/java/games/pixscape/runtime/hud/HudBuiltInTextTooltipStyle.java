@@ -7,9 +7,12 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextTooltip;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Skin-independent TextTooltip style over the existing built-in HUD resources. */
+/**
+ * Skin-independent TextTooltip style over the existing built-in HUD resources.
+ */
 public final class HudBuiltInTextTooltipStyle {
-    private HudBuiltInTextTooltipStyle() { }
+    private HudBuiltInTextTooltipStyle() {
+    }
 
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;

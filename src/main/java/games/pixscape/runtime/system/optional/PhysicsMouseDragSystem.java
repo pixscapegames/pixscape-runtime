@@ -22,7 +22,8 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     private final OrthographicCamera camera;
     private final PhysicsAPI physics;
     private LayerStateSOA layerState;
-    @SkipWire private Box2dSyncSystem box2dSync;
+    @SkipWire
+    private Box2dSyncSystem box2dSync;
     private Box2dWorldService box2d;
     private World lastWorld;
 
@@ -133,7 +134,7 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
     /**
      * Creates a parallax-aware mouse drag system backed by the public Runtime physics API.
      *
-     * @param camera world camera used to unproject pointer coordinates
+     * @param camera  world camera used to unproject pointer coordinates
      * @param physics Runtime physics facade used for lifecycle, parallax and scale conversion
      */
     public PhysicsMouseDragSystem(OrthographicCamera camera, PhysicsAPI physics) {
@@ -172,18 +173,24 @@ public final class PhysicsMouseDragSystem extends BaseSystem {
         this.allowStatic = allowStatic;
     }
 
-    /** Returns the stable World-drag input endpoint to place after higher-priority UI processors. */
+    /**
+     * Returns the stable World-drag input endpoint to place after higher-priority UI processors.
+     */
     public InputProcessor inputProcessor() {
         return inputProcessor;
     }
 
-    /** Enables routed input; disabling it releases any active World drag. */
+    /**
+     * Enables routed input; disabling it releases any active World drag.
+     */
     public void setInputEnabled(boolean inputEnabled) {
         this.inputEnabled = inputEnabled;
         if (!inputEnabled) cancelInput();
     }
 
-    /** Cancels the accepted World gesture and releases its MouseJoint when Box2D is unlocked. */
+    /**
+     * Cancels the accepted World gesture and releases its MouseJoint when Box2D is unlocked.
+     */
     public void cancelInput() {
         clearGesture();
         destroyJoint();

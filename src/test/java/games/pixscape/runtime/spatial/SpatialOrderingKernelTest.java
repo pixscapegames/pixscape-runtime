@@ -18,8 +18,10 @@ public class SpatialOrderingKernelTest {
     public void frontUsesAfterBehindUsesBeforeAndDistinctAnchorsAggregate() {
         SpatialActorCollector actors = actors(3);
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
-        faces.anchorBeforeBucket[0] = 1; faces.anchorAfterBucket[0] = 2;
-        faces.anchorBeforeBucket[1] = 4; faces.anchorAfterBucket[1] = 5;
+        faces.anchorBeforeBucket[0] = 1;
+        faces.anchorAfterBucket[0] = 2;
+        faces.anchorBeforeBucket[1] = 4;
+        faces.anchorAfterBucket[1] = 5;
         SpatialFaceRelationSolver relations = relations(3,
                 new int[][]{{0}, {1}, {0, 1}},
                 new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE},
@@ -41,8 +43,10 @@ public class SpatialOrderingKernelTest {
     public void residualDistinctAnchorContradictionsUseOriginalBucketsWithoutThrowing() {
         SpatialActorCollector actors = actors(2);
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
-        faces.anchorBeforeBucket[0] = 1; faces.anchorAfterBucket[0] = 2;
-        faces.anchorBeforeBucket[1] = 3; faces.anchorAfterBucket[1] = 4;
+        faces.anchorBeforeBucket[0] = 1;
+        faces.anchorAfterBucket[0] = 2;
+        faces.anchorBeforeBucket[1] = 3;
+        faces.anchorAfterBucket[1] = 4;
         SpatialFaceRelationSolver relations = relations(2,
                 new int[][]{{1, 0}, {1, 0}},
                 new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
@@ -194,8 +198,10 @@ public class SpatialOrderingKernelTest {
         SpatialFrameSnapshotBuilder snapshot = new SpatialFrameSnapshotBuilder();
         snapshot.build(drawList, 2, actors);
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
-        faces.anchorBeforeBucket[0] = 0; faces.anchorAfterBucket[0] = 1;
-        faces.anchorBeforeBucket[1] = 2; faces.anchorAfterBucket[1] = 3;
+        faces.anchorBeforeBucket[0] = 0;
+        faces.anchorAfterBucket[0] = 1;
+        faces.anchorBeforeBucket[1] = 2;
+        faces.anchorAfterBucket[1] = 3;
         SpatialFaceRelationSolver relations = relations(2,
                 new int[][]{{0, 1}, {0, 1}},
                 new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
@@ -467,8 +473,10 @@ public class SpatialOrderingKernelTest {
         actors.actorCircleY[0] = firstY;
         actors.actorCircleY[1] = secondY;
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
-        faces.anchorBeforeBucket[0] = 0; faces.anchorAfterBucket[0] = 1;
-        faces.anchorBeforeBucket[1] = 2; faces.anchorAfterBucket[1] = 3;
+        faces.anchorBeforeBucket[0] = 0;
+        faces.anchorAfterBucket[0] = 1;
+        faces.anchorBeforeBucket[1] = 2;
+        faces.anchorAfterBucket[1] = 3;
         SpatialFaceRelationSolver relations = relations(2,
                 new int[][]{{0, 1}, {0, 1}},
                 new byte[][]{{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
@@ -489,10 +497,10 @@ public class SpatialOrderingKernelTest {
     }
 
     private static SpatialBucketPlanner plannerWithIntervals(SpatialActorCollector actors,
-                                                              int[] originals,
-                                                              int[] lowerBounds,
-                                                              int[] upperBounds,
-                                                              int bucketCount) {
+                                                             int[] originals,
+                                                             int[] lowerBounds,
+                                                             int[] upperBounds,
+                                                             int bucketCount) {
         SpatialBucketPlanner planner = new SpatialBucketPlanner();
         planner.begin(actors, originals, bucketCount);
         setIntervals(planner, lowerBounds, upperBounds);
@@ -616,27 +624,45 @@ public class SpatialOrderingKernelTest {
     private static SpatialActorCollector actors(int count) {
         SpatialActorCollector actors = new SpatialActorCollector();
         actors.actorCount = count;
-        actors.actorSlot = new int[count]; actors.actorEntityId = new int[count];
-        actors.actorStableOrder = new int[count]; actors.actorLayerIndex = new int[count];
+        actors.actorSlot = new int[count];
+        actors.actorEntityId = new int[count];
+        actors.actorStableOrder = new int[count];
+        actors.actorLayerIndex = new int[count];
         actors.actorCircleX = new float[count];
-        actors.actorCircleY = new float[count]; actors.actorDrawIndex = new int[count];
-        for (int i = 0; i < count; i++) { actors.actorSlot[i] = i; actors.actorEntityId[i] = 100 + i; actors.actorStableOrder[i] = i; actors.actorDrawIndex[i] = i; }
+        actors.actorCircleY = new float[count];
+        actors.actorDrawIndex = new int[count];
+        for (int i = 0; i < count; i++) {
+            actors.actorSlot[i] = i;
+            actors.actorEntityId[i] = 100 + i;
+            actors.actorStableOrder[i] = i;
+            actors.actorDrawIndex[i] = i;
+        }
         return actors;
     }
 
     private static SpatialProjectedFaceCache faces(int[][] memberships) {
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
         faces.faceCount = memberships.length;
-        faces.faceCompiledIndex = new int[memberships.length]; faces.faceStructureId = new int[memberships.length];
-        faces.faceAnchorIndexStart = new int[memberships.length]; faces.faceAnchorIndexCount = new int[memberships.length];
-        int total = 0; int maximum = -1;
-        for (int[] membership : memberships) for (int anchor : membership) { total++; maximum = Math.max(maximum, anchor); }
+        faces.faceCompiledIndex = new int[memberships.length];
+        faces.faceStructureId = new int[memberships.length];
+        faces.faceAnchorIndexStart = new int[memberships.length];
+        faces.faceAnchorIndexCount = new int[memberships.length];
+        int total = 0;
+        int maximum = -1;
+        for (int[] membership : memberships)
+            for (int anchor : membership) {
+                total++;
+                maximum = Math.max(maximum, anchor);
+            }
         faces.faceAnchorIndices = new int[total];
-        faces.faceAnchorScreenMinX = new float[total]; faces.faceAnchorScreenMaxX = new float[total];
+        faces.faceAnchorScreenMinX = new float[total];
+        faces.faceAnchorScreenMaxX = new float[total];
         int write = 0;
         for (int face = 0; face < memberships.length; face++) {
-            faces.faceCompiledIndex[face] = face; faces.faceStructureId[face] = face + 10;
-            faces.faceAnchorIndexStart[face] = write; faces.faceAnchorIndexCount[face] = memberships[face].length;
+            faces.faceCompiledIndex[face] = face;
+            faces.faceStructureId[face] = face + 10;
+            faces.faceAnchorIndexStart[face] = write;
+            faces.faceAnchorIndexCount[face] = memberships[face].length;
             for (int anchor : memberships[face]) {
                 faces.faceAnchorIndices[write] = anchor;
                 faces.faceAnchorScreenMinX[write] = -Float.MAX_VALUE;
@@ -644,22 +670,35 @@ public class SpatialOrderingKernelTest {
                 write++;
             }
         }
-        faces.anchorCount = maximum + 1; faces.anchorGx = new int[faces.anchorCount]; faces.anchorGy = new int[faces.anchorCount];
-        faces.anchorResolved = new boolean[faces.anchorCount]; faces.anchorBeforeBucket = new int[faces.anchorCount]; faces.anchorAfterBucket = new int[faces.anchorCount];
-        for (int anchor = 0; anchor < faces.anchorCount; anchor++) { faces.anchorGx[anchor] = anchor; faces.anchorResolved[anchor] = true; }
+        faces.anchorCount = maximum + 1;
+        faces.anchorGx = new int[faces.anchorCount];
+        faces.anchorGy = new int[faces.anchorCount];
+        faces.anchorResolved = new boolean[faces.anchorCount];
+        faces.anchorBeforeBucket = new int[faces.anchorCount];
+        faces.anchorAfterBucket = new int[faces.anchorCount];
+        for (int anchor = 0; anchor < faces.anchorCount; anchor++) {
+            faces.anchorGx[anchor] = anchor;
+            faces.anchorResolved[anchor] = true;
+        }
         return faces;
     }
 
     private static SpatialFaceRelationSolver relations(int actorCount, int[][] faces, byte[][] types) {
         SpatialFaceRelationSolver out = new SpatialFaceRelationSolver();
-        out.actorRelationStart = new int[actorCount]; out.actorRelationCount = new int[actorCount];
-        int total = 0; for (int[] actorFaces : faces) total += actorFaces.length;
-        out.relationFaceIndex = new int[total]; out.relationType = new byte[total];
+        out.actorRelationStart = new int[actorCount];
+        out.actorRelationCount = new int[actorCount];
+        int total = 0;
+        for (int[] actorFaces : faces) total += actorFaces.length;
+        out.relationFaceIndex = new int[total];
+        out.relationType = new byte[total];
         int write = 0;
         for (int actor = 0; actor < actorCount; actor++) {
-            out.actorRelationStart[actor] = write; out.actorRelationCount[actor] = faces[actor].length;
+            out.actorRelationStart[actor] = write;
+            out.actorRelationCount[actor] = faces[actor].length;
             for (int relation = 0; relation < faces[actor].length; relation++) {
-                out.relationFaceIndex[write] = faces[actor][relation]; out.relationType[write] = types[actor][relation]; write++;
+                out.relationFaceIndex[write] = faces[actor][relation];
+                out.relationType[write] = types[actor][relation];
+                write++;
             }
         }
         out.relationCount = write;

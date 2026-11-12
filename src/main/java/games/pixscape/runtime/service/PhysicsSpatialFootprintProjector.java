@@ -9,7 +9,9 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
  * Cross-domain integration boundary from compiled physics data to the Runtime spatial cache.
  */
 public final class PhysicsSpatialFootprintProjector {
-    /** Builds a projection candidate outside the spatial hot path. */
+    /**
+     * Builds a projection candidate outside the spatial hot path.
+     */
     public Projection prepare(
             Array<CompiledFixtureData> fixtures,
             int physicsGeneration,

@@ -49,7 +49,9 @@ public final class GameObjectTransformMath {
         }
     }
 
-    /** Writes the pivot-aware frame of a Game Object root. */
+    /**
+     * Writes the pivot-aware frame of a Game Object root.
+     */
     public static Affine2 toFrame(TransformComponent transform, Affine2 out) {
         if (transform == null || out == null) {
             throw new IllegalArgumentException("Transform and output frame are required.");
@@ -67,7 +69,9 @@ public final class GameObjectTransformMath {
         return out;
     }
 
-    /** Writes either a Game Object parent frame or an ordinary origin-free child frame. */
+    /**
+     * Writes either a Game Object parent frame or an ordinary origin-free child frame.
+     */
     public static Affine2 toMemberFrame(
             TransformComponent transform, boolean gameObject, Affine2 out) {
         if (gameObject) return toFrame(transform, out);
@@ -85,7 +89,9 @@ public final class GameObjectTransformMath {
         return out;
     }
 
-    /** Multiplies two hierarchy frames and supports aliasing either input with {@code out}. */
+    /**
+     * Multiplies two hierarchy frames and supports aliasing either input with {@code out}.
+     */
     public static Affine2 multiply(Affine2 parent, Affine2 local, Affine2 out) {
         if (parent == null || local == null || out == null) {
             throw new IllegalArgumentException("Parent, local, and output frames are required.");
@@ -103,7 +109,9 @@ public final class GameObjectTransformMath {
         return out;
     }
 
-    /** Computes {@code inverse(parentWorld) * childWorld} without temporary allocation. */
+    /**
+     * Computes {@code inverse(parentWorld) * childWorld} without temporary allocation.
+     */
     public static Affine2 worldToLocal(Affine2 parentWorld, Affine2 childWorld, Affine2 out) {
         if (parentWorld == null || childWorld == null || out == null) {
             throw new IllegalArgumentException("Parent, child, and output frames are required.");
@@ -133,13 +141,17 @@ public final class GameObjectTransformMath {
         return out;
     }
 
-    /** Composes a supported parent world transform and child local transform. */
+    /**
+     * Composes a supported parent world transform and child local transform.
+     */
     public static TransformComponent localToWorld(
             TransformComponent parentWorld, TransformComponent childLocal, TransformComponent outWorld) {
         return localToWorld(parentWorld, childLocal, false, outWorld);
     }
 
-    /** Composes a child, applying its origin to the hierarchy frame only when it is a Game Object. */
+    /**
+     * Composes a child, applying its origin to the hierarchy frame only when it is a Game Object.
+     */
     public static TransformComponent localToWorld(
             TransformComponent parentWorld, TransformComponent childLocal,
             boolean childIsGameObject, TransformComponent outWorld) {
@@ -175,13 +187,17 @@ public final class GameObjectTransformMath {
         return outWorld;
     }
 
-    /** Converts an existing child world transform into local authored state for a new parent. */
+    /**
+     * Converts an existing child world transform into local authored state for a new parent.
+     */
     public static TransformComponent worldToLocal(
             TransformComponent parentWorld, TransformComponent childWorld, TransformComponent outLocal) {
         return worldToLocal(parentWorld, childWorld, false, outLocal);
     }
 
-    /** Inverts a Game Object parent frame while preserving the child's authored origin. */
+    /**
+     * Inverts a Game Object parent frame while preserving the child's authored origin.
+     */
     public static TransformComponent worldToLocal(
             TransformComponent parentWorld, TransformComponent childWorld,
             boolean childIsGameObject, TransformComponent outLocal) {

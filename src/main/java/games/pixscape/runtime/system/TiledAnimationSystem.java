@@ -19,7 +19,10 @@ import games.pixscape.runtime.tiled.animation.*;
 @Exclude(LayerComponent.class)
 public final class TiledAnimationSystem extends IteratingSystem implements ProfiledSystem {
     private transient Runnable chunkVisitObserver;
-    void setChunkVisitObserver(Runnable observer) { chunkVisitObserver = observer; }
+
+    void setChunkVisitObserver(Runnable observer) {
+        chunkVisitObserver = observer;
+    }
 
     private ComponentMapper<TiledLayerComponent> mTiled;
 

@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud;
 
-/** Explicit descriptor location for one prepared standalone bitmap-font Asset. */
+/**
+ * Explicit descriptor location for one prepared standalone bitmap-font Asset.
+ */
 public final class HudBitmapFontSpec {
     private final int assetId;
     private final String descriptorId;
@@ -15,6 +17,11 @@ public final class HudBitmapFontSpec {
         }
     }
 
-    public int assetId() { return assetId; }
-    public String descriptorId() { return descriptorId; }
+    public int assetId() {
+        return assetId;
+    }
+
+    public String descriptorId() {
+        return descriptorId;
+    }
 }

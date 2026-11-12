@@ -6,7 +6,9 @@ public final class SpatialBlockData {
     public static final float DEFAULT_HEIGHT = 128f;
 
     public int id = 0;
-    /** Positive identity of the connected authored-wall structure in the owning Tiled Map. */
+    /**
+     * Positive identity of the connected authored-wall structure in the owning Tiled Map.
+     */
     public int structureId = 0;
     public String name = null;
 
@@ -20,20 +22,30 @@ public final class SpatialBlockData {
 
     public float altitude = 0f;
     public float height = DEFAULT_HEIGHT;
-    /** Participates in actor spatial ordering. */
+    /**
+     * Participates in actor spatial ordering.
+     */
     public boolean actorOccluder = true;
-    /** Requests a complete volume caster in 2.5D lighting, independent of image visibility. */
+    /**
+     * Requests a complete volume caster in 2.5D lighting, independent of image visibility.
+     */
     public boolean lightOccluder = false;
-    /** Requests a complete volume caster; either this flag or lightOccluder enables it. */
+    /**
+     * Requests a complete volume caster; either this flag or lightOccluder enables it.
+     */
     public boolean shadowCaster = false;
-    /** Applies the physical facade orientation to direct light; independent of shadow visibility. */
+    /**
+     * Applies the physical facade orientation to direct light; independent of shadow visibility.
+     */
     public boolean shadeUnlitFaces = true;
     /**
      * Legacy POC field retained for scene compatibility. Authored tile associations now
      * determine alpha contributions; this flag no longer selects a product rendering path.
      */
     public boolean silhouetteShadowCaster = false;
-    /** Compiled as particle-occlusion metadata; the downstream particle consumer is not implemented yet. */
+    /**
+     * Compiled as particle-occlusion metadata; the downstream particle consumer is not implemented yet.
+     */
     public boolean particleOccluder = false;
     public boolean linkedTileRefsAuthored = false;
     public Array<LinkedTileRef> linkedTileRefs = new Array<>(LinkedTileRef[]::new);

@@ -28,9 +28,11 @@ public class SpatialCompiledFacePipelineTest {
         SpatialBlockData first = wall(20, 4, 0f, 0f, 2f, 1f, cells(0, 0, 2, 1));
         SpatialBlockData second = wall(10, 4, 1f, 0f, 2f, 1f, cells(1, 0, 2, 1));
         Array<SpatialBlockData> a = new Array<>(SpatialBlockData[]::new);
-        a.add(first); a.add(second);
+        a.add(first);
+        a.add(second);
         Array<SpatialBlockData> b = new Array<>(SpatialBlockData[]::new);
-        b.add(second); b.add(first);
+        b.add(second);
+        b.add(first);
         CompiledSpatialStructure.FaceSet one = SpatialStructureCompiler.compile(a, 4).actorOccluder();
         CompiledSpatialStructure.FaceSet two = SpatialStructureCompiler.compile(b, 4).actorOccluder();
         assertEquivalent(one, two);
@@ -101,7 +103,10 @@ public class SpatialCompiledFacePipelineTest {
         }
         int[] before = new int[tileCount];
         int[] after = new int[tileCount];
-        for (int i = 0; i < tileCount; i++) { before[i] = i; after[i] = i + 1; }
+        for (int i = 0; i < tileCount; i++) {
+            before[i] = i;
+            after[i] = i + 1;
+        }
         new SpatialFaceAnchorResolver().resolve(projected, refToDraw, before, after, tileCount);
 
         float[] grid = {3f, 3f, 4f, 3f, 5f, 3f, 3f, 4f, 4f, 4f, 5f, 4f, 3f, 5f, 4f, 5f, 5f, 5f};
@@ -210,12 +215,13 @@ public class SpatialCompiledFacePipelineTest {
         TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) map.setTile(x, y, 1);
         int nextRef = 0;
-        for (int cy = 0; cy < 2; cy++) for (int cx = 0; cx < 2; cx++) {
-            TileChunk chunk = map.getChunk(cx, cy);
-            chunk.renderRefStartIndex = nextRef;
-            chunk.renderRefCount = chunk.cellCount();
-            nextRef += chunk.cellCount();
-        }
+        for (int cy = 0; cy < 2; cy++)
+            for (int cx = 0; cx < 2; cx++) {
+                TileChunk chunk = map.getChunk(cx, cy);
+                chunk.renderRefStartIndex = nextRef;
+                chunk.renderRefCount = chunk.cellCount();
+                nextRef += chunk.cellCount();
+            }
         return map;
     }
 
@@ -228,9 +234,11 @@ public class SpatialCompiledFacePipelineTest {
 
     private static void assertOneCellBranch(SpatialBlockData host, SpatialBlockData branch) {
         Array<SpatialBlockData> forward = new Array<>(SpatialBlockData[]::new);
-        forward.add(host); forward.add(branch);
+        forward.add(host);
+        forward.add(branch);
         Array<SpatialBlockData> reverse = new Array<>(SpatialBlockData[]::new);
-        reverse.add(branch); reverse.add(host);
+        reverse.add(branch);
+        reverse.add(host);
         CompiledSpatialStructure.FaceSet one = SpatialStructureCompiler.compile(forward, 8).actorOccluder();
         CompiledSpatialStructure.FaceSet two = SpatialStructureCompiler.compile(reverse, 8).actorOccluder();
         assertEquivalent(one, two);
@@ -253,8 +261,8 @@ public class SpatialCompiledFacePipelineTest {
         projected.ensure(compiled, map);
         for (int anchor = 0; anchor < projected.anchorCount; anchor++) projected.anchorResolved[anchor] = true;
 
-        float[] grid = new float[]{1.75f,1.75f, 2.25f,1.75f, 5.75f,1.75f, 6.25f,2.25f,
-                6.25f,5.75f, 5.75f,6.25f, 2.25f,6.25f, 1.75f,5.75f, 4f,4f};
+        float[] grid = new float[]{1.75f, 1.75f, 2.25f, 1.75f, 5.75f, 1.75f, 6.25f, 2.25f,
+                6.25f, 5.75f, 5.75f, 6.25f, 2.25f, 6.25f, 1.75f, 5.75f, 4f, 4f};
         int actorCount = grid.length / 2;
         SpatialActorCollector actors = projectedActors(map, grid);
         SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();
@@ -293,7 +301,10 @@ public class SpatialCompiledFacePipelineTest {
         }
         int[] before = new int[tileCount];
         int[] after = new int[tileCount];
-        for (int i = 0; i < tileCount; i++) { before[i] = i; after[i] = i + 1; }
+        for (int i = 0; i < tileCount; i++) {
+            before[i] = i;
+            after[i] = i + 1;
+        }
         new SpatialFaceAnchorResolver().resolve(projected, refToDraw, before, after, tileCount);
 
         float[] grid = {4f, 4f};
@@ -365,15 +376,27 @@ public class SpatialCompiledFacePipelineTest {
 
     private static SpatialBlockData wall(int id, int structure, float x, float y, float width, float depth, int[] cells) {
         SpatialBlockData wall = new SpatialBlockData();
-        wall.id = id; wall.structureId = structure; wall.x = x; wall.y = y; wall.width = width; wall.depth = depth;
-        wall.height = 64f; wall.actorOccluder = true; wall.beginAuthoredLinkedTileRefs();
+        wall.id = id;
+        wall.structureId = structure;
+        wall.x = x;
+        wall.y = y;
+        wall.width = width;
+        wall.depth = depth;
+        wall.height = 64f;
+        wall.actorOccluder = true;
+        wall.beginAuthoredLinkedTileRefs();
         for (int i = 0; i < cells.length; i += 2) wall.addLinkedTileRef(cells[i], cells[i + 1], 99);
         return wall;
     }
 
     private static int[] cells(int minX, int minY, int width, int height) {
-        int[] out = new int[width * height * 2]; int at = 0;
-        for (int y = minY; y < minY + height; y++) for (int x = minX; x < minX + width; x++) { out[at++] = x; out[at++] = y; }
+        int[] out = new int[width * height * 2];
+        int at = 0;
+        for (int y = minY; y < minY + height; y++)
+            for (int x = minX; x < minX + width; x++) {
+                out[at++] = x;
+                out[at++] = y;
+            }
         return out;
     }
 
@@ -402,6 +425,9 @@ public class SpatialCompiledFacePipelineTest {
             Assert.assertEquals(a.anchorCellStart(i), b.anchorCellStart(i));
             Assert.assertEquals(a.anchorCellCount(i), b.anchorCellCount(i));
         }
-        for (int i = 0; i < a.anchorCellTotal(); i++) { Assert.assertEquals(a.anchorGx(i), b.anchorGx(i)); Assert.assertEquals(a.anchorGy(i), b.anchorGy(i)); }
+        for (int i = 0; i < a.anchorCellTotal(); i++) {
+            Assert.assertEquals(a.anchorGx(i), b.anchorGx(i));
+            Assert.assertEquals(a.anchorGy(i), b.anchorGy(i));
+        }
     }
 }

@@ -177,7 +177,9 @@ final class SceneLayerResolver {
         return lastSpatialLookupVisitCount;
     }
 
-    /** Borrowed complete result; only the API snapshot may escape this resolver. */
+    /**
+     * Borrowed complete result; only the API snapshot may escape this resolver.
+     */
     IntArray membersByName(String name) {
         if (world == null || name == null) return empty;
         long revision = dirtyTracker != null ? dirtyTracker.layerRevision() : 0;

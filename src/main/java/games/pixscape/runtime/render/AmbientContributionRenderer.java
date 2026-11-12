@@ -8,50 +8,70 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.NumberUtils;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
-/** One ordered E traversal shared by Runtime and Studio, independent of effect interleaving. */
+/**
+ * One ordered E traversal shared by Runtime and Studio, independent of effect interleaving.
+ */
 public final class AmbientContributionRenderer implements Disposable {
     public static boolean ignoresAmbient(FrameRenderQueue queue, int i) {
         return queue.ignoreAmbientLighting[i] || games.pixscape.runtime.service.ShaderRegistry.isUnlit(queue.shader[i]);
     }
+
     private static final byte STANDARD = 1, REPLAY = 2;
+
     public interface MaterialReplay {
-        /** Reuses the original submitter, including textures, time, parameters and repeat expansion. */
+        /**
+         * Reuses the original submitter, including textures, time, parameters and repeat expansion.
+         */
         void replayAmbientMaterials(int first, int end);
     }
+
     private final AmbientContributionBatch batch = new AmbientContributionBatch();
-    public void prepare() { batch.prepare(); }
+
+    public void prepare() {
+        batch.prepare();
+    }
+
     public void beginFrame(FrameRenderQueue queue) {
         if (queue.size != 0) java.util.Arrays.fill(queue.ambientMaterial, 0, queue.size, (byte) 0);
     }
-    /** Called only for entries admitted by the actual original material/texture path. */
+
+    /**
+     * Called only for entries admitted by the actual original material/texture path.
+     */
     public static void admit(FrameRenderQueue queue, int index, ShaderProgram actual, ShaderProgram standard) {
         queue.ambientMaterial[index] = actual == standard && queue.repeatFlags[index] == 0 ? STANDARD : REPLAY;
     }
-    /** Standard exempt additive VFX has zero source RGB in the original image. Its RGB
+
+    /**
+     * Standard exempt additive VFX has zero source RGB in the original image. Its RGB
      * destination factor is ONE and original coverage uses ZERO/ONE, so drawing it is
      * an identity. The submitter must verify its actual standard material and still admit E.
      */
     public static boolean isIdentityOriginal(FrameRenderQueue queue, int index) {
         return queue.lighting.diagnostic == 0 && queue.sourceDomain[index] == FrameRenderQueue.SOURCE_VFX
-                && queue.light[index] == 0 && ignoresAmbient(queue,index)
+                && queue.light[index] == 0 && ignoresAmbient(queue, index)
                 && queue.repeatFlags[index] == 0 && queue.shaderParameters[index] == null
                 && (queue.blend[index] == BlendMode.ADDITIVE.id || queue.blend[index] == BlendMode.ADDITIVE_ALPHA.id);
     }
+
     public static int materialPass(int pass, FrameRenderQueue queue, int index) {
         if (pass == LightCompositionPass.AMBIENT)
-            return ignoresAmbient(queue,index) ? LightCompositionPass.CONTRIBUTION : LightCompositionPass.MASK;
-        if (pass == LightCompositionPass.ORIGINAL && queue.lighting.diagnostic == 0 && ignoresAmbient(queue,index)
+            return ignoresAmbient(queue, index) ? LightCompositionPass.CONTRIBUTION : LightCompositionPass.MASK;
+        if (pass == LightCompositionPass.ORIGINAL && queue.lighting.diagnostic == 0 && ignoresAmbient(queue, index)
                 && queue.ambientMaterial[index] == REPLAY) return LightCompositionPass.ORIGINAL_EXEMPT;
         return pass;
     }
+
     public static float originalColor(FrameRenderQueue queue, int index, int pass) {
         float color = queue.colorPacked[index];
-        if (pass == LightCompositionPass.ORIGINAL && queue.lighting.diagnostic == 0 && ignoresAmbient(queue,index)
+        if (pass == LightCompositionPass.ORIGINAL && queue.lighting.diagnostic == 0 && ignoresAmbient(queue, index)
                 && queue.ambientMaterial[index] == STANDARD)
             return NumberUtils.intToFloatColor(NumberUtils.floatToIntColor(color) & 0xff000000);
         return color;
     }
-    /** One ordered, allocation-free preflight. Prefix masks leave cleared E.rgb at zero,
+
+    /**
+     * One ordered, allocation-free preflight. Prefix masks leave cleared E.rgb at zero,
      * but may change E.a. Later standard operations use source alpha, never destination
      * alpha, and final composition reads only E.rgb; original.a remains world coverage.
      * E.a MUST NOT become an input of composition or blending on this optimized path.
@@ -63,15 +83,19 @@ public final class AmbientContributionRenderer implements Disposable {
         for (int i = 0; i < queue.size; i++) {
             if (queue.ambientMaterial[i] == REPLAY) return 0;
             if (!found && queue.ambientMaterial[i] == STANDARD && queue.light[i] == 0
-                    && ignoresAmbient(queue,i)) { first = i; found = true; }
+                    && ignoresAmbient(queue, i)) {
+                first = i;
+                found = true;
+            }
         }
         return first;
     }
+
     public void render(FrameRenderQueue queue, OrthographicCamera camera, WorldLightComposition composition,
                        RenderStats stats, MaterialReplay replay) {
         boolean needed = false;
         for (int i = 0; i < queue.size; i++) {
-            if (!ignoresAmbient(queue,i) || queue.ambientMaterial[i] == 0) continue;
+            if (!ignoresAmbient(queue, i) || queue.ambientMaterial[i] == 0) continue;
             float minX = Math.min(Math.min(queue.x1[i], queue.x2[i]), Math.min(queue.x3[i], queue.x4[i]));
             float maxX = Math.max(Math.max(queue.x1[i], queue.x2[i]), Math.max(queue.x3[i], queue.x4[i]));
             float minY = Math.min(Math.min(queue.y1[i], queue.y2[i]), Math.min(queue.y3[i], queue.y4[i]));
@@ -79,7 +103,8 @@ public final class AmbientContributionRenderer implements Disposable {
             // A custom vertex shader may move an otherwise off-camera quad into view.
             if (queue.ambientMaterial[i] == REPLAY || camera.frustum.boundsInFrustum(
                     (minX + maxX) * .5f, (minY + maxY) * .5f, 0, (maxX - minX) * .5f, (maxY - minY) * .5f, 0)) {
-                needed = true; break;
+                needed = true;
+                break;
             }
         }
         if (!needed) return;
@@ -96,14 +121,21 @@ public final class AmbientContributionRenderer implements Disposable {
                 batch.begin(camera);
                 i = end - 1;
             } else {
-                if (!ignoresAmbient(queue,i) && (queue.blend[i] == BlendMode.ADDITIVE.id
+                if (!ignoresAmbient(queue, i) && (queue.blend[i] == BlendMode.ADDITIVE.id
                         || queue.blend[i] == BlendMode.ADDITIVE_ALPHA.id)) continue;
-                batch.draw(queue, i, ignoresAmbient(queue,i), stats);
+                batch.draw(queue, i, ignoresAmbient(queue, i), stats);
             }
         }
         batch.flush(stats);
         Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
     }
-    public void abort() { batch.abort(); }
-    @Override public void dispose() { batch.dispose(); }
+
+    public void abort() {
+        batch.abort();
+    }
+
+    @Override
+    public void dispose() {
+        batch.dispose();
+    }
 }

@@ -77,8 +77,10 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private DirtyTrackerSystem dirty;
     private final DirtyTrackerSystem.IntConsumer physicsDirtyConsumer = this::synchronizeDirtyBody;
     private final DirtyTrackerSystem.IntConsumer jointDirtyConsumer = this::syncOneJoint;
-    @SkipWire private GameObjectHierarchySystem hierarchy;
-    @SkipWire private PhysicsPoseAuthority poseAuthority;
+    @SkipWire
+    private GameObjectHierarchySystem hierarchy;
+    @SkipWire
+    private PhysicsPoseAuthority poseAuthority;
 
     private EntitySubscription subWanted;   // T + Body
     private EntitySubscription subRuntime;  // RuntimeBody
@@ -187,7 +189,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 PhysicsBodyComponent.class
         ));
         EntitySubscription.SubscriptionListener bodyChanges = new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) {
+            @Override
+            public void inserted(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) {
                     int entity = entities.get(i);
                     Body owner = nativeBodies.get(entity);
@@ -199,7 +202,12 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                     }
                 }
             }
-            @Override public void removed(IntBag entities) { enqueue(entities); }
+
+            @Override
+            public void removed(IntBag entities) {
+                enqueue(entities);
+            }
+
             private void enqueue(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) queueBody(entities.get(i));
             }
@@ -209,8 +217,12 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         // Inspect only indexed dependents; native Physics may be disabled or unavailable.
         asm.get(Aspect.all(PhysicsBodyComponent.class)).addSubscriptionListener(
                 new EntitySubscription.SubscriptionListener() {
-                    @Override public void inserted(IntBag entities) { }
-                    @Override public void removed(IntBag entities) {
+                    @Override
+                    public void inserted(IntBag entities) {
+                    }
+
+                    @Override
+                    public void removed(IntBag entities) {
                         for (int i = 0; i < entities.size(); i++) {
                             int body = entities.get(i);
                             if (allEntities.getActiveEntityIds().get(body) && mBodyDef.has(body)) continue;
@@ -255,7 +267,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         // Aspect.all also reports entities created/deleted before their first insertion.
         allEntities = asm.get(Aspect.all());
         allEntities.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
-            @Override public void inserted(IntBag entities) {
+            @Override
+            public void inserted(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) {
                     int entity = entities.get(i);
                     // All authored components may have disappeared before any narrower
@@ -263,7 +276,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                     if (nativeBodies.get(entity) != null && !isWantedEntity(entity)) queueBody(entity);
                 }
             }
-            @Override public void removed(IntBag entities) {
+
+            @Override
+            public void removed(IntBag entities) {
                 for (int i = 0; i < entities.size(); i++) {
                     int entity = entities.get(i);
                     destroyRuntimeBodyByEntityId(entity);
@@ -275,13 +290,19 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         });
         asm.get(Aspect.all(PhysicsGearJointComponent.class)).addSubscriptionListener(
                 new EntitySubscription.SubscriptionListener() {
-                    @Override public void inserted(IntBag entities) { publish(entities); }
-                    @Override public void removed(IntBag entities) {
+                    @Override
+                    public void inserted(IntBag entities) {
+                        publish(entities);
+                    }
+
+                    @Override
+                    public void removed(IntBag entities) {
                         for (int i = 0; i < entities.size(); i++) {
                             int entity = entities.get(i);
                             if (asm.get(Aspect.all()).getActiveEntityIds().get(entity)) publishJointRelations(entity);
                         }
                     }
+
                     private void publish(IntBag entities) {
                         for (int i = 0; i < entities.size(); i++) publishJointRelations(entities.get(i));
                     }
@@ -482,7 +503,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
     }
 
-    /** Checks the native boundary before a synchronous spawn allocates any entities or identities. */
+    /**
+     * Checks the native boundary before a synchronous spawn allocates any entities or identities.
+     */
     public void requireSynchronousSpawnAvailable() {
         if (box2d == null || box2d.world == null || box2d.isDisposed()) {
             throw new IllegalStateException("Cannot spawn physical Game Object: Physics is unavailable.");
@@ -529,7 +552,9 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         }
     }
 
-    /** Releases only resources belonging to a failed new instance, including unobserved components. */
+    /**
+     * Releases only resources belonging to a failed new instance, including unobserved components.
+     */
     public void discardPreparedSpawn(IntBag entities) {
         for (int pass = 0; pass < 2; pass++) {
             for (int i = 0; i < entities.size(); i++) {
@@ -548,12 +573,16 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     // Inverse cache (body -> joints)
     // -------------------------------------------------------------
 
-    /** INTERNAL shared index; no native world is required for authored dependency lookup. */
+    /**
+     * INTERNAL shared index; no native world is required for authored dependency lookup.
+     */
     public JointDependencyIndex jointDependencies() {
         return jointDependencies;
     }
 
-    /** Publishes one complete authored joint after its fields have been assigned. */
+    /**
+     * Publishes one complete authored joint after its fields have been assigned.
+     */
     public void publishJointRelations(int joint) {
         if (joint < 0 || mJointBase == null) return;
         // Native teardown may dirty a joint while Artemis still retains its deleted
@@ -563,17 +592,27 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             return;
         }
         PhysicsJointComponent base = mJointBase.getSafe(joint, null);
-        if (base == null) { jointDependencies.remove(joint); return; }
+        if (base == null) {
+            jointDependencies.remove(joint);
+            return;
+        }
         PhysicsService.requireJointBodies(world, joint, "Joint publication");
         PhysicsGearJointComponent gear = mGear.getSafe(joint, null);
         jointDependencies.publish(joint, base.aEid, base.bEid,
                 gear != null ? gear.joint1Eid : -1, gear != null ? gear.joint2Eid : -1);
     }
 
-    private void indexJoint(int joint) { publishJointRelations(joint); }
-    private void unindexJoint(int joint) { jointDependencies.remove(joint); }
+    private void indexJoint(int joint) {
+        publishJointRelations(joint);
+    }
 
-    /** Visits only the removal closure. Caller owns out; valid gear dependencies precede sources. */
+    private void unindexJoint(int joint) {
+        jointDependencies.remove(joint);
+    }
+
+    /**
+     * Visits only the removal closure. Caller owns out; valid gear dependencies precede sources.
+     */
     public IntArray collectJointsForRemoval(IntArray entities, IntArray out) {
         if (out == null) out = new IntArray(false, 8);
         out.clear();
@@ -1657,9 +1696,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     interface TestObserver {
-        default void onBodyEligibilityCheck() { }
+        default void onBodyEligibilityCheck() {
+        }
 
-        default void onBodyCacheCheck() { }
+        default void onBodyCacheCheck() {
+        }
 
         void onBodyCompile();
 

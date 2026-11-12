@@ -5,9 +5,13 @@ package games.pixscape.runtime.api;
  * custom-property value.
  */
 public interface ClassProperty {
-    /** The authored class/type name. */
+    /**
+     * The authored class/type name.
+     */
     String typeName();
 
-    /** Explicitly stored members of this class value. */
+    /**
+     * Explicitly stored members of this class value.
+     */
     CustomProperties properties();
 }

@@ -382,7 +382,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
     }
 
-    /** Counts Tiled Map owners; the legacy helper name does not denote ordinary layers. */
+    /**
+     * Counts Tiled Map owners; the legacy helper name does not denote ordinary layers.
+     */
     int tiledLayerEntityCount() {
         return tiledMapsSub != null ? tiledMapsSub.getEntities().size() : 0;
     }
@@ -451,26 +453,39 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 : -1;
     }
 
-    /** Number of actors whose exact-anchor interval was contradictory in the latest ordering pass. */
+    /**
+     * Number of actors whose exact-anchor interval was contradictory in the latest ordering pass.
+     */
     public int unresolvedConstraintCount() {
         return orderingKernel.unresolvedConstraintCount();
     }
 
-    /** Number of candidate actor plans rejected in the latest ordering pass. */
+    /**
+     * Number of candidate actor plans rejected in the latest ordering pass.
+     */
     public int actorOrderingFallbackCount() {
         return orderingKernel.actorOrderingFallbackCount();
     }
 
-    public int visualCandidateCount() { return lastVisualCandidateCount; }
-    public int faceRelationCount() { return lastFaceRelationCount; }
+    public int visualCandidateCount() {
+        return lastVisualCandidateCount;
+    }
 
-    /** Builds a diagnostic snapshot only when explicitly requested; ordinary frames do not log. */
+    public int faceRelationCount() {
+        return lastFaceRelationCount;
+    }
+
+    /**
+     * Builds a diagnostic snapshot only when explicitly requested; ordinary frames do not log.
+     */
     public String diagnosticSummary() {
         return orderingKernel.diagnosticSummary(lastVisualCandidateCount, lastFaceRelationCount)
                 + (diagnosticsEnabled ? diagnosticDetail.toString() : "");
     }
 
-    public void setDiagnosticsEnabled(boolean enabled) { diagnosticsEnabled = enabled; }
+    public void setDiagnosticsEnabled(boolean enabled) {
+        diagnosticsEnabled = enabled;
+    }
 
     public void setSystemProfiler(SystemProfiler profiler) {
         this.profiler = SystemProfilers.orDisabled(profiler);

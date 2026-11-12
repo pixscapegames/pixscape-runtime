@@ -19,12 +19,18 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;
     public String file;
-    /** Optional logical ID of the Scene's default HUD screen. */
+    /**
+     * Optional logical ID of the Scene's default HUD screen.
+     */
     public String defaultHudScreenId;
     public int nextEntityStableId = 1;
-    /** Explicit particle files exported in this scene's runtimeAvailability. */
+    /**
+     * Explicit particle files exported in this scene's runtimeAvailability.
+     */
     public final Array<String> runtimeParticleEffectPaths = new Array<>();
-    /** Explicit Game Object IDs exported in this scene's runtimeAvailability. */
+    /**
+     * Explicit Game Object IDs exported in this scene's runtimeAvailability.
+     */
     public final Array<String> runtimeGameObjectIds = new Array<>();
 
     // Physics
@@ -38,14 +44,20 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     public int nextPhysicsShapeId = 1;
 
     // Ambient light
-    /** Missing fields in old scene descriptors retain lighting. New authored scenes opt out. */
+    /**
+     * Missing fields in old scene descriptors retain lighting. New authored scenes opt out.
+     */
     public boolean lightingEnabled = true;
     public float ambientMulR = 1f;
     public float ambientMulG = 1f;
     public float ambientMulB = 1f;
-    /** Scene-wide material choice, applied when preparing a rendering session. */
+    /**
+     * Scene-wide material choice, applied when preparing a rendering session.
+     */
     public boolean useNormalMaps = true;
-    /** Whole-scene renderer selection. Legacy is the default. */
+    /**
+     * Whole-scene renderer selection. Legacy is the default.
+     */
     public boolean forwardLighting = false;
 
     public String getName() {

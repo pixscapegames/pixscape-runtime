@@ -7,7 +7,9 @@ package games.pixscape.runtime.render;
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
 public final class TiledMapRenderState {
-    /** Derived scene gate; authored scene metadata remains authoritative. */
+    /**
+     * Derived scene gate; authored scene metadata remains authoritative.
+     */
     public boolean lightingEnabled = true;
     private final com.badlogic.gdx.utils.IntMap<TiledRenderOrder> preparedOrders =
             new com.badlogic.gdx.utils.IntMap<TiledRenderOrder>();
@@ -24,12 +26,19 @@ public final class TiledMapRenderState {
         return order;
     }
 
-    public TiledRenderOrder orderForMap(int entityId) { return preparedOrders.get(entityId); }
+    public TiledRenderOrder orderForMap(int entityId) {
+        return preparedOrders.get(entityId);
+    }
+
     public void removeOrderForMap(int entityId) {
         TiledRenderOrder old = preparedOrders.remove(entityId);
         if (old != null) old.release(this);
     }
-    public long orderRankStorageBytes() { return preparedOrderRank != null ? 4L * preparedOrderRank.length : 0L; }
+
+    public long orderRankStorageBytes() {
+        return preparedOrderRank != null ? 4L * preparedOrderRank.length : 0L;
+    }
+
     public int lightingRevision;
     public final com.badlogic.gdx.utils.IntMap<TileCornerSplit> cornerSplits = new com.badlogic.gdx.utils.IntMap<>();
     public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface> lightingSurfaces =
@@ -99,7 +108,9 @@ public final class TiledMapRenderState {
         clearVisibleRefs();
         preparedOrders.clear();
         cornerSplits.clear();
-        lightingSurfaces.clear();lightingMaps.clear();lightingRevision++;
+        lightingSurfaces.clear();
+        lightingMaps.clear();
+        lightingRevision++;
         if (newCapacity <= 0) {
             throw new IllegalArgumentException("TiledMapRenderState capacity must be > 0");
         }
@@ -173,7 +184,9 @@ public final class TiledMapRenderState {
         addPreparedVisibleMap(mapEntityId, layerIndex, zIndex, compositionKey, visibleRefStart, visibleRefCount, null);
     }
 
-    /** Only a publisher whose traversal matches the prepared map order may attach that order. */
+    /**
+     * Only a publisher whose traversal matches the prepared map order may attach that order.
+     */
     public void addPreparedVisibleMap(int mapEntityId, int layerIndex, int zIndex, long compositionKey,
                                       int visibleRefStart, int visibleRefCount, TiledRenderOrder order) {
         if (mapEntityId < 0 || visibleRefStart < 0 || visibleRefCount <= 0
@@ -255,7 +268,7 @@ public final class TiledMapRenderState {
 
     public void disableRef(int tiledRenderRef) {
         cornerSplits.remove(tiledRenderRef);
-        if(lightingSurfaces.remove(tiledRenderRef)!=null)lightingRevision++;
+        if (lightingSurfaces.remove(tiledRenderRef) != null) lightingRevision++;
         if (tiledRenderRef < 0 || tiledRenderRef >= capacity) {
             return;
         }
@@ -310,7 +323,9 @@ public final class TiledMapRenderState {
         return visibleMapRefCount[groupIndex];
     }
 
-    public TiledRenderOrder visibleMapPreparedOrder(int groupIndex) { return visibleMapPreparedOrder[groupIndex]; }
+    public TiledRenderOrder visibleMapPreparedOrder(int groupIndex) {
+        return visibleMapPreparedOrder[groupIndex];
+    }
 
     public int getRefCount() {
         return refCount;

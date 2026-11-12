@@ -14,7 +14,7 @@ public interface ParticleFacade {
      * replacement remains atomic; the caller never owns or disposes the pooled effect.</p>
      *
      * @throws IllegalArgumentException when the effect path or atlas tag is blank
-     * @throws IllegalStateException when the requested effect was not prepared before READY
+     * @throws IllegalStateException    when the requested effect was not prepared before READY
      */
     ParticleFacade setEffect(String effectPath, String atlasTag);
 
@@ -22,7 +22,9 @@ public interface ParticleFacade {
 
     ParticleFacade setAutoStart(boolean autoStart);
 
-    /** Applies to all emitters of this instance; does not enable local-light reception. */
+    /**
+     * Applies to all emitters of this instance; does not enable local-light reception.
+     */
     ParticleFacade setIgnoreAmbientLighting(boolean ignore);
 
     boolean isIgnoringAmbientLighting();
@@ -37,7 +39,9 @@ public interface ParticleFacade {
 
     ParticleFacade stop();
 
-    /** Stops new emission, lets existing particles finish, then removes this runtime emitter. */
+    /**
+     * Stops new emission, lets existing particles finish, then removes this runtime emitter.
+     */
     ParticleFacade complete();
 
     boolean isPaused();

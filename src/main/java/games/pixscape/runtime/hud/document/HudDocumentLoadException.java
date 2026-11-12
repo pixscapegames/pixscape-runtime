@@ -1,6 +1,8 @@
 package games.pixscape.runtime.hud.document;
 
-/** Typed public failure from the HUD JSON codec. */
+/**
+ * Typed public failure from the HUD JSON codec.
+ */
 public final class HudDocumentLoadException extends RuntimeException {
     private final HudDocumentLoadCode code;
     private final String source;

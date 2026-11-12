@@ -14,7 +14,9 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 
-/** Runtime P2 contract coverage for high-level transform ownership protection. */
+/**
+ * Runtime P2 contract coverage for high-level transform ownership protection.
+ */
 public class TransformPhysicsOwnershipGuardTest {
     @Test
     public void runtimePhysicsPreservesPoseAndOriginGuardsForEachBodyType() throws Exception {
@@ -29,13 +31,48 @@ public class TransformPhysicsOwnershipGuardTest {
 
         for (int type = PhysicsBodyComponent.STATIC; type <= PhysicsBodyComponent.DYNAMIC; type++) {
             physics.type = type;
-            assertRejected(new Runnable() { @Override public void run() { transform.setPosition(10f, 11f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setX(12f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setY(13f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.moveBy(1f, 2f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setRotationRad(0.5f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.rotateByRad(0.5f); } });
-            assertRejected(new Runnable() { @Override public void run() { transform.setOrigin(2f, 3f); } });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.setPosition(10f, 11f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.setX(12f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.setY(13f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.moveBy(1f, 2f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.setRotationRad(0.5f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.rotateByRad(0.5f);
+                }
+            });
+            assertRejected(new Runnable() {
+                @Override
+                public void run() {
+                    transform.setOrigin(2f, 3f);
+                }
+            });
         }
         Assert.assertEquals(3f, authored.x, 0f);
         Assert.assertEquals(4f, authored.y, 0f);
@@ -122,7 +159,12 @@ public class TransformPhysicsOwnershipGuardTest {
         dimensions.width = dimensions.height = 400;
         harness.activateRuntimePhysics();
         LightFacade light = harness.engine.api().entities().ofEntityId(entity).light();
-        assertRejected(new Runnable() { @Override public void run() { light.setRadius(100); } });
+        assertRejected(new Runnable() {
+            @Override
+            public void run() {
+                light.setRadius(100);
+            }
+        });
         Assert.assertEquals(200, light.radius(), 0);
         Assert.assertEquals(400, dimensions.width, 0);
         light.setRadius(200); // Equal values do not request any mutation.
@@ -142,7 +184,8 @@ public class TransformPhysicsOwnershipGuardTest {
         harness.activateRuntimePhysics();
 
         assertRejected(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 harness.engine.api().entities().ofEntityId(root).transform().setScale(2f);
             }
         });
@@ -162,7 +205,8 @@ public class TransformPhysicsOwnershipGuardTest {
         visualTransform.setScale(-2f, 3f).setPosition(4f, 5f);
         assertScale(visualTransform, -2f, 3f);
         assertRejected(new Runnable() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 harness.engine.api().entities().ofEntityId(middle).transform().setOrigin(5f, 6f);
             }
         });

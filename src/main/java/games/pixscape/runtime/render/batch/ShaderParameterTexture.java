@@ -10,7 +10,9 @@ import com.badlogic.gdx.utils.BufferUtils;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-/** Managed RGBA32F data texture shared by all draws in one standard batch. */
+/**
+ * Managed RGBA32F data texture shared by all draws in one standard batch.
+ */
 public final class ShaderParameterTexture implements AutoCloseable {
     public static final int TEXTURE_UNIT = 1;
     public static final int TEXELS_PER_ROW = ShaderParameterRows.FLOATS_PER_ROW / 4;
@@ -18,7 +20,9 @@ public final class ShaderParameterTexture implements AutoCloseable {
     private final Texture texture;
     private final FloatBuffer uploadBuffer;
 
-    /** Headless tests may install a stub GL30 whose capability queries return zero. */
+    /**
+     * Headless tests may install a stub GL30 whose capability queries return zero.
+     */
     public static boolean hasLiveContext() {
         if (Gdx.gl30 == null || Gdx.gl == null || Gdx.graphics == null
                 || Gdx.graphics.getGLVersion() == null) return false;
@@ -45,7 +49,8 @@ public final class ShaderParameterTexture implements AutoCloseable {
         }
         FloatTextureData data = new FloatTextureData(TEXELS_PER_ROW, rowCapacity,
                 GL30.GL_RGBA32F, GL20.GL_RGBA, GL20.GL_FLOAT, false) {
-            @Override public void consumeCustomData(int target) {
+            @Override
+            public void consumeCustomData(int target) {
                 // This table requires ES3. LibGDX's Android FloatTextureData path otherwise
                 // uses an unsized ES2 upload, rejected by GLES3 drivers such as Mali-G68.
                 Gdx.gl.glTexImage2D(target, 0, GL30.GL_RGBA32F, getWidth(), getHeight(),
@@ -62,7 +67,9 @@ public final class ShaderParameterTexture implements AutoCloseable {
         upload(rows.data(), rows.rowCount(), TEXTURE_UNIT);
     }
 
-    /** Existing parameter table contract, on the texture unit reserved by the owning pass. */
+    /**
+     * Existing parameter table contract, on the texture unit reserved by the owning pass.
+     */
     public void upload(float[] values, int rowCount, int textureUnit) {
         int count = rowCount * ShaderParameterRows.FLOATS_PER_ROW;
         uploadBuffer.clear();
@@ -84,5 +91,7 @@ public final class ShaderParameterTexture implements AutoCloseable {
     }
 
     @Override
-    public void close() { texture.dispose(); }
+    public void close() {
+        texture.dispose();
+    }
 }

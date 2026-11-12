@@ -73,7 +73,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
     // Lifecycle/identity fixtures use a fake GL; real rendering has its own GL integration tests.
     private static void disableRendering(PixscapeEngine engine) {
         engine.setRenderSubmitSystemSupplier(() -> new com.artemis.BaseSystem() {
-            @Override protected void processSystem() { }
+            @Override
+            protected void processSystem() {
+            }
         });
     }
 
@@ -116,7 +118,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 new Class<?>[]{GL30.class},
                 (proxy, method, args) -> {
                     if ("glGenTexture".equals(method.getName())) generatedTextures++;
-                    if ("glDeleteTexture".equals(method.getName()) || "glDeleteTextures".equals(method.getName())) deletedTextures++;
+                    if ("glDeleteTexture".equals(method.getName()) || "glDeleteTextures".equals(method.getName()))
+                        deletedTextures++;
                     if ("glViewport".equals(method.getName()) && failHudViewport) {
                         failHudViewport = false;
                         throw new IllegalStateException("Injected HUD session failure");
@@ -394,7 +397,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
         }
     }
 
-    @Test public void preparedModelsFollowSceneAndProjectLifetime() throws Exception {
+    @Test
+    public void preparedModelsFollowSceneAndProjectLifetime() throws Exception {
         EngineFixture fixture = createEngineFixture();
         try {
             writeScene(fixture.projectDir.child("scenes/b.json"), false, false);
@@ -420,7 +424,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertFalse(reloaded.exists());
             Assert.assertThrows(IllegalStateException.class,
                     () -> fixture.engine.spawnGameObject("declared", 0, 0));
-        } finally { fixture.engine.dispose(); }
+        } finally {
+            fixture.engine.dispose();
+        }
     }
 
     @Test
@@ -506,7 +512,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
         String source = new FileHandle(
                 "examples/minimal-export/scenes/scene1.json").readString("UTF-8");
         String invalid = source.replace("\"RenderMaterialComponent\"]",
-                "\"RenderMaterialComponent\", \"LayerComponent\"]")
+                        "\"RenderMaterialComponent\", \"LayerComponent\"]")
                 .replace("\"EntityIndexComponent\": { \"layerIndex\": 0, \"zIndex\": 0 },", "");
         Assert.assertNotEquals(source, invalid);
         scene.writeString(invalid, false, "UTF-8");
@@ -724,9 +730,11 @@ public class PixscapeEnginePhysicsLifecycleTest {
             SceneAvailabilityPlan planB = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
             HudResources environmentB = planB.hudResources();
             Assert.assertNotNull(environmentB);
-            Assert.assertFalse(environmentA.isDisposed()); Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
+            Assert.assertFalse(environmentA.isDisposed());
+            Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
             b.update(); // Destructive construction boundary.
-            Assert.assertEquals(1, disposals[0]); Assert.assertTrue(environmentA.isDisposed());
+            Assert.assertEquals(1, disposals[0]);
+            Assert.assertTrue(environmentA.isDisposed());
             while (b.phase() == SceneLoadPhase.RUNTIME && ((Integer) get(b, "runtimeStep")) < 4) b.update();
             int allocations = generatedTextures;
             while (!b.isReady() && !b.isFailed()) b.update();
@@ -743,12 +751,17 @@ public class PixscapeEnginePhysicsLifecycleTest {
             ActiveHudScreen owned = engine.hudScreenRuntime().show("b");
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.OWNED, owned.resourceOwnership());
             Assert.assertTrue(generatedTextures > allocations);
-            engine.hudScreenRuntime().hide(); Assert.assertFalse(environmentB.isDisposed());
-            engine.dispose(); engine.dispose();
+            engine.hudScreenRuntime().hide();
+            Assert.assertFalse(environmentB.isDisposed());
+            engine.dispose();
+            engine.dispose();
             Assert.assertNull(engine.getActiveHud());
             Assert.assertNull(engine.getLastHudFailure());
-            Assert.assertTrue(environmentB.isDisposed()); Assert.assertEquals(1, disposals[0]);
-        } finally { engine.dispose(); }
+            Assert.assertTrue(environmentB.isDisposed());
+            Assert.assertEquals(1, disposals[0]);
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -766,7 +779,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertSame(plan.hudResources(), get(active, "resources"));
             Assert.assertEquals(HudTextureProfile.DEFAULT_ID, plan.hudResources().textureProfile().id());
             Assert.assertEquals(authored, asset.readString());
-        } finally { fixture.engine.dispose(); }
+        } finally {
+            fixture.engine.dispose();
+        }
     }
 
     @Test
@@ -798,7 +813,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
             int deletedBefore = deletedTextures;
             assertHudPreparationFailurePreservesA(engine, worldA, a, environmentA);
             Assert.assertEquals("partially prepared candidate atlas pages are reclaimed", 2, deletedTextures - deletedBefore);
-        } finally { engine.dispose(); }
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -813,17 +830,22 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertFalse(String.valueOf(pending.failure()), pending.isFailed());
             SceneAvailabilityPlan candidate = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
             HudResources resources = candidate.hudResources();
-            candidate.prepareHudResources(); Assert.assertSame(resources, candidate.hudResources());
+            candidate.prepareHudResources();
+            Assert.assertSame(resources, candidate.hudResources());
             int[] count = {0};
             selectedSkin(resources).add("probe", (com.badlogic.gdx.utils.Disposable) () -> count[0]++,
                     com.badlogic.gdx.utils.Disposable.class);
             Method release = PixscapeEngine.class.getDeclaredMethod("releasePendingSceneAvailability");
-            release.setAccessible(true); release.invoke(engine);
-            candidate.release(); candidate.release();
-            Assert.assertEquals(1, count[0]); Assert.assertTrue(resources.isDisposed());
+            release.setAccessible(true);
+            release.invoke(engine);
+            candidate.release();
+            candidate.release();
+            Assert.assertEquals(1, count[0]);
+            Assert.assertTrue(resources.isDisposed());
             Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
             // End the abandoned handle through its normal failure path; A is still untouched.
-            pending.update(); Assert.assertTrue(pending.isFailed());
+            pending.update();
+            Assert.assertTrue(pending.isFailed());
             // B has invalid Scene stable IDs: its prepared HUD candidate must also be reclaimed.
             engine.config().getSceneMeta("B").defaultHudScreenId = "hud/b";
             copySceneHud(fixture.projectDir, "b");
@@ -831,11 +853,15 @@ public class PixscapeEnginePhysicsLifecycleTest {
             while (invalid.phase() == SceneLoadPhase.FILES && !invalid.isFailed()) invalid.update();
             SceneAvailabilityPlan invalidPlan = (SceneAvailabilityPlan) get(engine, "pendingSceneAvailability");
             HudResources invalidEnvironment = invalidPlan.hudResources();
-            invalid.update(); Assert.assertTrue(invalid.isFailed());
+            invalid.update();
+            Assert.assertTrue(invalid.isFailed());
             Assert.assertTrue(invalidEnvironment.isDisposed());
-            Assert.assertNull(get(engine, "pendingSceneAvailability")); Assert.assertNull(engine.getActiveSceneMeta());
+            Assert.assertNull(get(engine, "pendingSceneAvailability"));
+            Assert.assertNull(engine.getActiveSceneMeta());
             Assert.assertTrue(a.isDisposed());
-        } finally { engine.dispose(); }
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -868,8 +894,11 @@ public class PixscapeEnginePhysicsLifecycleTest {
             engine.loadScene("D");
             Assert.assertNull(engine.getActiveHud());
             Assert.assertNull(engine.getLastHudFailure());
-            engine.dispose(); Assert.assertTrue(resources.isDisposed());
-        } finally { engine.dispose(); }
+            engine.dispose();
+            Assert.assertTrue(resources.isDisposed());
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -889,7 +918,9 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertNotNull(String.valueOf(engine.getLastHudFailure()), b);
             Assert.assertEquals(ActiveHudScreen.ResourceOwnership.BORROWED, b.resourceOwnership());
             Assert.assertTrue(((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources().skinIds().isEmpty());
-        } finally { engine.dispose(); }
+        } finally {
+            engine.dispose();
+        }
     }
 
     @Test
@@ -909,17 +940,23 @@ public class PixscapeEnginePhysicsLifecycleTest {
             Assert.assertNotNull(engine.getLastHudFailure());
             HudResources environment = ((SceneAvailabilityPlan) get(engine, "activeSceneAvailability")).hudResources();
             Assert.assertFalse(environment.isDisposed());
-            engine.dispose(); Assert.assertTrue(environment.isDisposed());
-        } finally { engine.dispose(); }
+            engine.dispose();
+            Assert.assertTrue(environment.isDisposed());
+        } finally {
+            engine.dispose();
+        }
     }
 
     private static void assertHudPreparationFailurePreservesA(PixscapeEngine engine, World worldA,
                                                               ActiveHudScreen a, HudResources environmentA) {
         SceneLoadHandle failed = engine.beginLoadScene("D");
         while (!failed.isFailed() && !failed.isReady()) failed.update();
-        Assert.assertTrue(failed.isFailed()); Assert.assertEquals(SceneLoadPhase.FILES, failed.phase());
-        Assert.assertSame(worldA, engine.getWorld()); Assert.assertEquals("A", engine.getActiveSceneMeta().name);
-        Assert.assertSame(a, engine.hudScreenRuntime().activeScreen()); Assert.assertFalse(a.isDisposed());
+        Assert.assertTrue(failed.isFailed());
+        Assert.assertEquals(SceneLoadPhase.FILES, failed.phase());
+        Assert.assertSame(worldA, engine.getWorld());
+        Assert.assertEquals("A", engine.getActiveSceneMeta().name);
+        Assert.assertSame(a, engine.hudScreenRuntime().activeScreen());
+        Assert.assertFalse(a.isDisposed());
         Assert.assertSame(a.materializedHud(), engine.getActiveHud());
         Assert.assertNull(engine.getLastHudFailure());
         Assert.assertFalse(environmentA.isDisposed());
@@ -935,27 +972,31 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     "{\"schemaVersion\":2,\"root\":{\"id\":\"label\",\"kind\":\"LABEL\","
                             + "\"label\":{\"text\":\"HUD\",\"styleName\":\"hud-title\"},\"children\":[]}}", false);
         }
-        copySceneHud(fixture.projectDir, "a"); copySceneHud(fixture.projectDir, "d");
+        copySceneHud(fixture.projectDir, "a");
+        copySceneHud(fixture.projectDir, "d");
         fixture.config.getSceneMeta("A").defaultHudScreenId = "hud/a";
         fixture.config.getSceneMeta("D").defaultHudScreenId = "hud/b";
         return fixture;
     }
 
     private static void copySceneHud(FileHandle project, String tag) {
-        FileHandle scene = project.child("atlases/hud/" + tag); scene.mkdirs();
+        FileHandle scene = project.child("atlases/hud/" + tag);
+        scene.mkdirs();
         project.child("ui/game.atlas").copyTo(scene.child("hud.atlas"));
         project.child("ui/page-a.png").copyTo(scene.child("page-a.png"));
         project.child("ui/page-b.png").copyTo(scene.child("page-b.png"));
     }
 
     private static HudSession hudSession(ActiveHudScreen active) throws Exception {
-        Method method = ActiveHudScreen.class.getDeclaredMethod("session"); method.setAccessible(true);
+        Method method = ActiveHudScreen.class.getDeclaredMethod("session");
+        method.setAccessible(true);
         return (HudSession) method.invoke(active);
     }
 
     private static com.badlogic.gdx.scenes.scene2d.ui.Skin selectedSkin(HudResources environment) throws Exception {
         Object selected = environment.select("ui/game.json");
-        Method method = selected.getClass().getDeclaredMethod("skin"); method.setAccessible(true);
+        Method method = selected.getClass().getDeclaredMethod("skin");
+        method.setAccessible(true);
         return (com.badlogic.gdx.scenes.scene2d.ui.Skin) method.invoke(selected);
     }
 
@@ -1443,7 +1484,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
 
         @Override
         public Array<AssetDescriptor> getDependencies(String fileName, FileHandle file,
-                TextureAtlasLoader.TextureAtlasParameter parameter) {
+                                                      TextureAtlasLoader.TextureAtlasParameter parameter) {
             return null;
         }
     }

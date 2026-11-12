@@ -30,11 +30,14 @@ public class SpatialVisualAnchorSelectorTest {
     public void closedEdgeContactIsIncludedButActualGapAndDegenerateAreaAreExcluded() {
         Fixture f = new Fixture(new TiledMapLayerData(4, 4, 16, 16, 1), 1);
         f.anchor(0, 0, 0, 0, 0, 16, 16);
-        f.actor(16, 4, 26, 14); f.select();
+        f.actor(16, 4, 26, 14);
+        f.select();
         Assert.assertArrayEquals(new int[]{0}, f.selected());
-        f.actor(16.01f, 4, 26.01f, 14); f.select();
+        f.actor(16.01f, 4, 26.01f, 14);
+        f.select();
         Assert.assertEquals(0, f.selector.candidateCount);
-        f.actor(4, 4, 12, 4); f.select();
+        f.actor(4, 4, 12, 4);
+        f.select();
         Assert.assertEquals(0, f.selector.candidateCount);
     }
 
@@ -48,7 +51,7 @@ public class SpatialVisualAnchorSelectorTest {
         for (float radius : new float[]{1, 4, 100}) {
             f.actors.actorCircleRadius[0] = radius;
             f.actors.writeInfluenceQuad(0, 0, 0, quad);
-            Assert.assertArrayEquals(new float[]{4,4,18,4,18,24,4,24}, quad, 0);
+            Assert.assertArrayEquals(new float[]{4, 4, 18, 4, 18, 24, 4, 24}, quad, 0);
             f.select();
             Assert.assertArrayEquals(new int[]{0}, f.selected());
         }
@@ -91,10 +94,14 @@ public class SpatialVisualAnchorSelectorTest {
         f.anchor(0, 0, 0, 0f, 0f, 10f, 10f);
         f.actor(8f, 8f, 18f, 18f);
         // Place a diamond wholly within the AABB, but outside the actor's top-right corner.
-        f.tiled.x1[0] = 0f; f.tiled.y1[0] = 5f;
-        f.tiled.x2[0] = 5f; f.tiled.y2[0] = 0f;
-        f.tiled.x3[0] = 10f; f.tiled.y3[0] = 5f;
-        f.tiled.x4[0] = 5f; f.tiled.y4[0] = 10f;
+        f.tiled.x1[0] = 0f;
+        f.tiled.y1[0] = 5f;
+        f.tiled.x2[0] = 5f;
+        f.tiled.y2[0] = 0f;
+        f.tiled.x3[0] = 10f;
+        f.tiled.y3[0] = 5f;
+        f.tiled.x4[0] = 5f;
+        f.tiled.y4[0] = 10f;
 
         f.select();
 
@@ -138,8 +145,10 @@ public class SpatialVisualAnchorSelectorTest {
         }
 
         void anchor(int gx, int gy, int ref, float minX, float minY, float maxX, float maxY) {
-            faces.anchorGx[ref] = gx; faces.anchorGy[ref] = gy;
-            faces.anchorTiledRef[ref] = ref; faces.anchorResolved[ref] = true;
+            faces.anchorGx[ref] = gx;
+            faces.anchorGy[ref] = gy;
+            faces.anchorTiledRef[ref] = ref;
+            faces.anchorResolved[ref] = true;
             tiled.enabled[ref] = tiled.visible[ref] = true;
             tiled.x1[ref] = tiled.x4[ref] = minX;
             tiled.x2[ref] = tiled.x3[ref] = maxX;
@@ -148,7 +157,7 @@ public class SpatialVisualAnchorSelectorTest {
         }
 
         void actor(float minX, float minY, float maxX, float maxY) {
-            actors.influenceBounds = new float[]{minX,minY,maxX,maxY};
+            actors.influenceBounds = new float[]{minX, minY, maxX, maxY};
             actors.actorCircleX = new float[]{(minX + maxX) * .5f};
             actors.actorCircleY = new float[]{minY};
             actors.actorCircleRadius = new float[]{(maxX - minX) * .5f};
@@ -160,7 +169,11 @@ public class SpatialVisualAnchorSelectorTest {
             ecs.y3[slot] = ecs.y4[slot] = maxY;
         }
 
-        void select() { faces.rebuildAnchorIndex(); selector.select(0, actors, ecs, tiled, map, faces, 0f, 0f); }
+        void select() {
+            faces.rebuildAnchorIndex();
+            selector.select(0, actors, ecs, tiled, map, faces, 0f, 0f);
+        }
+
         int[] selected() {
             int[] out = new int[selector.candidateCount];
             System.arraycopy(selector.candidateAnchors, 0, out, 0, out.length);

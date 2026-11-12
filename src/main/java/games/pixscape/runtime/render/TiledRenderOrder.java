@@ -5,7 +5,9 @@ import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/** Prepared unsigned-key order of published refs for one map instance, before visibility filtering. */
+/**
+ * Prepared unsigned-key order of published refs for one map instance, before visibility filtering.
+ */
 public final class TiledRenderOrder {
     private final TiledMapLayerData map;
     private int sourceRevision = Integer.MIN_VALUE;
@@ -17,9 +19,13 @@ public final class TiledRenderOrder {
     private int size;
     private int preparationCount;
 
-    TiledRenderOrder(TiledMapLayerData map) { this.map = map; }
+    TiledRenderOrder(TiledMapLayerData map) {
+        this.map = map;
+    }
 
-    boolean belongsTo(TiledMapLayerData source) { return map == source; }
+    boolean belongsTo(TiledMapLayerData source) {
+        return map == source;
+    }
 
     private int cornerRevision = -1;
     private LongMap<Long> cornerLines = new LongMap<>();
@@ -58,8 +64,13 @@ public final class TiledRenderOrder {
         if (!chunk.dirtyLocalIndices.contains(local)) chunk.markLocalDirty(local);
     }
 
-    public void invalidate() { dirty = true; }
-    public boolean isPrepared() { return !dirty && sourceRevision == map.contentStateRevision(); }
+    public void invalidate() {
+        dirty = true;
+    }
+
+    public boolean isPrepared() {
+        return !dirty && sourceRevision == map.contentStateRevision();
+    }
 
     void release(TiledMapRenderState state) {
         for (int i = 0; i < size; i++) {
@@ -106,7 +117,9 @@ public final class TiledRenderOrder {
         preparationCount++;
     }
 
-    /** O(visible refs + covered rank words), without scanning invisible quads or sorting again. */
+    /**
+     * O(visible refs + covered rank words), without scanning invisible quads or sorting again.
+     */
     public void filterVisible(TiledMapRenderState state, int[] refs, int start, int count) {
         if (count <= 1) return;
         int firstWord = Integer.MAX_VALUE;
@@ -130,7 +143,9 @@ public final class TiledRenderOrder {
         if (output != start + count) throw new IllegalStateException("Duplicate or stale visible Tiled refs");
     }
 
-    /** The existing stable, unsigned 64-bit LSD radix comparator, shared by preparation and raw groups. */
+    /**
+     * The existing stable, unsigned 64-bit LSD radix comparator, shared by preparation and raw groups.
+     */
     public static void sortRefs(TiledMapRenderState state, int[] refs, int start, int count,
                                 int[] scratch, int[] buckets) {
         if (count <= 1) return;
@@ -140,7 +155,9 @@ public final class TiledRenderOrder {
             for (int i = 0; i < count; i++) buckets[(int) ((state.sortKey[refs[start + i]] >>> shift) & 255L)]++;
             int sum = 0;
             for (int i = 0; i < 256; i++) {
-                int n = buckets[i]; buckets[i] = sum; sum += n;
+                int n = buckets[i];
+                buckets[i] = sum;
+                sum += n;
             }
             for (int i = 0; i < count; i++) {
                 int ref = refs[start + i];
@@ -150,8 +167,18 @@ public final class TiledRenderOrder {
         }
     }
 
-    public int preparationCount() { return preparationCount; }
-    public int refCount() { return size; }
-    /** Primitive array payload only; excludes object/array headers and the shared ref-rank table. */
-    public long storageBytes() { return 4L * (orderedRefs.length + scratch.length + selectedWords.length + buckets.length); }
+    public int preparationCount() {
+        return preparationCount;
+    }
+
+    public int refCount() {
+        return size;
+    }
+
+    /**
+     * Primitive array payload only; excludes object/array headers and the shared ref-rank table.
+     */
+    public long storageBytes() {
+        return 4L * (orderedRefs.length + scratch.length + selectedWords.length + buckets.length);
+    }
 }

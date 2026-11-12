@@ -4,7 +4,9 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 
 import java.util.Arrays;
 
-/** Runtime-owned, transactionally published compilation of every Spatial V3 structure in one Tiled Map owner. */
+/**
+ * Runtime-owned, transactionally published compilation of every Spatial V3 structure in one Tiled Map owner.
+ */
 public final class SpatialCompiledLayerCache {
     private SpatialBlocksComponent source;
     private int sourceRevision = Integer.MIN_VALUE;
@@ -31,13 +33,26 @@ public final class SpatialCompiledLayerCache {
         return true;
     }
 
-    public int revision() { return revision; }
-    public int structureCount() { return structureCount; }
-    public CompiledSpatialStructure structure(int index) { return structures[index]; }
-    public int compilationCount() { return compilationCount; }
+    public int revision() {
+        return revision;
+    }
+
+    public int structureCount() {
+        return structureCount;
+    }
+
+    public CompiledSpatialStructure structure(int index) {
+        return structures[index];
+    }
+
+    public int compilationCount() {
+        return compilationCount;
+    }
 
     // Author provenance is consumed only while rebuilding projected junctions.
-    SpatialBlocksComponent source() { return source; }
+    SpatialBlocksComponent source() {
+        return source;
+    }
 
     private static int[] collectStructureIds(SpatialBlocksComponent component) {
         if (component == null || component.blocks == null || component.blocks.size == 0) return new int[0];
@@ -47,7 +62,11 @@ public final class SpatialCompiledLayerCache {
             SpatialBlockData wall = component.blocks.get(i);
             if (wall == null || wall.structureId <= 0) continue;
             boolean seen = false;
-            for (int j = 0; j < count; j++) if (ids[j] == wall.structureId) { seen = true; break; }
+            for (int j = 0; j < count; j++)
+                if (ids[j] == wall.structureId) {
+                    seen = true;
+                    break;
+                }
             if (!seen) ids[count++] = wall.structureId;
         }
         Arrays.sort(ids, 0, count);

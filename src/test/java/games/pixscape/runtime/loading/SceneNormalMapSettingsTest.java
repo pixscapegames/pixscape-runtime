@@ -8,16 +8,18 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SceneNormalMapSettingsTest {
-    @Test public void defaultsCopiesAndJsonPreserveOneSceneWideValue() {
-        String required="{sceneSchemaVersion:3,nextEntityStableId:1,nextPhysicsShapeId:1}";
-        assertTrue(SceneMetaRuntime.fromJson(new JsonReader().parse(required),"default").useNormalMaps);
-        SceneMetaRuntime first=new SceneMetaRuntime(),second=new SceneMetaRuntime();
-        first.useNormalMaps=false;
+    @Test
+    public void defaultsCopiesAndJsonPreserveOneSceneWideValue() {
+        String required = "{sceneSchemaVersion:3,nextEntityStableId:1,nextPhysicsShapeId:1}";
+        assertTrue(SceneMetaRuntime.fromJson(new JsonReader().parse(required), "default").useNormalMaps);
+        SceneMetaRuntime first = new SceneMetaRuntime(), second = new SceneMetaRuntime();
+        first.useNormalMaps = false;
         assertFalse(new SceneMetaRuntime(first).useNormalMaps);
         assertTrue(second.useNormalMaps);
-        Json json=new Json();json.setUsePrototypes(false);
-        assertFalse(SceneMetaRuntime.fromJson(new JsonReader().parse(json.toJson(first)),"first").useNormalMaps);
-        first.useNormalMaps=true;
-        assertTrue(SceneMetaRuntime.fromJson(new JsonReader().parse(json.toJson(first)),"first").useNormalMaps);
+        Json json = new Json();
+        json.setUsePrototypes(false);
+        assertFalse(SceneMetaRuntime.fromJson(new JsonReader().parse(json.toJson(first)), "first").useNormalMaps);
+        first.useNormalMaps = true;
+        assertTrue(SceneMetaRuntime.fromJson(new JsonReader().parse(json.toJson(first)), "first").useNormalMaps);
     }
 }

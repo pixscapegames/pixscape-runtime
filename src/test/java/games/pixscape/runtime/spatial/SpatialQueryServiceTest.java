@@ -82,7 +82,7 @@ public class SpatialQueryServiceTest {
 
         SpatialHeightComponent height = new SpatialHeightComponent();
         height.altitude = 1f;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,5f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 5f);
 
         SpatialShapesComponent shapes = new SpatialShapesComponent();
         SpatialShapeData shape = new SpatialShapeData();

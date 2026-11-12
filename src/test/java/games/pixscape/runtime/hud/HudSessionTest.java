@@ -498,7 +498,7 @@ public class HudSessionTest {
     private static MaterializedHud materialize(String fixture, HudResources resources) {
         HudValidationResult validation = new HudDocumentValidator().validate(
                 new HudDocumentCodec().read(new FileHandle(
-                "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
+                        "src/test/resources/games/pixscape/runtime/hud/document/v1/" + fixture)),
                 resources.select("ui/game.json"));
         Assert.assertTrue(validation.issues().toString(), validation.isValid());
         return new HudMaterializer().materialize(

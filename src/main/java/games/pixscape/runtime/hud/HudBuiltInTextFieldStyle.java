@@ -7,19 +7,25 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-/** Stable identity for the built-in HUD TextField style. */
+/**
+ * Stable identity for the built-in HUD TextField style.
+ */
 public final class HudBuiltInTextFieldStyle {
     public static final String BACKGROUND_REGION = HudBuiltInTextButtonStyle.BACKGROUND_REGION;
 
     private HudBuiltInTextFieldStyle() {
     }
 
-    /** A missing authored style reference explicitly selects the built-in style. */
+    /**
+     * A missing authored style reference explicitly selects the built-in style.
+     */
     public static boolean isSelected(String styleName) {
         return styleName == null || styleName.trim().length() == 0;
     }
 
-    /** Creates one independent style over caller-owned packed resources. */
+    /**
+     * Creates one independent style over caller-owned packed resources.
+     */
     public static TextField.TextFieldStyle create(TextureRegion white, BitmapFont font) {
         if (white == null) throw new IllegalArgumentException("White region is required.");
         if (font == null) throw new IllegalArgumentException("BitmapFont is required.");

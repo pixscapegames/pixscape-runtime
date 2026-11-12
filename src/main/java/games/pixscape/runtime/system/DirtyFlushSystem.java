@@ -33,7 +33,9 @@ public final class DirtyFlushSystem extends BaseSystem implements ProfiledSystem
         if (dirty != null) dirty.clearFrame();
     }
 
-    /** Clears load-time dirty state after every persistent consumer has prepared. */
+    /**
+     * Clears load-time dirty state after every persistent consumer has prepared.
+     */
     public void finishRuntimeAvailability() {
         processSystemInternal();
     }

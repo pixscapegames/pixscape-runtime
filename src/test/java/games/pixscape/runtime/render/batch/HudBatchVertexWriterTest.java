@@ -20,7 +20,7 @@ public class HudBatchVertexWriterTest {
                 source, 0, source.length, target, 0, 9f, null);
 
         Assert.assertEquals(target.length, written);
-        Assert.assertArrayEquals(new float[] {
+        Assert.assertArrayEquals(new float[]{
                 1f, 2f, 101f, 0.1f, 0.2f, 9f,
                 3f, 4f, 202f, 0.3f, 0.4f, 9f,
                 5f, 6f, 303f, 0.5f, 0.6f, 9f,
@@ -38,7 +38,7 @@ public class HudBatchVertexWriterTest {
 
         Assert.assertEquals(6, written);
         Assert.assertArrayEquals(
-                new float[] {-3f, 1f, 2f, 3f, 4f, 5f, 6f, -10f}, target, 0f);
+                new float[]{-3f, 1f, 2f, 3f, 4f, 5f, 6f, -10f}, target, 0f);
     }
 
     @Test

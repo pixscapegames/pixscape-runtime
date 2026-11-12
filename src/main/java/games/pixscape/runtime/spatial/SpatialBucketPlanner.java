@@ -1,6 +1,8 @@
 package games.pixscape.runtime.spatial;
 
-/** Reduces exact-anchor intents and resolves stable actor insertion intervals jointly. */
+/**
+ * Reduces exact-anchor intents and resolves stable actor insertion intervals jointly.
+ */
 public final class SpatialBucketPlanner {
     private static final byte FRONT = 1;
     private static final byte BEHIND = 2;
@@ -236,13 +238,24 @@ public final class SpatialBucketPlanner {
         return touchedCount;
     }
 
-    public int unresolvedLateralCornerCount() { return unresolvedLateralCornerCount; }
-    public boolean hasUnresolvedCorner(int actor) { return actorHasUnresolvedCorner[actor]; }
-    public boolean hasLocalFallback(int actor) { return hasContradictoryInterval(actor); }
-    public boolean hasRelation(int actor) { return actorHasConstraint[actor]; }
+    public int unresolvedLateralCornerCount() {
+        return unresolvedLateralCornerCount;
+    }
+
+    public boolean hasUnresolvedCorner(int actor) {
+        return actorHasUnresolvedCorner[actor];
+    }
+
+    public boolean hasLocalFallback(int actor) {
+        return hasContradictoryInterval(actor);
+    }
+
+    public boolean hasRelation(int actor) {
+        return actorHasConstraint[actor];
+    }
 
     private boolean isUnresolvedLateralCorner(SpatialProjectedFaceCache faces, int anchor, int stamp,
-                                             float x, float y, float radius) {
+                                              float x, float y, float radius) {
         if (anchor >= faces.anchorCornerHead.length || anchorHasMultipleStructures[anchor]) return false;
         for (int corner = faces.anchorCornerHead[anchor]; corner >= 0; corner = faces.cornerNext[corner]) {
             int a = faces.cornerMembershipA[corner], b = faces.cornerMembershipB[corner];
@@ -266,9 +279,17 @@ public final class SpatialBucketPlanner {
         sortActorsWithinBuckets(actors);
     }
 
-    public int unresolvedConstraintCount() { return unresolvedConstraintCount; }
-    public int actorOrderingFallbackCount() { return actorOrderingFallbackCount; }
-    /** On-demand inspection only; no string building or logging occurs during normal frames. */
+    public int unresolvedConstraintCount() {
+        return unresolvedConstraintCount;
+    }
+
+    public int actorOrderingFallbackCount() {
+        return actorOrderingFallbackCount;
+    }
+
+    /**
+     * On-demand inspection only; no string building or logging occurs during normal frames.
+     */
     public String diagnosticSummary(int candidates, int relations) {
         StringBuilder out = new StringBuilder(96 + actorCount * 120);
         out.append("candidates=").append(candidates).append(" relations=").append(relations)
@@ -282,7 +303,7 @@ public final class SpatialBucketPlanner {
                     .append(" U=").append(actorUpperBound[actor])
                     .append(" unresolvedCorner=").append(actorHasUnresolvedCorner[actor])
                     .append(" localFallback=").append(hasContradictoryInterval(actor))
-                      .append(" conflictKind=").append(conflictKind(actor))
+                    .append(" conflictKind=").append(conflictKind(actor))
                     .append(" noRelation=").append(!actorHasConstraint[actor]);
             if (actorLowerSourceFaceIndex[actor] >= 0) {
                 out.append(" lowerSource(map=").append(actorLowerSourceMapEntity[actor])
@@ -302,7 +323,9 @@ public final class SpatialBucketPlanner {
         return out.toString();
     }
 
-    /** Diagnosis only: no admission or fallback policy follows from this label. */
+    /**
+     * Diagnosis only: no admission or fallback policy follows from this label.
+     */
     public String conflictKind(int actor) {
         if (!hasContradictoryInterval(actor)) return "NONE";
         if (actorHasUnresolvedCorner[actor]) return "LOCAL_X";
@@ -311,18 +334,53 @@ public final class SpatialBucketPlanner {
                 || actorLowerSourceAnchorGy[actor] != actorUpperSourceAnchorGy[actor]) return "MULTI_TILE";
         return "UNCLASSIFIED";
     }
-    boolean actorHasConstraint(int actor) { return actorHasConstraint[actor]; }
-    int lowerSourceAnchorGx(int actor) { return actorLowerSourceAnchorGx[actor]; }
-    int lowerSourceAnchorGy(int actor) { return actorLowerSourceAnchorGy[actor]; }
-    float lowerSourceMinX(int actor) { return actorLowerSourceMinX[actor]; }
-    float lowerSourceMaxX(int actor) { return actorLowerSourceMaxX[actor]; }
-    float upperSourceMinX(int actor) { return actorUpperSourceMinX[actor]; }
-    float upperSourceMaxX(int actor) { return actorUpperSourceMaxX[actor]; }
-    public int bucketActorStart(int bucket) { checkBucket(bucket); return bucketActorOffset[bucket]; }
-    public int bucketActorCount(int bucket) { checkBucket(bucket); return bucketActorCount[bucket]; }
+
+    boolean actorHasConstraint(int actor) {
+        return actorHasConstraint[actor];
+    }
+
+    int lowerSourceAnchorGx(int actor) {
+        return actorLowerSourceAnchorGx[actor];
+    }
+
+    int lowerSourceAnchorGy(int actor) {
+        return actorLowerSourceAnchorGy[actor];
+    }
+
+    float lowerSourceMinX(int actor) {
+        return actorLowerSourceMinX[actor];
+    }
+
+    float lowerSourceMaxX(int actor) {
+        return actorLowerSourceMaxX[actor];
+    }
+
+    float upperSourceMinX(int actor) {
+        return actorUpperSourceMinX[actor];
+    }
+
+    float upperSourceMaxX(int actor) {
+        return actorUpperSourceMaxX[actor];
+    }
+
+    public int bucketActorStart(int bucket) {
+        checkBucket(bucket);
+        return bucketActorOffset[bucket];
+    }
+
+    public int bucketActorCount(int bucket) {
+        checkBucket(bucket);
+        return bucketActorCount[bucket];
+    }
+
     public void clear() {
-        actorCount = 0; bucketCount = 0; unresolvedConstraintCount = 0; actorOrderingFallbackCount = 0;
-        testedMembershipCount = 0; acceptedLocalMembershipCount = 0; rejectedNonlocalMembershipCount = 0;
+        actorCount = 0;
+        bucketCount = 0;
+        unresolvedConstraintCount = 0;
+        actorOrderingFallbackCount = 0;
+        testedMembershipCount = 0;
+        acceptedLocalMembershipCount = 0;
+        rejectedNonlocalMembershipCount = 0;
         unresolvedLateralCornerCount = 0;
     }
 
@@ -370,7 +428,9 @@ public final class SpatialBucketPlanner {
         for (int actor = 0; actor < actorCount; actor++) bucketActorCount[actorBucket[actor]]++;
         int offset = 0;
         for (int bucket = 0; bucket < bucketCount; bucket++) {
-            bucketActorOffset[bucket] = offset; bucketWrite[bucket] = offset; offset += bucketActorCount[bucket];
+            bucketActorOffset[bucket] = offset;
+            bucketWrite[bucket] = offset;
+            offset += bucketActorCount[bucket];
         }
         ensureSortedCapacity(actorCount);
         for (int actor = 0; actor < actorCount; actor++) sortedActorIndex[bucketWrite[actorBucket[actor]]++] = actor;
@@ -388,7 +448,9 @@ public final class SpatialBucketPlanner {
         validateAndPublishActorBuckets(orderedCount);
     }
 
-    /** Package-private so the atomic fallback path can be exercised without production fault injection. */
+    /**
+     * Package-private so the atomic fallback path can be exercised without production fault injection.
+     */
     boolean validateAndPublishActorBuckets(int orderedCount) {
         boolean valid = orderedCount == actorCount;
         int previousBucket = 0;
@@ -594,31 +656,110 @@ public final class SpatialBucketPlanner {
         return bucket < lower ? lower : bucket > upper ? upper : bucket;
     }
 
-    private int clamp(int bucket) { return bucket < 0 ? 0 : bucket >= bucketCount ? bucketCount - 1 : bucket; }
-    private void checkBucket(int bucket) { if (bucket < 0 || bucket >= bucketCount) throw new IndexOutOfBoundsException("Invalid bucket " + bucket); }
+    private int clamp(int bucket) {
+        return bucket < 0 ? 0 : bucket >= bucketCount ? bucketCount - 1 : bucket;
+    }
+
+    private void checkBucket(int bucket) {
+        if (bucket < 0 || bucket >= bucketCount) throw new IndexOutOfBoundsException("Invalid bucket " + bucket);
+    }
+
     private void ensureActorCapacity(int required) {
-        if (required <= actorBucket.length) return; int n=capacity(actorBucket.length,required);
-        actorBucket=grow(actorBucket,n); actorOriginalBucket=grow(actorOriginalBucket,n); actorLowerBound=grow(actorLowerBound,n); actorUpperBound=grow(actorUpperBound,n);
-        splitLowerBound=grow(splitLowerBound,n); splitUpperBound=grow(splitUpperBound,n);
-        actorLowerSourceAnchorGx=grow(actorLowerSourceAnchorGx,n); actorLowerSourceAnchorGy=grow(actorLowerSourceAnchorGy,n); actorLowerSourceFaceIndex=grow(actorLowerSourceFaceIndex,n); actorLowerSourceStructureId=grow(actorLowerSourceStructureId,n); actorLowerSourceMapEntity=grow(actorLowerSourceMapEntity,n);
-        actorLowerSourceMinX=grow(actorLowerSourceMinX,n); actorLowerSourceMaxX=grow(actorLowerSourceMaxX,n);
-        actorUpperSourceAnchorGx=grow(actorUpperSourceAnchorGx,n); actorUpperSourceAnchorGy=grow(actorUpperSourceAnchorGy,n); actorUpperSourceFaceIndex=grow(actorUpperSourceFaceIndex,n); actorUpperSourceStructureId=grow(actorUpperSourceStructureId,n); actorUpperSourceMapEntity=grow(actorUpperSourceMapEntity,n);
-        actorUpperSourceMinX=grow(actorUpperSourceMinX,n); actorUpperSourceMaxX=grow(actorUpperSourceMaxX,n);
-        finalActorDrawIndex=grow(finalActorDrawIndex,n); actorHasConstraint=grow(actorHasConstraint,n); actorHasUnresolvedCorner=grow(actorHasUnresolvedCorner,n);
+        if (required <= actorBucket.length) return;
+        int n = capacity(actorBucket.length, required);
+        actorBucket = grow(actorBucket, n);
+        actorOriginalBucket = grow(actorOriginalBucket, n);
+        actorLowerBound = grow(actorLowerBound, n);
+        actorUpperBound = grow(actorUpperBound, n);
+        splitLowerBound = grow(splitLowerBound, n);
+        splitUpperBound = grow(splitUpperBound, n);
+        actorLowerSourceAnchorGx = grow(actorLowerSourceAnchorGx, n);
+        actorLowerSourceAnchorGy = grow(actorLowerSourceAnchorGy, n);
+        actorLowerSourceFaceIndex = grow(actorLowerSourceFaceIndex, n);
+        actorLowerSourceStructureId = grow(actorLowerSourceStructureId, n);
+        actorLowerSourceMapEntity = grow(actorLowerSourceMapEntity, n);
+        actorLowerSourceMinX = grow(actorLowerSourceMinX, n);
+        actorLowerSourceMaxX = grow(actorLowerSourceMaxX, n);
+        actorUpperSourceAnchorGx = grow(actorUpperSourceAnchorGx, n);
+        actorUpperSourceAnchorGy = grow(actorUpperSourceAnchorGy, n);
+        actorUpperSourceFaceIndex = grow(actorUpperSourceFaceIndex, n);
+        actorUpperSourceStructureId = grow(actorUpperSourceStructureId, n);
+        actorUpperSourceMapEntity = grow(actorUpperSourceMapEntity, n);
+        actorUpperSourceMinX = grow(actorUpperSourceMinX, n);
+        actorUpperSourceMaxX = grow(actorUpperSourceMaxX, n);
+        finalActorDrawIndex = grow(finalActorDrawIndex, n);
+        actorHasConstraint = grow(actorHasConstraint, n);
+        actorHasUnresolvedCorner = grow(actorHasUnresolvedCorner, n);
     }
-    private void ensureAnchorScratchCapacity(int required){if(required<=anchorVisitStamp.length)return;int n=capacity(anchorVisitStamp.length,required);anchorVisitStamp=grow(anchorVisitStamp,n);anchorIntent=grow(anchorIntent,n);anchorIntentStructure=grow(anchorIntentStructure,n);anchorHasMultipleStructures=grow(anchorHasMultipleStructures,n);anchorSourceFace=grow(anchorSourceFace,n);anchorSourceMembership=grow(anchorSourceMembership,n);anchorFrontSourceFace=grow(anchorFrontSourceFace,n);anchorFrontSourceMembership=grow(anchorFrontSourceMembership,n);touchedAnchorIndices=grow(touchedAnchorIndices,n);}
-    private void ensureBucketCapacity(int required){if(required<=bucketActorCount.length)return;int n=capacity(bucketActorCount.length,required);bucketActorCount=grow(bucketActorCount,n);bucketActorOffset=grow(bucketActorOffset,n);bucketWrite=grow(bucketWrite,n);}
-    private void ensureSortedCapacity(int required){if(required>sortedActorIndex.length)sortedActorIndex=grow(sortedActorIndex,capacity(sortedActorIndex.length,required));}
-    private void ensureActorOrderCapacity(int required){
-        if(required<=orderedActorIndex.length)return;int n=capacity(orderedActorIndex.length,required);
-        orderedActorIndex=grow(orderedActorIndex,n);actorsByLowerBound=grow(actorsByLowerBound,n);
-        lowerSortScratch=grow(lowerSortScratch,n);upperBoundHeap=grow(upperBoundHeap,n);readyActorHeap=grow(readyActorHeap,n);
-        baselineActorBucket=grow(baselineActorBucket,n);candidateActorBucket=grow(candidateActorBucket,n);
-        prefixMaximumLowerBound=grow(prefixMaximumLowerBound,n);actorRemaining=grow(actorRemaining,n);
+
+    private void ensureAnchorScratchCapacity(int required) {
+        if (required <= anchorVisitStamp.length) return;
+        int n = capacity(anchorVisitStamp.length, required);
+        anchorVisitStamp = grow(anchorVisitStamp, n);
+        anchorIntent = grow(anchorIntent, n);
+        anchorIntentStructure = grow(anchorIntentStructure, n);
+        anchorHasMultipleStructures = grow(anchorHasMultipleStructures, n);
+        anchorSourceFace = grow(anchorSourceFace, n);
+        anchorSourceMembership = grow(anchorSourceMembership, n);
+        anchorFrontSourceFace = grow(anchorFrontSourceFace, n);
+        anchorFrontSourceMembership = grow(anchorFrontSourceMembership, n);
+        touchedAnchorIndices = grow(touchedAnchorIndices, n);
     }
-    private static int capacity(int current,int required){int n=Math.max(8,current);while(n<required)n<<=1;return n;}
-    private static int[] grow(int[] a,int n){int[] b=new int[n];System.arraycopy(a,0,b,0,a.length);return b;}
-    private static float[] grow(float[] a,int n){float[] b=new float[n];System.arraycopy(a,0,b,0,a.length);return b;}
-    private static byte[] grow(byte[] a,int n){byte[] b=new byte[n];System.arraycopy(a,0,b,0,a.length);return b;}
-    private static boolean[] grow(boolean[] a,int n){boolean[] b=new boolean[n];System.arraycopy(a,0,b,0,a.length);return b;}
+
+    private void ensureBucketCapacity(int required) {
+        if (required <= bucketActorCount.length) return;
+        int n = capacity(bucketActorCount.length, required);
+        bucketActorCount = grow(bucketActorCount, n);
+        bucketActorOffset = grow(bucketActorOffset, n);
+        bucketWrite = grow(bucketWrite, n);
+    }
+
+    private void ensureSortedCapacity(int required) {
+        if (required > sortedActorIndex.length)
+            sortedActorIndex = grow(sortedActorIndex, capacity(sortedActorIndex.length, required));
+    }
+
+    private void ensureActorOrderCapacity(int required) {
+        if (required <= orderedActorIndex.length) return;
+        int n = capacity(orderedActorIndex.length, required);
+        orderedActorIndex = grow(orderedActorIndex, n);
+        actorsByLowerBound = grow(actorsByLowerBound, n);
+        lowerSortScratch = grow(lowerSortScratch, n);
+        upperBoundHeap = grow(upperBoundHeap, n);
+        readyActorHeap = grow(readyActorHeap, n);
+        baselineActorBucket = grow(baselineActorBucket, n);
+        candidateActorBucket = grow(candidateActorBucket, n);
+        prefixMaximumLowerBound = grow(prefixMaximumLowerBound, n);
+        actorRemaining = grow(actorRemaining, n);
+    }
+
+    private static int capacity(int current, int required) {
+        int n = Math.max(8, current);
+        while (n < required) n <<= 1;
+        return n;
+    }
+
+    private static int[] grow(int[] a, int n) {
+        int[] b = new int[n];
+        System.arraycopy(a, 0, b, 0, a.length);
+        return b;
+    }
+
+    private static float[] grow(float[] a, int n) {
+        float[] b = new float[n];
+        System.arraycopy(a, 0, b, 0, a.length);
+        return b;
+    }
+
+    private static byte[] grow(byte[] a, int n) {
+        byte[] b = new byte[n];
+        System.arraycopy(a, 0, b, 0, a.length);
+        return b;
+    }
+
+    private static boolean[] grow(boolean[] a, int n) {
+        boolean[] b = new boolean[n];
+        System.arraycopy(a, 0, b, 0, a.length);
+        return b;
+    }
 }

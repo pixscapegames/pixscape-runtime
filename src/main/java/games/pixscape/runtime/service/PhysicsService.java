@@ -54,7 +54,9 @@ public final class PhysicsService {
         }
     }
 
-    /** Checks one complete authored relation at publication, independent of native availability. */
+    /**
+     * Checks one complete authored relation at publication, independent of native availability.
+     */
     public static void requireJointBodies(World world, int entity, String context) {
         PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).getSafe(entity, null);
         if (joint == null) return;
@@ -901,7 +903,9 @@ public final class PhysicsService {
         deleteEntityAndDependentJoints(world, jointEid);
     }
 
-    /** Deletes a standalone entity and its joint dependency closure in one ECS batch. */
+    /**
+     * Deletes a standalone entity and its joint dependency closure in one ECS batch.
+     */
     public static void deleteEntityAndDependentJoints(World world, int entityId) {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return;
         IntArray affected = collectJointsAffectedByEntityRemoval(
@@ -1222,7 +1226,9 @@ public final class PhysicsService {
         return true;
     }
 
-    /** Resolves the same hierarchy display pose used by Physics writeback and joint authoring. */
+    /**
+     * Resolves the same hierarchy display pose used by Physics writeback and joint authoring.
+     */
     private boolean resolveBodyPose(int entityId, BodyPose out) {
         if (out == null || entityId < 0) return false;
         TransformComponent authored = mT.getSafe(entityId, null);
@@ -1310,14 +1316,18 @@ public final class PhysicsService {
         return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, null);
     }
 
-    /** Cold preparation against a detached map projection, before authored map publication. */
+    /**
+     * Cold preparation against a detached map projection, before authored map publication.
+     */
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             World world, int ownerEntityId, Array<PhysicsShapeData> sources,
             float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap) {
         return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, candidateMap, null);
     }
 
-    /** Cold preparation against complete detached wall data; authored ECS state stays untouched. */
+    /**
+     * Cold preparation against complete detached wall data; authored ECS state stays untouched.
+     */
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             World world, int ownerEntityId, Array<PhysicsShapeData> sources,
             float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap,
@@ -1453,7 +1463,7 @@ public final class PhysicsService {
             entityIds.add(entityId);
             preparedBodies.add(resolveLinkedShapes
                     ? prepareBodyCandidate(
-                            world, entityId, sources, pixelsPerMeter)
+                    world, entityId, sources, pixelsPerMeter)
                     : prepareBodyCandidate(sources));
         }
 

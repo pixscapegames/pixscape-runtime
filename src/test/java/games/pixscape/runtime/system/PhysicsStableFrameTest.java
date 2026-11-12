@@ -47,7 +47,7 @@ public class PhysicsStableFrameTest {
         index.layerIndex = 0;
         SpatialHeightComponent height =
                 world.getMapper(SpatialHeightComponent.class).create(actor);
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2f);
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(actor);
         PhysicsShapeData circle = new PhysicsShapeData();
@@ -142,7 +142,7 @@ public class PhysicsStableFrameTest {
         Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
 
         Body nativeBody = world.getMapper(
-                games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)
+                        games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)
                 .get(actor).body;
         Assert.assertNotNull(nativeBody);
         world.getMapper(PhysicsBodyComponent.class).remove(actor);
@@ -175,8 +175,15 @@ public class PhysicsStableFrameTest {
             provenanceCreations = 0;
         }
 
-        @Override public void onBodyEligibilityCheck() { eligibilityChecks++; }
-        @Override public void onBodyCacheCheck() { cacheChecks++; }
+        @Override
+        public void onBodyEligibilityCheck() {
+            eligibilityChecks++;
+        }
+
+        @Override
+        public void onBodyCacheCheck() {
+            cacheChecks++;
+        }
 
         @Override
         public void onBodyCompile() {

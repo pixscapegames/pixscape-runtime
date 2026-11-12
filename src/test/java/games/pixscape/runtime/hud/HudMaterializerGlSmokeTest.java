@@ -18,7 +18,9 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 
-/** Real desktop GL30 smoke for the complete project-screen-to-HudBatch lifecycle. */
+/**
+ * Real desktop GL30 smoke for the complete project-screen-to-HudBatch lifecycle.
+ */
 public class HudMaterializerGlSmokeTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();

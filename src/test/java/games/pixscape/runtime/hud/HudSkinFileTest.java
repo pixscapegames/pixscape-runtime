@@ -13,17 +13,20 @@ public class HudSkinFileTest {
     @Test
     public void charsetReaderDelegatesWithoutUsingTheInheritedReadFallback() throws Exception {
         FileHandle delegate = new FileHandle() {
-            @Override public Reader reader(String charset) {
+            @Override
+            public Reader reader(String charset) {
                 Assert.assertEquals("UTF-8", charset);
                 return new StringReader("skin-json");
             }
 
-            @Override public InputStream read() {
+            @Override
+            public InputStream read() {
                 throw new GdxRuntimeException("Stub");
             }
         };
         FileHandle project = new FileHandle() {
-            @Override public FileHandle child(String name) {
+            @Override
+            public FileHandle child(String name) {
                 Assert.assertEquals("orig/skins/1701/comic-ui.json", name);
                 return delegate;
             }

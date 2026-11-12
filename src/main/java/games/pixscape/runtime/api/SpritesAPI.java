@@ -12,8 +12,8 @@ public interface SpritesAPI {
      * Creates a sprite entity from an asset id at world position {@code (x, y)}.
      *
      * @param assetId exported asset id to use for the sprite region
-     * @param x initial world x position
-     * @param y initial world y position
+     * @param x       initial world x position
+     * @param y       initial world y position
      * @return fluent reference to the created sprite entity
      * @throws IllegalArgumentException when the asset is not available in the current scene atlas
      */
@@ -23,8 +23,8 @@ public interface SpritesAPI {
      * Creates a sprite entity from an asset name at world position {@code (x, y)}.
      *
      * @param name exported asset name to use for the sprite region
-     * @param x initial world x position
-     * @param y initial world y position
+     * @param x    initial world x position
+     * @param y    initial world y position
      * @return fluent reference to the created sprite entity
      * @throws IllegalArgumentException when the asset is not available in the current scene atlas
      */

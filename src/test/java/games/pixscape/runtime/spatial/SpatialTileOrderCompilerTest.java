@@ -46,11 +46,15 @@ public class SpatialTileOrderCompilerTest {
     public void tileInsertionAndTransactionOrderDoNotChangeRanks() {
         TiledMapLayerData first = map(12, 12);
         first.beginContentMutation();
-        first.setTile(2, 8, 1); first.setTile(9, 1, 1); first.setTile(4, 4, 1);
+        first.setTile(2, 8, 1);
+        first.setTile(9, 1, 1);
+        first.setTile(4, 4, 1);
         first.endContentMutation();
         TiledMapLayerData second = map(12, 12);
         second.beginContentMutation();
-        second.setTile(4, 4, 1); second.setTile(2, 8, 1); second.setTile(9, 1, 1);
+        second.setTile(4, 4, 1);
+        second.setTile(2, 8, 1);
+        second.setTile(9, 1, 1);
         second.endContentMutation();
 
         Assert.assertEquals(1, first.contentRevision());
@@ -217,25 +221,40 @@ public class SpatialTileOrderCompilerTest {
     @Test
     public void auditedActorWitnessFitsBetweenCanonicalAAndB() {
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
-        faces.faceCount = 2; faces.structureCount = 1; faces.anchorCount = 2;
-        faces.faceStructureId = new int[]{1, 2}; faces.faceCompiledIndex = new int[]{0, 0};
-        faces.faceAltitude = new float[]{0, 0}; faces.faceHeight = new float[]{32, 32};
-        faces.screenMinX = new float[]{0, 0}; faces.screenMaxX = new float[]{10, 10};
-        faces.slope = new float[]{0, 0}; faces.intercept = new float[]{20, 10};
-        faces.structureFaceStart = new int[]{0}; faces.structureFaceCount = new int[]{2};
-        faces.structureMinX = new float[]{0}; faces.structureMaxX = new float[]{10};
-        faces.faceAnchorIndexStart = new int[]{0, 1}; faces.faceAnchorIndexCount = new int[]{1, 1};
+        faces.faceCount = 2;
+        faces.structureCount = 1;
+        faces.anchorCount = 2;
+        faces.faceStructureId = new int[]{1, 2};
+        faces.faceCompiledIndex = new int[]{0, 0};
+        faces.faceAltitude = new float[]{0, 0};
+        faces.faceHeight = new float[]{32, 32};
+        faces.screenMinX = new float[]{0, 0};
+        faces.screenMaxX = new float[]{10, 10};
+        faces.slope = new float[]{0, 0};
+        faces.intercept = new float[]{20, 10};
+        faces.structureFaceStart = new int[]{0};
+        faces.structureFaceCount = new int[]{2};
+        faces.structureMinX = new float[]{0};
+        faces.structureMaxX = new float[]{10};
+        faces.faceAnchorIndexStart = new int[]{0, 1};
+        faces.faceAnchorIndexCount = new int[]{1, 1};
         faces.faceAnchorIndices = new int[]{0, 1};
         faces.faceAnchorScreenMinX = new float[]{0, 0};
         faces.faceAnchorScreenMaxX = new float[]{10, 10};
-        faces.anchorGx = new int[]{10, 7}; faces.anchorGy = new int[]{12, 16};
+        faces.anchorGx = new int[]{10, 7};
+        faces.anchorGy = new int[]{12, 16};
         faces.anchorResolved = new boolean[]{true, true};
-        faces.anchorBeforeBucket = new int[]{0, 1}; faces.anchorAfterBucket = new int[]{1, 2};
+        faces.anchorBeforeBucket = new int[]{0, 1};
+        faces.anchorAfterBucket = new int[]{1, 2};
 
         SpatialActorCollector actor = new SpatialActorCollector();
-        actor.actorCount = 1; actor.actorEntityId = new int[]{99}; actor.actorStableOrder = new int[]{0};
-        actor.actorCircleX = new float[]{5.001f}; actor.actorCircleY = new float[]{15};
-        actor.actorAltitude = new float[]{0}; actor.actorHeight = new float[]{16};
+        actor.actorCount = 1;
+        actor.actorEntityId = new int[]{99};
+        actor.actorStableOrder = new int[]{0};
+        actor.actorCircleX = new float[]{5.001f};
+        actor.actorCircleY = new float[]{15};
+        actor.actorAltitude = new float[]{0};
+        actor.actorHeight = new float[]{16};
         SpatialFaceRelationSolver relations = new SpatialFaceRelationSolver();
         relations.solve(actor, faces);
         Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE, relations.relationType[0]);
@@ -275,8 +294,12 @@ public class SpatialTileOrderCompilerTest {
         SpatialBlockData wall = new SpatialBlockData();
         wall.id = id;
         wall.structureId = structure;
-        wall.x = x; wall.y = y; wall.width = width; wall.depth = depth;
-        wall.altitude = altitude; wall.height = 32;
+        wall.x = x;
+        wall.y = y;
+        wall.width = width;
+        wall.depth = depth;
+        wall.altitude = altitude;
+        wall.height = 32;
         for (int i = 0; i < anchors.length; i++) wall.addLinkedTileRef(anchors[i][0], anchors[i][1], 1);
         return wall;
     }

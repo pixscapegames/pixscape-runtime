@@ -30,7 +30,7 @@ public class HudResourceRequirementsTest {
                 "\"dialog\":{\"title\":\"Settings\",\"fontAssetId\":42}," + emptyTable());
         HudResourceRequirements builtin = requirements(node("root", "GROUP",
                 "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
-                        + builtinDialog + "}]") );
+                        + builtinDialog + "}]"));
         Assert.assertFalse(builtin.requiresSkin());
         Assert.assertTrue(builtin.requiresBuiltInWindowStyle());
         Assert.assertTrue(builtin.bitmapFontAssetIds().contains(42));
@@ -39,7 +39,7 @@ public class HudResourceRequirementsTest {
                 "\"dialog\":{\"title\":\"Settings\",\"styleName\":\"panel\"}," + emptyTable());
         HudResourceRequirements custom = requirements(node("root", "GROUP",
                 "\"children\":[{\"placementKind\":\"DIRECT\",\"node\":"
-                        + skinDialog + "}]") );
+                        + skinDialog + "}]"));
         Assert.assertTrue(custom.requiresSkin());
         Assert.assertFalse(custom.requiresBuiltInWindowStyle());
     }
@@ -57,6 +57,7 @@ public class HudResourceRequirementsTest {
         Assert.assertTrue(requirements.requiresBuiltInTextButtonStyle());
         Assert.assertTrue(requirements.bitmapFontAssetIds().contains(45));
     }
+
     @Test
     public void tooltipOnlyNodeCollectsItsFontAndDefaultOrCustomStyle() {
         HudResourceRequirements builtin = requirements(node("root", "GROUP",
@@ -91,7 +92,7 @@ public class HudResourceRequirementsTest {
         String table = node("table", "TABLE", "\"table\":{\"columns\":1,\"rows\":[{\"cells\":[{"
                 + "\"id\":\"cell-stack\",\"constraints\":{\"uniformX\":false,\"uniformY\":false},\"content\":" + stack + "}]}]}");
         assertRequirements(node("root", "GROUP", "\"children\":[{"
-                + "\"placementKind\":\"DIRECT\",\"node\":" + table + "}]"),
+                        + "\"placementKind\":\"DIRECT\",\"node\":" + table + "}]"),
                 false, false);
     }
 
@@ -111,7 +112,7 @@ public class HudResourceRequirementsTest {
                 + "\"imageOver\":{\"source\":\"DRAWABLE\",\"resourceName\":\"over\"}},"
                 + "\"children\":[]"), true, true);
         assertRequirements(node("field", "TEXT_FIELD", "\"textField\":{\"text\":\"\","
-                + "\"messageText\":\"Name\",\"styleName\":\"compact\"},\"children\":[]"),
+                        + "\"messageText\":\"Name\",\"styleName\":\"compact\"},\"children\":[]"),
                 true, true);
     }
 
@@ -265,8 +266,8 @@ public class HudResourceRequirementsTest {
         String label = node("label", "LABEL", "\"label\":{\"text\":\"Title\","
                 + "\"styleName\":\"title\"},\"children\":[]");
         assertRequirements(node("root", "STACK", "\"children\":[{"
-                + "\"placementKind\":\"DIRECT\",\"node\":" + image + "},{"
-                + "\"placementKind\":\"DIRECT\",\"node\":" + label + "}]"),
+                        + "\"placementKind\":\"DIRECT\",\"node\":" + image + "},{"
+                        + "\"placementKind\":\"DIRECT\",\"node\":" + label + "}]"),
                 true, true);
     }
 

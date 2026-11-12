@@ -8,9 +8,13 @@ public class AnimationComponent extends PooledComponent {
     public IntArray animationAssetIds = new IntArray();
     public String currentClip = "";
 
-    /** Pooled playback baseline; authored spawns replace this with {@code AnimationDef.fps()}. */
+    /**
+     * Pooled playback baseline; authored spawns replace this with {@code AnimationDef.fps()}.
+     */
     public float fps = 12f;
-    /** Double precision keeps small frame deltas advancing after long or saved playback. */
+    /**
+     * Double precision keeps small frame deltas advancing after long or saved playback.
+     */
     public double stateTime = 0d;
 
     public boolean playing = true;

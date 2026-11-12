@@ -110,7 +110,9 @@ public final class HudResources implements Disposable {
                 Collections.<Integer>emptyList());
     }
 
-    /** Prepares standalone bitmap fonts against regions in the shared HUD atlas. */
+    /**
+     * Prepares standalone bitmap fonts against regions in the shared HUD atlas.
+     */
     public static HudResources prepareEnvironment(FileHandle runtimeProjectDir, String atlasId,
                                                   String textureProfileId, Iterable<String> skinIds,
                                                   Iterable<Integer> bitmapFontAssetIds) {
@@ -365,13 +367,17 @@ public final class HudResources implements Disposable {
         }
     }
 
-    /** Frozen canonical Skin membership; contains no mutable Skin objects. */
+    /**
+     * Frozen canonical Skin membership; contains no mutable Skin objects.
+     */
     public Set<String> skinIds() {
         requireOpen();
         return skins.keySet();
     }
 
-    /** Explicit cold-path selection; null/blank selects a legitimate skinless view. */
+    /**
+     * Explicit cold-path selection; null/blank selects a legitimate skinless view.
+     */
     public HudSelectedResources select(String skinId) {
         requireOpen();
         String id = HudResourceId.normalizeOptional(skinId, "Skin");
@@ -382,7 +388,9 @@ public final class HudResources implements Disposable {
         return new HudSelectedResources(this, id, skin);
     }
 
-    /** O(1) average present/absent lookup; index is frozen with the owning atlas. */
+    /**
+     * O(1) average present/absent lookup; index is frozen with the owning atlas.
+     */
     TextureRegion sharedRegion(String name) {
         requireOpen();
         return regions.get(name);
@@ -430,7 +438,7 @@ public final class HudResources implements Disposable {
             builtInLabelFont = new BitmapFont(data, region, true);
             builtInLabelStyle = new Label.LabelStyle(
                     builtInLabelFont, new com.badlogic.gdx.graphics.Color(
-                            com.badlogic.gdx.graphics.Color.WHITE));
+                    com.badlogic.gdx.graphics.Color.WHITE));
         }
         return builtInLabelStyle;
     }
@@ -563,7 +571,9 @@ public final class HudResources implements Disposable {
         return textureProfile;
     }
 
-    /** Package-private borrowed mutable atlas; valid only while open; do not mutate or dispose. */
+    /**
+     * Package-private borrowed mutable atlas; valid only while open; do not mutate or dispose.
+     */
     TextureAtlas atlas() {
         requireOpen();
         if (atlas == null) {
@@ -572,7 +582,9 @@ public final class HudResources implements Disposable {
         return atlas;
     }
 
-    /** Package-private borrowed bundle, or null when no atlas was required. */
+    /**
+     * Package-private borrowed bundle, or null when no atlas was required.
+     */
     AtlasRuntimeService.TextureArrayBundle textureArrayBundle() {
         requireOpen();
         return textureArrayBundle;

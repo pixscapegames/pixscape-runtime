@@ -3,7 +3,9 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 
-/** Immutable sampling and fixed-page contract for one HUD TextureArray. */
+/**
+ * Immutable sampling and fixed-page contract for one HUD TextureArray.
+ */
 public final class HudTextureProfile {
     public static final String DEFAULT_ID = "hud-fixed-2048-linear-clamp";
 

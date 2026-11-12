@@ -13,11 +13,17 @@ public final class SpatialPhysicsFootprintComponent extends PooledComponent {
     public transient float localOffsetYPx;
     public transient float radiusPx;
     public transient int physicsGeneration;
-    /** The generation is local to one body. A newly published fixture array identifies its source. */
+    /**
+     * The generation is local to one body. A newly published fixture array identifies its source.
+     */
     public transient Array<?> projectedFixtures;
-    /** Source authored shape identity for the currently projected footprint. */
+    /**
+     * Source authored shape identity for the currently projected footprint.
+     */
     public transient int sourcePhysicsShapeId;
-    /** True when compiled fixtures contain an invalid Spatial footprint definition. */
+    /**
+     * True when compiled fixtures contain an invalid Spatial footprint definition.
+     */
     public transient boolean invalidSpatialFootprint;
 
     @Override

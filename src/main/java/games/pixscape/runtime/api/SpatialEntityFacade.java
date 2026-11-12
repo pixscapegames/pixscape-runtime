@@ -1,6 +1,8 @@
 package games.pixscape.runtime.api;
 
-/** Spatial actor placement. Height accessors address the active spatial rectangle, never a separate sorting height. */
+/**
+ * Spatial actor placement. Height accessors address the active spatial rectangle, never a separate sorting height.
+ */
 public interface SpatialEntityFacade {
     /**
      * Returns whether the entity has a spatial height component.
@@ -46,16 +48,31 @@ public interface SpatialEntityFacade {
      */
     SpatialEntityFacade setVolume(float altitude, float height);
 
-    /** Width of the existing active rectangle in projected pixels, or zero when absent. */
+    /**
+     * Width of the existing active rectangle in projected pixels, or zero when absent.
+     */
     float rectangleWidth();
-    /** Local rectangle X relative to the resolved footprint center, or zero when absent. */
+
+    /**
+     * Local rectangle X relative to the resolved footprint center, or zero when absent.
+     */
     float rectangleX();
-    /** Local rectangle Y relative to the resolved footprint center, or zero when absent. */
+
+    /**
+     * Local rectangle Y relative to the resolved footprint center, or zero when absent.
+     */
     float rectangleY();
-    /** Local shadow pivot X, independent of sorting/altitude, or zero when absent. */
+
+    /**
+     * Local shadow pivot X, independent of sorting/altitude, or zero when absent.
+     */
     float shadowPivotX();
-    /** Local shadow pivot Y, independent of sorting/altitude, or zero when absent. */
+
+    /**
+     * Local shadow pivot Y, independent of sorting/altitude, or zero when absent.
+     */
     float shadowPivotY();
+
     /**
      * Edits the existing active static/animation-clip rectangle. Dimensions must be positive and
      * every value finite. Throws when a live entity has no prepared active rectangle; does not
@@ -64,7 +81,10 @@ public interface SpatialEntityFacade {
      * Changing the rectangle can change shadow replay capacity requirements at frame publication.
      */
     SpatialEntityFacade setRectangle(float x, float y, float width, float height);
-    /** Same lifecycle/cost as setRectangle; changes only the independent local shadow pivot. */
+
+    /**
+     * Same lifecycle/cost as setRectangle; changes only the independent local shadow pivot.
+     */
     SpatialEntityFacade setShadowPivot(float x, float y);
 
     /**

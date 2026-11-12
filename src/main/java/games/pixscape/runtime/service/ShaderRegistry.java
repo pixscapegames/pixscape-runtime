@@ -275,7 +275,9 @@ public final class ShaderRegistry {
         return parameterLayoutsByIdx.get(shaderIndex);
     }
 
-    /** Complete indexed lookup, including absent and legacy shader contracts. */
+    /**
+     * Complete indexed lookup, including absent and legacy shader contracts.
+     */
     public static SurfaceShader getSurface(int shaderIndex) {
         return shaderIndex < 0 || shaderIndex >= surfacesByIdx.size ? null : surfacesByIdx.get(shaderIndex);
     }
@@ -285,15 +287,22 @@ public final class ShaderRegistry {
         return surface != null && surface.lighting == SurfaceShader.Lighting.UNLIT;
     }
 
-    public static int surfaceRevision() { return surfaceRevision; }
-    public static boolean hasSurfaceShaders() { return surfaceCount != 0; }
+    public static int surfaceRevision() {
+        return surfaceRevision;
+    }
+
+    public static boolean hasSurfaceShaders() {
+        return surfaceCount != 0;
+    }
 
     public static String surfaceVersion() {
         return getShaderVariant() == ShaderVariant.DESKTOP_GL30 ? "#version 330 core\n"
                 : "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\n";
     }
 
-    /** Cold shader-generation boundary. IDs come only from the existing registry allocator. */
+    /**
+     * Cold shader-generation boundary. IDs come only from the existing registry allocator.
+     */
     public static String surfaceLightingSources(boolean shadow) {
         StringBuilder result = new StringBuilder("flat in highp vec2 surfaceMaterial;uniform highp float u_time;uniform highp sampler2D u_entityParams;\n");
         result.append(SurfaceShader.samplingFunctions());
@@ -305,13 +314,15 @@ public final class ShaderRegistry {
             result.append(surface.function("surfaceMask" + i, true));
         }
         result.append("float surfaceMask(vec2 uv){int material=int(surfaceMaterial.x);\n");
-        for (int i = 0; i < surfacesByIdx.size; i++) if (surfacesByIdx.get(i) != null)
-            result.append("if(material==").append(i).append(")return surfaceMask").append(i).append("(uv,u_time);\n");
+        for (int i = 0; i < surfacesByIdx.size; i++)
+            if (surfacesByIdx.get(i) != null)
+                result.append("if(material==").append(i).append(")return surfaceMask").append(i).append("(uv,u_time);\n");
         result.append("return 1.;}\n");
         if (!shadow) {
             result.append("vec4 surfaceColor(vec4 base,vec2 uv){if(surfaceMask(uv)<.5)discard;int material=int(surfaceMaterial.x);\n");
-            for (int i = 0; i < surfacesByIdx.size; i++) if (surfacesByIdx.get(i) != null)
-                result.append("if(material==").append(i).append(")return surfaceColor").append(i).append("(pixscapeSample(pixscapeLocalUV(uv)),uv,u_time);\n");
+            for (int i = 0; i < surfacesByIdx.size; i++)
+                if (surfacesByIdx.get(i) != null)
+                    result.append("if(material==").append(i).append(")return surfaceColor").append(i).append("(pixscapeSample(pixscapeLocalUV(uv)),uv,u_time);\n");
             result.append("return base;}\n");
         }
         return result.toString();
@@ -348,7 +359,9 @@ public final class ShaderRegistry {
         return index;
     }
 
-    /** Registers an ordered, float-only table layout for a material shader. */
+    /**
+     * Registers an ordered, float-only table layout for a material shader.
+     */
     public static void registerParameterLayout(String shaderName, Array<ShaderFloatParam> defaults) {
         int index = indexOf(shaderName);
         if (index < 0) throw new IllegalArgumentException("Unknown shader '" + shaderName + "'");
@@ -399,7 +412,8 @@ public final class ShaderRegistry {
         rolesByIdx.clear();
         defaultUniforms.clear();
         parameterLayoutsByIdx.clear();
-        surfacesByIdx.clear();surfaceCount=0;
+        surfacesByIdx.clear();
+        surfaceCount = 0;
         surfaceRevision++;
         reservedIndices.clear();
         nextShaderIndex = 0;
@@ -418,18 +432,22 @@ public final class ShaderRegistry {
         reloadForProject(projectDir, shadersDir, false);
     }
 
-    /** Authoring edits validate every generated lighting variant before registry publication. */
+    /**
+     * Authoring edits validate every generated lighting variant before registry publication.
+     */
     public static void reloadForProject(FileHandle projectDir, String shadersDir, boolean validateSurfaces) {
-        reloadForProject(projectDir,shadersDir,validateSurfaces,null,null);
+        reloadForProject(projectDir, shadersDir, validateSurfaces, null, null);
     }
 
-    /** Rename the authored identity without reallocating its material/parameter slot. */
-    public static void renameForProject(FileHandle projectDir,String shadersDir,String oldName,String newName) {
-        if(indexOf(oldName)<0 || indexOf(newName)>=0)throw new IllegalArgumentException("Invalid shader rename");
-        reloadForProject(projectDir,shadersDir,true,oldName,newName);
+    /**
+     * Rename the authored identity without reallocating its material/parameter slot.
+     */
+    public static void renameForProject(FileHandle projectDir, String shadersDir, String oldName, String newName) {
+        if (indexOf(oldName) < 0 || indexOf(newName) >= 0) throw new IllegalArgumentException("Invalid shader rename");
+        reloadForProject(projectDir, shadersDir, true, oldName, newName);
     }
 
-    private static void reloadForProject(FileHandle projectDir,String shadersDir,boolean validateSurfaces,String oldName,String newName) {
+    private static void reloadForProject(FileHandle projectDir, String shadersDir, boolean validateSurfaces, String oldName, String newName) {
         RegistrySnapshot previousState = new RegistrySnapshot();
         String oldRoot = projectShadersRoot == null ? null : projectShadersRoot.path();
         String newRoot = projectDir == null || shadersDir == null ? null : projectDir.child(shadersDir).path();
@@ -445,9 +463,10 @@ public final class ShaderRegistry {
                 }
                 nextShaderIndex = previousNext;
             }
-            if(oldName!=null) {
-                int slot=previousState.names.get(oldName,-1);
-                reservedIndices.remove(oldName,-1);reservedIndices.put(newName,slot);
+            if (oldName != null) {
+                int slot = previousState.names.get(oldName, -1);
+                reservedIndices.remove(oldName, -1);
+                reservedIndices.put(newName, slot);
             }
             initDefaults();
             if (validateSurfaces && hasSurfaceShaders())
@@ -460,7 +479,9 @@ public final class ShaderRegistry {
         disposePrograms(previousState.programs);
     }
 
-    /** Keeps the previous registry by reference while a replacement is prepared. */
+    /**
+     * Keeps the previous registry by reference while a replacement is prepared.
+     */
     private static final class RegistrySnapshot {
         final ObjectIntMap<String> names = nameToIdx;
         final Array<ShaderProgram> programs = byIdx;
@@ -490,7 +511,8 @@ public final class ShaderRegistry {
             defaultUniforms = defaults;
             parameterLayoutsByIdx = layouts;
             surfacesByIdx = surfaces;
-            surfaceRevision = revision;surfaceCount=count;
+            surfaceRevision = revision;
+            surfaceCount = count;
             reservedIndices = reserved;
             nextShaderIndex = next;
             initialized = wasInitialized;
@@ -510,7 +532,8 @@ public final class ShaderRegistry {
         rolesByIdx = new Array<>();
         defaultUniforms = new ObjectMap<>();
         parameterLayoutsByIdx = new Array<>();
-        surfacesByIdx = new Array<>();surfaceCount=0;
+        surfacesByIdx = new Array<>();
+        surfaceCount = 0;
         surfaceRevision++;
         reservedIndices = new ObjectIntMap<>();
         nextShaderIndex = 0;
@@ -522,7 +545,9 @@ public final class ShaderRegistry {
         caps = null;
     }
 
-    /** Persists the project's shader slot allocator after a successful Studio reload. */
+    /**
+     * Persists the project's shader slot allocator after a successful Studio reload.
+     */
     public static void saveProjectIndices() {
         if (projectShadersRoot == null || !initialized) return;
         JsonValue root = new JsonValue(JsonValue.ValueType.object);
@@ -1353,7 +1378,7 @@ public final class ShaderRegistry {
             originsByIdx.set(existing, origin);
             rolesByIdx.set(existing, role);
             parameterLayoutsByIdx.set(existing, new ShaderParameterLayout(name, null));
-            if(surfacesByIdx.get(existing)!=null)surfaceCount--;
+            if (surfacesByIdx.get(existing) != null) surfaceCount--;
             surfacesByIdx.set(existing, null);
 
             return existing;

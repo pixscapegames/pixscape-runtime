@@ -13,7 +13,9 @@ public final class HudChild {
     public HudCellConstraints cell;
     public HudFreePlacement free;
 
-    /** Required by libGDX Json. */
+    /**
+     * Required by libGDX Json.
+     */
     public HudChild() {
     }
 

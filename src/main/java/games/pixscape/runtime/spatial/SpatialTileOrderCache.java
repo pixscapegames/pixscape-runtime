@@ -6,7 +6,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
 
-/** Runtime-owned canonical rank lookup for one spatial Tiled Map. */
+/**
+ * Runtime-owned canonical rank lookup for one spatial Tiled Map.
+ */
 public final class SpatialTileOrderCache {
     private final SpatialTileOrderCompiler compiler = new SpatialTileOrderCompiler();
     private TiledMapLayerData sourceMap;
@@ -94,7 +96,9 @@ public final class SpatialTileOrderCache {
         return rankByCell[gy * mapWidth + gx];
     }
 
-    /** True only for an authored owner, compiled anchor, or explicit per-cell spatial metadata. */
+    /**
+     * True only for an authored owner, compiled anchor, or explicit per-cell spatial metadata.
+     */
     public boolean requiresCanonicalRank(TiledMapLayerData map, int gx, int gy) {
         if (gx < 0 || gy < 0 || gx >= mapWidth || gy >= mapHeight) return false;
         int cell = gy * mapWidth + gx;
@@ -149,9 +153,18 @@ public final class SpatialTileOrderCache {
         return gx >= 0 && gy >= 0 && gx < map.mapWidth && gy < map.mapHeight;
     }
 
-    public int orderRevision() { return orderRevision; }
-    public int appliedOrderRevision() { return appliedOrderRevision; }
-    public boolean needsKeyRefresh() { return appliedOrderRevision != orderRevision; }
+    public int orderRevision() {
+        return orderRevision;
+    }
+
+    public int appliedOrderRevision() {
+        return appliedOrderRevision;
+    }
+
+    public boolean needsKeyRefresh() {
+        return appliedOrderRevision != orderRevision;
+    }
+
     public void markKeysApplied() {
         appliedOrderRevision = orderRevision;
     }

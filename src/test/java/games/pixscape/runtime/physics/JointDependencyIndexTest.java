@@ -5,7 +5,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JointDependencyIndexTest {
-    @Test public void swapUnlinkTracksBothSlotsAndReusedIdsWithoutDuplicateLinks() {
+    @Test
+    public void swapUnlinkTracksBothSlotsAndReusedIdsWithoutDuplicateLinks() {
         JointDependencyIndex index = new JointDependencyIndex();
         index.publish(10, 1, 2, 30, 31);
         index.publish(11, 2, 1, 31, 30);
@@ -22,7 +23,9 @@ public class JointDependencyIndexTest {
         index.publish(12, 1000, 1000, 50, 50);
         assertEquals(2, index.jointsForBody(1000).size);
         assertArrayEquals(new int[]{12}, index.gearsForSource(50).toArray());
-        index.remove(12); index.remove(12); index.remove(11);
+        index.remove(12);
+        index.remove(12);
+        index.remove(11);
         assertEquals(0, index.jointsForBody(1000).size);
         assertNull(index.jointsForBody(Integer.MAX_VALUE));
     }

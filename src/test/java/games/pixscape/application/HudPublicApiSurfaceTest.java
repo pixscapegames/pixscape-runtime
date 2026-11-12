@@ -5,7 +5,9 @@ import games.pixscape.runtime.hud.MaterializedHud;
 import org.junit.Assert;
 import org.junit.Test;
 
-/** Verifies that gameplay code outside Runtime implementation packages can use the HUD API. */
+/**
+ * Verifies that gameplay code outside Runtime implementation packages can use the HUD API.
+ */
 public class HudPublicApiSurfaceTest {
     @Test
     public void hudAccessorsArePublicAndNullOutsideAnActiveLifecycle() {

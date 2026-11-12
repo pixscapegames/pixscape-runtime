@@ -68,9 +68,9 @@ public final class HudBatch implements Batch {
     /**
      * Creates a HUD batch. The shader and bundle remain owned by their callers.
      *
-     * @param capacity maximum number of quads buffered before a flush
+     * @param capacity      maximum number of quads buffered before a flush
      * @param defaultShader default Pixscape texture-array-compatible shader
-     * @param bundle active borrowed HUD texture-array bundle, or {@code null} to set it later
+     * @param bundle        active borrowed HUD texture-array bundle, or {@code null} to set it later
      */
     public HudBatch(int capacity, ShaderProgram defaultShader,
                     AtlasRuntimeService.TextureArrayBundle bundle) {

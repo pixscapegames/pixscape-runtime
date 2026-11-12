@@ -243,7 +243,9 @@ public class TiledMapCollisionFacadeTest {
             Assert.assertEquals(generation + 1, compiled.generation);
             harness.engine.api().tiled().requireEntityId(map).spatial().setDefaultVolume(131f, 12f);
             Assert.assertEquals(generation + 1, compiled.generation);
-        } finally { harness.dispose(); }
+        } finally {
+            harness.dispose();
+        }
     }
 
     @Test
@@ -270,7 +272,9 @@ public class TiledMapCollisionFacadeTest {
             Assert.assertSame(shapes, harness.shapes(map).shapes);
             Assert.assertSame(nativeBody, harness.nativeBody(map));
             Assert.assertEquals(generation, compiled.generation);
-        } finally { harness.dispose(); }
+        } finally {
+            harness.dispose();
+        }
     }
 
     private static final class Harness {
@@ -407,7 +411,7 @@ public class TiledMapCollisionFacadeTest {
                     compiled,
                     linked
                             ? PhysicsService.prepareBodyCandidate(
-                                    world, entity, shapes.shapes, scene.pixelsPerMeter)
+                            world, entity, shapes.shapes, scene.pixelsPerMeter)
                             : PhysicsService.prepareBodyCandidate(shapes.shapes));
             dirty.physics(entity, games.pixscape.runtime.render.PhysicsDirtyBits.ALL);
         }

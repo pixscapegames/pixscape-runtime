@@ -3,7 +3,9 @@ package games.pixscape.runtime.hud;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 
-/** {@code INTERNAL} strict project loader for one logical HUD screen asset. */
+/**
+ * {@code INTERNAL} strict project loader for one logical HUD screen asset.
+ */
 public final class HudScreenAssetLoader {
     public HudScreenAsset load(FileHandle runtimeProjectDir, String screenId) {
         if (runtimeProjectDir == null) {

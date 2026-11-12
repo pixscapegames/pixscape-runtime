@@ -328,7 +328,8 @@ public final class RuntimeProjectIO {
         com.badlogic.gdx.utils.IntSet members = new com.badlogic.gdx.utils.IntSet();
         for (int id : profile.tileAssetIds) members.add(id);
         JsonValue normals = node.get("normalMaps");
-        if (normals != null && !normals.isArray()) throw new GdxRuntimeException("normalMaps must be an array: " + path);
+        if (normals != null && !normals.isArray())
+            throw new GdxRuntimeException("normalMaps must be an array: " + path);
         for (JsonValue normal = normals == null ? null : normals.child; normal != null; normal = normal.next) {
             int id = normal.getInt("tileAssetId", 0);
             String source = normal.getString("source", "");

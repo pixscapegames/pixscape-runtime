@@ -17,7 +17,9 @@ public final class SpatialBlocksComponent extends PooledComponent {
     public Array<SpatialBlockData> blocks = new Array<>(SpatialBlockData[]::new);
     public Array<SpatialBlockLink> links = new Array<>(SpatialBlockLink.class);
     public int nextSpatialBlockId = 1;
-    /** Non-serialized authored snapshot revision, incremented only after an atomic replacement. */
+    /**
+     * Non-serialized authored snapshot revision, incremented only after an atomic replacement.
+     */
     public transient int revision;
 
     private transient int checkedRevision;
@@ -25,8 +27,10 @@ public final class SpatialBlocksComponent extends PooledComponent {
     private transient Array<SpatialBlockData> publishedBlocks;
     private transient Array<SpatialBlockLink> publishedLinks;
 
-    /** O(1) between authored publications. Compare exact geometry once per coarse revision,
-     * including in-place edits; labels have no effect on ordering, lights or shadows. */
+    /**
+     * O(1) between authored publications. Compare exact geometry once per coarse revision,
+     * including in-place edits; labels have no effect on ordering, lights or shadows.
+     */
     public int geometryRevision() {
         if (publishedBlocks != null && checkedRevision == revision) return geometryRevision;
         if (!matchesPublishedGeometry()) {

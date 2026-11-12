@@ -134,7 +134,7 @@ public final class ShaderSourcePreprocessor {
 
     /**
      * Root shader preprocessing.
-     *
+     * <p>
      * Guarantees that #version, when present, is emitted as the very first
      * line of the final shader source. This is required by GLSL ES/WebGL.
      */

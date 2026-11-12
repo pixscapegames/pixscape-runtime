@@ -4,7 +4,9 @@ import com.badlogic.gdx.utils.IntArray;
 
 import java.util.Arrays;
 
-/** INTERNAL joint relations owned by one World's Box2dSyncSystem, even without native Physics. */
+/**
+ * INTERNAL joint relations owned by one World's Box2dSyncSystem, even without native Physics.
+ */
 public final class JointDependencyIndex {
     private final Links bodies = new Links();
     private final Links sources = new Links();
@@ -19,11 +21,20 @@ public final class JointDependencyIndex {
         sources.remove(joint);
     }
 
-    /** Borrowed lists. Do not modify or retain them across relation publication. */
-    public IntArray jointsForBody(int body) { return bodies.get(body); }
-    public IntArray gearsForSource(int source) { return sources.get(source); }
+    /**
+     * Borrowed lists. Do not modify or retain them across relation publication.
+     */
+    public IntArray jointsForBody(int body) {
+        return bodies.get(body);
+    }
 
-    /** Two outgoing relations per joint, with reverse bucket positions for O(1) unlinking. */
+    public IntArray gearsForSource(int source) {
+        return sources.get(source);
+    }
+
+    /**
+     * Two outgoing relations per joint, with reverse bucket positions for O(1) unlinking.
+     */
     private static final class Links {
         private IntArray[] bySource = new IntArray[16];
         private int[] a = empty(16), b = empty(16), slotA = empty(16), slotB = empty(16);
@@ -75,8 +86,10 @@ public final class JointDependencyIndex {
             int old = a.length, size = old;
             while (size <= entity) size <<= 1;
             bySource = Arrays.copyOf(bySource, size);
-            a = grow(a, old, size); b = grow(b, old, size);
-            slotA = grow(slotA, old, size); slotB = grow(slotB, old, size);
+            a = grow(a, old, size);
+            b = grow(b, old, size);
+            slotA = grow(slotA, old, size);
+            slotB = grow(slotB, old, size);
         }
 
         private static int[] empty(int size) {

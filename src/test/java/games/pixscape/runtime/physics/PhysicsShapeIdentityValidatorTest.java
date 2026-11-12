@@ -228,7 +228,7 @@ public class PhysicsShapeIdentityValidatorTest {
             return shapes != null
                     ? shapes
                     : world.getMapper(PhysicsShapesComponent.class)
-                            .create(owner);
+                    .create(owner);
         }
 
         void validate() {

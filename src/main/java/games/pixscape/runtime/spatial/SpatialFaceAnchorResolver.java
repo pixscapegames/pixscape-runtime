@@ -1,6 +1,8 @@
 package games.pixscape.runtime.spatial;
 
-/** Resolves each canonical layer-local tile anchor once against one immutable frame snapshot. */
+/**
+ * Resolves each canonical layer-local tile anchor once against one immutable frame snapshot.
+ */
 public final class SpatialFaceAnchorResolver {
     public void resolve(SpatialProjectedFaceCache faces,
                         int[] tiledRefToDrawIndex,

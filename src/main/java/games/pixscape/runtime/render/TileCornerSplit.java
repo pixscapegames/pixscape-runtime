@@ -4,7 +4,9 @@ import games.pixscape.runtime.render.lighting.ForwardTopology;
 import games.pixscape.runtime.render.lighting.LightingSurface;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 
-/** Two immutable image regions borrowing one native tile, material and set of casters. */
+/**
+ * Two immutable image regions borrowing one native tile, material and set of casters.
+ */
 public final class TileCornerSplit {
     public final Piece back;
     public final Piece front;
@@ -33,7 +35,9 @@ public final class TileCornerSplit {
     }
 
     public static final class Piece {
-        /** Offsets from each native bottom corner in BL, TL, TR, BR order. */
+        /**
+         * Offsets from each native bottom corner in BL, TL, TR, BR order.
+         */
         public final float[] y, v;
         public final ForwardTopology topology;
         public final float[] forwardAttributes;
@@ -42,21 +46,23 @@ public final class TileCornerSplit {
         private Piece(float bl, float tl, float tr, float br, float height, float top, float bottom,
                       float[] quad, LightingSurface source) {
             y = new float[]{height * bl, height * tl, height * tr, height * br};
-            v = new float[]{bottom + bl * (top-bottom), bottom + tl * (top-bottom),
-                    bottom + tr * (top-bottom), bottom + br * (top-bottom)};
+            v = new float[]{bottom + bl * (top - bottom), bottom + tl * (top - bottom),
+                    bottom + tr * (top - bottom), bottom + br * (top - bottom)};
             if (source == null) {
                 topology = null;
                 forwardAttributes = null;
                 receiver = null;
             } else {
-                topology = ForwardTopology.compile(source, quad, new double[]{0,bl,0,tl,1,tr,1,br});
+                topology = ForwardTopology.compile(source, quad, new double[]{0, bl, 0, tl, 1, tr, 1, br});
                 forwardAttributes = topology.immutableAttributes(source);
                 receiver = clippedReceiver(source, topology);
             }
         }
     }
 
-    /** Materialize the legacy receiver from exactly the same cold triangulation used by Forward. */
+    /**
+     * Materialize the legacy receiver from exactly the same cold triangulation used by Forward.
+     */
     private static LightingSurface clippedReceiver(LightingSurface source, ForwardTopology topology) {
         float[] physical = source.receiverVertices == null ? source.vertices : source.receiverVertices;
         int physicalVertices = 0;
@@ -76,16 +82,16 @@ public final class TileCornerSplit {
             if (offset < 0) continue;
             result.sourceTriangleOffsets[vertex / 3] = offset;
             int w = i * 5;
-            float a = topology.weights[w+1], b = topology.weights[w+2], c = 1-a-b;
+            float a = topology.weights[w + 1], b = topology.weights[w + 2], c = 1 - a - b;
             for (int j = 0; j < 8; j++)
-                data[vertex*8+j] = a*physical[offset+j] + b*physical[offset+8+j] + c*physical[offset+16+j];
+                data[vertex * 8 + j] = a * physical[offset + j] + b * physical[offset + 8 + j] + c * physical[offset + 16 + j];
             // Legacy uses the original triangle normal to distinguish completed image coverage.
-            System.arraycopy(source.vertices, offset+5, result.vertices, vertex*8+5, 3);
+            System.arraycopy(source.vertices, offset + 5, result.vertices, vertex * 8 + 5, 3);
             if (result.curveNormals != null) {
-                int n = offset/8*3;
+                int n = offset / 8 * 3;
                 for (int j = 0; j < 3; j++)
-                    result.curveNormals[vertex*3+j] = a*source.curveNormals[n+j]
-                            + b*source.curveNormals[n+3+j] + c*source.curveNormals[n+6+j];
+                    result.curveNormals[vertex * 3 + j] = a * source.curveNormals[n + j]
+                            + b * source.curveNormals[n + 3 + j] + c * source.curveNormals[n + 6 + j];
             }
             vertex++;
         }

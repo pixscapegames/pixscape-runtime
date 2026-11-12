@@ -8,7 +8,9 @@ import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudValidationResult;
 
-/** {@code INTERNAL} synchronous candidate builder for project-authored HUD screens. */
+/**
+ * {@code INTERNAL} synchronous candidate builder for project-authored HUD screens.
+ */
 public final class HudScreenLoader {
     private final FileHandle runtimeProjectDir;
     private final ShaderProgram hudShader;
@@ -25,7 +27,9 @@ public final class HudScreenLoader {
         this.hudShader = hudShader;
     }
 
-    /** Builds a detached ownership candidate; it does not mutate any active-screen state. */
+    /**
+     * Builds a detached ownership candidate; it does not mutate any active-screen state.
+     */
     public ActiveHudScreen load(String screenId) {
         return load(screenId, null, ActiveHudScreen.ResourceOwnership.OWNED);
     }
