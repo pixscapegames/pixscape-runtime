@@ -128,7 +128,8 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                     ensureRootCapacity(rootEntityId);
                     rootsWithRenderWork[rootEntityId] = true;
                 } else if (activeEntity && mGameObject.has(entityId)) {
-                    continue;
+                    ensureRootCapacity(entityId);
+                    rootsWithRenderWork[entityId] = true;
                 } else {
                     composition.add(RenderSourceDomain.SOURCE_ECS, slot, ecsState.sortKey[slot]);
                 }

@@ -21,7 +21,6 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private ComponentMapper<EntityIndexComponent> entityIndices;
     private ComponentMapper<PixscapeIdentityComponent> identities;
     private ComponentMapper<VisibilityComponent> visibility;
-    private ComponentMapper<GameObjectComponent> gameObjects;
     private ComponentMapper<AABBComponent> bounds;
 
     private int[] orderA = new int[16];
@@ -83,7 +82,7 @@ public final class GameObjectCompositionSystem extends BaseSystem {
      */
     public boolean contributesDrawableBounds(int entityId) {
         if (entityId < 0 || entityId >= state.hierarchyVisible.length
-                || gameObjects.has(entityId) || !state.hierarchyVisible[entityId]) {
+                || !state.hierarchyVisible[entityId]) {
             return false;
         }
         int slot = renderState != null
@@ -219,17 +218,14 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         for (int entityId = topology.lastTraversalEntityId; entityId >= 0;
              entityId = topology.previousTraversalEntityId[entityId]) {
             int parentEntityId = topology.parentEntityId[entityId];
-            if (gameObjects.has(entityId)) {
-                if (parentEntityId >= 0 && state.hierarchyVisible[entityId]
-                        && state.boundsResolved[entityId]) {
-                    union(parentEntityId, state.minX[entityId], state.minY[entityId],
-                            state.maxX[entityId], state.maxY[entityId]);
-                }
-                continue;
+            if (contributesDrawableBounds(entityId)) {
+                AABBComponent aabb = bounds.get(entityId);
+                union(entityId, aabb.minX, aabb.minY, aabb.maxX, aabb.maxY);
             }
-            if (parentEntityId < 0 || !contributesDrawableBounds(entityId)) continue;
-            AABBComponent aabb = bounds.getSafe(entityId, null);
-            union(parentEntityId, aabb.minX, aabb.minY, aabb.maxX, aabb.maxY);
+            if (parentEntityId >= 0 && state.hierarchyVisible[entityId] && state.boundsResolved[entityId]) {
+                union(parentEntityId, state.minX[entityId], state.minY[entityId],
+                        state.maxX[entityId], state.maxY[entityId]);
+            }
         }
     }
 

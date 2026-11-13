@@ -159,11 +159,6 @@ public final class GameObjectAssetLoader {
             throw failure(file, "sourceEntityId " + entity.sourceEntityId
                     + " zIndex is outside the supported range");
         }
-        if (entity.gameObject != null && (entity.assetRef != null || entity.animation != null
-                || entity.pointLight != null || entity.coneLight != null)) {
-            throw failure(file, "Game Object root sourceEntityId " + entity.sourceEntityId
-                    + " must be composition-only");
-        }
         if (entity.customProperties != null) {
             try {
                 entity.customProperties.validate();

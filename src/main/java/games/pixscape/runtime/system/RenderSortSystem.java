@@ -1,10 +1,8 @@
 package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
 import com.artemis.annotations.SkipWire;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -35,7 +33,6 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     private final int[] count = new int[256]; // 8 bits
     private final IntArray hierarchyStack = new IntArray(false, 32);
     private final IntArray childScratch = new IntArray(false, 16);
-    private ComponentMapper<GameObjectComponent> gameObjects;
     @SkipWire
     private GameObjectCompositionSystem gameObjectComposition;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -170,14 +167,10 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
             return;
         }
         hierarchyStack.clear();
-        pushChildrenReverse(rootEntityId, state);
+        hierarchyStack.add(rootEntityId);
         while (hierarchyStack.size > 0) {
             int entityId = hierarchyStack.pop();
             if (!state.hierarchyVisible[entityId]) continue;
-            if (gameObjects.has(entityId)) {
-                pushChildrenReverse(entityId, state);
-                continue;
-            }
             int slot = ecsState.renderSlotForEntity(entityId);
             if (slot != DynamicEntityRenderState.NO_SLOT
                     && slot < ecsState.activeCount
@@ -186,6 +179,7 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                     && ecsState.kind[slot] == RenderKind.SPRITE) {
                 drawList.addEcsSlot(slot);
             }
+            pushChildrenReverse(entityId, state);
         }
     }
 

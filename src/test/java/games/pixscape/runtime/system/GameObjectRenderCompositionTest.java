@@ -14,6 +14,30 @@ import org.junit.Test;
 public class GameObjectRenderCompositionTest {
 
     @Test
+    public void drawableParentRendersBeforeItsChildrenAndContributesItsOwnBounds() {
+        Fixture fixture = new Fixture(32);
+        try {
+            int root = fixture.gameObject(10, -1, 1, 10);
+            fixture.world.getMapper(TextureRegionComponent.class).create(root);
+            fixture.world.getMapper(AnimationComponent.class).create(root);
+            int own = fixture.spriteSlot(root, 1, 10, 10);
+            int child = fixture.member(11, 10, 9, -20);
+            fixture.bounds(own, -50f, -10f, 10f, 10f);
+            fixture.bounds(child, 20f, 20f, 30f, 30f);
+            fixture.process();
+            fixture.assertEcsOrder(own, child);
+            Assert.assertEquals(-50f, fixture.composition.state().minX[root], 0f);
+            Assert.assertEquals(30f, fixture.composition.state().maxY[root], 0f);
+            Assert.assertEquals(1, fixture.composition.state().effectiveLayer[fixture.entityForSlot(child)]);
+            fixture.world.getMapper(VisibilityComponent.class).create(root).visible = false;
+            fixture.process();
+            fixture.assertEcsOrder();
+        } finally {
+            fixture.world.dispose();
+        }
+    }
+
+    @Test
     public void localOrderTracksReparentRemovalAndRecycledEntityIds() {
         Fixture f = new Fixture(32);
         try {

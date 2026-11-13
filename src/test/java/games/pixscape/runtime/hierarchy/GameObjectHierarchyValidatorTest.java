@@ -185,14 +185,11 @@ public class GameObjectHierarchyValidatorTest {
     }
 
     @Test
-    public void rootsAreCompositionOnlyAndCannotCarryDrawableSpriteState() {
+    public void rootsCanCarryDrawableStateAndChildren() {
         int root = gameObject(1);
         world.getMapper(TextureRegionComponent.class).create(root);
-
-        IllegalArgumentException failure = validateAllFailure();
-
-        Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("composition-only"));
+        member(2, 1, false);
+        validateAll();
     }
 
     @Test

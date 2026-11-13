@@ -6,8 +6,6 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.ConeLightComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
@@ -30,10 +28,6 @@ public final class GameObjectHierarchyValidator {
     private final ComponentMapper<SpatialBlocksComponent> spatialBlocks;
     private final ComponentMapper<SpatialShapesComponent> spatialShapes;
     private final ComponentMapper<EntityIndexComponent> entityIndices;
-    private final ComponentMapper<TextureRegionComponent> textureRegions;
-    private final ComponentMapper<AnimationComponent> animations;
-    private final ComponentMapper<PointLightComponent> pointLights;
-    private final ComponentMapper<ConeLightComponent> coneLights;
     private final IntSet chainStableIds = new IntSet();
     private final IntArray path = new IntArray(false, 16);
     private final IntArray touchedStates = new IntArray(false, 16);
@@ -55,10 +49,6 @@ public final class GameObjectHierarchyValidator {
         this.spatialBlocks = world.getMapper(SpatialBlocksComponent.class);
         this.spatialShapes = world.getMapper(SpatialShapesComponent.class);
         this.entityIndices = world.getMapper(EntityIndexComponent.class);
-        this.textureRegions = world.getMapper(TextureRegionComponent.class);
-        this.animations = world.getMapper(AnimationComponent.class);
-        this.pointLights = world.getMapper(PointLightComponent.class);
-        this.coneLights = world.getMapper(ConeLightComponent.class);
     }
 
     /**
@@ -99,11 +89,6 @@ public final class GameObjectHierarchyValidator {
                 }
                 if (tiledMaps.has(entityId)) {
                     throw failure(entityId, "Tiled Maps cannot be Game Object roots");
-                }
-                if (textureRegions.has(entityId) || animations.has(entityId)
-                        || pointLights.has(entityId) || coneLights.has(entityId)) {
-                    throw failure(entityId,
-                            "Game Object roots are composition-only and cannot be directly drawable");
                 }
                 requireEntityIndex(entityId, "Game Object root");
                 TransformComponent transform = transforms.getSafe(entityId, null);
