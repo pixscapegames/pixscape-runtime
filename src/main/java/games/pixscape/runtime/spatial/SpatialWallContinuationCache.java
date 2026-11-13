@@ -22,6 +22,16 @@ public final class SpatialWallContinuationCache {
     private int frameStamp;
     private float[] displayOffsetX, displayOffsetY;
 
+    /** Drop borrowed sources at owner removal/disposal; keep primitive frame capacities reusable. */
+    public void clear() {
+        Arrays.fill(sources, null);
+        Arrays.fill(references, null);
+        mapCount = 0;
+        faceCount = 0;
+        displayOffsetX = null;
+        displayOffsetY = null;
+    }
+
     /**
      * Rebuilds only when owners, projected geometry, or owning display layers change.
      */

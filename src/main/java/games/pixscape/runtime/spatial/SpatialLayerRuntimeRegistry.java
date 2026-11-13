@@ -1,42 +1,43 @@
 package games.pixscape.runtime.spatial;
 
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-/**
- * Stable runtime-cache ownership shared by tiled synchronization and actor composition.
- */
+/** Scene-owned caches shared by tiled publication and actor composition. Owner access/removal is O(1). */
 public final class SpatialLayerRuntimeRegistry {
-    private SpatialLayerFaceRuntime[] layers = new SpatialLayerFaceRuntime[4];
-    private TiledMapLayerData[] sourceMaps = new TiledMapLayerData[4];
-    private int count;
+    private final IntMap<Entry> owners = new IntMap<>();
 
     public SpatialLayerFaceRuntime forLayer(int layerEntity, TiledMapLayerData sourceMap) {
-        for (int i = 0; i < count; i++) {
-            if (layers[i].layerEntity != layerEntity) continue;
-            if (sourceMaps[i] == sourceMap) return layers[i];
-
-            SpatialLayerFaceRuntime replacement = newRuntime(layerEntity);
-            layers[i] = replacement;
-            sourceMaps[i] = sourceMap;
-            return replacement;
+        Entry entry = owners.get(layerEntity);
+        if (entry == null || entry.source != sourceMap) {
+            entry = new Entry(sourceMap, layerEntity);
+            owners.put(layerEntity, entry);
         }
-        if (count == layers.length) {
-            SpatialLayerFaceRuntime[] expanded = new SpatialLayerFaceRuntime[layers.length << 1];
-            System.arraycopy(layers, 0, expanded, 0, layers.length);
-            layers = expanded;
-            TiledMapLayerData[] expandedSources = new TiledMapLayerData[sourceMaps.length << 1];
-            System.arraycopy(sourceMaps, 0, expandedSources, 0, sourceMaps.length);
-            sourceMaps = expandedSources;
-        }
-        SpatialLayerFaceRuntime runtime = newRuntime(layerEntity);
-        sourceMaps[count] = sourceMap;
-        layers[count++] = runtime;
-        return runtime;
+        return entry.runtime;
     }
 
-    private static SpatialLayerFaceRuntime newRuntime(int layerEntity) {
-        SpatialLayerFaceRuntime runtime = new SpatialLayerFaceRuntime();
-        runtime.layerEntity = layerEntity;
-        return runtime;
+    public void remove(int layerEntity) {
+        owners.remove(layerEntity);
+    }
+
+    public void discardReplacedMap(int layerEntity, TiledMapLayerData map) {
+        Entry entry = owners.get(layerEntity);
+        if (entry != null && entry.source != map) {
+            owners.remove(layerEntity);
+        }
+    }
+
+    public void clear() {
+        owners.clear();
+    }
+
+    private static final class Entry {
+        final TiledMapLayerData source;
+        final SpatialLayerFaceRuntime runtime = new SpatialLayerFaceRuntime();
+
+        Entry(TiledMapLayerData source, int owner) {
+            this.source = source;
+            runtime.layerEntity = owner;
+        }
     }
 }

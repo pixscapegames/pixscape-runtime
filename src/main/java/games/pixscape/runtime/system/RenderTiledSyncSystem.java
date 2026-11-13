@@ -48,10 +48,24 @@ import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
 public final class RenderTiledSyncSystem extends IteratingSystem implements ProfiledSystem {
     @Override
     protected void removed(int entityId) {
-        if (currentMapEntity == entityId) currentRenderOrder = null;
+        spatialRuntimeRegistry.remove(entityId);
+        if (currentMapEntity == entityId) {
+            currentRenderOrder = null;
+            currentFaces = null;
+            currentTileOrder = null;
+            currentMapEntity = -1;
+        }
         tiledState.removeOrderForMap(entityId);
         tiledState.lightingMaps.remove(entityId);
         tiledState.lightingRevision++;
+    }
+
+    @Override
+    protected void dispose() {
+        currentRenderOrder = null;
+        currentFaces = null;
+        currentTileOrder = null;
+        spatialRuntimeRegistry.clear();
     }
 
     private static final int CHUNK_OUTSIDE = 0;
@@ -245,13 +259,18 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     protected void process(int e) {
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) {
+            spatialRuntimeRegistry.remove(e);
             tiledState.removeOrderForMap(e);
             currentRenderOrder = null;
+            currentFaces = null;
+            currentTileOrder = null;
+            currentMapEntity = -1;
             return;
         }
         EntityIndexComponent index = mEntityIndex.get(e);
 
         TiledMapLayerData map = tiled.data;
+        spatialRuntimeRegistry.discardReplacedMap(e, map);
         currentRenderOrder = tiledState.prepareOrderForMap(e, map);
         games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
         boolean lightingChanged = false;

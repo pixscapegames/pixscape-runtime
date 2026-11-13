@@ -47,12 +47,15 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private final SpatialLayerRuntimeRegistry spatialRuntimeRegistry;
     private final SpatialFaceAnchorResolver faceAnchorResolver = new SpatialFaceAnchorResolver();
     private final SpatialActorCollector actorCollector = new SpatialActorCollector();
-    private SpatialFaceRelationSolver relationSolver = new SpatialFaceRelationSolver();
+    private SpatialFaceRelationSolver relationSolver;
     private final SpatialWallContinuationCache wallContinuations = new SpatialWallContinuationCache();
     private SpatialLayerFaceRuntime[] preparedMaps = new SpatialLayerFaceRuntime[0];
     private TiledMapLayerData[] preparedMapData = new TiledMapLayerData[0];
     private int[] preparedMapLayers = new int[0];
     private float[] preparedMapOffsetX = new float[0], preparedMapOffsetY = new float[0];
+    private SpatialSharedAnchorIndex.Context[] preparedSearch = new SpatialSharedAnchorIndex.Context[0];
+    private int previousPreparedCount;
+    private final SpatialSharedAnchorIndex sharedAnchorSearch;
     private final SpatialVisualAnchorSelector visualSelector = new SpatialVisualAnchorSelector();
     private final LayerDisplayOffsetResolver displayOffsetResolver;
     private final Vector2 mapDisplayOffset = new Vector2();
@@ -90,9 +93,21 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                                     DrawList drawList,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
                                     LayerDisplayOffsetResolver displayOffsetResolver) {
+        this(ecsState, tiledState, drawList, spatialRuntimeRegistry, displayOffsetResolver,
+                new SpatialSharedAnchorIndex());
+    }
+
+    // A null index exercises the native selector for differential integration tests.
+    SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
+                             TiledMapRenderState tiledState,
+                             DrawList drawList,
+                             SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
+                             LayerDisplayOffsetResolver displayOffsetResolver,
+                             SpatialSharedAnchorIndex sharedAnchorSearch) {
         this.ecsState = ecsState;
         this.tiledState = tiledState;
         this.drawList = drawList;
+        this.sharedAnchorSearch = sharedAnchorSearch;
         this.spatialRuntimeRegistry = spatialRuntimeRegistry != null
                 ? spatialRuntimeRegistry : new SpatialLayerRuntimeRegistry();
         this.displayOffsetResolver = displayOffsetResolver != null
@@ -109,6 +124,42 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         tiledMapsSub = world.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
                         .exclude(LayerComponent.class));
+        tiledMapsSub.addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+            @Override
+            public void inserted(IntBag entities) {
+                // Publication occurs after RenderTiledSyncSystem, with the current quads and caches.
+            }
+
+            @Override
+            public void removed(IntBag entities) {
+                for (int i = 0; i < entities.size(); i++) {
+                    int owner = entities.get(i);
+                    if (sharedAnchorSearch != null) {
+                        sharedAnchorSearch.remove(owner);
+                    }
+                    spatialRuntimeRegistry.remove(owner);
+                }
+                releasePreparedMaps();
+            }
+        });
+    }
+
+    @Override
+    protected void dispose() {
+        releasePreparedMaps();
+        if (sharedAnchorSearch != null) {
+            sharedAnchorSearch.clear();
+        }
+        spatialRuntimeRegistry.clear();
+    }
+
+    private void releasePreparedMaps() {
+        Arrays.fill(preparedMaps, null);
+        Arrays.fill(preparedMapData, null);
+        Arrays.fill(preparedSearch, null);
+        previousPreparedCount = 0;
+        relationSolver = null;
+        wallContinuations.clear();
     }
 
     /**
@@ -142,19 +193,27 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private void processSystemInternal() {
         lastVisualCandidateCount = 0;
         lastFaceRelationCount = 0;
-        if (diagnosticsEnabled) diagnosticDetail.setLength(0);
+        if (diagnosticsEnabled) {
+            diagnosticDetail.setLength(0);
+        }
         orderingKernel.reset();
         actorCollector.clear();
-        if (ecsState == null || drawList == null || drawList.size == 0) return;
+        // The existing map traversal also observes direct activation/data changes when no actors draw.
+        collectSpatialMaps();
+        if (ecsState == null || drawList == null || drawList.size == 0) {
+            return;
+        }
 
         rebuildSpatialLayers();
         collectSpatialActors();
-        if (actorCollector.actorCount() == 0 || drawList.size == 1) return;
+        if (actorCollector.actorCount() == 0 || drawList.size == 1) {
+            return;
+        }
 
         snapshotBuilder.build(drawList, ecsState.getRenderCapacity(), actorCollector);
-        collectSpatialMaps();
         orderingKernel.begin(actorCollector, snapshotBuilder);
         if (faceMapCount == 0) {
+            releasePreparedMaps();
             orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
             applyComposedDrawList();
             return;
@@ -168,13 +227,16 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             preparedMapLayers = new int[capacity];
             preparedMapOffsetX = new float[capacity];
             preparedMapOffsetY = new float[capacity];
+            preparedSearch = new SpatialSharedAnchorIndex.Context[capacity];
         }
         int preparedCount = 0;
         for (int mapIndex = 0; mapIndex < faceMapCount; mapIndex++) {
             int owner = faceMapEntities[mapIndex];
             TiledLayerComponent tiled = mTiled.getSafe(owner, null);
             SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(owner, null);
-            if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) continue;
+            if (tiled == null || tiled.data == null || blocks == null || !blocks.hasBlocks()) {
+                continue;
+            }
 
             SpatialLayerFaceRuntime runtime = spatialRuntimeRegistry.forLayer(owner, tiled.data);
             runtime.compiled.ensure(blocks);
@@ -189,11 +251,32 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                     drawList.size, tiledState);
             displayOffsetResolver.resolveLayer(index != null ? index.layerIndex : 0, mapDisplayOffset);
             preparedMapOffsetX[preparedCount] = mapDisplayOffset.x;
-            preparedMapOffsetY[preparedCount++] = mapDisplayOffset.y;
+            preparedMapOffsetY[preparedCount] = mapDisplayOffset.y;
+            if (sharedAnchorSearch != null) {
+                preparedSearch[preparedCount] = sharedAnchorSearch.publish(owner, tiled.data, runtime.projected,
+                        mapDisplayOffset.x, mapDisplayOffset.y);
+            }
+            preparedCount++;
+        }
+        // Unused tail slots must not retain replaced maps or borrowed context handles.
+        if (preparedCount < previousPreparedCount) {
+            Arrays.fill(preparedMaps, preparedCount, previousPreparedCount, null);
+            Arrays.fill(preparedMapData, preparedCount, previousPreparedCount, null);
+            Arrays.fill(preparedSearch, preparedCount, previousPreparedCount, null);
+        }
+        previousPreparedCount = preparedCount;
+        if (sharedAnchorSearch != null) {
+            sharedAnchorSearch.search(actorCollector, ecsState, tiledState);
+        }
+        for (int mapIndex = 0; mapIndex < preparedCount; mapIndex++) {
+            SpatialLayerFaceRuntime runtime = preparedMaps[mapIndex];
             relationSolver = runtime.relations;
             relationSolver.setCaptureCandidates(diagnosticsEnabled);
-            relationSolver.solveVisual(actorCollector, runtime.projected, visualSelector,
-                    ecsState, tiledState, tiled.data, mapDisplayOffset.x, mapDisplayOffset.y);
+            SpatialVisualAnchorSelector selector = sharedAnchorSearch == null ? visualSelector
+                    : sharedAnchorSearch.selector(preparedSearch[mapIndex], visualSelector);
+            relationSolver.solveVisual(actorCollector, runtime.projected, selector,
+                    ecsState, tiledState, preparedMapData[mapIndex],
+                    preparedMapOffsetX[mapIndex], preparedMapOffsetY[mapIndex]);
             lastVisualCandidateCount += relationSolver.visualCandidateCount;
         }
 
@@ -203,10 +286,13 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             SpatialLayerFaceRuntime runtime = preparedMaps[mapIndex];
             relationSolver = runtime.relations;
             relationSolver.applyWallContinuations(actorCollector, runtime.projected, wallContinuations, mapIndex);
-            if (diagnosticsEnabled) appendVisualDiagnostics(runtime.layerEntity, runtime.projected);
+            if (diagnosticsEnabled) {
+                appendVisualDiagnostics(runtime.layerEntity, runtime.projected);
+            }
             lastFaceRelationCount += relationSolver.relationCount;
-            if (relationSolver.relationCount() > 0)
+            if (relationSolver.relationCount() > 0) {
                 orderingKernel.addRelations(actorCollector, runtime.projected, relationSolver, runtime.layerEntity);
+            }
         }
 
         orderingKernel.finish(drawList, actorCollector, snapshotBuilder);
@@ -268,20 +354,34 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     private void collectSpatialMaps() {
         faceMapCount = 0;
-        if (tiledMapsSub == null) return;
+        if (tiledMapsSub == null) {
+            return;
+        }
 
         IntBag maps = tiledMapsSub.getEntities();
         int[] data = maps.getData();
+        boolean removedSource = false;
         for (int i = 0, n = maps.size(); i < n; i++) {
             int entity = data[i];
             TiledLayerComponent tiled = mTiled.getSafe(entity, null);
-            if (tiled == null) continue;
-            if (tiled.data == null) continue;
-            if (!isSpatialTiledMap(tiled)) continue;
+            SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(entity, null);
+            if (tiled == null || tiled.data == null || !isSpatialTiledMap(tiled)
+                    || blocks == null || !blocks.hasBlocks()) {
+                if (sharedAnchorSearch != null) {
+                    removedSource |= sharedAnchorSearch.remove(entity);
+                }
+                continue;
+            }
+            if (sharedAnchorSearch != null) {
+                removedSource |= sharedAnchorSearch.discardReplacedMap(entity, tiled.data);
+            }
 
             ensureFaceMapCapacity(faceMapCount + 1);
             faceMapEntities[faceMapCount] = entity;
             faceMapCount++;
+        }
+        if (removedSource) {
+            releasePreparedMaps();
         }
     }
 

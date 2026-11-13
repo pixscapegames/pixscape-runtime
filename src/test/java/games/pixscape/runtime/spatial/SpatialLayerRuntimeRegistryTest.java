@@ -13,6 +13,23 @@ import org.junit.Test;
 public class SpatialLayerRuntimeRegistryTest {
 
     @Test
+    public void removalReplacementAndClearReleaseOnlyTheIntendedOwners() {
+        SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
+        TiledMapLayerData map = mapWithRenderRefs(0);
+        SpatialLayerFaceRuntime first = registry.forLayer(7, map);
+        SpatialLayerFaceRuntime other = registry.forLayer(8, map);
+        registry.remove(999);
+        registry.remove(7);
+        Assert.assertNotSame(first, registry.forLayer(7, map));
+        Assert.assertSame(other, registry.forLayer(8, map));
+        registry.discardReplacedMap(8, mapWithRenderRefs(64));
+        Assert.assertNotSame(other, registry.forLayer(8, map));
+        SpatialLayerFaceRuntime last = registry.forLayer(7, map);
+        registry.clear();
+        Assert.assertNotSame(last, registry.forLayer(7, map));
+    }
+
+    @Test
     public void sameEntityAndSourceMapReturnSameRuntime() {
         SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
         TiledMapLayerData map = mapWithRenderRefs(0);
