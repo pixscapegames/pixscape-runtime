@@ -2,12 +2,12 @@ package games.pixscape.runtime.api;
 
 import com.artemis.*;
 import com.artemis.utils.IntBag;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.animation.AnimationClipDef;
@@ -116,7 +116,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private void bindCurrentWorld() {
-            World current = engine.getWorld();
+            bind(engine.getWorld());
+        }
+
+        private void bind(World current) {
             if (current == world) return;
 
             if (subscription != null) {
@@ -279,6 +282,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.particles = new ParticlesApiImpl(engine, entities);
         this.physics = new PhysicsApiImpl(engine);
         this.gameObjects = new GameObjectsApiImpl(engine);
+    }
+
+    /** INTERNAL lifecycle boundary: release borrowed World bindings before its disposal. */
+    public void onWorldRetired() {
+        entityReferences.bind(null);
+        sceneLayers.bind(null);
     }
 
     @Override
@@ -1376,6 +1385,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                         "Game Object parent scale must be finite, positive, and uniform.");
             }
             GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (world.getMapper(GameObjectComponent.class).has(handle.entityId)
+                    && (world.getMapper(PhysicsBodyComponent.class).has(handle.entityId)
+                    || (hierarchy != null && hierarchy.containsPhysicsInDescendants(handle.entityId)))) {
+                TransformComponent current = t(false);
+                if (current == null || current.scaleX != sx || current.scaleY != sy) {
+                    throw new IllegalArgumentException(
+                            "Cannot resize a composition containing authored Physics, including its root.");
+                }
+                return;
+            }
             if (hierarchy == null || !hierarchy.containsPhysicsInDescendants(handle.entityId)) return;
             PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
             if (authority != null && authority.isRuntimePhysics()) {
@@ -1394,12 +1413,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
             if (authority == null || !authority.isRuntimePhysics()) return;
 
-            boolean directBody = world.getMapper(PhysicsBodyComponent.class).has(handle.entityId);
-            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-            if (directBody || (hierarchy != null && hierarchy.containsPhysicsInSubtree(handle.entityId))) {
+            PhysicsRuntimeBodyComponent runtime = world.getMapper(PhysicsRuntimeBodyComponent.class)
+                    .getSafe(handle.entityId, null);
+            if (runtime != null && runtime.body != null) {
                 throw new IllegalStateException(
-                        "Transform mutation is not allowed while Runtime Physics owns this Body "
-                                + "or a descendant Body.");
+                        "Transform mutation is not allowed while Runtime Physics owns this realized Body.");
             }
         }
     }
@@ -4369,9 +4387,60 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
     static final class GameObjectsApiImpl implements GameObjectsAPI {
         private final PixscapeEngine engine;
+        private final IntArray placementRoots = new IntArray();
+        private boolean placing;
 
         GameObjectsApiImpl(PixscapeEngine engine) {
             this.engine = engine;
+        }
+
+        @Override
+        public GameObjectFactory prepare(String name) {
+            return engine.prepareGameObject(name, null);
+        }
+
+        @Override
+        public GameObjectFactory prepare(String name, FileHandle readyFile) {
+            if (readyFile == null) {
+                throw new IllegalArgumentException("An available Game Object file is required.");
+            }
+            return engine.prepareGameObject(name, readyFile);
+        }
+
+        @Override
+        public void reservePlacement(int nodeCapacity, int jointCapacity) {
+            if (placing || engine.getWorld() == null || nodeCapacity < 0 || jointCapacity < 0) {
+                throw new IllegalArgumentException("Placement reservation requires an idle active World and non-negative capacities.");
+            }
+            engine.getWorld().getSystem(GameObjectHierarchySystem.class).reservePlacement(nodeCapacity, jointCapacity);
+            placementRoots.ensureCapacity(nodeCapacity);
+        }
+
+        @Override
+        public void place(EntityRef[] roots, float pivotX, float pivotY, float dx, float dy,
+                          float rotationRad, boolean resetVelocities) {
+            if (placing) {
+                throw new IllegalStateException("Composition placement is not reentrant.");
+            }
+            if (roots == null || roots.length == 0 || engine.getWorld() == null) {
+                throw new IllegalArgumentException("Composition placement requires live roots in the current World.");
+            }
+            placing = true;
+            placementRoots.clear();
+            try {
+                for (EntityRef root : roots) {
+                    if (!(root instanceof EntityRefImpl) || !root.exists()
+                            || ((EntityRefImpl) root).handle.world() != engine.getWorld()) {
+                        throw new IllegalArgumentException("Composition placement root is stale or belongs to another World.");
+                    }
+                    placementRoots.add(root.entityId());
+                }
+                engine.getWorld().getSystem(GameObjectHierarchySystem.class).placeComposition(placementRoots,
+                        pivotX, pivotY, dx, dy, rotationRad, resetVelocities);
+            } finally {
+                placementRoots.clear();
+                placing = false;
+            }
         }
 
         @Override

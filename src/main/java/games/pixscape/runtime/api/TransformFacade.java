@@ -14,10 +14,11 @@ import com.badlogic.gdx.math.Vector2;
  * flips the image without reflecting its collision; a non-centered origin can also shift the image.
  * Ordinary entities support negative, uniform, and non-uniform finite scale, including entities
  * with their own Body and joints. Game Objects require positive uniform scale, and ancestors of
- * Bodies require unit scale. Scale mutations throw {@link IllegalStateException} while Runtime
- * Physics owns a descendant Body, but an entity's own Body does not prevent visual scaling.
+ * Bodies require unit scale. Resizing a Game Object containing authored Physics, including its
+ * own Body, is rejected. An ordinary leaf's own Body does not prevent individual visual scaling.
  * Position, rotation, and origin mutations remain forbidden while Runtime Physics owns this
- * entity's Body or a descendant Body. Rejected mutations leave the transform unchanged.
+ * entity's realized Body. Bodyless parents may move without carrying physical descendants.
+ * Configured but unrealized Bodies retain authored poses. Rejected mutations leave state unchanged.
  */
 public interface TransformFacade {
     float x();

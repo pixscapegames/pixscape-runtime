@@ -23,6 +23,248 @@ import static org.junit.Assert.*;
 
 public class PixscapeEngineGameObjectSpawnTest {
     @Test
+    public void reentrantFactorySpawnAndPrepareAreRejectedWithoutCorruptingOuterSpawn() throws Exception {
+        try (Harness h = new Harness(asset())) {
+            h.ready();
+            var api = h.engine.api().gameObjects();
+            var factory = api.prepare("declared");
+            var probe = new SpawnPhysicsProbe(h.engine.getBox2dSyncSystem());
+            int[] attempts = {0};
+            probe.duringBodyCreation = () -> {
+                attempts[0]++;
+                assertThrows(IllegalStateException.class, () -> factory.spawn(300, 200));
+                assertThrows(IllegalStateException.class, () -> api.prepare("declared",
+                        h.fixture.projectDir.child("gameobjects/declared.gameobject")));
+            };
+            var first = factory.spawn(100, 200);
+            assertTrue(attempts[0] > 0);
+            h.assertComplete(first, 2, 2);
+            probe.duringBodyCreation = null;
+            var second = factory.spawn(400, 200);
+            assertNotEquals(first.root().stableId(), second.root().stableId());
+            assertEquals(4, h.nativeWorld().getBodyCount());
+            assertEquals(4, h.nativeWorld().getJointCount());
+        }
+    }
+
+    @Test
+    public void projectReloadRequiresDisposeAndReleasesPreparationAndOldFactory() throws Exception {
+        try (Harness h = new Harness(asset())) {
+            h.ready();
+            var factory = h.engine.api().gameObjects().prepare("declared");
+            var instance = factory.spawn(0, 0);
+            var scene = (games.pixscape.runtime.loading.SceneAvailabilityPlan) readField(h.engine, "activeSceneAvailability");
+            assertThrows(IllegalStateException.class,
+                    () -> h.engine.loadProject(h.fixture.projectDir.child("different-project")));
+            assertTrue(factory.spawn(100, 0).exists());
+            h.engine.dispose();
+            h.engine.loadProject(h.fixture.projectDir.parent());
+            assertThrows(IllegalStateException.class, () -> factory.spawn(0, 0));
+            assertThrows(IllegalStateException.class, () -> scene.requireGameObject("gameobjects/declared.gameobject"));
+            assertNull(readField(scene, "gameObjectSpawner"));
+            assertEquals(0, ((com.badlogic.gdx.utils.ObjectMap<?, ?>) readField(scene, "gameObjects")).size);
+            assertFalse(instance.exists());
+            h.engine.config().getSceneMeta("A").physicsEnabled = true;
+            h.ready();
+            assertTrue(h.engine.api().gameObjects().prepare("declared").spawn(0, 0).exists());
+        }
+    }
+
+    @Test
+    public void firstReservedPlacementOnFreshWorldDoesNotAllocateAfterVmWarmup() throws Exception {
+        // Warm code/classes on a different World; never place the measured instance before reservation.
+        reservedPlacementHasNoTemporaryJavaAllocationAfterWarmup();
+        var definition = asset();
+        definition.entities.get(3).physicsBody = null;
+        try (Harness h = new Harness(definition)) {
+            h.ready();
+            var api = h.engine.api().gameObjects();
+            var factory = api.prepare("declared");
+            var instance = factory.spawn(100, 200);
+            EntityRef[] roots = {instance.root()};
+            float beforeX = h.player(instance).getPosition().x;
+            api.reservePlacement(factory.nodeCount(), factory.jointCount());
+            assertEquals(beforeX, h.player(instance).getPosition().x, 0f);
+            var allocations = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+            long thread = Thread.currentThread().threadId();
+            for (int call = 0; call < 3; call++) {
+                long before = allocations.getThreadAllocatedBytes(thread);
+                api.place(roots, 0, 0, .01f, 0, 0, false);
+                long bytes = allocations.getThreadAllocatedBytes(thread) - before;
+                assertEquals("Reserved placement call " + call, 0, bytes);
+            }
+        }
+    }
+
+    @Test
+    public void retiredFactoryAndInstanceDoNotKeepRetiredWorldThroughApiBindings() throws Exception {
+        try (Harness h = new Harness(asset())) {
+            h.ready();
+            var api = h.engine.api();
+            var factory = api.gameObjects().prepare("declared");
+            var instance = factory.spawn(0, 0);
+            var retired = h.engine.getWorld();
+            var tracker = readField(api, "entityReferences");
+            assertSame(retired, readField(tracker, "world"));
+            h.ready();
+            // Check before touching the old handle: lazy rebinding must not hide retention.
+            assertNotSame("Scene retirement must detach the old World immediately", retired, readField(tracker, "world"));
+            assertThrows(IllegalStateException.class, () -> factory.spawn(0, 0));
+            assertFalse(instance.exists());
+            var freshFactory = api.gameObjects().prepare("declared");
+            var fresh = freshFactory.spawn(0, 0);
+            h.engine.dispose();
+            assertNull("Dispose must detach API bindings even without a later API call", readField(tracker, "world"));
+            assertThrows(IllegalStateException.class, () -> freshFactory.spawn(0, 0));
+            assertFalse(fresh.exists());
+        }
+    }
+
+    @Test
+    public void disposalCallbacksCannotRestoreRetiredApiWorldBindings() throws Exception {
+        try (Harness h = new Harness(asset())) {
+            int[] disposals = {0};
+            h.engine.setPostRenderSystemCustomizer(builder -> builder.with(new BaseSystem() {
+                @Override
+                protected void processSystem() {
+                }
+
+                @Override
+                protected void dispose() {
+                    // Application cleanup may still query the public API during World disposal.
+                    h.engine.api().entities().ofEntityId(0);
+                    disposals[0]++;
+                }
+            }));
+            h.ready();
+            var tracker = readField(h.engine.api(), "entityReferences");
+            h.engine.api().entities().ofEntityId(0);
+            var retired = h.engine.getWorld();
+            h.ready();
+            assertEquals(1, disposals[0]);
+            assertNotSame("Disposal callbacks must not leave the retired World bound", retired,
+                    readField(tracker, "world"));
+            h.engine.dispose();
+            assertEquals(2, disposals[0]);
+            assertNull("Disposal callbacks must not rebind an API to a disposed World", readField(tracker, "world"));
+        }
+    }
+
+    private static Object readField(Object target, String name) throws Exception {
+        var field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(target);
+    }
+
+    @Test
+    public void preparedMemberNamesPreserveMissingAndAmbiguousLookupAndInstanceIsolation() throws Exception {
+        var definition = asset();
+        definition.entities.get(2).identity.name = "playerAnimation";
+        try (Harness h = new Harness(definition)) {
+            h.ready();
+            var factory = h.engine.api().gameObjects().prepare("declared");
+            var first = factory.spawn(0, 0);
+            var second = factory.spawn(100, 0);
+            assertThrows(IllegalArgumentException.class, () -> first.requireMember("playerAnimation"));
+            assertThrows(IllegalArgumentException.class, () -> first.requireMember("missing"));
+            assertThrows(IllegalArgumentException.class, () -> first.requireMember(null));
+            assertNotEquals(first.requireMember("visualOnly").stableId(), second.requireMember("visualOnly").stableId());
+            first.despawn();
+            h.barrier();
+            assertTrue(second.requireMember("visualOnly").exists());
+            assertThrows(IllegalArgumentException.class, () -> second.requireMember("playerAnimation"));
+        }
+    }
+
+    @Test
+    public void reservedPlacementHasNoTemporaryJavaAllocationAfterWarmup() throws Exception {
+        var definition = asset();
+        definition.entities.get(3).physicsBody = null;
+        try (Harness h = new Harness(definition)) {
+            h.ready();
+            var api = h.engine.api().gameObjects();
+            var factory = api.prepare("declared");
+            var instance = factory.spawn(100, 200);
+            EntityRef[] roots = {instance.root()};
+            api.reservePlacement(factory.nodeCount(), factory.jointCount());
+            var allocations = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+            long thread = Thread.currentThread().threadId();
+            org.junit.Assume.assumeTrue(allocations.isThreadAllocatedMemorySupported());
+            allocations.getThreadAllocatedBytes(thread);
+            for (int i = 0; i < 5000; i++) {
+                api.place(roots, 0, 0, .01f, 0, 0, false);
+            }
+            long before = allocations.getThreadAllocatedBytes(thread);
+            for (int i = 0; i < 1000; i++) {
+                api.place(roots, 0, 0, .01f, 0, 0, false);
+            }
+            long allocated = allocations.getThreadAllocatedBytes(thread) - before;
+            assertEquals("Reserved public placement path must not allocate temporary Java state", 0L, allocated);
+        }
+    }
+
+    @Test
+    public void preparedFactoryReusesDefinitionAndReloadInvalidatesOnlyItsFutureSpawns() throws Exception {
+        try (Harness h = new Harness(asset())) {
+            h.ready();
+            var api = h.engine.api().gameObjects();
+            var factory = api.prepare("declared");
+            assertEquals(5, factory.nodeCount());
+            assertEquals(2, factory.jointCount());
+            var file = h.fixture.projectDir.child("gameobjects/declared.gameobject");
+            file.writeString("invalid JSON", false);
+            var first = factory.spawn(100, 200);
+            var second = factory.spawn(300, 200);
+            assertNotEquals(first.root().stableId(), second.root().stableId());
+            assertNotSame(h.player(first), h.player(second));
+            assertThrows(RuntimeException.class, () -> api.prepare("declared", file));
+            var third = factory.spawn(500, 200); // A failed reload preserves the published model.
+            var replacement = asset();
+            replacement.entities.get(1).identity.name = "renamed";
+            new GameObjectAssetLoader().save(file, replacement);
+            var reloaded = api.prepare("declared", file);
+            assertThrows(IllegalStateException.class, () -> factory.spawn(0, 0));
+            assertTrue(first.requireMember("playerAnimation").exists());
+            assertTrue(reloaded.spawn(0, 0).requireMember("renamed").exists());
+            assertTrue(third.exists());
+            h.ready();
+            assertThrows(IllegalStateException.class, () -> reloaded.spawn(0, 0));
+        }
+    }
+
+    @Test
+    public void onDemandPreparedFactoryAndReservedPlacementKeepIncarnationsSafe() throws Exception {
+        var definition = asset();
+        definition.entities.get(3).physicsBody = null;
+        try (Harness h = new Harness(definition)) {
+            h.ready();
+            var api = h.engine.api().gameObjects();
+            var readyFile = h.fixture.projectDir.child("gameobjects/ondemand.gameobject");
+            new GameObjectAssetLoader().save(readyFile, definition);
+            var factory = api.prepare("ondemand", readyFile);
+            api.reservePlacement(factory.nodeCount(), factory.jointCount());
+            var first = factory.spawn(100, 200);
+            EntityRef[] roots = {first.root()};
+            Body body = h.player(first);
+            float before = body.getPosition().x;
+            api.place(roots, 0, 0, 100, 0, 0, false);
+            assertEquals(before + 1, body.getPosition().x, .0001f);
+            int retiredEntity = first.root().entityId();
+            first.despawn();
+            h.frame(0); // Complete the normal Artemis purge, including entity-ID recycling.
+            var second = factory.spawn(300, 200);
+            assertEquals(retiredEntity, second.root().entityId());
+            Body secondBody = h.player(second);
+            float secondX = secondBody.getPosition().x;
+            assertThrows(IllegalArgumentException.class, () -> api.place(roots, 0, 0, 50, 0, 0, false));
+            assertEquals(secondX, secondBody.getPosition().x, 0f);
+            roots[0] = second.root();
+            api.place(roots, 0, 0, 50, 0, 0, true);
+            assertEquals(secondX + .5f, secondBody.getPosition().x, .0001f);
+        }
+    }
+
+    @Test
     public void readyBeforeFirstRenderAndBetweenFramesWithoutSimulationOrWorldProcessing() throws Exception {
         try (Harness h = new Harness(asset())) {
             int[] systemCalls = {0};

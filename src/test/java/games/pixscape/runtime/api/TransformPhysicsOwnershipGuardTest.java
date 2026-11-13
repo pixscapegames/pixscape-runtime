@@ -4,6 +4,12 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.service.Box2dWorldService;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.GameObjectPhysicsWritebackSystem;
+import com.badlogic.gdx.math.Vector2;
+import com.artemis.Aspect;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -18,6 +24,16 @@ import java.lang.reflect.Field;
  * Runtime P2 contract coverage for high-level transform ownership protection.
  */
 public class TransformPhysicsOwnershipGuardTest {
+    private final java.util.List<Harness> harnesses = new java.util.ArrayList<>();
+
+    @org.junit.After
+    public void disposeHarnesses() {
+        for (Harness harness : harnesses) {
+            harness.engine.getIdentityRegistry().bind(null, null);
+            harness.world.dispose();
+            harness.box2d.dispose();
+        }
+    }
     @Test
     public void runtimePhysicsPreservesPoseAndOriginGuardsForEachBodyType() throws Exception {
         Harness harness = new Harness();
@@ -121,23 +137,17 @@ public class TransformPhysicsOwnershipGuardTest {
     }
 
     @Test
-    public void gameObjectOwnBodyAllowsOnlyPositiveUniformCandidateBeforeMutation() throws Exception {
+    public void gameObjectOwnBodyRejectsGlobalScaleBeforeMutation() throws Exception {
         Harness harness = new Harness();
         int root = harness.entity(1, true, -1);
         harness.world.getMapper(PhysicsBodyComponent.class).create(root);
         harness.activateRuntimePhysics();
         TransformFacade transform = harness.engine.api().entities().ofEntityId(root).transform();
-        transform.setScale(2f).setScale(3f, 3f).setScaleX(3f).setScaleY(3f);
-        assertScale(transform, 3f, 3f);
-        for (float invalid : new float[]{-1f, 0f, 2f, Float.NaN, Float.POSITIVE_INFINITY}) {
-            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleX(invalid));
-            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScaleY(invalid));
-            Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(3f, invalid));
-            assertScale(transform, 3f, 3f);
-        }
+        Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(2f));
         Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(-2f));
         Assert.assertThrows(IllegalArgumentException.class, () -> transform.setScale(0f));
-        assertScale(transform, 3f, 3f);
+        transform.setScale(1f);
+        assertScale(transform, 1f, 1f);
         assertRejected(() -> transform.setPosition(1f, 2f));
         assertRejected(() -> transform.setRotationRad(1f));
         assertRejected(() -> transform.setOrigin(1f, 2f));
@@ -171,7 +181,7 @@ public class TransformPhysicsOwnershipGuardTest {
     }
 
     @Test
-    public void runtimePhysicsRejectsAncestorsButLeavesUnrelatedSiblingMutable() throws Exception {
+    public void runtimePhysicsAllowsBodylessParentsButRejectsTheirGlobalScaling() throws Exception {
         Harness harness = new Harness();
         int root = harness.entity(1, true, -1);
         int middle = harness.entity(2, true, 1);
@@ -183,34 +193,19 @@ public class TransformPhysicsOwnershipGuardTest {
         int sibling = harness.entity(4, false, -1);
         harness.activateRuntimePhysics();
 
-        assertRejected(new Runnable() {
-            @Override
-            public void run() {
-                harness.engine.api().entities().ofEntityId(root).transform().setScale(2f);
-            }
-        });
-
-        for (int ancestor : new int[]{root, middle}) {
-            TransformFacade transform = harness.engine.api().entities().ofEntityId(ancestor).transform();
-            assertRejected(() -> transform.setScale(2f));
-            assertRejected(() -> transform.setScale(2f, 2f));
-            assertRejected(() -> transform.setScaleX(1f));
-            assertRejected(() -> transform.setScaleY(1f));
-            assertRejected(() -> transform.setPosition(1f, 2f));
-            assertRejected(() -> transform.setRotationRad(1f));
-            assertRejected(() -> transform.setOrigin(1f, 2f));
-            assertScale(transform, 1f, 1f);
-        }
+        TransformFacade rootPose = harness.engine.api().entities().ofEntityId(root).transform();
+        Assert.assertThrows(IllegalArgumentException.class, () -> rootPose.setScale(2f));
+        assertRejected(() -> rootPose.setPosition(1f, 2f));
+        assertRejected(() -> rootPose.setRotationRad(1f));
+        TransformFacade middlePose = harness.engine.api().entities().ofEntityId(middle).transform();
+        Assert.assertThrows(IllegalArgumentException.class, () -> middlePose.setScale(2f));
+        middlePose.setPosition(1f, 2f).setRotationRad(1f).setOrigin(5f, 6f);
+        harness.world.process();
+        Assert.assertEquals(0f, harness.world.getMapper(games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)
+                .get(child).body.getPosition().x, 0.0001f);
         TransformFacade visualTransform = harness.engine.api().entities().ofEntityId(visual).transform();
         visualTransform.setScale(-2f, 3f).setPosition(4f, 5f);
         assertScale(visualTransform, -2f, 3f);
-        assertRejected(new Runnable() {
-            @Override
-            public void run() {
-                harness.engine.api().entities().ofEntityId(middle).transform().setOrigin(5f, 6f);
-            }
-        });
-
         harness.engine.api().entities().ofEntityId(sibling).transform().setPosition(9f, 10f);
         Assert.assertEquals(9f, harness.world.getMapper(TransformComponent.class).get(sibling).x, 0f);
     }
@@ -240,24 +235,32 @@ public class TransformPhysicsOwnershipGuardTest {
         Assert.assertTrue(failure.getMessage().contains("Runtime Physics owns"));
     }
 
-    private static final class Harness {
+    private final class Harness {
         final World world;
         final PixscapeEngine engine;
         final PhysicsPoseAuthority authority;
+        final Box2dWorldService box2d;
+        final SceneMetaRuntime meta;
 
         Harness() throws Exception {
+            com.badlogic.gdx.utils.GdxNativesLoader.load();
+            box2d = new Box2dWorldService(100f, new Vector2());
             authority = new PhysicsPoseAuthority();
             world = new World(new WorldConfigurationBuilder()
-                    .with(new DirtyTrackerSystem(16), authority, new GameObjectHierarchySystem(16))
+                    .with(new DirtyTrackerSystem(16), authority, new GameObjectHierarchySystem(16),
+                            new Box2dSyncSystem(box2d), new GameObjectPhysicsWritebackSystem())
                     .build());
             engine = new PixscapeEngine();
             Field field = PixscapeEngine.class.getDeclaredField("world");
             field.setAccessible(true);
             field.set(engine, world);
-            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta = new SceneMetaRuntime();
+            world.getSystem(Box2dSyncSystem.class).setSceneMeta(meta);
+            world.getSystem(Box2dSyncSystem.class).setEnabled(false);
             meta.nextEntityStableId = 100;
             engine.getIdentityRegistry().bind(world, meta);
             engine.getTagRegistry().bind(world);
+            harnesses.add(this);
         }
 
         int entity(int stableId, boolean gameObject, int parentStableId) {
@@ -274,7 +277,16 @@ public class TransformPhysicsOwnershipGuardTest {
         }
 
         void activateRuntimePhysics() {
+            world.getSystem(Box2dSyncSystem.class).setEnabled(false);
             prepareHierarchy();
+            PhysicsService service = new PhysicsService(world, box2d);
+            service.setPhysicsShapeIdState(meta);
+            var bodies = world.getAspectSubscriptionManager().get(Aspect.all(PhysicsBodyComponent.class)).getEntities();
+            for (int i = 0; i < bodies.size(); i++) {
+                service.ensurePhysics(bodies.get(i));
+            }
+            world.getSystem(Box2dSyncSystem.class).setEnabled(true);
+            world.process();
             authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
         }
 

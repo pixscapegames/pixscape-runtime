@@ -138,7 +138,7 @@ public class VisualScalePhysicsIntegrationTest {
     }
 
     @Test
-    public void physicalGameObjectScalePropagatesToVisualChildWithoutChangingItsBody() throws Exception {
+    public void physicalCompositionRejectsGlobalScaleButAllowsIndependentVisualScale() throws Exception {
         try (Harness h = new Harness()) {
             int root = h.entity(1, PhysicsBodyComponent.DYNAMIC);
             h.world.getMapper(GameObjectComponent.class).create(root);
@@ -149,14 +149,15 @@ public class VisualScalePhysicsIntegrationTest {
             h.world.getMapper(TransformComponent.class).create(visual).x = 10f;
             h.activate();
             Body body = h.body(root);
-            h.engine.api().entities().ofEntityId(root).transform().setScale(2f);
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> h.engine.api().entities().ofEntityId(root).transform().setScale(2f));
             h.engine.api().entities().ofEntityId(visual).transform().setScale(-1f, 3f);
             h.world.process();
             Assert.assertSame(body, h.body(root));
-            Assert.assertEquals(2f, h.engine.api().entities().ofEntityId(root).transform().scaleX(), 0f);
-            Assert.assertEquals(20f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().x[visual], 0f);
-            Assert.assertEquals(-2f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().scaleX[visual], 0f);
-            Assert.assertEquals(6f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().scaleY[visual], 0f);
+            Assert.assertEquals(1f, h.engine.api().entities().ofEntityId(root).transform().scaleX(), 0f);
+            Assert.assertEquals(10f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().x[visual], 0f);
+            Assert.assertEquals(-1f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().scaleX[visual], 0f);
+            Assert.assertEquals(3f, h.world.getSystem(GameObjectHierarchySystem.class).worldTransforms().scaleY[visual], 0f);
         }
     }
 

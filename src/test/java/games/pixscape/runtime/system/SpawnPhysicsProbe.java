@@ -8,6 +8,7 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 public final class SpawnPhysicsProbe implements Box2dSyncSystem.TestObserver {
     public int bodies, fixtures, joints, eligibility, cacheChecks;
     public int failBody, failFixture, failJoint;
+    public Runnable duringBodyCreation;
 
     public SpawnPhysicsProbe(Box2dSyncSystem system) {
         system.setTestObserver(this);
@@ -37,6 +38,9 @@ public final class SpawnPhysicsProbe implements Box2dSyncSystem.TestObserver {
 
     @Override
     public void onBodyRebuild() {
+        if (duringBodyCreation != null) {
+            duringBodyCreation.run();
+        }
         if (++bodies == failBody) throw new IllegalStateException("Injected body creation failure");
     }
 

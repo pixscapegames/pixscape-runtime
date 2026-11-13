@@ -236,9 +236,12 @@ public class PhysicsShapeResolverTest {
 
         Assert.assertEquals(source.physicsShapeId, resolved.physicsShapeId);
         Assert.assertEquals(shapeType, resolved.shapeType);
-        Assert.assertNotSame(sourceVertices, resolved.polygonVertices);
         if (sourceVertices.length > 0) {
+            Assert.assertNotSame(sourceVertices, resolved.polygonVertices);
             Assert.assertEquals(0f, sourceVertices[0], 0f);
+        } else {
+            // Zero-length storage is immutable; writable polygon data must remain independent.
+            Assert.assertEquals(0, resolved.polygonVertices.length);
         }
     }
 }

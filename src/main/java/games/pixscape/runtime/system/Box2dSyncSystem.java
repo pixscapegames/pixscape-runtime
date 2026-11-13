@@ -87,6 +87,11 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     private EntitySubscription jointsSub;   // JointBase insert/remove only
     private EntitySubscription allEntities;
 
+    // Box2D copies these definitions synchronously. They never escape this World-owned system.
+    private final BodyDef bodyDefinitionScratch = new BodyDef();
+    private final FixtureDef fixtureDefinitionScratch = new FixtureDef();
+    private final DistanceJointDef distanceDefinitionScratch = new DistanceJointDef();
+    private boolean materializingBody;
     private final Vector2 tmp = new Vector2();
     private static final int MAX_POLYGON_VERTICES = 8;
     private final float[] polygonVertsScratch = new float[MAX_POLYGON_VERTICES * 2];
@@ -434,6 +439,13 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             float targetY = box2d.pxToM(authoredWorldY(e, t));
             float targetAngle = authoredWorldRotation(e, t);
 
+            if (rt.placedDesignPose) {
+                if (targetX == rt.placedDesignX && targetY == rt.placedDesignY
+                        && targetAngle == rt.placedDesignAngle) {
+                    continue;
+                }
+                rt.placedDesignPose = false;
+            }
             Vector2 p = rt.body.getPosition();
             boolean movedByAuthoring =
                     Math.abs(p.x - targetX) > TRANSFORM_SYNC_EPSILON
@@ -860,7 +872,24 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         PhysicsBodyComponent bd = mBodyDef.get(e);
         if (bd == null || fixtures == null) return null;
 
-        BodyDef def = new BodyDef();
+        if (materializingBody) {
+            throw new IllegalStateException("Native body materialization is not reentrant.");
+        }
+        materializingBody = true;
+        try {
+            return createBodyFromCompiledState(e, fixtures, wakeForMutation, worldX, worldY, worldRotation, bd);
+        } finally {
+            fixtureDefinitionScratch.shape = null;
+            materializingBody = false;
+        }
+    }
+
+    private Body createBodyFromCompiledState(int e, Array<CompiledFixtureData> fixtures, boolean wakeForMutation,
+                                             float worldX, float worldY, float worldRotation, PhysicsBodyComponent bd) {
+        BodyDef def = bodyDefinitionScratch;
+        def.linearVelocity.setZero();
+        def.angularVelocity = 0f;
+        def.active = true;
         def.type = (bd.type == 0) ? BodyDef.BodyType.StaticBody
                 : (bd.type == 1) ? BodyDef.BodyType.KinematicBody
                 : BodyDef.BodyType.DynamicBody;
@@ -886,7 +915,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
                 Shape shape = null;
                 try {
                     shape = createShape(fd);
-                    FixtureDef fdef = new FixtureDef();
+                    FixtureDef fdef = fixtureDefinitionScratch;
                     fdef.shape = shape;
                     fdef.density = fd.density;
                     fdef.friction = fd.friction;
@@ -1497,7 +1526,7 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
     }
 
     private Joint createDistanceJoint(PhysicsJointComponent base, PhysicsDistanceJointComponent dist, Body bodyA, Body bodyB) {
-        DistanceJointDef def = new DistanceJointDef();
+        DistanceJointDef def = distanceDefinitionScratch;
         def.bodyA = bodyA;
         def.bodyB = bodyB;
         def.collideConnected = base.collideConnected;
@@ -1509,7 +1538,12 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         def.frequencyHz = Math.max(0f, dist.frequencyHz);
         def.dampingRatio = Math.max(0f, Math.min(1f, dist.dampingRatio));
 
-        return box2d.world.createJoint(def);
+        try {
+            return box2d.world.createJoint(def);
+        } finally {
+            def.bodyA = null;
+            def.bodyB = null;
+        }
     }
 
     private Joint createRevoluteJoint(PhysicsJointComponent base, PhysicsRevoluteJointComponent rev, Body bodyA, Body bodyB) {
@@ -1653,6 +1687,33 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
         def.dampingRatio = Math.max(0f, Math.min(1f, weld.dampingRatio));
 
         return box2d.world.createJoint(def);
+    }
+
+    /** INTERNAL: prepares a replacement without retiring the original or advancing simulation. */
+    public Joint preparePulleyPlacement(int entity, float[] anchors) {
+        PhysicsJointComponent base = mJointBase.get(entity);
+        PhysicsPulleyJointComponent source = mPulley.get(entity);
+        PhysicsPulleyJointComponent candidate = new PhysicsPulleyJointComponent();
+        candidate.groundAx = anchors[0];
+        candidate.groundAy = anchors[1];
+        candidate.groundBx = anchors[2];
+        candidate.groundBy = anchors[3];
+        candidate.lengthAM = source.lengthAM;
+        candidate.lengthBM = source.lengthBM;
+        candidate.ratio = source.ratio;
+        if (testObserver != null) {
+            testObserver.beforeCreateOrRebuildJoint(entity);
+        }
+        return createPulleyJoint(base, candidate, mRuntime.get(base.aEid).body, mRuntime.get(base.bEid).body);
+    }
+
+    /** INTERNAL: publishes an already prepared pulley; source joints and their references survive. */
+    public void publishPulleyPlacement(int entity, Joint replacement) {
+        PhysicsRuntimeJointComponent runtime = mJointRt.get(entity);
+        nativeJointEntities.remove(runtime.joint, -1);
+        box2d.world.destroyJoint(runtime.joint);
+        runtime.joint = replacement;
+        nativeJointEntities.put(replacement, entity);
     }
 
     private Joint createPulleyJoint(PhysicsJointComponent base,

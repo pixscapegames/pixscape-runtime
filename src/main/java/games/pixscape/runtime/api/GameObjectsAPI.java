@@ -1,6 +1,7 @@
 package games.pixscape.runtime.api;
 
 import java.util.function.Consumer;
+import com.badlogic.gdx.files.FileHandle;
 
 /**
  * Runtime API for synchronously spawning exported Game Object assets into the active scene.
@@ -10,10 +11,48 @@ import java.util.function.Consumer;
  * {@code enemy}, {@code enemy.gameobject}, and the canonical recommended form
  * {@code gameobjects/enemy.gameobject}. The scene owns a validated, prepared definition until
  * scene/project replacement or disposal. Spawning never rereads that definition; each instance
- * gets independent mutable state and fresh identities. Undeclared types fail immediately.
- * Missing or invalid definitions and unavailable visual bindings fail during scene preparation.</p>
+ * gets independent mutable state and fresh identities. Unprepared types fail immediately;
+ * explicitly available on-demand files can be registered with {@link #prepare(String, FileHandle)}.
+ * Missing or invalid declared definitions and unavailable visual bindings fail during scene preparation.</p>
  */
 public interface GameObjectsAPI {
+
+    /**
+     * Acquires a reusable factory for a definition prepared automatically before scene READY.
+     * Normalizes the name once. The factory is invalid after scene retirement or replacement
+     * of this asset's prepared definition. Each spawn still creates independent mutable state.
+     */
+    GameObjectFactory prepare(String name);
+
+    /**
+     * Explicit cold preparation/reload of an already downloaded/readable exported definition.
+     * Its visual dependencies must already exist in the current scene atlas. Does no downloading
+     * or atlas publication. Failure preserves the previous definition; success invalidates old
+     * factories for this name, without changing existing instances. Owns a detached parsed model,
+     * not the supplied file. Available on the normal engine thread after scene READY.
+     */
+    GameObjectFactory prepare(String name, FileHandle readyFile);
+
+    /**
+     * Reserves World-owned temporary placement storage, including ancestors in nodeCapacity.
+     * Does not create entities, preallocate native physics, or reset pooled instances.
+     * Capacity grows if exceeded. Reuse the caller's roots array to avoid its own allocations.
+     * Pulley replacement and exception diagnostics may still allocate. Not thread-safe/reentrant.
+     */
+    void reservePlacement(int nodeCapacity, int jointCapacity);
+
+    /**
+     * Rigidly places the current subtrees rooted at the supplied live references. Overlapping roots
+     * are counted once. Positions/pivot/translation use world pixels and rotation uses radians.
+     * The operation rotates around the pivot, then translates. Linear velocities rotate with it;
+     * angular velocities survive, unless resetVelocities explicitly clears both.
+     *
+     * <p>Every configured Body and incident joint must be realized, and every joint dependency must
+     * remain inside the explicitly selected perimeter. Rejection precedes mutation. Call outside
+     * Box2D callbacks/stepping, after structural publication; no World process or step is performed.</p>
+     */
+    void place(EntityRef[] roots, float pivotX, float pivotY, float dx, float dy,
+               float rotationRad, boolean resetVelocities);
 
     /**
      * Spawns an independent instance with its real root at the given world position.

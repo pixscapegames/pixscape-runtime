@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
@@ -13,7 +14,9 @@ import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator;
+import games.pixscape.runtime.hierarchy.GameObjectPlacement;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
@@ -36,9 +39,35 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     private ComponentMapper<TransformComponent> transforms;
     private ComponentMapper<GameObjectComponent> gameObjects;
+    @SkipWire
+    private GameObjectPlacement placementBuffer;
+
+    /** Reserves World-owned command scratch; no entities, native resources or simulation. */
+    public void reservePlacement(int nodes, int joints) {
+        if (placementBuffer == null) {
+            placementBuffer = GameObjectPlacement.buffer(world, nodes, joints);
+        } else {
+            placementBuffer.reserve(nodes, joints);
+        }
+    }
+
+    /** Uses current topology on every call; snapshots never survive this gameplay operation. */
+    public void placeComposition(IntArray roots, float pivotX, float pivotY, float dx, float dy,
+                                 float rotation, boolean resetVelocities) {
+        if (placementBuffer == null) {
+            reservePlacement(0, 0);
+        }
+        placementBuffer.placeNow(roots, pivotX, pivotY, dx, dy, rotation, resetVelocities);
+    }
+
     private ComponentMapper<GameObjectMemberComponent> members;
     private ComponentMapper<PixscapeIdentityComponent> identities;
     private ComponentMapper<PhysicsBodyComponent> physicsBodies;
+    private ComponentMapper<PhysicsRuntimeBodyComponent> runtimeBodies;
+    @SkipWire
+    private PhysicsPoseAuthority poseAuthority;
+    @SkipWire
+    private Box2dSyncSystem physics;
     private DirtyTrackerSystem dirty;
     private EntitySubscription transformSubscription;
     private EntitySubscription memberSubscription;
@@ -70,6 +99,8 @@ public final class GameObjectHierarchySystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        poseAuthority = world.getSystem(PhysicsPoseAuthority.class);
+        physics = world.getSystem(Box2dSyncSystem.class);
         allEntities = world.getAspectSubscriptionManager().get(Aspect.all());
         // Artemis publishes actual deletions here, including create/delete in one frame.
         // EntityManager.isActive remains true until the end-of-frame purge.
@@ -418,6 +449,16 @@ public final class GameObjectHierarchySystem extends BaseSystem {
      * that has already marked this entity with a more precise authored transform mask.
      */
     void resolveEntityFromCurrentAuthoredTransform(int entityId, boolean publishGeometryDirty) {
+        resolveEntity(entityId, publishGeometryDirty, false, 0f, 0f, 0f);
+    }
+
+    /** Reuses the post-step snapshot instead of reading the same native pose a second time. */
+    void resolveEntityFromPhysicsPose(int entityId, float x, float y, float rotation) {
+        resolveEntity(entityId, false, true, x, y, rotation);
+    }
+
+    private void resolveEntity(int entityId, boolean publishGeometryDirty, boolean capturedPose,
+                               float capturedX, float capturedY, float capturedRotation) {
         TransformComponent authored = transforms.getSafe(entityId, null);
         if (authored == null) {
             worldTransforms.clear(entityId);
@@ -430,63 +471,97 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         }
 
         boolean gameObject = gameObjects.has(entityId);
-        float rotation = authored.rotationRad;
-        float scaleX = authored.scaleX;
-        float scaleY = authored.scaleY;
-        float cos = MathUtils.cos(rotation);
-        float sin = MathUtils.sin(rotation);
-        float localM00 = cos * scaleX;
-        float localM01 = -sin * scaleY;
-        float localM10 = sin * scaleX;
-        float localM11 = cos * scaleY;
-        float localM02 = authored.x;
-        float localM12 = authored.y;
-        if (gameObject) {
-            localM02 = authored.x + authored.originX
-                    - localM00 * authored.originX - localM01 * authored.originY;
-            localM12 = authored.y + authored.originY
-                    - localM10 * authored.originX - localM11 * authored.originY;
-        }
-
-        float worldM00 = localM00;
-        float worldM01 = localM01;
-        float worldM02 = localM02;
-        float worldM10 = localM10;
-        float worldM11 = localM11;
-        float worldM12 = localM12;
         int parentEntityId = topology.parentEntityId[entityId];
-        if (parentEntityId >= 0) {
-            if (!worldTransforms.isResolved(parentEntityId)) {
-                throw topologyFailure(entityId, "parent world transform is unresolved");
+        if (parentEntityId >= 0 && !worldTransforms.isResolved(parentEntityId)) {
+            throw topologyFailure(entityId, "parent world transform is unresolved");
+        }
+        PhysicsRuntimeBodyComponent runtime = runtimeBodies.getSafe(entityId, null);
+        boolean nativePose = poseAuthority != null && poseAuthority.isRuntimePhysics()
+                && physics != null && physics.getBox2d() != null
+                && runtime != null && runtime.body != null;
+        float rotation, scaleX, scaleY, cos, sin, x, y;
+        float worldM00, worldM01, worldM02, worldM10, worldM11, worldM12;
+        if (nativePose) {
+            // A native boundary needs its effective scale, not an authored matrix that would
+            // immediately be discarded. Keep expert-mutation validation and read the live pose.
+            float parentScale = parentEntityId < 0 ? 1f : worldTransforms.scaleX[parentEntityId];
+            scaleX = parentScale * authored.scaleX;
+            scaleY = parentScale * authored.scaleY;
+            if (capturedPose) {
+                x = capturedX;
+                y = capturedY;
+                rotation = capturedRotation;
+            } else {
+                com.badlogic.gdx.math.Vector2 position = runtime.body.getPosition();
+                x = physics.getBox2d().mToPx(position.x);
+                y = physics.getBox2d().mToPx(position.y);
+                rotation = runtime.body.getAngle();
             }
-            float p00 = worldTransforms.m00[parentEntityId];
-            float p01 = worldTransforms.m01[parentEntityId];
-            float p02 = worldTransforms.m02[parentEntityId];
-            float p10 = worldTransforms.m10[parentEntityId];
-            float p11 = worldTransforms.m11[parentEntityId];
-            float p12 = worldTransforms.m12[parentEntityId];
-            worldM00 = p00 * localM00 + p01 * localM10;
-            worldM01 = p00 * localM01 + p01 * localM11;
-            worldM02 = p00 * localM02 + p01 * localM12 + p02;
-            worldM10 = p10 * localM00 + p11 * localM10;
-            worldM11 = p10 * localM01 + p11 * localM11;
-            worldM12 = p10 * localM02 + p11 * localM12 + p12;
-            rotation = worldTransforms.rotationRad[parentEntityId] + rotation;
-            float parentScale = worldTransforms.scaleX[parentEntityId];
-            scaleX = parentScale * scaleX;
-            scaleY = parentScale * scaleY;
+            cos = MathUtils.cos(rotation);
+            sin = MathUtils.sin(rotation);
+            worldM00 = cos * scaleX;
+            worldM01 = -sin * scaleY;
+            worldM10 = sin * scaleX;
+            worldM11 = cos * scaleY;
+            worldM02 = gameObject ? x + authored.originX
+                    - worldM00 * authored.originX - worldM01 * authored.originY : x;
+            worldM12 = gameObject ? y + authored.originY
+                    - worldM10 * authored.originX - worldM11 * authored.originY : y;
+        } else {
+            rotation = authored.rotationRad;
+            scaleX = authored.scaleX;
+            scaleY = authored.scaleY;
+            cos = MathUtils.cos(rotation);
+            sin = MathUtils.sin(rotation);
+            float localM00 = cos * scaleX;
+            float localM01 = -sin * scaleY;
+            float localM10 = sin * scaleX;
+            float localM11 = cos * scaleY;
+            float localM02 = authored.x;
+            float localM12 = authored.y;
+            if (gameObject) {
+                localM02 = authored.x + authored.originX
+                        - localM00 * authored.originX - localM01 * authored.originY;
+                localM12 = authored.y + authored.originY
+                        - localM10 * authored.originX - localM11 * authored.originY;
+            }
+
+            worldM00 = localM00;
+            worldM01 = localM01;
+            worldM02 = localM02;
+            worldM10 = localM10;
+            worldM11 = localM11;
+            worldM12 = localM12;
+            if (parentEntityId >= 0) {
+                float p00 = worldTransforms.m00[parentEntityId];
+                float p01 = worldTransforms.m01[parentEntityId];
+                float p02 = worldTransforms.m02[parentEntityId];
+                float p10 = worldTransforms.m10[parentEntityId];
+                float p11 = worldTransforms.m11[parentEntityId];
+                float p12 = worldTransforms.m12[parentEntityId];
+                worldM00 = p00 * localM00 + p01 * localM10;
+                worldM01 = p00 * localM01 + p01 * localM11;
+                worldM02 = p00 * localM02 + p01 * localM12 + p02;
+                worldM10 = p10 * localM00 + p11 * localM10;
+                worldM11 = p10 * localM01 + p11 * localM11;
+                worldM12 = p10 * localM02 + p11 * localM12 + p12;
+                rotation = worldTransforms.rotationRad[parentEntityId] + rotation;
+                float parentScale = worldTransforms.scaleX[parentEntityId];
+                scaleX = parentScale * scaleX;
+                scaleY = parentScale * scaleY;
+            }
+
+            x = gameObject
+                    ? worldM02 - authored.originX
+                    + worldM00 * authored.originX + worldM01 * authored.originY
+                    : worldM02;
+            y = gameObject
+                    ? worldM12 - authored.originY
+                    + worldM10 * authored.originX + worldM11 * authored.originY
+                    : worldM12;
         }
 
-        float x = gameObject
-                ? worldM02 - authored.originX
-                + worldM00 * authored.originX + worldM01 * authored.originY
-                : worldM02;
-        float y = gameObject
-                ? worldM12 - authored.originY
-                + worldM10 * authored.originX + worldM11 * authored.originY
-                : worldM12;
-
-        boolean changed = !worldTransforms.isResolved(entityId)
+        boolean changed = publishGeometryDirty && (!worldTransforms.isResolved(entityId)
                 || Float.compare(worldTransforms.x[entityId], x) != 0
                 || Float.compare(worldTransforms.y[entityId], y) != 0
                 || Float.compare(worldTransforms.rotationRad[entityId], rotation) != 0
@@ -497,12 +572,27 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                 || Float.compare(worldTransforms.m02[entityId], worldM02) != 0
                 || Float.compare(worldTransforms.m10[entityId], worldM10) != 0
                 || Float.compare(worldTransforms.m11[entityId], worldM11) != 0
-                || Float.compare(worldTransforms.m12[entityId], worldM12) != 0;
+                || Float.compare(worldTransforms.m12[entityId], worldM12) != 0);
+        int geometryMask = GeometryDirty.ALL;
+        if (changed && nativePose && worldTransforms.isResolved(entityId)) {
+            geometryMask = GeometryDirty.NONE;
+            if (Float.compare(worldTransforms.x[entityId], x) != 0
+                    || Float.compare(worldTransforms.y[entityId], y) != 0) {
+                geometryMask |= GeometryDirty.POSITION;
+            }
+            if (Float.compare(worldTransforms.rotationRad[entityId], rotation) != 0) {
+                geometryMask |= GeometryDirty.ROTATION;
+            }
+            if (Float.compare(worldTransforms.scaleX[entityId], scaleX) != 0
+                    || Float.compare(worldTransforms.scaleY[entityId], scaleY) != 0) {
+                geometryMask |= GeometryDirty.SCALE;
+            }
+        }
         worldTransforms.setResolvedFrame(
                 entityId, x, y, rotation, scaleX, scaleY,
                 worldM00, worldM01, worldM02, worldM10, worldM11, worldM12);
         if (changed && publishGeometryDirty && dirty != null) {
-            dirty.geometry(entityId, GeometryDirty.ALL);
+            dirty.geometry(entityId, geometryMask);
         }
     }
 

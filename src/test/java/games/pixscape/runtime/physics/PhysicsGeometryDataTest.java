@@ -5,6 +5,22 @@ import org.junit.Test;
 
 public class PhysicsGeometryDataTest {
     @Test
+    public void compiledCopiesKeepMutableVerticesIndependentAndNormalizeAbsentVertices() {
+        CompiledFixtureData source = new CompiledFixtureData();
+        source.polygonVertices = new float[]{0, 0, 1, 0, 0, 1};
+        source.polygonVertexCount = 3;
+        CompiledFixtureData first = source.copy(), second = source.copy();
+        first.polygonVertices[0] = 10;
+        Assert.assertEquals(0, source.polygonVertices[0], 0f);
+        Assert.assertEquals(0, second.polygonVertices[0], 0f);
+        source.polygonVertices = null;
+        Assert.assertEquals(0, source.copy().polygonVertices.length);
+        PhysicsGeometryData geometry = new PhysicsGeometryData();
+        geometry.polygonVertices = null;
+        Assert.assertEquals(0, geometry.copy().polygonVertices.length);
+    }
+
+    @Test
     public void copyIsExactAndOwnsItsPolygonVertices() {
         PhysicsGeometryData source = new PhysicsGeometryData();
         source.shapeType = PhysicsGeometryData.SHAPE_POLYGON;

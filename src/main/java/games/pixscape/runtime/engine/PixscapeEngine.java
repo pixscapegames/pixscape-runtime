@@ -45,10 +45,6 @@ import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -135,7 +131,7 @@ public final class PixscapeEngine {
     private final AnimationRegistry animationRegistry = new AnimationRegistry();
     private final TileAnimationRegistry animatedTileRegistry = new TileAnimationRegistry();
     private RuntimeTilesetProfiles tilesetProfiles = RuntimeTilesetProfiles.empty();
-    private PixscapeAPI publicApi;
+    private PixscapeApiImpl publicApi;
 
 
     private Consumer<WorldConfigurationBuilder> preRenderSystemCustomizer;
@@ -521,11 +517,49 @@ public final class PixscapeEngine {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
         String logicalId = GameObjectAssetId.normalize(name);
-        GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
-                identityRegistry, activeSceneMeta, atlasRuntimeService);
-        SpawnResult result = spawner.spawnPreparedRuntime(world,
-                activeSceneAvailability.requireGameObject(logicalId), rootWorldX, rootWorldY);
-        return new SpawnedGameObjectInstance(world, result, api().entities());
+        SpawnResult result = activeSceneAvailability.spawnGameObject(world, logicalId, rootWorldX, rootWorldY);
+        return new SpawnedGameObjectInstance(world, result, api().entities(),
+                activeSceneAvailability.requireGameObject(logicalId).memberNames());
+    }
+
+    /** Acquires or explicitly reloads a scene-local immutable definition, never an instance. */
+    public GameObjectFactory prepareGameObject(String name, FileHandle readyFile) {
+        if (!sceneLoaded || activeSceneAvailability == null || world == null) {
+            throw new IllegalStateException("No scene is READY for Game Object preparation.");
+        }
+        final String logicalId = GameObjectAssetId.normalize(name);
+        final SceneAvailabilityPlan scene = activeSceneAvailability;
+        final GameObjectRuntimeFragmentSpawner.PreparedGameObject model = readyFile == null
+                ? scene.requireGameObject(logicalId) : scene.prepareGameObject(readyFile, logicalId);
+        final Object preparationIdentity = model.preparationIdentity();
+        return new GameObjectFactory() {
+            private void requireCurrent() {
+                if (!sceneLoaded || activeSceneAvailability != scene || world == null
+                        || scene.requireGameObject(logicalId).preparationIdentity() != preparationIdentity) {
+                    throw new IllegalStateException("Game Object factory was retired; prepare it again for the current scene/asset.");
+                }
+            }
+
+            @Override
+            public GameObjectInstance spawn(float x, float y) {
+                requireCurrent();
+                SpawnResult result = scene.spawnGameObject(world, logicalId, x, y);
+                return new SpawnedGameObjectInstance(world, result, api().entities(),
+                        activeSceneAvailability.requireGameObject(logicalId).memberNames());
+            }
+
+            @Override
+            public int nodeCount() {
+                requireCurrent();
+                return scene.requireGameObject(logicalId).nodeCount();
+            }
+
+            @Override
+            public int jointCount() {
+                requireCurrent();
+                return scene.requireGameObject(logicalId).jointCount();
+            }
+        };
     }
 
     /**
@@ -621,32 +655,24 @@ public final class PixscapeEngine {
     private static final class SpawnedGameObjectInstance implements GameObjectInstance {
         private final EntityRef root;
         private final EntityRef[] members;
-        private final Map<String, EntityRef> byName = new HashMap<String, EntityRef>();
-        private final Set<String> ambiguousNames = new HashSet<String>();
+        private final GameObjectRuntimeFragmentSpawner.PreparedMemberNames memberNames;
 
-        SpawnedGameObjectInstance(World world, SpawnResult result, EntitiesAPI entities) {
+        SpawnedGameObjectInstance(World world, SpawnResult result, EntitiesAPI entities,
+                                  GameObjectRuntimeFragmentSpawner.PreparedMemberNames memberNames) {
+            this.memberNames = memberNames;
             root = entities.ofEntityId(result.rootEntityId());
             IntBag created = result.createdEntityIds();
             ComponentMapper<GameObjectMemberComponent> membership =
                     world.getMapper(GameObjectMemberComponent.class);
-            ComponentMapper<PixscapeIdentityComponent> identities =
-                    world.getMapper(PixscapeIdentityComponent.class);
-            int count = 0;
-            for (int i = 0; i < created.size(); i++) {
-                if (membership.has(created.get(i))) count++;
-            }
-            members = new EntityRef[count];
+            members = new EntityRef[memberNames.memberCount()];
             int index = 0;
             for (int i = 0; i < created.size(); i++) {
                 int entityId = created.get(i);
-                if (!membership.has(entityId)) continue;
+                if (!membership.has(entityId)) {
+                    continue;
+                }
                 EntityRef ref = entities.ofEntityId(entityId);
                 members[index++] = ref;
-                PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
-                String name = identity != null ? identity.name : null;
-                if (name == null || name.isEmpty()) continue;
-                if (byName.containsKey(name)) ambiguousNames.add(name);
-                else byName.put(name, ref);
             }
         }
 
@@ -664,14 +690,14 @@ public final class PixscapeEngine {
 
         @Override
         public EntityRef requireMember(String name) {
-            if (ambiguousNames.contains(name)) {
+            int index = memberNames.find(name);
+            if (index == -1) {
                 throw new IllegalArgumentException("Ambiguous Game Object member name: " + name);
             }
-            EntityRef member = byName.get(name);
-            if (member == null) {
+            if (index == -2) {
                 throw new IllegalArgumentException("Missing Game Object member name: " + name);
             }
-            return member;
+            return members[index];
         }
 
         @Override
@@ -701,10 +727,7 @@ public final class PixscapeEngine {
         box2dSyncSystem = null;
 
         identityRegistry.bind(null, null);
-        if (world != null) {
-            world.dispose();
-            world = null;
-        }
+        disposeWorld();
 
         if (box2dWorldService != null) {
             box2dWorldService.dispose();
@@ -1253,6 +1276,24 @@ public final class PixscapeEngine {
         };
     }
 
+    private void disposeWorld() {
+        if (world == null) {
+            return;
+        }
+        if (publicApi != null) {
+            publicApi.onWorldRetired();
+        }
+        try {
+            world.dispose();
+        } finally {
+            world = null;
+            // Application system disposal may query the API and rebind it to the retiring World.
+            if (publicApi != null) {
+                publicApi.onWorldRetired();
+            }
+        }
+    }
+
     /**
      * Disposes world and GPU-side runtime resources.
      */
@@ -1269,10 +1310,7 @@ public final class PixscapeEngine {
 
         if (activeSceneAvailability != null) activeSceneAvailability.releaseHudResources();
         // World after HUD; World systems may still touch their own services.
-        if (world != null) {
-            world.dispose();
-            world = null;
-        }
+        disposeWorld();
 
         // Box2D service after world dispose
         if (box2dWorldService != null) {
@@ -1317,10 +1355,7 @@ public final class PixscapeEngine {
         }
         box2dSyncSystem = null;
 
-        if (world != null) {
-            world.dispose();
-            world = null;
-        }
+        disposeWorld();
 
         if (box2dWorldService != null) {
             box2dWorldService.dispose();

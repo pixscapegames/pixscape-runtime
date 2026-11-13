@@ -6,12 +6,13 @@ import java.util.Arrays;
  * Compiled Box2D-compatible product with no persistent fixture identity.
  */
 public final class CompiledFixtureData {
+    private static final float[] NO_VERTICES = new float[0];
     public int shapeType;
 
     public float halfWidth;
     public float halfHeight;
     public float radius;
-    public float[] polygonVertices = new float[0];
+    public float[] polygonVertices = NO_VERTICES;
     public int polygonVertexCount;
 
     public float offsetX;
@@ -46,9 +47,8 @@ public final class CompiledFixtureData {
         copy.halfWidth = halfWidth;
         copy.halfHeight = halfHeight;
         copy.radius = radius;
-        copy.polygonVertices = polygonVertices != null
-                ? Arrays.copyOf(polygonVertices, polygonVertices.length)
-                : new float[0];
+        copy.polygonVertices = polygonVertices == null || polygonVertices.length == 0
+                ? NO_VERTICES : Arrays.copyOf(polygonVertices, polygonVertices.length);
         copy.polygonVertexCount = polygonVertexCount;
         copy.offsetX = offsetX;
         copy.offsetY = offsetY;

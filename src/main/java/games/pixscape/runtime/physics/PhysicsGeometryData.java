@@ -6,6 +6,7 @@ import java.util.Arrays;
  * Persistent authored geometry for one manual physics shape.
  */
 public final class PhysicsGeometryData {
+    private static final float[] NO_VERTICES = new float[0];
     public static final int SHAPE_BOX = 0;
     public static final int SHAPE_CIRCLE = 1;
     public static final int SHAPE_POLYGON = 2;
@@ -17,7 +18,7 @@ public final class PhysicsGeometryData {
     public float radius = 0.5f;
     public float halfWidth = 0.5f;
     public float halfHeight = 0.5f;
-    public float[] polygonVertices = new float[0];
+    public float[] polygonVertices = NO_VERTICES;
     public int polygonVertexCount;
 
     public PhysicsGeometryData copy() {
@@ -29,9 +30,8 @@ public final class PhysicsGeometryData {
         copy.radius = radius;
         copy.halfWidth = halfWidth;
         copy.halfHeight = halfHeight;
-        copy.polygonVertices = polygonVertices != null
-                ? Arrays.copyOf(polygonVertices, polygonVertices.length)
-                : new float[0];
+        copy.polygonVertices = polygonVertices == null || polygonVertices.length == 0
+                ? NO_VERTICES : Arrays.copyOf(polygonVertices, polygonVertices.length);
         copy.polygonVertexCount = polygonVertexCount;
         return copy;
     }

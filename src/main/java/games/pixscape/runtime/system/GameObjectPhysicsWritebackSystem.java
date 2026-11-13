@@ -84,8 +84,10 @@ public final class GameObjectPhysicsWritebackSystem extends BaseSystem {
             boolean hasNativePose = hasPose(entityId);
             if (hasNativePose) {
                 writeAuthoredPose(entityId, topology.parentEntityId[entityId], worldTransforms);
+                hierarchy.resolveEntityFromPhysicsPose(entityId, poseX[entityId], poseY[entityId], poseRotation[entityId]);
+            } else {
+                hierarchy.resolveEntityFromCurrentAuthoredTransform(entityId);
             }
-            hierarchy.resolveEntityFromCurrentAuthoredTransform(entityId, !hasNativePose);
         }
     }
 
@@ -99,8 +101,9 @@ public final class GameObjectPhysicsWritebackSystem extends BaseSystem {
             if (body == null) continue;
             ensureCapacity(entityId);
             poseFrame[entityId] = frame;
-            poseX[entityId] = box2d.mToPx(body.getPosition().x);
-            poseY[entityId] = box2d.mToPx(body.getPosition().y);
+            com.badlogic.gdx.math.Vector2 position = body.getPosition();
+            poseX[entityId] = box2d.mToPx(position.x);
+            poseY[entityId] = box2d.mToPx(position.y);
             poseRotation[entityId] = body.getAngle();
         }
     }

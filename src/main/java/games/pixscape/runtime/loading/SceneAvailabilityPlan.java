@@ -49,6 +49,7 @@ public final class SceneAvailabilityPlan {
     private boolean hudPrepared;
     private final ObjectMap<String, PreparedGameObject> gameObjects = new ObjectMap<>();
     private boolean gameObjectsPrepared;
+    private GameObjectRuntimeFragmentSpawner gameObjectSpawner;
 
     /**
      * Called after atlas publication and before READY. This plan owns the models until release.
@@ -64,6 +65,7 @@ public final class SceneAvailabilityPlan {
             candidates.put(id, spawner.prepare(file, id));
         }
         gameObjects.putAll(candidates);
+        gameObjectSpawner = spawner;
         gameObjectsPrepared = true;
     }
 
@@ -76,6 +78,24 @@ public final class SceneAvailabilityPlan {
         if (model == null) throw new IllegalStateException("Game Object '" + logicalId
                 + "' is not prepared. Add it to Runtime Availability before scene loading.");
         return model;
+    }
+
+    /** Explicit cold boundary for an already available file and already published atlas bindings. */
+    public PreparedGameObject prepareGameObject(FileHandle file, String logicalId) {
+        requireActive();
+        if (!gameObjectsPrepared || file == null) {
+            throw new IllegalStateException("Scene preparation must complete before preparing an on-demand Game Object.");
+        }
+        PreparedGameObject candidate = gameObjectSpawner.prepare(file, logicalId);
+        gameObjects.put(logicalId, candidate);
+        return candidate;
+    }
+
+    /** Reuses scene-owned remapping buffers; instance results never borrow those buffers. */
+    public games.pixscape.runtime.gameobject.SpawnResult spawnGameObject(com.artemis.World world,
+                                                                        String logicalId, float x, float y) {
+        PreparedGameObject model = requireGameObject(logicalId);
+        return gameObjectSpawner.spawnPreparedRuntime(world, model, x, y);
     }
 
     public SceneAvailabilityPlan(FileAvailabilityService availability,
@@ -221,6 +241,7 @@ public final class SceneAvailabilityPlan {
         released = true;
         gameObjects.clear();
         gameObjectsPrepared = false;
+        gameObjectSpawner = null;
         try {
             releaseHudResources();
         } finally {
